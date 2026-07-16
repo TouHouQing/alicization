@@ -6,27 +6,11 @@ import {
   asAlicizationInlineExecutionSurfaceInput,
   buildAlicizationMinimalContextRecoveryMessages,
   readAlicizationInlineExecutionReceipt,
-  shouldUseAlicizationExecutionFirstFastPath,
 } from './main-chat-background-rules'
 
 vi.mock('./runtime-soul', () => ({
   sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim().replace(/\s+/g, ' ') : fallback,
 }))
-
-function createPrepared(overrides?: Partial<any>): any {
-  return {
-    waitForTools: true,
-    runtimeSurface: {
-      action: {
-        kind: 'execute',
-      },
-      tooling: {
-        routingRequired: true,
-      },
-    },
-    ...overrides,
-  }
-}
 
 describe('main chat background rules', () => {
   it('builds minimal timeout recovery context without dropping core prompt authority or recent dialogue', () => {
@@ -55,15 +39,19 @@ describe('main chat background rules', () => {
       'latest user turn',
     ])
   })
-
-  it('preserves project-state continuity blocks during minimal timeout recovery compaction', () => {
+  it('keeps typed memory context without giving legacy governance markers recovery priority', () => {
+    const typedMemoryContext = JSON.stringify({
+      type: 'alicization-turn-memory-context',
+      data: {
+        workingMemoryVersion: 'working-memory-owner-context-v1',
+        longTermEvidenceIds: ['memory-1'],
+      },
+    })
     const messages: Message[] = [
       { role: 'system', content: 'core-1' },
       { role: 'system', content: 'core-2' },
-      { role: 'system', content: 'core-3' },
-      { role: 'system', content: '[ALICIZATION_PROJECT_STATE]\ncurrent_phase=Phase 1: Local Digital Life\nproject_preflight=Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory and initiative still need tighter same-her closure | next=keep project self-awareness explicit before each host-visible turn.' },
-      { role: 'system', content: '[ALICIZATION_MIND_TURN_CONTRACT]\nProject identity: Alicization is a local-first digital life project.\nProject same-her self line: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.\nProject same-her drift risk: If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.' },
-      { role: 'system', content: '[ALICIZATION_LIVING_SELF]\nProject identity still shaping this turn: Alicization is a local-first digital life project.' },
+      { role: 'system', content: typedMemoryContext },
+      { role: 'system', content: '[ALICIZATION_PROJECT_STATE]' },
       { role: 'user', content: 'older user turn' },
       { role: 'assistant', content: 'older assistant turn' },
       { role: 'user', content: 'latest user turn' },
@@ -74,39 +62,8 @@ describe('main chat background rules', () => {
       .filter(message => message.role === 'system')
       .map(message => String(message.content))
 
-    expect(systemTexts).toEqual(expect.arrayContaining([
-      '[ALICIZATION_PROJECT_STATE]\ncurrent_phase=Phase 1: Local Digital Life\nproject_preflight=Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory and initiative still need tighter same-her closure | next=keep project self-awareness explicit before each host-visible turn.',
-      '[ALICIZATION_MIND_TURN_CONTRACT]\nProject identity: Alicization is a local-first digital life project.\nProject same-her self line: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.\nProject same-her drift risk: If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
-      '[ALICIZATION_LIVING_SELF]\nProject identity still shaping this turn: Alicization is a local-first digital life project.',
-    ]))
-  })
-
-  it('preserves the executive answer brief during minimal timeout recovery compaction when it carries richer same-her pre-answer authority', () => {
-    const executiveBrief = [
-      '[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]',
-      'Project preflight self-awareness: Alicization is a local-first digital life project and this turn still belongs to the same unfinished Phase 1 digital life line.',
-      'Project same-her self line: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      'Next closure target: Carry the richer pre-answer self-awareness line through timeout recovery before local fluency takes over.',
-    ].join('\n')
-    const messages: Message[] = [
-      { role: 'system', content: 'core-1' },
-      { role: 'system', content: 'core-2' },
-      { role: 'system', content: 'core-3' },
-      { role: 'system', content: executiveBrief },
-      { role: 'system', content: '[ALICIZATION_PROJECT_STATE]\nproject_identity=Alicization is a local-first digital life project.' },
-      { role: 'system', content: '[ALICIZATION_MIND_TURN_CONTRACT]\nProject identity: Alicization is a local-first digital life project.' },
-      { role: 'system', content: '[ALICIZATION_LIVING_SELF]\nProject identity still shaping this turn: Alicization is a local-first digital life project.' },
-      { role: 'user', content: 'older user turn' },
-      { role: 'assistant', content: 'older assistant turn' },
-      { role: 'user', content: 'latest user turn' },
-    ]
-
-    const compact = buildAlicizationMinimalContextRecoveryMessages(messages)
-    const systemTexts = compact
-      .filter(message => message.role === 'system')
-      .map(message => String(message.content))
-
-    expect(systemTexts).toContain(executiveBrief)
+    expect(systemTexts).toContain(typedMemoryContext)
+    expect(systemTexts).not.toContain('[ALICIZATION_PROJECT_STATE]')
   })
 
   it('reads inline execution receipts only from terminal executor thread states', () => {
@@ -323,69 +280,5 @@ describe('main chat background rules', () => {
       summary: 'Dismissed the blocking desktop popup through the local GUI thread.',
       outcome: 'popup dismissed',
     })
-  })
-
-  it('allows execution-first fast path only for a single required executor tool on routed execution turns', () => {
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['executor_run_codex'],
-      prepared: createPrepared(),
-    })).toBe(true)
-
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['browser_search_web'],
-      prepared: createPrepared(),
-    })).toBe(true)
-
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['browser_type_text'],
-      prepared: createPrepared(),
-    })).toBe(true)
-
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['browser_navigate'],
-      prepared: createPrepared(),
-    })).toBe(true)
-
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['browser_scroll'],
-      prepared: createPrepared(),
-    })).toBe(true)
-
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['browser_wait'],
-      prepared: createPrepared(),
-    })).toBe(true)
-
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['desktop_press_keys'],
-      prepared: createPrepared(),
-    })).toBe(true)
-
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['desktop_wait'],
-      prepared: createPrepared(),
-    })).toBe(true)
-
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['filesystem_read_file'],
-      prepared: createPrepared(),
-    })).toBe(false)
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['executor_run_codex', 'executor_run_cli'],
-      prepared: createPrepared(),
-    })).toBe(false)
-    expect(shouldUseAlicizationExecutionFirstFastPath({
-      enforcedExecutionTools: ['executor_run_codex'],
-      prepared: createPrepared({
-        runtimeSurface: {
-          action: {
-            kind: 'answer',
-          },
-          tooling: {
-            routingRequired: true,
-          },
-        },
-      }),
-    })).toBe(false)
   })
 })

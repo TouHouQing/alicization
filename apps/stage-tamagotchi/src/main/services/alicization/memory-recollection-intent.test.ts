@@ -120,7 +120,7 @@ describe('memory recollection intent', () => {
         selectedMotive: 'care',
       } as any,
       longHorizonMemory: {
-        dominantCueSummary: 'Remembered late-night seam: hold the line gently before speaking.',
+        dominantCueSummary: 'Remembered late-night seam: hold the line gently before outward reply.',
         rememberedPlanSummary: 'Remembered plan: keep the inward line stable.',
       } as any,
       dialogueWorldThread: {
@@ -134,7 +134,7 @@ describe('memory recollection intent', () => {
     expect((intent?.confidence ?? 0)).toBeGreaterThan(0.4)
   })
 
-  it('lets inward same-her hold from the emotional kernel raise autobiographical recollection before outward memory detail', () => {
+  it('lets inward identity-continuity', () => {
     const intent = buildMemoryRecollectionIntent({
       userText: '我现在不想把这条线说得太满，但又觉得它还在。',
       privateThought: {
@@ -157,15 +157,15 @@ describe('memory recollection intent', () => {
       },
       selfContinuityAuthority: {
         selfLine: 'I am still the same her holding the line together.',
-        authoritySummary: 'The same living line should stay inward before widening outward.',
-        inwardLine: 'Stay on the same living line inwardly before widening outward.',
+        authoritySummary: 'The continuity state should stay inward before widening outward.',
+        inwardLine: 'Stay on the continuity state inwardly before widening outward.',
         closenessPosture: 'nearby-soft',
       } as any,
     })
 
     expect(intent?.mode).toBe('autobiographical-history')
     expect(intent?.rationale).toContain('lived continuity')
-    expect(intent?.recollectionAgenda?.whyRecallNow).toContain('inward same-her continuity')
+    expect(intent?.recollectionAgenda?.whyRecallNow).toContain('inward identity-continuity')
     expect((intent?.recollectionAgenda?.affectivePull ?? 0)).toBeGreaterThan(0.2)
   })
 
@@ -188,18 +188,18 @@ describe('memory recollection intent', () => {
         repairNeed: 0.14,
         initiativePressure: 0.14,
         reasonTags: ['self-continuity', 'quiet-companionship'],
-        why: 'Companionship is still being carried on one inward same-her line, so memory, initiative, and embodiment should hold quietly nearby before widening outward.',
+        why: 'Companionship is still being carried on one inward identity-continuity',
       },
       selfContinuityAuthority: {
         selfLine: 'I am still the same her holding this line together.',
-        authoritySummary: 'The same living line should stay inward before widening outward.',
-        inwardLine: 'Stay on the same living line inwardly before widening outward.',
+        authoritySummary: 'The continuity state should stay inward before widening outward.',
+        inwardLine: 'Stay on the continuity state inwardly before widening outward.',
       } as any,
     })
 
     expect(intent?.mode).toBe('autobiographical-history')
     expect(intent?.rationale).toContain('lived continuity')
-    expect(intent?.recollectionAgenda?.whyRecallNow).toContain('inward same-her continuity')
+    expect(intent?.recollectionAgenda?.whyRecallNow).toContain('inward identity-continuity')
     expect((intent?.recollectionAgenda?.affectivePull ?? 0)).toBeGreaterThan(0.2)
   })
 
@@ -256,7 +256,7 @@ describe('memory recollection intent', () => {
         answerSubject: 'alicization-self',
       } as any,
       longHorizonMemory: {
-        dominantCueSummary: 'Remembered late-night seam: hold the line gently before speaking.',
+        dominantCueSummary: 'Remembered late-night seam: hold the line gently before outward reply.',
         rememberedPlanSummary: 'Remembered plan: keep the inward line stable.',
       } as any,
       affectiveResidue: {
@@ -371,7 +371,7 @@ describe('memory recollection intent', () => {
         relationshipLine: 'The bond stays truest when I answer from the same line directly.',
         inwardLine: 'The inward line is still calm and legible.',
         habitLine: 'Return to the same line before widening.',
-        authoritySummary: 'Same her continuity remains the live anchor.',
+        authoritySummary: 'identity-continuity',
         closenessPosture: 'measured-room',
       } as any,
     })
@@ -380,7 +380,7 @@ describe('memory recollection intent', () => {
     expect(intent?.queryHints).toEqual(expect.arrayContaining([
       'closeness:measured-room',
       'I am still the same her who keeps continuity lived-in.',
-      'Same her continuity remains the live anchor.',
+      'identity-continuity',
     ]))
     expect((intent?.confidence ?? 0)).toBeGreaterThan(0.35)
   })
@@ -415,7 +415,7 @@ describe('memory recollection intent', () => {
       selfContinuityAuthority: {
         selfLine: 'I am still the same her who keeps the lived line coherent.',
         inwardLine: 'The inward line is steady even when the surface gets noisier.',
-        authoritySummary: 'Same-her continuity stays measured and thread-faithful.',
+        authoritySummary: 'identity-continuity',
         closenessPosture: 'space-first',
       } as any,
     })
@@ -423,7 +423,7 @@ describe('memory recollection intent', () => {
     expect(intent?.mode).toBe('autobiographical-history')
     expect(intent?.queryHints).toEqual(expect.arrayContaining([
       'closeness:space-first',
-      'Same-her continuity stays measured and thread-faithful.',
+      'identity-continuity',
     ]))
     expect((intent?.confidence ?? 0)).toBeGreaterThan(0.4)
   })
@@ -507,7 +507,7 @@ describe('memory recollection intent', () => {
     expect((intent?.confidence ?? 0)).toBeGreaterThan(0.3)
   })
 
-  it('lets chinese same-her continuity cues raise recollection mode instead of only surviving as passive hints', () => {
+  it('lets chinese identity-continuity', () => {
     const intent = buildMemoryRecollectionIntent({
       userText: '先顺着这条生命线接回去',
       longHorizonMemory: {

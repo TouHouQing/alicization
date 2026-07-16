@@ -1350,7 +1350,6 @@ function openMemoryWorkbench() {
                   </div>
                   <div>{{ formatSelfEvolutionDisplayText('hypothesis-labeling-raised') }}: {{ selectedCandidateConsumptionPreview.response.hypothesisLabelingRaised }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('specificity-clamp-raised') }}: {{ selectedCandidateConsumptionPreview.response.specificityClampRaised }}</div>
-                  <div>{{ formatSelfEvolutionDisplayText('second-pass-required') }}: {{ selectedCandidateConsumptionPreview.response.secondPassRequired }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('template-shell-suppressed') }}: {{ selectedCandidateConsumptionPreview.response.templateShellSuppressed }}</div>
                   <div :class="['mt-1 text-neutral-500']">
                     {{ formatList(selectedCandidateConsumptionPreview.response.reasons) }}

@@ -145,7 +145,6 @@ export function buildAlicizationEmotionalSelfRevisionStatePatch(input: {
       warmthReleaseBias: clamp01(repairShift || guardedShift || restProtectiveShift ? 0 : 0.08),
     },
     responsePosture: {
-      secondPassRequiredBias: clamp01(repairShift || guardedShift ? 0.24 : 0.12),
       hypothesisLabelBias: clamp01(guardedShift ? 0.22 : 0.08),
       specificityClampBias: clamp01(ledger.memoryWriteback.shouldWrite ? 0.18 : 0.08),
       templateShellSuppressionBias: clamp01(0.22 + continuityPressure * 0.38),

@@ -41,18 +41,10 @@ import {
   deriveStageEmbodimentSpeechDynamicsState,
   deriveStageEmbodimentSpeechRenderState,
   estimateStageEmbodimentSpeechPlaybackDurationMs,
-  hasAlicizationAudibleSameHerCarry,
-  hasAlicizationBodyVoiceOnlySameHerCarry,
-  hasAlicizationQuieterSameHerCarry,
-  hasAlicizationSoftenedSameHerCarry,
-  hasAlicizationStillVoicedSameHerCarry,
   normalizeAlicizationDialogueSpeechTimeline,
   normalizeAlicizationDigitalLifeEnvelope,
   normalizeAlicizationEmotion,
-  normalizeAlicizationRuntimeDigest,
   resolveAlicizationDialogueSpeechTimelineConsumedOffset,
-  resolveProjectClosureSpeechEmbodimentBias,
-  resolveProjectClosureSpeechEmbodimentBiasFromCue,
   resolveStageEmbodimentSpeechStopLingerMs,
 } from '@proj-alicization/stage-shared'
 import { computed, getCurrentInstance, onUnmounted, readonly, ref, watch } from 'vue'
@@ -160,18 +152,11 @@ function resolveProjectedDigitalLifeMode(input: {
   residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null
   emotion: AlicizationEmotion
   text: string
-  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null | undefined
 }) {
   if (input.residentMode === 'repair-before-closeness')
     return 'thinking' as const
   if (input.residentMode === 'measured-return')
     return input.text.trim() ? 'speaking' as const : 'thinking' as const
-  if (hasSameThreadSoftenedSameHerResidentLine({
-    residentMode: input.residentMode,
-    rendererHints: input.rendererHints ?? null,
-  })) {
-    return 'thinking' as const
-  }
   if (input.emotion === 'thinking' && !input.text.trim())
     return 'thinking' as const
   return 'acting' as const
@@ -624,94 +609,9 @@ function resolveSpineFallbackActionCue(
   }
 }
 
-function hasSoftenedSameHerRendererCarry(
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-) {
-  return hasAlicizationSoftenedSameHerCarry(rendererHints)
-}
-
-function hasBodyVoiceOnlySameHerRendererCarry(
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-) {
-  return hasAlicizationBodyVoiceOnlySameHerCarry(rendererHints)
-}
-
-function hasStillVoicedSameHerRendererCarry(
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-) {
-  return hasAlicizationStillVoicedSameHerCarry(rendererHints)
-}
-
-function hasSameThreadSoftenedSameHerResidentLine(input: {
-  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined
-}) {
-  return input.residentMode === 'same-thread-continuation'
-    && hasSoftenedSameHerRendererCarry(input.rendererHints)
-}
-
-function hasSameThreadObservingBodyLineResidentCarry(input: {
-  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined
-}) {
-  const normalizedReasonTags = input.rendererHints?.reasonTags
-    ?.map(tag => typeof tag === 'string' ? tag.trim().toLowerCase().replace(/-/g, '_') : null)
-    .filter((tag): tag is string => Boolean(tag))
-    ?? []
-
-  return hasSameThreadSoftenedSameHerResidentLine(input)
-    && (
-      (
-        hasBodyVoiceOnlySameHerRendererCarry(input.rendererHints)
-        || normalizedReasonTags.includes('embodiment:body+voice_only')
-      )
-      || hasAlicizationQuieterSameHerCarry(input.rendererHints)
-    )
-}
-
-function resolveAudibleSameHerPreviewRestraint(
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-) {
-  return hasSoftenedSameHerRendererCarry(rendererHints)
-    ? {
-        voiceEnergyScale: 0.9,
-        voiceCadenceScale: 0.92,
-        lipSyncVisemeScale: 0.92,
-        lipSyncEnergyScale: 0.9,
-        mouthScale: 0.94,
-        faceIntensityScale: 0.93,
-        actionIntensityScale: 0.88,
-        settleMode: 'linger' as const,
-      }
-    : null
-}
-
-function hasMeasuredReturnStillVoicedPreviewRestraint(input: {
-  residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined
-}) {
-  if (input.residentMode !== 'measured-return')
-    return false
-
-  const rendererHints = input.rendererHints ?? null
-  const hasSofteningWindow = (
-    rendererHints?.preferredBlinkCadence === 'linger'
-    || rendererHints?.preferredBlinkCadence === 'quiet'
-    || rendererHints?.preferredGazeMode === 'soften'
-    || rendererHints?.preferredGazeMode === 'steady'
-  )
-
-  return hasSofteningWindow
-    && hasStillVoicedSameHerRendererCarry(rendererHints)
-}
-
 function resolveSpineFallbackVoiceRestraint(
   residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined,
-  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null | undefined,
 ) {
-  const sameHerSoftenedReturn = hasSoftenedSameHerRendererCarry(rendererHints)
-  const sameHerStillVoicedReturn = hasStillVoicedSameHerRendererCarry(rendererHints)
-
   if (residentMode === 'repair-before-closeness') {
     return {
       pitchDeltaOffset: -2,
@@ -722,15 +622,6 @@ function resolveSpineFallbackVoiceRestraint(
   }
 
   if (residentMode === 'measured-return') {
-    if (sameHerStillVoicedReturn) {
-      return {
-        pitchDeltaOffset: -1,
-        rateMultiplierOffset: -0.03,
-        energyOffset: -0.08,
-        cadenceOffset: -0.07,
-      }
-    }
-
     return {
       pitchDeltaOffset: -1,
       rateMultiplierOffset: -0.02,
@@ -740,15 +631,6 @@ function resolveSpineFallbackVoiceRestraint(
   }
 
   if (isQuietCompanionshipResidentMode(residentMode)) {
-    return {
-      pitchDeltaOffset: -1,
-      rateMultiplierOffset: -0.015,
-      energyOffset: -0.04,
-      cadenceOffset: -0.035,
-    }
-  }
-
-  if (sameHerSoftenedReturn) {
     return {
       pitchDeltaOffset: -1,
       rateMultiplierOffset: -0.015,
@@ -768,23 +650,17 @@ function resolveSpineFallbackVoiceRestraint(
 function resolveRendererOnlyRejoinPitchDelta(input: {
   pitchDelta: number
   residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined
 }) {
   const currentPitchDelta = Number.isFinite(input.pitchDelta)
     ? Math.round(clampRange(input.pitchDelta, -12, 12))
     : 0
-  const quieterSameHerCarry = hasAlicizationQuieterSameHerCarry(input.rendererHints)
   const targetPitchDelta = input.residentMode === 'repair-before-closeness'
     ? -2
     : input.residentMode === 'measured-return'
       ? -1
       : isQuietCompanionshipResidentMode(input.residentMode)
         ? -1
-        : quieterSameHerCarry
-          ? -2
-          : hasSoftenedSameHerRendererCarry(input.rendererHints)
-            ? -1
-            : null
+        : null
 
   if (targetPitchDelta == null)
     return currentPitchDelta
@@ -803,24 +679,6 @@ function clampRestrainedPreviewActionCue(input: {
 
   const residentMode = input.residentMode ?? null
   const rendererHints = input.rendererHints ?? null
-  const normalizedReasonTags = rendererHints?.reasonTags
-    ?.map(tag => typeof tag === 'string' ? tag.trim().toLowerCase().replace(/-/g, '_') : null)
-    .filter((tag): tag is string => Boolean(tag))
-    ?? []
-  const hasSofteningWindow = (
-    rendererHints?.preferredBlinkCadence === 'linger'
-    || rendererHints?.preferredBlinkCadence === 'quiet'
-    || rendererHints?.preferredGazeMode === 'soften'
-    || rendererHints?.preferredGazeMode === 'steady'
-  )
-  const sameHerSoftenedReturn = hasSofteningWindow
-    && hasSoftenedSameHerRendererCarry(rendererHints)
-  const sameHerBodyVoiceOnlyReturn = hasSofteningWindow
-    && hasBodyVoiceOnlySameHerRendererCarry(rendererHints)
-  const sameHerQuieterLane = hasSofteningWindow
-    && hasAlicizationQuieterSameHerCarry(rendererHints)
-  const sameHerBodyVoiceOnlyLane = sameHerBodyVoiceOnlyReturn
-    || normalizedReasonTags.includes('embodiment:body+voice_only')
 
   if (residentMode === 'repair-before-closeness')
     return 'idle_settle'
@@ -828,24 +686,8 @@ function clampRestrainedPreviewActionCue(input: {
   if (
     residentMode === 'measured-return'
     && normalized === 'steady_focus'
-    && !sameHerSoftenedReturn
     && (rendererHints?.preferredGazeMode !== 'steady' || rendererHints?.preferredBlinkCadence !== 'quiet')
     && (rendererHints?.preferredGazeMode !== 'soften' || rendererHints?.preferredBlinkCadence !== 'linger')
-  ) {
-    return 'observe_focus'
-  }
-
-  if (
-    (sameHerBodyVoiceOnlyLane || sameHerQuieterLane)
-    && (normalized === 'steady_focus' || normalized === 'observe_focus')
-  ) {
-    return null
-  }
-
-  if (
-    sameHerSoftenedReturn
-    && normalized === 'steady_focus'
-    && residentMode !== 'measured-return'
   ) {
     return 'observe_focus'
   }
@@ -960,107 +802,6 @@ function normalizeSpeechMetadataRecord(metadata: Record<string, unknown> | null 
     : null
 }
 
-function resolveProjectClosureSpeechEmbodimentBiasFromMetadata(
-  metadata: Record<string, unknown> | null | undefined,
-) {
-  const normalizedMetadata = normalizeSpeechMetadataRecord(metadata)
-  const runtimeDigest = normalizedMetadata?.runtimeDigest
-    && typeof normalizedMetadata.runtimeDigest === 'object'
-    && !Array.isArray(normalizedMetadata.runtimeDigest)
-    ? normalizeAlicizationRuntimeDigest(normalizedMetadata.runtimeDigest)
-    : null
-  const projectState = normalizedMetadata?.projectState
-    && typeof normalizedMetadata.projectState === 'object'
-    && !Array.isArray(normalizedMetadata.projectState)
-    ? normalizedMetadata.projectState as Record<string, unknown>
-    : null
-  const runtimeProjectState = runtimeDigest?.projectState
-    && typeof runtimeDigest.projectState === 'object'
-    && !Array.isArray(runtimeDigest.projectState)
-    ? runtimeDigest.projectState as Record<string, unknown>
-    : null
-  const preDialogueAwareness = normalizedMetadata?.preDialogueAwareness
-    && typeof normalizedMetadata.preDialogueAwareness === 'object'
-    && !Array.isArray(normalizedMetadata.preDialogueAwareness)
-    ? normalizedMetadata.preDialogueAwareness as Record<string, unknown>
-    : null
-  const preDialogueClosure = normalizedMetadata?.preDialogueClosure
-    && typeof normalizedMetadata.preDialogueClosure === 'object'
-    && !Array.isArray(normalizedMetadata.preDialogueClosure)
-    ? normalizedMetadata.preDialogueClosure as Record<string, unknown>
-    : null
-
-  const emotionalClosureCues = [
-    preDialogueAwareness?.emotionalClosureCue,
-    preDialogueClosure?.emotionalClosureCue,
-    runtimeDigest?.emotionalClosureCue,
-  ]
-
-  const projectStateBiases = [
-    projectState,
-    runtimeProjectState,
-  ].map(source => source
-    ? resolveProjectClosureSpeechEmbodimentBias(source as any)
-    : null)
-
-  for (const bias of projectStateBiases) {
-    if (bias)
-      return bias
-  }
-
-  for (const cue of emotionalClosureCues) {
-    const bias = resolveProjectClosureSpeechEmbodimentBiasFromCue(
-      typeof cue === 'string' ? cue : null,
-    )
-    if (bias)
-      return bias
-  }
-
-  return null
-}
-
-function resolveProjectClosureSpeechResidentModeFromMetadata(
-  metadata: Record<string, unknown> | null | undefined,
-) {
-  return normalizeEmbodimentResidentMode(
-    resolveProjectClosureSpeechEmbodimentBiasFromMetadata(metadata)?.residentMode ?? null,
-  )
-}
-
-function resolveProjectClosureRendererHintsFromMetadata(
-  metadata: Record<string, unknown> | null | undefined,
-): AlicizationDialogueEmbodimentRendererHints | null {
-  const projectClosureBias = resolveProjectClosureSpeechEmbodimentBiasFromMetadata(metadata)
-  if (!projectClosureBias)
-    return null
-  const projectClosureResidentMode = normalizeEmbodimentResidentMode(
-    projectClosureBias.residentMode ?? null,
-  )
-
-  const preferredExpressionAliases = projectClosureResidentMode === 'repair-before-closeness'
-    ? ['RecoverSoft']
-    : projectClosureResidentMode === 'measured-return'
-      ? ['CalmInspect']
-      : isQuietCompanionshipResidentMode(projectClosureResidentMode)
-        ? ['ObserveSoft']
-        : undefined
-  const preferredMotionAliases = projectClosureResidentMode === 'repair-before-closeness'
-    ? ['StillnessGuard']
-    : projectClosureResidentMode === 'measured-return'
-      ? ['ObserveSoft']
-      : isQuietCompanionshipResidentMode(projectClosureResidentMode)
-        ? ['StillnessGuard']
-        : undefined
-
-  return {
-    residentMode: projectClosureBias.residentMode,
-    preferredExpressionAliases,
-    preferredMotionAliases,
-    preferredBlinkCadence: projectClosureBias.preferredBlinkCadence,
-    preferredGazeMode: projectClosureBias.preferredGazeMode,
-  }
-}
-
 function resolveEmbodimentScriptFromMetadata(
   metadata: Record<string, unknown> | null | undefined,
 ): AlicizationEmbodimentScriptV1 | null {
@@ -1145,16 +886,6 @@ function resolvePlaybackTelemetryCue(input: {
     && effectiveResidentMode === 'measured-return'
     && script.state.delivery === 'hesitant',
   )
-  const softenedSameHerVrmCue = Boolean(
-    script?.rendererTarget === 'vrm'
-    && hasSoftenedSameHerRendererCarry(effectiveRendererHints)
-    && (
-      effectiveRendererHints?.preferredBlinkCadence === 'linger'
-      || effectiveRendererHints?.preferredBlinkCadence === 'quiet'
-      || effectiveRendererHints?.preferredGazeMode === 'soften'
-      || effectiveRendererHints?.preferredGazeMode === 'steady'
-    ),
-  )
 
   return {
     ...projectedCue,
@@ -1164,14 +895,10 @@ function resolvePlaybackTelemetryCue(input: {
           ...rendererSettle,
           vrmActionFadeMs: hesitantMeasuredReturnVrmCue
             ? Math.max(rendererSettle.vrmActionFadeMs ?? 0, 300)
-            : softenedSameHerVrmCue
-              ? Math.max(rendererSettle.vrmActionFadeMs ?? 0, 220)
-              : rendererSettle.vrmActionFadeMs,
+            : rendererSettle.vrmActionFadeMs,
           vrmExpressionBlendMs: hesitantMeasuredReturnVrmCue
             ? Math.max(rendererSettle.vrmExpressionBlendMs ?? 0, 360)
-            : softenedSameHerVrmCue
-              ? Math.max(rendererSettle.vrmExpressionBlendMs ?? 0, 320)
-              : rendererSettle.vrmExpressionBlendMs,
+            : rendererSettle.vrmExpressionBlendMs,
         }
       : rendererSettle,
   }
@@ -1680,14 +1407,7 @@ function shouldSuppressRendererOnlyRejoinBodyDriverFromFrame(input: {
   if (!frame)
     return false
 
-  const softenedSameHerRendererCarry = hasSoftenedSameHerRendererCarry(
-    frame.face.rendererHints ?? frame.action.rendererHints ?? null,
-  )
-  if (
-    residentMode !== 'repair-before-closeness'
-    && residentMode !== 'measured-return'
-    && !softenedSameHerRendererCarry
-  ) {
+  if (!isRestrainedSpeechResidentMode(residentMode)) {
     return false
   }
 
@@ -1887,14 +1607,6 @@ function resolveHesitantMeasuredReturnVrmRendererSettle(input: {
       input.rendererHints?.preferredBlinkCadence === 'linger'
       || input.rendererHints?.preferredGazeMode === 'soften'
     )
-  const softenedSameHerVrm = input.script.rendererTarget === 'vrm'
-    && hasSoftenedSameHerRendererCarry(input.rendererHints)
-    && (
-      input.rendererHints?.preferredBlinkCadence === 'linger'
-      || input.rendererHints?.preferredBlinkCadence === 'quiet'
-      || input.rendererHints?.preferredGazeMode === 'soften'
-      || input.rendererHints?.preferredGazeMode === 'steady'
-    )
   const quietCompanionshipVrm = input.script.rendererTarget === 'vrm'
     && isQuietCompanionshipResidentMode(effectiveResidentMode)
     && (
@@ -1904,7 +1616,7 @@ function resolveHesitantMeasuredReturnVrmRendererSettle(input: {
       || input.rendererHints?.preferredGazeMode === 'steady'
     )
 
-  if (!hesitantMeasuredReturnVrm && !softenedSameHerVrm && !quietCompanionshipVrm)
+  if (!hesitantMeasuredReturnVrm && !quietCompanionshipVrm)
     return rendererSettle
 
   return {
@@ -1970,18 +1682,11 @@ function resolveProjectedAuthorityCueFromMetadata(input: {
     residentMode: script.state.residentMode,
     rendererHints: speechSegment?.rendererHints ?? input.cue?.rendererHints ?? null,
   })
-  const softenedSameHerResidentLine = hasSameThreadSoftenedSameHerResidentLine({
-    residentMode: script.state.residentMode,
-    rendererHints: speechSegment?.rendererHints ?? input.cue?.rendererHints ?? null,
-  })
-
   const fallbackSettleMode = residentMode === 'repair-before-closeness'
     ? 'hold' as const
     : isLingeringSpeechResidentMode(residentMode)
       ? 'linger' as const
-      : softenedSameHerResidentLine
-        ? 'linger' as const
-        : 'release' as const
+      : 'release' as const
   const metadataCue = speechSegment
     ? {
       id: speechSegment.id,
@@ -2102,17 +1807,17 @@ function applyRestrainedRendererOnlyRejoinFrame(input: {
     return input.frame
 
   const repairBeforeCloseness = input.residentMode === 'repair-before-closeness'
-  const rendererHints = input.frame.face.rendererHints ?? input.frame.action.rendererHints ?? null
+  const preserveLingeringSettle = isLingeringSpeechResidentMode(input.residentMode)
+    && input.frame.settleMode === 'linger'
 
   return {
     ...input.frame,
-    settleMode: 'hold',
+    settleMode: preserveLingeringSettle ? 'linger' : 'hold',
     voice: {
       ...input.frame.voice,
       pitchDelta: resolveRendererOnlyRejoinPitchDelta({
         pitchDelta: input.frame.voice.pitchDelta,
         residentMode: input.residentMode,
-        rendererHints,
       }),
       energy: Number(clampRange(
         repairBeforeCloseness ? input.frame.voice.energy * 0.8125 : input.frame.voice.energy * 0.82,
@@ -2177,83 +1882,6 @@ function applyRestrainedRendererOnlyRejoinFrame(input: {
   } satisfies AlicizationDigitalLifeFrame
 }
 
-function applyAudibleSameHerRendererOnlyRejoinFrame(
-  frame: AlicizationDigitalLifeFrame | null,
-) {
-  if (!frame)
-    return frame
-
-  const rendererHints = frame.face.rendererHints ?? frame.action.rendererHints ?? null
-
-  return {
-    ...frame,
-    settleMode: frame.settleMode === 'hold' ? 'hold' : 'linger',
-    voice: {
-      ...frame.voice,
-      pitchDelta: resolveRendererOnlyRejoinPitchDelta({
-        pitchDelta: frame.voice.pitchDelta,
-        residentMode: resolveEffectiveSpeechResidentMode({
-          residentMode: null,
-          rendererHints,
-        }),
-        rendererHints,
-      }),
-      energy: Number(clampRange(frame.voice.energy * 0.9, 0.16, 0.38).toFixed(2)),
-      cadence: Number(clampRange(frame.voice.cadence * 0.92, 0.16, 0.32).toFixed(2)),
-    },
-    lipSync: {
-      ...frame.lipSync,
-      visemeBias: Number(clampRange(frame.lipSync.visemeBias * 0.92, 0.18, 0.5).toFixed(2)),
-      energyBias: Number(clampRange(frame.lipSync.energyBias * 0.9, 0.14, 0.38).toFixed(2)),
-      mouthScale: Number(clampRange(frame.lipSync.mouthScale * 0.94, 0.4, 0.94).toFixed(2)),
-      continuityHoldMs: Math.max(inputContinuityHoldMs(frame), frame.face.holdMs),
-    },
-    face: {
-      ...frame.face,
-      intensity: Number(clampRange(frame.face.intensity * 0.93, 0.18, 0.46).toFixed(2)),
-      rendererHints: {
-        ...rendererHints ?? frame.face.rendererHints,
-        preferredGazeMode: 'soften',
-        preferredBlinkCadence: 'linger',
-      },
-    },
-    action: {
-      ...frame.action,
-      intensity: frame.action.actionCue
-        ? Number(clampRange(frame.action.intensity * 0.88, 0, 0.2).toFixed(2))
-        : 0,
-      rendererHints: {
-        ...rendererHints ?? frame.action.rendererHints,
-        preferredGazeMode: 'soften',
-        preferredBlinkCadence: 'linger',
-      },
-    },
-  } satisfies AlicizationDigitalLifeFrame
-}
-
-function applyRepairFirstAudibleSameHerRendererOnlyRejoinFrame(
-  frame: AlicizationDigitalLifeFrame | null,
-) {
-  const restrainedFrame = applyRestrainedRendererOnlyRejoinFrame({
-    frame,
-    residentMode: 'repair-before-closeness',
-  })
-  if (!restrainedFrame)
-    return restrainedFrame
-
-  return {
-    ...restrainedFrame,
-    action: {
-      ...restrainedFrame.action,
-      intensity: Number(clampRange(restrainedFrame.action.intensity, 0.06, 0.09).toFixed(2)),
-    },
-  } satisfies AlicizationDigitalLifeFrame
-}
-
-function inputContinuityHoldMs(frame: AlicizationDigitalLifeFrame) {
-  return frame.lipSync.continuityHoldMs
-}
-
 function normalizeRendererOnlyRejoinFrame(input: {
   frame: AlicizationDigitalLifeFrame | null
   residentMode: AlicizationEmbodimentScriptV1['state']['residentMode'] | null | undefined
@@ -2269,33 +1897,12 @@ function normalizeRendererOnlyRejoinFrame(input: {
 
   const rendererAlreadyRejoined = frame.lipSync.continuityHoldMs >= 180
     && frame.lipSync.mouthScale >= 0.78
-    && frame.settleMode === 'hold'
+    && (
+      frame.settleMode === 'hold'
+      || (isLingeringSpeechResidentMode(input.residentMode) && frame.settleMode === 'linger')
+    )
 
   const repairBeforeCloseness = input.residentMode === 'repair-before-closeness'
-  const rendererHints = frame.face.rendererHints ?? frame.action.rendererHints ?? null
-  const audibleSameHerRendererCarry = hasAlicizationAudibleSameHerCarry(rendererHints)
-  const bodyVoiceOnlySameHerRendererCarry = hasAlicizationBodyVoiceOnlySameHerCarry(rendererHints)
-  const softenedSameHerRendererCarry = hasSoftenedSameHerRendererCarry(
-    rendererHints,
-  )
-  const repairFirstAudibleSameHerRendererCarry = repairBeforeCloseness
-    && (audibleSameHerRendererCarry || bodyVoiceOnlySameHerRendererCarry)
-  const lingeringRepairFirstAudibleSameHerRendererOnlyRejoin = repairFirstAudibleSameHerRendererCarry
-    && frame.settleMode === 'linger'
-    && frame.lipSync.continuityHoldMs >= 180
-    && frame.lipSync.mouthScale >= 0.78
-  const measuredReturnBodyVoiceOnlyRendererOnlyRejoin = input.residentMode === 'measured-return'
-    && bodyVoiceOnlySameHerRendererCarry
-    && frame.settleMode === 'linger'
-    && frame.lipSync.continuityHoldMs >= 180
-    && frame.lipSync.mouthScale >= 0.78
-  const lingeringSoftenedSameHerRendererOnlyRejoin = softenedSameHerRendererCarry
-    && frame.settleMode === 'linger'
-    && frame.lipSync.continuityHoldMs >= 180
-    && frame.lipSync.mouthScale >= 0.78
-  const nonHoldSameHerRendererOnlyRejoin = lingeringRepairFirstAudibleSameHerRendererOnlyRejoin
-    || measuredReturnBodyVoiceOnlyRendererOnlyRejoin
-    || lingeringSoftenedSameHerRendererOnlyRejoin
   const alreadyRestrainedRendererOnlyRejoin = repairBeforeCloseness
     && frame.face.facialCue === 'soft-gaze'
     && frame.face.expressionMode === 'hold'
@@ -2312,22 +1919,13 @@ function normalizeRendererOnlyRejoinFrame(input: {
 
   if (
     !bodyIsStillWeak
-    || (!rendererAlreadyRejoined && !nonHoldSameHerRendererOnlyRejoin)
+    || !rendererAlreadyRejoined
   ) {
     return frame
   }
 
   if (alreadyRestrainedRendererOnlyRejoin)
     return frame
-
-  if (repairFirstAudibleSameHerRendererCarry)
-    return applyRepairFirstAudibleSameHerRendererOnlyRejoinFrame(frame)
-
-  if (measuredReturnBodyVoiceOnlyRendererOnlyRejoin)
-    return applyRestrainedRendererOnlyRejoinFrame(input)
-
-  if (softenedSameHerRendererCarry)
-    return applyAudibleSameHerRendererOnlyRejoinFrame(frame)
 
   return applyRestrainedRendererOnlyRejoinFrame(input)
 }
@@ -2341,11 +1939,8 @@ function resolveDescriptorScriptDigitalLifeFrame(
   },
 ) {
   const script = resolveEmbodimentScriptFromMetadata(descriptor.metadata)
-  const metadataResidentMode = resolveProjectClosureSpeechResidentModeFromMetadata(
-    descriptor.metadata,
-  )
   const residentMode = resolveEffectiveSpeechResidentModeFromCueOrFrame({
-    residentMode: script?.state.residentMode ?? metadataResidentMode,
+    residentMode: script?.state.residentMode ?? null,
     cue,
     digitalLifeFrame: descriptor.digitalLifeFrame ?? null,
   })
@@ -2747,19 +2342,17 @@ function shouldPreserveRestrainedRendererOnlyRejoinPlaybackItem(
   if (!item || !playback?.driverAuthority)
     return false
 
-  const softenedSameHerRendererCarry = hasSoftenedSameHerRendererCarry(
-    item.digitalLifeFrame?.face.rendererHints
-    ?? item.digitalLifeFrame?.action.rendererHints
-    ?? item.cue?.rendererHints
-    ?? playback.cue?.rendererHints
-    ?? null,
-  )
+  const residentMode = resolveEffectiveSpeechResidentModeFromCueOrFrame({
+    residentMode: resolveEmbodimentScriptFromMetadata(item.metadata)?.state.residentMode ?? null,
+    cue: item.cue ?? playback.cue ?? null,
+    digitalLifeFrame: item.digitalLifeFrame ?? null,
+  })
 
   return !playback.driverAuthority.bodySegmentMatched
     && playback.driverAuthority.lipsyncSegmentMatched
     && (
       item.digitalLifeFrame?.settleMode === 'hold'
-      || (softenedSameHerRendererCarry && item.digitalLifeFrame?.settleMode === 'linger')
+      || (isLingeringSpeechResidentMode(residentMode) && item.digitalLifeFrame?.settleMode === 'linger')
     )
 }
 
@@ -3862,9 +3455,7 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
     if (resolveOptions?.preferDescriptorDigitalLifeFrame && descriptor.digitalLifeFrame) {
       return normalizeRendererOnlyRejoinFrame({
         frame: descriptor.digitalLifeFrame,
-        residentMode: script?.state.residentMode
-          ?? resolveProjectClosureSpeechResidentModeFromMetadata(descriptor.metadata)
-          ?? null,
+        residentMode: script?.state.residentMode ?? null,
       })
     }
 
@@ -3885,31 +3476,14 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         rendererHints: authorityCue.rendererHints ?? null,
       })
       const projectedResidentMode = residentMode ?? script.state.residentMode ?? null
-      const audibleSameHerPreviewRestraint = resolveAudibleSameHerPreviewRestraint(
-        authorityCue.rendererHints ?? null,
-      )
-      const measuredReturnStillVoicedPreviewRestraint = hasMeasuredReturnStillVoicedPreviewRestraint({
-        residentMode,
-        rendererHints: authorityCue.rendererHints ?? null,
-      })
-      const softenedSameHerResidentLine = hasSameThreadSoftenedSameHerResidentLine({
-        residentMode: projectedResidentMode,
-        rendererHints: authorityCue.rendererHints ?? null,
-      })
-      const observingBodyLineResidentCarry = hasSameThreadObservingBodyLineResidentCarry({
-        residentMode: projectedResidentMode,
-        rendererHints: authorityCue.rendererHints ?? null,
-      })
       const delivery = script.state.delivery ?? 'calm'
       const emphasis = script.state.emphasis ?? 0
       const facialCue = authorityCue.facialCue ?? null
-      const actionCue = observingBodyLineResidentCarry
-        ? null
-        : clampRestrainedPreviewActionCue({
-            actionCue: authorityCue.actionCue ?? null,
-            residentMode,
-            rendererHints: authorityCue.rendererHints ?? null,
-          })
+      const actionCue = clampRestrainedPreviewActionCue({
+        actionCue: authorityCue.actionCue ?? null,
+        residentMode,
+        rendererHints: authorityCue.rendererHints ?? null,
+      })
       const emotion = resolveDigitalLifeEmotion({
         emotion: authorityCue.emotion,
         baseEmotion: authorityCue.emotion,
@@ -3917,56 +3491,31 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       })
       const voice = {
         pitchDelta: resolveRendererOnlyRejoinPitchDelta({
-          pitchDelta: measuredReturnStillVoicedPreviewRestraint ? -1 : 0,
+          pitchDelta: 0,
           residentMode,
-          rendererHints: authorityCue.rendererHints ?? null,
         }),
-        rateMultiplier: Number(clampRange(
-          measuredReturnStillVoicedPreviewRestraint ? 0.97 : 1,
-          0.72,
-          1.24,
-        ).toFixed(2)),
+        rateMultiplier: 1,
         energy: clampUnit(
-          (0.36 + (authorityCue.prosodyWeight ?? 0) * 0.4)
-          * (
-            audibleSameHerPreviewRestraint?.voiceEnergyScale
-            ?? (measuredReturnStillVoicedPreviewRestraint ? 0.96 : 1)
-          ),
+          0.36 + (authorityCue.prosodyWeight ?? 0) * 0.4,
           0.68,
         ),
         cadence: clampUnit(
-          (0.32 + (authorityCue.beatWeight ?? 0) * 0.44)
-          * (
-            audibleSameHerPreviewRestraint?.voiceCadenceScale
-            ?? (measuredReturnStillVoicedPreviewRestraint ? 0.95 : 1)
-          ),
+          0.32 + (authorityCue.beatWeight ?? 0) * 0.44,
           0.64,
         ),
       }
       const lipSync = {
         mode: text ? resolveDigitalLifeLipSyncMode(script.lipsyncPlan.mode) : 'closed' as const,
         visemeBias: clampUnit(
-          (0.34 + (authorityCue.mouthWeight ?? authorityCue.facialWeight ?? 0) * 0.48)
-          * (
-            audibleSameHerPreviewRestraint?.lipSyncVisemeScale
-            ?? (measuredReturnStillVoicedPreviewRestraint ? 0.97 : 1)
-          ),
+          0.34 + (authorityCue.mouthWeight ?? authorityCue.facialWeight ?? 0) * 0.48,
           0.82,
         ),
         energyBias: clampUnit(
-          (0.28 + (authorityCue.prosodyWeight ?? 0) * 0.42)
-          * (
-            audibleSameHerPreviewRestraint?.lipSyncEnergyScale
-            ?? (measuredReturnStillVoicedPreviewRestraint ? 0.96 : 1)
-          ),
+          0.28 + (authorityCue.prosodyWeight ?? 0) * 0.42,
           0.76,
         ),
         mouthScale: Number(clampRange(
-          (0.82 + (authorityCue.mouthWeight ?? 0) * 0.3)
-          * (
-            audibleSameHerPreviewRestraint?.mouthScale
-            ?? (measuredReturnStillVoicedPreviewRestraint ? 0.98 : 1)
-          ),
+          0.82 + (authorityCue.mouthWeight ?? 0) * 0.3,
           0.4,
           1.35,
         ).toFixed(2)),
@@ -3980,17 +3529,9 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         emotion,
         facialCue,
         expressionMode: isRestrainedSpeechResidentMode(residentMode)
-          || softenedSameHerResidentLine
           ? 'hold' as const
           : 'blend' as const,
-        intensity: clampUnit(
-          (authorityCue.facialWeight ?? 0.42)
-          * (
-            audibleSameHerPreviewRestraint?.faceIntensityScale
-            ?? (measuredReturnStillVoicedPreviewRestraint ? 0.97 : 1)
-          ),
-          0.72,
-        ),
+        intensity: clampUnit(authorityCue.facialWeight ?? 0.42, 0.72),
         holdMs: Math.round(clampRange(authorityCue.facialHoldMs ?? authorityCue.emotionHoldMs ?? 220, 80, 960)),
         rendererHints: authorityCue.rendererHints ?? null,
       }
@@ -3998,19 +3539,11 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         actionCue,
         actionMode: actionCue
           ? isRestrainedSpeechResidentMode(residentMode)
-          || softenedSameHerResidentLine
             ? 'hold' as const
             : 'pulse' as const
           : 'none' as const,
         intensity: actionCue
-          ? clampUnit(
-              (authorityCue.gestureWeight ?? 0.3)
-              * (
-                audibleSameHerPreviewRestraint?.actionIntensityScale
-                ?? (measuredReturnStillVoicedPreviewRestraint ? 0.94 : 1)
-              ),
-              0.62,
-            )
+          ? clampUnit(authorityCue.gestureWeight ?? 0.3, 0.62)
           : 0,
         holdMs: Math.round(clampRange(authorityCue.actionHoldMs ?? 180, 70, 720)),
         rendererHints: authorityCue.rendererHints ?? null,
@@ -4051,11 +3584,9 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
             residentMode: projectedResidentMode,
             emotion,
             text,
-            rendererHints: authorityCue.rendererHints ?? null,
           }),
           interruptPolicy: authorityCue.interruptMode ?? 'continue',
           settleMode: authorityCue.settleMode
-            ?? audibleSameHerPreviewRestraint?.settleMode
             ?? (
               residentMode === 'repair-before-closeness'
                 ? 'hold'
@@ -4086,31 +3617,18 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
       const confidence = clampUnit(digest.proactive?.confidence ?? 0.62, 0.62)
       const emotion = authorityCue?.emotion
         ?? resolveSpineFallbackEmotion(digest, cue)
-      const metadataClosureRendererHints = resolveProjectClosureRendererHintsFromMetadata(
-        descriptor.metadata,
-      )
       const effectiveRendererHints = authorityCue?.rendererHints
         ?? cue?.rendererHints
-        ?? metadataClosureRendererHints
+        ?? null
       const residentMode = resolveEffectiveSpeechResidentMode({
         residentMode: resolveEmbodimentScriptFromMetadata(descriptor.metadata)?.state.residentMode ?? null,
         rendererHints: effectiveRendererHints,
       })
-      const softenedSameHerResidentLine = hasSameThreadSoftenedSameHerResidentLine({
-        residentMode,
-        rendererHints: effectiveRendererHints,
-      })
-      const observingBodyLineResidentCarry = hasSameThreadObservingBodyLineResidentCarry({
-        residentMode,
-        rendererHints: effectiveRendererHints,
-      })
       const mode = isRestrainedSpeechResidentMode(residentMode)
-        || softenedSameHerResidentLine
         ? resolveProjectedDigitalLifeMode({
             residentMode,
             emotion,
             text,
-            rendererHints: effectiveRendererHints,
           })
         : spineFallbackMode
       const fallbackActionCue = authorityCue?.actionCue
@@ -4121,14 +3639,11 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
             : resolveSpineFallbackActionCue(digest, cue)
         )
       const actionCue = clampRestrainedPreviewActionCue({
-        actionCue: observingBodyLineResidentCarry ? null : fallbackActionCue,
+        actionCue: fallbackActionCue,
         residentMode,
         rendererHints: effectiveRendererHints,
       })
-      const voiceRestraint = resolveSpineFallbackVoiceRestraint(
-        residentMode,
-        effectiveRendererHints,
-      )
+      const voiceRestraint = resolveSpineFallbackVoiceRestraint(residentMode)
       const facialCue = authorityCue?.facialCue
         ?? cue?.facialCue
         ?? (
@@ -4178,7 +3693,6 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         expressionMode: mode === 'recovering'
           ? 'recover' as const
           : isRestrainedSpeechResidentMode(residentMode)
-            || softenedSameHerResidentLine
             ? 'hold' as const
             : 'blend' as const,
         intensity: clampUnit(
@@ -4194,7 +3708,6 @@ export function useStageEmbodimentSpeech(options: UseStageEmbodimentSpeechOption
         actionCue,
         actionMode: actionCue
           ? isRestrainedSpeechResidentMode(residentMode)
-          || softenedSameHerResidentLine
             ? 'hold' as const
             : 'pulse' as const
           : 'none' as const,

@@ -18,14 +18,7 @@ import { deriveMainChatActionObligation } from './main-chat-action-obligation'
 import {
   detectMainGatewayExecutionRoutingIntent,
 } from './main-chat-execution-surface'
-import {
-  assertAlicizationCanonicalProjectState,
-  carriesAlicizationCanonicalProjectState,
-} from './main-chat-project-state-guard'
-import { shouldIncludeProjectStateProviderContext } from './main-chat-project-state-injection-policy'
-import { resolveAlicizationChatStartPayloadPreDialogueSendIdentity } from './main-chat-start-awareness'
 import { emptyAlicizationExecutionLedgerContext } from './memory-ledger-runtime'
-import { buildAlicizationProviderFacingProjectStateExtraSystemBlocks } from './project-state-brief'
 import { preserveLatestUserMultimodalContent } from './runtime-transport-content'
 
 interface CreateAlicizationMainChatPreludeRuntimeOptions {
@@ -74,7 +67,7 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     mainGateway: MainGatewayResolvedConfig,
     invokeOptions?: { raw?: { ipcMainEvent?: IpcMainEvent, event?: unknown } },
   ): Promise<AlicizationPreparedMainChatPrelude> {
-    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
+    const normalizedPayload = payload
     const chatConfig = mainGateway.provider.chat(mainGateway.model)
     const latestUserText = readLatestUserMessageText(normalizedPayload.messages)
     const senderWebContentsId = senderWebContentsIdFromInvokeOptions(invokeOptions)
@@ -132,21 +125,6 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
           },
         }
     messages = perceptionAugmentation.messages
-    const shouldIncludeProviderProjectStateContext = shouldIncludeProjectStateProviderContext({
-      answerSubject: perceptionAugmentation.chatGovernance.mindTurnGovernance?.answerSubject ?? null,
-      executionCapabilityInquiry,
-      executionRoutingIntent: explicitExecutionRoutingIntent,
-      latestUserText,
-      messages,
-    })
-    if (shouldIncludeProviderProjectStateContext && !carriesAlicizationCanonicalProjectState(messages)) {
-      messages = [
-        ...buildAlicizationProviderFacingProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
-        ...messages,
-      ]
-    }
-    if (shouldIncludeProviderProjectStateContext)
-      assertAlicizationCanonicalProjectState(messages, 'stream')
     const actionObligation = deriveMainChatActionObligation({
       userText: latestUserText || '',
       capabilityInquiry: executionCapabilityInquiry,
@@ -178,7 +156,7 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     mainGateway: MainGatewayResolvedConfig,
     preludePromise?: Promise<AlicizationPreparedMainChatPrelude>,
   ): Promise<AlicizationPreparedMainChatExecutionResult> {
-    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
+    const normalizedPayload = payload
     const prelude = await (preludePromise ?? prepareMainChatPrelude(normalizedPayload, mainGateway))
     return await prepareMainChatSessionExecution({
       payload: normalizedPayload,

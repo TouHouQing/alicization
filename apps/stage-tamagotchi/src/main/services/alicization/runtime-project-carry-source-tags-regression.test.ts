@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 describe('runtime project carry source tags regression', () => {
-  it('keeps finer same-her hold next-closure and embodiment authority visible when same-thread runtime continuity rehydrates self-continuity source tags', () => {
+  it('keeps finer identity-continuity', () => {
     const source = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
     const inferStart = source.indexOf('function inferRuntimeProjectCarrySourceTags(input: {')
     const inferEnd = source.indexOf('\n}\n\nfunction looksLikeSceneContaminatedRuntimeSameHerSelfLine', inferStart)

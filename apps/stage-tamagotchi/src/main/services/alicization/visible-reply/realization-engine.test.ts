@@ -8,7 +8,7 @@ import {
 } from './realization-engine'
 
 const generatedCuePattern
-  = /\b[a-z][a-z0-9_-]{2,}\s*=|runtime_personhood|life_core|local_desktop_life_loop|phase1_local_digital_life|cadence=|relationship_cadence=|continuity_identity|continuity_line|visibility=internal/iu
+  = /\b[a-z][\w-]{2,}\s*=|runtime_personhood|life_core|local_desktop_life_loop|phase1_local_digital_life|cadence=|relationship_cadence=|continuity_identity|continuity_line|visibility=internal/iu
 
 const visibleReplyExecution = {
   mode: 'provider-one-shot',
@@ -68,8 +68,17 @@ describe('visible-reply-realization-engine', () => {
         },
       }),
       visibleReplyExecution,
+      closure: {
+        version: 'visible-reply-closure-v1',
+        status: 'approved',
+        initialCritic: null,
+        finalCritic: null,
+        reasonCodes: [],
+      } as any,
     })
 
+    expect(realization.visibleReplyValidationStatus).toBe('approved')
+    expect(realization.projectStateEvidenceStatus).toBe('present')
     expect(realization.projectStateAudit).toEqual(expect.objectContaining({
       sameHerSummary: null,
       currentPhaseSummary: null,
@@ -79,6 +88,10 @@ describe('visible-reply-realization-engine', () => {
       preDialogueAwarenessSummary: null,
       continuitySummary: 'Memory Workbench policy overrides are now persisted for the user. | Long-term memory search still needs pagination verification.',
     }))
+    expect(realization.projectStateAudit).not.toHaveProperty('preservedIntoRewrite')
+    expect(realization.projectStateAudit).not.toHaveProperty('rewriteClosureApplied')
+    expect(realization.closure).not.toHaveProperty('rewriteAttempted')
+    expect(realization.closure).not.toHaveProperty('rewriteSucceeded')
     expectNoTemplateOrGeneratedCue(realization)
   })
 
@@ -98,6 +111,8 @@ describe('visible-reply-realization-engine', () => {
     })
 
     expect(realization.projectStateAudit).toBeNull()
+    expect(realization.visibleReplyValidationStatus).toBe('unknown')
+    expect(realization.projectStateEvidenceStatus).toBe('missing')
     expectNoTemplateOrGeneratedCue(realization)
   })
 

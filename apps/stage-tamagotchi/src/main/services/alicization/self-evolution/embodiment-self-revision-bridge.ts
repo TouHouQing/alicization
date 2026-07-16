@@ -99,7 +99,6 @@ export function buildAlicizationEmbodimentSelfRevisionStatePatch(input: {
       warmthReleaseBias: Math.min(1, Math.max(0, Number((droppedLanes.length > 0 ? 0.04 : 0.1).toFixed(2)))),
     },
     responsePosture: {
-      secondPassRequiredBias: Math.min(1, Math.max(0, Number((0.14 + pendingRejoinLanes.length * 0.06).toFixed(2)))),
       hypothesisLabelBias: Math.min(1, Math.max(0, Number((0.12 + droppedLanes.length * 0.06).toFixed(2)))),
       specificityClampBias: Math.min(1, Math.max(0, Number((0.12 + (ledger.memoryWriteback.shouldWrite ? 0.06 : 0)).toFixed(2)))),
       templateShellSuppressionBias: Math.min(1, Math.max(0, Number((0.26 + continuityPressure * 0.42).toFixed(2)))),

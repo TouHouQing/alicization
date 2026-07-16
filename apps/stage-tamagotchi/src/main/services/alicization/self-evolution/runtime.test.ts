@@ -55,7 +55,6 @@ const basePatch = {
     warmthReleaseBias: 0,
   },
   responsePosture: {
-    secondPassRequiredBias: 0.08,
     hypothesisLabelBias: 0.04,
     specificityClampBias: 0.1,
     templateShellSuppressionBias: 0.12,

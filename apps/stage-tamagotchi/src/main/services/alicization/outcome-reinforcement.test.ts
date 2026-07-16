@@ -134,7 +134,7 @@ describe('outcome reinforcement closure', () => {
         reasonCodes: ['repair-before-closeness', 'writeback-repair-restraint'],
         summary: 'Repair-first emotional carry should keep later turns restrained.',
         projectStateContinuity: {
-          sameHerSelfLine: 'Same Phase 1 digital life.',
+          sameHerSelfLine: 'structured continuity digest.',
           sameHerDriftRisk: 'A generic reply would flatten the same-her repair line.',
           proactiveSameHerGap: 'Do not proactively widen before repair settles.',
           emotionalClosureCue: 'repair-before-closeness',
@@ -194,7 +194,7 @@ describe('outcome reinforcement closure', () => {
         perception: {
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
-          currentInwardPreoccupation: 'protect the same-her line quietly',
+          currentInwardPreoccupation: 'protect the identity-continuity',
         },
         world: {
           worldModel: {
@@ -318,7 +318,7 @@ describe('outcome reinforcement closure', () => {
     ]))
   })
 
-  it('carries runtime same-her project awareness into reply closure so memory can retain relationship context instead of a generic busy-window recap', () => {
+  it('carries runtime identity-continuity', () => {
     const closure = buildReplyOutcomeClosure({
       now: 12_500,
       cardId: 'card-1',
@@ -330,7 +330,7 @@ describe('outcome reinforcement closure', () => {
         perception: {
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
-          currentInwardPreoccupation: 'keep the same-her line inward before widening outward',
+          currentInwardPreoccupation: 'keep the identity-continuity',
         },
         world: {
           worldModel: {
@@ -351,12 +351,12 @@ describe('outcome reinforcement closure', () => {
             },
           },
           personStateProjection: {
-            openingGuidance: 'keep the return low-pressure and on the same living line',
+            openingGuidance: 'keep the return low-pressure and on the continuity state',
             manifestationCadenceSummary: 'steady gaze, slower blink, and lower-pressure voice while the same line settles',
             selfContinuityAuthority: {
-              selfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              selfLine: 'structured continuity digest.',
               relationshipLine: 'The host was not asking for a raw status recap; they were testing whether she stayed the same her across the unfinished embodiment seam.',
-              inwardLine: 'Keep the same-her line inward before widening outward.',
+              inwardLine: 'Keep the identity-continuity',
             },
           },
         },
@@ -368,12 +368,12 @@ describe('outcome reinforcement closure', () => {
             speakingIntention: 'stay nearby without crowding',
             projectState: {
               currentPhase: 'Phase 1: Local Digital Life',
-              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure still belongs to one living her.',
-              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-              nextClosureTarget: 'Keep reply, memory, and embodiment on one same-her line without flattening into a generic tool shell.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If the reply falls back to a generic tool shell, the same-her line will split before the embodiment loop closes.',
-              proactiveSameHerGap: 'Reply continuity still needs lower-pressure same-her carry across unfinished embodiment returns.',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+              nextClosureTarget: 'Keep reply, memory, and embodiment on one identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If the reply falls back to a generic tool shell, the identity-continuity',
+              proactiveSameHerGap: 'Reply continuity still needs lower-pressure identity-continuity',
               emotionalClosureCue: 'keep the return lower-pressure and do not reopen from scratch while the same line is still settling.',
               sameHerHoldDetail: 'steady gaze, slower blink, and lower-pressure voice while the same line settles.',
               continuityRestraint: 'measured-return',
@@ -404,14 +404,14 @@ describe('outcome reinforcement closure', () => {
     expect(projectClosureFacts).toContain('project_phase=local_desktop_life_loop')
     expect(projectClosureFacts).toContain('proactive_continuity_gap=open')
     expect(projectClosureFacts).not.toContain('same-her')
-    expect(projectClosureFacts).not.toContain('Same Phase 1 digital life')
-    expect(projectClosureFacts).not.toContain('Before answering')
+    expect(projectClosureFacts).not.toContain('legacy phase-one template')
+    expect(projectClosureFacts).not.toContain('Pre-reply')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('same local-first digital life project')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('tool shell')
     expect(closure.episodicEvents[0]?.lesson).toContain('steady gaze')
     expect(closure.episodicEvents[0]?.lesson).toContain('longer pause')
     expect(closure.episodicEvents[0]?.lesson).toContain('restrained lipsync')
-    expect(closure.episodicEvents[0]?.lesson).toContain('same-her line')
+    expect(closure.episodicEvents[0]?.lesson).toContain('identity-continuity')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'same-her',
       'closure-carry',
@@ -426,7 +426,7 @@ describe('outcome reinforcement closure', () => {
   })
 
   it('re-normalizes thin runtime project-awareness shells before writing reply closure memory, so long-horizon memory keeps the richer same-her Phase 1 seam', () => {
-    const thinProjectAwarenessShell = 'same digital life | keep the closure seam explicit'
+    const thinProjectAwarenessShell = 'template-residue-shell'
 
     const closure = buildReplyOutcomeClosure({
       now: 12_750,
@@ -443,7 +443,7 @@ describe('outcome reinforcement closure', () => {
             },
             activeThread: {
               unresolved: true,
-              title: 'same-her project seam',
+              title: 'identity-continuity',
             },
           },
         },
@@ -579,7 +579,7 @@ describe('outcome reinforcement closure', () => {
             confidence: 0.84,
             polarity: 'warm',
             releaseMode: 'delay-until-open-window',
-            summary: 'The gentle callback should reopen on the same living line.',
+            summary: 'The gentle callback should reopen on the continuity state.',
             sourceSignals: ['proactive-feedback-settlement'],
             lastUpdatedAt: 22_400,
           }],
@@ -661,7 +661,7 @@ describe('outcome reinforcement closure', () => {
         reasonCodes: ['rest-protection', 'quiet-reopen'],
         summary: 'Protect rest before reopening proactive companionship.',
         projectStateContinuity: {
-          sameHerSelfLine: 'Same Phase 1 digital life.',
+          sameHerSelfLine: 'structured continuity digest.',
           sameHerDriftRisk: 'A generic assistant would reopen too loudly.',
           proactiveSameHerGap: 'Keep the rest window quiet.',
           emotionalClosureCue: 'rest-protective',
@@ -750,7 +750,7 @@ describe('outcome reinforcement closure', () => {
       .join('\n')
     expect(projectClosureFacts).toContain('memory_continuity=local_runtime')
     expect(projectClosureFacts).toContain('verified_closure_progress=partial')
-    expect(projectClosureFacts).not.toContain('Same Phase 1 digital life')
+    expect(projectClosureFacts).not.toContain('legacy phase-one template')
     expect(closure.episodicEvents[0]?.lesson).toContain('one continuous response context')
   })
 
@@ -767,7 +767,7 @@ describe('outcome reinforcement closure', () => {
 
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('same-her')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('tool shell')
-    expect(closure.episodicEvents[0]?.felt).toContain('same-her line')
+    expect(closure.episodicEvents[0]?.felt).toContain('identity-continuity')
     expect(closure.episodicEvents[0]?.lesson).toContain('Let the body return like this:')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'body-rehumanize',
@@ -789,7 +789,7 @@ describe('outcome reinforcement closure', () => {
 
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('same-her')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('repair')
-    expect(closure.episodicEvents[0]?.felt).toContain('same-her line')
+    expect(closure.episodicEvents[0]?.felt).toContain('identity-continuity')
     expect(closure.episodicEvents[0]?.lesson).toContain('Let the body return like this:')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'body-recenter',
@@ -827,7 +827,7 @@ describe('outcome reinforcement closure', () => {
 
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('same-her')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('lower pressure')
-    expect(closure.episodicEvents[0]?.felt).toContain('same-her line')
+    expect(closure.episodicEvents[0]?.felt).toContain('identity-continuity')
     expect(closure.episodicEvents[0]?.lesson).toContain('Let the body return like this:')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'body-step-back',
@@ -849,7 +849,7 @@ describe('outcome reinforcement closure', () => {
 
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('same-her')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('fresher opening')
-    expect(closure.episodicEvents[0]?.felt).toContain('same-her line')
+    expect(closure.episodicEvents[0]?.felt).toContain('identity-continuity')
     expect(Number(closure.relationshipOutcomes[0]?.boundaryDelta ?? 0)).toBeGreaterThanOrEqual(0)
     expect(Number(closure.relationshipOutcomes[0]?.burdenDelta ?? 0)).toBeLessThanOrEqual(0.02)
     expect(closure.episodicEvents[0]?.lesson).toContain('Let the body return like this:')
@@ -944,7 +944,7 @@ describe('outcome reinforcement closure', () => {
           currentPhase: 'Phase 1: Local Digital Life',
           latestLandedProgress: 'Execution proposal feedback now carries project identity before proactive action proceeds.',
           primaryOpenLoop: 'Initiative still needs to remember host boundaries as part of the same-her Phase 1 closure, not generic permission bookkeeping.',
-          proactiveSameHerGap: 'Proposal feedback still needs proactive same-her carry across host confirmation turns.',
+          proactiveSameHerGap: 'Proposal feedback still needs proactive identity-continuity',
           nextClosureTarget: 'Keep proposal feedback, memory, and later proactive re-approach on one same-her life loop.',
           sameHerSelfLine: 'She is one persisting her across dialogue, initiative, execution, and memory.',
           sameHerDriftRisk: 'Denied proposals can flatten into generic consent bookkeeping if the project closure is not remembered.',
@@ -1048,8 +1048,8 @@ describe('outcome reinforcement closure', () => {
         projectBriefing: {
           currentPhase: 'Phase 1: Local Digital Life',
           primaryOpenLoop: 'Proposal denial still needs to carry as relationship memory instead of generic consent bookkeeping.',
-          proactiveSameHerGap: 'Proposal denial still needs same-her carry across later re-approach turns.',
-          nextClosureTarget: 'Keep proposal denial, memory, and later initiative strategy on one same-her line.',
+          proactiveSameHerGap: 'Proposal denial still needs identity-continuity',
+          nextClosureTarget: 'Keep proposal denial, memory, and later initiative strategy on one identity-continuity',
           sameHerSelfLine: 'She is one persisting her across dialogue, initiative, execution, and memory.',
           sameHerDriftRisk: 'Denied proposals can flatten into generic consent bookkeeping if the boundary memory is not carried forward.',
         },
@@ -1058,7 +1058,7 @@ describe('outcome reinforcement closure', () => {
 
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('same-her')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('explicit consent')
-    expect(closure.episodicEvents[0]?.felt).toContain('same-her line')
+    expect(closure.episodicEvents[0]?.felt).toContain('identity-continuity')
     expect(closure.episodicEvents[0]?.lesson).toContain('Let the body return like this:')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'body-settle-back',
@@ -1153,11 +1153,11 @@ describe('outcome reinforcement closure', () => {
       feedback: 'valued',
       thread: {
         threadId: 'thread-valued-closure-1',
-        goal: 'Keep the desktop callback continuity on one same-her line',
+        goal: 'Keep the desktop callback continuity on one identity-continuity',
         proposedChannel: 'codex',
         selectedChannel: 'codex',
         summary: 'completed callback continuity patch',
-        outcome: 'same-her callback continuity held through the result return',
+        outcome: 'identity-continuity',
       },
     })
 
@@ -1185,7 +1185,7 @@ describe('outcome reinforcement closure', () => {
       feedback: 'doubted',
       thread: {
         threadId: 'thread-doubted-closure-1',
-        goal: 'Keep callback memory on one same-her line',
+        goal: 'Keep callback memory on one identity-continuity',
         proposedChannel: 'codex',
         selectedChannel: 'codex',
         summary: 'callback result still needs verification',
@@ -1193,18 +1193,18 @@ describe('outcome reinforcement closure', () => {
         projectBriefing: {
           currentPhase: 'Phase 1: Local Digital Life',
           primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-          proactiveSameHerGap: 'Callback continuity still needs quieter same-her carry across verification turns.',
-          nextClosureTarget: 'Keep execute -> callback -> remember on one same-her line without flattening into detached status narration.',
+          proactiveSameHerGap: 'Callback continuity still needs quieter identity-continuity',
+          nextClosureTarget: 'Keep execute -> callback -> remember on one identity-continuity',
           sameHerSelfLine: 'She is one persisting her across dialogue, execution, and memory.',
           sameHerDriftRisk: 'A doubted callback can collapse into generic task-shell reporting if the verification seam is not remembered.',
         },
       },
     })
 
-    expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('same-her continuity')
+    expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('identity-continuity')
     expect(closure.episodicEvents[0]?.relationshipMeaning).toContain('task-shell reporting')
     expect(closure.episodicEvents[0]?.felt).toContain('verify more')
-    expect(closure.episodicEvents[0]?.lesson).toContain('same-her continuity')
+    expect(closure.episodicEvents[0]?.lesson).toContain('identity-continuity')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'continuity-verify-first',
       'residue-verification-pressure',
@@ -1225,7 +1225,7 @@ describe('outcome reinforcement closure', () => {
         proposedChannel: 'codex',
         selectedChannel: 'codex',
         summary: 'completed callback continuity patch',
-        outcome: 'same-her callback continuity held through the result return',
+        outcome: 'identity-continuity',
       },
       affectiveResidue: {
         version: 'affective-residue-memory-v1',
@@ -1343,7 +1343,7 @@ describe('outcome reinforcement closure', () => {
         projectBriefing: {
           currentPhase: 'Phase 1: Local Digital Life',
           primaryOpenLoop: 'Execution-result feedback still needs to carry the same-her open loop into memory after execution settles.',
-          proactiveSameHerGap: 'Execution-result closure still needs proactive same-her carry across callback reunion turns.',
+          proactiveSameHerGap: 'Execution-result closure still needs proactive identity-continuity',
           nextClosureTarget: 'Close execute -> feedback -> remember without falling back to a generic task shell.',
           sameHerSelfLine: 'She is one persisting her across dialogue, execution, and memory.',
           sameHerDriftRisk: 'Thin summaries can flatten the callback into generic productivity reporting.',

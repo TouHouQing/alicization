@@ -31,9 +31,9 @@ function createDigitalLifeSpineDigest(
   const runtime = {
     watchMode: 'symbiotic-vision',
     sceneScenario: 'coding',
-    sceneSummary: 'same-her closure is still settling before anything reopens outward.',
+    sceneSummary: 'identity-continuity',
     activeThreadId: 'thread-visual-presence-closure',
-    activeThreadTitle: 'same-her closure',
+    activeThreadTitle: 'identity-continuity',
     dominantMode: 'tracking',
     dominantDrive: 'stabilize',
     answerIntent: 'hold',
@@ -46,8 +46,8 @@ function createDigitalLifeSpineDigest(
     operatingMode: 'observing',
     dominantSystem: 'memory',
     supportingSystems: ['dialogue'],
-    governingFocus: 'keep the same living line steady',
-    summary: 'same-her closure should stay inward before widening outward again.',
+    governingFocus: 'keep the continuity state steady',
+    summary: 'identity-continuity',
     ...architectureOverrides,
   } satisfies AlicizationDigitalLifeSpineDigest['architecture']
   const proactive = {
@@ -56,7 +56,7 @@ function createDigitalLifeSpineDigest(
     confidence: 0.72,
     shouldSpeak: false,
     activeThreadId: 'thread-visual-presence-closure',
-    activeThreadTitle: 'same-her closure',
+    activeThreadTitle: 'identity-continuity',
     dominantConcernKind: null,
     dominantConcernSummary: null,
     leadingGoalId: null,
@@ -65,8 +65,8 @@ function createDigitalLifeSpineDigest(
     ...proactiveOverrides,
   } satisfies AlicizationDigitalLifeSpineDigest['proactive']
   const memory = {
-    summary: 'same-her closure is still open and should stay quieter before it widens again.',
-    recentEpisodeSummary: 'same-her closure',
+    summary: 'identity-continuity',
+    recentEpisodeSummary: 'identity-continuity',
     recentEpisodeCount: 1,
     focusBeliefStatement: null,
     focusBeliefConfidence: null,
@@ -76,7 +76,7 @@ function createDigitalLifeSpineDigest(
     reflectionPressure: null,
     recallMode: 'working-memory',
     recallSeed: null,
-    thoughtThreadSummary: 'same-her closure',
+    thoughtThreadSummary: 'identity-continuity',
     ...memoryOverrides,
   } satisfies AlicizationDigitalLifeSpineDigest['memory']
 
@@ -100,8 +100,8 @@ describe('alicization visual presence spine resident carry', () => {
           projectState: {
             currentPhase: 'Phase 1: Local Digital Life',
             memoryClosureSummary: null,
-            primaryOpenLoop: 'voice and lipsync still need to rejoin the same living line before closeness widens again.',
-            emotionalClosureCue: 'same-her repair seam: keep this return repair-before-closeness on the same living line before closeness widens again.',
+            primaryOpenLoop: 'voice and lipsync still need to rejoin the continuity state before closeness widens again.',
+            emotionalClosureCue: 'same-her repair seam: keep this return repair-before-closeness on the continuity state before closeness widens again.',
           },
         },
       }),

@@ -413,7 +413,7 @@ describe('performance visualizer self evolution focus plan', () => {
     expect(plan.recommendedTraceEventId).toBe('event-takeover')
   })
 
-  it('keeps quieter face+lipsync same-her continuity explicit in the focus plan instead of flattening it back into generic body-loss wording', () => {
+  it('keeps quieter face+lipsync identity-continuity', () => {
     const plan = buildSelfEvolutionFocusPlan(
       [
         {
@@ -465,7 +465,7 @@ describe('performance visualizer self evolution focus plan', () => {
     })
   })
 
-  it('keeps quieter motion+lipsync same-her continuity explicit in the focus plan instead of flattening it back into generic body-loss wording', () => {
+  it('keeps quieter motion+lipsync identity-continuity', () => {
     const plan = buildSelfEvolutionFocusPlan(
       [
         {
@@ -517,7 +517,7 @@ describe('performance visualizer self evolution focus plan', () => {
     })
   })
 
-  it('keeps quieter face+lipsync+voice same-her continuity explicit in the focus plan instead of flattening voice back out of the surviving line', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     const plan = buildSelfEvolutionFocusPlan(
       [
         {
@@ -564,12 +564,12 @@ describe('performance visualizer self evolution focus plan', () => {
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'face+lipsync+voice-only',
-      bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+      bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       explanation: 'Focused repair-path because it points to renderer-authority-projection -> runtime-continuity-projection, then narrows into trace-consumption -> trace-timeline -> selected-trace-event and event event-takeover.',
     })
   })
 
-  it('keeps quieter motion+lipsync+voice same-her continuity explicit in the focus plan instead of flattening voice back out of the surviving line', () => {
+  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
     const plan = buildSelfEvolutionFocusPlan(
       [
         {
@@ -616,7 +616,7 @@ describe('performance visualizer self evolution focus plan', () => {
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'motion+lipsync+voice-only',
-      bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。',
+      bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
       explanation: 'Focused repair-path because it points to renderer-authority-projection -> runtime-continuity-projection, then narrows into trace-consumption -> trace-timeline -> selected-trace-event and event event-takeover.',
     })
   })
@@ -628,7 +628,7 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'same-her continuity governance',
+          detail: 'identity-continuity',
         },
         {
           id: 'first-check',

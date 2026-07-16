@@ -59,420 +59,33 @@ describe('main chat execution surface', () => {
       { channel: 'openclaw', available: false, enabled: false, ready: false, sessionAffinity: true, reason: 'offline' },
     ]
 
-    const [capabilityBlock, routerBlock] = buildExecutionCapabilitySystemBlocks(capabilities, executionChannels, {
-      allowTools: true,
+    const [capabilityBlock] = buildExecutionCapabilitySystemBlocks(capabilities, executionChannels, {
       inquiry: {
         capabilityQuestion: true,
         mentionedChannels: ['cli', 'codex'],
       },
     })
 
-    expect(capabilityBlock).toContain('[ALICIZATION_EXECUTION_CAPABILITIES]')
-    expect(capabilityBlock).toContain('Capability query focus: cli, codex.')
-    expect(capabilityBlock).toContain('Never collapse multi-channel capability answers into a blanket "cannot".')
-    expect(capabilityBlock).toContain('call executor_capability_snapshot first')
-    expect(routerBlock).toContain('executor_run_cli')
-    expect(routerBlock).toContain('executor_run_codex')
-    expect(routerBlock).toContain('executor_run_claude_code')
-    expect(routerBlock).toContain('browser_open_url')
-    expect(routerBlock).toContain('browser_search_web')
-    expect(routerBlock).toContain('browser_read_page')
-    expect(routerBlock).toContain('browser_click_element')
-    expect(routerBlock).toContain('browser_type_text')
-    expect(routerBlock).toContain('browser_navigate')
-    expect(routerBlock).toContain('browser_scroll')
-    expect(routerBlock).toContain('browser_wait')
-    expect(routerBlock).toContain('desktop_inspect_scene')
-    expect(routerBlock).toContain('desktop_list_interactables')
-    expect(routerBlock).toContain('desktop_click_element')
-    expect(routerBlock).toContain('desktop_type_text')
-    expect(routerBlock).toContain('desktop_press_keys')
-    expect(routerBlock).toContain('desktop_open_application')
-    expect(routerBlock).toContain('desktop_wait')
-    expect(routerBlock).toContain('executor_run_local_visual')
-    expect(routerBlock).toContain('executor_run_openclaw')
-    expect(routerBlock).toContain('filesystem_patch_file')
-    expect(routerBlock).toContain('filesystem_search_files')
-  })
-
-  it('includes canonical project briefing in execution capability system blocks when runtime context is available', () => {
-    const capabilities: AlicizationChannelCapability[] = [
-      { channel: 'cli', available: true, enabled: true, ready: true, sessionAffinity: false, reason: null },
-      { channel: 'codex', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
-      { channel: 'claude-code', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
-      { channel: 'openclaw', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
-    ]
-
-    const blocks = buildExecutionCapabilitySystemBlocks(capabilities, executionChannels, {
-      runtimeContext: buildAlicizationExecutionRuntimeContext({
-        agentSessionId: 'agent-session-1',
-        cardId: 'default',
-        turnId: 'turn-project-briefing',
-        decisionTraceId: 'trace-project-briefing',
-        sessionId: 'session-1',
-        projectBriefing: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
-          primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
-          nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          continuityArcStage: 'same-thread-continuation',
-          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
-          preflightSummary: 'identity=Alicization | phase=Phase 1 | open=Project identity carry | next=Phase 1 route carry',
-          preDialogueAwarenessLine: 'Before answering, remember: this is still the same digital life project.',
-        },
-        recentActions: [],
-        sensorySnapshot: {
-          running: true,
-          stale: false,
-          ageMs: 100,
-          nextTickAt: 200,
-          sample: {
-            collectedAt: 100,
-            time: {
-              iso: '2026-04-04T00:00:00.000Z',
-              local: '2026-04-04 08:00',
-              timezone: 'Asia/Shanghai',
-            },
-            foregroundWindow: {
-              appName: 'Cursor',
-              processName: 'cursor',
-              title: 'airi-alice',
-            },
-            cpu: {
-              usagePercent: 12,
-              windowMs: 1000,
-            },
-            memory: {
-              freeMB: 1024,
-              totalMB: 8192,
-              usagePercent: 87.5,
-            },
-          },
-          capture: {
-            health: 'healthy',
-            permission: 'granted',
-            sessionPhase: 'active',
-            sessionReason: null,
-            selectedSourceId: 'window:1',
-            currentSourceId: 'window:1',
-            sourcePreference: 'window',
-            sourceCount: 2,
-            leaseStatus: 'leased',
-            leaseSourceId: 'window:1',
-            lastUpdatedAt: 100,
-            lastError: null,
-            degradedReasons: [],
-          },
-        },
-      }),
+    expect(buildExecutionCapabilitySystemBlocks(capabilities, executionChannels, {
+      inquiry: {
+        capabilityQuestion: true,
+        mentionedChannels: ['cli', 'codex'],
+      },
+    })).toHaveLength(1)
+    expect(JSON.parse(capabilityBlock!)).toEqual({
+      type: 'alicization-execution-capabilities',
+      data: {
+        capabilityQuestion: true,
+        channels: [
+          { channel: 'cli', available: true, enabled: true, ready: true, reason: null },
+          { channel: 'codex', available: true, enabled: false, ready: false, reason: 'disabled' },
+          { channel: 'claude-code', available: true, enabled: true, ready: true, reason: null },
+          { channel: 'openclaw', available: false, enabled: false, ready: false, reason: 'offline' },
+        ],
+        focusedChannels: ['cli', 'codex'],
+      },
     })
-
-    const projectBriefingBlock = blocks[0] ?? ''
-    expect(projectBriefingBlock).toContain('[ALICIZATION_EXECUTION_BRIEFING]')
-    expect(projectBriefingBlock).toContain('briefing_scope=execution_capability | visibility=internal-structured | owner=execution-runtime-context')
-    expect(projectBriefingBlock).toContain('runtime_context=alicization_phase1')
-    expect(projectBriefingBlock).not.toContain('Before answering execution capability')
-    expect(projectBriefingBlock).not.toContain('project_identity=')
-    expect(projectBriefingBlock).not.toContain('project_phase=')
-    expect(projectBriefingBlock).toContain('latest_landed_progress=')
-    expect(projectBriefingBlock).toContain('primary_open_loop=')
-    expect(projectBriefingBlock).toContain('next_closure_target=')
-    expect(projectBriefingBlock).not.toContain('same_her_line=')
-    expect(projectBriefingBlock).not.toContain('same_her_hold=')
-    expect(projectBriefingBlock).not.toContain('same_her_drift_risk=')
-    expect(projectBriefingBlock).toContain('execution_continuity_arc_stage=')
-    expect(projectBriefingBlock).toContain('execution_continuity=')
-    expect(projectBriefingBlock).toContain('template_awareness=withheld_from_execution_capability_answer')
-    expect(projectBriefingBlock).toContain('latest_landed_progress=Same-session mirror carry and measured-return continuity now survive longer noisy detours.')
-    expect(projectBriefingBlock).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.')
-    expect(projectBriefingBlock).toContain('execution_continuity_arc_stage=same-thread-continuation')
-    expect(projectBriefingBlock).toContain('execution_continuity=execution should keep first-person project continuity active before widening outward.')
-    expect(projectBriefingBlock).not.toContain('same-her hold: execution should keep this same project line inward before widening outward.')
-    expect(projectBriefingBlock).not.toContain('same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
-    expect(projectBriefingBlock).not.toContain('Before answering, remember: this is still the same digital life project.')
-    expect(projectBriefingBlock).not.toContain('Execution guidance must stay inside the same digital life project')
-  })
-
-  it('keeps richer same-her execution awareness summary and cadence detail explicit in execution capability blocks instead of collapsing back to a thinner project shell', () => {
-    const richerProjectAwareSummary = 'Before answering, remember this is still the same local-first digital life project, already in Phase 1, and what has landed, what is still open, and what still needs same-her closure all belong to one living her before execution widens outward.'
-    const blocks = buildExecutionCapabilitySystemBlocks([{
-      channel: 'cli',
-      available: true,
-      enabled: true,
-      ready: true,
-      sessionAffinity: false,
-      reason: null,
-    }], executionChannels, {
-      runtimeContext: buildAlicizationExecutionRuntimeContext({
-        agentSessionId: 'agent-session-1',
-        cardId: 'default',
-        turnId: 'turn-project-briefing-richer-awareness-summary',
-        decisionTraceId: 'trace-project-briefing-richer-awareness-summary',
-        sessionId: 'session-1',
-        projectBriefing: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
-          primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
-          nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'same-her hold: execution should keep this same project line inward before widening outward.',
-          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
-          continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
-          continuityPreferredTiming: 'next-open-window',
-          continuityCadence: 'measured-return',
-          preferredPauseMode: 'longer',
-          preferredLipsyncMode: 'restrained',
-          preferredVoiceMode: 'lower-pressure',
-          preferredPacingMode: 'slower',
-          companionBriefingLine: 'Before answering, remember she is still inside Phase 1 and this execution turn must keep emotion, memory, initiative, and embodiment on the same living line.',
-          emotionalClosureSummary: 'same-her execution seam: keep this execution turn low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-          preflightSummary: 'identity=Alicization | phase=Phase 1 | open=Project identity carry | next=Phase 1 route carry',
-          preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-          preDialogueAwarenessSummary: richerProjectAwareSummary,
-        },
-        recentActions: [],
-        sensorySnapshot: {
-          running: true,
-          stale: false,
-          ageMs: 100,
-          nextTickAt: 200,
-          sample: {
-            collectedAt: 100,
-            time: {
-              iso: '2026-04-04T00:00:00.000Z',
-              local: '2026-04-04 08:00',
-              timezone: 'Asia/Shanghai',
-            },
-            foregroundWindow: {
-              appName: 'Cursor',
-              processName: 'cursor',
-              title: 'airi-alice',
-            },
-            cpu: {
-              usagePercent: 12,
-              windowMs: 1000,
-            },
-            memory: {
-              freeMB: 1024,
-              totalMB: 8192,
-              usagePercent: 87.5,
-            },
-          },
-          capture: {
-            health: 'healthy',
-            permission: 'granted',
-            sessionPhase: 'active',
-            sessionReason: null,
-            selectedSourceId: 'window:1',
-            currentSourceId: 'window:1',
-            sourcePreference: 'window',
-            sourceCount: 2,
-            leaseStatus: 'leased',
-            leaseSourceId: 'window:1',
-            lastUpdatedAt: 100,
-            lastError: null,
-            degradedReasons: [],
-          },
-        },
-      }),
-    })
-
-    const projectBriefingBlock = blocks[0] ?? ''
-    expect(projectBriefingBlock).not.toContain('project_preflight=')
-    expect(projectBriefingBlock).not.toContain('project_awareness=')
-    expect(projectBriefingBlock).not.toContain('project_awareness_summary=')
-    expect(projectBriefingBlock).not.toContain('project_companion_briefing=')
-    expect(projectBriefingBlock).not.toContain('project_emotional_closure=')
-    expect(projectBriefingBlock).toContain('execution_continuity_preferred_timing=next-open-window')
-    expect(projectBriefingBlock).toContain('execution_continuity_cadence=measured-return')
-    expect(projectBriefingBlock).toContain('execution_pause_mode=longer')
-    expect(projectBriefingBlock).toContain('execution_lipsync_mode=restrained')
-    expect(projectBriefingBlock).toContain('execution_voice_mode=lower-pressure')
-    expect(projectBriefingBlock).toContain('execution_pacing_mode=slower')
-    expect(projectBriefingBlock).toContain('template_awareness=withheld_from_execution_capability_answer')
-    expect(projectBriefingBlock).not.toContain(richerProjectAwareSummary)
-    expect(projectBriefingBlock).not.toContain('Before answering, remember she is still inside Phase 1')
-    expect(projectBriefingBlock).not.toContain('same-her execution seam:')
-    expect(projectBriefingBlock).not.toContain('project_awareness=Before answering, keep the same digital life project in view.')
-  })
-
-  it('prefers same-her awareness over thinner preflight summaries in execution capability project briefing blocks', () => {
-    const capabilities: AlicizationChannelCapability[] = [
-      { channel: 'cli', available: true, enabled: true, ready: true, sessionAffinity: false, reason: null },
-      { channel: 'codex', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
-      { channel: 'claude-code', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
-      { channel: 'openclaw', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
-    ]
-
-    const blocks = buildExecutionCapabilitySystemBlocks(capabilities, executionChannels, {
-      runtimeContext: buildAlicizationExecutionRuntimeContext({
-        agentSessionId: 'agent-session-1',
-        cardId: 'default',
-        turnId: 'turn-project-briefing-prefer-same-her',
-        decisionTraceId: 'trace-project-briefing-prefer-same-her',
-        sessionId: 'session-1',
-        projectBriefing: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'Same-session mirror carry survives noisier execution detours.',
-          primaryOpenLoop: 'Execution reopenings still need stronger same-her closure.',
-          nextClosureTarget: 'Keep execution returns, memory carry, and dialogue formation on one same-her line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. The callback return still belongs to one living her rather than a generic execution shell.',
-          sameHerHoldDetail: 'same-her hold: keep execution on the same living line before widening outward.',
-          sameHerDriftRisk: 'If execution guidance keeps only a thin preflight shell, treat that as unfinished same-her drift.',
-          continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
-          preflightSummary: 'identity=Alicization | phase=Phase 1 | open=Execution reopenings still need stronger same-her closure',
-          preDialogueAwarenessLine: 'Before answering, remember this callback return still belongs to one living her.',
-        },
-        recentActions: [],
-        sensorySnapshot: {
-          running: true,
-          stale: false,
-          ageMs: 100,
-          nextTickAt: 200,
-          sample: {
-            collectedAt: 100,
-            time: {
-              iso: '2026-04-04T00:00:00.000Z',
-              local: '2026-04-04 08:00',
-              timezone: 'Asia/Shanghai',
-            },
-            foregroundWindow: {
-              appName: 'Cursor',
-              processName: 'cursor',
-              title: 'airi-alice',
-            },
-            cpu: {
-              usagePercent: 12,
-              windowMs: 1000,
-            },
-            memory: {
-              freeMB: 1024,
-              totalMB: 8192,
-              usagePercent: 87.5,
-            },
-          },
-          capture: {
-            health: 'healthy',
-            permission: 'granted',
-            sessionPhase: 'active',
-            sessionReason: null,
-            selectedSourceId: 'window:1',
-            currentSourceId: 'window:1',
-            sourcePreference: 'window',
-            sourceCount: 2,
-            leaseStatus: 'leased',
-            leaseSourceId: 'window:1',
-            lastUpdatedAt: 100,
-            lastError: null,
-            degradedReasons: [],
-          },
-        },
-      }),
-    })
-
-    const projectBriefingBlock = blocks[0] ?? ''
-    expect(projectBriefingBlock).not.toContain('project_preflight=')
-    expect(projectBriefingBlock).not.toContain('project_awareness=')
-    expect(projectBriefingBlock).toContain('latest_landed_progress=Same-session mirror carry survives noisier execution detours.')
-    expect(projectBriefingBlock).not.toContain('primary_open_loop=[fixed-template-excluded]')
-    expect(projectBriefingBlock).not.toContain('same_her_line=')
-    expect(projectBriefingBlock).not.toContain('same_her_hold=')
-    expect(projectBriefingBlock).not.toContain('project_continuity=')
-    expect(projectBriefingBlock).toContain('template_awareness=withheld_from_execution_capability_answer')
-    expect(projectBriefingBlock).not.toContain('Same Phase 1 digital life. The callback return still belongs to one living her rather than a generic execution shell.')
-    expect(projectBriefingBlock).not.toContain('Before answering, remember this callback return still belongs to one living her.')
-    expect(projectBriefingBlock).not.toContain('same-her hold: keep execution on the same living line before widening outward.')
-    expect(projectBriefingBlock).not.toContain('same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
-    expect(projectBriefingBlock).not.toContain('project_preflight=identity=Alicization | phase=Phase 1')
-  })
-
-  it('prefers richer project-aware execution preflight over a thinner same-her baseline when awareness already keeps the project identity and embodiment closure gap explicit together', () => {
-    const capabilities: AlicizationChannelCapability[] = [
-      { channel: 'cli', available: true, enabled: true, ready: true, sessionAffinity: false, reason: null },
-      { channel: 'codex', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
-      { channel: 'claude-code', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
-      { channel: 'openclaw', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
-    ]
-
-    const richerProjectAwarePreflight = 'Before answering, remember this is still the same local-first digital life project, Phase 1 is still active, audible-body carry already survives execution preflight, and face, motion, plus lipsync still remain the open closure before this dispatch widens outward.'
-    const thinnerSameHerBaseline = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
-
-    const blocks = buildExecutionCapabilitySystemBlocks(capabilities, executionChannels, {
-      runtimeContext: buildAlicizationExecutionRuntimeContext({
-        agentSessionId: 'agent-session-1',
-        cardId: 'default',
-        turnId: 'turn-project-briefing-prefer-richer-project-aware-preflight',
-        decisionTraceId: 'trace-project-briefing-prefer-richer-project-aware-preflight',
-        sessionId: 'session-1',
-        projectBriefing: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'Audible-body carry already survives execution preflight without dropping the same living line.',
-          primaryOpenLoop: 'Face, motion, and lipsync still need to rejoin on the same living line before execution can feel fully embodied.',
-          nextClosureTarget: 'Keep execution, memory, initiative, and embodiment on one same living line before outward fluency takes over.',
-          sameHerSelfLine: thinnerSameHerBaseline,
-          sameHerHoldDetail: 'same-her hold: keep execution on the same living line before widening outward.',
-          sameHerDriftRisk: 'If execution re-entry opens like detached project narration or a generic assistant shell, treat that as unfinished same-her drift.',
-          continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
-          preDialogueAwarenessLine: richerProjectAwarePreflight,
-        },
-        recentActions: [],
-        sensorySnapshot: {
-          running: true,
-          stale: false,
-          ageMs: 100,
-          nextTickAt: 200,
-          sample: {
-            collectedAt: 100,
-            time: {
-              iso: '2026-04-04T00:00:00.000Z',
-              local: '2026-04-04 08:00',
-              timezone: 'Asia/Shanghai',
-            },
-            foregroundWindow: {
-              appName: 'Cursor',
-              processName: 'cursor',
-              title: 'airi-alice',
-            },
-            cpu: {
-              usagePercent: 12,
-              windowMs: 1000,
-            },
-            memory: {
-              freeMB: 1024,
-              totalMB: 8192,
-              usagePercent: 87.5,
-            },
-          },
-          capture: {
-            health: 'healthy',
-            permission: 'granted',
-            sessionPhase: 'active',
-            sessionReason: null,
-            selectedSourceId: 'window:1',
-            currentSourceId: 'window:1',
-            sourcePreference: 'window',
-            sourceCount: 2,
-            leaseStatus: 'leased',
-            leaseSourceId: 'window:1',
-            lastUpdatedAt: 100,
-            lastError: null,
-            degradedReasons: [],
-          },
-        },
-      }),
-    })
-
-    const projectBriefingBlock = blocks[0] ?? ''
-    expect(projectBriefingBlock).not.toContain('project_preflight=')
-    expect(projectBriefingBlock).not.toContain(`project_preflight=${thinnerSameHerBaseline}`)
-    expect(projectBriefingBlock).not.toContain('project_awareness=')
-    expect(projectBriefingBlock).toContain('template_awareness=withheld_from_execution_capability_answer')
-    expect(projectBriefingBlock).not.toContain(richerProjectAwarePreflight)
+    expect(capabilityBlock).not.toMatch(/Never|When the host asks|Answer each|call executor_capability_snapshot/iu)
   })
 
   it('builds execution routing guard with required tool names', () => {
@@ -482,9 +95,15 @@ describe('main chat execution surface', () => {
       reasonCodes: ['channel-mentioned', 'action-verb'],
     })
 
-    expect(block).toContain('[ALICIZATION_EXECUTION_ROUTING_GUARD]')
-    expect(block).toContain('executor_run_cli, executor_run_codex')
-    expect(block).toContain('Do not pretend execution happened.')
+    expect(JSON.parse(block)).toEqual({
+      type: 'alicization-execution-routing',
+      data: {
+        reasonCodes: ['channel-mentioned', 'action-verb'],
+        requestedChannels: ['cli', 'codex'],
+        requiredToolNames: ['executor_run_cli', 'executor_run_codex'],
+        toolInputOverrides: null,
+      },
+    })
   })
 
   it('includes workflow continuation argument guidance in the execution routing guard', () => {
@@ -2371,9 +1990,12 @@ describe('main chat execution surface', () => {
             sessionId: 'session-local-visual-context-1',
             agentSessionId: 'agent-session-1',
             projectBriefing: expect.objectContaining({
-              identity: expect.stringContaining('local-first digital life project'),
-              currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-              sameHerSelfLine: expect.stringContaining('phase1_local_digital_life_anchor'),
+              identity: null,
+              currentPhase: null,
+              latestLandedProgress: expect.stringContaining('Continuity progress is partial'),
+              primaryOpenLoop: expect.stringContaining('Memory, dialogue, and embodiment still need end-to-end proof'),
+              nextClosureTarget: expect.stringContaining('Extend embodiment-scale validation'),
+              sameHerSelfLine: null,
             }),
             recentActions: [{
               kind: 'sensory',
@@ -2405,9 +2027,12 @@ describe('main chat execution surface', () => {
             sessionId: 'session-local-visual-context-1',
             agentSessionId: 'agent-session-1',
             projectBriefing: expect.objectContaining({
-              identity: expect.stringContaining('local-first digital life project'),
-              currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-              sameHerSelfLine: expect.stringContaining('phase1_local_digital_life_anchor'),
+              identity: null,
+              currentPhase: null,
+              latestLandedProgress: expect.stringContaining('Continuity progress is partial'),
+              primaryOpenLoop: expect.stringContaining('Memory, dialogue, and embodiment still need end-to-end proof'),
+              nextClosureTarget: expect.stringContaining('Extend embodiment-scale validation'),
+              sameHerSelfLine: null,
             }),
             recentActions: [{
               kind: 'sensory',

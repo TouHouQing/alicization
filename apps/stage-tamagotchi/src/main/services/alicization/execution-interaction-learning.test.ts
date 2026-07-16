@@ -184,7 +184,7 @@ describe('execution interaction learning', () => {
       digitalLifeSpine: {
         runtime: {
           projectState: {
-            preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need stronger same-her closure. | next=Keep extending cross-modal same-her proof across longer real-desktop runs.',
+            preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need stronger identity-continuity',
           },
         },
         runtimeSurface: {
@@ -245,12 +245,12 @@ describe('execution interaction learning', () => {
     expect(policy.reasonTags).toContain('project-open-closure')
   })
 
-  it('keeps execution-result delivery on a quieter same-her line when project preflight still carries measured-return closure pressure', () => {
+  it('keeps execution-result delivery on a quieter identity-continuity', () => {
     const policy = deriveExecutionResultDeliveryPolicy({
       digitalLifeSpine: {
         runtime: {
           projectState: {
-            preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Keep one same-her line across memory, initiative, and embodiment. | next=Keep extending cross-modal same-her proof and measured-return resident presence across voice, motion, and visible reply.',
+            preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Keep one identity-continuity',
           },
         },
         runtimeSurface: {
@@ -386,7 +386,7 @@ describe('execution interaction learning', () => {
       digitalLifeSpine: {
         runtime: {
           projectState: {
-            latestProgress: 'Same Phase 1 digital life execution feedback already carries execute -> feedback -> remember on one same-her line.',
+            latestProgress: 'legacy phase-one template execution feedback already carries execute -> feedback -> remember on one identity-continuity',
           },
         },
         runtimeSurface: {
@@ -450,7 +450,7 @@ describe('execution interaction learning', () => {
       digitalLifeSpine: {
         runtime: {
           projectState: {
-            landedProgressSummary: 'Same Phase 1 digital life execution feedback already carries execute -> feedback -> remember on one same-her line through the audit alias.',
+            landedProgressSummary: 'legacy phase-one template execution feedback already carries execute -> feedback -> remember on one identity-continuity',
           },
         },
         runtimeSurface: {
@@ -523,7 +523,7 @@ describe('execution interaction learning', () => {
           memory: {
             personStateProjection: {
               selfContinuityAuthority: {
-                inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                inwardLine: 'structured continuity digest.',
               },
             },
             autobiographicalSelf: {
@@ -675,7 +675,7 @@ describe('execution interaction learning', () => {
                 {
                   subject: 'project',
                   predicate: 'closure',
-                  object: 'For this callback return, do not let same-her continuity collapse into generic task-shell reporting while the Phase 1 digital-life closure is still open.',
+                  object: 'For this callback return, do not let identity-continuity',
                   confidence: 0.84,
                 },
               ],
@@ -733,9 +733,9 @@ describe('execution interaction learning', () => {
             preflightSummary: 'same digital life',
             preDialogueAwarenessLine: 'Before reopening, remember this is still the same digital life project and the unfinished Phase 1 closure still belongs to one living her.',
             latestLandedProgress: 'Project awareness and callback continuity already survive into execution-result preparation instead of resetting from scratch.',
-            primaryOpenLoop: 'Execution-result feedback still needs quieter same-her closure carry before widening outward.',
+            primaryOpenLoop: 'Execution-result feedback still needs quieter identity-continuity',
             nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line and preserve project identity through the next visible answer beat.',
-            sameHerDriftRisk: 'If this callback return opens like detached project narration, same-her continuity can collapse into generic task shell and project-summary voice.',
+            sameHerDriftRisk: 'If this callback return opens like detached project narration, identity-continuity',
           },
         },
         runtimeSurface: {
@@ -887,7 +887,7 @@ describe('execution interaction learning', () => {
               activeClosenessContext: 'execution-callback',
               activeClosenessRung: 'measured-room',
               relationshipPosture: 'restrained',
-              openingGuidance: 'Stay inside the current same-her baseline. Keep the callback lower-pressure and leave room before widening closeness.',
+              openingGuidance: 'Stay inside the current identity-continuity',
               manifestationCadenceSummary: 'The callback return stays measured and less eager before closeness widens again.',
               trustRationale: 'Trust holds when the callback return stays measured and room-first.',
               relationshipDoctrine: 'Room first, then closeness.',
@@ -969,7 +969,7 @@ describe('execution interaction learning', () => {
               },
               modules: {
                 personality: {
-                  identityLine: 'one continuous her, not a generic execution shell',
+                  identityLine: 'identity continuity, not a generic execution shell',
                   relationshipLine: 'same callback line stays lower-pressure',
                   openingGuidance: 'leave room before widening closeness',
                   continuityRisk: 'rushing the result would split execution from companionship',

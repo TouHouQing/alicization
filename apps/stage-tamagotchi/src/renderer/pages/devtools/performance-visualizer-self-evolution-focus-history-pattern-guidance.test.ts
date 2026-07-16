@@ -114,7 +114,7 @@ describe('performance visualizer self evolution focus history pattern guidance',
     })
   })
 
-  it('maps remembered-familiarity memory-first recurrence to same-her continuity governance instead of drift repair', () => {
+  it('maps remembered-familiarity memory-first recurrence to identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatternGuidance({
       patternKey: 'focus:repair-owner->first-check|event:event-takeover->event-governance|evidence:+candidate-trajectory-summary,+identity-drift-governance-summary,+proactive-decision-consumption-summary|trace:+trace-consumption,+trace-details',
       occurrenceCount: 2,
@@ -404,7 +404,7 @@ describe('performance visualizer self evolution focus history pattern guidance',
     })
   })
 
-  it('keeps quieter face+lipsync same-her carry explicit in body continuity guidance instead of flattening it into generic body-loss wording', () => {
+  it('keeps quieter face+lipsync identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatternGuidance({
       patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|lane:face+lipsync-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
       occurrenceCount: 2,
@@ -449,7 +449,7 @@ describe('performance visualizer self evolution focus history pattern guidance',
     })
   })
 
-  it('keeps quieter motion+lipsync same-her carry explicit in body continuity guidance instead of flattening it into generic body-loss wording', () => {
+  it('keeps quieter motion+lipsync identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatternGuidance({
       patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|lane:motion+lipsync-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
       occurrenceCount: 2,
@@ -494,7 +494,7 @@ describe('performance visualizer self evolution focus history pattern guidance',
     })
   })
 
-  it('keeps quieter face+lipsync+voice same-her carry explicit in body continuity guidance instead of flattening voice back out of the surviving line', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatternGuidance({
       patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|lane:face+lipsync+voice-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
       occurrenceCount: 2,
@@ -539,7 +539,7 @@ describe('performance visualizer self evolution focus history pattern guidance',
     })
   })
 
-  it('keeps quieter motion+lipsync+voice same-her carry explicit in body continuity guidance instead of flattening voice back out of the surviving line', () => {
+  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatternGuidance({
       patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|lane:motion+lipsync+voice-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
       occurrenceCount: 2,

@@ -121,7 +121,6 @@ function buildMemoryOsStageSettlements(artifact: AlicizationMemoryTurnArtifact):
         `mode=${artifact.speechPosture.surfaceMode ?? 'none'}`,
         `placement=${artifact.speechPosture.placement ?? 'none'}`,
         `certainty=${artifact.speechPosture.certainty ?? 'none'}`,
-        artifact.speechPosture.styleNote,
       ],
     }),
     stage({

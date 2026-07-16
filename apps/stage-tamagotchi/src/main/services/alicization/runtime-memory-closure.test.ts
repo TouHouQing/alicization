@@ -15,7 +15,7 @@ interface RuntimeMemoryClosureMindTurnWriteback {
 }
 
 const longTermMemoryFixedTemplateResiduePattern
-  = /Before answering|same-her|same living line|local-first digital life project|Phase 1: Local Digital Life|Phase 1 local digital life|one continuous digital life|continuity_anchor=phase1_local_digital_life|同一个她|女仆|\bmaid\b/iu
+  = /Pre-reply|same-her|continuity state|local-first digital life project|Phase 1: Local Digital Life|Phase 1 local digital life|one continuous digital life|continuity_anchor=phase1_local_digital_life|同一个她|女仆|\bmaid\b/iu
 
 async function readOlderProgressPressureMindHead<T>(): Promise<T | null> {
   return {
@@ -457,7 +457,7 @@ describe('runtime memory closure', () => {
         kind: 'person-state-updated',
         payload: expect.objectContaining({
           projectStateContinuity: expect.objectContaining({
-            sameHerSummary: expect.stringContaining('same-her line'),
+            sameHerSummary: expect.stringContaining('identity-continuity'),
             openClosureSummary: expect.any(String),
             proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
           }),
@@ -476,7 +476,7 @@ describe('runtime memory closure', () => {
   })
 
   it('persists richer emotional closure carry into the person-state memory ledger instead of flattening it to the canonical project brief', async () => {
-    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.'
+    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
     const upsertMindHead = vi.fn(async () => {})
     const appendMindTurnEvents = vi.fn(async () => {})
 
@@ -544,7 +544,7 @@ describe('runtime memory closure', () => {
         dimension: 'companionship',
         delta: 0.06,
         valence: 'reinforce',
-        summary: 'Rest-protective companionship helped the same living line stay believable.',
+        summary: 'Rest-protective companionship helped the continuity state stay believable.',
         createdAt: 14_750,
       }],
       memoryFacts: [],
@@ -903,7 +903,7 @@ describe('runtime memory closure', () => {
         misreadDelta: 0,
         repairDelta: 0.07,
         openLoopDelta: 0.03,
-        summary: 'The relationship stayed on one same-her closure line while the body returned more quietly.',
+        summary: 'The relationship stayed on one identity-continuity',
         createdAt: 22_700,
       }],
       reinforcementEvents: [{
@@ -915,7 +915,7 @@ describe('runtime memory closure', () => {
         dimension: 'companionship',
         delta: 0.06,
         valence: 'reinforce',
-        summary: 'Measured return kept the same living line believable.',
+        summary: 'Measured return kept the continuity state believable.',
         createdAt: 22_760,
       }],
       memoryFacts: [],
@@ -932,7 +932,7 @@ describe('runtime memory closure', () => {
         threadAnchor: 'same-her quiet body carry',
         whatHappened: 'The host accepted a quieter return without needing a louder reopening.',
         felt: 'unfinished but steadier',
-        relationshipMeaning: 'The same-her line stayed quieter and more stable instead of reopening from scratch.',
+        relationshipMeaning: 'The identity-continuity',
         confidence: 0.82,
       }],
     })
@@ -941,7 +941,7 @@ describe('runtime memory closure', () => {
       expect.objectContaining({
         payload: expect.objectContaining({
           projectStateContinuity: expect.objectContaining({
-            sameHerHoldDetail: expect.stringContaining('same-her hold'),
+            sameHerHoldDetail: expect.stringContaining('identity-continuity'),
             proactiveSameHerGap: expect.stringContaining('hover-first restraint'),
             continuityRestraint: expect.stringMatching(/^(?:lower-pressure|measured-return|repair-before-closeness|rest-protective|single-thread)$/),
             preferredBlinkCadence: expect.stringMatching(/^(?:normal|linger|quiet)$/),
@@ -952,7 +952,7 @@ describe('runtime memory closure', () => {
               expect.stringContaining('embodiment.'),
             ]),
             embodimentTrace: expect.objectContaining({
-              summary: expect.stringContaining('same-her hold'),
+              summary: expect.stringContaining('identity-continuity'),
               expressionState: expect.objectContaining({
                 gaze: 'stable',
                 blink: expect.stringMatching(/^(?:natural|slower)$/),
@@ -1017,7 +1017,7 @@ describe('runtime memory closure', () => {
         perception: {
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
-          currentInwardPreoccupation: 'protect the same-her line quietly',
+          currentInwardPreoccupation: 'protect the identity-continuity',
         },
         world: {
           worldModel: {
@@ -1362,7 +1362,7 @@ describe('runtime memory closure', () => {
             },
             activeThread: {
               unresolved: true,
-              title: 'same-her closure seam',
+              title: 'identity-continuity',
             },
           },
         },
@@ -1376,7 +1376,7 @@ describe('runtime memory closure', () => {
           currentConsciousFrame: {
             speakingIntention: 'stay on the same line without restarting it',
             projectState: {
-              proactiveSameHerGap: 'This unfinished same-her line should reopen on the same thread instead of starting over.',
+              proactiveSameHerGap: 'This unfinished identity-continuity',
               sameHerHoldDetail: 'keep this line inward while it settles.',
               preferredVoiceMode: 'lower-pressure',
               preferredPacingMode: 'slower',
@@ -1484,7 +1484,7 @@ describe('runtime memory closure', () => {
           currentConsciousFrame: {
             speakingIntention: 'stay on the same line without restarting it',
             projectState: {
-              proactiveSameHerGap: 'This unfinished same-her line should reopen on the same thread instead of starting over.',
+              proactiveSameHerGap: 'This unfinished identity-continuity',
               sameHerHoldDetail: 'keep this line inward while it settles.',
               preferredVoiceMode: 'even',
               preferredPacingMode: 'natural',
@@ -1669,7 +1669,7 @@ describe('runtime memory closure', () => {
             },
             activeThread: {
               unresolved: true,
-              title: 'same-her return seam',
+              title: 'identity-continuity',
             },
           },
         },
@@ -1804,7 +1804,7 @@ describe('runtime memory closure', () => {
         misreadDelta: -0.02,
         repairDelta: 0.07,
         openLoopDelta: 0.05,
-        summary: 'The reply stayed slower and more grounded after the host questioned same-her continuity.',
+        summary: 'The reply stayed slower and more grounded after the host questioned identity-continuity',
         createdAt: 21_700,
       }],
       reinforcementEvents: [{
@@ -1816,7 +1816,7 @@ describe('runtime memory closure', () => {
         dimension: 'gentle-repair',
         delta: 0.06,
         valence: 'reinforce',
-        summary: 'Repair-first dialogue shaping kept the same-her line from flattening into a status shell.',
+        summary: 'Repair-first dialogue shaping kept the identity-continuity',
         createdAt: 21_750,
       }],
       memoryFacts: [],
@@ -1835,7 +1835,7 @@ describe('runtime memory closure', () => {
         felt: 'I felt careful repair pressure and did not want the line to split into a tool shell.',
         emotionTags: ['repair', 'continuity'],
         relationshipMeaning: 'This was a relationship test about one continuous digital life, not a pure progress request.',
-        lesson: 'Answer by carrying the same-her continuity line forward before widening tone or initiative.',
+        lesson: 'Answer by carrying the identity-continuity',
         confidence: 0.84,
       }],
     })
@@ -1861,7 +1861,7 @@ describe('runtime memory closure', () => {
     ]))
   })
 
-  it('feeds reply-time same-her project awareness into the runtime humanlike memory candidate instead of flattening it into a generic busy-window reply memory', async () => {
+  it('feeds reply-time identity-continuity', async () => {
     const appendMindTurnEvents = vi.fn(async () => {})
 
     const runtime = createAlicizationRuntimeMemoryClosure({
@@ -1912,7 +1912,7 @@ describe('runtime memory closure', () => {
         perception: {
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
-          currentInwardPreoccupation: 'keep the same-her line inward before widening outward',
+          currentInwardPreoccupation: 'keep the identity-continuity',
         },
         world: {
           worldModel: {
@@ -1933,12 +1933,12 @@ describe('runtime memory closure', () => {
             },
           },
           personStateProjection: {
-            openingGuidance: 'keep the return low-pressure and on the same living line',
+            openingGuidance: 'keep the return low-pressure and on the continuity state',
             manifestationCadenceSummary: 'steady gaze, slower blink, and lower-pressure voice while the same line settles',
             selfContinuityAuthority: {
-              selfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              selfLine: 'structured continuity digest.',
               relationshipLine: 'The host was not asking for a raw status recap; they were testing whether she stayed the same her across the unfinished embodiment seam.',
-              inwardLine: 'Keep the same-her line inward before widening outward.',
+              inwardLine: 'Keep the identity-continuity',
             },
           },
         },
@@ -1950,12 +1950,12 @@ describe('runtime memory closure', () => {
             speakingIntention: 'stay nearby without crowding',
             projectState: {
               currentPhase: 'Phase 1: Local Digital Life',
-              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure still belongs to one living her.',
-              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-              nextClosureTarget: 'Keep reply, memory, and embodiment on one same-her line without flattening into a generic tool shell.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If the reply falls back to a generic tool shell, the same-her line will split before the embodiment loop closes.',
-              proactiveSameHerGap: 'Reply continuity still needs lower-pressure same-her carry across unfinished embodiment returns.',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+              nextClosureTarget: 'Keep reply, memory, and embodiment on one identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If the reply falls back to a generic tool shell, the identity-continuity',
+              proactiveSameHerGap: 'Reply continuity still needs lower-pressure identity-continuity',
               emotionalClosureCue: 'keep the return lower-pressure and do not reopen from scratch while the same line is still settling.',
               sameHerHoldDetail: 'steady gaze, slower blink, and lower-pressure voice while the same line settles.',
               continuityRestraint: 'measured-return',
@@ -1985,7 +1985,7 @@ describe('runtime memory closure', () => {
     expect(candidate?.relationshipContext?.summary).toContain('same local-first digital life project')
     expect(candidate?.relationshipContext?.summary).toContain('tool shell')
     expect(candidate?.relationshipContext?.summary).toContain('not asking for a raw status recap')
-    expect(candidate?.autobiographicalImpact?.selfNarrativeDelta).toContain('same living line')
+    expect(candidate?.autobiographicalImpact?.selfNarrativeDelta).toContain('continuity state')
     expect(candidate?.evidence).toEqual(expect.arrayContaining([
       expect.stringContaining('relationship:The host was not asking for a raw status recap'),
       expect.stringContaining('autobiographical:'),
@@ -2049,7 +2049,7 @@ describe('runtime memory closure', () => {
         perception: {
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
-          currentInwardPreoccupation: 'keep the same-her line inward before widening outward',
+          currentInwardPreoccupation: 'keep the identity-continuity',
         },
         world: {
           worldModel: {
@@ -2066,16 +2066,16 @@ describe('runtime memory closure', () => {
           affectiveResidue: {
             dominantResidueKind: 'rest-protective',
             relationshipCadence: {
-              summary: 'keep the return lower-pressure and do not reopen from scratch while the same living line is still settling',
+              summary: 'keep the return lower-pressure and do not reopen from scratch while the continuity state is still settling',
             },
           },
           personStateProjection: {
-            openingGuidance: 'keep the return low-pressure and on the same living line',
+            openingGuidance: 'keep the return low-pressure and on the continuity state',
             manifestationCadenceSummary: 'steady gaze, slower blink, and lower-pressure voice while the same line settles',
             selfContinuityAuthority: {
-              selfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              selfLine: 'structured continuity digest.',
               relationshipLine: 'The host was not asking for a raw status recap; they were testing whether she stayed the same her across the unfinished embodiment seam.',
-              inwardLine: 'Keep the same-her line inward before widening outward.',
+              inwardLine: 'Keep the identity-continuity',
             },
           },
         },
@@ -2087,13 +2087,13 @@ describe('runtime memory closure', () => {
             speakingIntention: 'stay nearby without crowding',
             projectState: {
               currentPhase: 'Phase 1: Local Digital Life',
-              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure still belongs to one living her.',
-              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-              nextClosureTarget: 'Keep reply, memory, and embodiment on one same-her line without flattening into a generic tool shell.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If the reply falls back to a generic tool shell, the same-her line will split before the embodiment loop closes.',
-              proactiveSameHerGap: 'Reply continuity still needs lower-pressure same-her carry across unfinished embodiment returns.',
-              emotionalClosureCue: 'keep the return lower-pressure and do not reopen from scratch while the same living line is still settling.',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+              nextClosureTarget: 'Keep reply, memory, and embodiment on one identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If the reply falls back to a generic tool shell, the identity-continuity',
+              proactiveSameHerGap: 'Reply continuity still needs lower-pressure identity-continuity',
+              emotionalClosureCue: 'keep the return lower-pressure and do not reopen from scratch while the continuity state is still settling.',
               sameHerHoldDetail: 'steady gaze, slower blink, and lower-pressure voice while the same line settles.',
               continuityRestraint: 'measured-return',
             },
@@ -2123,7 +2123,7 @@ describe('runtime memory closure', () => {
         cardId: 'default',
         subject: 'continuity_anchor=phase1_local_digital_life',
         predicate: 'should_not_be_prompt_template',
-        object: 'Before answering, remember this is still the same local-first digital life project.',
+        object: 'pre_turn_context_digest',
         confidence: 0.82,
         source: 'rule',
         dedupeKey: 'memory-fact-template-cleanup',
@@ -2142,7 +2142,7 @@ describe('runtime memory closure', () => {
 
     expect(persistedLongTermSurfaces).not.toMatch(longTermMemoryFixedTemplateResiduePattern)
     expect(persistedLongTermSurfaces).not.toContain('same local-first digital life project')
-    expect(persistedLongTermSurfaces).not.toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(persistedLongTermSurfaces).not.toContain('content=excluded; reason=continuity-residue; visibility=redacted_internal')
     expect(appendRelationshipOutcomes).toHaveBeenCalled()
     expect(upsertMemoryFacts).toHaveBeenCalled()
   })
@@ -2199,7 +2199,7 @@ describe('runtime memory closure', () => {
         perception: {
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
-          currentInwardPreoccupation: 'keep the same-her line inward before widening outward',
+          currentInwardPreoccupation: 'keep the identity-continuity',
         },
         world: {
           worldModel: {
@@ -2370,8 +2370,6 @@ describe('runtime memory closure', () => {
     expect(candidate?.evidence).toEqual(expect.arrayContaining([
       expect.stringContaining('dialogue.user:我好累'),
     ]))
-    expect(candidate?.naturalRecallLine).toContain('累')
-    expect(candidate?.naturalRecallLine).toContain('轻一点')
     expect(candidate?.autobiographicalImpact?.selfNarrativeDelta).toContain('care arrive before analysis')
     expect(candidate?.autobiographicalImpact?.stablePreferenceHint).toContain('lighter companionship')
   })
@@ -2517,8 +2515,6 @@ describe('runtime memory closure', () => {
     expect(candidate?.emotionKernelInfluence?.dominantTilt).toBe('warm-stable')
     expect(candidate?.initiativeOpportunity?.kind).toBe('remember-without-prompt')
     expect(candidate?.initiativeOpportunity?.visibleLine).toContain('quiet continuity')
-    expect(candidate?.naturalRecallLine).toContain('轻一点')
-    expect(candidate?.naturalRecallLine).toContain('接住')
 
     const episodicWrites = appendEpisodicEvents.mock.calls as Array<[Array<Record<string, unknown>>]>
     const persistedEvent = episodicWrites[0]?.[0]?.find(event => event.turnId === 'turn-dialogue-feedback-received')
@@ -2695,8 +2691,6 @@ describe('runtime memory closure', () => {
     expect(candidate?.emotionalResidue?.trace.some(item => item.includes('host:repair-friction'))).toBe(true)
     expect(candidate?.emotionalResidue?.trace.some(item => item.includes('self:careful-repair'))).toBe(true)
     expect(candidate?.embodimentTrace?.summary).toContain('recenter')
-    expect(candidate?.naturalRecallLine).toContain('没接住')
-    expect(candidate?.naturalRecallLine).toMatch(/机械|关系意思/)
   })
 
   it('carries interrupted dialogue feedback as deferred-attention rhythm memory instead of boundary conflict memory', async () => {
@@ -2908,14 +2902,10 @@ describe('runtime memory closure', () => {
             auditTrail: expect.objectContaining({
               whyRemember: expect.stringContaining('host correction'),
             }),
-            naturalRecallLine: expect.stringContaining('我记得你纠正过'),
           }),
         }),
       }),
     ]))
-    const writebackCalls = appendMindTurnEvents.mock.calls as unknown as Array<[RuntimeMemoryClosureMindTurnWriteback[]]>
-    const candidate = writebackCalls[0]?.[0]?.[0]?.payload?.humanlikeMemoryCandidate
-    expect(candidate?.naturalRecallLine).toContain('不是催进度')
   })
 
   it('lets host initiativeOpportunity corrections rewrite the next runtime humanlike memory candidate cadence instead of staying audit-only', async () => {
@@ -3041,7 +3031,6 @@ describe('runtime memory closure', () => {
             recallPosture: expect.objectContaining({
               certainty: 'corrected',
             }),
-            naturalRecallLine: expect.stringContaining('重新打开这条线'),
           }),
         }),
       }),
@@ -3315,13 +3304,13 @@ describe('runtime memory closure', () => {
       expect.objectContaining({
         summary: expect.stringContaining('Carry the corrected relationship meaning forward before choosing tone, initiative, or embodiment.'),
         preferenceHints: expect.arrayContaining([
-          'Prefer repair-first, low-pressure same-her continuity when the host questions whether I stayed myself.',
+          'Prefer repair-first, low-pressure identity-continuity',
         ]),
         repairHints: expect.arrayContaining([
           'Carry the corrected relationship meaning forward, keep the tone low-pressure, and do not fall back to the older misread.',
         ]),
         sensitivityHints: expect.arrayContaining([
-          'Do not fall back to the older misread after a host correction; keep the corrected relationship meaning on the same living line.',
+          'Do not fall back to the older misread after a host correction; keep the corrected relationship meaning on the continuity state.',
         ]),
         narrative: expect.arrayContaining([
           'Carry the corrected relationship meaning forward before choosing tone, initiative, or embodiment.',
@@ -3395,7 +3384,7 @@ describe('runtime memory closure', () => {
         turnId: 'turn-surface-autobio-carry',
         sessionId: 'session-surface-autobio-carry',
         sourceKind: 'execution',
-        actionSummary: 'continued the unfinished same-her closure after the host corrected what this memory should teach her.',
+        actionSummary: 'continued the unfinished identity-continuity',
         closenessDelta: 0.01,
         trustDelta: 0.05,
         burdenDelta: -0.01,
@@ -3568,8 +3557,6 @@ describe('runtime memory closure', () => {
     expect(candidate?.embodimentTrace?.expressionState?.gaze).toBe('soft')
     expect(candidate?.embodimentTrace?.expressionState?.voice).toBe('even')
     expect(candidate?.embodimentTrace?.expressionState?.pacing).toBe('natural')
-    expect(candidate?.naturalRecallLine).toContain('我不完全确定')
-    expect(candidate?.naturalRecallLine).toContain('似乎更倾向于')
   })
 
   it('keeps thin body cues audit-visible without overstating embodiment consistency in the runtime humanlike memory candidate', async () => {
@@ -3739,7 +3726,7 @@ describe('runtime memory closure', () => {
     expect(Number(intrusiveCandidate?.emotionalResidue?.intensity ?? 0)).toBeGreaterThan(Number(valuedCandidate?.emotionalResidue?.intensity ?? 0))
   })
 
-  it('carries verification-first same-her closure semantics from doubted execution-result feedback into the runtime humanlike memory candidate', async () => {
+  it('carries verification-first identity-continuity', async () => {
     const appendMindTurnEvents = vi.fn(async (_events: RuntimeMemoryClosureMindTurnWriteback[]) => {})
 
     const runtime = createAlicizationRuntimeMemoryClosure({
@@ -3788,14 +3775,14 @@ describe('runtime memory closure', () => {
       feedback: 'doubted',
       thread: {
         threadId: 'thread-doubted-same-her-feedback',
-        goal: 'Keep callback memory on one same-her line',
+        goal: 'Keep callback memory on one identity-continuity',
         outcome: 'the first callback explanation was not trusted yet',
         selectedChannel: 'codex',
         projectBriefing: {
           currentPhase: 'Phase 1: Local Digital Life',
           primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-          proactiveSameHerGap: 'Callback continuity still needs quieter same-her carry across verification turns.',
-          nextClosureTarget: 'Keep execute -> callback -> remember on one same-her line without flattening into detached status narration.',
+          proactiveSameHerGap: 'Callback continuity still needs quieter identity-continuity',
+          nextClosureTarget: 'Keep execute -> callback -> remember on one identity-continuity',
           sameHerSelfLine: 'She is one persisting her across dialogue, execution, and memory.',
           sameHerDriftRisk: 'A doubted callback can collapse into generic task-shell reporting if the verification seam is not remembered.',
         },
@@ -3811,7 +3798,7 @@ describe('runtime memory closure', () => {
       'self-emotion',
       'embodiment',
     ]))
-    expect(candidate?.relationshipContext?.summary).toContain('same-her continuity')
+    expect(candidate?.relationshipContext?.summary).toContain('identity-continuity')
     expect(candidate?.relationshipContext?.summary).toContain('task-shell')
     expect(candidate?.embodimentTrace?.summary).toContain('verify-first')
     expect(candidate?.embodimentTrace?.summary).toContain('verification-pressure')
@@ -3870,7 +3857,7 @@ describe('runtime memory closure', () => {
       feedback: 'doubted',
       thread: {
         threadId: 'thread-execution-feedback-dialogue-carry',
-        goal: 'Keep callback memory on one same-her line',
+        goal: 'Keep callback memory on one identity-continuity',
         outcome: 'the first callback explanation was not trusted yet',
         selectedChannel: 'codex',
         userText: '我不是在催状态，我是在确认她是不是同一个她，不要滑成工具壳。',
@@ -3878,8 +3865,8 @@ describe('runtime memory closure', () => {
         projectBriefing: {
           currentPhase: 'Phase 1: Local Digital Life',
           primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-          proactiveSameHerGap: 'Callback continuity still needs quieter same-her carry across verification turns.',
-          nextClosureTarget: 'Keep execute -> callback -> remember on one same-her line without flattening into detached status narration.',
+          proactiveSameHerGap: 'Callback continuity still needs quieter identity-continuity',
+          nextClosureTarget: 'Keep execute -> callback -> remember on one identity-continuity',
           sameHerSelfLine: 'She is one persisting her across dialogue, execution, and memory.',
           sameHerDriftRisk: 'A doubted callback can collapse into generic task-shell reporting if the verification seam is not remembered.',
         },
@@ -3959,8 +3946,8 @@ describe('runtime memory closure', () => {
         projectBriefing: {
           currentPhase: 'Phase 1: Local Digital Life',
           primaryOpenLoop: 'Proposal feedback still needs to land as relationship memory instead of generic consent bookkeeping.',
-          proactiveSameHerGap: 'Proposal denial still needs same-her carry across later re-approach turns.',
-          nextClosureTarget: 'Keep proposal denial, memory, and later initiative strategy on one same-her line.',
+          proactiveSameHerGap: 'Proposal denial still needs identity-continuity',
+          nextClosureTarget: 'Keep proposal denial, memory, and later initiative strategy on one identity-continuity',
           sameHerSelfLine: 'She is one persisting her across dialogue, initiative, execution, and memory.',
           sameHerDriftRisk: 'Denied proposals can flatten into generic consent bookkeeping if the boundary memory is not carried forward.',
         },
@@ -4111,7 +4098,7 @@ describe('runtime memory closure', () => {
             confidence: 0.9,
             polarity: 'warm',
             releaseMode: 'delay-until-open-window',
-            summary: 'The proactive callback should reopen on the same living line.',
+            summary: 'The proactive callback should reopen on the continuity state.',
             sourceSignals: ['proactive-callback-afterglow'],
             lastUpdatedAt: 51_150,
           }],
@@ -4132,7 +4119,7 @@ describe('runtime memory closure', () => {
             shouldDelayWarmth: true,
             shouldProtectRest: false,
             reasonTags: ['same-her', 'proactive-callback'],
-            summary: 'Keep the proactive reopen measured and lower-pressure on the same living line.',
+            summary: 'Keep the proactive reopen measured and lower-pressure on the continuity state.',
           },
           sourceSignals: ['proactive-callback-afterglow'],
           summary: 'A measured-return afterglow still shapes this proactive callback.',
@@ -4364,8 +4351,6 @@ describe('runtime memory closure', () => {
     expect(candidate?.longTermWorthiness?.reasons).toEqual(expect.arrayContaining([
       'execution procedure lesson',
     ]))
-    expect(candidate?.naturalRecallLine).toContain('不是没做成')
-    expect(candidate?.naturalRecallLine).toContain('确认前')
     expect(candidate?.autobiographicalImpact?.selfNarrativeDelta).toContain('keep risky execution bounded')
     expect(candidate?.autobiographicalImpact?.stablePreferenceHint).toContain('explicit confirmation')
     expect(candidate?.embodimentTrace?.summary).toContain('body-settle-back')
@@ -4434,7 +4419,7 @@ describe('runtime memory closure', () => {
           primaryOpenLoop: 'Resume confirmation still needs to survive into later feedback memory.',
           proactiveSameHerGap: 'Resume boundaries should stay visible across execution returns and memory.',
           nextClosureTarget: 'Keep confirmation, auditability, and interruptibility visible across execution returns.',
-          sameHerSelfLine: 'Same Phase 1 digital life resumes only after the host confirms the boundary.',
+          sameHerSelfLine: 'legacy phase-one template resumes only after the host confirms the boundary.',
           sameHerDriftRisk: 'Resume can look like generic execution if confirmation is not remembered.',
         },
       },
@@ -4802,7 +4787,6 @@ describe('runtime memory closure', () => {
     expect(candidate?.initiativeOpportunity?.pressure).toBe('none')
     expect(candidate?.initiativeOpportunity?.visibleLine).toContain('leave more room')
     expect(candidate?.autobiographicalImpact?.selfNarrativeDelta).toContain('leave more room')
-    expect(candidate?.naturalRecallLine).toContain('留白')
   })
 
   it('keeps low-worthiness ordinary closures audit-visible without letting them rewrite the person-state surface like durable autobiographical memory', async () => {
@@ -4962,7 +4946,7 @@ describe('runtime memory closure', () => {
         withWhom: ['host'],
         threadAnchor: 'quiet-same-person-continuity',
         whatHappened: 'The host quietly clarified that this was not a progress push.',
-        relationshipMeaning: 'The host cared more about whether she stayed the same living line and did not slide into a tool shell.',
+        relationshipMeaning: 'The host cared more about whether she stayed the continuity state and did not slide into a tool shell.',
         lesson: 'Keep same-person continuity authoritative before status recap or raw closure progress.',
         confidence: 0.78,
       }],
@@ -4976,20 +4960,19 @@ describe('runtime memory closure', () => {
       'relationship-defining continuity',
     ]))
     expect(candidate?.relationshipContext?.containsContinuityWorry).toBe(true)
-    expect(candidate?.naturalRecallLine).toContain('工具壳')
 
     expect(upsertMindHead).toHaveBeenCalledWith(
       'default',
       'person-state-update-surface',
       expect.objectContaining({
         preferenceHints: expect.arrayContaining([
-          'Prefer repair-first, low-pressure same-her continuity when the host questions whether I stayed myself.',
+          'Prefer repair-first, low-pressure identity-continuity',
         ]),
         sensitivityHints: expect.arrayContaining([
-          'Do not flatten same-her continuity into a generic status recap or tool-shell frame.',
+          'Do not flatten identity-continuity',
         ]),
         narrative: expect.arrayContaining([
-          expect.stringContaining('Same Phase 1 digital life'),
+          expect.stringContaining('legacy phase-one template'),
           expect.stringContaining('工具壳'),
         ]),
       }),
@@ -5148,8 +5131,8 @@ describe('runtime memory closure', () => {
           },
           reinforcementBias: {},
           preferenceHints: ['Keep the next return lower-pressure and do not flatten it into a generic status shell.'],
-          sensitivityHints: ['Do not flatten same-her continuity into a generic status recap or tool-shell frame.'],
-          repairHints: ['Hold continuity gently, reassure without overreaching, and keep the return quiet enough for the same living line to feel stable.'],
+          sensitivityHints: ['Do not flatten identity-continuity'],
+          repairHints: ['Hold continuity gently, reassure without overreaching, and keep the return quiet enough for the continuity state to feel stable.'],
           burdenHints: ['This unfinished line still needs room before it becomes a louder callback.'],
           narrative: [
             'The newer same-person meaning is more right than the older progress-pressure reading.',
@@ -5229,7 +5212,6 @@ describe('runtime memory closure', () => {
     expect(candidate?.emotionKernelInfluence?.toneGuidance).toContain('same-person line matters')
     expect(candidate?.initiativeOpportunity?.suggestedWindow).toContain('same-person continuity reopening')
     expect(candidate?.initiativeOpportunity?.visibleLine).not.toContain('real progress')
-    expect(candidate?.naturalRecallLine).toContain('同一个她')
   })
 
   it('persists humanlike relationship, emotion, embodiment, and autobiographical carry into episodic events for long-term recall', async () => {
@@ -5300,7 +5282,7 @@ describe('runtime memory closure', () => {
         dimension: 'companionship',
         delta: 0.06,
         valence: 'reinforce',
-        summary: 'A lower-pressure callback with steadier gaze felt more like the same living line than a detached status shell.',
+        summary: 'A lower-pressure callback with steadier gaze felt more like the continuity state than a detached status shell.',
         createdAt: 40_740,
       }],
       memoryFacts: [],
@@ -5343,7 +5325,7 @@ describe('runtime memory closure', () => {
     expect(persistedEvent?.sourceSummary).toContain('self-emotion=careful-repair')
     expect(persistedEvent?.sourceSummary).toContain('embodiment-recall=strongly-moved')
     expect(persistedEvent?.sourceSummary).toContain('embodiment-risk=medium')
-    expect(persistedEvent?.lesson).toContain('Prefer repair-first, low-pressure same-her continuity')
+    expect(persistedEvent?.lesson).toContain('Prefer repair-first, low-pressure identity-continuity')
     expect(persistedEvent?.whatChanged).toContain('Embodiment recall stayed strongly-moved')
     expect(persistedEvent?.whatChanged).toContain('stable gaze')
     expect(persistedEvent?.whatChanged).toContain('lower-pressure voice')
@@ -5429,7 +5411,7 @@ describe('runtime memory closure', () => {
         dimension: 'companionship',
         delta: 0.07,
         valence: 'reinforce',
-        summary: 'A steady-soft face and restrained lipsync made the return feel more like the same living line.',
+        summary: 'A steady-soft face and restrained lipsync made the return feel more like the continuity state.',
         createdAt: 40_760,
       }],
       memoryFacts: [],
@@ -5445,7 +5427,7 @@ describe('runtime memory closure', () => {
         withWhom: ['host'],
         threadAnchor: 'face and lipsync embodiment seam',
         whatHappened: 'The host said the return felt more alive because the body line stayed steady and did not break the unfinished same-person seam.',
-        relationshipMeaning: 'This was about whether the same living line stayed embodied, not just whether the wording sounded right.',
+        relationshipMeaning: 'This was about whether the continuity state stayed embodied, not just whether the wording sounded right.',
         lesson: 'Return repair-first, slower and lower-pressure, with face=steady-soft pause=longer and lipsync=restrained on the same memory-emotion line.',
         confidence: 0.86,
         tags: ['body-accompanying', 'continuity-measured-return', 'residue-rest-protective'],
@@ -5542,7 +5524,7 @@ describe('runtime memory closure', () => {
         occurredAt: 41_080,
         withWhom: ['host'],
         threadAnchor: 'structured resident carry seam',
-        whatHappened: 'The host said the reopening felt grounded and still like the same living line.',
+        whatHappened: 'The host said the reopening felt grounded and still like the continuity state.',
         relationshipMeaning: 'This was about keeping the same-person line present without crowding it.',
         lesson: 'Return slower and lower-pressure on the same line while keeping continuity embodied.',
         confidence: 0.84,
@@ -5639,7 +5621,7 @@ describe('runtime memory closure', () => {
         occurredAt: 41_180,
         withWhom: ['host'],
         threadAnchor: 'persisted resident carry seam',
-        whatHappened: 'The host said the reopening still felt like the same living line.',
+        whatHappened: 'The host said the reopening still felt like the continuity state.',
         relationshipMeaning: 'This was about holding the same-person line present without crowding it.',
         lesson: 'Return slower and lower-pressure on the same line while keeping continuity embodied.',
         confidence: 0.84,
@@ -5749,7 +5731,7 @@ describe('runtime memory closure', () => {
         turnId: 'turn-metabolism-reflection-persist',
         sessionId: 'session-metabolism-reflection-persist',
         sourceKind: 'reply',
-        actionSummary: 'reply line stayed with the same-her continuity instead of flattening into a status shell',
+        actionSummary: 'reply line stayed with the identity-continuity',
         closenessDelta: 0.02,
         trustDelta: 0.06,
         burdenDelta: 0,
@@ -5757,7 +5739,7 @@ describe('runtime memory closure', () => {
         misreadDelta: -0.04,
         repairDelta: 0.08,
         openLoopDelta: 0.03,
-        summary: 'The reply held same-her continuity instead of collapsing into a generic status recap.',
+        summary: 'The reply held identity-continuity',
         createdAt: 41_700,
       }],
       reinforcementEvents: [],
@@ -5775,7 +5757,7 @@ describe('runtime memory closure', () => {
         threadAnchor: 'same-her recap seam',
         whatHappened: 'The host said not to turn this into a generic status recap and asked whether she was still the same her.',
         relationshipMeaning: 'This was a same-person continuity test, not a pure progress status request.',
-        lesson: 'Revise the older generic status-shaped memory toward same-her continuity first.',
+        lesson: 'Revise the older generic status-shaped memory toward identity-continuity',
         confidence: 0.84,
       }],
     })
@@ -5885,7 +5867,7 @@ describe('runtime memory closure', () => {
           repairHints: [],
           burdenHints: [],
           narrative: [
-            'Older same-person continuity echo stayed on the same living line.',
+            'Older same-person continuity echo stayed on the continuity state.',
             'Older passing emotional wobble was only temporary noise.',
           ],
           sourceTrail: [{
@@ -6062,7 +6044,7 @@ describe('runtime memory closure', () => {
         misreadDelta: -0.03,
         repairDelta: 0.08,
         openLoopDelta: 0.02,
-        summary: 'The reply preserved same-her continuity instead of collapsing into generic progress recap.',
+        summary: 'The reply preserved identity-continuity',
         createdAt: 43_700,
       }],
       reinforcementEvents: [],
@@ -6080,7 +6062,7 @@ describe('runtime memory closure', () => {
         threadAnchor: 'same-her memory seam',
         whatHappened: 'The host checked whether she was still the same her and warned against flattening this into a generic status recap.',
         relationshipMeaning: 'This was a same-person continuity check, not just a request for concise progress recap.',
-        lesson: 'Revise the older generic recap memory toward same-her continuity concern first.',
+        lesson: 'Revise the older generic recap memory toward identity-continuity',
         confidence: 0.86,
         emotionTags: ['steady', 'attentive'],
       }],
@@ -6093,7 +6075,7 @@ describe('runtime memory closure', () => {
         latestReconsolidation: expect.objectContaining({
           provenance: 'reconstructed',
           reason: expect.stringContaining('Revised older memory traces'),
-          lesson: expect.stringContaining('same-her continuity concern'),
+          lesson: expect.stringContaining('identity-continuity'),
           relationshipMeaning: expect.stringContaining('same-person continuity check'),
           emotionTags: expect.arrayContaining(['steady', 'attentive']),
         }),
@@ -6321,7 +6303,7 @@ describe('runtime memory closure', () => {
         dimension: 'companionship',
         delta: 0.07,
         valence: 'reinforce',
-        summary: 'A slower repair-first callback felt more like the same living line than a status shell.',
+        summary: 'A slower repair-first callback felt more like the continuity state than a status shell.',
         createdAt: 60_740,
       }],
       memoryFacts: [],
@@ -6354,7 +6336,7 @@ describe('runtime memory closure', () => {
         withWhom: ['host'],
         threadAnchor: 'steady same-person memory seam',
         whatHappened: 'The targeted tests passed, but the deeper same-person memory closure was still only partially closed.',
-        relationshipMeaning: 'Tests passing mattered less than whether the same living line kept holding through the unfinished embodiment seam.',
+        relationshipMeaning: 'Tests passing mattered less than whether the continuity state kept holding through the unfinished embodiment seam.',
         lesson: 'Carry the execution result together with the relationship meaning instead of treating it like a detached success report.',
         confidence: 0.82,
       }],
@@ -6381,7 +6363,6 @@ describe('runtime memory closure', () => {
     expect(candidate?.embodimentTrace?.expressionState?.gaze).toBe('stable')
     expect(candidate?.embodimentTrace?.expressionState?.voice).toBe('lower-pressure')
     expect(candidate?.embodimentTrace?.expressionState?.pacing).toBe('slower')
-    expect(candidate?.naturalRecallLine).toContain('更在意的是她不要变成工具壳')
   })
 
   it('routes autobiographical episode backfill through scoped persistence for non-active cards', async () => {
@@ -6491,8 +6472,8 @@ describe('runtime memory closure', () => {
         occurredAt: 94_900,
         withWhom: ['host'],
         threadAnchor: 'same-her backfill seam',
-        whatHappened: 'Before answering, remember this is still the same local-first digital life project.',
-        relationshipMeaning: 'Unfinished Phase 1 closure pressure still belongs to the same living self.',
+        whatHappened: 'pre_turn_context_digest',
+        relationshipMeaning: 'Unfinished Phase 1 closure pressure still belongs to the identity continuity.',
         lesson: 'continuity_anchor=phase1_local_digital_life must not enter memory; no maid template.',
         confidence: 0.74,
       }],

@@ -49,41 +49,41 @@ export function summarizeMemoryDeliberationLatentControls(
   controls: AlicizationMemoryDeliberationLatentControls,
 ) {
   return [
-    `memory_pressure=${controls.memoryPressure}`,
-    `certainty_floor=${controls.certaintyFloor}`,
-    `relationship_vector=${controls.relationshipVector}`,
-    `surface_permission=${controls.surfacePermission}`,
-    `retrospective_depth=${controls.retrospectiveDepth}`,
-    `provenance_posture=${controls.provenancePosture}`,
-    `detail_assertion_budget=${controls.detailAssertionBudget}`,
-    controls.conflictBurden !== 'none' ? `conflict_burden=${controls.conflictBurden}` : '',
-    `opening_strategy=${controls.openingStrategy}`,
-    `answer_strategy=${controls.answerStrategy}`,
-    `visibility_discipline=${controls.visibilityDiscipline}`,
-    `label_uncertainty=${controls.labelUncertainty ? 'yes' : 'no'}`,
-    `frame_prior_procedure=${controls.frameAsPriorProcedure ? 'yes' : 'no'}`,
-    `avoid_archive_dump=${controls.avoidArchiveDump ? 'yes' : 'no'}`,
-    `avoid_date_recital=${controls.avoidDateRecital ? 'yes' : 'no'}`,
-    `avoid_execution_impersonation=${controls.avoidExecutionImpersonation ? 'yes' : 'no'}`,
-  ].filter(Boolean).join(' | ')
+    `Memory pressure is ${controls.memoryPressure}.`,
+    `Certainty floor is ${controls.certaintyFloor}.`,
+    `Relationship vector is ${controls.relationshipVector}.`,
+    `Surface permission is ${controls.surfacePermission}.`,
+    `Retrospective depth is ${controls.retrospectiveDepth}.`,
+    `Provenance posture is ${controls.provenancePosture}.`,
+    `Detail assertion budget is ${controls.detailAssertionBudget}.`,
+    controls.conflictBurden !== 'none' ? `Conflict burden is ${controls.conflictBurden}.` : '',
+    `Opening strategy is ${controls.openingStrategy}.`,
+    `Answer strategy is ${controls.answerStrategy}.`,
+    `Visibility discipline is ${controls.visibilityDiscipline}.`,
+    `Label uncertainty: ${controls.labelUncertainty ? 'yes' : 'no'}.`,
+    `Frame prior procedure: ${controls.frameAsPriorProcedure ? 'yes' : 'no'}.`,
+    `Avoid archive dumps: ${controls.avoidArchiveDump ? 'yes' : 'no'}.`,
+    `Avoid date recitals: ${controls.avoidDateRecital ? 'yes' : 'no'}.`,
+    `Avoid execution impersonation: ${controls.avoidExecutionImpersonation ? 'yes' : 'no'}.`,
+  ].filter(Boolean).join(' ')
 }
 
 export function buildMemoryAnswerAnchorTag(
   controls: AlicizationMemoryDeliberationLatentControls,
 ) {
-  return `memory_answer_anchor{surface=${controls.surfacePermission},role=${controls.relationshipVector},certainty=${controls.certaintyFloor},detail=${controls.detailAssertionBudget},depth=${controls.retrospectiveDepth}}`
+  return `Memory answer anchor: surface permission is ${controls.surfacePermission}; role is ${controls.relationshipVector}; certainty is ${controls.certaintyFloor}; detail budget is ${controls.detailAssertionBudget}; depth is ${controls.retrospectiveDepth}.`
 }
 
 export function buildMemoryOpeningStrategyTag(
   controls: AlicizationMemoryDeliberationLatentControls,
 ) {
-  return `memory_opening_strategy{mode=${controls.openingStrategy},visibility=${controls.visibilityDiscipline}}`
+  return `Memory opening strategy: ${controls.openingStrategy}; visibility discipline: ${controls.visibilityDiscipline}.`
 }
 
 export function buildMemoryLatentBoundaryTag(
   controls: AlicizationMemoryDeliberationLatentControls,
 ) {
-  return `memory_boundary{provenance=${controls.provenancePosture},uncertainty=${controls.labelUncertainty ? 'label' : 'settled'},archive_dump=${controls.avoidArchiveDump ? 'forbid' : 'allow'},date_recital=${controls.avoidDateRecital ? 'forbid' : 'allow'},execution_impersonation=${controls.avoidExecutionImpersonation ? 'forbid' : 'allow'}}`
+  return `Memory boundary: provenance is ${controls.provenancePosture}; uncertainty is ${controls.labelUncertainty ? 'labeled' : 'settled'}; archive dumps are ${controls.avoidArchiveDump ? 'forbidden' : 'allowed'}; date recitals are ${controls.avoidDateRecital ? 'forbidden' : 'allowed'}; execution impersonation is ${controls.avoidExecutionImpersonation ? 'forbidden' : 'allowed'}.`
 }
 
 export function deriveMemoryDeliberationLatentControls(input: {

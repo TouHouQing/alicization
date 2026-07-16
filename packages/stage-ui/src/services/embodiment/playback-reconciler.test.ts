@@ -22,7 +22,7 @@ function buildCue(overrides: Partial<AlicizationDialogueSpeechTimelineSegment> =
     index: overrides.index ?? 0,
     startOffset: overrides.startOffset ?? 0,
     endOffset: overrides.endOffset ?? 640,
-    text: overrides.text ?? '我先沿着这条线轻一点接回来。',
+    text: overrides.text ?? '我先沿着这条线中性可见占位。',
     emotion: overrides.emotion ?? 'thinking',
     gestureWeight: overrides.gestureWeight ?? 0.17,
     facialWeight: overrides.facialWeight ?? 0.27,

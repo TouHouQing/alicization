@@ -725,7 +725,7 @@ describe('performance visualizer authority table filter', () => {
     }).map(row => row.cueId)).toEqual(['segment-thin-affective-filter-1'])
   })
 
-  it('treats audible body-carried same-her continuity as present authority trust in table filters even when only settle authority still exposes it', () => {
+  it('treats audible body-carried identity-continuity', () => {
     const rows = [
       {
         cueId: 'segment-audible-body-filter-1',

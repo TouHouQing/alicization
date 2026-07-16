@@ -177,7 +177,7 @@ describe('memory conversation retrieval', () => {
           assistantText: '我那次是先留空间，再慢一点回返，没有直接把亲近推高。',
           structuredJson: JSON.stringify({
             projectState: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
             },

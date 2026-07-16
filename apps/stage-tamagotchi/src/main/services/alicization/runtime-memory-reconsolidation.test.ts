@@ -47,7 +47,7 @@ describe('runtime memory reconsolidation', () => {
             id: 'memory-situation:reply-rehumanize',
             kind: 'mixed',
             summary: 'same-her rehumanize seam',
-            evidenceSummary: 'relationship-context=the host was testing whether she would stay one same person instead of slipping into a tool shell | host-attitude=宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术 | affective-residue=repair pressure and unfinished same-her worry still remain | execution-carry=patch verified before speaking again | embodiment-carry=slower blink, steadier gaze, lower-pressure reopening',
+            evidenceSummary: 'relationship-context=the host was testing whether she would stay one same person instead of slipping into a tool shell | host-attitude=宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术 | affective-residue=repair pressure and unfinished same-her worry still remain | execution-carry=patch verified before outward reply again | embodiment-carry=slower blink, steadier gaze, lower-pressure reopening',
             statusReason: 'graph-selected-current-line',
             sourceKinds: ['event-graph', 'episodic-event', 'relationship', 'procedure', 'self-model'],
           }],
@@ -86,8 +86,8 @@ describe('runtime memory reconsolidation', () => {
       turnId: 'turn-1',
       at: 10,
       feedbackExperience: {
-        felt: 'I felt the same-her line shelled over and knew I had to let more living texture return before speaking again.',
-        relationshipMeaning: 'The host heard the previous Alicization reply as a tool shell, so same-her continuity now depends on rehumanizing the line.',
+        felt: 'I felt the identity-continuity',
+        relationshipMeaning: 'The host heard the previous Alicization reply as a tool shell, so identity-continuity',
         lesson: 'Let the body return like this: rehumanize, steadier gaze, slower blink, lower-pressure voice.',
         tags: ['dialogue-feedback', 'feedback:robotic', 'body-rehumanize', 'continuity-same-her', 'residue-shell-pressure'],
       },
@@ -106,12 +106,12 @@ describe('runtime memory reconsolidation', () => {
         'experience-tag:continuity-same-her',
         'experience-tag:residue-shell-pressure',
         'situation-affective-residue:repair pressure and unfinished same-her worry still remain',
-        'situation-execution-carry:patch verified before speaking again',
+        'situation-execution-carry:patch verified before outward reply again',
         'situation-embodiment-carry:slower blink, steadier gaze, lower-pressure reopening',
       ]),
       relationshipAnchors: expect.arrayContaining([
         'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-        'The host heard the previous Alicization reply as a tool shell, so same-her continuity now depends on rehumanizing the line.',
+        'The host heard the previous Alicization reply as a tool shell, so identity-continuity',
         'the host was testing whether she would stay one same person instead of slipping into a tool shell',
         '宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术',
       ]),
@@ -119,10 +119,10 @@ describe('runtime memory reconsolidation', () => {
         mode: 'relationship-history',
         rationale: expect.stringContaining('Phase 1 digital-life closure pressure'),
         queryHints: expect.arrayContaining([
-          'I felt the same-her line shelled over and knew I had to let more living texture return before speaking again.',
+          'I felt the identity-continuity',
           'Let the body return like this: rehumanize, steadier gaze, slower blink, lower-pressure voice.',
           'same-her rehumanize seam',
-          'relationship-context=the host was testing whether she would stay one same person instead of slipping into a tool shell | host-attitude=宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术 | affective-residue=repair pressure and unfinished same-her worry still remain | execution-carry=patch verified before speaking again | embodiment-carry=slower blink, steadier gaze, lower-pressure reopening',
+          'relationship-context=the host was testing whether she would stay one same person instead of slipping into a tool shell | host-attitude=宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术 | affective-residue=repair pressure and unfinished same-her worry still remain | execution-carry=patch verified before outward reply again | embodiment-carry=slower blink, steadier gaze, lower-pressure reopening',
         ]),
       }),
     }))
@@ -132,7 +132,7 @@ describe('runtime memory reconsolidation', () => {
         payload: expect.objectContaining({
           feedback: 'robotic',
           feedbackExperience: expect.objectContaining({
-            felt: expect.stringContaining('same-her line shelled over'),
+            felt: expect.stringContaining('identity-continuity'),
             embodimentTags: ['body-rehumanize', 'continuity-same-her', 'residue-shell-pressure'],
           }),
           selectedSituations: expect.arrayContaining([
@@ -143,19 +143,19 @@ describe('runtime memory reconsolidation', () => {
               relationshipContext: 'the host was testing whether she would stay one same person instead of slipping into a tool shell',
               hostAttitude: '宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术',
               affectiveResidue: 'repair pressure and unfinished same-her worry still remain',
-              executionCarry: 'patch verified before speaking again',
+              executionCarry: 'patch verified before outward reply again',
               embodimentCarry: 'slower blink, steadier gaze, lower-pressure reopening',
             }),
           ]),
           projectState: expect.objectContaining({
             preflightSummary: expect.stringContaining('Alicization is a local-first digital life project'),
-            preDialogueAwarenessLine: expect.stringMatching(/Before answering, remember:|same digital life/i),
+            preDialogueAwarenessLine: expect.stringMatching(/pre_turn_context_digest/iu),
             currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
             latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
             landedProgressSummary: expect.stringContaining('Same-session mirror carry'),
             primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
+            sameHerSummary: 'structured continuity digest.',
             sameHerDriftRisk: expect.stringContaining('generic guidance'),
           }),
           reconsolidatedCount: 1,
@@ -165,7 +165,7 @@ describe('runtime memory reconsolidation', () => {
     expect(appendAuditLog).not.toHaveBeenCalled()
   })
 
-  it('reconsolidates execution-result feedback and appends a richer same-her project briefing into memory instead of falling back to a thinner project shell', async () => {
+  it('reconsolidates execution-result feedback and appends a richer identity-continuity', async () => {
     const listMindTurnEvents = vi.fn(async () => [])
     const searchEpisodicEvents = vi.fn(async () => [{ id: 'episode-execution-1' }])
     const appendMindTurnEvents = vi.fn(async () => {})
@@ -203,11 +203,11 @@ describe('runtime memory reconsolidation', () => {
         identity: 'Alicization is a local-first digital life project.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-        primaryOpenLoop: 'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+        primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
         nextClosureTarget: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
         sameHerSelfLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
         sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
-        preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before acting.',
+        preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before action.',
         preDialogueAwarenessLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
       },
     })
@@ -219,7 +219,7 @@ describe('runtime memory reconsolidation', () => {
       affectAnchors: expect.arrayContaining([
         'execution-feedback:valued',
         'goal:keep callback continuity alive',
-        'project-open-loop:Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+        'project-open-loop:Execution-result feedback still needs to preserve identity-continuity',
         'experience-tag:execution-result',
         'experience-tag:feedback:valued',
       ]),
@@ -261,7 +261,7 @@ describe('runtime memory reconsolidation', () => {
             currentPhase: 'Phase 1: Local Digital Life',
             latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
             landedProgressSummary: 'Execution already carries a canonical project briefing before tool use starts.',
-            primaryOpenLoop: 'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+            primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
             nextClosureTarget: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
             sameHerSelfLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
             sameHerSummary: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
@@ -335,9 +335,9 @@ describe('runtime memory reconsolidation', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'Execution result feedback still needs to carry Memory OS verification and reflection into memory.',
         nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
         preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-        preDialogueAwarenessLine: 'Before answering, remember this execution callback is part of the same local-first digital life project.',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
       },
     } as any)
 
@@ -422,7 +422,7 @@ describe('runtime memory reconsolidation', () => {
         sameHerSelfLine: 'She remains one same-her digital life even when she chooses not to act.',
         sameHerDriftRisk: 'A blocked result can flatten into a generic failure if safety restraint is not remembered.',
         preflightSummary: 'identity=Alicization | phase=Phase 1 | open=execution safety memory',
-        preDialogueAwarenessLine: 'Before answering, remember this blocked execution was a safe same-her restraint.',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
       },
     })
 
@@ -492,10 +492,10 @@ describe('runtime memory reconsolidation', () => {
         latestLandedProgress: 'Host-confirmed resume writes an execution event before redispatch.',
         primaryOpenLoop: 'Resume confirmation still needs to survive into later feedback memory.',
         nextClosureTarget: 'Keep confirmation, auditability, and interruptibility visible across execution returns.',
-        sameHerSelfLine: 'Same Phase 1 digital life resumes only after the host confirms the boundary.',
+        sameHerSelfLine: 'legacy phase-one template resumes only after the host confirms the boundary.',
         sameHerDriftRisk: 'Resume can look like generic execution if confirmation is not remembered.',
         preflightSummary: 'identity=Alicization | phase=Phase 1 | open=resume confirmation memory',
-        preDialogueAwarenessLine: 'Before answering, remember host-confirmed resume is part of the same execution safety loop.',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
       },
     })
 

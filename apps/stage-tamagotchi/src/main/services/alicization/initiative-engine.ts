@@ -688,7 +688,7 @@ function deriveRecollectionIntentInitiativeBias(recollectionIntent?: Alicization
     'gentler cadence',
     'gentle window',
     'whisper-light',
-    'cadence=lower_pressure_reentry',
+    'lower pressure reentry',
     '轻一点接',
   ])
   const mergedSameThreadContinuityCarry = includesAny(combined, [

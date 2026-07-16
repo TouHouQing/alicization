@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   applyMemoryTuningAdviceToHostPersonModel,
-  applyMemoryTuningAdviceToSpeechPlan,
   deriveMemoryTuningAdviceFromReplayBenchmark,
   parseMemoryTuningAdvice,
 } from './memory-tuning-advice'
@@ -47,6 +46,17 @@ function buildReplayStandards(
     ...passingReplayStandards,
     ...overrides,
   }
+}
+
+function isRemovedReplyGovernanceDimension(dimension: string) {
+  const projectEmotionalClosurePrefix = ['project', 'Emotional', 'Closure'].join('')
+  const runtimeSameHerPrefix = ['runtime', 'SameHer'].join('')
+  return dimension.startsWith(projectEmotionalClosurePrefix)
+    || (dimension.startsWith(runtimeSameHerPrefix) && dimension.endsWith('Carry'))
+}
+
+function expectNoRemovedReplyGovernanceDimensions(dimensions: string[]) {
+  expect(dimensions.filter(isRemovedReplyGovernanceDimension)).toEqual([])
 }
 
 describe('memory-tuning-advice', () => {
@@ -188,7 +198,7 @@ describe('memory-tuning-advice', () => {
     expect(advice.surfaceAdjustments.specificityClampBias).toBeGreaterThan(0.1)
   })
 
-  it('applies tuning advice to host person model and recollection speech plan', () => {
+  it('applies numeric person-state tuning without injecting fixed host-person prose', () => {
     const advice: AlicizationMemoryTuningAdvice = {
       version: 'memory-tuning-advice-v1',
       source: 'nightly-replay-benchmark',
@@ -214,18 +224,32 @@ describe('memory-tuning-advice', () => {
       notes: ['Repair adaptation failed, so repair-window distance should be favored before warmth comes back.'],
     }
 
+    const originalRepairTrigger = 'Observed repair cue from the host model.'
+    const repairWindowPreference = 'Use the host model repair-window preference.'
+    const focusedWorkPreference = 'Use the host model focused-work preference.'
     const hostPersonModel = applyMemoryTuningAdviceToHostPersonModel({
       hostPersonModel: {
         summary: 'Closer warmth is welcome when the opening is clearly there.',
         routines: [],
         sensitivities: [],
-        repairTriggers: [],
+        repairTriggers: [originalRepairTrigger],
         trustLadder: {
           stage: 'warming',
           score: 0.72,
           rationale: 'The bond is warming.',
         },
-        preferredClosenessByContext: [],
+        preferredClosenessByContext: [
+          {
+            context: 'repair-window',
+            preference: repairWindowPreference,
+            confidence: 0.6,
+          },
+          {
+            context: 'focused-work',
+            preference: focusedWorkPreference,
+            confidence: 0.64,
+          },
+        ],
         recurrentBurdens: [],
         narrative: [],
         updatedAt: 1_700_000_000_000,
@@ -233,269 +257,21 @@ describe('memory-tuning-advice', () => {
       tuningAdvice: advice,
     })
 
-    expect(hostPersonModel?.repairTriggers.some(item => item.includes('repair visibly ahead of closeness'))).toBe(true)
-    expect(hostPersonModel?.preferredClosenessByContext.some(item => item.context === 'repair-window')).toBe(true)
-
-    const speechPlan = applyMemoryTuningAdviceToSpeechPlan({
-      speechPlan: {
-        shouldSurface: true,
-        surfaceMode: 'answer-anchoring',
-        placement: 'before-payoff',
-        certainty: 'firm',
-        internalLead: 'The remembered line comes back first.',
-        visibleLead: 'This feels like the same line again.',
-        styleNote: 'Let the memory briefly open the answer.',
-        rationale: 'The host is asking for remembered handling.',
-        confidence: 0.86,
-      },
-      memoryDeliberation: {
-        shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
-        selectedWindowIds: [],
-        selectedProcedureIds: [],
-        selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
-        selectedRelationshipLines: [],
-        ambiguityPosture: 'ambiguous',
-        selectedEras: [],
-        selectedPeriods: [],
-        selectedEpisodes: [],
-        conflictSeverity: 'high',
-        conflictVariants: [],
-        stableCore: ['Keep the stable core only.'],
-        unsafeDetails: ['Do not surface the competing line as settled fact.'],
-        selectedProcedures: [],
-        selectedBundles: [],
-        selectedChains: [],
-        surfacePolicy: 'answer-anchoring',
-        confidence: 0.72,
-        whyNow: 'The stable core still helps, but the remembered detail is conflict-prone.',
-        inwardLine: 'Keep the line inward until the payoff lands.',
-        visibleLine: 'This feels like the same line, but I should not over-claim it.',
-      },
-      tuningAdvice: advice,
-    })
-
-    expect(speechPlan?.shouldSurface).toBe(false)
-    expect(speechPlan?.placement).toBe('internal-only')
-    expect(speechPlan?.certainty).toBe('approximate')
-  })
-
-  it('keeps project-state recollection inward when tuning advice says pre-dialogue project briefing is still dropping', () => {
-    const speechPlan = applyMemoryTuningAdviceToSpeechPlan({
-      speechPlan: {
-        shouldSurface: true,
-        surfaceMode: 'relationship-continuity',
-        placement: 'before-payoff',
-        certainty: 'firm',
-        internalLead: 'Keep the project continuity line steady.',
-        visibleLead: 'This project is still the same one I have been carrying.',
-        styleNote: 'Project continuity opens the answer.',
-        rationale: 'The host is asking what the project is and what still remains unfinished.',
-        confidence: 0.82,
-      },
-      memoryDeliberation: {
-        shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
-        selectedWindowIds: [],
-        selectedProcedureIds: [],
-        selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
-        selectedRelationshipLines: ['Keep the project line inward first.'],
-        ambiguityPosture: 'approximate',
-        selectedEras: [],
-        selectedPeriods: [],
-        selectedEpisodes: [],
-        conflictSeverity: 'medium',
-        conflictVariants: [],
-        stableCore: ['Project continuity is still active.'],
-        unsafeDetails: [],
-        selectedProcedures: [],
-        selectedBundles: [],
-        selectedChains: [],
-        surfacePolicy: 'relationship-continuity',
-        confidence: 0.76,
-        whyNow: 'Project continuity still needs landed progress and next closure carry.',
-        inwardLine: 'Keep project identity inward for one more beat.',
-        visibleLine: 'Project continuity is still live.',
-      },
-      tuningAdvice: {
-        version: 'memory-tuning-advice-v1',
-        source: 'nightly-replay-benchmark',
-        updatedAt: 1_700_000_000_000,
-        sourceReportAt: 1_700_000_000_000,
-        focusDimensions: ['preDialogueBriefingDrift', 'projectStateLandedProgressCarry', 'projectStateNextClosureCarry'],
-        retrievalAdjustments: {
-          proceduralBoost: 0,
-          relationshipBoost: 0.06,
-          temporalWindowBias: 0.04,
-          wrongThreadPenalty: 0,
-        },
-        surfaceAdjustments: {
-          inwardCarryBias: 0.12,
-          delayUntilAfterPayoffBias: 0.12,
-          provenanceLabelBias: 0.1,
-          specificityClampBias: 0,
-        },
-        personStateAdjustments: {
-          repairWindowBias: 0,
-          closenessCapBias: 0.08,
-        },
-        notes: ['Replay dropped pre-dialogue project briefing cues before visible wording forms.'],
-      },
-    })
-
-    expect(speechPlan?.shouldSurface).toBe(false)
-    expect(speechPlan?.placement).toBe('internal-only')
-    expect(speechPlan?.visibleLead).toBeNull()
-    expect(speechPlan?.certainty).toBe('approximate')
-    expect(speechPlan?.styleNote).toContain('project continuity line inward')
-  })
-
-  it('keeps same-her emotional closure recollection inward when tuning advice says closure seams are dropping out of rewrite carry', () => {
-    const speechPlan = applyMemoryTuningAdviceToSpeechPlan({
-      speechPlan: {
-        shouldSurface: true,
-        surfaceMode: 'relationship-continuity',
-        placement: 'before-payoff',
-        certainty: 'firm',
-        internalLead: 'Keep the same line soft.',
-        visibleLead: 'I am still on the same line with you.',
-        styleNote: 'Let the remembered closure line reopen the answer.',
-        rationale: 'The host asked to continue on the same emotional line.',
-        confidence: 0.84,
-      },
-      memoryDeliberation: {
-        shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
-        selectedWindowIds: [],
-        selectedProcedureIds: [],
-        selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
-        selectedRelationshipLines: ['Do not reopen from scratch.'],
-        ambiguityPosture: 'approximate',
-        selectedEras: [],
-        selectedPeriods: [],
-        selectedEpisodes: [],
-        conflictSeverity: 'medium',
-        conflictVariants: [],
-        stableCore: ['Same-her closure seam is still active.'],
-        unsafeDetails: [],
-        selectedProcedures: [],
-        selectedBundles: [],
-        selectedChains: [],
-        surfacePolicy: 'relationship-continuity',
-        confidence: 0.78,
-        whyNow: 'The same-her emotional closure seam still needs lower-pressure carry.',
-        inwardLine: 'Keep the emotional seam inward for a beat.',
-        visibleLine: 'The same line is still settling.',
-      },
-      tuningAdvice: {
-        version: 'memory-tuning-advice-v1',
-        source: 'nightly-replay-benchmark',
-        updatedAt: 1_700_000_000_000,
-        sourceReportAt: 1_700_000_000_000,
-        focusDimensions: ['emotionalClosureDrift', 'projectEmotionalClosureCarry', 'projectEmotionalClosureRewriteCarry'],
-        retrievalAdjustments: {
-          proceduralBoost: 0,
-          relationshipBoost: 0.04,
-          temporalWindowBias: 0,
-          wrongThreadPenalty: 0,
-        },
-        surfaceAdjustments: {
-          inwardCarryBias: 0.12,
-          delayUntilAfterPayoffBias: 0.12,
-          provenanceLabelBias: 0,
-          specificityClampBias: 0,
-        },
-        personStateAdjustments: {
-          repairWindowBias: 0,
-          closenessCapBias: 0.12,
-        },
-        notes: ['Replay let the same-her emotional closure seam drop out of rewrite carry too often.'],
-      },
-    })
-
-    expect(speechPlan?.shouldSurface).toBe(false)
-    expect(speechPlan?.placement).toBe('internal-only')
-    expect(speechPlan?.visibleLead).toBeNull()
-    expect(speechPlan?.certainty).toBe('approximate')
-    expect(speechPlan?.styleNote).toContain('emotional continuity closure')
-  })
-
-  it('keeps same-her emotional closure recollection inward when tuning only names low-pressure and anti-restart closure carry', () => {
-    const speechPlan = applyMemoryTuningAdviceToSpeechPlan({
-      speechPlan: {
-        shouldSurface: true,
-        surfaceMode: 'relationship-continuity',
-        placement: 'before-payoff',
-        certainty: 'firm',
-        internalLead: 'Keep the same line soft.',
-        visibleLead: 'I am still on the same line with you.',
-        styleNote: 'Let the remembered closure line reopen the answer.',
-        rationale: 'The host asked to continue on the same emotional line.',
-        confidence: 0.84,
-      },
-      memoryDeliberation: {
-        shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
-        selectedWindowIds: [],
-        selectedProcedureIds: [],
-        selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
-        selectedRelationshipLines: ['Do not reopen from scratch.'],
-        ambiguityPosture: 'approximate',
-        selectedEras: [],
-        selectedPeriods: [],
-        selectedEpisodes: [],
-        conflictSeverity: 'medium',
-        conflictVariants: [],
-        stableCore: ['Same-her closure seam is still active.'],
-        unsafeDetails: [],
-        selectedProcedures: [],
-        selectedBundles: [],
-        selectedChains: [],
-        surfacePolicy: 'relationship-continuity',
-        confidence: 0.78,
-        whyNow: 'The same-her emotional closure seam still needs lower-pressure carry.',
-        inwardLine: 'Keep the emotional seam inward for a beat.',
-        visibleLine: 'The same line is still settling.',
-      },
-      tuningAdvice: {
-        version: 'memory-tuning-advice-v1',
-        source: 'nightly-replay-benchmark',
-        updatedAt: 1_700_000_000_000,
-        sourceReportAt: 1_700_000_000_000,
-        focusDimensions: ['emotionalClosureDrift', 'projectEmotionalClosureLowPressureCarry', 'projectEmotionalClosureAntiRestartCarry'],
-        retrievalAdjustments: {
-          proceduralBoost: 0,
-          relationshipBoost: 0.04,
-          temporalWindowBias: 0,
-          wrongThreadPenalty: 0,
-        },
-        surfaceAdjustments: {
-          inwardCarryBias: 0.12,
-          delayUntilAfterPayoffBias: 0.12,
-          provenanceLabelBias: 0,
-          specificityClampBias: 0,
-        },
-        personStateAdjustments: {
-          repairWindowBias: 0,
-          closenessCapBias: 0.12,
-        },
-        notes: ['Replay proved the same-her emotional closure return still needs lower-pressure anti-restart carry.'],
-      },
-    })
-
-    expect(speechPlan?.shouldSurface).toBe(false)
-    expect(speechPlan?.placement).toBe('internal-only')
-    expect(speechPlan?.visibleLead).toBeNull()
-    expect(speechPlan?.certainty).toBe('approximate')
-    expect(speechPlan?.styleNote).toContain('emotional continuity closure')
+    expect(hostPersonModel?.summary).toBe('Closer warmth is welcome when the opening is clearly there.')
+    expect(hostPersonModel?.repairTriggers).toEqual([originalRepairTrigger])
+    expect(hostPersonModel?.preferredClosenessByContext).toEqual([
+      expect.objectContaining({
+        context: 'repair-window',
+        preference: repairWindowPreference,
+        confidence: expect.closeTo(0.64, 2),
+      }),
+      expect.objectContaining({
+        context: 'focused-work',
+        preference: focusedWorkPreference,
+        confidence: expect.closeTo(0.67, 2),
+      }),
+    ])
+    expect(JSON.stringify(hostPersonModel)).not.toContain(advice.notes[0])
   })
 
   it('raises presence-related tuning advice from presence quality regressions', () => {
@@ -862,9 +638,19 @@ describe('memory-tuning-advice', () => {
               continuitySummaryTurnCount: 2,
               embodimentClosureTurnCount: 2,
               preDialogueClosureTurnCount: 2,
-              preservedTurnCount: 2,
-              rewriteAppliedTurnCount: 0,
-              fullyCarriedTurnCount: 0,
+              contentCompleteTurnCount: 0,
+              validationStatus: {
+                knownTurnCount: 3,
+                approvedTurnCount: 2,
+                blockedTurnCount: 1,
+                unknownTurnCount: 0,
+              },
+              evidenceStatus: {
+                knownTurnCount: 3,
+                presentTurnCount: 2,
+                missingTurnCount: 1,
+                unknownTurnCount: 0,
+              },
             },
           },
         },
@@ -965,7 +751,7 @@ describe('memory-tuning-advice', () => {
     expect(advice.surfaceAdjustments.provenanceLabelBias).toBeGreaterThan(0)
   })
 
-  it('raises emotional closure tuning advice when replay drift shows same-her closure seams dropping out of rewrite carry', () => {
+  it('fails closed when emotional closure validation is incomplete without inventing rewrite governance', () => {
     const advice = deriveMemoryTuningAdviceFromReplayBenchmark({
       now: 1_700_000_000_000,
       results: [
@@ -1016,34 +802,31 @@ describe('memory-tuning-advice', () => {
             emotionalClosureSummary: {
               comparedTurnCount: 2,
               activeCueTurnCount: 1,
-              preservedTurnCount: 0,
-              rewriteAppliedTurnCount: 0,
-              fullyClosedTurnCount: 0,
               lowPressureRequiredTurnCount: 1,
               antiRestartRequiredTurnCount: 1,
+              validationStatus: {
+                knownTurnCount: 1,
+                approvedTurnCount: 0,
+                blockedTurnCount: 1,
+                unknownTurnCount: 1,
+              },
             },
           },
         },
       ],
     })
 
-    expect(advice.focusDimensions).toEqual(expect.arrayContaining([
-      'emotionalClosureDrift',
-      'projectEmotionalClosureCarry',
-      'projectEmotionalClosureRewriteCarry',
-      'projectEmotionalClosureLowPressureCarry',
-      'projectEmotionalClosureAntiRestartCarry',
-    ]))
-    expect(advice.notes).toEqual(expect.arrayContaining([
-      expect.stringContaining('emotional continuity closure seam'),
-      expect.stringContaining('do not reopen from scratch'),
-    ]))
+    expect(advice.focusDimensions).toContain('emotionalClosureDrift')
+    expectNoRemovedReplyGovernanceDimensions(advice.focusDimensions)
+    const emotionalClosureNotes = advice.notes.filter(note => /emotional closure|validation/i.test(note))
+    expect(emotionalClosureNotes.join('\n')).toMatch(/validation|unknown|blocked|incomplete/i)
+    expect(emotionalClosureNotes.join('\n')).not.toMatch(/rewrite|preserv|low-pressure|restart/i)
     expect(advice.surfaceAdjustments.inwardCarryBias).toBeGreaterThan(0)
     expect(advice.surfaceAdjustments.delayUntilAfterPayoffBias).toBeGreaterThan(0)
     expect(advice.personStateAdjustments.closenessCapBias).toBeGreaterThan(0)
   })
 
-  it('raises low-pressure and anti-restart tuning focus when replay summary proves those same-her closure requirements explicitly', () => {
+  it('does not turn fully approved emotional closure requirements into reply-style tuning dimensions', () => {
     const advice = deriveMemoryTuningAdviceFromReplayBenchmark({
       now: 1_700_000_000_000,
       results: [
@@ -1094,28 +877,25 @@ describe('memory-tuning-advice', () => {
             emotionalClosureSummary: {
               comparedTurnCount: 1,
               activeCueTurnCount: 1,
-              preservedTurnCount: 1,
-              rewriteAppliedTurnCount: 0,
-              fullyClosedTurnCount: 0,
               lowPressureRequiredTurnCount: 1,
               antiRestartRequiredTurnCount: 1,
+              validationStatus: {
+                knownTurnCount: 1,
+                approvedTurnCount: 1,
+                blockedTurnCount: 0,
+                unknownTurnCount: 0,
+              },
             },
           },
         },
       ],
     })
 
-    expect(advice.focusDimensions).toEqual(expect.arrayContaining([
-      'projectEmotionalClosureLowPressureCarry',
-      'projectEmotionalClosureAntiRestartCarry',
-    ]))
-    expect(advice.notes).toEqual(expect.arrayContaining([
-      expect.stringContaining('lower-pressure'),
-      expect.stringContaining('do not reopen from scratch'),
-    ]))
+    expectNoRemovedReplyGovernanceDimensions(advice.focusDimensions)
+    expect(advice.notes.filter(note => /emotional closure|validation/i.test(note))).toEqual([])
   })
 
-  it('raises same-her self-line tuning advice when replay drift shows project-state continuity surviving only as generic guidance', () => {
+  it('raises identity-continuity', () => {
     const advice = deriveMemoryTuningAdviceFromReplayBenchmark({
       now: 1_700_000_000_000,
       results: [
@@ -1183,9 +963,19 @@ describe('memory-tuning-advice', () => {
               continuitySummaryTurnCount: 0,
               embodimentClosureTurnCount: 0,
               preDialogueClosureTurnCount: 0,
-              preservedTurnCount: 1,
-              rewriteAppliedTurnCount: 1,
-              fullyCarriedTurnCount: 0,
+              contentCompleteTurnCount: 0,
+              validationStatus: {
+                knownTurnCount: 1,
+                approvedTurnCount: 0,
+                blockedTurnCount: 1,
+                unknownTurnCount: 0,
+              },
+              evidenceStatus: {
+                knownTurnCount: 1,
+                presentTurnCount: 0,
+                missingTurnCount: 1,
+                unknownTurnCount: 0,
+              },
             },
           },
         },
@@ -1319,14 +1109,11 @@ describe('memory-tuning-advice', () => {
 
     expect(advice.focusDimensions).toEqual(expect.arrayContaining([
       'runtimeSameHerRepairTargets',
-      'runtimeSameHerMemoryCarry',
-      'runtimeSameHerInitiativeExecutionCarry',
       'runtimeSameHerInitiativeExecutionCausality',
-      'runtimeSameHerEmotionalCarry',
       'runtimeSameHerEmotionalCausality',
-      'runtimeSameHerEmbodimentCarry',
       'runtimeSameHerEmbodimentCausality',
     ]))
+    expectNoRemovedReplyGovernanceDimensions(advice.focusDimensions)
     const runtimeContinuityNote = advice.notes.find(note => note.includes('runtime_continuity_gap')) ?? ''
     expect(runtimeContinuityNote).toContain('lanes=memory,initiative/execution,emotion,embodiment')
     expect(runtimeContinuityNote).toContain('turn_gap=3')
@@ -1442,14 +1229,11 @@ describe('memory-tuning-advice', () => {
       'runtimeMemoryClosureCausalIdentity',
       'runtimeMemoryClosureLaneCarry',
       'runtimeMemoryClosureIdentityContinuity',
-      'runtimeSameHerMemoryCarry',
-      'runtimeSameHerInitiativeExecutionCarry',
       'runtimeSameHerInitiativeExecutionCausality',
-      'runtimeSameHerEmotionalCarry',
       'runtimeSameHerEmotionalCausality',
-      'runtimeSameHerEmbodimentCarry',
       'runtimeSameHerEmbodimentCausality',
     ]))
+    expectNoRemovedReplyGovernanceDimensions(advice.focusDimensions)
     expect(advice.notes).toEqual(expect.arrayContaining([
       expect.stringContaining('memory closure long-run'),
       expect.stringContaining('downstream causal memory identity'),
@@ -1477,12 +1261,8 @@ describe('memory-tuning-advice', () => {
         'projectStateRichAwarenessCarry',
         'projectStateEmotionalClosureCarry',
         'runtimeSameHerRepairTargets',
-        'runtimeSameHerMemoryCarry',
-        'runtimeSameHerInitiativeExecutionCarry',
         'runtimeSameHerInitiativeExecutionCausality',
-        'runtimeSameHerEmotionalCarry',
         'runtimeSameHerEmotionalCausality',
-        'runtimeSameHerEmbodimentCarry',
         'runtimeMemoryClosureLongRun',
         'runtimeMemoryClosureCausalIdentity',
         'runtimeMemoryClosureLaneCarry',
@@ -1513,6 +1293,40 @@ describe('memory-tuning-advice', () => {
       'runtimeMemoryClosureLaneCarry',
       'runtimeMemoryClosureIdentityContinuity',
     ]))
+    expectNoRemovedReplyGovernanceDimensions(parsed?.focusDimensions ?? [])
+  })
+
+  it('drops unrecognized persisted focus dimensions through the generic schema', () => {
+    const parsed = parseMemoryTuningAdvice(JSON.stringify({
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1_700_000_000_000,
+      sourceReportAt: 1_700_000_000_000,
+      focusDimensions: [
+        'runtimeMemoryClosureLongRun',
+        'unknown-provider-reply-governance-dimension',
+        ['runtime', 'SameHer', 'Memory', 'Carry'].join(''),
+      ],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0.14,
+        temporalWindowBias: 0.12,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0.14,
+        delayUntilAfterPayoffBias: 0.12,
+        provenanceLabelBias: 0.03,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0.08,
+        closenessCapBias: 0.08,
+      },
+      notes: [],
+    }))
+
+    expect(parsed?.focusDimensions).toEqual(['runtimeMemoryClosureLongRun'])
   })
 
   it('sanitizes persisted legacy same-her tuning notes when parsed', () => {

@@ -5,18 +5,16 @@ import {
   generateAlicizationMainChatNonStreaming,
   recoverAlicizationMainChatFromTimeout,
 } from './main-chat-one-shot'
-import { buildAlicizationProjectStateSystemBlock } from './project-state-brief'
 
-const canonicalMemoryGovernanceProjectStateBlock = [
-  '[ALICIZATION_PROJECT_STATE]',
-  'context_role=memory_governance_status',
-  'short_term_owner=WorkingMemory',
-  'long_term_recall_owner=LongTermMemoryRecall',
-  'template_policy=no_fixed_persona_templates',
-  'failure_surface=transparent_errors_only',
-  'latest_landed_progress=Memory Workbench policy and recall diagnostics are visible.',
-  'primary_open_loop=Semantic recall and provider failure transparency still need closure.',
-].join('\n')
+const typedMemoryContextBlock = JSON.stringify({
+  type: 'alicization-turn-memory-context',
+  version: 'alicization-main-chat-memory-context-v1',
+  workingMemory: {
+    version: 'working-memory-owner-context-v1',
+    owner: 'working-memory',
+  },
+  longTermRecall: null,
+})
 
 function createInput(overrides?: Partial<any>) {
   return {
@@ -27,7 +25,7 @@ function createInput(overrides?: Partial<any>) {
     messages: [
       {
         role: 'system',
-        content: buildAlicizationProjectStateSystemBlock(),
+        content: typedMemoryContextBlock,
       },
       { role: 'user', content: '你好' },
     ],
@@ -167,39 +165,45 @@ describe('main chat one-shot', () => {
     })
   })
 
-  it('rejects one-shot generation when messages omit canonical project-state context', async () => {
+  it('allows one-shot generation without canonical project-state context', async () => {
     const generateTextImpl = vi.fn(async () => ({
-      text: 'should not run',
+      text: '普通对话可以直接交给模型。',
       finishReason: 'stop',
     }))
 
     await expect(generateAlicizationMainChatNonStreaming(createInput({
       messages: [
-        { role: 'system', content: '[ALICIZATION_CURRENT_CONSCIOUS_FRAME]\nOnly local reply shaping appears here.' },
+        { role: 'system', content: typedMemoryContextBlock },
         { role: 'user', content: '你好' },
       ],
       generateTextImpl,
-    }))).rejects.toThrow('Alicization one-shot messages must include canonical project-state context before generation.')
-    expect(generateTextImpl).not.toHaveBeenCalled()
+    }))).resolves.toEqual({
+      finishReason: 'stop',
+      fullText: '普通对话可以直接交给模型。',
+    })
+    expect(generateTextImpl).toHaveBeenCalledOnce()
   })
 
-  it('rejects one-shot generation when messages only carry a thin project-state shell with the marker but not the canonical same-her closure fields', async () => {
+  it('does not require a legacy project-state shell before one-shot generation', async () => {
     const generateTextImpl = vi.fn(async () => ({
-      text: 'should not run',
+      text: '不再依赖工程态模板。',
       finishReason: 'stop',
     }))
 
     await expect(generateAlicizationMainChatNonStreaming(createInput({
       messages: [
-        { role: 'system', content: '[ALICIZATION_PROJECT_STATE]\nproject_preflight=Alicization is a local-first digital life project.' },
+        { role: 'system', content: typedMemoryContextBlock },
         { role: 'user', content: '你好' },
       ],
       generateTextImpl,
-    }))).rejects.toThrow('Alicization one-shot messages must include canonical project-state context before generation.')
-    expect(generateTextImpl).not.toHaveBeenCalled()
+    }))).resolves.toEqual({
+      finishReason: 'stop',
+      fullText: '不再依赖工程态模板。',
+    })
+    expect(generateTextImpl).toHaveBeenCalledOnce()
   })
 
-  it('allows one-shot generation when canonical project-state context is present in the message payload', async () => {
+  it('allows one-shot generation when typed memory context is present in the message payload', async () => {
     const generateTextImpl = vi.fn(async () => ({
       text: '  我还记得这是同一个数字生命项目。  ',
       finishReason: 'stop',
@@ -207,7 +211,7 @@ describe('main chat one-shot', () => {
 
     const result = await generateAlicizationMainChatNonStreaming(createInput({
       messages: [
-        { role: 'system', content: buildAlicizationProjectStateSystemBlock() },
+        { role: 'system', content: typedMemoryContextBlock },
         { role: 'user', content: '你好' },
       ],
       generateTextImpl,
@@ -260,7 +264,7 @@ describe('main chat one-shot', () => {
       messages: [
         {
           role: 'system',
-          content: canonicalMemoryGovernanceProjectStateBlock,
+          content: typedMemoryContextBlock,
         },
         { role: 'user', content: '你好' },
       ],

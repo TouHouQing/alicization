@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  deriveAlicizationContinuityDeliberationForFastPath,
   deriveAlicizationContinuityDeliberationFromSurface,
 } from './continuity-deliberation'
 
@@ -32,126 +31,6 @@ describe('continuity deliberation', () => {
 
     expect(deliberation.kind).toBe('execution-callback')
     expect(deliberation.arcStage).toBe('hold-for-opening')
-    expect(deliberation.shouldStayOnThread).toBe(true)
-  })
-
-  it('marks same-thread callback return as gentle-reopen when the held line is re-entering softly', () => {
-    const deliberation = deriveAlicizationContinuityDeliberationForFastPath({
-      runtimeDigest: {
-        continuityPressure: 0.74,
-        returnPressure: 0.71,
-      } as any,
-      continuityAnchor: 'Re-enter the line you deliberately held back gently before widening, then keep the callback on the same thread.',
-      preparedExecutionCarryText: 'callback:codex completed | thread-held-autonomy-later | stay on the same thread',
-      latestUserText: '把刚才先忍住的那条线轻轻接回来。',
-      previousUserText: '继续沿着刚才那条线，不要另起一段。',
-      previousAssistantText: 'I am re-entering the same thread gently before widening.',
-      sessionMirror: {
-        executionSummary: 'recent=callback:codex:completed | afterglow=execution-callback | carry=trust-warming',
-        dialogueSummary: '',
-      } as any,
-      shortTurn: true,
-      hasContinuity: true,
-    })
-
-    expect(deliberation.kind).toBe('execution-callback')
-    expect(deliberation.arcStage).toBe('gentle-reopen')
-    expect(deliberation.shouldSpeakNow).toBe(true)
-  })
-
-  it('marks later same-line continuation after reopening as same-thread-continuation', () => {
-    const deliberation = deriveAlicizationContinuityDeliberationForFastPath({
-      runtimeDigest: {
-        continuityPressure: 0.72,
-        returnPressure: 0.34,
-      } as any,
-      continuityAnchor: 'Stay on the same line and continue from the living thread instead of treating it as a restart.',
-      preparedExecutionCarryText: '',
-      latestUserText: '隔了一会儿也继续沿着这条原线往下。',
-      previousUserText: '继续，就按这条原线往前。',
-      previousAssistantText: 'We are still on the same line and can continue from there.',
-      sessionMirror: {
-        executionSummary: '',
-        dialogueSummary: 'same line continuation on the living thread',
-      } as any,
-      shortTurn: true,
-      hasContinuity: true,
-    })
-
-    expect(deliberation.kind).toBe('execution-callback')
-    expect(deliberation.arcStage).toBe('same-thread-continuation')
-    expect(deliberation.shouldStayOnThread).toBe(true)
-  })
-
-  it('keeps same-thread-continuation and same-turn-if-invited timing when a measured-return same line is already continuing', () => {
-    const deliberation = deriveAlicizationContinuityDeliberationForFastPath({
-      runtimeDigest: {
-        continuityPressure: 0.76,
-        returnPressure: 0.41,
-      } as any,
-      continuityAnchor: 'The callback line is already continuing lower-pressure on the same line after another detour.',
-      preparedExecutionCarryText: 'callback line already continuing | measured-return | stay on the same thread',
-      latestUserText: '中间绕了一下，也还是沿着刚才那条线继续往下。',
-      previousUserText: '继续，不要另起一段。',
-      previousAssistantText: 'I am continuing on the same line without restarting from zero.',
-      sessionMirror: {
-        executionSummary: 'same line already continuing lower-pressure',
-        dialogueSummary: 'continuation on the same line after another detour',
-      } as any,
-      shortTurn: true,
-      hasContinuity: true,
-    })
-
-    expect(deliberation.arcStage).toBe('same-thread-continuation')
-    expect(deliberation.preferredTiming).toBe('same-turn-if-invited')
-    expect(deliberation.shouldStayOnThread).toBe(true)
-  })
-
-  it('promotes an already-continuing same callback line to next-open-window timing when repeated measured-return reopen guards are explicit', () => {
-    const deliberation = deriveAlicizationContinuityDeliberationForFastPath({
-      runtimeDigest: {
-        continuityPressure: 0.82,
-        returnPressure: 0.58,
-      } as any,
-      continuityAnchor: 'The callback line is already continuing lower-pressure on the same line after reopening several times, so do not restart it outward again.',
-      preparedExecutionCarryText: 'callback line already continuing | measured-return | lower-pressure | already reopened several times | do not restart from zero',
-      latestUserText: '中间又绕了一下，也还是沿着刚才那条线继续，但别重开。',
-      previousUserText: '继续沿着同一条线，不要突然把关系放宽。',
-      previousAssistantText: 'I am still continuing on the same callback line lower-pressure after several reopenings, not restarting from zero.',
-      sessionMirror: {
-        executionSummary: 'same callback line already continuing lower-pressure after several reopenings',
-        dialogueSummary: 'same thread stays alive with measured-return guard and do-not-restart discipline',
-      } as any,
-      shortTurn: true,
-      hasContinuity: true,
-    })
-
-    expect(deliberation.arcStage).toBe('same-thread-continuation')
-    expect(deliberation.preferredTiming).toBe('next-open-window')
-    expect(deliberation.shouldStayOnThread).toBe(true)
-  })
-
-  it('promotes an already-continuing same callback repair line to next-open-window timing when repeated repair-before-closeness guards are explicit', () => {
-    const deliberation = deriveAlicizationContinuityDeliberationForFastPath({
-      runtimeDigest: {
-        continuityPressure: 0.82,
-        returnPressure: 0.58,
-      } as any,
-      continuityAnchor: 'The callback repair line is already continuing repair-before-closeness on the same line after reopening several times, so do not restart it outward again.',
-      preparedExecutionCarryText: 'callback line already continuing | repair-before-closeness | repair-first | already reopened several times | do not restart from zero',
-      latestUserText: '中间又绕了一下，也还是沿着刚才那条修复线继续，但别重开，也别立刻把关系放宽。',
-      previousUserText: '继续沿着同一条修复线，不要突然把关系放宽。',
-      previousAssistantText: 'I am still continuing on the same callback repair line repair-before-closeness after several reopenings, not restarting from zero.',
-      sessionMirror: {
-        executionSummary: 'same callback repair line already continuing repair-before-closeness after several reopenings',
-        dialogueSummary: 'same thread stays alive with repair-before-closeness guard and do-not-restart discipline',
-      } as any,
-      shortTurn: true,
-      hasContinuity: true,
-    })
-
-    expect(deliberation.arcStage).toBe('same-thread-continuation')
-    expect(deliberation.preferredTiming).toBe('next-open-window')
     expect(deliberation.shouldStayOnThread).toBe(true)
   })
 
@@ -455,7 +334,7 @@ describe('continuity deliberation', () => {
           preferredPresence: 'hesitant',
           shouldSurface: true,
           shouldSpeak: false,
-          why: 're-ground the scene before speaking about callback seam TypeScript fix',
+          why: 're-ground the scene before outward reply about callback seam TypeScript fix',
         },
       },
       dialogue: {
@@ -607,7 +486,7 @@ describe('continuity deliberation', () => {
           continuityRestraint: 'repair-before-closeness',
           shouldSurface: true,
           shouldSpeak: false,
-          why: 're-ground the scene before speaking about callback seam TypeScript fix',
+          why: 're-ground the scene before outward reply about callback seam TypeScript fix',
         },
       },
       dialogue: {
@@ -999,7 +878,7 @@ describe('continuity deliberation', () => {
             cadenceMode: 'measured-return',
             summary: 'The same callback line is still live after another detour, so the return should stay lower-pressure instead of waiting from zero again.',
           },
-          summary: 'The spoken callback seam is thinner now, but it is still the same living line.',
+          summary: 'The spoken callback seam is thinner now, but it is still the continuity state.',
         },
         personStateProjection: {
           summary: 'project_continuity=the same callback line is still alive after another detour and should keep continuing lower-pressure',
@@ -1151,7 +1030,7 @@ describe('continuity deliberation', () => {
     expect(deliberation.sourceTags).toContain('line:already-continuing')
   })
 
-  it('marks project-state callback carry when execution continuity still carries the same unfinished Phase 1 digital-life line', () => {
+  it('marks project-state callback carry when execution continuity still carries the same unfinished structured continuity state', () => {
     const deliberation = deriveAlicizationContinuityDeliberationFromSurface({
       world: {
         worldModel: null,
@@ -1160,7 +1039,7 @@ describe('continuity deliberation', () => {
         memoryDeliberation: {
           followUpAffordance: {
             summary: 'Keep the execution-callback on the same local-first digital life thread while the unfinished Phase 1 closure is still open.',
-            whyNow: 'This callback is still carrying project identity, current Phase 1 progress, and unfinished closure on one same living line.',
+            whyNow: 'This callback is still carrying project identity, current Phase 1 progress, and unfinished closure on one continuity state.',
             intrusionRisk: 'medium',
             payoffDependency: 'requires-current-payoff',
             preferredTiming: 'after-payoff',
@@ -1178,45 +1057,6 @@ describe('continuity deliberation', () => {
 
     expect(deliberation.kind).toBe('execution-callback')
     expect(deliberation.sourceTags).toContain('project-state-callback-carry')
-  })
-
-  it('treats same-her low-pressure anti-restart closure follow-up as same-thread continuation that should wait for the next opening', () => {
-    const deliberation = deriveAlicizationContinuityDeliberationFromSurface({
-      world: {
-        worldModel: null,
-      },
-      memory: {
-        memoryDeliberation: {
-          followUpAffordance: {
-            summary: 'Keep the same-her closure line inward until the current thread can hold the return without reopening from scratch.',
-            whyNow: 'The same-her closure line still matters, but surfacing it too early would break the low-pressure return and make it read like it is reopening from scratch.',
-            intrusionRisk: 'high',
-            payoffDependency: 'requires-current-payoff',
-            preferredTiming: 'next-open-window',
-          },
-        },
-        recollectionSpeechPlan: {
-          shouldSurface: false,
-          placement: 'internal-only',
-          styleNote: 'Keep the same-her closure return low-pressure and inward.',
-        },
-      },
-      agency: {
-        autonomy: null,
-        initiative: null,
-      },
-      dialogue: {
-        replyDeliberation: null,
-      },
-    } as any)
-
-    expect(deliberation.kind).toBe('dialogue-carry')
-    expect(deliberation.arcStage).toBe('same-thread-continuation')
-    expect(deliberation.preferredTiming).toBe('next-open-window')
-    expect(deliberation.shouldSpeakNow).toBe(false)
-    expect(deliberation.sourceTags).toContain('memory-deliberation')
-    expect(deliberation.whyNow).toContain('low-pressure')
-    expect(deliberation.whyNow).toContain('reopening from scratch')
   })
 
   it('keeps same-thread continuation when the foreground drifts to browsing but unresolved callback seams still linger under staying-with-thread continuity', () => {

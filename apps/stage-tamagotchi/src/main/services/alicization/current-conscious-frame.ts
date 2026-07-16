@@ -59,23 +59,59 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function containsConsciousFrameInternalTemplateCue(raw: unknown) {
+  const normalized = sanitizeText(raw, 2400)
+  return Boolean(
+    normalized
+    && (
+      /\bruntime_personhood\b/iu.test(normalized)
+      || /\blife_core\b/iu.test(normalized)
+      || /\bproject_phase=life_core\b/iu.test(normalized)
+      || /\bowner=project_state_governance\b/iu.test(normalized)
+      || /\bowner=ProjectStateGovernance\b/iu.test(normalized)
+      || /\bvisibility=internal[-_][\w-]+\b/iu.test(normalized)
+      || /\bgeneric continuity summary\b/iu.test(normalized)
+      || /\bgeneric awareness summary\b/iu.test(normalized)
+      || /\bidentity=runtime_personhood\b/iu.test(normalized)
+      || /\blanes=emotion\+memory\+initiative\+embodiment\b/iu.test(normalized)
+      || /\bcadence=(?:measured_return|repair_before_closeness|rest_protective)\b/iu.test(normalized)
+      || /\brelationship_cadence=remembered_boundary\b/iu.test(normalized)
+      || /\bcontinuity_(?:hold|mode|cue|scope|context)=/iu.test(normalized)
+      || /\b(?:landed|evidence|remaining|dialogue_entry_governance|memory_dialogue_loop|execution_safety|template_cleanup|provider_authored_reply_required|allowed_failures|memory_workbench|owner_boundary)=/iu.test(normalized)
+      || /\breopen_from_scratch=false\b/iu.test(normalized)
+      || /\bfixed_template=excluded\b/iu.test(normalized)
+      || /\bgeneric_shell=blocked\b/iu.test(normalized)
+      || /\bcover=visible_reply\b/iu.test(normalized)
+      || /\btiming=measured_return_or_repair_before_closeness\b/iu.test(normalized)
+      || /\blocal_desktop_life_loop\b/iu.test(normalized)
+    ),
+  )
+}
+
+function consciousFrameFieldLabel(key: string) {
+  const label = key
+    .replace(/^project_/u, 'project ')
+    .replace(/same_her/gu, 'continuity')
+    .replace(/_/gu, ' ')
+    .trim()
+  return label.slice(0, 1).toUpperCase() + label.slice(1)
+}
+
 function providerFacingConsciousFrameField(key: string, raw: unknown, maxChars = 320) {
   const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
-  return normalized && normalized !== alicizationFixedTemplateReplacement
-    ? `${key}=${normalized}`
+  return normalized && normalized !== alicizationFixedTemplateReplacement && !containsConsciousFrameInternalTemplateCue(normalized)
+    ? `${consciousFrameFieldLabel(key)}: ${normalized}.`
     : ''
 }
 
-function providerFacingConsciousFrameReasonTags(reasonTags: readonly string[]) {
-  const sanitizedTags = uniqueList(
+function sanitizeConsciousFrameReasonTags(reasonTags: readonly string[]) {
+  return uniqueList(
     reasonTags
-      .map(tag => sanitizeAlicizationProviderFacingText(tag, 120, ''))
-      .filter((tag): tag is string => Boolean(tag)),
+      .map(tag => sanitizeAlicizationProviderFacingText(tag, 160, ''))
+      .filter((tag): tag is string => Boolean(tag) && !containsConsciousFrameInternalTemplateCue(tag)),
     12,
-    120,
+    160,
   )
-
-  return sanitizedTags.join(' | ') || 'none'
 }
 
 function sanitizeConsciousFrameOutputText(raw: unknown, maxChars = 720) {
@@ -83,13 +119,13 @@ function sanitizeConsciousFrameOutputText(raw: unknown, maxChars = 720) {
   if (!normalized)
     return ''
   const direct = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  if (direct)
+  if (direct && !containsConsciousFrameInternalTemplateCue(direct))
     return direct
 
   const fragments = normalized
     .split(/\s*(?:[。!?！？]\s+|\s\|\s+|;\s+)/u)
     .map(fragment => sanitizeAlicizationProviderFacingText(fragment, Math.min(260, maxChars), ''))
-    .filter((fragment): fragment is string => Boolean(fragment))
+    .filter((fragment): fragment is string => Boolean(fragment) && !containsConsciousFrameInternalTemplateCue(fragment))
 
   return uniqueList(fragments, 8, Math.min(260, maxChars)).join(' | ')
 }
@@ -103,7 +139,9 @@ function sanitizeConsciousFrameProjectFact(raw: unknown, maxChars = 320) {
   if (!normalized)
     return ''
   const providerSafe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  return providerSafe || fixedTemplateResidueStructuredFact(normalized, maxChars)
+  return providerSafe && !containsConsciousFrameInternalTemplateCue(providerSafe)
+    ? providerSafe
+    : fixedTemplateResidueStructuredFact(normalized, maxChars)
 }
 
 function fixedTemplateResidueStructuredFact(raw: unknown, maxChars = 320) {
@@ -124,7 +162,7 @@ function sanitizeConsciousFrameStructuredFact(raw: unknown, maxChars = 320) {
     return ''
 
   const providerSafe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  if (providerSafe)
+  if (providerSafe && !containsConsciousFrameInternalTemplateCue(providerSafe))
     return providerSafe
 
   return fixedTemplateResidueStructuredFact(normalized, maxChars)
@@ -288,36 +326,6 @@ function isCadenceAwareSameHerHoldAwarenessLine(value: string | null | undefined
     || normalized.includes('continuity_cadence=remembered_return')
 }
 
-function hasRuntimeSameHerEmbodimentCarryAdvice(
-  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null,
-) {
-  const focusDimensions = runtimeSurface?.memory?.memoryTuningAdvice?.focusDimensions ?? []
-  return Array.isArray(focusDimensions)
-    && focusDimensions.some((dimension) => {
-      return sanitizeText(dimension, 120) === 'runtimeSameHerEmbodimentCarry'
-    })
-}
-
-function hasRuntimeSameHerMemoryCarryAdvice(
-  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null,
-) {
-  const focusDimensions = runtimeSurface?.memory?.memoryTuningAdvice?.focusDimensions ?? []
-  return Array.isArray(focusDimensions)
-    && focusDimensions.some((dimension) => {
-      return sanitizeText(dimension, 120) === 'runtimeSameHerMemoryCarry'
-    })
-}
-
-function hasRuntimeSameHerEmotionalCarryAdvice(
-  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null,
-) {
-  const focusDimensions = runtimeSurface?.memory?.memoryTuningAdvice?.focusDimensions ?? []
-  return Array.isArray(focusDimensions)
-    && focusDimensions.some((dimension) => {
-      return sanitizeText(dimension, 120) === 'runtimeSameHerEmotionalCarry'
-    })
-}
-
 function buildSameHerAntiShellSpeakingLine(sameHerDriftRisk: string | null | undefined) {
   const normalized = sanitizeText(sameHerDriftRisk ?? '', 260)
   if (!normalized)
@@ -325,13 +333,13 @@ function buildSameHerAntiShellSpeakingLine(sameHerDriftRisk: string | null | und
 
   const lowered = normalized.toLowerCase()
   if (/default helpfulness/u.test(lowered) && /generic project guidance/u.test(lowered))
-    return 'risk=default_helpfulness+generic_project_guidance; protected_context=current_reply'
+    return 'Risk: default helpfulness and generic project guidance could displace the current reply.'
   if (/default helpfulness/u.test(lowered))
-    return 'risk=default_helpfulness; protected_context=current_reply'
+    return 'Risk: default helpfulness could displace the current reply.'
   if (
     /generic assistant shell|generic project guidance|generic project shell|detached project narration|project-summary voice|generic task shell/u.test(lowered)
   ) {
-    return 'risk=generic_assistant_or_project_shell; protected_context=first_person_reply'
+    return 'Risk: a generic assistant or project shell could displace the first-person reply.'
   }
 
   return null
@@ -346,13 +354,11 @@ function isSameHerInwardLowPressureCompanionHeadline(text: string | null | undef
     normalized.includes('embodiment_status')
     && normalized.includes('low-pressure-inward-carry')
   ) || (
-    normalized.includes('holding together mainly through')
+    normalized.includes('identity_continuity=present')
     && normalized.includes('low-pressure')
-    && (
-      normalized.includes('same line inward')
-      || normalized.includes('same living line')
-      || normalized.includes('quiet-companionship')
-    )
+  ) || (
+    normalized.includes('cadence=')
+    && normalized.includes('pressure=lower')
   )
 }
 
@@ -384,26 +390,7 @@ function preferProjectStateSameHerSelfLine(input: {
   if (!fallback)
     return resolved
 
-  const resolvedLower = resolved.toLowerCase()
-  const fallbackLower = fallback.toLowerCase()
-  const resolvedLooksDurableSelfAuthority
-    = (
-      /^i remain\b/u.test(resolvedLower)
-      || /^i am still\b/u.test(resolvedLower)
-      || /across quiet, memory, and speech/u.test(resolvedLower)
-      || /without reopening from scratch(?: each turn)?/u.test(resolvedLower)
-      || /inside this local-first digital life/u.test(resolvedLower)
-    )
-    && !/same phase 1 digital life|phase 1|callback|closure|same living line|same closure line|landed|unfinished|open loop|project|host-machine/u.test(resolvedLower)
-  const resolvedLooksGenericSelfContinuity
-    = /one living self inside this local-first digital life|one continuous her/u.test(resolvedLower)
-      && !/same phase 1 digital life|same digital life|same[- ]her|same living line/u.test(resolvedLower)
-  const fallbackCarriesExplicitSameHerProjectLine
-    = /same phase 1 digital life|same digital life|same[- ]her|same living line/u.test(fallbackLower)
-
-  return (resolvedLooksGenericSelfContinuity || resolvedLooksDurableSelfAuthority) && fallbackCarriesExplicitSameHerProjectLine
-    ? fallback
-    : resolved
+  return resolved
 }
 
 function hasExecutionResumeConfirmationBoundary(text: string | null | undefined) {
@@ -651,7 +638,7 @@ function buildProjectedConsciousNeedCarry(input: {
     repairTriggerText,
     burdenText,
     sensitivityText && /template-like speech|living reply|机械|模板/u.test(sensitivityText)
-      ? `risk=template_like_speech; sensitivity=${stripTrailingPunctuation(sensitivityText)}`
+      ? `Template-like speech is a risk here: ${stripTrailingPunctuation(sensitivityText)}.`
       : null,
     preferenceText && /room|lighter|quiet|leave room|留白|轻一点|空间/u.test(preferenceText.toLowerCase())
       ? preferenceText
@@ -671,10 +658,10 @@ function buildProjectedSpeakingCarry(input: {
   return weaveDistinctText([
     openingGuidance,
     /observe-first/u.test(manifestationCadenceSummary)
-      ? 'cadence=observe_first; timing=before_closer_return'
+      ? 'Observe first before a closer return.'
       : manifestationCadenceSummary,
     sensitivityText && /template-like speech|living reply|机械|模板/u.test(sensitivityText)
-      ? 'risk=template_like_speech; protected_context=wording'
+      ? 'Protect wording from template-like speech.'
       : null,
   ], 320, 180)
 }
@@ -735,22 +722,12 @@ function resolveContinuityBehaviorMode(input: {
 }
 
 function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
-  if (mode === 'repair-before-closeness')
-    return 'cadence=repair_before_closeness; timing=before_closeness_widens'
-  if (mode === 'rest-protective')
-    return 'cadence=rest_protective; timing=fatigue_aware'
-  if (mode === 'measured-return')
-    return 'cadence=measured_return; pressure=lower'
+  void mode
   return ''
 }
 
 function deriveContinuityCueFromBehavior(mode: string | null) {
-  if (mode === 'repair-before-closeness')
-    return 'continuity_cue=repair_before_closeness; until=repair_settles'
-  if (mode === 'rest-protective')
-    return 'continuity_cue=rest_protective; direction=inward'
-  if (mode === 'measured-return')
-    return 'continuity_cue=measured_return; direction=measured'
+  void mode
   return ''
 }
 
@@ -769,11 +746,10 @@ function deriveCadenceAwareSameHerHoldDetail(input: {
   const preferredVoiceMode = sanitizeText(input.preferredVoiceMode, 32).toLowerCase()
   const preferredPacingMode = sanitizeText(input.preferredPacingMode, 32).toLowerCase()
 
-  if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'continuity_cadence=lower_pressure; pacing=slower; widening=deferred'
-
-  if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'continuity_cadence=remembered_return; pause=longer; lipsync=restrained; widening=deferred'
+  void preferredPauseMode
+  void preferredLipsyncMode
+  void preferredVoiceMode
+  void preferredPacingMode
 
   return ''
 }
@@ -793,11 +769,10 @@ function deriveCadenceAwareContinuityCue(input: {
   const preferredVoiceMode = sanitizeText(input.preferredVoiceMode, 32).toLowerCase()
   const preferredPacingMode = sanitizeText(input.preferredPacingMode, 32).toLowerCase()
 
-  if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'continuity_cue=lower_pressure_return; pacing=slower; widening=deferred'
-
-  if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'continuity_cue=remembered_return; pause=longer; lipsync=restrained; widening=deferred'
+  void preferredPauseMode
+  void preferredLipsyncMode
+  void preferredVoiceMode
+  void preferredPacingMode
 
   return ''
 }
@@ -884,7 +859,7 @@ function summarizeProjectHoldAuthority(text: string | null | undefined) {
     return 'bounded confirmation boundary, not permanent execution permission, wait for a new execution boundary'
 
   const cues = uniqueList([
-    /continuity_hold|inward_hold/u.test(normalized) ? 'continuity_hold' : null,
+    /continuity_hold|inward_hold|cadence=/u.test(normalized) ? 'cadence' : null,
     /repair[-_ ]before[-_ ]closeness/u.test(normalized) ? 'repair-before-closeness' : null,
     /before closeness widens again/u.test(normalized) ? 'before closeness widens again' : null,
     /lower-pressure|low-pressure/u.test(normalized) ? 'lower-pressure' : null,
@@ -931,7 +906,7 @@ function resolveProjectStateSameHerHoldDetail(input: {
   if (sameHerHoldDetail && !looksLikeGenericSameHerHoldDetail(sameHerHoldDetail))
     return sameHerHoldDetail
 
-  return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; pressure=lower'
+  return null
 }
 
 function deriveProjectClosureAuthority(input: {
@@ -985,16 +960,16 @@ function deriveInitiativeClosureCue(input: {
   if (
     selectedAction === 'hover'
     || selectedAction === 'wait'
-    || /stay close|stay nearby|leave room|lower-pressure|quiet|same living line|same-her|same digital life/u.test(combined)
+    || /stay close|stay nearby|leave room|lower-pressure|quiet|cadence=|pressure=lower|identity_continuity=present/u.test(combined)
   ) {
-    return 'initiative_policy=hold_nearby; pressure=lower; closure_lanes=memory+emotion+embodiment; widening=deferred'
+    return 'Hold nearby with lower pressure; keep memory, emotion, and embodiment together before widening.'
   }
 
   if (
     selectedAction === 'recheck'
     || /repair-before-closeness|repair first|repair seam|re-ground|reground/u.test(combined)
   ) {
-    return 'initiative_policy=recheck_until_repair_settles; truth_first=true; widening_ahead_of_truth=false; closure_lanes=memory+emotion+embodiment'
+    return 'Recheck until repair settles; truth comes before widening.'
   }
 
   if (
@@ -1003,7 +978,7 @@ function deriveInitiativeClosureCue(input: {
     || selectedAction === 'warn'
     || /could help|ready to surface|guidance|speak now/u.test(combined)
   ) {
-    return 'initiative_policy=surface_allowed; anchor=current_self_state; closure_lanes=memory+emotion+embodiment'
+    return 'Surface only from the current self state with memory, emotion, and embodiment together.'
   }
 
   return null
@@ -1038,14 +1013,9 @@ function buildProjectStateShapedSpeakingIntention(input: {
   const doctrineLine = sanitizeText(input.doctrineShapedSpeakingIntention, 640)
   const preferRuntimeDriftRiskLifeLoopGap = Boolean(input.preferRuntimeDriftRiskLifeLoopGap)
   const closureAuthority = emotionalClosureSummary || emotionalClosureCue
-  const repairFirstSpeakingLine
-    = /repair[-_ ]before[-_ ]closeness/u.test(`${emotionalClosureSummary} ${sameHerHoldDetail}`.toLowerCase())
-      ? /callback[_ ]afterglow|emotional[_ ]residue/u.test(`${emotionalClosureSummary} ${emotionalClosureCue}`.toLowerCase())
-        ? `continuity_mode=repair_before_closeness; emotional_context=${stripTrailingPunctuation(emotionalClosureSummary || emotionalClosureCue)}`
-        : 'continuity_mode=repair_before_closeness; until=repair_settles'
-      : null
+  const repairFirstSpeakingLine = null
   const executionResumeConfirmationSpeakingLine = hasExecutionResumeConfirmationBoundary(sameHerHoldDetail)
-    ? 'execution_confirmation=bounded; permanent_permission=false'
+    ? 'Execution confirmation is bounded; do not treat it as permanent permission.'
     : null
   const normalizedDoctrineLine = doctrineLine.toLowerCase()
   const normalizedSameHerSelfLine = sameHerSelfLine.toLowerCase()
@@ -1053,23 +1023,23 @@ function buildProjectStateShapedSpeakingIntention(input: {
     = Boolean(normalizedSameHerSelfLine)
       && (
         normalizedDoctrineLine.includes(normalizedSameHerSelfLine)
-        || /same phase 1 digital life/u.test(normalizedDoctrineLine)
+        || /identity=runtime_personhood|owner=project_state_governance|identity_continuity=present/u.test(normalizedDoctrineLine)
       )
   const useExplicitSameHerLead = !doctrineAlreadyCarriesExplicitSameHerProjectLead
   const projectOpenLoopSpeakingSegment = primaryOpenLoop
-    ? `open_loop=${stripTrailingPunctuation(primaryOpenLoop)}`
+    ? `Open loop: ${stripTrailingPunctuation(primaryOpenLoop)}.`
     : null
   const nextClosureTargetSpeakingSegment = nextClosureTarget
-    ? `next_closure=${stripTrailingPunctuation(nextClosureTarget)}`
+    ? `Next closure target: ${stripTrailingPunctuation(nextClosureTarget)}.`
     : null
   const nextClosureTargetDirectionSegment = nextClosureTarget
-    ? `next_closure_focus=${stripTrailingPunctuation(nextClosureTarget)}`
+    ? `Keep the reply moving toward: ${stripTrailingPunctuation(nextClosureTarget)}.`
     : null
   const proactiveSameHerGapSpeakingSegment = proactiveSameHerGap
-    ? `continuity_gap=${stripTrailingPunctuation(proactiveSameHerGap)}`
+    ? `Continuity gap: ${stripTrailingPunctuation(proactiveSameHerGap)}.`
     : null
   const memoryClosureSpeakingSegment = memoryClosureSummary
-    ? `memory_closure=${stripTrailingPunctuation(memoryClosureSummary)}`
+    ? `Memory closure: ${stripTrailingPunctuation(memoryClosureSummary)}.`
     : null
   const projectLoopGapClosureLine = deriveProjectLoopGapClosureLine({
     primaryOpenLoop,
@@ -1079,11 +1049,11 @@ function buildProjectStateShapedSpeakingIntention(input: {
 
   const leadSegments = uniqueList([
     useExplicitSameHerLead && sameHerSelfLine
-      ? `project_anchor=${stripTrailingPunctuation(sameHerSelfLine)}`
+      ? `Project anchor: ${stripTrailingPunctuation(sameHerSelfLine)}.`
       : null,
     buildSameHerAntiShellSpeakingLine(sameHerDriftRisk),
     useExplicitSameHerLead && sameHerDriftRisk && sameHerDriftRisk.length <= 120
-      ? `drift_risk=${stripTrailingPunctuation(sameHerDriftRisk)}`
+      ? `Drift risk: ${stripTrailingPunctuation(sameHerDriftRisk)}.`
       : null,
     doctrineLine,
   ], 4, 840)
@@ -1093,16 +1063,16 @@ function buildProjectStateShapedSpeakingIntention(input: {
     repairFirstSpeakingLine,
     executionResumeConfirmationSpeakingLine,
     sameHerHoldDetail && /same-person continuity|same person continuity/u.test(sameHerHoldDetail.toLowerCase())
-      ? `same_person_continuity=${stripTrailingPunctuation(sameHerHoldDetail)}`
+      ? `Same-person continuity: ${stripTrailingPunctuation(sameHerHoldDetail)}.`
       : null,
     initiativeClosureCue || null,
     memoryClosureSpeakingSegment,
     isRestProtectiveClosureCue(closureAuthority)
-      ? 'rest_protective=true; direction=inward; closeness_widening=false'
+      ? 'Keep this rest-protective, inward, and without widening closeness.'
       : null,
     preferRuntimeDriftRiskLifeLoopGap ? projectLoopGapClosureLine : null,
     primaryOpenLoop && shouldKeepLiteralProjectOpenLoopSegment(primaryOpenLoop)
-      ? `open_closure=${stripTrailingPunctuation(primaryOpenLoop)}`
+      ? `Open closure: ${stripTrailingPunctuation(primaryOpenLoop)}.`
       : null,
     projectOpenLoopSpeakingSegment && nextClosureTargetSpeakingSegment
       ? `${projectOpenLoopSpeakingSegment} ${nextClosureTargetSpeakingSegment}`
@@ -1114,10 +1084,10 @@ function buildProjectStateShapedSpeakingIntention(input: {
     nextClosureTargetSpeakingSegment,
     nextClosureTargetDirectionSegment,
     closureAuthority
-      ? `emotional_continuity=${lowerFirst(stripTrailingPunctuation(closureAuthority))}`
+      ? `Emotional continuity: ${lowerFirst(stripTrailingPunctuation(closureAuthority))}.`
       : null,
     sameHerHoldDetail && !/same-person continuity|same person continuity/u.test(sameHerHoldDetail.toLowerCase())
-      ? `inward_body_line=${lowerFirst(stripTrailingPunctuation(sameHerHoldDetail))}`
+      ? `Inward body line: ${lowerFirst(stripTrailingPunctuation(sameHerHoldDetail))}.`
       : null,
     preferRuntimeDriftRiskLifeLoopGap ? null : projectLoopGapClosureLine,
   ], 6, 840)
@@ -1340,13 +1310,13 @@ function resolveConsciousNeed(input: {
   rememberedSeamReinterpretationCue?: 'reinterpret-with-more-room' | null
 }) {
   if (input.executionCallbackDoctrineCue === 'lower-pressure') {
-    return 'conscious_need=execution_callback_return; pressure=lower; host_room=preserve; closeness_widening=false'
+    return 'Execution callback return needs lower pressure and preserved host room.'
   }
   if (input.executionCallbackDoctrineCue === 'trust-warming') {
-    return 'conscious_need=execution_callback_return; trust_warming=settle; closeness_widening=rush_blocked'
+    return 'Execution callback return needs trust to settle before closeness widens.'
   }
   if (input.rememberedSeamReinterpretationCue === 'reinterpret-with-more-room') {
-    return 'conscious_need=remembered_seam_reinterpretation; room=more; prior_reentry=eager; reopen_same_eagerness=false'
+    return 'Remembered seam reinterpretation needs more room and less eager reopening.'
   }
   const surfaceNeed = pickSurfaceText(
     input.conversationState?.owedRepair,
@@ -1357,11 +1327,11 @@ function resolveConsciousNeed(input: {
   switch (input.centerOfGravity) {
     case 'repair':
       return surfaceNeed
-        ? `repair_need=steady_seam; around=${lowerFirst(stripTrailingPunctuation(surfaceNeed))}`
-        : 'repair_need=steady_seam'
+        ? `Repair needs a steady seam around ${lowerFirst(stripTrailingPunctuation(surfaceNeed))}.`
+        : 'Repair needs a steady seam.'
     case 'guide':
       if (input.personalityContinuityState?.currentRegime === 'execution-callback') {
-        return 'guide_need=land_execution_callback; callback_sprawl=false; second_reality=false'
+        return 'Guide needs to land the execution callback without callback sprawl or a second reality.'
       }
       return pickSurfaceText(
         input.primaryAnchor,
@@ -1370,20 +1340,20 @@ function resolveConsciousNeed(input: {
         input.answerCompiler.nextMove,
         input.mindSynthesis?.commitments?.[0]?.summary,
       )
-        ? `guide_need=active_knot; anchor=${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
+        ? `Guide the active knot around ${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
           input.primaryAnchor,
           input.conversationState?.unansweredQuestion,
           input.conversationState?.activeCommitments?.[0],
           input.answerCompiler.nextMove,
           input.mindSynthesis?.commitments?.[0]?.summary,
         )))}.`
-        : 'guide_need=active_knot; speech_around_it=false'
+        : 'Guide the active knot directly.'
     case 'care':
       if (
         input.personalityContinuityState?.currentRegime === 'focused-work'
         && input.personalityContinuityState.autonomyPosture === 'protect-space'
       ) {
-        return 'care_need=host_present_state; working_space=crowd_blocked; posture=protect_space'
+        return 'Care needs the host present state while protecting working space.'
       }
       return pickSurfaceText(
         input.primaryAnchor,
@@ -1391,17 +1361,17 @@ function resolveConsciousNeed(input: {
         input.conversationState?.hostMove,
         input.mindSynthesis?.concerns?.[0]?.summary,
       )
-        ? `care_need=stay_close_to; anchor=${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
+        ? `Care should stay close to ${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
           input.primaryAnchor,
           input.answerCompiler.careVector,
           input.conversationState?.hostMove,
           input.mindSynthesis?.concerns?.[0]?.summary,
         )))}.`
         : input.growthProfile.companionshipStyle === 'close-hold'
-          ? 'care_need=present_but_room_giving; room=breathe'
+          ? 'Care should stay present while leaving room to breathe.'
           : input.growthProfile.autonomyRespect >= 0.58
-            ? 'care_need=host_present_state; pressure=not_too_hard'
-            : 'care_need=host_present_state; drift=blocked'
+            ? 'Care should stay with the host present state without pressing too hard.'
+            : 'Care should stay with the host present state and avoid drift.'
     case 'attune':
     case 'answer':
       return pickSurfaceText(
@@ -1410,27 +1380,27 @@ function resolveConsciousNeed(input: {
         input.dialogueEncounter?.summary,
         input.answerCompiler.openingClaim,
       )
-        ? `answer_need=live_dialogue_center; anchor=${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
+        ? `Answer from the live dialogue center around ${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
           input.primaryAnchor,
           input.conversationState?.hostMove,
           input.dialogueEncounter?.summary,
           input.answerCompiler.openingClaim,
         )))}.`
-        : 'answer_need=live_dialogue_subject'
+        : 'Answer the live dialogue subject.'
     case 'witness':
       return pickSurfaceText(
         input.answerCompiler.supportingReality?.[0],
         input.answerCompiler.openingClaim,
         input.dialogueEncounter?.summary,
       )
-        ? `witness_need=visible_first; anchor=${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
+        ? `Witness what is visible first around ${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
           input.answerCompiler.supportingReality?.[0],
           input.answerCompiler.openingClaim,
           input.dialogueEncounter?.summary,
         )))}.`
-        : 'witness_need=visible_first; wider_story=deferred'
+        : 'Witness what is visible first and defer the wider story.'
     default:
-      return 'conscious_need=small_true_turn; flooding=false'
+      return 'Make a small true turn without flooding.'
   }
 }
 
@@ -1445,26 +1415,26 @@ function resolveSpeakingIntention(input: {
 }) {
   if (input.truthDiscipline === 'repair-first') {
     return input.growthProfile.repairGentleness >= 0.58
-      ? 'speaking_intention=revision; style=clean_gentle; correctness_only=false'
+      ? 'Revise cleanly and gently; do not reduce it to correctness only.'
       : input.growthProfile.irritability >= 0.58
-        ? 'speaking_intention=revision_first; tension_sharpening=blocked'
-        : 'speaking_intention=revision_first; cleverness_after_truth=true'
+        ? 'Revise first and block tension sharpening.'
+        : 'Revise first; cleverness comes after truth.'
   }
   if (input.truthDiscipline === 'observe-then-hypothesize')
-    return 'speaking_intention=observe_then_hypothesize; beyond_visible=guess_labeled'
+    return 'Observe first, then label any hypothesis beyond the visible.'
   if (input.truthDiscipline === 'memory-labeled')
-    return 'speaking_intention=memory_labeled; continuity_as=current_perception:false'
+    return 'Label memory as memory, not current perception.'
   if (input.truthDiscipline === 'dialogue-first') {
     return input.growthProfile.companionshipStyle === 'close-hold'
-      ? 'speaking_intention=dialogue_first; presence=close_hold; crowd_host=false'
+      ? 'Put dialogue first with close presence without crowding the host.'
       : input.growthProfile.autonomyRespect >= 0.58
-        ? 'speaking_intention=dialogue_first; closeness=crowd_blocked'
-        : 'speaking_intention=dialogue_first; screen_context=secondary; old_carry=secondary'
+        ? 'Put dialogue first and block crowding closeness.'
+        : 'Put dialogue first; screen context and old carry are secondary.'
   }
   if (input.centerOfGravity === 'guide') {
     return input.growthProfile.unfinishedThreadReturn >= 0.58
-      ? 'speaking_intention=active_knot; thread_slack=false; payoff=before_widening'
-      : 'speaking_intention=active_knot; next_step=honest_resolution'
+      ? 'Stay on the active knot and give payoff before widening.'
+      : 'Stay on the active knot with an honest next step.'
   }
 
   return pickSurfaceText(
@@ -1483,9 +1453,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
   const rawRuntimeDigestProjectState = input?.runtimeSurface?.raw?.runtimeDigest?.projectState ?? null
   const rawCognitionRuntimeDigestProjectState = input?.runtimeSurface?.cognition?.runtimeDigest?.projectState ?? null
   const rawRuntimeStateProjectState = (input?.runtimeSurface as { runtimeState?: { projectState?: unknown } | null } | null | undefined)?.runtimeState?.projectState ?? null
-  const runtimeSameHerEmbodimentCarryAdvice = hasRuntimeSameHerEmbodimentCarryAdvice(input?.runtimeSurface ?? null)
-  const runtimeSameHerMemoryCarryAdvice = hasRuntimeSameHerMemoryCarryAdvice(input?.runtimeSurface ?? null)
-  const runtimeSameHerEmotionalCarryAdvice = hasRuntimeSameHerEmotionalCarryAdvice(input?.runtimeSurface ?? null)
   const preferredRuntimeProjectState: Partial<AlicizationCurrentConsciousProjectState & AlicizationSurfaceProjectStateSnapshot> | null = (
     rawConsciousFrameProjectState
     ?? rawDialogueRuntimeDigestProjectState
@@ -1737,21 +1704,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     (rawRuntimeStateProjectState as { continuityCue?: unknown } | null)?.continuityCue,
     (projectState as { continuityCue?: unknown }).continuityCue,
   )
-  const runtimeSameHerEmbodimentHoldDetail = runtimeSameHerEmbodimentCarryAdvice
-    ? 'runtime embodiment repair keeps body expression repair-before-closeness before the memory line widens again.'
-    : ''
-  const runtimeSameHerEmbodimentContinuityCue = runtimeSameHerEmbodimentCarryAdvice
-    ? 'embodied_continuity=repair_before_closeness; memory_embodiment_rejoin=before_outward_widening'
-    : ''
-  const runtimeSameHerEmotionalClosureCue = runtimeSameHerEmotionalCarryAdvice
-    ? 'emotional closure: keep callback afterglow and emotional residue low-pressure until repair settles.'
-    : ''
-  const runtimeSameHerEmotionalClosureSummary = runtimeSameHerEmotionalCarryAdvice
-    ? 'emotional closure keeps callback afterglow, emotional residue, and repair-before-closeness until repair settles.'
-    : ''
-  const runtimeSameHerMemoryClosureSummary = runtimeSameHerMemoryCarryAdvice
-    ? 'memory closure: explain why recall surfaced now and keep memory tied to initiative/execution, emotion, and embodiment.'
-    : ''
   const shouldDeriveContinuityCarryFromBehavior
     = !explicitAwarenessSameHerHoldDetail
       && !explicitAwarenessContinuityCue
@@ -1759,17 +1711,12 @@ function buildProjectStateConsciousFrameGrounding(input?: {
     ? resolveEffectiveProjectStateContinuityCarry({
         continuityRestraint:
           explicitAwarenessContinuityRestraint
-          || (runtimeSameHerEmotionalCarryAdvice ? 'repair-before-closeness' : null)
-          || (runtimeSameHerEmbodimentCarryAdvice ? 'repair-before-closeness' : null)
           || preferredRuntimeProjectState?.continuityRestraint
           || surfaceProjectState.continuityRestraint
           || normalizedProjectState.continuityRestraint
           || projectState.continuityRestraint,
         continuityCadence:
           explicitAwarenessContinuityCadence
-          || (runtimeSameHerMemoryCarryAdvice ? 'measured-return' : null)
-          || (runtimeSameHerEmotionalCarryAdvice ? 'repair-before-closeness' : null)
-          || (runtimeSameHerEmbodimentCarryAdvice ? 'repair-before-closeness' : null)
           || preferredRuntimeProjectState?.continuityCadence
           || surfaceProjectState.continuityCadence
           || normalizedProjectState.continuityCadence
@@ -1801,7 +1748,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       }
   const sameHerHoldDetailForAwareness = sanitizeText(
     explicitAwarenessSameHerHoldDetail
-    || runtimeSameHerEmbodimentHoldDetail
     || behaviorDerivedContinuityCarry.sameHerHoldDetail
     || projectState.sameHerHoldDetail
     || '',
@@ -1810,9 +1756,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
   const continuityCueForAwareness = sanitizeText(
     explicitAwarenessContinuityCue
     || (!sameHerHoldDetailForAwareness
-      ? runtimeSameHerEmbodimentContinuityCue
-      : '')
-    || (!sameHerHoldDetailForAwareness
       ? behaviorDerivedContinuityCarry.continuityCue || continuityCue
       : '')
     || '',
@@ -1820,7 +1763,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
   )
   const resolvedContinuityCue = sanitizeText(
     explicitAwarenessContinuityCue
-    || runtimeSameHerEmbodimentContinuityCue
     || behaviorDerivedContinuityCarry.continuityCue
     || continuityCue
     || '',
@@ -2123,7 +2065,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       (rawRuntimeDigestProjectState as { memoryClosureSummary?: unknown } | null)?.memoryClosureSummary,
       (rawCognitionRuntimeDigestProjectState as { memoryClosureSummary?: unknown } | null)?.memoryClosureSummary,
       (rawRuntimeStateProjectState as { memoryClosureSummary?: unknown } | null)?.memoryClosureSummary,
-      runtimeSameHerMemoryClosureSummary,
       (projectState as { memoryClosureSummary?: unknown }).memoryClosureSummary,
     ) || null,
     emotionalClosureCue: pickPreferredProjectStateField(
@@ -2133,7 +2074,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       (rawRuntimeDigestProjectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
       (rawCognitionRuntimeDigestProjectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
       (rawRuntimeStateProjectState as { emotionalClosureCue?: unknown } | null)?.emotionalClosureCue,
-      runtimeSameHerEmotionalClosureCue,
       (projectState as { emotionalClosureCue?: unknown }).emotionalClosureCue,
     ),
     emotionalClosureSummary: pickPreferredProjectStateField(
@@ -2143,7 +2083,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       (rawRuntimeDigestProjectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
       (rawCognitionRuntimeDigestProjectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
       (rawRuntimeStateProjectState as { emotionalClosureSummary?: unknown } | null)?.emotionalClosureSummary,
-      runtimeSameHerEmotionalClosureSummary,
       (projectState as { emotionalClosureSummary?: unknown }).emotionalClosureSummary,
     ),
     sameHerHoldDetail: resolvedSameHerHoldDetailForAwareness,
@@ -2163,9 +2102,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.continuityCadence === 'string' ? preferredRuntimeProjectState.continuityCadence : null)
         ?? surfaceProjectState.continuityCadence
-        ?? (runtimeSameHerMemoryCarryAdvice ? 'measured-return' : null)
-        ?? (runtimeSameHerEmotionalCarryAdvice ? 'repair-before-closeness' : null)
-        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'repair-before-closeness' : null)
         ?? '',
         120,
       )
@@ -2175,7 +2111,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.preferredBlinkCadence === 'string' ? preferredRuntimeProjectState.preferredBlinkCadence : null)
         ?? surfaceProjectState.preferredBlinkCadence
-        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'quiet' : null)
         ?? '',
         32,
       )
@@ -2186,7 +2121,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.preferredGazeMode === 'string' ? preferredRuntimeProjectState.preferredGazeMode : null)
         ?? surfaceProjectState.preferredGazeMode
-        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'soften' : null)
         ?? '',
         32,
       )
@@ -2197,7 +2131,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.preferredPauseMode === 'string' ? preferredRuntimeProjectState.preferredPauseMode : null)
         ?? surfaceProjectState.preferredPauseMode
-        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'longer' : null)
         ?? longHorizonProjectCadence.preferredPauseMode
         ?? '',
         32,
@@ -2209,7 +2142,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.preferredLipsyncMode === 'string' ? preferredRuntimeProjectState.preferredLipsyncMode : null)
         ?? surfaceProjectState.preferredLipsyncMode
-        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'restrained' : null)
         ?? longHorizonProjectCadence.preferredLipsyncMode
         ?? '',
         32,
@@ -2221,7 +2153,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.preferredVoiceMode === 'string' ? preferredRuntimeProjectState.preferredVoiceMode : null)
         ?? surfaceProjectState.preferredVoiceMode
-        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'lower-pressure' : null)
         ?? longHorizonProjectCadence.preferredVoiceMode
         ?? '',
         32,
@@ -2233,7 +2164,6 @@ function buildProjectStateConsciousFrameGrounding(input?: {
       sanitizeText(
         (typeof preferredRuntimeProjectState?.preferredPacingMode === 'string' ? preferredRuntimeProjectState.preferredPacingMode : null)
         ?? surfaceProjectState.preferredPacingMode
-        ?? (runtimeSameHerEmbodimentCarryAdvice ? 'slower' : null)
         ?? longHorizonProjectCadence.preferredPacingMode
         ?? '',
         32,
@@ -2322,10 +2252,10 @@ function buildSelfAuthoritySpeakingCue(selfContinuityAuthority?: {
     return ''
 
   if (/space|measured|restrain|repair|room|lower-pressure|bounded/u.test(closenessPosture))
-    return `self_authority=room_giving; ${lowerFirst(stripTrailingPunctuation(authoritySummary))}`
+    return `The self authority is room-giving: ${lowerFirst(stripTrailingPunctuation(authoritySummary))}.`
   if (/close|warm/u.test(closenessPosture))
-    return `self_authority=bond_preserving; ${lowerFirst(stripTrailingPunctuation(authoritySummary))}`
-  return `self_authority=continuous; ${lowerFirst(stripTrailingPunctuation(authoritySummary))}`
+    return `The self authority is bond-preserving: ${lowerFirst(stripTrailingPunctuation(authoritySummary))}.`
+  return `The self authority stays continuous: ${lowerFirst(stripTrailingPunctuation(authoritySummary))}.`
 }
 
 function deriveInwardRecollectionConsciousCue(input: {
@@ -2387,14 +2317,14 @@ function deriveInwardRecollectionConsciousCue(input: {
       || /current payoff still needs the foreground|keep recollection inward|host has (?:more )?room|live payoff|remembered seam inward|live reunion/u.test(whyWithheld.toLowerCase())
     )
     ? whyWithheld
-    : 'inward_recollection=withhold_until_payoff_lands; host_room=required'
+    : 'Recollection is internal until the live payoff lands; host room remains protected.'
   const followUpNeed = followUpSummary
-    ? `follow_up_need=payoff_first; summary=${lowerFirst(stripTrailingPunctuation(followUpSummary))}`
-    : 'follow_up_need=payoff_first; remembered_continuity_widening=deferred'
+    ? `Follow-up stays payoff-first: ${lowerFirst(stripTrailingPunctuation(followUpSummary))}.`
+    : 'Follow-up stays payoff-first, and remembered continuity widening is deferred.'
   const followUpTimingCue = preferredTiming === 'next-open-window'
-    ? 'follow_up_timing=next_open_window; recollection_wait=true'
+    ? 'The follow-up timing is next open window, and recollection waits.'
     : preferredTiming === 'after-payoff'
-      ? 'follow_up_timing=after_payoff; recollection_wait=true'
+      ? 'The follow-up timing is after payoff, and recollection waits.'
       : null
 
   return {
@@ -2404,7 +2334,7 @@ function deriveInwardRecollectionConsciousCue(input: {
       followUpTimingCue,
     ], 320),
     speakingIntention: weaveDistinctText([
-      'recollection_surface=inward_until_live_payoff; remembered_continuity_surface=deferred',
+      'Recollection remains internal until the live payoff lands; remembered continuity stays deferred.',
       followUpTimingCue,
     ], 220),
   }
@@ -2606,17 +2536,17 @@ export function buildCurrentConsciousFrame(input: {
   })
   const doctrineShapedConsciousNeed = executionCallbackDoctrineCue
     ? executionCallbackDoctrineCue === 'lower-pressure'
-      ? 'conscious_need=execution_callback_return; pressure=lower; host_room=preserve; closeness_widening=false'
+      ? 'Execution callback return needs lower pressure and preserved host room.'
       : executionCallbackDoctrineCue === 'trust-warming'
-        ? 'conscious_need=execution_callback_return; trust_warming=settle; closeness_widening=rush_blocked'
+        ? 'Execution callback return needs trust to settle before closeness widens.'
         : weaveDistinctText([
             normalizedConsciousNeed,
-            'conscious_need=callback_as_lived_continuity; detached_result_line=false',
+            'Treat the callback as lived continuity, not a detached result line.',
           ])
     : rememberedSeamReinterpretationCue === 'reinterpret-with-more-room'
       ? weaveDistinctText([
           normalizedConsciousNeed,
-          'conscious_need=remembered_relationship_line; room=more; prior_reentry=eager',
+          'Remembered relationship line needs more room than the prior eager re-entry.',
         ])
       : normalizedConsciousNeed
   const surfaceTension = pickSurfaceText(
@@ -2627,10 +2557,10 @@ export function buildCurrentConsciousFrame(input: {
     desireMemory?.activeDesires?.[0]?.reason,
   )
   const consciousTension = surfaceTension
-    ? `conscious_tension=${lowerFirst(stripTrailingPunctuation(surfaceTension))}`
+    ? `Current tension: ${lowerFirst(stripTrailingPunctuation(surfaceTension))}.`
     : growthProfile.unfinishedThreadReturn >= 0.58
-      ? 'conscious_tension=thread_slack_between_turns; action=hold'
-      : 'conscious_tension=visible_answer_alignment; pressure=real_turn'
+      ? 'Current tension is thread slack between turns, so hold.'
+      : 'Current tension is visible answer alignment and real-turn pressure.'
   const normalizedConsciousTension = shouldThreadSelfContinuity
     ? weaveDistinctText([
         consciousTension,
@@ -2657,10 +2587,10 @@ export function buildCurrentConsciousFrame(input: {
     ? weaveDistinctText([
         normalizedSpeakingIntention,
         executionCallbackDoctrineCue === 'lower-pressure'
-          ? 'wording_policy=thread_faithful; pressure=softer; room_giving=true'
+          ? 'Keep the wording thread-faithful, softer, and room-giving.'
           : executionCallbackDoctrineCue === 'trust-warming'
-            ? 'wording_policy=trust_warming_quiet; bond_widening=moment_bounded'
-            : 'wording_policy=callback_inside_lived_continuity',
+            ? 'Keep trust warming quiet, and widen closeness only for this moment.'
+            : 'Treat the callback as part of lived continuity.',
       ], 640, 840)
     : weaveDistinctText([
         normalizedSpeakingIntention,
@@ -2694,8 +2624,8 @@ export function buildCurrentConsciousFrame(input: {
     : null
   const projectStateSameHerSelfNeed = projectStateGrounding.sameHerSelfLine
     ? /phase 1/u.test(projectStateGrounding.sameHerSelfLine)
-      ? 'project_context=phase1_current'
-      : 'project_context=digital_life_current'
+      ? 'The current frame should stay grounded in the active local digital life phase.'
+      : 'The current frame should stay grounded in Alicization as a living digital presence.'
     : null
   const projectStateProactiveSameHerGapNeed = projectStateGrounding.proactiveSameHerGap
     ? providerFacingConsciousFrameField('initiative_gap', stripTrailingPunctuation(projectStateGrounding.proactiveSameHerGap), 220)
@@ -2726,17 +2656,17 @@ export function buildCurrentConsciousFrame(input: {
   const projectStateHoldAuthoritySummary = summarizeProjectHoldAuthority(projectStateGrounding.sameHerHoldDetail)
   const projectStateRepairFirstNeed
     = projectStateClosureAuthoritySummary?.includes('repair-before-closeness')
-      ? 'emotional_closure=repair_before_closeness; until=repair_settles'
+      ? 'Let repair settle before widening closeness.'
       : null
   const projectStateRestProtectiveNeed = isRestProtectiveClosureCue(projectStateClosureAuthority)
-    ? 'rest_protection=first; emotional_closure=low_pressure; direction=inward; closeness_widening=false'
+    ? 'Protect rest first; keep emotional closure low-pressure and inward.'
     : null
   const projectStateClosureNeed = projectStateRepairFirstNeed
     ?? (projectStateClosureAuthoritySummary
-      ? `emotional_closure=low_pressure; summary=${stripTrailingPunctuation(projectStateClosureAuthoritySummary)}`
+      ? `Keep emotional closure low-pressure: ${stripTrailingPunctuation(projectStateClosureAuthoritySummary)}.`
       : null)
   const projectStateHoldNeed = projectStateHoldAuthoritySummary
-    ? `inward_hold=active; summary=${stripTrailingPunctuation(projectStateHoldAuthoritySummary)}`
+    ? `Keep the inward hold active: ${stripTrailingPunctuation(projectStateHoldAuthoritySummary)}.`
     : null
   const projectStateShapedConsciousNeed = weaveDistinctText(
     projectStateGrounding.hasExplicitRuntimeProjectState
@@ -2777,9 +2707,9 @@ export function buildCurrentConsciousFrame(input: {
     220,
   )
   const withheldImpulse = shouldWithholdSpecificity
-    ? 'withheld_impulse=coarse_visual_to_specific_artifact_certainty'
+    ? 'Withhold the impulse to turn coarse visual evidence into specific artifact certainty.'
     : shouldSelfRevise
-      ? 'withheld_impulse=defend_older_interpretation_for_continuity'
+      ? 'Withhold the impulse to defend an older interpretation for continuity.'
       : null
   const projectStateShapedSpeakingIntention = buildProjectStateShapedSpeakingIntention({
     doctrineShapedSpeakingIntention,
@@ -2813,9 +2743,9 @@ export function buildCurrentConsciousFrame(input: {
       ? 'self-evolution:durable-same-her-cadence'
       : null
   const sanitizedConsciousNeed = sanitizeConsciousFrameOutputText(projectStateShapedConsciousNeed, 1600)
-    || 'context=available; owner=CurrentConsciousFrame'
+    || 'Use the available current frame without adding a generic assistant shell.'
   const sanitizedSpeakingIntention = sanitizeConsciousFrameOutputText(projectionShapedSpeakingIntention, 1800)
-    || 'reply_context=current_turn; owner=CurrentConsciousFrame'
+    || 'Reply from the current turn context.'
   const sanitizedProjectState = runtimeContinuityPreferredTiming
     || runtimeContinuityCadence
     || projectStateGrounding.preDialogueAwarenessLine
@@ -2881,7 +2811,7 @@ export function buildCurrentConsciousFrame(input: {
       + (dialogueEncounter?.confidence ?? discourseState.confidence) * 0.22
       + (privateThought?.confidence ?? 0.34) * 0.16,
     ),
-    reasonTags: uniqueList([
+    reasonTags: sanitizeConsciousFrameReasonTags(uniqueList([
       deriveContinuityArcReasonTag({
         currentRegime: personalityContinuityState.currentRegime,
         openingDirective: sanitizeText(answerCompiler?.openingDirective, 220).toLowerCase(),
@@ -2923,7 +2853,7 @@ export function buildCurrentConsciousFrame(input: {
       answerCompiler.recommendedAct ? `act:${answerCompiler.recommendedAct}` : null,
       shouldWithholdSpecificity ? 'withhold-specificity' : null,
       shouldSelfRevise ? 'self-revise' : null,
-    ], 14),
+    ], 14)),
     continuityPreferredTiming: runtimeContinuityPreferredTiming,
     continuityCadence: runtimeContinuityCadence,
     projectState: sanitizedProjectState,
@@ -2942,14 +2872,13 @@ export function buildCurrentConsciousFrameSystemBlock(
   const includeProjectStateFacts = options?.includeProjectStateFacts !== false
 
   return [
-    '[ALICIZATION_CURRENT_CONSCIOUS_FRAME]',
-    'owner=CurrentConsciousFrame',
-    'short_term_owner=WorkingMemory',
-    'long_term_recall_owner=LongTermMemoryRecall',
-    'policy=express_current_frame_without_generic_assistant_shell',
-    `subject=${frame.subject}`,
-    `center_of_gravity=${frame.centerOfGravity}`,
-    `truth_discipline=${frame.truthDiscipline}`,
+    'Current conscious frame.',
+    'WorkingMemory owns short-term memory.',
+    'LongTermMemoryRecall owns long-term recall.',
+    'Express the current frame without a generic assistant shell.',
+    `Subject: ${frame.subject}.`,
+    `Center of gravity: ${frame.centerOfGravity}.`,
+    `Truth discipline: ${frame.truthDiscipline}.`,
     providerFacingConsciousFrameField('conscious_need', frame.consciousNeed),
     providerFacingConsciousFrameField('conscious_tension', frame.consciousTension),
     providerFacingConsciousFrameField('speaking_intention', frame.speakingIntention),
@@ -2972,12 +2901,5 @@ export function buildCurrentConsciousFrameSystemBlock(
     includeProjectStateFacts ? providerFacingConsciousFrameField('project_emotional_closure_summary', (frame.projectState as { emotionalClosureSummary?: string | null } | null)?.emotionalClosureSummary) : '',
     includeProjectStateFacts ? providerFacingConsciousFrameField('project_continuity_hold', (frame.projectState as { sameHerHoldDetail?: string | null } | null)?.sameHerHoldDetail) : '',
     includeProjectStateFacts ? providerFacingConsciousFrameField('project_continuity_cue', (frame.projectState as { continuityCue?: string | null } | null)?.continuityCue) : '',
-    includeProjectStateFacts ? providerFacingConsciousFrameField('project_continuity_timing', frame.projectState?.continuityPreferredTiming, 80) : '',
-    includeProjectStateFacts ? providerFacingConsciousFrameField('project_continuity_cadence', frame.projectState?.continuityCadence, 80) : '',
-    includeProjectStateFacts ? providerFacingConsciousFrameField('project_preferred_pause_mode', (frame.projectState as { preferredPauseMode?: string | null } | null)?.preferredPauseMode, 80) : '',
-    includeProjectStateFacts ? providerFacingConsciousFrameField('project_preferred_lipsync_mode', (frame.projectState as { preferredLipsyncMode?: string | null } | null)?.preferredLipsyncMode, 80) : '',
-    includeProjectStateFacts ? providerFacingConsciousFrameField('project_preferred_voice_mode', frame.projectState?.preferredVoiceMode, 80) : '',
-    includeProjectStateFacts ? providerFacingConsciousFrameField('project_preferred_pacing_mode', frame.projectState?.preferredPacingMode, 80) : '',
-    `Reason tags: ${providerFacingConsciousFrameReasonTags(frame.reasonTags)}.`,
   ].filter(Boolean).join('\n')
 }

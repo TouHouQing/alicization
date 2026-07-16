@@ -57,7 +57,7 @@ describe('proactive feedback loop state', () => {
       reasonCodes: ['rest-protective', 'suppress-outward-initiative'],
       summary: 'Rest-protective emotional carry should keep later initiative quiet.',
       projectStateContinuity: {
-        sameHerSelfLine: 'Same Phase 1 digital life.',
+        sameHerSelfLine: 'structured continuity digest.',
         sameHerDriftRisk: 'Noisy initiative would split the same-her rest line.',
         proactiveSameHerGap: 'Do not reopen before rest protection cools.',
         emotionalClosureCue: 'rest-protective',
@@ -129,7 +129,7 @@ describe('proactive feedback loop state', () => {
           overreachRisk: 0.14,
           fatigueGuard: 0.08,
           reasonTags: ['proactive-feedback-window', 'same-living-line'],
-          summary: 'Keep the initiative gentle and on the same living line.',
+          summary: 'Keep the initiative gentle and on the continuity state.',
         },
         sourceSignals: ['proactive-feedback-window'],
         summary: 'Measured return remains the right proactive cadence.',

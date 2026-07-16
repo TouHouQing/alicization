@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 describe('runtime-turn-persistence project-state hold regression', () => {
-  it('threads sameHerHoldDetail through guarded turn persistence instead of dropping finer same-her hold authority during normalization', () => {
+  it('threads sameHerHoldDetail through guarded turn persistence instead of dropping finer identity-continuity', () => {
     const source = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
     const persistenceStart = source.indexOf('const projectStatePersistence = {')
     const persistenceEnd = source.indexOf('\n  const {', persistenceStart)

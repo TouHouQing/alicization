@@ -238,13 +238,13 @@ function buildScriptDigitalLifeAuthorityBody() {
     digitalLife: null,
     digitalLifeSpine: {
       continuitySignal: {
-        summary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        summary: 'structured continuity digest.',
       },
       runtime: {
         projectState: {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'Keep the same living line inward for now.',
+          continuityCue: 'Keep the continuity state inward for now.',
         },
       },
     },
@@ -259,7 +259,7 @@ function buildScriptDigitalLifeAuthorityBody() {
       projectState: {
         continuityArcStage: 'same-thread-continuation',
         continuityPreferredTiming: 'next-open-window',
-        continuityCue: 'Keep the same living line inward for now.',
+        continuityCue: 'Keep the continuity state inward for now.',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
       },

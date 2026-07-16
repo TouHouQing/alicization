@@ -129,7 +129,7 @@ describe('rankSubconsciousRecallFragments', () => {
       ],
     })
 
-    // first pass keeps only one dialogue row; second pass allows deferred rows to fill the remaining slot.
+    // The initial ranking pass keeps one dialogue row; a subsequent pass lets deferred rows fill the remaining slot.
     expect(ranked.map(item => item.id)).toEqual(['dialogue-1', 'dialogue-2'])
   })
 })

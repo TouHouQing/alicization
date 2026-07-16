@@ -40,14 +40,14 @@ describe('alicization face summary', () => {
     })).toBe('emotion=thinking')
   })
 
-  it('can carry same-her inward carry wording so quieter measured-return face cues still read like one inward living line', () => {
+  it('can carry identity-continuity', () => {
     expect(buildAlicizationFaceSummary({
       emotion: 'thinking',
       facialCue: 'soft-gaze',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonSummary: 'Keep the same living line inward for now, and leave room before widening outward again',
+      reasonSummary: 'Keep the continuity state inward for now, and leave room before widening outward again',
     })).toBe(
       'emotion=thinking | cue=soft-gaze | mode=measured-return | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower',
     )
@@ -62,7 +62,7 @@ describe('alicization face summary', () => {
       continuityTiming: 'audible-body-carry',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonSummary: 'Keep the same living line audible while face and motion rejoin',
+      reasonSummary: 'Keep the continuity state audible while face and motion rejoin',
       holdMs: 360,
       source: 'timeline-projection',
       confidence: 0.9,

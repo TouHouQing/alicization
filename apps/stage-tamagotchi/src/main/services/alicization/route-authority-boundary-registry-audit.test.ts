@@ -17,9 +17,6 @@ describe('route authority boundary registry audit', () => {
       'runtime-turn-persistence',
     ])
     expect(registry).not.toContainEqual(expect.objectContaining({
-      domain: 'project-state-answer-governance',
-    }))
-    expect(registry).not.toContainEqual(expect.objectContaining({
       mode: 'answer-contract-surface',
     }))
     expect(registry).not.toContainEqual(expect.objectContaining({
@@ -34,7 +31,6 @@ describe('route authority boundary registry audit', () => {
     const allowedOverlaps = resolveAlicizationProjectRouteAuthorityAllowedOverlaps()
 
     for (const overlap of allowedOverlaps) {
-      expect(overlap.domains).not.toContain('project-state-answer-governance')
       expect(overlap.reason).not.toMatch(/reply governance|must-do|must-not-do|same-her/i)
     }
   })

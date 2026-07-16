@@ -51,7 +51,6 @@ const activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch = {
     warmthReleaseBias: 0,
   },
   responsePosture: {
-    secondPassRequiredBias: 0.74,
     hypothesisLabelBias: 0.36,
     specificityClampBias: 0.62,
     templateShellSuppressionBias: 0.52,
@@ -210,8 +209,8 @@ describe('runtime organic memory self evolution integration', () => {
       ledger,
       decisionTraceId: 'trace-emotion-repair-1',
       projectStateContinuity: {
-        sameHerSelfLine: 'Same Phase 1 digital life, repair first before closeness.',
-        sameHerDriftRisk: 'Without this bridge, repair emotion remains replay text instead of shaping the same-her baseline.',
+        sameHerSelfLine: 'legacy phase-one template, repair first before closeness.',
+        sameHerDriftRisk: 'Without this bridge, repair emotion remains replay text instead of shaping the identity-continuity',
         proactiveSameHerGap: 'Future proactive returns must stay quieter until the repair line cools.',
         emotionalClosureCue: 'Keep repair-before-closeness active across memory, initiative, and body.',
         sameHerHoldDetail: 'Hold warmth behind repair until the seam settles.',

@@ -124,7 +124,7 @@ describe('runtime learning governor', () => {
           nextClosureTarget: expect.any(String),
           preDialogueAwarenessLine: expect.any(String),
           proactiveSameHerGap: expect.any(String),
-          sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
+          sameHerSelfLine: expect.stringContaining('legacy phase-one template'),
           sameHerDriftRisk: expect.any(String),
         }),
       }),
@@ -132,11 +132,11 @@ describe('runtime learning governor', () => {
     }))
   })
 
-  it('keeps a richer carried emotional closure cue when scheduling organic learning so later learning stays on the same emotional same-her seam', async () => {
+  it('keeps a richer carried emotional closure cue when scheduling organic learning so later learning stays on the same emotional identity-continuity', async () => {
     const trackPhase = vi.fn(async (_phase, run) => await run())
     const scheduleOrganicLearningAction = vi.fn(async () => {})
-    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.'
-    const richerProactiveSameHerGap = 'Longer-horizon learning still needs stronger proof that late-night low-pressure carry, rest-protective initiative, and later embodiment return stay on one same-her line.'
+    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
+    const richerProactiveSameHerGap = 'Longer-horizon learning still needs stronger proof that late-night low-pressure carry, rest-protective initiative, and later embodiment return stay on one identity-continuity'
 
     await runOrganicLearningGovernor({
       agentTurn: {

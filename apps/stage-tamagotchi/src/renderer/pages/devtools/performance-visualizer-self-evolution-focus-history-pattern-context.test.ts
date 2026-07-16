@@ -155,12 +155,12 @@ describe('performance visualizer self evolution focus history pattern context', 
     })
   })
 
-  it('keeps quieter face+lipsync+voice same-her carry explicit in workflow context instead of flattening it into generic body-loss wording', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatternContext({
       pattern: {
         patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|lane:face+lipsync+voice-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
         occurrenceCount: 2,
-        summaryLine: '2次 当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 | +选中轨迹事件',
+        summaryLine: '2次 当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         focusCardTransition: 'repair-path -> repair-owner',
         traceEventTransition: 'event-takeover -> event-person-state',
         evidenceGained: ['renderer-authority-projection'],
@@ -187,12 +187,12 @@ describe('performance visualizer self evolution focus history pattern context', 
     })
   })
 
-  it('keeps quieter motion+lipsync+voice same-her carry explicit in workflow context instead of flattening it into generic body-loss wording', () => {
+  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatternContext({
       pattern: {
         patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|lane:motion+lipsync+voice-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
         occurrenceCount: 2,
-        summaryLine: '2次 当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 | +选中轨迹事件',
+        summaryLine: '2次 当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
         focusCardTransition: 'repair-path -> repair-owner',
         traceEventTransition: 'event-takeover -> event-person-state',
         evidenceGained: ['renderer-authority-projection'],

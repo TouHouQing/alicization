@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-describe('performance visualizer runtime same-her proof control', () => {
-  it('exposes the sampled runtime same-her proof as a direct devtools action with visible repair evidence', () => {
+describe('performance visualizer runtime identity-continuity', () => {
+  it('exposes the sampled runtime identity-continuity', () => {
     const source = readFileSync(new URL('./performance-visualizer.vue', import.meta.url), 'utf8')
 
     expect(source).toContain('async function runRuntimeSameHerSessionProof()')

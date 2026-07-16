@@ -137,7 +137,6 @@ export const mainChatFirstEventTimeoutMs = 65_000
 export const mainChatFirstEventTimeoutWithVisualGroundingMs = 90_000
 export const mainChatTimeoutRecoveryMs = 12_000
 export const mainChatTimeoutRecoveryWithVisualGroundingMs = 30_000
-export const mainChatVisibleReplySecondPassTimeoutMs = 65_000
 export const inspectionGroundingImageMaxWidth = 960
 export const inspectionGroundingImageMaxHeight = 540
 export const inspectionGroundingImageJpegQuality = 76

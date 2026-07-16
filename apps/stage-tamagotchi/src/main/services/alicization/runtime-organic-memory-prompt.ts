@@ -9,7 +9,6 @@ import type {
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
-import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationProjectStateBrief } from './project-state-brief'
@@ -71,7 +70,7 @@ import {
   resolveAlicizationProjectStateSnapshot,
 } from './project-state-brief'
 import { planAlicizationRecall } from './recall-planner'
-import { buildOrganicMemorySystemBlocks as buildOrganicMemoryPromptBlocks } from './runtime-organic-memory-prompt-blocks'
+import { buildOrganicMemoryProviderFactBlocks as buildOrganicMemoryFactBlocks } from './runtime-organic-memory-prompt-blocks'
 import {
   deriveSceneTriggeredRecollectionIntent,
   deriveSessionMirrorRecollectionIntent,
@@ -560,10 +559,10 @@ function sanitizeOrganicProjectEmotionText(value: unknown, limit: number) {
   }
 
   return [
-    'emotional_closure=content_sanitized',
-    /low-pressure|lower-pressure|measured-return/iu.test(normalized) ? 'tone=low_pressure' : null,
-    /repair-before-closeness|repair first|repair-first/iu.test(normalized) ? 'repair=before_closeness' : null,
-    /rest-protective|rest protection|fatigue|休息/u.test(normalized) ? 'rest_protection=true' : null,
+    'Emotional closure content was sanitized.',
+    /low-pressure|lower-pressure|measured-return/iu.test(normalized) ? 'Keep the tone low-pressure.' : null,
+    /repair-before-closeness|repair first|repair-first/iu.test(normalized) ? 'Let repair come before closeness.' : null,
+    /rest-protective|rest protection|fatigue|休息/u.test(normalized) ? 'Protect rest.' : null,
   ].filter(Boolean).join('; ')
 }
 
@@ -584,8 +583,8 @@ function sanitizeOrganicMemoryReplayText(value: unknown, limit = 800) {
     )
     return [
       prefix && prefix !== alicizationFixedTemplateReplacement ? prefix : '',
-      'project:identity=runtime_personhood',
-      /open=|still needs|unfinished/iu.test(normalized) ? 'open=continuity_pending' : '',
+      'Project continuity context is present.',
+      /open=|still needs|unfinished/iu.test(normalized) ? 'Continuity remains pending.' : '',
     ].filter(Boolean).join(' | ')
   }
 
@@ -677,7 +676,7 @@ function buildSameHerCarryLineFromProjectAnchor(projectPreflight: string | null)
     return null
 
   return [
-    carriesProjectIdentity ? 'runtime_context=runtime_personhood.' : '',
+    carriesProjectIdentity ? 'runtime_context=continuity_present.' : '',
     carriesLandedProgress ? 'memory_progress=partial.' : '',
     carriesOpenClosure ? 'memory_unresolved=continuity.' : '',
   ].filter(Boolean).join(' ')
@@ -1077,12 +1076,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     resolveTurnRetrievalPolicySnapshot,
   } = options
 
-  function buildOrganicMemorySystemBlocks(
-    context: OrganicMemoryPromptContext,
-    memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact> | null,
-  ) {
+  function buildOrganicMemoryProviderFactBlocks(context: OrganicMemoryPromptContext) {
     const startedAt = Date.now()
-    const blocks = buildOrganicMemoryPromptBlocks(context, memoryTurnArtifact)
+    const blocks = buildOrganicMemoryFactBlocks(context)
     void recordOrganicMemoryStageBudget?.({
       stage: 'prompt-blocks',
       budgetClass: 'realtime-reply',
@@ -1719,15 +1715,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
                 floor: finalSurfaceKernel.memoryControl.certaintyFloor,
               })
             : deliberatedRecollectionSpeechPlan.certainty,
-          visibleLead: null,
-          styleNote: [
-            deliberatedRecollectionSpeechPlan.styleNote,
-            finalSurfaceKernel.whyWithheld,
-            finalSurfaceKernel.memoryControl?.labelUncertainty
-              ? 'uncertainty_label=required_when_needed; settled_recall_claim=false'
-              : null,
-            'recollection_visibility=internal_until_present_payoff_lands; boundary=room_first_repair_first_host_boundary',
-          ].filter(Boolean).join(' '),
         }
       : deliberatedRecollectionSpeechPlan
     void recordOrganicMemoryStageBudget?.({
@@ -2250,7 +2237,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
 
   return {
     buildProactiveRecallSeed: (input: Parameters<typeof buildOrganicMemoryProactiveRecallSeed>[0]) => buildOrganicMemoryProactiveRecallSeed(input, normalizeOrganicRecallText),
-    buildOrganicMemorySystemBlocks,
+    buildOrganicMemoryProviderFactBlocks,
     tuneOrganicMemoryPromptContextForExecutiveTurn: tuneExecutiveOrganicMemoryPromptContext,
     buildPerformanceManifestSystemBlocks: buildPerformanceManifestBlocks,
     resolveOrganicMemoryPromptContext,

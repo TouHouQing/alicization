@@ -923,7 +923,7 @@ export function buildAlicizationEmotionalKernel(input: {
                   ? 'Remembered relationship cadence, quiet initiative, and body tone are all asking for a lower-pressure same-line return rather than a fresh outward move.'
                   : 'Remembered feeling, quiet initiative, and body tone are all asking for a lower-pressure same-line return rather than a fresh outward move.'
       : relationshipBackedInwardCarry
-        ? 'Companionship is still being carried inward, so memory, initiative, and embodiment should hold quietly nearby before widening outward.'
-        : 'Closeness is present, but the line is still orienting inward, so memory and initiative should hold near self-continuity before widening outward.',
+        ? 'Companionship is still being carried inward, so memory, initiative, and embodiment should stay quiet and nearby until current evidence supports a warmer move.'
+        : 'Closeness is present, but the relationship is still orienting inward, so memory and initiative should stay near self-continuity until current evidence supports more direct warmth.',
   }
 }

@@ -14,10 +14,7 @@ import type {
   CommitAlicizationDigitalLifeMindStateInput,
 } from './digital-life-kernel'
 
-import {
-  alicizationFixedTemplateReplacement,
-  sanitizeAlicizationStructuredInternalText,
-} from '@proj-alicization/stage-shared'
+import { sanitizeAlicizationStructuredInternalText } from '@proj-alicization/stage-shared'
 
 import { deriveAlicizationContinuityDeliberationFromSpine } from './continuity-deliberation'
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
@@ -31,9 +28,6 @@ import {
 import { buildAlicizationDigitalLifeMemoryDigest } from './digital-life-memory'
 import { buildMindEcology } from './mind-ecology'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
-
-const digitalLifeSpineTemplateExclusionLine
-  = 'relationship_continuity=present; source_template=excluded'
 
 export interface AlicizationDigitalLifeSpineSnapshot {
   version: 'digital-life-spine-v1'
@@ -67,16 +61,7 @@ function sanitizeDigitalLifeSpineDigestText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
   const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-  const sanitized = sanitizeAlicizationStructuredInternalText(normalized, maxChars, alicizationFixedTemplateReplacement)
-  if (!sanitized)
-    return ''
-  return sanitized === alicizationFixedTemplateReplacement
-    ? digitalLifeSpineTemplateExclusionLine
-    : sanitized
-}
-
-function isDigitalLifeSpineTemplateExclusionLine(raw: unknown) {
-  return raw === digitalLifeSpineTemplateExclusionLine
+  return sanitizeAlicizationStructuredInternalText(normalized, maxChars)
 }
 
 function isDigitalLifeSpineGenericTemplateCarryLine(raw: unknown) {
@@ -216,7 +201,7 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
   const currentConsciousProjectState = surface.dialogue?.currentConsciousFrame?.projectState ?? null
   const rawPhaseLine = sanitizeDigitalLifeSpineDigestText(currentConsciousProjectState?.currentPhase ?? '', 80) || null
   const phaseLine = rawPhaseLine && /phase\s*1\s*:\s*local digital life/iu.test(rawPhaseLine)
-    ? 'life_core'
+    ? ''
     : rawPhaseLine
   const landedLine = sanitizeDigitalLifeSpineDigestText(
     currentConsciousProjectState?.latestLandedProgress
@@ -256,7 +241,7 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
     && /memory|initiative|embodiment|voice|face|motion|lipsync/u.test(combinedCarry)
   const projectClosureCarrySuffix = carriesPhase1SameHerClosure
     ? sanitizeDigitalLifeSpineDigestText([
-      phaseLine ? `phase=${phaseLine}` : 'phase=life_core',
+      phaseLine ? `phase=${phaseLine}` : '',
       landedLine ? `landed=${landedLine}` : '',
       openLoopLine ? `open=${openLoopLine}` : '',
       nextClosureLine ? `next=${nextClosureLine}` : '',
@@ -265,7 +250,7 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
   const openingGuidance = projectClosureCarrySuffix
     ? sanitizeDigitalLifeSpineDigestText([
       rawOpeningGuidance,
-      `project_context=runtime_personhood; continuity_evidence=present; source=project_state.`,
+      `project_context=continuity_evidence_present; source=project_state.`,
     ].filter(Boolean).join(' '), 220) || rawOpeningGuidance
     : rawOpeningGuidance
   const combinedProjectClosureWhySummary = projectClosureCarrySuffix
@@ -335,7 +320,7 @@ function extractProjectContinuitySummary(surface: Partial<AlicizationDigitalLife
     .replace(/\s+/g, ' ')
     .split('|')
     .map(part => sanitizeDigitalLifeSpineDigestText(part, 220))
-    .filter(part => !isDigitalLifeSpineTemplateExclusionLine(part))
+    .filter(Boolean)
     .find(part => part.startsWith('project_continuity=')) ?? null
 }
 
@@ -350,7 +335,6 @@ function extractProjectStateCarrySummary(surface: Partial<AlicizationDigitalLife
   const inwardLine = sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority?.inwardLine ?? '', 220)
   if (
     !inwardLine
-    || isDigitalLifeSpineTemplateExclusionLine(inwardLine)
     || isDigitalLifeSpineGenericTemplateCarryLine(inwardLine)
   ) {
     return null
@@ -365,8 +349,7 @@ function resolveRuntimeContinuityCue(input: {
 }) {
   const projectContinuitySummary = sanitizeDigitalLifeSpineDigestText(input.projectContinuitySummary ?? '', 220)
   const rawProjectStateCarrySummary = sanitizeDigitalLifeSpineDigestText(input.projectStateCarrySummary ?? '', 220)
-  const projectStateCarrySummary = isDigitalLifeSpineTemplateExclusionLine(rawProjectStateCarrySummary)
-    || isDigitalLifeSpineGenericTemplateCarryLine(rawProjectStateCarrySummary)
+  const projectStateCarrySummary = isDigitalLifeSpineGenericTemplateCarryLine(rawProjectStateCarrySummary)
     ? ''
     : rawProjectStateCarrySummary
 

@@ -560,7 +560,7 @@ describe('performance visualizer self evolution repair session', () => {
     })
   })
 
-  it('keeps quieter face+lipsync same-her carry explicit in repair-session instead of flattening it into generic renderer-rejoin-without-body wording', () => {
+  it('keeps quieter face+lipsync identity-continuity', () => {
     expect(buildSelfEvolutionRepairSession({
       bodyContinuityPhase: null,
       activeWorkflowFocus: {
@@ -616,7 +616,7 @@ describe('performance visualizer self evolution repair session', () => {
     })
   })
 
-  it('keeps quieter motion+lipsync same-her carry explicit in repair-session instead of flattening it into generic renderer-rejoin-without-body wording', () => {
+  it('keeps quieter motion+lipsync identity-continuity', () => {
     expect(buildSelfEvolutionRepairSession({
       bodyContinuityPhase: null,
       activeWorkflowFocus: {
@@ -672,7 +672,7 @@ describe('performance visualizer self evolution repair session', () => {
     })
   })
 
-  it('keeps quieter face+lipsync+voice same-her carry explicit in repair-session instead of dropping voice out of the surviving line', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionRepairSession({
       bodyContinuityPhase: null,
       activeWorkflowFocus: {
@@ -680,7 +680,7 @@ describe('performance visualizer self evolution repair session', () => {
         summaryLine: '正在修复该反复漂移模式的当前侧，quieter face+lipsync+voice carry is under verification.',
         repairOwnerHint: '身体连续性治理',
         prosodyAuthorityHint: null,
-        bodyContinuityHint: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+        bodyContinuityHint: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         bodyContinuityPhase: null,
         survivingVisibleLane: 'face+lipsync+voice-only',
         rendererTarget: 'live2d',
@@ -714,7 +714,7 @@ describe('performance visualizer self evolution repair session', () => {
       ],
       summaryLines: [
         '已完成 4 项中的 1 项修复检查，当前归属为身体连续性治理。',
-        '身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+        '身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         '身体连续性阶段：显形回接失身态。',
         '剩余证据：运行时连续性投影',
         '剩余轨迹：选中轨迹事件',
@@ -728,7 +728,7 @@ describe('performance visualizer self evolution repair session', () => {
     })
   })
 
-  it('keeps quieter motion+lipsync+voice same-her carry explicit in repair-session instead of dropping voice out of the surviving line', () => {
+  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionRepairSession({
       bodyContinuityPhase: null,
       activeWorkflowFocus: {
@@ -736,7 +736,7 @@ describe('performance visualizer self evolution repair session', () => {
         summaryLine: '正在修复该反复漂移模式的当前侧，quieter motion+lipsync+voice carry is under verification.',
         repairOwnerHint: '身体连续性治理',
         prosodyAuthorityHint: null,
-        bodyContinuityHint: '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。',
+        bodyContinuityHint: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
         bodyContinuityPhase: null,
         survivingVisibleLane: 'motion+lipsync+voice-only',
         rendererTarget: 'vrm',
@@ -770,7 +770,7 @@ describe('performance visualizer self evolution repair session', () => {
       ],
       summaryLines: [
         '已完成 4 项中的 1 项修复检查，当前归属为身体连续性治理。',
-        '身体连续性：当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。',
+        '身体连续性：当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
         '身体连续性阶段：显形回接失身态。',
         '剩余证据：运行时连续性投影',
         '剩余轨迹：选中轨迹事件',

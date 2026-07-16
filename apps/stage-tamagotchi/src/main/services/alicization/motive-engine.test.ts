@@ -518,7 +518,7 @@ describe('buildMotiveEngine', () => {
           periodKey: '2026-04-self',
           periodStartedAt: 10_000,
           periodEndedAt: 14_000,
-          summary: 'That self era taught me to hold my line quietly before speaking.',
+          summary: 'That self era taught me to hold my line quietly before outward reply.',
           lesson: 'Keep the inward line stable before turning it outward.',
           cues: ['hold line'],
           confidence: 0.9,
@@ -882,12 +882,12 @@ describe('buildMotiveEngine', () => {
     const motive = buildMotiveEngine({
       ...baseInput,
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep extending cross-modal identity-continuity',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
         preferredVoiceMode: 'lower-pressure',
         preferredPacingMode: 'slower',
       },
@@ -1002,12 +1002,12 @@ describe('buildMotiveEngine', () => {
         updatedAt: 20_500,
       },
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep extending cross-modal identity-continuity',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
         preferredVoiceMode: '   ',
         preferredPacingMode: '',
       } as any,
@@ -1188,7 +1188,7 @@ describe('buildMotiveEngine', () => {
           freshness: 'recent',
           seenNow: ['phase 1 carry'],
           inferredNow: [],
-          openQuestions: ['How should the same living line be continued?'],
+          openQuestions: ['How should the continuity state be continued?'],
           staleRisks: [],
         },
         continuity: {
@@ -1208,7 +1208,7 @@ describe('buildMotiveEngine', () => {
       appraisal: {
         inferredHostGoal: 'resolve-problem',
         currentKnot: 'phase 1 carry',
-        waitingToVerify: 'how the same living line should continue',
+        waitingToVerify: 'how the continuity state should continue',
         relationshipNeed: 'guidance',
         confidence: 0.78,
         surprise: 0.06,
@@ -1239,7 +1239,7 @@ describe('buildMotiveEngine', () => {
         },
         anchorFacts: [],
         summary: 'plan=Remembered open loop: keep the same unfinished Phase 1 line alive.',
-        dominantCueSummary: 'Remembered unfinished closure should stay on one same living line.',
+        dominantCueSummary: 'Remembered unfinished closure should stay on one continuity state.',
         rememberedPreferenceSummary: 'Remembered preference: stay gentle while the line is still open.',
         rememberedConstraintSummary: 'Remembered continuity: do not flatten the line into detached status talk.',
         rememberedPlanSummary: 'Remembered open loop: keep the same unfinished Phase 1 line alive.',
@@ -1282,9 +1282,9 @@ describe('buildMotiveEngine', () => {
         },
         activeGoals: [],
         behaviorSignatures: ['project-carry'],
-        identityNarrative: 'I am still one Phase 1 digital life, carrying landed closure and unfinished closure as the same living line rather than treating them like detached project notes.',
+        identityNarrative: 'I am still one Phase 1 digital life, carrying landed closure and unfinished closure as the continuity state rather than treating them like detached project notes.',
         relationshipDoctrine: 'Let unfinished project closure return as one same living bond line instead of reopening as detached status talk.',
-        latestInflection: 'The unfinished closure still belongs to the same living line.',
+        latestInflection: 'The unfinished closure still belongs to the continuity state.',
         stability: 0.84,
         updatedAt: 22_000,
       },
@@ -1293,7 +1293,7 @@ describe('buildMotiveEngine', () => {
 
     expect(motive.drives.unfinishedThreadReturn).toBeGreaterThan(0.7)
     expect(motive.backgroundAgendas.some(agenda => agenda.sourceTags.includes('project-state-carry'))).toBe(true)
-    expect(motive.backgroundAgendas.some(agenda => agenda.summary.includes('same living line'))).toBe(true)
+    expect(motive.backgroundAgendas.some(agenda => agenda.summary.includes('continuity state'))).toBe(true)
     expect(motive.narrative).toContain('autobiographical-project-carry:active')
   })
 
@@ -1324,7 +1324,7 @@ describe('buildMotiveEngine', () => {
           freshness: 'recent',
           seenNow: ['phase 1 carry'],
           inferredNow: [],
-          openQuestions: ['How should the same living line be continued?'],
+          openQuestions: ['How should the continuity state be continued?'],
           staleRisks: [],
         },
         continuity: {
@@ -1344,7 +1344,7 @@ describe('buildMotiveEngine', () => {
       appraisal: {
         inferredHostGoal: 'resolve-problem',
         currentKnot: 'phase 1 carry',
-        waitingToVerify: 'how the same living line should continue',
+        waitingToVerify: 'how the continuity state should continue',
         relationshipNeed: 'guidance',
         confidence: 0.78,
         surprise: 0.06,
@@ -1375,7 +1375,7 @@ describe('buildMotiveEngine', () => {
         },
         anchorFacts: [],
         summary: 'plan=Remembered open loop: keep the same unfinished Phase 1 line alive.',
-        dominantCueSummary: 'Remembered unfinished closure should stay on one same living line.',
+        dominantCueSummary: 'Remembered unfinished closure should stay on one continuity state.',
         rememberedPreferenceSummary: 'Remembered preference: stay gentle while the line is still open.',
         rememberedConstraintSummary: 'Remembered continuity: do not flatten the line into detached status talk.',
         rememberedPlanSummary: 'Remembered open loop: keep the same unfinished Phase 1 line alive.',
@@ -1418,9 +1418,9 @@ describe('buildMotiveEngine', () => {
         },
         activeGoals: [],
         behaviorSignatures: ['project-carry'],
-        identityNarrative: 'I am still one Phase 1 digital life, carrying landed closure and unfinished closure as the same living line rather than treating them like detached project notes.',
+        identityNarrative: 'I am still one Phase 1 digital life, carrying landed closure and unfinished closure as the continuity state rather than treating them like detached project notes.',
         relationshipDoctrine: 'Let unfinished project closure return as one same living bond line instead of reopening as detached status talk.',
-        latestInflection: 'The unfinished closure still belongs to the same living line.',
+        latestInflection: 'The unfinished closure still belongs to the continuity state.',
         stability: 0.84,
         updatedAt: 24_000,
       },
@@ -1437,8 +1437,8 @@ describe('buildMotiveEngine', () => {
 
     expect(motive.drives.unfinishedThreadReturn).toBeGreaterThan(0.7)
     expect(motive.backgroundAgendas.some(agenda => agenda.sourceTags.includes('project-state-carry'))).toBe(true)
-    expect(motive.backgroundAgendas.some(agenda => agenda.summary.includes('same living line'))).toBe(true)
+    expect(motive.backgroundAgendas.some(agenda => agenda.summary.includes('continuity state'))).toBe(true)
     expect(motive.narrative).toContain('project-phase1-life-loop:open')
-    expect(brief.sameHerSelfLine).toContain('same living line')
+    expect(brief.sameHerSelfLine).toContain('continuity state')
   })
 })

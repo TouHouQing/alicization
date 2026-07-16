@@ -305,7 +305,7 @@ describe('dialogue-turn-encounter', () => {
     expect(encounter.shouldBypassScreenRepair).toBe(false)
   })
 
-  it('surfaces project-state same-her continuity explicitly in encounter summaries', () => {
+  it('surfaces project-state identity-continuity', () => {
     const encounter = buildDialogueTurnEncounter({
       semantics: {
         act: 'ask-help',
@@ -329,7 +329,7 @@ describe('dialogue-turn-encounter', () => {
     })
 
     expect(encounter.subject).toBe('alicization-self')
-    expect(encounter.summary).toContain('one continuous her line')
+    expect(encounter.summary).toContain('identity continuity line')
     expect(encounter.reasonTags).toContain('project-state-continuity-question')
   })
 })

@@ -277,7 +277,7 @@ describe('digital life kernel', () => {
       closenessDrive: 0.22,
       repairNeed: 0.41,
       initiativePressure: 0.16,
-      reasonTags: ['rest-protective', 'same living line'],
+      reasonTags: ['rest-protective', 'continuity state'],
       why: 'The refreshed emotional kernel should be the one cause seen by memory, initiative, embodiment, and dialogue.',
     } as any
     const state = createDefaultVisualPresenceState(6_000) as any
@@ -314,8 +314,8 @@ describe('digital life kernel', () => {
   it('preserves a stronger persisted same-thread person-state projection when rebuilding the runtime surface', () => {
     const state = createDefaultVisualPresenceState(8_000)
     state.autobiographicalSelf = {
-      latestInflection: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      relationshipDoctrine: 'Keep one continuous her explicit while the same callback line keeps continuing lower-pressure.',
+      latestInflection: 'structured continuity digest.',
+      relationshipDoctrine: 'Keep identity continuity explicit while the same callback line keeps continuing lower-pressure.',
       updatedAt: 8_000,
     } as any
     state.privateThought = {
@@ -335,8 +335,8 @@ describe('digital life kernel', () => {
       openingGuidance: 'Stay on the same callback line and keep continuing lower-pressure; this callback opening should continue without reopening from scratch.',
       manifestationCadenceSummary: 'measured-return still holds while the same callback line keeps continuing after another detour',
       selfContinuityAuthority: {
-        authoritySummary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
-        inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        authoritySummary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
+        inwardLine: 'structured continuity digest.',
         sourceTags: ['autobiographical-self', 'project-state-carry', 'continuity-execution-callback-project-carry'],
       },
     } as any
@@ -354,8 +354,8 @@ describe('digital life kernel', () => {
   it('rebuilds project-state carry on runtime surface authority when persisted authority drifted to thin fresh-return tags but same-line closure is still explicit', () => {
     const state = createDefaultVisualPresenceState(9_000)
     state.autobiographicalSelf = {
-      latestInflection: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
-      relationshipDoctrine: 'Keep the same living line inward for now, and leave room before widening outward again.',
+      latestInflection: 'structured continuity digest.',
+      relationshipDoctrine: 'Keep the continuity state inward for now, and leave room before widening outward again.',
       updatedAt: 9_000,
     } as any
     state.privateThought = {
@@ -384,10 +384,10 @@ describe('digital life kernel', () => {
       shouldSurface: true,
     } as any
     state.currentConsciousFrame = {
-      focusAnchor: 'Keep the same living line inward for now, and leave room before widening outward again.',
+      focusAnchor: 'Keep the continuity state inward for now, and leave room before widening outward again.',
       projectState: {
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
-        continuityCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
+        sameHerSelfLine: 'structured continuity digest.',
+        continuityCue: 'Keep the continuity state inward for now, and leave room before widening outward again.',
       },
     } as any
     state.personStateProjection = {
@@ -441,7 +441,7 @@ describe('digital life kernel', () => {
             id: 'thread-continuity',
             kind: 'problem',
             title: 'digital life continuity',
-            summary: 'Keep one living line across turns.',
+            summary: 'Keep continuity state across turns.',
             status: 'active',
             significance: 0.88,
             confidence: 0.82,
@@ -451,7 +451,7 @@ describe('digital life kernel', () => {
         mindKernel: {
           dominantMode: 'tracking',
           dominantDrive: 'understand',
-          narrative: ['hold one living line'],
+          narrative: ['hold continuity state'],
           updatedAt: 8_000,
         } as any,
         answerPlanner: {
@@ -858,7 +858,7 @@ describe('digital life kernel', () => {
         watchMode: 'symbiotic-vision',
         currentScene: {
           scenario: 'coding',
-          summary: 'same-her carry is still being held quietly',
+          summary: 'identity-continuity',
         },
         attention: null,
         captureState: null,
@@ -872,8 +872,8 @@ describe('digital life kernel', () => {
           activeThread: {
             id: 'thread-same-her-carry',
             kind: 'problem',
-            title: 'same-her carry',
-            summary: 'Keep the same living line explicit after another sparse carry.',
+            title: 'identity-continuity',
+            summary: 'Keep the continuity state explicit after another sparse carry.',
             unresolved: true,
           },
         },
@@ -886,7 +886,7 @@ describe('digital life kernel', () => {
           focusBeliefId: 'belief-missing-array',
         },
         privateThought: {
-          thoughtText: 'same-her carry is still alive even if selector arrays thinned out',
+          thoughtText: 'identity-continuity',
           shouldSpeak: false,
           embodiedPresence: 'attentive',
           livingWorldObjectId: 'object-missing-array',
@@ -912,13 +912,13 @@ describe('digital life kernel', () => {
         },
         personStateProjection: {
           selfContinuityAuthority: {
-            authoritySummary: 'Same Phase 1 digital life. The same living line still needs to stay continuous inward.',
+            authoritySummary: 'structured continuity digest.',
           },
         },
         derivedMindStateBundle: {
           activeContinuityGovernance: {
             mode: 'same-her-baseline',
-            summary: 'same-her-baseline | lower-pressure | same living line',
+            summary: 'same-her-baseline | lower-pressure | continuity state',
             reasonCodes: ['hold-same-her-line'],
             lanes: ['reply', 'embodiment'],
           },
@@ -928,7 +928,7 @@ describe('digital life kernel', () => {
         currentConsciousFrame: {
           projectState: {
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life. The same living line still needs to stay continuous inward.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       },
@@ -970,7 +970,7 @@ describe('digital life kernel', () => {
     }))
     expect(policy.activeContinuityGovernance).toEqual(expect.objectContaining({
       mode: 'same-her-baseline',
-      summary: expect.stringContaining('same living line'),
+      summary: expect.stringContaining('continuity state'),
     }))
     expect(policy.continuityDeliberation?.kind).toBe('none')
   })

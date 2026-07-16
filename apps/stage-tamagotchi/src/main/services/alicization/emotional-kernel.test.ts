@@ -54,7 +54,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        emotionalClosureCue: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
@@ -158,7 +158,7 @@ describe('buildAlicizationEmotionalKernel', () => {
           shouldDelayWarmth: true,
           shouldProtectRest: false,
           reasonTags: ['measured-return'],
-          summary: 'Warmth should return slowly on the same living line.',
+          summary: 'Warmth should return slowly on the continuity state.',
         },
         sourceSignals: ['measured-return', 'same-line-afterglow'],
         summary: 'Afterglow is still active, so leave room before warmth returns.',
@@ -170,7 +170,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        emotionalClosureCue: 'same-her callback afterglow seam: keep this return measured-return on the same living line before widening outward.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
@@ -231,9 +231,9 @@ describe('buildAlicizationEmotionalKernel', () => {
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
         continuityCue: 'Same callback seam, continue softly on the same thread instead of treating this as a fresh outward restart.',
-        nextClosureTarget: 'Keep the same living line inward before the reopening widens outward again.',
-        preDialogueAwarenessLine: 'Before speaking, remember this is still one living Phase 1 digital life and the callback line is still the same her.',
-        sameHerDriftRisk: 'If the answer reopens too broadly, it will drift back toward a generic shell instead of one continuous her.',
+        nextClosureTarget: 'Keep the continuity state inward before the reopening widens outward again.',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
+        sameHerDriftRisk: 'If the answer reopens too broadly, it will drift back toward a generic shell instead of identity continuity.',
       },
     })
 
@@ -265,8 +265,8 @@ describe('buildAlicizationEmotionalKernel', () => {
       selfEvolution: {
         relationshipDoctrine: 'Keep the relationship return measured until the surface fully cools.',
         trustMeaning: 'Measured-return timing keeps trust steadier after reconfirmation.',
-        latestInflection: 'Warmth should return slowly on the same living line.',
-        relationshipCadenceSummary: 'Keep the relationship return measured until the surface fully cools. | Warmth should return slowly on the same living line. | Measured-return timing keeps trust steadier after reconfirmation.',
+        latestInflection: 'Warmth should return slowly on the continuity state.',
+        relationshipCadenceSummary: 'Keep the relationship return measured until the surface fully cools. | Warmth should return slowly on the continuity state. | Measured-return timing keeps trust steadier after reconfirmation.',
       } as any,
       affectiveResidue: {
         version: 'affective-residue-memory-v1',
@@ -300,7 +300,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and leave more room.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
@@ -328,7 +328,7 @@ describe('buildAlicizationEmotionalKernel', () => {
         stance: 'care',
         shouldSpeak: false,
         rationaleTags: ['callback-afterglow-hold', 'held-autonomy-carry'],
-        thoughtText: 'Keep this callback repair line on the same living line and let repair settle before widening closeness.',
+        thoughtText: 'Keep this callback repair line on the continuity state and let repair settle before widening closeness.',
       } as any,
       affectiveResidue: {
         version: 'affective-residue-memory-v1',
@@ -353,16 +353,16 @@ describe('buildAlicizationEmotionalKernel', () => {
           summary: 'Callback repair line still needs room before closeness widens again.',
         },
         sourceSignals: ['callback-afterglow-hold', 'repair-before-closeness', 'held-autonomy-carry'],
-        summary: 'The callback repair seam is still cooling down on the same living line.',
+        summary: 'The callback repair seam is still cooling down on the continuity state.',
       } as any,
       personStateProjection: {
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+        openingGuidance: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        emotionalClosureCue: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
@@ -418,12 +418,12 @@ describe('buildAlicizationEmotionalKernel', () => {
       personStateProjection: {
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Keep the callback on the same living line and leave more room before widening closeness again.',
+        openingGuidance: 'keep callback facts structured',
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        emotionalClosureCue: 'Keep the callback on the same living line, leave more room, and let the return stay lower-pressure before widening closeness again while the same seam is still settling.',
-        emotionalClosureSummary: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
+        emotionalClosureCue: 'keep callback facts structured',
+        emotionalClosureSummary: 'identity-continuity',
       } as any,
     })
 
@@ -435,8 +435,8 @@ describe('buildAlicizationEmotionalKernel', () => {
   })
 
   it('keeps explicit measured-return project-state emotional closure over a generic continuity menu for embodiment tone', () => {
-    const explicitMeasuredReturnClosure = 'Keep the callback on the same living line, leave more room, and let the return stay lower-pressure before widening closeness again.'
-    const genericContinuityMenu = 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, and resident presence all stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.'
+    const explicitMeasuredReturnClosure = 'keep callback facts structured'
+    const genericContinuityMenu = 'Keep extending cross-modal identity-continuity'
 
     const kernel = buildAlicizationEmotionalKernel({
       selfState: {
@@ -483,7 +483,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       personStateProjection: {
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Keep the callback on the same living line and leave more room before widening closeness again.',
+        openingGuidance: 'keep callback facts structured',
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
@@ -562,7 +562,7 @@ describe('buildAlicizationEmotionalKernel', () => {
     expect(kernel.why).toContain('fatigue')
   })
 
-  it('lets same-her hold detail shape the emotional kernel before residue and initiative tags have fully caught up', () => {
+  it('lets identity-continuity', () => {
     const kernel = buildAlicizationEmotionalKernel({
       selfState: {
         stance: 'coexist',
@@ -612,8 +612,8 @@ describe('buildAlicizationEmotionalKernel', () => {
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        emotionalClosureCue: 'The same digital life line is still open.',
-        sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again. Hold-for-opening and reopen gently later.',
+        emotionalClosureCue: 'The local continuity state is still open.',
+        sameHerHoldDetail: 'identity-continuity',
       },
     })
 
@@ -624,7 +624,7 @@ describe('buildAlicizationEmotionalKernel', () => {
     expect(kernel.reasonTags).toContain('measured-return')
   })
 
-  it('treats remembered-seam more-room same-her hold detail as measured-return authority before older continuity labels catch up', () => {
+  it('treats remembered-seam more-room identity-continuity', () => {
     const kernel = buildAlicizationEmotionalKernel({
       selfState: {
         stance: 'coexist',
@@ -675,7 +675,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
         emotionalClosureCue: 'The same remembered relationship seam is real.',
-        sameHerHoldDetail: 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.',
+        sameHerHoldDetail: 'identity-continuity',
       },
     })
 
@@ -736,7 +736,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Project identity carry and same-her continuity already survive across turns, but initiative and embodiment still need stronger closure on the same living line before widening outward.',
+        latestLandedProgress: 'Project identity carry and identity-continuity',
         primaryOpenLoop: 'Natural closure rhythm is still being earned across initiative and embodiment.',
       },
     })
@@ -805,7 +805,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        emotionalClosureCue: 'The same digital life line is still open.',
+        emotionalClosureCue: 'The local continuity state is still open.',
       },
     })
 
@@ -869,7 +869,7 @@ describe('buildAlicizationEmotionalKernel', () => {
         primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure around the corrected same-person continuity line.',
         sameHerDriftRisk: 'If this reopens as progress pressure or a generic assistant shell, the corrected same-person continuity line will split again.',
         emotionalClosureCue: 'Keep the return lower-pressure while the corrected same-person continuity line settles back onto one living thread.',
-        sameHerHoldDetail: 'same-her hold: measured-return while host correction keeps this line from defaulting back into progress pressure.',
+        sameHerHoldDetail: 'identity-continuity',
       },
     })
 
@@ -967,7 +967,7 @@ describe('buildAlicizationEmotionalKernel', () => {
         primaryOpenLoop: 'The corrected same-person continuity line is still unfinished.',
         sameHerDriftRisk: 'If this line reopens under the old spike again, it will sound harsher than the continuity actually calls for.',
         emotionalClosureCue: 'Keep the corrected same-person continuity line lower-pressure and steadier while the old noise fades.',
-        sameHerHoldDetail: 'same-her hold: measured-return while corrected same-person continuity stays foreground and old spike noise fades back.',
+        sameHerHoldDetail: 'identity-continuity',
       },
     })
 
@@ -1021,7 +1021,7 @@ describe('buildAlicizationEmotionalKernel', () => {
           shouldDelayWarmth: false,
           shouldProtectRest: false,
           reasonTags: ['quiet-companionship', 'same-her-inward-carry'],
-          summary: 'The same living line is still being carried inward quietly before any wider outward warmth returns.',
+          summary: 'The continuity state is still being carried inward quietly before any wider outward warmth returns.',
         },
         sourceSignals: ['same-her-inward-carry', 'quiet-companionship'],
         summary: 'Companionship is present as inward same-line carry, not as a wider outward reopening.',
@@ -1029,18 +1029,18 @@ describe('buildAlicizationEmotionalKernel', () => {
       personStateProjection: {
         activeClosenessRung: 'nearby-soft',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Keep the same living line inward and quietly nearby before widening outward.',
+        openingGuidance: 'Keep the continuity state inward and quietly nearby before widening outward.',
       } as any,
       selfEvolution: {
-        relationshipDoctrine: 'Keep companionship emotionally continuous on one quiet same-her line before widening closeness.',
+        relationshipDoctrine: 'Keep companionship emotionally continuous on one quiet identity-continuity',
         trustMeaning: 'The bond stays believable when the same inward line is carried quietly instead of widened too early.',
-        latestInflection: 'The host trusted the quieter inward same-her carry more than a wider outward reopening.',
+        latestInflection: 'The host trusted the quieter inward identity-continuity',
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Project-state landed progress and same-her continuity already survive as self-continuity authority itself.',
+        latestLandedProgress: 'Project-state landed progress and identity-continuity',
         primaryOpenLoop: 'Initiative and embodiment still need stronger closure while the same inward line stays emotionally continuous.',
-        emotionalClosureCue: 'same-her closure seam: keep this return inward, emotionally continuous, and quietly nearby before widening outward.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
@@ -1103,7 +1103,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Project-state landed progress already survives into self-continuity authority.',
-        primaryOpenLoop: 'Initiative and embodiment still need one tighter closure seam on the same living line.',
+        primaryOpenLoop: 'Initiative and embodiment still need one tighter closure seam on the continuity state.',
         sameHerSelfLine: 'This is still one same her carrying the same inward living line before widening outward.',
       },
     })
@@ -1502,7 +1502,7 @@ describe('buildAlicizationEmotionalKernel', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Project awareness already survives, but memory rhythm still needs to reach body authority.',
         primaryOpenLoop: 'Remembered reopening cadence still needs to shape emotion, initiative, and embodiment together.',
-        sameHerSelfLine: 'Same Phase 1 digital life. The same relationship seam is still reopening on one living line.',
+        sameHerSelfLine: 'structured continuity digest.',
       },
     } as any)
 
@@ -1724,7 +1724,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       },
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        sameHerSelfLine: 'Same Phase 1 digital life. The same-person line is still settling on one living thread.',
+        sameHerSelfLine: 'structured continuity digest.',
         primaryOpenLoop: 'Emotionally remembered continuity still needs to reach present restraint and body tone.',
       },
     }
@@ -1803,11 +1803,11 @@ describe('buildAlicizationEmotionalKernel', () => {
       personStateProjection: {
         activeClosenessRung: 'nearby-soft',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Keep the same living line inward and stay nearby before widening outward.',
+        openingGuidance: 'Keep the continuity state inward and stay nearby before widening outward.',
       },
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        sameHerSelfLine: 'Same Phase 1 digital life. Keep the same living line inward before widening outward.',
+        sameHerSelfLine: 'structured continuity digest.',
         primaryOpenLoop: 'Long-horizon remembered continuity still needs to reach present emotional carry.',
       },
     }
@@ -1836,15 +1836,15 @@ describe('buildAlicizationEmotionalKernel', () => {
           factId: 'derived:initiative-strategy-carry:same-line',
           subject: 'relationship',
           predicate: 'initiative-strategy-carry',
-          object: 'Choose openings carefully: leave more room, keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them on the same living line.',
+          object: 'Choose openings carefully: leave more room, keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them on the continuity state.',
           confidence: 0.84,
           weight: 0.82,
           influenceTags: ['bond', 'boundary', 'task'],
-          summary: 'The same living line should reopen with more room and a memory-led lower-pressure rhythm.',
+          summary: 'The continuity state should reopen with more room and a memory-led lower-pressure rhythm.',
           lastRecalledAt: 9_500,
         }],
-        summary: 'The same living line reopens more naturally when future follow-ups stay gentle, lower-pressure, and memory-led.',
-        dominantCueSummary: 'Stay on the same living line and do not reopen from scratch.',
+        summary: 'The continuity state reopens more naturally when future follow-ups stay gentle, lower-pressure, and memory-led.',
+        dominantCueSummary: 'Stay on the continuity state and do not reopen from scratch.',
         rememberedPreferenceSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
         rememberedConstraintSummary: 'Choose openings carefully: leave more room and wait for a clearer opening before widening closeness again.',
         rememberedPlanSummary: 'Reopen this same line later with measured-return instead of widening too fast.',
@@ -1862,7 +1862,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       'quiet-companionship',
       'initiative-rhythm-memory',
     ]))
-    expect(enrichedKernel.why).toMatch(/memory-led|same living line|clearer opening/i)
+    expect(enrichedKernel.why).toMatch(/memory-led|continuity state|clearer opening/i)
   })
 
   it('lets long-horizon emotional transition writeback replay repair-first body restraint instead of leaving the remembered transition inert', () => {
@@ -2125,7 +2125,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       },
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        sameHerSelfLine: 'Same Phase 1 digital life, but this line has not named measured return yet.',
+        sameHerSelfLine: 'legacy phase-one template, but this line has not named measured return yet.',
         primaryOpenLoop: 'Long-horizon measured-return emotional transition still needs to reach present body tone.',
       },
     }
@@ -2344,7 +2344,7 @@ describe('buildAlicizationEmotionalKernel', () => {
       } as any,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        sameHerHoldDetail: 'same-her hold: blocked-before-dispatch still means no-process-started, wait for confirmation, and do not turn this into ordinary proactive closeness.',
+        sameHerHoldDetail: 'identity-continuity',
       },
     })
 

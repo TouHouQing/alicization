@@ -30,19 +30,19 @@ describe('alicization voice summary', () => {
     })).toBe('cadence=0.38')
   })
 
-  it('can carry same-her inward carry wording so quieter measured-return voice still reads like one living line instead of generic calm slowdown', () => {
+  it('can carry identity-continuity', () => {
     expect(buildAlicizationVoiceSummary({
       language: 'zh-CN',
       companionshipMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonSummary: 'Keep the same living line inward for now, and leave room before widening outward again',
+      reasonSummary: 'Keep the continuity state inward for now, and leave room before widening outward again',
     })).toBe(
       'zh-CN | companion=measured-return | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower',
     )
   })
 
-  it('can carry an audible-body timing marker when the voiced line is still the lower-pressure same-her carry surface', () => {
+  it('can carry an audible-body timing marker when the voiced line is still the lower-pressure identity-continuity', () => {
     expect(buildAlicizationVoiceSummary({
       language: 'zh-CN',
       closureBias: 0.35,
@@ -56,7 +56,7 @@ describe('alicization voice summary', () => {
       preferredLipsyncMode: 'restrained',
       preferredVoiceMode: 'lower-pressure',
       preferredPacingMode: 'slower',
-      reasonSummary: 'Keep the same living line audible while face and motion rejoin',
+      reasonSummary: 'Keep the continuity state audible while face and motion rejoin',
       source: 'prosody-authority',
       segmentId: 'segment-audible-body-voice-1',
     })).toBe(
@@ -71,7 +71,7 @@ describe('alicization voice summary', () => {
       continuityTiming: 'next-open-window',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
-      reasonSummary: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again',
+      reasonSummary: 'keep callback facts structured',
       segmentId: 'segment-repair-first-same-her-inward-carry',
     })).toBe(
       'emotion=concerned | companion=repair-before-closeness | timing=next-open-window | blink=quiet | gaze=soften | reason=continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred | seg=segment-repair-first-same-her-inward-carry',

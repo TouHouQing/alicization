@@ -67,7 +67,7 @@ describe('performance visualizer self evolution focus snapshot', () => {
     })).toBeNull()
   })
 
-  it('carries structured surviving visible lane metadata into the portable snapshot so quieter same-her continuity does not fall back to generic body-loss text downstream', () => {
+  it('carries structured surviving visible lane metadata into the portable snapshot so quieter identity-continuity', () => {
     expect(buildSelfEvolutionFocusSnapshot({
       candidateId: 'candidate-face-voice-only-1',
       decisionTraceId: 'trace-face-voice-only-1',
@@ -77,7 +77,7 @@ describe('performance visualizer self evolution focus snapshot', () => {
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
         survivingVisibleLane: 'face+lipsync+voice-only',
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         highlightedEvidencePanelIds: [
           'renderer-authority-projection',
           'runtime-continuity-projection',
@@ -87,7 +87,7 @@ describe('performance visualizer self evolution focus snapshot', () => {
           'selected-trace-event',
         ],
         recommendedTraceEventId: 'event-face-voice-only-1',
-        explanation: 'Focused repair-path because quieter same-her continuity still survives on face lipsync voice while body motion remain pending rejoin.',
+        explanation: 'Focused repair-path because quieter identity-continuity',
       },
       capturedAt: 3579,
     })).toEqual({
@@ -96,11 +96,11 @@ describe('performance visualizer self evolution focus snapshot', () => {
       decisionTraceId: 'trace-face-voice-only-1',
       activeThreadId: 'runtime-thread-face-voice-only-1',
       selectedCardId: 'repair-path',
-      explanation: 'Focused repair-path because quieter same-her continuity still survives on face lipsync voice while body motion remain pending rejoin.',
+      explanation: 'Focused repair-path because quieter identity-continuity',
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'face+lipsync+voice-only',
-      bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+      bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       highlightedEvidencePanelIds: [
         'renderer-authority-projection',
         'runtime-continuity-projection',

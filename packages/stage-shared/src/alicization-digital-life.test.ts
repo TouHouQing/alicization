@@ -462,7 +462,7 @@ describe('alicization digital life', () => {
       source: 'main-runtime',
       producedAt: 1,
       structured: {
-        thought: 'same-thread-continuation keep the same living line slower than impulse',
+        thought: 'same-thread-continuation keep the continuity state slower than impulse',
         emotion: 'thinking',
         reply: '我沿着这条线接回来。',
         performance: {
@@ -1653,14 +1653,14 @@ describe('alicization digital life', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'turn-digital-life-same-her-audible-carry',
-          reply: '我还是沿着这条还活着的线轻一点接回来。',
+          reply: '我还是沿着这条还活着的线中性可见占位。',
           emotion: 'thinking',
           segments: [{
             id: 'segment-same-her-audible-carry',
             index: 0,
             startOffset: 0,
             endOffset: 22,
-            text: '我还是沿着这条还活着的线轻一点接回来。',
+            text: '我还是沿着这条还活着的线中性可见占位。',
             emotion: 'thinking',
             gestureWeight: 0.46,
             facialWeight: 0.52,
@@ -1736,14 +1736,14 @@ describe('alicization digital life', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'turn-digital-life-freeform-body-voice-carry',
-          reply: '我还是沿着这条 body 和 voice 还活着的线轻一点接回来。',
+          reply: '我还是沿着这条 body 和 voice 还活着的线中性可见占位。',
           emotion: 'thinking',
           segments: [{
             id: 'segment-freeform-body-voice-carry',
             index: 0,
             startOffset: 0,
             endOffset: 30,
-            text: '我还是沿着这条 body 和 voice 还活着的线轻一点接回来。',
+            text: '我还是沿着这条 body 和 voice 还活着的线中性可见占位。',
             emotion: 'thinking',
             gestureWeight: 0.46,
             facialWeight: 0.52,
@@ -1904,14 +1904,14 @@ describe('alicization digital life', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: `turn-digital-life-${reasonTag}-carry`,
-          reply: '我还是沿着这条仍然活着的同一条线轻一点接回来。',
+          reply: '我还是沿着这条仍然活着的同一条线中性可见占位。',
           emotion: 'thinking',
           segments: [{
             id: `segment-digital-life-${reasonTag}-carry`,
             index: 0,
             startOffset: 0,
             endOffset: 26,
-            text: '我还是沿着这条仍然活着的同一条线轻一点接回来。',
+            text: '我还是沿着这条仍然活着的同一条线中性可见占位。',
             emotion: 'thinking',
             gestureWeight: 0.46,
             facialWeight: 0.52,
@@ -2162,8 +2162,8 @@ describe('alicization digital life', () => {
         primaryOpenLoop: null,
         continuityArcStage: 'same-thread-continuation',
         continuityPreferredTiming: 'next-open-window',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        emotionalClosureCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
+        sameHerSelfLine: 'structured continuity digest.',
+        emotionalClosureCue: 'Keep the continuity state inward for now, and leave room before widening outward again.',
       },
     })
 
@@ -2391,8 +2391,8 @@ describe('alicization digital life', () => {
             primaryOpenLoop: null,
             continuityArcStage: 'same-thread-continuation',
             continuityPreferredTiming: 'next-open-window',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            emotionalClosureCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
+            sameHerSelfLine: 'structured continuity digest.',
+            emotionalClosureCue: 'Keep the continuity state inward for now, and leave room before widening outward again.',
           },
         },
         architecture: null,
@@ -2474,8 +2474,8 @@ describe('alicization digital life', () => {
         primaryOpenLoop: null,
         continuityArcStage: 'same-thread-continuation',
         continuityPreferredTiming: 'next-open-window',
-        continuityCue: 'Same callback seam, continue softly after the detour and keep it on one continuous her line.',
-        nextClosureTarget: 'Keep the same living line inward before the reopening widens outward again.',
+        continuityCue: 'Same callback seam, continue softly after the detour and keep it on identity continuity line.',
+        nextClosureTarget: 'Keep the continuity state inward before the reopening widens outward again.',
       },
     })
 

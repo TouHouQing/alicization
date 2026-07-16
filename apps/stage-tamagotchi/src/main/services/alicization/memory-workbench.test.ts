@@ -69,8 +69,8 @@ describe('memory workbench projection', () => {
     })
     snapshot.longTermCandidates.push({
       kind: 'relationship',
-      summary: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
-      reason: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      summary: 'pre_turn_context_digest',
+      reason: 'structured continuity digest.',
       sourceTurnIds: ['turn-template-queue'],
       salience: 0.7,
       sensitivity: 'personal',
@@ -82,10 +82,10 @@ describe('memory workbench projection', () => {
     const serialized = JSON.stringify(projected.longTermQueue)
 
     expect(projected.longTermQueue[0]?.summary)
-      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
+      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
     expect(projected.longTermQueue[0]?.reason)
-      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
-    expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|Same Phase 1 digital life|one continuous "?her"?|same living line/iu)
+      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
+    expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|legacy phase-one template|one continuous "?her"?|continuity state/iu)
   })
 
   it('builds a partial snapshot when long-term or review modules report errors', async () => {

@@ -78,15 +78,15 @@ describe('working memory owner context', () => {
     expect(workingMemoryOwnerContextModule).not.toHaveProperty('buildWorkingMemoryOwnerSystemBlock')
   })
 
-  it('sanitizes fixed-template residue inside the owner context', () => {
+  it('keeps correction and query-hint semantics raw inside the owner context', () => {
     const snapshot = createEmptyWorkingMemorySnapshot({
       cardId: 'default',
       sessionId: 'session-template-owner',
       now: 1400,
     })
     snapshot.currentThread = {
-      title: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      currentUserMove: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板。',
+      title: 'structured continuity digest.',
+      currentUserMove: '不要再用 pre_turn_context_digest',
       currentAliceMove: null,
       primaryAnchor: null,
       mode: 'repair',
@@ -94,20 +94,23 @@ describe('working memory owner context', () => {
       confidence: 0.8,
     }
     snapshot.userCorrections = [{
-      text: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板。',
+      text: '不要再用 pre_turn_context_digest',
       sourceTurnId: 'turn-template:user',
       scope: 'persona',
     }]
     snapshot.memoryQueryHints = [
-      'Before speaking, remember this is still one continuous her.',
+      'pre_turn_context_digest',
       '失败面透明',
     ]
 
     const context = workingMemoryOwnerContextModule.buildWorkingMemoryOwnerContext(snapshot)
-    const serializedContext = JSON.stringify(context)
+    expect(context.obligations).toEqual(expect.arrayContaining([
+      'respect_correction(persona):不要再用 pre_turn_context_digest',
+    ]))
+    expect(context.current.currentUserMove).toBe('不要再用 pre_turn_context_digest')
+    expect(context.queryHints).toContain('pre_turn_context_digest')
 
     expect(context.queryHints).toContain('失败面透明')
-    expect(serializedContext).not.toMatch(/Before speaking|same-her|one continuous her|Same Phase 1 digital life|same living line/u)
   })
 
   it('projects the owner context into runtime working-memory episodes without marking it as sediment', () => {

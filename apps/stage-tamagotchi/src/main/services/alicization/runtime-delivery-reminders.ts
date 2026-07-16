@@ -26,17 +26,11 @@ import {
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
 import {
-  alicizationProjectStatePersistenceLandedReminder,
-  alicizationProjectStateVisibleReplyNextClosureReminder,
-  alicizationProjectStateVisibleReplyOpenClosureReminder,
-  alicizationProjectStateVisibleReplySameHerReminder,
-} from './project-state-answer-governance'
-import {
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
 } from './project-state-brief'
-import { buildPrioritizedProjectStateRewritePreserveLines } from './runtime-governance'
+import { buildPrioritizedProjectStateContinuityLines } from './runtime-governance'
 import {
   buildAlicizationAutonomousDialogueTurnId,
   resolveAlicizationAutonomousDialogueOrigin,
@@ -147,8 +141,6 @@ function ensureProjectStateAudit(input: {
     companionBriefingLine?: string | null
     continuitySummary?: string | null
     embodimentClosureSummary?: string | null
-    preservedIntoRewrite?: boolean
-    rewriteClosureApplied?: boolean
   } | null | undefined
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   projectState: {
@@ -181,22 +173,22 @@ function ensureProjectStateAudit(input: {
   const carriesSameHerContinuityAwareness = (value: string | null | undefined) => /continuity line|current continuity|phase1 continuity|continuity line|same-session mirror carry|continuous identity|continuous identity|without splitting continuity|initiative and embodiment closure|continuity_identity|continuity_identity/iu.test(value ?? '')
   const sameHerSummary = sanitizeProjectStateProviderField(
     input.projectState.sameHerSelfLine,
-    alicizationProjectStateVisibleReplySameHerReminder,
+    null,
     320,
   )
   const landedProgressSummary = input.projectState.latestLandedProgress
     ?? input.projectState.latestProgress
     ?? input.projectState.landedProgressSummary
-    ?? alicizationProjectStatePersistenceLandedReminder
+    ?? null
   const openClosureSummary = input.projectState.primaryOpenLoop
     ?? input.projectState.openClosureSummary
     ?? input.projectState.nextClosureTarget
-    ?? alicizationProjectStateVisibleReplyOpenClosureReminder
+    ?? null
   const nextClosureTargetSummary = resolvePreferredProjectNextClosureTarget(
     input.projectState.nextClosureTarget,
     input.projectState.nextClosureTargetSummary,
     input.projectState.primaryOpenLoop,
-    alicizationProjectStateVisibleReplyNextClosureReminder,
+    null,
   )
   const preferredProjectAwarenessLine = isAlicizationThinProjectAwarenessLine(input.projectState.preDialogueAwarenessLine ?? null)
     ? sanitizeProjectStateField(
@@ -427,8 +419,6 @@ function ensureProjectStateAudit(input: {
     sameHerDriftRiskSummary: safeSameHerDriftRiskSummary,
     continuitySummary: resolvedContinuitySummary,
     embodimentClosureSummary: safeEmbodimentClosureSummary,
-    preservedIntoRewrite: existing?.preservedIntoRewrite ?? true,
-    rewriteClosureApplied: existing?.rewriteClosureApplied ?? false,
   }
 }
 
@@ -819,23 +809,23 @@ function buildProjectStateContinuitySummary(input: {
   emotionalClosureSummary?: string | null
   embodimentClosureSummary: string | null
 }) {
-  const projectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
+  const projectStateContinuityCarry = buildPrioritizedProjectStateContinuityLines({
     projectStateContinuityAnchors: [
-      input.sameHerSummary ? `project_anchor=${formatProjectStateAuditField(input.sameHerSummary, 'continuity_anchor', 320)}` : '',
-      input.sameHerHoldDetail ? `hold=${formatProjectStateAuditField(input.sameHerHoldDetail, 'continuity_hold', 320)}` : '',
-      input.continuityArcStage ? `arc=${input.continuityArcStage}` : '',
-      input.sameHerDriftRiskSummary ? `drift=${formatProjectStateAuditField(input.sameHerDriftRiskSummary, 'continuity_drift_risk', 360)}` : '',
-      input.currentPhaseSummary ? `phase=${formatProjectStateAuditField(input.currentPhaseSummary, 'phase', 220)}` : '',
-      input.landedProgressSummary ? `landed=${formatProjectStateAuditField(input.landedProgressSummary, 'landed', 360)}` : '',
-      input.openClosureSummary ? `open=${formatProjectStateAuditField(input.openClosureSummary, 'open', 360)}` : '',
-      input.nextClosureTargetSummary ? `next=${formatProjectStateAuditField(input.nextClosureTargetSummary, 'next', 360)}` : '',
-      input.emotionalClosureSummary ? `closure=${formatProjectStateAuditField(input.emotionalClosureSummary, 'emotional_closure', 360)}` : '',
-    ].filter(Boolean),
+      formatProjectStateAuditField(input.sameHerSummary, 'continuity_anchor', 320),
+      formatProjectStateAuditField(input.sameHerHoldDetail, 'continuity_hold', 320),
+      input.continuityArcStage ?? '',
+      formatProjectStateAuditField(input.sameHerDriftRiskSummary, 'continuity_drift_risk', 360),
+      formatProjectStateAuditField(input.currentPhaseSummary, 'phase', 220),
+      formatProjectStateAuditField(input.landedProgressSummary, 'landed', 360),
+      formatProjectStateAuditField(input.openClosureSummary, 'open', 360),
+      formatProjectStateAuditField(input.nextClosureTargetSummary, 'next', 360),
+      formatProjectStateAuditField(input.emotionalClosureSummary, 'emotional_closure', 360),
+    ].filter((value): value is string => Boolean(value)),
   })
   return [
     ...projectStateContinuityCarry,
-    input.embodimentClosureSummary ? `body=${formatProjectStateAuditField(input.embodimentClosureSummary, 'summary', 520)}` : '',
-  ].filter(Boolean).join(' | ') || null
+    formatProjectStateAuditField(input.embodimentClosureSummary, 'summary', 520),
+  ].filter(Boolean).join(' ') || null
 }
 
 export const runtimeDeliveryReminderTestInternals = {
@@ -1162,16 +1152,16 @@ function resolveExecutionDeliveryHoldOpeningGuidance(input: {
       ) ?? null
       : nextClosureTarget
   const sameHerMeasuredReturnLine = [
-    sameHerSelfLine ? `project_anchor=${sameHerSelfLine}` : '',
-    latestLandedProgress ? `landed=${latestLandedProgress}` : '',
-    primaryOpenLoop ? `open=${primaryOpenLoop}` : '',
+    sameHerSelfLine ? `Continuity anchor: ${sameHerSelfLine}.` : '',
+    latestLandedProgress ? `Landed progress: ${latestLandedProgress}.` : '',
+    primaryOpenLoop ? `Open focus: ${primaryOpenLoop}.` : '',
     carriesRestProtective
-      ? 'callback_policy=rest_protective; reply_pressure=low; warmth_widening=deferred'
+      ? 'Callback policy: rest-protective. Reply pressure stays low and warmth widening stays deferred.'
       : carriesRepairBeforeCloseness
-        ? 'callback_policy=repair_before_closeness; repair=settle_first; closeness_widening=deferred'
-        : 'callback_policy=measured_return; reply_pressure=lower; closeness_widening=deferred',
-    normalizedNextClosureTarget ? `next=${normalizedNextClosureTarget}` : '',
-  ].filter(Boolean).join(' | ')
+        ? 'Callback policy: repair before closeness. Repair settles first and closeness widening stays deferred.'
+        : 'Callback policy: measured return. Reply pressure stays lower and closeness widening stays deferred.',
+    normalizedNextClosureTarget ? `Next focus: ${normalizedNextClosureTarget}.` : '',
+  ].filter(Boolean).join(' ')
   const carriesHeldAutonomy = input.continuityCue === 'held-autonomy-carry'
     || (input.reasonTags ?? []).includes('held-autonomy-carry')
   const carriesSameHerBaseline = input.continuityCue === continuityBaselineTag
@@ -1188,14 +1178,14 @@ function resolveExecutionDeliveryHoldOpeningGuidance(input: {
     return carriesHeldAutonomyOpeningGuidance
       ? projectedGuidance
       : carriesRepairBeforeCloseness
-        ? ['callback_policy=held_autonomy_carry; repair=settle_first; closeness_widening=deferred', sameHerMeasuredReturnLine].filter(Boolean).join(' | ')
-        : ['callback_policy=held_autonomy_carry; reply_pressure=lower; closeness_widening=deferred', sameHerMeasuredReturnLine].filter(Boolean).join(' | ')
+        ? ['Held-autonomy carry stays active; repair settles first and closeness widening stays deferred.', sameHerMeasuredReturnLine].filter(Boolean).join(' | ')
+        : ['Held-autonomy carry stays active; reply pressure stays lower and closeness widening stays deferred.', sameHerMeasuredReturnLine].filter(Boolean).join(' | ')
   }
   if (projectedGuidance) {
     if ((carriesSameHerBaseline || (input.reasonTags ?? []).includes('callback-afterglow-hold'))
       && (
         projectedGuidanceLooksThinSameHerBaseline
-        || !/landed=|open=|next=|callback_policy=/u.test(projectedGuidance)
+        || !/landed=|open=|next=|callback policy|held-autonomy carry|reply pressure|closeness widening/u.test(projectedGuidance)
       )
       && sameHerMeasuredReturnLine) {
       return `${projectedGuidance} | ${sameHerMeasuredReturnLine}`.trim()
@@ -1203,9 +1193,9 @@ function resolveExecutionDeliveryHoldOpeningGuidance(input: {
     return projectedGuidance
   }
   if (carriesSameHerBaseline) {
-    return sameHerMeasuredReturnLine || 'callback_policy=continuity_baseline; reply_pressure=lower; closeness_widening=deferred'
+    return sameHerMeasuredReturnLine || 'Continuity baseline stays active; reply pressure stays lower and closeness widening stays deferred.'
   }
-  return 'callback_policy=thread_faithful; boundary=bounded'
+  return 'Thread-faithful callback stays bounded.'
 }
 
 type AlicizationPersonStateProjectionWithProjectState = AlicizationPersonStateProjection & {

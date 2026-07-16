@@ -60,8 +60,8 @@ describe('person-state-update-surface', () => {
       identity: expect.stringContaining('local-first digital life project'),
       currentPhase: expect.stringContaining('Phase 1'),
       preDialogueAwarenessLine: expect.any(String),
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-      sameHerHoldDetail: expect.stringContaining('same-her hold'),
+      emotionalClosureCue: 'identity-continuity',
+      sameHerHoldDetail: expect.stringContaining('identity-continuity'),
       sameHerDriftRisk: expect.any(String),
       proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
       openClosureSummary: expect.any(String),
@@ -80,7 +80,7 @@ describe('person-state-update-surface', () => {
   })
 
   it('keeps a richer emotional closure seam from recent closure evidence instead of flattening it back to the canonical project brief', () => {
-    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.'
+    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
     const surface = buildAlicizationPersonStateUpdateSurface({
       now: 12_000,
       closure: {
@@ -100,7 +100,7 @@ describe('person-state-update-surface', () => {
             misreadDelta: 0,
             repairDelta: 0.08,
             openLoopDelta: 0.02,
-            summary: 'Late-night care landed best when the return stayed low-pressure, rest-protective, and repair-before-closeness on the same living line.',
+            summary: 'Late-night care landed best when the return stayed low-pressure, rest-protective, and repair-before-closeness on the continuity state.',
             createdAt: 11_700,
           },
         ],
@@ -115,7 +115,7 @@ describe('person-state-update-surface', () => {
             dimension: 'companionship',
             delta: 0.06,
             valence: 'reinforce',
-            summary: 'Rest-protective companionship kept the same living line believable.',
+            summary: 'Rest-protective companionship kept the continuity state believable.',
             createdAt: 11_750,
           },
         ],
@@ -270,7 +270,7 @@ describe('person-state-update-surface', () => {
             withWhom: ['host'],
             threadAnchor: 'same-person continuity closure',
             whatHappened: 'The host was checking same-person continuity, not asking for a status report.',
-            felt: 'I needed to return as the same living line before giving any recap.',
+            felt: 'I needed to return as the continuity state before giving any recap.',
             emotionTags: ['same-person continuity', 'repair', 'continuity-check'],
             whatChanged: 'trust up 0.05, repair activated 0.08, leave more room, lower-pressure return',
             relationshipMeaning: 'This corrected same-person continuity should stay authoritative before any status recap.',
@@ -464,8 +464,8 @@ describe('person-state-update-surface', () => {
       identity: expect.stringContaining('local-first digital life project'),
       currentPhase: expect.stringContaining('Phase 1'),
       preDialogueAwarenessLine: expect.any(String),
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-      sameHerHoldDetail: expect.stringContaining('same-her hold'),
+      emotionalClosureCue: 'identity-continuity',
+      sameHerHoldDetail: expect.stringContaining('identity-continuity'),
       sameHerDriftRisk: expect.any(String),
       proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
       nextClosureTarget: expect.any(String),
@@ -513,8 +513,8 @@ describe('person-state-update-surface', () => {
         identity: expect.stringContaining('local-first digital life project'),
         currentPhase: expect.stringContaining('Phase 1'),
         preDialogueAwarenessLine: expect.any(String),
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-        sameHerHoldDetail: expect.stringContaining('same-her hold'),
+        emotionalClosureCue: 'identity-continuity',
+        sameHerHoldDetail: expect.stringContaining('identity-continuity'),
         sameHerDriftRisk: expect.any(String),
         proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
         continuityRestraint: expect.stringMatching(/^(?:lower-pressure|measured-return|repair-before-closeness|rest-protective|single-thread)$/),

@@ -37,7 +37,7 @@ describe('main chat session runtime project-state summary', () => {
       projectState: {
         identity: canonical.identity,
         currentPhase: canonical.currentPhase,
-        preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+        preDialogueAwarenessLine: 'template-residue-shell',
         sameHerHoldDetail: genericProgressRecapPressure,
       },
       mustDo: [],

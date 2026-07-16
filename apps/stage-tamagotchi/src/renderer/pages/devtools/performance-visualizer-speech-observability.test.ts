@@ -1812,7 +1812,7 @@ describe('performance visualizer speech observability', () => {
     })
   })
 
-  it('extracts embodiment closure stage from speech observability when audible body carry is the active same-her continuity phase', () => {
+  it('extracts embodiment closure stage from speech observability when audible body carry is the active identity-continuity', () => {
     const view = buildSpeechObservabilityView({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -2405,7 +2405,7 @@ describe('performance visualizer speech observability', () => {
     }
   })
 
-  it('does not infer embodiment closure stage from stale VRM same-her summary-only evidence when explicit same-her segment ids are absent in speech observability inputs', () => {
+  it('does not infer embodiment closure stage from stale VRM same-her summary-only evidence when explicit identity-continuity', () => {
     const cueId = 'segment-speech-observability-summary-only-current'
     const view = buildSpeechObservabilityView({
       phase: 'playing',
@@ -2570,7 +2570,7 @@ describe('performance visualizer speech observability', () => {
     expect(view.embodimentClosureStage).toBe('renderer-rejoin-without-body')
   })
 
-  it('extracts embodiment closure stage from thinner visible body-loss lanes when face+lipsync or motion+lipsync still carry the same-her segment', () => {
+  it('extracts embodiment closure stage from thinner visible body-loss lanes when face+lipsync or motion+lipsync still carry the identity-continuity', () => {
     const cases = [
       {
         cueId: 'segment-face-lipsync-body-loss-observability-1',
@@ -3895,7 +3895,7 @@ describe('performance visualizer speech observability', () => {
     }))
   })
 
-  it('keeps interruption-resume live2d observability on one later callback segment when authority, cues, and viseme hints all rejoin the same living line', () => {
+  it('keeps interruption-resume live2d observability on one later callback segment when authority, cues, and viseme hints all rejoin the continuity state', () => {
     const view = buildSpeechObservabilityView({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -3909,7 +3909,7 @@ describe('performance visualizer speech observability', () => {
       recentDrivingEvent: {
         kind: 'dialogue-interrupted',
         decisionTraceId: 'mind:interrupt-live2d-observability:1',
-        summary: '打断后她还是沿着同一条 callback 线轻一点接回来了。',
+        summary: '打断后她还是沿着同一条 callback 线中性可见占位了。',
         createdAt: 42,
       },
       recentDrivingTraceRecord: {

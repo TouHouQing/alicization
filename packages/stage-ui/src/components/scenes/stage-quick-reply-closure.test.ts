@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { buildStageQuickReplyClosureDiagnosticEntry } from './stage-quick-reply-closure'
 
 const fixedTemplateResiduePattern
-  = /same-her|same living line|同一个她|同一个 her|数字生命主线|content=excluded|source_text=fixed_template_withheld|\[fixed-template-excluded\]|Right now I am still holding together|我还需要|我还在|identity-continuity|continuity=|signature=|pending(?:[_-]rejoin)?=|visibility=renderer-internal/u
+  = /same-her|continuity state|同一个她|同一个 her|数字生命主线|content=excluded|source_text=redacted_template_sample|\[fixed-template-excluded\]|Right now I am still holding together|我还需要|我还在|identity-continuity|continuity=|signature=|pending(?:[_-]rejoin)?=|visibility=renderer-internal/u
 
 function visibleSurfaceText(entry: ReturnType<typeof buildStageQuickReplyClosureDiagnosticEntry>) {
   return [
@@ -32,14 +32,13 @@ describe('stage quick reply closure diagnostic entry', () => {
         '[fixed-template-excluded]',
       ],
       reasons: [
-        'project-state-same-her-continuity-required',
-        'semantic-judge:project-state-same-her-missing',
+        'project-state-identity-continuity-continuity-required',
       ],
     })
 
     expect(entry).toEqual(expect.objectContaining({
       visible: true,
-      headline: '项目状态待同步，记忆依据待补齐',
+      headline: '项目状态待同步',
       briefingHeadline: null,
       nextClosureLine: null,
       sameHerDriftRiskLine: null,
@@ -56,7 +55,7 @@ describe('stage quick reply closure diagnostic entry', () => {
   it('keeps the structured fixed-template exclusion marker internal instead of showing it in quick reply closure', () => {
     const entry = buildStageQuickReplyClosureDiagnosticEntry({
       status: 'partial',
-      summaryLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      summaryLine: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
       companionHeadlineLine: null,
       companionBriefingLine: null,
       companionNextClosureLine: null,
@@ -85,7 +84,7 @@ describe('stage quick reply closure diagnostic entry', () => {
       companionBriefingLine: null,
       companionNextClosureLine: null,
       reasons: [
-        'continuity=embodiment:audible-same-her-line | signature=embodiment:audible-same-her-line | lane=body+lipsync+voice-only | face and motion still need to rejoin the same living line.',
+        'continuity=embodiment:audible-same-her-line | signature=embodiment:audible-same-her-line | lane=body+lipsync+voice-only | face and motion still need to rejoin the continuity state.',
       ],
     })
 

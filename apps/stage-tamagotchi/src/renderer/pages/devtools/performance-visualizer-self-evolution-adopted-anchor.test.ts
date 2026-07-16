@@ -57,7 +57,7 @@ describe('performance visualizer self evolution adopted anchor', () => {
     })
   })
 
-  it('projects a same-her continuity adoption as the current default anchor without recasting it as drift repair', () => {
+  it('projects a identity-continuity', () => {
     expect(buildSelfEvolutionAdoptedAnchor([
       {
         version: 'self-evolution-baseline-adoption/v1',

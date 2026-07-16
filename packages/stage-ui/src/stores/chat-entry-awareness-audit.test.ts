@@ -281,10 +281,10 @@ describe('chat entry awareness audit', () => {
       'keeps explicit awareness fields while still enriching inspector pre-dialogue awareness summary and reasons from continuity',
     )
     expect(inspectorSource).toContain(
-      'generic continuity reminder that should not override the richer same-her project brief.',
+      'generic continuity reminder that should not override the richer identity-continuity',
     )
     expect(inspectorSource).toContain(
-      'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      'structured continuity digest.',
     )
     expect(inspectorSource).toContain(
       'prefers a richer phase-aware project awareness line over a narrower embodiment headline when inspector rebuilds pre-dialogue awareness from continuity',

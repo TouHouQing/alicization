@@ -468,7 +468,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
     })
   })
 
-  it('keeps quieter face+lipsync+voice same-her carry explicit in restore summaries instead of flattening it into generic body-loss wording', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryRestorePlan({
       history: [
         {
@@ -480,7 +480,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
           explanation: 'snapshot-face-lipsync-voice-restore',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
-          bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+          bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
           highlightedEvidencePanelIds: [
             'renderer-authority-projection',
             'runtime-continuity-projection',
@@ -513,7 +513,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
       shouldDrillTrace: true,
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
-      restoreSummaryLine: '恢复到显形回接失身态：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+      restoreSummaryLine: '恢复到显形回接失身态：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       highlightedEvidencePanelIds: [
         'renderer-authority-projection',
         'runtime-continuity-projection',
@@ -524,7 +524,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
     })
   })
 
-  it('restores a same-her continuity governance snapshot without recasting it as a drift repair frame', () => {
+  it('restores a identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryRestorePlan({
       history: [
         {

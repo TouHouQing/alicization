@@ -114,7 +114,7 @@ function compactReplyProjectIdentityForMemoryFact(raw: unknown) {
     return ''
 
   if (/alicization is a local-first digital life project/iu.test(identity))
-    return 'identity=runtime_personhood'
+    return ''
 
   return identity
 }
@@ -122,6 +122,8 @@ function compactReplyProjectIdentityForMemoryFact(raw: unknown) {
 function compactReplyProjectPhaseForMemoryFact(raw: unknown) {
   const phase = sanitizeText(raw, 160)
   if (!phase)
+    return ''
+  if (/phase\s*1\s*:\s*local digital life|phase1_local_digital_life/iu.test(phase))
     return ''
 
   return phase.split(/\.\s+|[。！？]/u)[0]?.trim() ?? phase
@@ -643,7 +645,7 @@ function buildExecutionResultProjectClosureLesson(input: {
   }
   if (input.feedback === 'doubted') {
     return sanitizeText(
-      `For ${goal}, do not let a doubted callback become confident task-shell reporting; ${openLoop || 'unfinished closure still remains open'}, ${proactiveSameHerGap || 'the proactive continuity gap still needs quieter proof'}, and the return should stay more verified before widening outward.`,
+      `For ${goal}, doubted callback evidence cannot become confident task-shell reporting; ${openLoop || 'unfinished closure still remains open'}, ${proactiveSameHerGap || 'the proactive continuity gap still needs quieter proof'}, and the return needs more verification before direct expansion.`,
       220,
     )
   }

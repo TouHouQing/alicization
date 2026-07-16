@@ -995,12 +995,6 @@ function resolveContinuityTiming(body: Pick<AlicizationChatMetaEvent, 'runtimeDi
     return 'body-lipsync-carry'
   }
 
-  const reasonCodes = readVisibleReplyReasonCodes(body)
-  if (reasonCodes.includes('semantic-judge:continuity-next-open-window-early-widening'))
-    return 'next-open-window'
-  if (reasonCodes.includes('semantic-judge:continuity-after-payoff-early-widening'))
-    return 'after-payoff'
-
   return null
 }
 

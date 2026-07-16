@@ -50,20 +50,20 @@ describe('working memory prompt view', () => {
       },
     })
     expect(view.rendering.blockLines).toEqual([
-      '[ALICIZATION_WORKING_MEMORY]',
-      'owner=WorkingMemory; scope=short_term_dialogue; visible_wording=false',
-      'thread=none',
-      'task=none',
-      'compressed_timeline=none',
-      'questions=none',
-      'memory_query_hints=none',
-      'commitments=none',
-      'corrections=none',
-      'relationship=none',
-      'emotion=none',
-      'execution=none',
-      'compression=none',
-      'audit=none',
+      'WorkingMemory short-term memory evidence.',
+      'Owner: WorkingMemory. Scope: short-term dialogue. Use it only when it helps the current answer payoff.',
+      'Thread: none.',
+      'Task: none.',
+      'Compressed timeline: none.',
+      'questions: none.',
+      'memory query hints: none.',
+      'commitments: none.',
+      'corrections: none.',
+      'relationship: none.',
+      'emotion: none.',
+      'execution: none.',
+      'Compression: none.',
+      'Audit: none.',
     ])
     expect(buildWorkingMemoryPromptBlock(emptySnapshot())).toBe(view.rendering.blockLines.join('\n'))
   })
@@ -150,15 +150,15 @@ describe('working memory prompt view', () => {
       ],
     })
 
-    expect(view.rendering.blockLines).toContain('range=turn-1:user..turn-4:alice')
-    expect(view.rendering.blockLines).toContain('thread=Task 5 working-memory prompt view | mode=task | hold=yes | user=implement the pure formatter | alice=reading compact prompt patterns | anchor=working-memory-prompt-view.ts | confidence=0.84')
-    expect(view.rendering.blockLines).toContain('task=active:Add prompt-facing working-memory block | evidence=turn-4:alice')
-    expect(view.rendering.blockLines).toContain('compressed_timeline=Earlier dialogue kept the fixed-template correction alive | thread=Task 5 working-memory prompt view | sources=turn-1:user,turn-2:alice')
-    expect(view.rendering.blockLines).toContain('questions=Should failures stay audit-only?')
-    expect(view.rendering.blockLines).toContain('memory_query_hints=旧模板 ; 短期记忆')
-    expect(view.rendering.blockLines).toContain('corrections=persona:Do not invent a generic assistant opener')
-    expect(view.rendering.blockLines).toContain('compression=light | sources=turn-1:user,turn-2:alice | last=1300')
-    expect(view.rendering.blockLines).toContain('audit=failures=turn-2:alice | excluded_long_term=turn-2:alice | notes=timeout was excluded from long-term candidates')
+    expect(view.rendering.blockLines).toContain('Turn range: turn-1:user..turn-4:alice.')
+    expect(view.rendering.blockLines).toContain('Thread: Task 5 working-memory prompt view. Mode: task. Hold thread: yes. Current user move: implement the pure formatter. Current Alice move: reading compact prompt patterns. Primary anchor: working-memory-prompt-view.ts. Confidence: 0.84.')
+    expect(view.rendering.blockLines).toContain('Task: active: Add prompt-facing working-memory block. Evidence turns: turn-4:alice.')
+    expect(view.rendering.blockLines).toContain('Compressed timeline: Earlier dialogue kept the fixed-template correction alive. Thread: Task 5 working-memory prompt view. Sources: turn-1:user, turn-2:alice.')
+    expect(view.rendering.blockLines).toContain('questions: Should failures stay audit-only?.')
+    expect(view.rendering.blockLines).toContain('memory query hints: 旧模板; 短期记忆.')
+    expect(view.rendering.blockLines).toContain('corrections: persona:Do not invent a generic assistant opener.')
+    expect(view.rendering.blockLines).toContain('Compression: light. Sources: turn-1:user, turn-2:alice. Last compressed at: 1300.')
+    expect(view.rendering.blockLines).toContain('Audit: Failures: turn-2:alice. Excluded long-term candidates: turn-2:alice. Notes: timeout was excluded from long-term candidates.')
     expect(view.modules.longTermCandidates).toHaveLength(1)
     expect(view.rendering.blockLines.join('\n')).not.toContain('long_term_candidates=')
   })
@@ -196,7 +196,7 @@ describe('working memory prompt view', () => {
       longTermCandidates: [],
     })
 
-    expect(block).toContain('audit=failures=timeout-1 | excluded_long_term=fallback-1,timeout-1 | notes=fallback template excluded ; timeout excluded')
+    expect(block).toContain('Audit: Failures: timeout-1. Excluded long-term candidates: fallback-1, timeout-1. Notes: fallback template excluded; timeout excluded.')
     expect(block).not.toContain('long_term_candidates=')
     expect(block).not.toContain('candidate=fallback-1')
     expect(block).not.toContain('candidate=timeout-1')
@@ -221,7 +221,7 @@ describe('working memory prompt view', () => {
       }],
     })
 
-    expect(block).toContain('compressed_timeline=content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(block).toContain('Compressed timeline: none.')
     expect(block).not.toContain('Right now I am still holding together')
     expect(block).not.toContain('安静陪着')
     expect(block).not.toContain('沿着同一条线慢慢长成')
@@ -231,24 +231,24 @@ describe('working memory prompt view', () => {
     const block = buildWorkingMemoryPromptBlock({
       ...emptySnapshot(),
       currentThread: {
-        title: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        title: 'structured continuity digest.',
         currentUserMove: '继续',
         currentAliceMove: 'Right now I am still holding together mainly through face and motion.',
-        primaryAnchor: 'Before answering, remember this is still the same local-first digital life project.',
-        mode: 'dialogue',
+        primaryAnchor: 'pre_turn_context_digest',
+        mode: 'casual',
         shouldHold: true,
         confidence: 0.8,
       },
       unresolvedQuestions: [
-        { text: 'Before answering, remember this is still the same local-first digital life project.', sourceTurnId: 'turn-1' },
+        { text: 'pre_turn_context_digest', sourceTurnId: 'turn-1' },
         { text: '同一个她这条线下一轮还要继续吗？', sourceTurnId: 'turn-1' },
       ],
       memoryQueryHints: [
-        'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        'structured continuity digest.',
         '我记得上一条线',
       ],
       commitments: [
-        { text: 'Keep the same living line inward for now, and leave room before widening outward again.', sourceTurnId: 'turn-2' },
+        { text: 'Keep the continuity state inward for now, and leave room before widening outward again.', sourceTurnId: 'turn-2' },
       ],
       activeTask: {
         summary: '随便聊聊也可以，我会安静陪着你。',
@@ -270,11 +270,11 @@ describe('working memory prompt view', () => {
       },
     })
 
-    expect(block).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
+    expect(block).toContain('WorkingMemory short-term memory evidence.')
     expect(block).toContain('用户要求失败面透明：不要用固定模板遮盖 provider failure。')
-    expect(block).not.toContain('Same Phase 1 digital life')
+    expect(block).not.toContain('legacy phase-one template')
     expect(block).not.toContain('Right now I am still holding')
-    expect(block).not.toContain('Before answering')
+    expect(block).not.toContain('Pre-reply')
     expect(block).not.toContain('我记得上一条线')
     expect(block).not.toContain('同一个她')
     expect(block).not.toContain('安静陪着')

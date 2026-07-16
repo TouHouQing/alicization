@@ -9,8 +9,6 @@ type AlicizationRuntimeDialogueNormalizationRouteAuthorityEntry = Extract<
 
 export type AlicizationRuntimeDialogueNormalizationMode
   = 'normalization-authority'
-    | 'stream-finish-fallback'
-    | 'background-normalize-before-deliver'
     | 'persistence-emission-normalize-before-deliver'
     | 'replay-normalize-before-deliver'
     | 'proactive-normalize-before-persist'

@@ -192,7 +192,7 @@ describe('alicization dialogue embodiment', () => {
         turnMode: 'guide-current-knot',
         repairState: 'none',
       } as any,
-      reply: '我继续沿着刚才那条 callback 线轻一点接回来。',
+      reply: '我继续沿着刚才那条 callback 线中性可见占位。',
       thought: 'same-thread-continuation after noisy detours the same callback seam is still live, so keep the return lower-pressure and measured-return instead of widening it into a fresh approach',
     })
 

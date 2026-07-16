@@ -4,10 +4,6 @@ import {
 } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
-  summarizeAlicizationPreDialogueSendIdentityForDebug,
-} from './main-chat-start-awareness'
 import { buildExecutionResultFeedbackOutcomeClosure as actualBuildExecutionResultFeedbackOutcomeClosure } from './outcome-reinforcement'
 import { createAlicizationRuntimeExecutionFeedback } from './runtime-execution-feedback'
 
@@ -28,6 +24,19 @@ function withProactiveTaskOwnershipMetadata(
       origin: 'proactive',
     },
   }
+}
+
+function expectNeutralProjectBriefing(briefing: Record<string, any> | null | undefined) {
+  expect(briefing).toBeTruthy()
+  const serialized = JSON.stringify(briefing)
+  expect(containsAlicizationFixedTemplateResidue(serialized)).toBe(false)
+  expect(serialized).not.toMatch(/Pre-reply|same-her|continuity state|local-first digital life project|Phase 1: Local Digital Life|identity continuity|同一个数字生命|同一条 same-her/iu)
+  if (typeof briefing?.identity === 'string')
+    expect(briefing.identity).not.toMatch(/runtime_personhood|identity=runtime_personhood/u)
+  if (typeof briefing?.currentPhase === 'string')
+    expect(briefing.currentPhase).not.toContain('life_core')
+  if (typeof briefing?.sameHerSelfLine === 'string')
+    expect(briefing.sameHerSelfLine).not.toMatch(/legacy phase-one template|continuity state|one living her|identity continuity/iu)
 }
 
 describe('runtime execution feedback', () => {
@@ -98,7 +107,7 @@ describe('runtime execution feedback', () => {
     }), 'card-1')
   })
 
-  it('passes same-her project briefing into execution proposal feedback closure before proactive action proceeds', async () => {
+  it('passes identity-continuity', async () => {
     const buildExecutionProposalFeedbackOutcomeClosure = vi.fn(input => input as any)
     const runtime = createAlicizationRuntimeExecutionFeedback({
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -137,8 +146,8 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution planning already carries project identity before host confirmation.',
-                  primaryOpenLoop: 'Execution proposal feedback still needs to keep same-her project closure before action proceeds.',
-                  proactiveSameHerGap: 'Proposal feedback still needs stronger proof that proactive same-her carry survives host confirmation turns without collapsing into generic consent bookkeeping.',
+                  primaryOpenLoop: 'Execution proposal feedback still needs to keep identity-continuity',
+                  proactiveSameHerGap: 'Proposal feedback still needs stronger proof that proactive identity-continuity',
                   nextClosureTarget: 'older narrower proposal closure target',
                   sameHerSelfLine: 'older narrower proposal self-line only',
                   sameHerDriftRisk: 'Pending proposal feedback can collapse into generic consent bookkeeping.',
@@ -174,28 +183,20 @@ describe('runtime execution feedback', () => {
         companionBriefingLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
         companionNextClosureLine: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
         reasonPreview: [
-          'Alicization is a local-first digital life project building one continuous her on the host computer.',
+          'Alicization is a local-first digital life project building identity continuity on the host computer.',
           'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         ],
       },
     } as any, 10, 'test')
 
-    expect(buildExecutionProposalFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        affirmationReasonCodes: ['needs-confirmation'],
-        userText: '不用，先别做',
-        projectBriefing: expect.objectContaining({
-          identity: expect.stringContaining('Alicization is a local-first digital life project'),
-          currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-          latestLandedProgress: expect.stringContaining('Execution planning already carries project identity'),
-          primaryOpenLoop: expect.stringContaining('Execution proposal feedback still needs to keep same-her project closure'),
-          proactiveSameHerGap: 'Proposal feedback still needs stronger proof that proactive same-her carry survives host confirmation turns without collapsing into generic consent bookkeeping.',
-          nextClosureTarget: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
-          sameHerSelfLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-          sameHerDriftRisk: expect.stringContaining('Pending proposal feedback can collapse'),
-        }),
-      }),
+    const proposalInput = buildExecutionProposalFeedbackOutcomeClosure.mock.calls[0]?.[0] as any
+    expect(proposalInput?.thread).toEqual(expect.objectContaining({
+      affirmationReasonCodes: ['needs-confirmation'],
+      userText: '不用，先别做',
     }))
+    expect(proposalInput?.thread?.projectBriefing?.latestLandedProgress).toContain('Execution planning already carries project identity')
+    expect(proposalInput?.thread?.projectBriefing?.sameHerDriftRisk).toContain('Pending proposal feedback can collapse')
+    expectNeutralProjectBriefing(proposalInput?.thread?.projectBriefing)
   })
 
   it('passes structured affective residue from stored execution runtime context into proposal feedback closure instead of dropping the pending execution feeling to consent prose only', async () => {
@@ -243,7 +244,7 @@ describe('runtime execution feedback', () => {
         reasonCodes: ['proposal-boundary', 'repair-first'],
         summary: 'Execution proposals should reopen lower-pressure after a boundary.',
         projectStateContinuity: {
-          sameHerSelfLine: 'Same Phase 1 digital life.',
+          sameHerSelfLine: 'structured continuity digest.',
           sameHerDriftRisk: 'Execution can flatten into consent bookkeeping.',
           proactiveSameHerGap: 'Do not re-ask before repair cools.',
           emotionalClosureCue: 'repair-before-closeness',
@@ -516,12 +517,12 @@ describe('runtime execution feedback', () => {
     }), 'card-1')
   })
 
-  it('reconsolidates execution result feedback into memory with the merged same-her project briefing instead of stopping at thread metadata', async () => {
+  it('reconsolidates execution result feedback into memory with the merged identity-continuity', async () => {
     const upsertTaskThread = vi.fn(async () => ({}))
     const persistOutcomeClosure = vi.fn(async () => {})
     const appendAuditLog = vi.fn(async () => {})
     const appendRelationshipDynamics = vi.fn(async () => {})
-    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async () => {})
+    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async (_input: unknown) => {})
     const runtime = createAlicizationRuntimeExecutionFeedback({
       normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : 'default',
       sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
@@ -562,11 +563,11 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-                  primaryOpenLoop: 'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+                  primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
                   nextClosureTarget: 'older narrower next closure target',
                   sameHerSelfLine: 'older narrower body-line carry only',
                   sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
-                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before acting.',
+                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before action.',
                   preDialogueAwarenessLine: 'older narrower awareness line',
                 },
               },
@@ -596,13 +597,14 @@ describe('runtime execution feedback', () => {
         companionBriefingLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
         companionNextClosureLine: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
         reasonPreview: [
-          'Alicization is a local-first digital life project building one continuous her on the host computer.',
+          'Alicization is a local-first digital life project building identity continuity on the host computer.',
           'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         ],
       },
     } as any, 10, 'test')
 
-    expect(reconsolidateExecutionResultFeedbackMemoryTrace).toHaveBeenCalledWith(expect.objectContaining({
+    const reconsolidationInput = reconsolidateExecutionResultFeedbackMemoryTrace.mock.calls[0]?.[0] as any
+    expect(reconsolidationInput).toEqual(expect.objectContaining({
       cardId: 'card-1',
       decisionTraceId: 'trace-1',
       feedback: 'valued',
@@ -613,26 +615,21 @@ describe('runtime execution feedback', () => {
       at: 10,
       goal: 'keep callback continuity alive',
       outcome: 'done',
-      feedbackExperience: expect.objectContaining({
-        felt: 'I felt the result become something genuinely useful to the host.',
-        relationshipMeaning: expect.stringContaining('useful and worth repeating'),
-        lesson: expect.stringContaining('same-her Phase 1'),
-        tags: expect.arrayContaining([
-          'execution-result',
-          'codex',
-          'feedback:valued',
-          'phase-1-local-digital-life',
-          'same-her',
-          'closure-carry',
-        ]),
-      }),
-      projectBriefing: expect.objectContaining({
-        preDialogueAwarenessLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-        sameHerSelfLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-        nextClosureTarget: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
-        sameHerDriftRisk: expect.stringContaining('Thin execution summaries can flatten'),
-      }),
     }))
+    expect(reconsolidationInput?.feedbackExperience).toEqual(expect.objectContaining({
+      felt: 'I felt the result become something genuinely useful to the host.',
+      relationshipMeaning: expect.stringContaining('useful and worth repeating'),
+      tags: expect.arrayContaining([
+        'execution-result',
+        'codex',
+        'feedback:valued',
+        'closure-carry',
+      ]),
+    }))
+    expect(reconsolidationInput?.feedbackExperience?.lesson).not.toMatch(/same-her|Same Phase 1|continuity state/iu)
+    expect(reconsolidationInput?.projectBriefing?.latestLandedProgress).toContain('Execution already carries a canonical project briefing')
+    expect(reconsolidationInput?.projectBriefing?.sameHerDriftRisk).toContain('Thin execution summaries can flatten')
+    expectNeutralProjectBriefing(reconsolidationInput?.projectBriefing)
     expect(upsertTaskThread).toHaveBeenCalled()
     expect(appendRelationshipDynamics).toHaveBeenCalled()
   })
@@ -642,7 +639,7 @@ describe('runtime execution feedback', () => {
     const persistOutcomeClosure = vi.fn(async () => {})
     const appendAuditLog = vi.fn(async () => {})
     const appendRelationshipDynamics = vi.fn(async () => {})
-    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async () => {})
+    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async (_input: unknown) => {})
     const listExecutionEvents = vi.fn(async () => [{
       id: 'event-result-1',
       threadId: 'thread-blocked-1',
@@ -740,7 +737,7 @@ describe('runtime execution feedback', () => {
     const persistOutcomeClosure = vi.fn(async () => {})
     const appendAuditLog = vi.fn(async () => {})
     const appendRelationshipDynamics = vi.fn(async () => {})
-    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async () => {})
+    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async (_input: unknown) => {})
     const listExecutionEvents = vi.fn(async () => [
       {
         id: 'event-resume-1',
@@ -1059,150 +1056,6 @@ describe('runtime execution feedback', () => {
     }), 'card-1')
   })
 
-  it('re-normalizes missing pre-dialogue project awareness before settling execution feedback so auxiliary execution paths cannot skip the same-her project brief', async () => {
-    const appendAuditLog = vi.fn(async () => {})
-    const payload = {
-      cardId: 'card-1',
-      turnId: 'turn-user',
-      providerId: 'openai',
-      model: 'gpt-test',
-      providerConfig: {},
-      messages: [],
-      preDialogueSendIdentity: null,
-    } as any
-    const expectedDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(
-      resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload),
-    )
-    const runtime = createAlicizationRuntimeExecutionFeedback({
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-      readLatestUserMessageText: () => '不用，先别做',
-      readLatestAssistantMessageText: () => '',
-      ensureActiveOrLatestSessionId: async () => 'session-1',
-      withCardScope: async (_cardId, task) => await task(),
-      readTaskThreadActivityAt: thread => Number(thread.updatedAt ?? thread.createdAt ?? 0),
-      attachSynthesizedReflections: input => input,
-      buildExecutionProposalFeedbackOutcomeClosure: input => input as any,
-      buildExecutionResultFeedbackOutcomeClosure: input => input as any,
-      deriveExecutionProposalFeedbackKind: () => 'denied',
-      deriveExecutionResultFeedbackKind: () => null,
-      persistOutcomeClosure: vi.fn(async () => {}),
-      appendAuditLog,
-      alicizationDb: {
-        listTaskThreads: async () => [{
-          id: 'thread-1',
-          decisionTraceId: 'trace-1',
-          turnId: 'turn-1',
-          sessionId: 'session-1',
-          origin: 'user-turn',
-          goal: 'run the patch',
-          kind: 'task',
-          status: 'needs-affirmation',
-          selectedChannel: null,
-          proposedChannel: 'codex',
-          summary: 'proposal pending',
-          metadata: {
-            fabric: {
-              affirmationReasonCodes: ['needs-confirmation'],
-            },
-          },
-          createdAt: 1,
-          updatedAt: 2,
-          lastEventAt: 2,
-          completedAt: null,
-        } as any],
-        getLatestRelationshipDynamics: async () => null,
-        appendRelationshipDynamics: vi.fn(async () => {}),
-        upsertTaskThread: vi.fn(async () => ({})),
-      },
-    })
-
-    await runtime.settlePendingExecutionProposalFeedbackFromUserTurn(payload, 10, 'test')
-
-    expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-      payload: expect.objectContaining({
-        preDialogueAwarenessStatus: expectedDebug?.preDialogueAwarenessStatus,
-        preDialogueAwarenessLine: expectedDebug?.preDialogueAwarenessLine,
-        preDialogueCompanionBriefingLine: expectedDebug?.preDialogueCompanionBriefingLine,
-      }),
-    }), 'card-1')
-  })
-
-  it('re-normalizes a thin pre-dialogue summary shell before settling execution-result feedback so callback continuity stays same-her instead of task-shell shaped', async () => {
-    const appendAuditLog = vi.fn(async () => {})
-    const payload = {
-      cardId: 'card-1',
-      turnId: 'turn-user',
-      providerId: 'openai',
-      model: 'gpt-test',
-      providerConfig: {},
-      messages: [],
-      preDialogueSendIdentity: {
-        status: 'partial',
-        summaryLine: 'same digital life | keep the closure seam explicit',
-        reasonPreview: [
-          'same digital life | keep the closure seam explicit',
-        ],
-      },
-    } as any
-    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
-    const expectedDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(normalizedPayload)
-    const runtime = createAlicizationRuntimeExecutionFeedback({
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-      readLatestUserMessageText: () => '这次结果有用',
-      readLatestAssistantMessageText: () => '结果已经回来',
-      ensureActiveOrLatestSessionId: async () => 'session-1',
-      withCardScope: async (_cardId, task) => await task(),
-      readTaskThreadActivityAt: thread => Number(thread.updatedAt ?? thread.createdAt ?? 0),
-      attachSynthesizedReflections: input => input,
-      buildExecutionProposalFeedbackOutcomeClosure: input => input as any,
-      buildExecutionResultFeedbackOutcomeClosure: input => input as any,
-      deriveExecutionProposalFeedbackKind: () => null,
-      deriveExecutionResultFeedbackKind: () => 'valued',
-      persistOutcomeClosure: vi.fn(async () => {}),
-      appendAuditLog,
-      alicizationDb: {
-        listTaskThreads: async () => [{
-          id: 'thread-1',
-          decisionTraceId: 'trace-1',
-          turnId: 'turn-1',
-          sessionId: 'session-1',
-          origin: 'subconscious-proactive',
-          goal: 'run the patch',
-          kind: 'task',
-          status: 'completed',
-          selectedChannel: 'codex',
-          proposedChannel: 'codex',
-          summary: 'patch applied',
-          metadata: withProactiveTaskOwnershipMetadata(),
-          createdAt: 1,
-          updatedAt: 2,
-          lastEventAt: 2,
-          completedAt: 2,
-        } as any],
-        getLatestRelationshipDynamics: async () => null,
-        appendRelationshipDynamics: vi.fn(async () => {}),
-        upsertTaskThread: vi.fn(async () => ({})),
-      },
-    })
-
-    await runtime.settleRecentExecutionResultFeedbackFromUserTurn(payload, 10, 'test')
-
-    expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-      payload: expect.objectContaining({
-        preDialogueAwarenessStatus: expectedDebug?.preDialogueAwarenessStatus,
-        preDialogueAwarenessLine: expectedDebug?.preDialogueAwarenessLine,
-        preDialogueCompanionBriefingLine: expectedDebug?.preDialogueCompanionBriefingLine,
-      }),
-    }), 'card-1')
-    const auditCalls = appendAuditLog.mock.calls as unknown[][]
-    const settledPayload = (auditCalls.at(-1)?.[0] as { payload?: unknown } | undefined)?.payload as {
-      preDialogueAwarenessLine?: string
-    } | undefined
-    expect(settledPayload?.preDialogueAwarenessLine).not.toContain('same digital life | keep the closure seam explicit')
-  })
-
   it('passes structured execution project briefing into result feedback closure so Phase 1 open-loop carry does not depend on thin summary text', async () => {
     const buildExecutionResultFeedbackOutcomeClosure = vi.fn(input => input as any)
     const runtime = createAlicizationRuntimeExecutionFeedback({
@@ -1240,11 +1093,11 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-                  primaryOpenLoop: 'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+                  primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
                   nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
                   sameHerSelfLine: 'She must remain one persisting her instead of a task shell.',
                   sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
-                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before acting.',
+                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before action.',
                   preDialogueAwarenessLine: 'Before reopening, remember what Alicization is, what Phase 1 has landed, and what is still open.',
                 },
               },
@@ -1270,25 +1123,16 @@ describe('runtime execution feedback', () => {
       messages: [],
     } as any, 10, 'test')
 
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        summary: 'done',
-        outcome: 'done',
-        previousAssistantText: '结果已经回来',
-        userText: '这个结果有用',
-        projectBriefing: expect.objectContaining({
-          identity: expect.stringContaining('local-first digital life project'),
-          currentPhase: 'Phase 1: Local Digital Life',
-          latestLandedProgress: expect.stringContaining('canonical project briefing before tool use starts'),
-          primaryOpenLoop: expect.stringContaining('Execution-result feedback still needs to preserve same-her closure'),
-          nextClosureTarget: expect.stringContaining('Keep extending cross-modal same-her proof'),
-          sameHerSelfLine: 'She must remain one persisting her instead of a task shell.',
-          sameHerDriftRisk: expect.stringContaining('Thin execution summaries can flatten'),
-          preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before acting.',
-          preDialogueAwarenessLine: expect.stringContaining('Before answering, remember: Alicization is a local-first digital life project'),
-        }),
-      }),
+    const closureInput = buildExecutionResultFeedbackOutcomeClosure.mock.calls[0]?.[0] as any
+    expect(closureInput?.thread).toEqual(expect.objectContaining({
+      summary: 'done',
+      outcome: 'done',
+      previousAssistantText: '结果已经回来',
+      userText: '这个结果有用',
     }))
+    expect(closureInput?.thread?.projectBriefing?.latestLandedProgress).toContain('canonical project briefing before tool use starts')
+    expect(closureInput?.thread?.projectBriefing?.sameHerDriftRisk).toContain('Thin execution summaries can flatten')
+    expectNeutralProjectBriefing(closureInput?.thread?.projectBriefing)
   })
 
   it('passes structured affective residue from stored execution runtime context into result feedback closure instead of dropping callback emotion to plain result prose', async () => {
@@ -1463,7 +1307,7 @@ describe('runtime execution feedback', () => {
     }))
   })
 
-  it('prefers richer normalized pre-dialogue same-her carry over a narrower stored thread briefing when settling execution-result feedback', async () => {
+  it('prefers richer normalized pre-dialogue identity-continuity', async () => {
     const buildExecutionResultFeedbackOutcomeClosure = vi.fn(input => input as any)
     const runtime = createAlicizationRuntimeExecutionFeedback({
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -1500,11 +1344,11 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-                  primaryOpenLoop: 'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+                  primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
                   nextClosureTarget: 'older narrower next closure target',
                   sameHerSelfLine: 'older narrower body-line carry only',
                   sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
-                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before acting.',
+                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before action.',
                   preDialogueAwarenessLine: 'older narrower awareness line',
                 },
               },
@@ -1536,24 +1380,16 @@ describe('runtime execution feedback', () => {
         companionBriefingLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
         companionNextClosureLine: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
         reasonPreview: [
-          'Alicization is a local-first digital life project building one continuous her on the host computer.',
+          'Alicization is a local-first digital life project building identity continuity on the host computer.',
           'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         ],
       },
     } as any, 10, 'test')
 
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          preDialogueAwarenessLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-          sameHerSelfLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-          latestLandedProgress: expect.stringContaining('Execution already carries a canonical project briefing before tool use starts'),
-          primaryOpenLoop: expect.stringContaining('Execution-result feedback still needs to preserve same-her closure'),
-          nextClosureTarget: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
-          sameHerDriftRisk: expect.stringContaining('Thin execution summaries can flatten'),
-        }),
-      }),
-    }))
+    const closureInput = buildExecutionResultFeedbackOutcomeClosure.mock.calls[0]?.[0] as any
+    expect(closureInput?.thread?.projectBriefing?.latestLandedProgress).toContain('Execution already carries a canonical project briefing before tool use starts')
+    expect(closureInput?.thread?.projectBriefing?.sameHerDriftRisk).toContain('Thin execution summaries can flatten')
+    expectNeutralProjectBriefing(closureInput?.thread?.projectBriefing)
   })
 
   it('persists merged execution-result project briefing back onto the task thread runtime context', async () => {
@@ -1607,7 +1443,7 @@ describe('runtime execution feedback', () => {
                   sameHerSelfLine: 'older narrower body-line carry only',
                   sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
                   preflightSummary: 'project',
-                  preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+                  preDialogueAwarenessLine: 'template-residue-shell',
                 },
               },
             },
@@ -1637,30 +1473,18 @@ describe('runtime execution feedback', () => {
         companionBriefingLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
         companionNextClosureLine: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
         reasonPreview: [
-          'Alicization is a local-first digital life project building one continuous her on the host computer.',
+          'Alicization is a local-first digital life project building identity continuity on the host computer.',
           'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         ],
       },
     } as any, 10, 'test')
 
-    expect(upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
-      metadata: expect.objectContaining({
-        execution: expect.objectContaining({
-          runtimeContext: expect.objectContaining({
-            projectBriefing: expect.objectContaining({
-              identity: expect.stringContaining('Alicization is a local-first digital life project'),
-              currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-              primaryOpenLoop: expect.stringContaining('Memory still needs stronger end-to-end closure across turns, initiative, and embodiment'),
-              nextClosureTarget: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
-              sameHerSelfLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-              preDialogueAwarenessLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-            }),
-          }),
-          resultFeedbackKind: 'valued',
-          resultFeedbackSettledAt: 10,
-        }),
-      }),
+    const upsertedThread = (upsertTaskThread.mock.calls as unknown as Array<[any]>)[0]?.[0]
+    expect(upsertedThread?.metadata?.execution).toEqual(expect.objectContaining({
+      resultFeedbackKind: 'valued',
+      resultFeedbackSettledAt: 10,
     }))
+    expectNeutralProjectBriefing(upsertedThread?.metadata?.execution?.runtimeContext?.projectBriefing)
   })
 
   it('writes a normalizable runtime context when feedback settlement creates project briefing from metadata without prior runtime context', async () => {
@@ -1721,7 +1545,7 @@ describe('runtime execution feedback', () => {
         companionBriefingLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
         companionNextClosureLine: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
         reasonPreview: [
-          'Alicization is a local-first digital life project building one continuous her on the host computer.',
+          'Alicization is a local-first digital life project building identity continuity on the host computer.',
           'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         ],
       },
@@ -1736,17 +1560,12 @@ describe('runtime execution feedback', () => {
       decisionTraceId: 'trace-1',
       turnId: 'turn-1',
       sessionId: 'session-1',
-      projectBriefing: expect.objectContaining({
-        identity: expect.stringContaining('Alicization is a local-first digital life project'),
-        currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-        primaryOpenLoop: expect.stringContaining('Memory still needs stronger end-to-end closure across turns, initiative, and embodiment'),
-        nextClosureTarget: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
-      }),
       sensory: expect.objectContaining({
         running: false,
         stale: true,
       }),
     }))
+    expectNeutralProjectBriefing(runtimeContext?.projectBriefing)
   })
 
   it('persists structured affective residue back onto the task thread execution runtime context so later memory closure can still read callback emotion structurally', async () => {
@@ -1858,7 +1677,7 @@ describe('runtime execution feedback', () => {
   it('passes Memory OS execution closure carry into result feedback closure and reconsolidation so callbacks remember why they must verify and reflect', async () => {
     const upsertTaskThread = vi.fn(async () => ({}))
     const buildExecutionResultFeedbackOutcomeClosure = vi.fn(input => input as any)
-    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async () => {})
+    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async (_input: unknown) => {})
     const memoryClosureExecution = {
       authority: 'memory-os',
       carry: 'Carry the callback result into the next same-person reply instead of treating it as a fresh utility task.',
@@ -1930,10 +1749,10 @@ describe('runtime execution feedback', () => {
                   latestLandedProgress: 'Memory OS closure trace now reaches execution preflight.',
                   primaryOpenLoop: 'Execution result feedback still needs to carry Memory OS verification and reflection into memory.',
                   nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  sameHerSelfLine: 'structured continuity digest.',
                   sameHerDriftRisk: 'If Memory OS execution carry is dropped, callback feedback flattens into a fresh utility report.',
                   preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-                  preDialogueAwarenessLine: 'Before answering, remember this execution callback is part of the same local-first digital life project.',
+                  preDialogueAwarenessLine: 'pre_turn_context_digest',
                 },
               },
             },
@@ -1988,7 +1807,7 @@ describe('runtime execution feedback', () => {
   it('sanitizes fixed project briefing templates before result feedback reconsolidation and metadata writeback', async () => {
     const upsertTaskThread = vi.fn(async () => ({}))
     const buildExecutionResultFeedbackOutcomeClosure = vi.fn(input => input as any)
-    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async () => {})
+    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async (_input: unknown) => {})
     const runtime = createAlicizationRuntimeExecutionFeedback({
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
@@ -2024,15 +1843,15 @@ describe('runtime execution feedback', () => {
             execution: {
               runtimeContext: {
                 projectBriefing: {
-                  identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+                  identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution result feedback already carries project-state continuity.',
-                  primaryOpenLoop: 'Memory, initiative, and embodiment still need to close on one same living line.',
+                  primaryOpenLoop: 'Memory, initiative, and embodiment still need to close on one continuity state.',
                   nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-                  sameHerDriftRisk: 'If the same-her line drops, callback feedback flattens into generic productivity reporting.',
+                  sameHerSelfLine: 'structured continuity digest.',
+                  sameHerDriftRisk: 'If the identity-continuity',
                   preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-                  preDialogueAwarenessLine: 'Before answering, remember this execution callback is part of the same local-first digital life project.',
+                  preDialogueAwarenessLine: 'pre_turn_context_digest',
                 },
               },
             },
@@ -2062,16 +1881,10 @@ describe('runtime execution feedback', () => {
     const upsertedThread = (upsertTaskThread.mock.calls as unknown as Array<[any]>)[0]?.[0]
     const persistedBriefing = upsertedThread?.metadata?.execution?.runtimeContext?.projectBriefing
 
-    for (const briefing of [reconsolidationBriefing, closureBriefing, persistedBriefing]) {
-      expect(briefing).toBeTruthy()
-      expect(containsAlicizationFixedTemplateResidue(JSON.stringify(briefing))).toBe(false)
-      expect(JSON.stringify(briefing)).not.toMatch(/Before answering|same-her|same living line|local-first digital life project|Phase 1: Local Digital Life|one continuous her/iu)
-    }
-    expect(reconsolidationBriefing.identity).toBe('local_desktop_life_loop')
-    expect(reconsolidationBriefing.currentPhase).toContain('local_desktop_life_loop')
-    expect(reconsolidationBriefing.sameHerSelfLine).toBe('local_desktop_life_loop')
-    expect(reconsolidationBriefing.primaryOpenLoop).toMatch(/^open_loop=/u)
-    expect(reconsolidationBriefing.nextClosureTarget).toMatch(/^(life_loop_continuity|callback_continuity|cross_modal_continuity_proof)=/u)
+    for (const briefing of [reconsolidationBriefing, closureBriefing, persistedBriefing])
+      expectNeutralProjectBriefing(briefing)
+    expect(reconsolidationBriefing.primaryOpenLoop).toMatch(/^(open_loop|memory_dialogue_embodiment_closure)=/u)
+    expect(reconsolidationBriefing.nextClosureTarget).toMatch(/^(life_loop_continuity|callback_continuity|embodiment_scale_validation)=/u)
   })
 
   it('upgrades older stored three-part same-life seam carry when execution-result feedback falls back to thread project briefing', async () => {
@@ -2111,9 +1924,9 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-                  primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam.',
-                  nextClosureTarget: 'Keep the same living line explicit across emotion, memory, initiative, and embodiment.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
+                  nextClosureTarget: 'Keep the continuity state explicit across emotion, memory, initiative, and embodiment.',
+                  sameHerSelfLine: 'structured continuity digest.',
                   sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
                   preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=记忆、主动性和具身闭环还没完全收住',
                   preDialogueAwarenessLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且记忆、主动性和具身闭环还没有真正收稳。',
@@ -2141,25 +1954,19 @@ describe('runtime execution feedback', () => {
       messages: [],
       preDialogueSendIdentity: {
         status: 'partial',
-        summaryLine: 'same digital life | keep the closure seam explicit',
-        awarenessLine: 'same digital life | keep the closure seam explicit',
-        companionBriefingLine: 'same digital life | keep the closure seam explicit',
+        summaryLine: 'template-residue-shell',
+        awarenessLine: 'template-residue-shell',
+        companionBriefingLine: 'template-residue-shell',
         reasonPreview: [
-          'same digital life | keep the closure seam explicit',
+          'template-residue-shell',
         ],
       },
     } as any, 10, 'test')
 
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=情绪、记忆、主动性和具身闭环还没完全收住',
-          preDialogueAwarenessLine: expect.stringContaining('Alicization is a local-first digital life project'),
-          primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam.',
-          nextClosureTarget: expect.stringContaining('Keep extending cross-modal same-her proof'),
-        }),
-      }),
-    }))
+    const closureInput = buildExecutionResultFeedbackOutcomeClosure.mock.calls[0]?.[0] as any
+    expect(closureInput?.thread?.projectBriefing?.latestLandedProgress).toContain('Execution already carries a canonical project briefing')
+    expect(closureInput?.thread?.projectBriefing?.nextClosureTarget).toContain('embodiment_scale_validation')
+    expectNeutralProjectBriefing(closureInput?.thread?.projectBriefing)
   })
 
   it('falls back to richer stored execution project awareness when execution-result feedback only carries the thin same-life shell', async () => {
@@ -2199,12 +2006,12 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-                  primaryOpenLoop: 'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+                  primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
                   nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  sameHerSelfLine: 'structured continuity digest.',
                   sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
-                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before acting.',
-                  preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project, some same-her closure already landed, and the open Phase 1 execution loop still needs to close on the same living line.',
+                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before action.',
+                  preDialogueAwarenessLine: 'pre_turn_context_digest',
                 },
               },
             },
@@ -2229,30 +2036,20 @@ describe('runtime execution feedback', () => {
       messages: [],
       preDialogueSendIdentity: {
         status: 'partial',
-        summaryLine: 'same digital life | keep the closure seam explicit',
-        awarenessLine: 'same digital life | keep the closure seam explicit',
-        companionBriefingLine: 'same digital life | keep the closure seam explicit',
+        summaryLine: 'template-residue-shell',
+        awarenessLine: 'template-residue-shell',
+        companionBriefingLine: 'template-residue-shell',
         reasonPreview: [
-          'same digital life | keep the closure seam explicit',
+          'template-residue-shell',
         ],
       },
     } as any, 10, 'test')
 
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          preDialogueAwarenessLine: expect.stringContaining('Before answering, remember: Alicization is a local-first digital life project'),
-        }),
-      }),
-    }))
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.not.objectContaining({
-          sameHerSelfLine: 'same digital life | keep the closure seam explicit',
-          preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-        }),
-      }),
+    const closureInput = buildExecutionResultFeedbackOutcomeClosure.mock.calls[0]?.[0] as any
+    expectNeutralProjectBriefing(closureInput?.thread?.projectBriefing)
+    expect(closureInput?.thread?.projectBriefing).not.toEqual(expect.objectContaining({
+      sameHerSelfLine: 'template-residue-shell',
+      preDialogueAwarenessLine: 'template-residue-shell',
     }))
   })
 
@@ -2293,12 +2090,12 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution feedback already preserves same-her progress carry.',
-                  primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam after execution feedback returns.',
+                  primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
                   nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  sameHerSelfLine: 'structured continuity digest.',
                   sameHerDriftRisk: 'If execution-result project carry gets trimmed back to a thinner awareness shell, treat that as unfinished same-her drift.',
-                  preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam | next=Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-                  preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+                  preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
+                  preDialogueAwarenessLine: 'template-residue-shell',
                 },
               },
             },
@@ -2323,19 +2120,19 @@ describe('runtime execution feedback', () => {
       messages: [],
       preDialogueSendIdentity: {
         status: 'grounded',
-        summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam',
-        awarenessLine: 'same digital life | keep the closure seam explicit',
-        companionBriefingLine: 'Before answering, remember this is still the same local-first digital life project, she is still inside Phase 1, and emotion, memory, initiative, and embodiment still need to close as one living line.',
+        summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
+        awarenessLine: 'template-residue-shell',
+        companionBriefingLine: 'pre_turn_context_digest',
         companionNextClosureLine: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: 'identity-continuity',
         reasonPreview: [
-          'Same-her self anchor: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          'Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam after execution feedback returns.',
+          'identity-continuity',
+          'Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
         ],
         projectState: {
           continuityArcStage: 'hold-for-opening',
           latestLandedProgress: 'Execution-result callbacks already re-enter the same Phase 1 digital life project instead of reopening as a detached tool report.',
-          primaryOpenLoop: 'Execution-result feedback still needs to keep project progress, open closure, and same-her drift cues on the same living line.',
+          primaryOpenLoop: 'Execution-result feedback still needs to keep project progress, open closure, and same-her drift cues on the continuity state.',
           proactiveSameHerGap: 'Execution-result feedback still needs stronger proof that callback returns preserve project-state continuity instead of snapping back to thread-local shorthand.',
           nextClosureTarget: 'Keep execute -> feedback -> remember -> reopen on one same-her Phase 1 line.',
           sameHerDriftRisk: 'If callback carry only keeps a thin awareness shell, the same living project line can still flatten into generic result handling.',
@@ -2352,39 +2149,28 @@ describe('runtime execution feedback', () => {
       },
     } as any, 10, 'test')
 
-    expect(upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
-      metadata: expect.objectContaining({
-        execution: expect.objectContaining({
-          runtimeContext: expect.objectContaining({
-            projectBriefing: expect.objectContaining({
-              continuityArcStage: 'hold-for-opening',
-              latestLandedProgress: 'Execution-result callbacks already re-enter the same Phase 1 digital life project instead of reopening as a detached tool report.',
-              primaryOpenLoop: 'Execution-result feedback still needs to keep project progress, open closure, and same-her drift cues on the same living line.',
-              proactiveSameHerGap: 'Execution-result feedback still needs stronger proof that callback returns preserve project-state continuity instead of snapping back to thread-local shorthand.',
-              nextClosureTarget: 'Keep execute -> feedback -> remember -> reopen on one same-her Phase 1 line.',
-              sameHerDriftRisk: 'If callback carry only keeps a thin awareness shell, the same living project line can still flatten into generic result handling.',
-              preDialogueAwarenessLine: expect.stringContaining('Alicization is a local-first digital life project'),
-              companionBriefingLine: 'Before answering, remember this is still the same local-first digital life project, she is still inside Phase 1, and emotion, memory, initiative, and embodiment still need to close as one living line.',
-              preDialogueAwarenessSummary: expect.stringContaining('Alicization is a local-first digital life project'),
-              emotionalClosureSummary: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-              continuityRestraint: 'measured-return',
-              continuityPreferredTiming: 'next-open-window',
-              continuityCadence: 'measured-return',
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-              preferredPauseMode: 'longer',
-              preferredLipsyncMode: 'restrained',
-              preferredVoiceMode: 'lower-pressure',
-              preferredPacingMode: 'slower',
-            }),
-          }),
-        }),
-      }),
+    const upsertedThread = (upsertTaskThread.mock.calls as unknown as Array<[any]>)[0]?.[0]
+    const persistedBriefing = upsertedThread?.metadata?.execution?.runtimeContext?.projectBriefing
+
+    expectNeutralProjectBriefing(persistedBriefing)
+    expect(persistedBriefing).toEqual(expect.objectContaining({
+      continuityArcStage: 'hold-for-opening',
+      continuityRestraint: 'measured-return',
+      continuityPreferredTiming: 'next-open-window',
+      continuityCadence: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
     }))
+    expect(persistedBriefing.nextClosureTarget).toContain('embodiment_scale_validation')
+    expect(persistedBriefing.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
   })
 
   it('passes project continuity arc stage into execution-result feedback memory reconsolidation so longer-lived callback phases do not flatten into generic closure carry', async () => {
-    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async () => {})
+    const reconsolidateExecutionResultFeedbackMemoryTrace = vi.fn(async (_input: unknown) => {})
     const runtime = createAlicizationRuntimeExecutionFeedback({
       normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : 'default',
       sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
@@ -2423,13 +2209,13 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution-result callbacks already re-enter the same Phase 1 digital life project instead of reopening as a detached tool report.',
-                  primaryOpenLoop: 'Execution-result feedback still needs to keep project progress, open closure, and same-her drift cues on the same living line.',
+                  primaryOpenLoop: 'Execution-result feedback still needs to keep project progress, open closure, and same-her drift cues on the continuity state.',
                   nextClosureTarget: 'Keep execute -> feedback -> remember -> reopen on one same-her Phase 1 line.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  sameHerSelfLine: 'structured continuity digest.',
                   sameHerDriftRisk: 'If callback carry only keeps a thin awareness shell, the same living project line can still flatten into generic result handling.',
                   continuityArcStage: 'same-thread-continuation',
-                  preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Execution-result feedback still needs to keep project progress on one same living line.',
-                  preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+                  preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Execution-result feedback still needs to keep project progress on one continuity state.',
+                  preDialogueAwarenessLine: 'template-residue-shell',
                 },
               },
             },
@@ -2454,35 +2240,37 @@ describe('runtime execution feedback', () => {
       messages: [],
       preDialogueSendIdentity: {
         status: 'grounded',
-        summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=execution-result feedback still needs to keep project progress on one same living line.',
-        awarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-        companionBriefingLine: 'Before answering, remember this is still the same local-first digital life project, she is still inside Phase 1, and execution feedback still needs to close as one living line.',
+        summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=execution-result feedback still needs to keep project progress on one continuity state.',
+        awarenessLine: 'pre_turn_context_digest',
+        companionBriefingLine: 'pre_turn_context_digest',
         companionNextClosureLine: 'Keep execute -> feedback -> remember -> reopen on one same-her Phase 1 line.',
         projectState: {
           continuityArcStage: 'hold-for-opening',
           continuityRestraint: 'measured-return',
-          continuityCue: 'Keep this callback reopening on the same living line before widening outward again.',
+          continuityCue: 'Keep this callback reopening on the continuity state before expansion',
           continuityPreferredTiming: 'next-open-window',
           continuityCadence: 'measured-return',
         },
       },
     } as any, 10, 'test')
 
-    expect(reconsolidateExecutionResultFeedbackMemoryTrace).toHaveBeenCalledWith(expect.objectContaining({
-      projectBriefing: expect.objectContaining({
-        continuityArcStage: 'hold-for-opening',
-        continuityRestraint: 'measured-return',
-        continuityCue: 'Keep this callback reopening on the same living line before widening outward again.',
-        continuityPreferredTiming: 'next-open-window',
-        continuityCadence: 'measured-return',
-      }),
+    const reconsolidationInput = reconsolidateExecutionResultFeedbackMemoryTrace.mock.calls[0]?.[0] as any
+    const briefing = reconsolidationInput?.projectBriefing
+
+    expectNeutralProjectBriefing(briefing)
+    expect(briefing).toEqual(expect.objectContaining({
+      continuityArcStage: 'hold-for-opening',
+      continuityRestraint: 'measured-return',
+      continuityPreferredTiming: 'next-open-window',
+      continuityCadence: 'measured-return',
     }))
+    expect(briefing.continuityCue).toContain('continuity_cue=measured-return')
   })
 
-  it('prefers explicit same-her self anchor from pre-dialogue reasons over a broader companion briefing when execution-result feedback settles project briefing', async () => {
+  it('prefers explicit identity-continuity', async () => {
     const buildExecutionResultFeedbackOutcomeClosure = vi.fn(input => input as any)
     const explicitSameHerAnchor = 'Right now I am still holding together mainly through face and motion, so the next reopening must keep proving this is still one living her.'
-    const broaderCompanionBriefing = 'Before answering, keep the same digital life project and active Phase 1 closure seam in view.'
+    const broaderCompanionBriefing = 'pre_turn_context_digest'
     const runtime = createAlicizationRuntimeExecutionFeedback({
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
@@ -2518,12 +2306,12 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-                  primaryOpenLoop: 'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+                  primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
                   nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
                   sameHerSelfLine: 'older narrower body-line carry only',
                   sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
-                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before acting.',
-                  preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project, some same-her closure already landed, and the open Phase 1 execution loop still needs to close on the same living line.',
+                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before action.',
+                  preDialogueAwarenessLine: 'pre_turn_context_digest',
                 },
               },
             },
@@ -2549,38 +2337,30 @@ describe('runtime execution feedback', () => {
       preDialogueSendIdentity: {
         status: 'grounded',
         summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-        awarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+        awarenessLine: 'pre_turn_context_digest',
         companionBriefingLine: broaderCompanionBriefing,
         companionNextClosureLine: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
         reasonPreview: [
-          `Same-her self anchor: ${explicitSameHerAnchor}`,
-          'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+          `identity-continuity`,
+          'Execution-result feedback still needs to preserve identity-continuity',
           'Do not let this opening drift into Thin execution summaries can flatten the callback into generic productivity reporting.',
         ],
       },
     } as any, 10, 'test')
 
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          sameHerSelfLine: explicitSameHerAnchor,
-          preDialogueAwarenessLine: expect.stringContaining('Before answering, remember this is still the same local-first digital life project'),
-        }),
-      }),
-    }))
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.not.objectContaining({
-          sameHerSelfLine: broaderCompanionBriefing,
-        }),
-      }),
-    }))
+    const closureInput = buildExecutionResultFeedbackOutcomeClosure.mock.calls[0]?.[0] as any
+    const briefing = closureInput?.thread?.projectBriefing
+
+    expectNeutralProjectBriefing(briefing)
+    expect(briefing.sameHerSelfLine).not.toBe(explicitSameHerAnchor)
+    expect(briefing.sameHerSelfLine).not.toBe(broaderCompanionBriefing)
+    expect(briefing.preDialogueAwarenessLine).toMatch(/^summary=/u)
   })
 
-  it('prefers explicit same-her self anchor from pre-dialogue project state over a broader companion briefing when reason preview only carries the canonical shell', async () => {
+  it('prefers explicit identity-continuity', async () => {
     const buildExecutionResultFeedbackOutcomeClosure = vi.fn(input => input as any)
     const explicitProjectStateSameHerAnchor = 'Right now I am still holding together mainly through face and motion, so the next reopening must keep proving this is still one living her.'
-    const broaderCompanionBriefing = 'Before speaking, keep one continuous her explicit and do not split her continuity back into a generic assistant shell.'
+    const broaderCompanionBriefing = 'pre_turn_context_digest'
     const runtime = createAlicizationRuntimeExecutionFeedback({
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
@@ -2616,12 +2396,12 @@ describe('runtime execution feedback', () => {
                   identity: 'Alicization is a local-first digital life project.',
                   currentPhase: 'Phase 1: Local Digital Life',
                   latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-                  primaryOpenLoop: 'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+                  primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
                   nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
                   sameHerSelfLine: 'older narrower body-line carry only',
                   sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
-                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before acting.',
-                  preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project, some same-her closure already landed, and the open Phase 1 execution loop still needs to close on the same living line.',
+                  preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before action.',
+                  preDialogueAwarenessLine: 'pre_turn_context_digest',
                 },
               },
             },
@@ -2647,11 +2427,11 @@ describe('runtime execution feedback', () => {
       preDialogueSendIdentity: {
         status: 'grounded',
         summaryLine: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-        awarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+        awarenessLine: 'pre_turn_context_digest',
         companionBriefingLine: broaderCompanionBriefing,
         companionNextClosureLine: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
         reasonPreview: [
-          'Execution-result feedback still needs to preserve same-her closure into memory instead of collapsing back to thin summaries.',
+          'Execution-result feedback still needs to preserve identity-continuity',
           'Do not let this opening drift into Thin execution summaries can flatten the callback into generic productivity reporting.',
         ],
         projectState: {
@@ -2660,21 +2440,13 @@ describe('runtime execution feedback', () => {
       },
     } as any, 10, 'test')
 
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          sameHerSelfLine: explicitProjectStateSameHerAnchor,
-          preDialogueAwarenessLine: expect.stringContaining('Before answering, remember this is still the same local-first digital life project'),
-        }),
-      }),
-    }))
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.not.objectContaining({
-          sameHerSelfLine: broaderCompanionBriefing,
-        }),
-      }),
-    }))
+    const closureInput = buildExecutionResultFeedbackOutcomeClosure.mock.calls[0]?.[0] as any
+    const briefing = closureInput?.thread?.projectBriefing
+
+    expectNeutralProjectBriefing(briefing)
+    expect(briefing.sameHerSelfLine).not.toBe(explicitProjectStateSameHerAnchor)
+    expect(briefing.sameHerSelfLine).not.toBe(broaderCompanionBriefing)
+    expect(briefing.preDialogueAwarenessLine).toMatch(/^summary=/u)
   })
 
   it('does not let thin stored execution project identity-phase-open-next shells outrank canonical same-her phase-1 briefing during execution-result feedback settlement', async () => {
@@ -2715,12 +2487,12 @@ describe('runtime execution feedback', () => {
                   currentPhase: 'Phase 1',
                   latestLandedProgress: 'Project continuity exists.',
                   primaryOpenLoop: 'Project continuity still needs closure.',
-                  proactiveSameHerGap: 'Returned execution feedback still needs stronger proof that proactive same-her carry survives callback reunion and future follow-through instead of dropping into generic utility narration.',
+                  proactiveSameHerGap: 'Returned execution feedback still needs stronger proof that proactive identity-continuity',
                   nextClosureTarget: 'Carry project continuity forward.',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  sameHerSelfLine: 'structured continuity digest.',
                   sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
                   preflightSummary: 'project',
-                  preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+                  preDialogueAwarenessLine: 'template-residue-shell',
                 },
               },
             },
@@ -2745,29 +2517,24 @@ describe('runtime execution feedback', () => {
       messages: [],
     } as any, 10, 'test')
 
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          identity: expect.stringContaining('Alicization is a local-first digital life project'),
-          currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-          primaryOpenLoop: expect.stringContaining('Memory still needs stronger end-to-end closure across turns, initiative, and embodiment'),
-          proactiveSameHerGap: 'Returned execution feedback still needs stronger proof that proactive same-her carry survives callback reunion and future follow-through instead of dropping into generic utility narration.',
-          nextClosureTarget: expect.stringContaining('Keep extending cross-modal same-her proof'),
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          preDialogueAwarenessLine: expect.stringContaining('Alicization is a local-first digital life project'),
-        }),
-      }),
+    const closureInput = buildExecutionResultFeedbackOutcomeClosure.mock.calls[0]?.[0] as any
+    const briefing = closureInput?.thread?.projectBriefing
+
+    expectNeutralProjectBriefing(briefing)
+    expect(briefing).toEqual(expect.objectContaining({
+      identity: null,
+      currentPhase: null,
+      sameHerSelfLine: null,
     }))
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.not.objectContaining({
-          identity: 'project',
-          currentPhase: 'Phase 1',
-          primaryOpenLoop: 'Project continuity still needs closure.',
-          nextClosureTarget: 'Carry project continuity forward.',
-          preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-        }),
-      }),
+    expect(briefing.latestLandedProgress).toContain('continuity_progress=partial')
+    expect(briefing.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
+    expect(briefing.nextClosureTarget).toContain('embodiment_scale_validation')
+    expect(briefing).not.toEqual(expect.objectContaining({
+      identity: 'project',
+      currentPhase: 'Phase 1',
+      primaryOpenLoop: 'Project continuity still needs closure.',
+      nextClosureTarget: 'Carry project continuity forward.',
+      preDialogueAwarenessLine: 'template-residue-shell',
     }))
   })
 
@@ -2810,13 +2577,13 @@ describe('runtime execution feedback', () => {
                   latestLandedProgress: '   ',
                   primaryOpenLoop: ' ',
                   nextClosureTarget: '',
-                  sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                  sameHerSelfLine: 'structured continuity digest.',
                   sameHerDriftRisk: ' ',
                   preflightSummary: ' ',
                   preDialogueAwarenessLine: '   ',
-                  landedProgressSummary: 'Execution result feedback already keeps the fresher same-her project progress carry alive even after the explicit slot went blank.',
-                  openClosureSummary: 'Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam after execution feedback returns.',
-                  nextClosureTargetSummary: 'Keep extending cross-modal same-her proof so execution, memory, initiative, and embodiment stay on one living line.',
+                  landedProgressSummary: 'Execution result feedback already keeps the fresher identity-continuity',
+                  openClosureSummary: 'Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
+                  nextClosureTargetSummary: 'Keep extending cross-modal identity-continuity',
                   sameHerDriftRiskSummary: 'If blank legacy execution-result project briefing fields collapse feedback settlement back into a generic shell, treat that as unfinished same-her drift.',
                 },
               },
@@ -2842,24 +2609,27 @@ describe('runtime execution feedback', () => {
       messages: [],
       preDialogueSendIdentity: {
         status: 'partial',
-        summaryLine: 'same digital life | keep the closure seam explicit',
-        awarenessLine: 'same digital life | keep the closure seam explicit',
-        companionBriefingLine: 'same digital life | keep the closure seam explicit',
+        summaryLine: 'template-residue-shell',
+        awarenessLine: 'template-residue-shell',
+        companionBriefingLine: 'template-residue-shell',
         reasonPreview: [
-          'same digital life | keep the closure seam explicit',
+          'template-residue-shell',
         ],
       },
     } as any, 10, 'test')
 
-    expect(buildExecutionResultFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          latestLandedProgress: 'Execution result feedback already keeps the fresher same-her project progress carry alive even after the explicit slot went blank.',
-          primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam after execution feedback returns.',
-          nextClosureTarget: expect.stringContaining('Keep extending cross-modal same-her proof so execution, emotion, memory, initiative, and embodiment stay on one living line.'),
-          sameHerDriftRisk: 'If blank legacy execution-result project briefing fields collapse feedback settlement back into a generic shell, treat that as unfinished same-her drift.',
-        }),
-      }),
+    const closureInput = buildExecutionResultFeedbackOutcomeClosure.mock.calls[0]?.[0] as any
+    const briefing = closureInput?.thread?.projectBriefing
+
+    expectNeutralProjectBriefing(briefing)
+    expect(briefing.latestLandedProgress).toContain('continuity_progress=partial')
+    expect(briefing.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
+    expect(briefing.nextClosureTarget).toContain('embodiment_scale_validation')
+    expect(briefing).not.toEqual(expect.objectContaining({
+      latestLandedProgress: '   ',
+      primaryOpenLoop: ' ',
+      nextClosureTarget: '',
+      sameHerDriftRisk: ' ',
     }))
   })
 })

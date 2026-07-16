@@ -79,10 +79,6 @@ function candidateSummaryRows(entry: AlicizationHumanlikeMemoryAuditEntry) {
       value: entry.relationshipContext,
     },
     {
-      label: tAudit('fields.natural_recall_line', 'Natural recall line'),
-      value: entry.naturalRecallLine,
-    },
-    {
       label: tAudit('fields.why_remember', 'Why remembered'),
       value: entry.whyRemember,
     },
@@ -121,8 +117,6 @@ function fieldValueForCorrection(entry: AlicizationHumanlikeMemoryAuditEntry, fi
   switch (field) {
     case 'relationshipContext':
       return entry.relationshipContext
-    case 'naturalRecallLine':
-      return entry.naturalRecallLine
     case 'embodimentTrace':
       return entry.embodimentSummary
     case 'autobiographicalImpact':
@@ -137,7 +131,7 @@ function fieldValueForCorrection(entry: AlicizationHumanlikeMemoryAuditEntry, fi
 }
 
 function startCorrection(entry: AlicizationHumanlikeMemoryAuditEntry, field?: string) {
-  const selectedField = field || entry.userCorrectableFields[0] || 'naturalRecallLine'
+  const selectedField = field || entry.userCorrectableFields[0] || 'relationshipContext'
   store.selectEntry(entry.id)
   correctionDraft.value = {
     candidateId: entry.id,

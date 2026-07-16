@@ -9,7 +9,7 @@ describe('runtime reply authority helpers', () => {
   it('forces non-null governance onto provider mind authority', () => {
     expect(forceProviderMindVisibleReplyAuthority(null)).toBeNull()
     expect(forceProviderMindVisibleReplyAuthority({
-      visibleReplyAuthority: 'llm-second-pass-rewrite',
+      visibleReplyAuthority: 'local-deterministic-fallback',
     } as any)).toEqual(expect.objectContaining({
       visibleReplyAuthority: 'llm-mind',
     }))
@@ -22,11 +22,6 @@ describe('runtime reply authority helpers', () => {
     const applyHostPersonModelToGovernance = vi.fn(() => ({
       answerIntent: 'host-shaped',
     }) as any)
-    const applyRecollectionSurfaceRules = vi.fn(governance => ({
-      ...governance,
-      mustDo: ['recollection-rule'],
-    }))
-
     const result = deriveRuntimeReplyAuthorityGovernance({
       now: 1,
       governance: {
@@ -51,17 +46,12 @@ describe('runtime reply authority helpers', () => {
       } as any,
       applyMemoryDeliberationToGovernance,
       applyHostPersonModelToGovernance,
-      applyRecollectionSurfaceRules,
     })
 
     expect(applyMemoryDeliberationToGovernance).toHaveBeenCalled()
-    expect(applyRecollectionSurfaceRules).toHaveBeenCalled()
     expect(applyHostPersonModelToGovernance).toHaveBeenCalled()
     expect(result.effectiveMindTurnGovernanceWithRecollection).toEqual(expect.objectContaining({
-      mustDo: expect.arrayContaining([
-        'recollection-rule',
-        'Honor the turn memory gate before speaking: inward-only.',
-      ]),
+      mustDo: expect.arrayContaining(['memory_turn_gate.status=inward-only']),
     }))
     expect(result.llmMindAuthorityGovernance).toEqual(expect.objectContaining({
       answerIntent: 'host-shaped',

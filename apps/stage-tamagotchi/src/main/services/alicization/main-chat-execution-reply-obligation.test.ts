@@ -51,24 +51,11 @@ describe('main chat execution reply obligation', () => {
       summary: 'Completed Run pnpm typecheck: typecheck passed',
     })
     const systemBlock = buildMainChatExecutionReplyObligationSystemBlock(obligation!)
-    expect(systemBlock).toContain('[ALICIZATION_EXECUTION_REPLY_OBLIGATION]')
-    expect(systemBlock).toContain('execution_context_scope=alicization-local-life-loop; owner=ExecutionReplyObligation; detached_task_shell=false.')
-    expect(systemBlock).toContain('runtime_context=alicization_phase1')
-    expect(systemBlock).toContain('short_term_owner=WorkingMemory')
-    expect(systemBlock).toContain('long_term_recall_owner=LongTermMemoryRecall')
-    expect(systemBlock).toContain('template_awareness=withheld_from_execution_result_followup')
-    expect(systemBlock).not.toContain('project_identity=')
-    expect(systemBlock).not.toContain('project_phase=')
-    expect(systemBlock).not.toContain('same_her_line=')
-    expect(systemBlock).not.toContain('same_her_hold=')
-    expect(systemBlock).not.toContain('same_her_drift_risk=')
-    expect(systemBlock).not.toContain('project_awareness=')
-    expect(systemBlock).toContain('Status: completed.')
-    expect(systemBlock).toContain('Outcome: typecheck passed.')
-    expect(systemBlock).toContain('Visible-surface must do:')
-    expect(systemBlock).toContain('Visible-surface must not do:')
-    expect(systemBlock).not.toContain('Same Phase 1 digital life. Some closure already landed.')
-    expect(systemBlock).not.toContain('same-her hold:')
+    expect(JSON.parse(systemBlock)).toEqual({
+      type: 'alicization-execution-reply-context',
+      data: obligation,
+    })
+    expect(systemBlock).not.toMatch(/must do|must not do|Open with|WorkingMemory owns|LongTermMemoryRecall owns/iu)
   })
 
   it('falls back to ledger-backed follow-up obligation when no fresh callback is pending', () => {
@@ -105,14 +92,10 @@ describe('main chat execution reply obligation', () => {
       status: 'completed',
     }))
     const systemBlock = buildMainChatExecutionReplyObligationSystemBlock(obligation!)
-    expect(systemBlock).toContain('execution_context_scope=alicization-local-life-loop; owner=ExecutionReplyObligation; detached_task_shell=false.')
-    expect(systemBlock).toContain('runtime_context=alicization_phase1')
-    expect(systemBlock).not.toContain('project_identity=')
-    expect(systemBlock).not.toContain('project_phase=')
-    expect(systemBlock).not.toContain('same_her_hold=')
-    expect(systemBlock).not.toContain('project_continuity=')
-    expect(systemBlock).not.toContain('Same Phase 1 digital life. Some closure already landed.')
-    expect(systemBlock).not.toContain('same-her hold:')
+    expect(JSON.parse(systemBlock)).toEqual({
+      type: 'alicization-execution-reply-context',
+      data: obligation,
+    })
   })
 
   it('stays inactive when the current user turn is unrelated to execution results', () => {
@@ -149,7 +132,7 @@ describe('main chat execution reply obligation', () => {
     expect(obligation).toBeNull()
   })
 
-  it('derives reusable visible-surface rules and overlays them onto mind governance', () => {
+  it('keeps execution follow-up facts from mutating mind governance', () => {
     const obligation = {
       channel: 'cli',
       followUpQuestion: true,
@@ -161,13 +144,12 @@ describe('main chat execution reply obligation', () => {
     } as const
 
     const rules = buildMainChatExecutionReplyVisibleSurfaceRules(obligation)
-    expect(rules.mustDo).toContain('Use the first sentence to pay off the freshest executor result for the current follow-up.')
-    expect(rules.mustDo).toContain('State plainly that the task already finished and surface the strongest outcome before any new planning.')
-    expect(rules.mustDo).toContain('Keep the execution-result payoff tied to the current Alicization life-loop boundary instead of reopening as detached task reporting.')
-    expect(rules.mustNotDo).toContain('Do not imply the task re-ran in this exact turn unless new tool output appears now.')
-    expect(rules.mustNotDo).toContain('Do not let the callback reopen as generic task-shell or project-status narration detached from the current life-loop boundary.')
+    expect(rules).toEqual({
+      mustDo: [],
+      mustNotDo: [],
+    })
 
-    const governance = applyMainChatExecutionReplyObligationToGovernance({
+    const originalGovernance = {
       turnMode: 'care',
       truthState: 'live-grounded',
       groundedThisTurn: false,
@@ -182,15 +164,10 @@ describe('main chat execution reply obligation', () => {
       maxSentences: 4,
       mustDo: ['Keep the reply current-turn-governed.'],
       mustNotDo: ['Do not drift into stale scene residue.'],
-    }, obligation)
+    } as any
+    const governance = applyMainChatExecutionReplyObligationToGovernance(originalGovernance, obligation)
 
-    expect(governance?.openingStyle).toBe('direct-answer')
-    expect(governance?.mustDo).toContain('Use the first sentence to pay off the freshest executor result for the current follow-up.')
-    expect(governance?.mustDo).toContain('Keep the execution-result payoff tied to the current Alicization life-loop boundary instead of reopening as detached task reporting.')
-    expect(governance?.mustDo).toContain('Keep the reply current-turn-governed.')
-    expect(governance?.mustNotDo).toContain('Do not imply the task re-ran in this exact turn unless new tool output appears now.')
-    expect(governance?.mustNotDo).toContain('Do not let the callback reopen as generic task-shell or project-status narration detached from the current life-loop boundary.')
-    expect(governance?.mustNotDo).toContain('Do not drift into stale scene residue.')
+    expect(governance).toBe(originalGovernance)
   })
 
   it('keeps affirmation-gated follow-ups explicit instead of flattening them into generic unfinished-task language', () => {
@@ -207,9 +184,14 @@ describe('main chat execution reply obligation', () => {
     const rules = buildMainChatExecutionReplyVisibleSurfaceRules(obligation)
     const systemBlock = buildMainChatExecutionReplyObligationSystemBlock(obligation)
 
-    expect(rules.mustDo).toContain('State plainly that the task is still waiting for the host\'s confirmation before it can continue.')
-    expect(systemBlock).toContain('Status: needs-affirmation.')
-    expect(systemBlock).toContain('State plainly that the task is still waiting for the host\'s confirmation before it can continue.')
+    expect(rules).toEqual({
+      mustDo: [],
+      mustNotDo: [],
+    })
+    expect(JSON.parse(systemBlock)).toEqual({
+      type: 'alicization-execution-reply-context',
+      data: obligation,
+    })
   })
 
   it('keeps blocked and cancelled follow-ups distinct from generic failure narration', () => {
@@ -232,17 +214,17 @@ describe('main chat execution reply obligation', () => {
       summary: 'Cancelled Run cancelled task.: host cancelled it',
     } as const
 
-    const blockedRules = buildMainChatExecutionReplyVisibleSurfaceRules(blockedObligation)
     const blockedSystemBlock = buildMainChatExecutionReplyObligationSystemBlock(blockedObligation)
-    const cancelledRules = buildMainChatExecutionReplyVisibleSurfaceRules(cancelledObligation)
     const cancelledSystemBlock = buildMainChatExecutionReplyObligationSystemBlock(cancelledObligation)
 
-    expect(blockedRules.mustDo).toContain('State plainly that the task is currently blocked and surface the blocking reason before any next-step advice.')
-    expect(blockedSystemBlock).toContain('Status: blocked.')
-    expect(blockedSystemBlock).toContain('State plainly that the task is currently blocked and surface the blocking reason before any next-step advice.')
-    expect(cancelledRules.mustDo).toContain('State plainly that the task was cancelled or stopped and is no longer running before any next-step advice.')
-    expect(cancelledSystemBlock).toContain('Status: cancelled.')
-    expect(cancelledSystemBlock).toContain('State plainly that the task was cancelled or stopped and is no longer running before any next-step advice.')
+    expect(JSON.parse(blockedSystemBlock)).toEqual({
+      type: 'alicization-execution-reply-context',
+      data: blockedObligation,
+    })
+    expect(JSON.parse(cancelledSystemBlock)).toEqual({
+      type: 'alicization-execution-reply-context',
+      data: cancelledObligation,
+    })
   })
 
   it('prefers a fresher ledger-backed active thread over an older completed callback so the latest same-her execution state is not hijacked by stale payoff carry', () => {

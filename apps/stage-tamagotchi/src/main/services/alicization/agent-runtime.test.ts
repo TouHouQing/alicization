@@ -55,8 +55,25 @@ function createSensorySnapshot(overrides?: Partial<AlicizationSensoryCacheSnapsh
   }
 }
 
+function parseAgentSessionFactBlock(block: string) {
+  const parsed = JSON.parse(block) as {
+    type?: unknown
+    data?: Record<string, any>
+  }
+
+  expect(parsed.type).toBe('alicization-agent-session')
+  expect(parsed.data).toMatchObject({
+    version: 'alicization-agent-session-v1',
+    owners: {
+      longTermRecall: 'LongTermMemoryRecall',
+      shortTerm: 'WorkingMemory',
+    },
+  })
+  return parsed.data!
+}
+
 describe('alicization agent runtime', () => {
-  it('keeps digest-only same-her quiet carry explicit in the agent session block so generation still sees one lower-pressure line', async () => {
+  it('keeps quiet memory and initiative state as typed agent-session facts', async () => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),
       resolveConversationSessionId: async () => 'session-digest-only-same-her',
@@ -124,28 +141,37 @@ describe('alicization agent runtime', () => {
         preferredPresence: 'hesitant',
       },
       memory: {
-        summary: 'same-her callback afterglow is still being carried quietly',
+        summary: 'identity-continuity',
         recallMode: 'quiet',
       },
     } as any)
 
     const block = turn.buildSessionSystemBlock()
 
-    expect(block).toContain('[ALICIZATION_AGENT_SESSION]')
-    expect(block).toContain('digital_life_line=same-thread-continuation still active as a measured-return hover-first resident presence after the noisy detour')
-    expect(block).toContain('resident_presence_line=presence=hovering')
-    expect(block).toContain('timing=next-open-window')
-    expect(block).toContain('cadence=measured-return')
-    expect(block).toContain('style=silent-observe')
-    expect(block).toContain('speak=false')
-    expect(block).toContain('memory_fabric=same-her callback afterglow is still being carried quietly')
-    expect(block).toContain('memory_carry=mode=quiet')
-    expect(block).toContain('project_continuity_arc=same-thread-continuation')
-    expect(block).toContain('continuity_timing=next-open-window')
-    expect(block).toContain('continuity_cadence=measured-return')
-    expect(block).toContain('initiative_restraint=same-thread-continuation')
-    expect(block).toContain('should_proactively_speak=false')
-    expect(block).toContain('should_proactively_act=false')
+    const data = parseAgentSessionFactBlock(block)
+
+    expect(data.digitalLife).toMatchObject({
+      continuityArcStage: 'same-thread-continuation',
+      initiativeRestraint: 'same-thread-continuation',
+      presence: {
+        mode: 'hovering',
+        shouldSpeak: false,
+        style: 'silent-observe',
+      },
+      runtime: {
+        shouldAct: false,
+        shouldSpeak: false,
+      },
+    })
+    expect(data.memory).toMatchObject({
+      carry: {
+        mode: 'quiet',
+      },
+      recallMode: 'quiet',
+      summary: 'identity-continuity',
+    })
+    expect(block).not.toContain('[ALICIZATION_AGENT_SESSION]')
+    expect(block).not.toContain('Treat session continuity inbox items as carried-over session events')
   })
 
   it('reuses the same agent session across turns and carries recent runtime actions into the session block', async () => {
@@ -437,20 +463,43 @@ describe('alicization agent runtime', () => {
         label: 'digital-life-line',
       }),
     }))
-    expect(secondTurn.buildSessionSystemBlock()).toContain('digital_life_line=watch=symbiotic-vision | scene=coding | mode=tracking')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('memory_fabric=none')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('memory_carry=mode=quiet')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('verified_coverage_count=')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('architecture_closure=')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('[ALICIZATION_DIGITAL_LIFE_ARCHITECTURE]')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('dominant_system=dialogue')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('session_continuity_inbox:')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('[OBSERVED] presence digital-life-line')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('[FRESH] execution-callback callback:cli')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('Closed the blocking popup.')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('Completed Run the CLI check command: all tests passed')
-    expect(secondTurn.buildSessionSystemBlock()).toContain('foreground_window=Cursor | cursor | airi-alice')
+    const sessionFacts = parseAgentSessionFactBlock(secondTurn.buildSessionSystemBlock())
+
+    expect(sessionFacts.digitalLife).toMatchObject({
+      architecture: {
+        dominantSystem: 'dialogue',
+        operatingMode: 'speaking',
+      },
+    })
+    expect(sessionFacts.memory.carry.mode).toBe('quiet')
+    expect(sessionFacts.continuitySignals).toEqual([
+      expect.objectContaining({
+        kind: 'presence',
+        state: 'observed',
+        label: 'digital-life-line',
+        summary: null,
+      }),
+      expect.objectContaining({
+        kind: 'execution-callback',
+        state: 'fresh',
+        summary: 'Completed Run the CLI check command: all tests passed',
+      }),
+    ])
+    expect(sessionFacts.recentActions).toEqual([
+      expect.objectContaining({
+        label: 'executor:openclaw',
+        summary: 'Closed the blocking popup.',
+      }),
+      expect.objectContaining({
+        label: 'callback:cli',
+        summary: 'Completed Run the CLI check command: all tests passed',
+      }),
+    ])
+    expect(sessionFacts.sensory.foregroundWindow).toEqual({
+      appName: 'Cursor',
+      processName: 'cursor',
+      title: 'airi-alice',
+    })
     expect(getSensorySnapshot).toBeCalledTimes(2)
   })
 
@@ -492,10 +541,22 @@ describe('alicization agent runtime', () => {
 
     const block = turn.buildSessionSystemBlock()
 
-    expect(block).toContain('[PENDING:needs-affirmation] plan:codex')
-    expect(block).toContain('Execution is waiting for affirmation before codex can act on the current unresolved line.')
-    expect(block).toContain('[FAIL:blocked] callback:cli')
-    expect(block).toContain('Execution stayed blocked because the kill switch is suspended.')
+    const data = parseAgentSessionFactBlock(block)
+
+    expect(data.recentActions).toEqual([
+      expect.objectContaining({
+        label: 'plan:codex',
+        status: 'pending',
+        threadStatus: 'needs-affirmation',
+        summary: 'Execution is waiting for affirmation before codex can act on the current unresolved line.',
+      }),
+      expect.objectContaining({
+        label: 'callback:cli',
+        status: 'failed',
+        threadStatus: 'blocked',
+        summary: 'Execution stayed blocked because the kill switch is suspended.',
+      }),
+    ])
   })
 
   it('keeps raw executor thread status detail in execution runtime context so pre-dispatch same-her execution does not collapse into a generic pending shell', async () => {
@@ -604,7 +665,7 @@ describe('alicization agent runtime', () => {
         kind: 'proactive',
         state: 'pending',
         label: 'proactive:coding:deferred',
-        summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | Keep extending cross-modal same-her proof quietly',
+        summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | Keep extending cross-modal identity-continuity',
         signature: 'proactive:deferred:1',
         createdAt: 110,
         metadata: {
@@ -631,23 +692,36 @@ describe('alicization agent runtime', () => {
         createdAt: 130,
         metadata: {
           source: 'proactive-feedback',
+          timing: 'next-open-window',
+          continuityArcStage: 'same-thread-continuation',
+          continuityCadence: 'measured-return',
+          residentMode: 'quiet-companionship',
         },
       },
     ] as any)
 
     const block = turn.buildSessionSystemBlock()
 
-    expect(block).toContain('session_continuity_inbox:')
-    expect(block).toContain('proactive:coding:deferred')
-    expect(block).toContain('proactive:coding:reply-within-120s')
-    expect(block).toContain('host replied within 120s after a proactive turn')
-    expect(block).toContain('same-thread-continuation')
-    expect(block).toContain('next-open-window')
-    expect(block).toContain('measured-return')
-    expect(block).toContain('quiet-companionship')
+    const data = parseAgentSessionFactBlock(block)
+
+    expect(data.continuitySignals).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: 'proactive:coding:deferred',
+      }),
+      expect.objectContaining({
+        label: 'proactive:coding:reply-within-120s',
+        summary: null,
+        continuity: {
+          arcStage: 'same-thread-continuation',
+          cadence: 'measured-return',
+          residentMode: 'quiet-companionship',
+        },
+        timing: 'next-open-window',
+      }),
+    ]))
   })
 
-  it('builds execution runtime context with canonical project briefing before execution starts', async () => {
+  it('does not create default project-status facts for an execution turn', async () => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),
       resolveConversationSessionId: async () => 'session-execution-project-briefing',
@@ -661,25 +735,10 @@ describe('alicization agent runtime', () => {
 
     const runtimeContext = await turn.buildExecutionRuntimeContext()
 
-    expect(runtimeContext.projectBriefing).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('local-first digital life project'),
-      currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-      latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
-      primaryOpenLoop: expect.stringContaining('Project identity carry'),
-      nextClosureTarget: expect.stringContaining('Phase 1 route carry'),
-      sameHerSelfLine: expect.stringContaining('same living line'),
-      sameHerHoldDetail: expect.stringContaining('same-her hold'),
-      sameHerDriftRisk: expect.stringContaining('generic guidance'),
-      continuityRestraint: 'measured-return',
-      continuityCue: expect.stringContaining('same living line'),
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-      preflightSummary: expect.stringContaining('open='),
-      preDialogueAwarenessLine: expect.stringContaining('Before answering, remember'),
-    }))
+    expect(runtimeContext.projectBriefing).toBeNull()
   })
 
-  it('rebuilds stronger same-her execution project briefing from session runtime-surface memory when no explicit project briefing is supplied', async () => {
+  it('keeps execution continuity enums while dropping runtime-surface persona prose', async () => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),
       resolveConversationSessionId: async () => 'session-execution-project-briefing-memory-derived',
@@ -702,17 +761,17 @@ describe('alicization agent runtime', () => {
         },
         memory: {
           selfEvolution: {
-            relationshipCadenceSummary: 'Same Phase 1 digital life. This execution re-entry already remembers this same her, but memory, initiative, and embodiment still need to close on one living line before widening outward.',
-            relationshipDoctrine: 'same-her hold: keep execution reopening on this remembered living line instead of widening into a generic assistant shell.',
-            latestInflection: 'Stay on the same living line as the same her inside this local-first digital life before widening outward again.',
-            summary: 'Execution reopening is still carrying the same-her line inward before outward fluency returns.',
+            relationshipCadenceSummary: 'measured return',
+            relationshipDoctrine: 'bounded',
+            latestInflection: 'return after current evidence is available',
+            summary: 'execution context remains bounded',
           },
           personStateProjection: {
             selfContinuityAuthority: {
-              selfLine: 'Same Phase 1 digital life. This execution re-entry already remembers this same her, but memory, initiative, and embodiment still need to close on one living line before widening outward.',
-              relationshipLine: 'same-her hold: keep execution reopening on this remembered living line instead of widening into a generic assistant shell.',
-              inwardLine: 'Stay on the same living line as the same her inside this local-first digital life before a generic assistant shell takes over.',
-              authoritySummary: 'This reopening still belongs to the same her; if it flattens into a generic assistant shell or detached project narration, treat that as unfinished same-her drift.',
+              selfLine: 'runtime context',
+              relationshipLine: 'bounded',
+              inwardLine: 'wait for current evidence',
+              authoritySummary: 'execution context remains bounded',
             },
           },
         },
@@ -735,23 +794,18 @@ describe('alicization agent runtime', () => {
     const runtimeContext = await turn.buildExecutionRuntimeContext()
 
     expect(runtimeContext.projectBriefing).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('local-first digital life project'),
-      currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-      primaryOpenLoop: expect.stringContaining('Project identity carry'),
-      nextClosureTarget: expect.stringContaining('Phase 1 route carry'),
-      sameHerSelfLine: expect.stringContaining('execution re-entry already remembers this same her'),
+      identity: null,
+      currentPhase: null,
+      sameHerSelfLine: null,
+      sameHerHoldDetail: null,
+      sameHerDriftRisk: null,
       continuityArcStage: 'same-thread-continuation',
-      continuityCue: 'Stay on the same living line as the same her inside this local-first digital life before a generic assistant shell takes over.',
-      sameHerDriftRisk: expect.stringContaining('generic assistant shell'),
+      continuityCue: null,
+      preDialogueAwarenessLine: null,
     }))
-    expect(runtimeContext.projectBriefing?.sameHerHoldDetail).toContain('remembered living line')
-    expect(runtimeContext.projectBriefing?.sameHerHoldDetail).toContain('generic assistant shell')
-    expect(runtimeContext.projectBriefing?.sameHerHoldDetail).toContain('before widening outward')
-    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toContain('Before answering, remember: Alicization is a local-first digital life project')
-    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toContain('She is still inside Phase 1: Local Digital Life')
   })
 
-  it('lets the current turn override execution project briefing so pre-dispatch execution can carry richer same-her closure detail instead of falling back to the canonical shell', async () => {
+  it('lets current-turn execution status aliases override default status facts without cue prose', async () => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),
       resolveConversationSessionId: async () => 'session-execution-project-briefing-override',
@@ -765,39 +819,36 @@ describe('alicization agent runtime', () => {
 
     const runtimeContext = await turn.buildExecutionRuntimeContext({
       projectBriefing: {
-        identity: 'Alicization is still the same local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
+        identity: '',
+        currentPhase: '',
         latestLandedProgress: '',
         primaryOpenLoop: '',
         nextClosureTarget: '',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: '',
         sameHerDriftRisk: '',
-        landedProgressSummary: 'Summary-only continuity carry already survives callback return, reply planning, and timeout recovery on one same-her line.',
-        openClosureSummary: 'Summary-only open closure: memory, initiative, and embodiment still need to close on one same living line.',
-        nextClosureTargetSummary: 'Summary-only next closure: keep cross-modal same-her proof explicit before local fluency takes over.',
-        sameHerDriftRiskSummary: 'Summary-only drift risk: if this reopens as generic guidance or project-summary voice, treat it as unfinished same-her closure drift.',
-        preflightSummary: 'same digital life | keep the closure seam explicit',
-        preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+        landedProgressSummary: 'The requested execution status was restored from the current turn.',
+        openClosureSummary: 'The requested operation still needs completion evidence.',
+        nextClosureTargetSummary: 'Collect the execution result and report it.',
+        sameHerDriftRiskSummary: '',
+        preflightSummary: '',
+        preDialogueAwarenessLine: '',
       } as any,
     })
 
     expect(runtimeContext.projectBriefing).toEqual(expect.objectContaining({
-      identity: 'Alicization is still the same local-first digital life project.',
-      currentPhase: 'Phase 1: Local Digital Life',
-      latestLandedProgress: 'Summary-only continuity carry already survives callback return, reply planning, and timeout recovery on one same-her line.',
-      primaryOpenLoop: 'Summary-only open closure: memory, initiative, and embodiment still need to close on one same living line.',
-      nextClosureTarget: 'Summary-only next closure: keep cross-modal same-her proof explicit before local fluency takes over.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      sameHerDriftRisk: 'Summary-only drift risk: if this reopens as generic guidance or project-summary voice, treat it as unfinished same-her closure drift.',
+      identity: null,
+      currentPhase: null,
+      latestLandedProgress: 'The requested execution status was restored from the current turn.',
+      primaryOpenLoop: 'The requested operation still needs completion evidence.',
+      nextClosureTarget: 'Collect the execution result and report it.',
+      sameHerSelfLine: null,
+      sameHerDriftRisk: null,
+      preflightSummary: null,
+      preDialogueAwarenessLine: null,
     }))
-    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toContain('local-first digital life project')
-    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toContain('Phase 1: Local Digital Life')
-    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toContain('Same Phase 1 digital life')
-    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).toContain('Summary-only continuity carry already survives')
-    expect(runtimeContext.projectBriefing?.preDialogueAwarenessLine).not.toBe('Before answering, keep the same digital life project in view.')
   })
 
-  it('keeps canonical project identity, Phase 1 progress, and still-open closure explicit in the agent session block before turn generation starts', async () => {
+  it('keeps project identity and reply-governance cues out of execution and session facts', async () => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),
       resolveConversationSessionId: async () => 'session-agent-project-briefing-block',
@@ -812,29 +863,16 @@ describe('alicization agent runtime', () => {
     const runtimeContext = await turn.buildExecutionRuntimeContext()
     const block = turn.buildSessionSystemBlock()
 
-    expect(runtimeContext.projectBriefing).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('local-first digital life project'),
-      currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-      latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
-      primaryOpenLoop: expect.stringContaining('Project identity carry'),
-      nextClosureTarget: expect.stringContaining('Phase 1 route carry'),
-      sameHerSelfLine: expect.stringContaining('same living line'),
-      preDialogueAwarenessLine: expect.stringContaining('Before answering, remember'),
-    }))
-    expect(block).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-    expect(block).toContain('identity=Alicization is a local-first digital life project')
-    expect(block).toContain('phase=Phase 1: Local Digital Life')
-    expect(block).toContain('latest_landed_progress=Same-session mirror carry')
-    expect(block).toContain('primary_open_loop=Memory still needs stronger end-to-end closure')
-    expect(block).toContain('same_her_line=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
-    expect(block).toContain('same_her_hold=same-her hold:')
-    expect(block).toContain('same_her_drift_risk=If project-state continuity survives only as generic guidance')
-    expect(block).toContain('Project identity carry')
-    expect(block).toContain('next_closure_target=Keep extending cross-modal same-her proof')
-    expect(block).toContain('same digital life')
+    expect(runtimeContext.projectBriefing).toBeNull()
+    const data = parseAgentSessionFactBlock(block)
+    expect(data.owners).toEqual({
+      longTermRecall: 'LongTermMemoryRecall',
+      shortTerm: 'WorkingMemory',
+    })
+    expect(block).not.toMatch(/Phase 1|same-her|same her|pre_turn_context_digest/iu)
   })
 
-  it('surfaces compact project-state focus inside the session continuity inbox when a carried continuity signal already knows the current closure seam', async () => {
+  it('does not project legacy project-state focus metadata into provider session facts', async () => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),
       resolveConversationSessionId: async () => 'session-continuity-project-focus',
@@ -854,17 +892,21 @@ describe('alicization agent runtime', () => {
       signature: 'continuity-project-focus',
       metadata: {
         source: 'proactive-held-autonomy',
-        projectStateOpenFocusSummary: 'emotion/memory/initiative/embodiment/same-line/closure-seam',
-        projectStateNextFocusSummary: 'project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment',
-        projectStateEmotionalClosureCue: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
+        projectStateOpenFocusSummary: 'memory/initiative/embodiment',
+        projectStateNextFocusSummary: 'measured-return/initiative/embodiment',
+        projectStateEmotionalClosureCue: 'bounded',
       },
     }])
 
     const block = turn.buildSessionSystemBlock()
 
-    expect(block).toContain('session_continuity_inbox:')
-    expect(block).toContain('open-focus=emotion/memory/initiative/embodiment/same-line/closure-seam')
-    expect(block).toContain('next-focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment')
-    expect(block).toContain('closure=same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.')
+    const data = parseAgentSessionFactBlock(block)
+
+    expect(data.continuitySignals).toEqual([
+      expect.objectContaining({
+        label: 'proactive:follow-through:held-autonomy',
+      }),
+    ])
+    expect(data.continuitySignals[0]).not.toHaveProperty('focus')
   })
 })

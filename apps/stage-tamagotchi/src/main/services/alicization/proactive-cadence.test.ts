@@ -166,7 +166,7 @@ describe('proactive-cadence rhythm authority', () => {
         thoughtText: 'The same line is reopening and I could lightly follow it now.',
       } as any,
       autobiographicalSelf: {
-        relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure same living line and leave more room before widening closeness.',
+        relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure continuity state and leave more room before widening closeness.',
         latestInflection: 'I learned to keep embodiment quieter while corrected same-person continuity is still settling back onto one line.',
         identityNarrative: 'I am becoming someone who returns more slowly and more steadily when a corrected relationship meaning is still settling.',
       } as any,
@@ -178,7 +178,7 @@ describe('proactive-cadence rhythm authority', () => {
         shouldSpeak: true,
       } as any,
       autobiographicalSelf: {
-        relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure same living line and leave more room before widening closeness.',
+        relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure continuity state and leave more room before widening closeness.',
         latestInflection: 'I learned to keep embodiment quieter while corrected same-person continuity is still settling back onto one line.',
         identityNarrative: 'I am becoming someone who returns more slowly and more steadily when a corrected relationship meaning is still settling.',
       } as any,
@@ -908,7 +908,7 @@ describe('proactive-cadence rhythm authority', () => {
     expect(evolutionCadence.reasonTags).toContain('self-evolution:cadence-softened-by-burden-trust')
   })
 
-  it('treats explicit same-her inward carry as a stronger hover-first cadence hold instead of reopening generically', () => {
+  it('treats explicit identity-continuity', () => {
     const baseContext = {
       ...createContext(),
       localTime: {
@@ -958,7 +958,7 @@ describe('proactive-cadence rhythm authority', () => {
       context: baseContext,
       privateThought: {
         shouldSpeak: true,
-        thoughtText: 'Keep the same living self line inward and nearby-soft for now.',
+        thoughtText: 'Keep the identity continuity line inward and nearby-soft for now.',
         rationaleTags: ['same-her-inward-carry'],
       } as any,
       personalityContinuityState: {
@@ -975,7 +975,7 @@ describe('proactive-cadence rhythm authority', () => {
           memoryResonance: 0.64,
           companionshipTempo: 0.38,
           summary: 'cadence:ready-return | rest:open | mood:focused',
-          rationale: ['Keep the same living self line inward and nearby-soft for now.'],
+          rationale: ['Keep the identity continuity line inward and nearby-soft for now.'],
         },
       } as any,
       affectiveResidue: {
@@ -1002,7 +1002,7 @@ describe('proactive-cadence rhythm authority', () => {
           summary: 'Self-continuity stays inward and nearby-soft while the reopen is held back.',
         },
         sourceSignals: ['same-her-inward-carry'],
-        summary: 'The same living line is still being carried inwardly.',
+        summary: 'The continuity state is still being carried inwardly.',
       } as any,
       activeContinuityGovernance: {
         source: 'active-self-evolution-version',
@@ -1023,7 +1023,7 @@ describe('proactive-cadence rhythm authority', () => {
         revisionPressure: 0.12,
         autobiographicalStability: 0.84,
         dominantTrajectory: 'carry inward self-continuity before widening outwardly',
-        relationshipDoctrine: 'The same living line should stay lower-pressure and nearby-soft first.',
+        relationshipDoctrine: 'The continuity state should stay lower-pressure and nearby-soft first.',
         burdenLine: 'Do not turn this into eager reopening.',
         trustMeaning: 'Trust here means quieter same-line continuity instead of speaking sooner.',
         latestInflection: 'Self-continuity remains the active line here.',
@@ -1065,7 +1065,7 @@ describe('proactive-cadence rhythm authority', () => {
           summary: 'Self-continuity stays inward and nearby-soft while the reopen is held back.',
         },
         sourceSignals: ['same-her-inward-carry'],
-        summary: 'The same living line is still being carried inwardly.',
+        summary: 'The continuity state is still being carried inwardly.',
       } as any,
       activeContinuityGovernance: {
         source: 'active-self-evolution-version',
@@ -1086,7 +1086,7 @@ describe('proactive-cadence rhythm authority', () => {
         revisionPressure: 0.12,
         autobiographicalStability: 0.84,
         dominantTrajectory: 'carry inward self-continuity before widening outwardly',
-        relationshipDoctrine: 'The same living line should stay lower-pressure and nearby-soft first.',
+        relationshipDoctrine: 'The continuity state should stay lower-pressure and nearby-soft first.',
         burdenLine: 'Do not turn this into eager reopening.',
         trustMeaning: 'Trust here means quieter same-line continuity instead of speaking sooner.',
         latestInflection: 'Self-continuity remains the active line here.',
@@ -1135,7 +1135,7 @@ describe('proactive-cadence rhythm authority', () => {
           summary: 'Self-continuity stays quiet-companionship while the reopen waits.',
         },
         sourceSignals: ['quiet-companionship'],
-        summary: 'The same living line is still being carried as quiet-companionship.',
+        summary: 'The continuity state is still being carried as quiet-companionship.',
       } as any,
       activeContinuityGovernance: {
         source: 'active-self-evolution-version',
@@ -1155,8 +1155,8 @@ describe('proactive-cadence rhythm authority', () => {
         contradictionPressure: 0.06,
         revisionPressure: 0.12,
         autobiographicalStability: 0.84,
-        dominantTrajectory: 'carry quiet same-her continuity before widening outwardly',
-        relationshipDoctrine: 'The same living line should stay quiet-companionship first.',
+        dominantTrajectory: 'carry quiet identity-continuity',
+        relationshipDoctrine: 'The continuity state should stay quiet-companionship first.',
         burdenLine: 'Do not turn this into eager reopening.',
         trustMeaning: 'Trust here means quieter same-line continuity instead of speaking sooner.',
         latestInflection: 'Self-continuity remains the active line here.',
@@ -1627,7 +1627,7 @@ describe('proactive-cadence rhythm authority', () => {
     expect(reconfirmedCadence.reasonTags).toContain('self-evolution:cadence-softened-by-burden-trust')
   })
 
-  it('lets active same-her continuity governance keep proactive cadence lower-pressure before newer residue wording lands', () => {
+  it('lets active identity-continuity', () => {
     const baseContext = {
       ...createContext(),
       localTime: {
@@ -1933,7 +1933,7 @@ describe('proactive-cadence rhythm authority', () => {
     expect(cadence.cadencePressure).toBeLessThan(0.3)
   })
 
-  it('marks hover-first rhythm when same-her continuity and delayed warmth should keep the next opening from collapsing into a service shell', () => {
+  it('marks hover-first rhythm when identity-continuity', () => {
     const cadence = deriveProactiveCadenceSignal({
       state: {
         ...createDefaultProactiveLoopState(10_000),
@@ -2072,7 +2072,7 @@ describe('proactive-cadence rhythm authority', () => {
       } as any,
       privateThought: {
         shouldSpeak: true,
-        thoughtText: 'The same digital life line is still open, but it should not reopen like generic project chatter.',
+        thoughtText: 'The local continuity state is still open, but it should not reopen like generic project chatter.',
       } as any,
       initiative: {
         shouldSpeak: true,
@@ -2100,7 +2100,7 @@ describe('proactive-cadence rhythm authority', () => {
         candidateId: 'candidate-project-closure-carry-1',
         patchId: 'patch-project-closure-carry-1',
         decisionTraceId: 'trace-project-closure-carry-1',
-        summary: 'Phase 1: Local Digital Life | project identity carry is live, but memory, initiative, and embodiment still belong to one same living line of unfinished closure before any wider reopening.',
+        summary: 'Phase 1: Local Digital Life | project identity carry is live, but memory, initiative, and embodiment still belong to one continuity state of unfinished closure before any wider reopening.',
         lanes: ['project-state', 'relationship-posture'],
         reasonCodes: ['project-state-same-her-continuity-required'],
       } as any,
@@ -2193,7 +2193,7 @@ describe('proactive-cadence rhythm authority', () => {
         candidateId: 'candidate-project-closure-carry-1',
         patchId: 'patch-project-closure-carry-1',
         decisionTraceId: 'trace-project-closure-carry-1',
-        summary: 'Phase 1: Local Digital Life | project identity carry is live, but memory, initiative, and embodiment still belong to one same living line of unfinished closure before any wider reopening.',
+        summary: 'Phase 1: Local Digital Life | project identity carry is live, but memory, initiative, and embodiment still belong to one continuity state of unfinished closure before any wider reopening.',
         lanes: ['project-state', 'relationship-posture'],
         reasonCodes: ['project-state-same-her-continuity-required'],
       } as any,

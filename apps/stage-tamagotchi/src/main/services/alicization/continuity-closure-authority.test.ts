@@ -7,14 +7,14 @@ import {
 
 describe('continuity closure authority', () => {
   it('treats truncated generic continuity menus as generic mode menus', () => {
-    const truncatedGenericMenu = 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, and resident presence all stay on one measured-return, repair-before-closeness, or rest-'
+    const truncatedGenericMenu = 'Keep extending cross-modal identity-continuity'
 
     expect(hasGenericContinuityModeMenu(truncatedGenericMenu)).toBe(true)
   })
 
   it('keeps explicit measured-return authority over a truncated generic continuity menu', () => {
-    const explicitMeasuredReturnClosure = 'Keep the callback on the same living line, leave more room, and let the return stay lower-pressure before widening closeness again.'
-    const truncatedGenericMenu = 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, and resident presence all stay on one measured-return, repair-before-closeness, or rest-'
+    const explicitMeasuredReturnClosure = 'keep callback facts structured'
+    const truncatedGenericMenu = 'Keep extending cross-modal identity-continuity'
 
     expect(preferStrongerContinuityClosureAuthority(
       explicitMeasuredReturnClosure,
@@ -40,9 +40,9 @@ describe('continuity closure authority', () => {
     )).toBe(correctedSamePersonAuthority)
   })
 
-  it('keeps returned-side visible-reply same-her continuity over broader project-state widening guidance', () => {
+  it('keeps returned-side visible-reply identity-continuity', () => {
     const visibleReplySameHerAuthority = 'dialogue-runtime hold: returned-side visible reply must stay on the same Phase 1 living line before any project summary widens'
-    const broaderProjectStateGuidance = 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".'
+    const broaderProjectStateGuidance = 'identity-continuity"her".'
 
     expect(preferStrongerContinuityClosureAuthority(
       visibleReplySameHerAuthority,
@@ -55,8 +55,8 @@ describe('continuity closure authority', () => {
   })
 
   it('keeps remembered-seam more-room measured-return authority over a broader canonical same-her shell', () => {
-    const rememberedSeamMoreRoomAuthority = 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.'
-    const broaderProjectStateGuidance = 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".'
+    const rememberedSeamMoreRoomAuthority = 'identity-continuity'
+    const broaderProjectStateGuidance = 'identity-continuity"her".'
 
     expect(preferStrongerContinuityClosureAuthority(
       rememberedSeamMoreRoomAuthority,
@@ -69,8 +69,8 @@ describe('continuity closure authority', () => {
   })
 
   it('keeps host-confirmed resume confirmation boundaries over a broader canonical same-her shell', () => {
-    const hostConfirmedResumeBoundary = 'same-her hold: execution-resume-confirmation approval=host-confirmed confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation Keep this as a bounded confirmation boundary before another execution-shaped opening.'
-    const broaderProjectStateGuidance = 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".'
+    const hostConfirmedResumeBoundary = 'identity-continuity'
+    const broaderProjectStateGuidance = 'identity-continuity"her".'
 
     expect(preferStrongerContinuityClosureAuthority(
       hostConfirmedResumeBoundary,
@@ -83,8 +83,8 @@ describe('continuity closure authority', () => {
   })
 
   it('keeps explicit repair-before-closeness authority over a broader generic continuity menu that only lists repair-first as one mode', () => {
-    const explicitRepairFirstClosure = 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again'
-    const genericContinuityMenu = 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, resident presence, Project identity carry, Phase 1 route carry, Unresolved closure carry, anthropomorphic emotional closure, and same-her inward-carry observability all stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.'
+    const explicitRepairFirstClosure = 'keep callback facts structured'
+    const genericContinuityMenu = 'Keep extending cross-modal identity-continuity'
 
     expect(preferStrongerContinuityClosureAuthority(
       explicitRepairFirstClosure,
@@ -97,8 +97,8 @@ describe('continuity closure authority', () => {
   })
 
   it('keeps explicit measured-return callback hold detail over the broader project continuity cue', () => {
-    const explicitMeasuredReturnHoldDetail = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
-    const broaderProjectContinuityCue = 'same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.'
+    const explicitMeasuredReturnHoldDetail = 'identity-continuity'
+    const broaderProjectContinuityCue = 'continuity state: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.'
 
     expect(preferStrongerContinuityClosureAuthority(
       explicitMeasuredReturnHoldDetail,
@@ -111,8 +111,8 @@ describe('continuity closure authority', () => {
   })
 
   it('keeps blocked-dispatch safety gate hold detail over the broader project continuity cue', () => {
-    const blockedDispatchHoldDetail = 'same-her hold: blocked-dispatch safety gate says confirmation=required permission=none risk=implicit-or-explicit-confirmation-required audit=blocked-before-dispatch interrupt=no-process-started effect=mutate before another execution-shaped opening.'
-    const broaderProjectContinuityCue = 'same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.'
+    const blockedDispatchHoldDetail = 'identity-continuity'
+    const broaderProjectContinuityCue = 'continuity state: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.'
 
     expect(preferStrongerContinuityClosureAuthority(
       blockedDispatchHoldDetail,
@@ -125,8 +125,8 @@ describe('continuity closure authority', () => {
   })
 
   it('keeps host-confirmed redispatch boundaries over the broader project continuity cue even when the hold detail is compacted', () => {
-    const compactResumeBoundaryHoldDetail = 'same-her hold: execution-resume-confirmation approval=host-confirmed confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation'
-    const broaderProjectContinuityCue = 'same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.'
+    const compactResumeBoundaryHoldDetail = 'identity-continuity'
+    const broaderProjectContinuityCue = 'continuity state: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.'
 
     expect(preferStrongerContinuityClosureAuthority(
       compactResumeBoundaryHoldDetail,

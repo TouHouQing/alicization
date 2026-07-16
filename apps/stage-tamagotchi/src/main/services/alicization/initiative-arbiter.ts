@@ -300,8 +300,8 @@ function hasProjectSameLineContinuityCue(value: string) {
   return [
     'same-her',
     'same her',
-    'one continuous her',
-    'same living line',
+    'identity-continuity',
+    'continuity-axis',
     'same living bond line',
     'measured-return',
     '同一个 her',

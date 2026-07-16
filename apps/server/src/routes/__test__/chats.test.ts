@@ -8,10 +8,8 @@ import { ApiError } from '../../utils/error'
 import { createChatRoutes } from '../chats'
 
 describe('chatRoutes', () => {
-  it('preserves structured pre-dialogue continuity through the browser server stream proxy boundary', async () => {
-    let capturedPayload: {
-      preDialogueSendIdentity?: Record<string, unknown> | null
-    } | null = null
+  it('drops legacy pre-dialogue governance at the browser server stream proxy boundary', async () => {
+    let capturedPayload: Record<string, unknown> | null = null
     const chatService = {
       streamChat: vi.fn(async (payload, options) => {
         capturedPayload = payload
@@ -85,29 +83,16 @@ describe('chatRoutes', () => {
     expect(await response.text()).toContain('"type":"finish"')
     expect(chatService.streamChat).toHaveBeenCalledTimes(1)
     expect(capturedPayload).not.toBeNull()
-    const capturedPreDialogueSendIdentity = (capturedPayload as any)?.preDialogueSendIdentity
-    expect(capturedPreDialogueSendIdentity).toEqual(expect.objectContaining({
-      status: 'grounded',
-      summaryLine: 'Structured pre-dialogue continuity is available at the browser proxy boundary.',
-      companionBriefingLine: 'The current turn carries project identity, landed progress, and open loop metadata.',
-      awarenessLine: 'Proxy should forward structured continuity fields without rewriting them.',
-      companionNextClosureLine: 'Keep the proxy payload intact for the downstream chat service.',
-      emotionalClosureCue: 'Keep provider-facing reply grounded in the forwarded structured context.',
-      reasonPreview: [
-        'Browser proxy carries structured continuity before dispatch.',
-      ],
-      projectState: expect.objectContaining({
-        identity: 'Alicization local runtime project state',
-        currentPhase: 'local desktop life loop',
-        latestLandedProgress: 'body-face-motion continuity has landed',
-        primaryOpenLoop: 'lipsync and voice still need rejoin validation',
-        nextClosureTarget: 'preserve structured continuity through browser proxy',
-        continuitySummary: 'browser proxy forwards structured continuity before the turn.',
-      }),
-      emotionalKernel: expect.objectContaining({
-        affectLabel: 'calm-resolute',
-        socialPosture: 'steady',
-      }),
+    expect(capturedPayload).toEqual(expect.objectContaining({
+      cardId: 'default',
+      turnId: 'turn-browser-proxy',
+      providerId: 'provider-openai',
+      model: 'gpt-4o-mini',
+      messages: [{
+        role: 'user',
+        content: '继续把数字生命拟人情绪驱动闭环收完。',
+      }],
     }))
+    expect(capturedPayload).not.toHaveProperty('preDialogueSendIdentity')
   })
 })

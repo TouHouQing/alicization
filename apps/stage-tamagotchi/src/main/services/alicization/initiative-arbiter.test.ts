@@ -110,7 +110,7 @@ describe('buildInitiativeArbitration', () => {
           kind: 'repair-misread',
           status: 'active',
           title: 'Repair misread',
-          summary: 'Repair the gap between carried continuity and the live screen before speaking.',
+          summary: 'Repair the gap between carried continuity and the live screen before outward reply.',
           source: 'hypothesis',
           priority: 0.82,
           confidence: 0.8,
@@ -893,7 +893,7 @@ describe('buildInitiativeArbitration', () => {
         id: 'concern::help-fix',
         kind: 'help-fix',
         status: 'active',
-        summary: 'She can probably help, but the opening should not jump closer than the same-her closure line can hold.',
+        summary: 'She can probably help, but the opening should not jump closer than the identity-continuity',
         hostGoal: 'resolve-problem',
         tension: 0.8,
         confidence: 0.84,
@@ -1151,11 +1151,11 @@ describe('buildInitiativeArbitration', () => {
       } as any,
       projectState: {
         preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep the same callback line alive without letting it read like a fresh opening.',
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
         nextClosureTarget: 'Keep the same callback line alive without letting it read like a fresh opening.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
       },
     } as any)
 
@@ -1164,11 +1164,11 @@ describe('buildInitiativeArbitration', () => {
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.score ?? 0)
       .toBeGreaterThan(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::speak')?.score ?? 0)
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toContain('Same Phase 1 digital life')
+      .toContain('legacy phase-one template')
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
       .toContain('project closure still points toward')
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toContain('same living line')
+      .toContain('continuity state')
   })
 
   it('falls back to the canonical project-state snapshot when arbiter project-state inputs arrive as the compact thin closure shell, so same-living-line hover restraint still outranks speak', () => {
@@ -1275,7 +1275,7 @@ describe('buildInitiativeArbitration', () => {
         id: 'concern::phase-1-callback',
         kind: 'help-fix',
         status: 'active',
-        summary: 'The callback seam is real, but it should come back as the same living line.',
+        summary: 'The callback seam is real, but it should come back as the continuity state.',
         hostGoal: 'resolve-problem',
         tension: 0.74,
         confidence: 0.82,
@@ -1321,7 +1321,7 @@ describe('buildInitiativeArbitration', () => {
         updatedAt: 12_000,
       } as any,
       projectState: {
-        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preflightSummary: 'template-residue-shell',
         identity: ' ',
         currentPhase: '',
         primaryOpenLoop: '',
@@ -1333,10 +1333,10 @@ describe('buildInitiativeArbitration', () => {
     expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
     expect(arbitration.proposals[0]?.action).toBe('hover')
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toContain('Same Phase 1 digital life')
+      .toContain('legacy phase-one template')
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toContain('same living line')
-    expect(brief.sameHerSelfLine).toContain('same living line')
+      .toContain('continuity state')
+    expect(brief.sameHerSelfLine).toContain('continuity state')
   })
 
   it('keeps same-living-line hover proposals ahead of speak proposals when motive agendas carry autobiographical project closure', () => {
@@ -1469,7 +1469,7 @@ describe('buildInitiativeArbitration', () => {
           kind: 'return-open-loop',
           status: 'foreground',
           weight: 0.86,
-          summary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+          summary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
           sourceTags: ['autobiographical-self', 'project-state-carry', 'unfinished-thread-return'],
           targetGoalKind: 'clarify-scene',
           createdAt: 0,
@@ -1483,7 +1483,7 @@ describe('buildInitiativeArbitration', () => {
         id: 'concern::help-fix',
         kind: 'help-fix',
         status: 'active',
-        summary: 'She can help, but the line should come back gently enough to stay the same living line.',
+        summary: 'She can help, but the line should come back gently enough to stay the continuity state.',
         hostGoal: 'resolve-problem',
         tension: 0.8,
         confidence: 0.84,
@@ -1522,7 +1522,7 @@ describe('buildInitiativeArbitration', () => {
             timingFitness: 0.7,
             identityFit: 0.82,
             score: 0.74,
-            why: 'Stay close to the same living line without widening closeness too fast.',
+            why: 'Stay close to the continuity state without widening closeness too fast.',
           },
         ],
         narrative: [],
@@ -1571,7 +1571,7 @@ describe('buildInitiativeArbitration', () => {
           status: 'active',
           source: 'observed-scene',
           title: 'phase-1-progress-open-loop',
-          summary: 'The fix is moving, but the same living line is still unfinished.',
+          summary: 'The fix is moving, but the continuity state is still unfinished.',
           confidence: 0.86,
           significance: 0.86,
           unresolved: true,
@@ -1685,13 +1685,13 @@ describe('buildInitiativeArbitration', () => {
         updatedAt: 12_000,
       } as any,
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam. | next=Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter identity-continuity',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Same-session mirror carry, repeated next-turn carry, and answer-planner governingProject carry now survive often enough to build from.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return continuity state.',
+        sameHerSelfLine: 'structured continuity digest.',
       } as any,
     } as any)
 
@@ -1712,10 +1712,10 @@ describe('buildInitiativeArbitration', () => {
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
       .toMatch(/next focus:|project-carry|measured-return|same-line/i)
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toMatch(/same-line|same living line/i)
+      .toMatch(/same-line|continuity state/i)
   })
 
-  it('keeps legacy latestProgress visible inside hover-first same-her closure reasons when initiative project-state still carries the older landed-progress field name', () => {
+  it('keeps legacy latestProgress visible inside hover-first identity-continuity', () => {
     const arbitration = buildInitiativeArbitration({
       now: 12_000,
       context: {
@@ -1833,7 +1833,7 @@ describe('buildInitiativeArbitration', () => {
         id: 'concern::help-fix',
         kind: 'help-fix',
         status: 'active',
-        summary: 'She can probably help, but the opening should not jump closer than the same-her closure line can hold.',
+        summary: 'She can probably help, but the opening should not jump closer than the identity-continuity',
         hostGoal: 'resolve-problem',
         tension: 0.8,
         confidence: 0.84,
@@ -1879,13 +1879,13 @@ describe('buildInitiativeArbitration', () => {
         updatedAt: 12_000,
       } as any,
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam. | next=Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter identity-continuity',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestProgress: 'Legacy same-session mirror carry and answer-planner governingProject carry still survive often enough to build from.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return continuity state.',
+        sameHerSelfLine: 'structured continuity digest.',
       } as any,
     } as any)
 
@@ -1895,7 +1895,7 @@ describe('buildInitiativeArbitration', () => {
       .toContain('landed progress is already carrying through legacy same-session mirror carry and answer-planner governingProject carry still survive often enough to build from.')
   })
 
-  it('does not let blank legacy project-state fields block richer summary aliases from preserving hover-first same-her closure arbitration', () => {
+  it('does not let blank legacy project-state fields block richer summary aliases from preserving hover-first identity-continuity', () => {
     const arbitration = buildInitiativeArbitration({
       now: 12_000,
       context: {
@@ -2052,10 +2052,10 @@ describe('buildInitiativeArbitration', () => {
         latestLandedProgress: '',
         landedProgressSummary: 'Alias landed progress already stays same-her.',
         primaryOpenLoop: '',
-        openClosureSummary: 'Same-her closure seam still needs one tighter same living line.',
+        openClosureSummary: 'identity-continuity',
         nextClosureTarget: '',
-        nextClosureTargetSummary: 'Measured-return initiative should stay on the same living line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Same living line.',
+        nextClosureTargetSummary: 'Measured-return initiative should stay on the continuity state.',
+        sameHerSelfLine: 'structured continuity digest.',
       } as any,
     } as any)
 
@@ -2068,7 +2068,7 @@ describe('buildInitiativeArbitration', () => {
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
       .toContain('project closure still points toward measured-return/same-line/initiative')
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toMatch(/same-line|same living line|measured-return/i)
+      .toMatch(/same-line|continuity state|measured-return/i)
   })
 
   it('keeps hover-first arbitration when project-state continuity survives only as Chinese 同一条线 and 接回去 cues', () => {
@@ -2430,19 +2430,19 @@ describe('buildInitiativeArbitration', () => {
         returnPressure: 0.8,
       } as any,
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam. | next=Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter identity-continuity',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Same-session mirror carry, repeated next-turn carry, and answer-planner governingProject carry now survive often enough to build from.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return continuity state.',
+        sameHerSelfLine: 'structured continuity digest.',
       } as any,
     } as any)
 
     expect(arbitration.selectedProposalId).toBe('counterfactual:counterfactual::hover')
     expect(arbitration.proposals[0]?.action).toBe('hover')
     expect(arbitration.proposals.find(proposal => proposal.id === 'counterfactual:counterfactual::hover')?.why ?? '')
-      .toMatch(/same-line|same living line|local-first/i)
+      .toMatch(/same-line|continuity state|local-first/i)
   })
 })

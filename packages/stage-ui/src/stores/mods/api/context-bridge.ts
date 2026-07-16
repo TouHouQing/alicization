@@ -4,18 +4,15 @@ import type { CompletionToolCall, UserMessage } from '@xsai/shared-chat'
 import type { ChatStreamEvent, ContextMessage } from '../../../types/chat'
 
 import { isStageTamagotchi, isStageWeb } from '@proj-alicization/stage-shared'
-import { hasAlicizationChatEntryPreDialogueSendIdentity } from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
 import { useBroadcastChannel } from '@vueuse/core'
 import { Mutex } from 'es-toolkit'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { ref, toRaw, watch } from 'vue'
 
-import { useAlicizationSelfEvolutionInspectorStore } from '../../alicization-self-evolution-inspector'
 import { useChatOrchestratorStore } from '../../chat'
 import { CHAT_STREAM_CHANNEL_NAME, CONTEXT_CHANNEL_NAME } from '../../chat/constants'
 import { useChatContextStore } from '../../chat/context-store'
-import { buildPreDialogueSendIdentityFromInspectorSnapshots } from '../../chat/pre-dialogue-send-identity'
 import { useChatSessionStore } from '../../chat/session-store'
 import { useChatStreamStore } from '../../chat/stream-store'
 import { useConsciousnessStore } from '../../modules/consciousness'
@@ -29,6 +26,41 @@ type BroadcastCloneSafeValue
     | boolean
     | BroadcastCloneSafeValue[]
     | { [key: string]: BroadcastCloneSafeValue }
+
+const legacyDialogueGovernanceKeys = new Set([
+  'preDialogueSendIdentity',
+  'preDialogueAwareness',
+  'preDialogueClosure',
+  'visibleReplyRealization',
+  'preDialogueAwarenessLine',
+  'preDialogueAwarenessSummary',
+  'awarenessLine',
+  'companionHeadlineLine',
+  'companionBriefingLine',
+  'companionNextClosureLine',
+  'sameHerSelfLine',
+  'sameHerSummary',
+  'sameHerHoldDetail',
+  'sameHerDriftRisk',
+  'sameHerDriftRiskLine',
+  'sameHerDriftRiskSummary',
+  'emotionalClosureCue',
+  'emotionalClosureSummary',
+  'continuityCue',
+  'continuityAnchor',
+  'continuityHold',
+  'continuityDriftRisk',
+  'proactiveSameHerGap',
+  'proactiveSameHerGapSummary',
+])
+
+function isLegacyDialogueGovernanceKey(key: string) {
+  return legacyDialogueGovernanceKeys.has(key)
+    || key.startsWith('companion')
+    || key.startsWith('sameHer')
+    || key.startsWith('emotionalClosure')
+    || key.startsWith('proactiveSameHer')
+}
 
 function sanitizeBroadcastCloneSafeValue(
   value: unknown,
@@ -110,6 +142,8 @@ function sanitizeBroadcastCloneSafeValue(
 
   const next: Record<string, BroadcastCloneSafeValue> = {}
   for (const [entryKey, entryValue] of Object.entries(value)) {
+    if (isLegacyDialogueGovernanceKey(entryKey))
+      continue
     const sanitized = sanitizeBroadcastCloneSafeValue(entryValue, seen)
     if (sanitized !== undefined)
       next[entryKey] = sanitized
@@ -119,12 +153,7 @@ function sanitizeBroadcastCloneSafeValue(
 
 function sanitizeBroadcastPayload<T>(value: T): T {
   const rawValue = toRaw(value)
-  try {
-    return structuredClone(rawValue)
-  }
-  catch {
-    return sanitizeBroadcastCloneSafeValue(rawValue, new WeakSet()) as T
-  }
+  return sanitizeBroadcastCloneSafeValue(rawValue, new WeakSet()) as T
 }
 
 export const useContextBridgeStore = defineStore('mods:api:context-bridge', () => {
@@ -136,34 +165,14 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
   const chatContext = useChatContextStore()
   const serverChannelStore = useModsServerChannelStore()
   const consciousnessStore = useConsciousnessStore()
-  const selfEvolutionInspectorStore = useAlicizationSelfEvolutionInspectorStore()
   const providersStore = useProvidersStore()
   const { activeProvider, activeModel } = storeToRefs(consciousnessStore)
-  const {
-    preDialogueAwarenessSnapshot,
-    preDialogueClosureSnapshot,
-    projectStateContinuitySnapshot,
-  } = storeToRefs(selfEvolutionInspectorStore)
 
   const { post: broadcastContext, data: incomingContext } = useBroadcastChannel<ContextMessage, ContextMessage>({ name: CONTEXT_CHANNEL_NAME })
   const { post: broadcastStreamEvent, data: incomingStreamEvent } = useBroadcastChannel<ChatStreamEvent, ChatStreamEvent>({ name: CHAT_STREAM_CHANNEL_NAME })
 
   const disposeHookFns = ref<Array<() => void>>([])
   let remoteStreamGuard: { sessionId: string, generation: number } | null = null
-
-  function buildContextBridgePreDialogueSendIdentity() {
-    const identity = buildPreDialogueSendIdentityFromInspectorSnapshots({
-      projectStateContinuitySnapshot: projectStateContinuitySnapshot.value,
-      preDialogueClosureSnapshot: preDialogueClosureSnapshot.value,
-      preDialogueAwarenessSnapshot: preDialogueAwarenessSnapshot.value,
-    })
-
-    if (hasAlicizationChatEntryPreDialogueSendIdentity(identity))
-      return identity
-
-    console.error('[context-bridge] Missing explicit pre-dialogue send identity for input:text ingress')
-    return null
-  }
 
   async function initialize() {
     await mutex.acquire()
@@ -237,10 +246,6 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
             messageText = `${overrides.messagePrefix}${text}`
           }
 
-          const preDialogueSendIdentity = buildContextBridgePreDialogueSendIdentity()
-          if (!preDialogueSendIdentity)
-            return
-
           // TODO(@nekomeowww): This only guard for input:text events handling and doesn't cover the entire ingestion
           // process. Another critical path of spark:notify is affected too, I think for better future development
           // experience, we should discover and find either a leader election or distributed lock solution to
@@ -270,7 +275,7 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
                 model: activeModel.value,
                 chatProvider,
                 providerConfig: providersStore.getProviderConfig(activeProvider.value),
-                input: {
+                input: sanitizeBroadcastPayload({
                   type: 'input:text',
                   data: {
                     ...event.data,
@@ -279,9 +284,8 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
                     overrides,
                     contextUpdates: normalizedContextUpdates,
                   },
-                },
+                }),
                 origin: 'context-recall',
-                preDialogueSendIdentity,
               }, targetSessionId)
             }
             catch (err) {
@@ -344,7 +348,7 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
           if (!isProcessingRemoteStream)
             postBroadcastStreamEvent({ type: 'tool-call', toolCall, sessionId: chatSession.activeSessionId, context })
 
-          serverChannelStore.send({
+          serverChannelStore.send(sanitizeBroadcastPayload({
             type: 'output:gen-ai:chat:tool-call',
             data: {
               ...context.input?.data,
@@ -356,12 +360,9 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
                 composedMessage: context.composedMessage,
                 contexts: context.contexts,
                 input: context.input,
-                ...(context.preDialogueSendIdentity !== undefined
-                  ? { preDialogueSendIdentity: context.preDialogueSendIdentity ?? null }
-                  : {}),
               },
             },
-          })
+          }))
         }),
 
         chatOrchestrator.onAssistantMessage(async (message, messageText, context) => {
@@ -375,7 +376,7 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
             })
           }
 
-          serverChannelStore.send({
+          serverChannelStore.send(sanitizeBroadcastPayload({
             type: 'output:gen-ai:chat:message',
             data: {
               ...context.input?.data,
@@ -387,16 +388,13 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
                 composedMessage: context.composedMessage,
                 contexts: context.contexts,
                 input: context.input,
-                ...(context.preDialogueSendIdentity !== undefined
-                  ? { preDialogueSendIdentity: context.preDialogueSendIdentity ?? null }
-                  : {}),
               },
             },
-          })
+          }))
         }),
 
         chatOrchestrator.onChatTurnComplete(async (chat, context) => {
-          serverChannelStore.send({
+          serverChannelStore.send(sanitizeBroadcastPayload({
             type: 'output:gen-ai:chat:complete',
             data: {
               ...context.input?.data,
@@ -416,12 +414,9 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
                 composedMessage: context.composedMessage,
                 contexts: context.contexts,
                 input: context.input,
-                ...(context.preDialogueSendIdentity !== undefined
-                  ? { preDialogueSendIdentity: context.preDialogueSendIdentity ?? null }
-                  : {}),
               },
             },
-          })
+          }))
         }),
       )
 

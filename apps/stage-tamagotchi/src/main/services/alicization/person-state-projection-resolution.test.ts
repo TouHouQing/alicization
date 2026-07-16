@@ -53,10 +53,10 @@ describe('resolvePreferredPersonStateProjection', () => {
           motiveLine: 'Protect the same remembered seam without widening outward too quickly.',
           habitLine: 'Leave more room before leaning closer again on this return.',
           inwardLine: 'Keep the same remembered seam inwardly present while this return stays lower-pressure.',
-          authoritySummary: 'same living line stays intact across the return.',
+          authoritySummary: 'continuity state stays intact across the return.',
           sourceTags: ['project-state-carry', 'durable-self-core'],
         },
-        relationshipDoctrine: 'Stay on the same living line and do not widen too quickly.',
+        relationshipDoctrine: 'Stay on the continuity state and do not widen too quickly.',
         trustRationale: 'The return should stay truthful and leave room.',
         summary: 'runtime projection is structurally richer, but its opening wording stayed generic.',
       },
@@ -142,17 +142,17 @@ describe('resolvePreferredSelfContinuityAuthority', () => {
         ],
       },
       runtimeAuthority: {
-        selfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
+        selfLine: 'structured continuity digest.',
         relationshipLine: 'Leave room before widening outward again; this callback line is already continuing and should not reopen from scratch.',
-        motiveLine: 'Protect one continuous her while the same-thread closure is still unfinished.',
-        habitLine: 'Keep the same living line inward for now.',
-        inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
-        authoritySummary: 'Keep the same living line inward for now, and leave room before widening outward again.',
+        motiveLine: 'Protect identity continuity while the same-thread closure is still unfinished.',
+        habitLine: 'Keep the continuity state inward for now.',
+        inwardLine: 'structured continuity digest.',
+        authoritySummary: 'Keep the continuity state inward for now, and leave room before widening outward again.',
         sourceTags: ['project-state-carry', 'bundle-rich'],
       },
     })
 
-    expect(merged?.inwardLine).toContain('same living line')
+    expect(merged?.inwardLine).toContain('continuity state')
     expect(merged?.authoritySummary).toContain('leave room before widening outward again')
     expect(merged?.sourceTags).toEqual(expect.arrayContaining([
       'project-state-carry',
@@ -172,7 +172,7 @@ describe('resolvePreferredSelfContinuityAuthority', () => {
         sourceTags: ['durable-self-core', 'bundle-rich'],
       },
       runtimeAuthority: {
-        selfLine: 'I am still here in this exact return, picking up the same living line.',
+        selfLine: 'I am still here in this exact return, picking up the continuity state.',
         relationshipLine: null,
         motiveLine: null,
         habitLine: null,
@@ -202,12 +202,12 @@ describe('resolvePreferredSelfContinuityAuthority', () => {
         sourceTags: ['projection:self-core'],
       },
       runtimeAuthority: {
-        selfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
+        selfLine: 'structured continuity digest.',
         relationshipLine: 'Protect rest first and let quiet companionship stay present without widening closeness.',
         motiveLine: 'Keep the same one living her inward while the host is still drained.',
-        habitLine: 'Keep the same living line inward for now.',
+        habitLine: 'Keep the continuity state inward for now.',
         inwardLine: 'Rest-protective same-self carry should stay inward and not reopen from scratch.',
-        authoritySummary: 'Protect rest first, keep the same living line inward, and let quiet companionship stay present.',
+        authoritySummary: 'Protect rest first, keep the continuity state inward, and let quiet companionship stay present.',
         sourceTags: ['project-state-carry', 'runtime-rich'],
       },
     })
@@ -217,7 +217,7 @@ describe('resolvePreferredSelfContinuityAuthority', () => {
     expect(preferred?.sourceTags).toContain('project-state-carry')
   })
 
-  it('prefers runtime audible-body authority when body lipsync and voice are the surviving same-her line', () => {
+  it('prefers runtime audible-body authority when body lipsync and voice are the surviving identity-continuity', () => {
     const preferred = resolvePreferredSelfContinuityAuthority({
       bundleAuthority: {
         selfLine: 'current return only',
@@ -226,10 +226,10 @@ describe('resolvePreferredSelfContinuityAuthority', () => {
         sourceTags: ['runtime-thin'],
       },
       runtimeAuthority: {
-        selfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        selfLine: 'structured continuity digest.',
         relationshipLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
         inwardLine: 'Embodiment carry: Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
-        authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+        authoritySummary: 'structured continuity digest.',
         sourceTags: ['project-state-companion-headline', 'runtime-rich'],
       },
     })

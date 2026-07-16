@@ -36,13 +36,11 @@ import {
   buildAlicizationEmbodimentFaceCue,
   buildAlicizationEmbodimentLipSyncHints,
   buildAlicizationEmbodimentMotionBurst,
-  buildMindGovernedFallbackSurface,
   deriveAlicizationMindParticipationFromSpine,
   formatGovernedMindMessage,
   governedMindFallbackLocale,
   governedMindFallbackMessageFallbacks,
   inferGovernedMindFallbackLocaleForUserText,
-  isWeakAlicizationScreenSurfaceCue,
   normalizeAlicizationDerivedMindStateBundle,
   normalizeAlicizationDigitalLifeEnvelope,
   normalizeAlicizationDigitalLifeSpineDigest,
@@ -52,16 +50,8 @@ import {
   normalizeAlicizationOrganicMemoryStageReplay,
   normalizeAlicizationRuntimeDigest,
   normalizeExecutionFirstGovernance,
-  replyLeaksGovernedMindSurface,
-  replyLooksCoherentSceneAnswer,
-  replyLooksOrganicDirectAnswer,
-  replyLooksThinGovernedShell,
-  replyViolatesExecutionFirstSurface,
   resolveAlicizationDialogueEmbodiment,
   sanitizeCharacterPerformanceManifest,
-  shouldDeferGovernedMindLocalRepair,
-  shouldForceGovernedMindSurface,
-  shouldPreserveDialogueFirstVisibleReply,
   translateGovernedMindFallback as translateGovernedMindFallbackShared,
 } from '@proj-alicization/stage-shared'
 
@@ -76,18 +66,9 @@ import { anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dia
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { coordinateAlicizationRuntimeEmbodiment } from './embodiment/runtime-embodiment-coordinator'
 import { buildAlicizationRuntimeEmbodimentSeed } from './embodiment/runtime-embodiment-seed'
-import { coerceAlicizationGovernanceForMindFallback } from './governed-mind-fallback-compat'
 import { ensureMindGovernanceDecisionTraceId, sanitizeMindGovernanceDecisionTraceId } from './mind-governance-trace'
-import { renderAlicizationMindSurface } from './mind-surface-renderer'
 import { normalizeMindTurnFrame } from './mind-turn-frame'
 import {
-  replyViolatesSameThreadContinuationGuidance,
-  resolveAlicizationOpeningGuidanceHoldDetail,
-  resolveAlicizationOpeningGuidanceViolationReason,
-} from './proactive-opening-guidance'
-import {
-  isAlicizationThinProjectAwarenessLine,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateSnapshot,
 } from './project-state-brief'
 import { sanitizeBriefText, uniqueCarryAnchors } from './runtime-realtime'
@@ -97,25 +78,10 @@ import {
   resolveAlicizationAutonomousDialogueOrigin,
   resolveAlicizationRuntimeMindTurnStructuredFormat,
 } from './runtime-structured-format'
-import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 import {
-  analyzeDialogueFirstVisibleReply,
-  analyzeUnsupportedTechnicalSpecificity,
-  clauseMentionsCue,
-  collectAllowedTechnicalSpecificityCues,
-  dialogueFirstProcessOnlyReplyPattern,
-  dialogueFirstRoleplayPrefacePattern,
-  dialogueFirstStaleCarryClausePattern,
-  extractForeignTechnicalReplyCues,
-  normalizeGovernedAnchorText,
-  repairDialogueFirstVisibleReply,
-  replyIncludesAnchorCue,
-  replyLooksProcessOnlyRepairShell,
-  splitDialogueReplyClauses,
-  technicalSpecificityCueMatches,
-  uniqueTechnicalSpecificityCues,
-} from './visible-reply/dialogue-first-contamination'
-import { resolveAlicizationVisibleReplyGovernanceAuditAuthority } from './visible-reply/governance-audit'
+  normalizeAlicizationProjectStateEvidenceStatus,
+  normalizeAlicizationVisibleReplyValidationStatus,
+} from './visible-reply/facade'
 
 export function createAbortError(reason?: string) {
   return new DOMException(`Alicization runtime aborted: ${reason ?? 'unknown'}`, 'AbortError')
@@ -2108,15 +2074,6 @@ export function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMe
   }
 }
 
-export const mindTurnSpineMarkers = ['obligation=', 'truth=', 'focus=', 'move=', 'tone='] as const
-
-export function hasMindTurnSpine(raw: string) {
-  const normalized = raw.trim().toLowerCase()
-  if (!normalized)
-    return false
-  return mindTurnSpineMarkers.every(marker => normalized.includes(marker))
-}
-
 export function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGovernance | null {
   const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -2274,70 +2231,6 @@ export function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGo
   }
 }
 
-export function sanitizeMindThoughtToken(raw: string | null | undefined, fallback: string) {
-  const normalized = sanitizeBriefText(raw ?? '', 64).toLowerCase().replace(/\s+/g, '-')
-  return normalized || fallback
-}
-
-export function resolveMindGovernanceObligation(governance: AlicizationMindTurnGovernance) {
-  switch (governance.answerAct ?? governance.mindTurnFrame?.obligation.answerAct) {
-    case 'guide':
-      return 'guide'
-    case 'care':
-      return 'care'
-    case 'correct-stale-anchor':
-    case 'ask-reground':
-      return 'repair'
-    case 'defer':
-      return 'accompany'
-    default:
-      break
-  }
-
-  switch (governance.turnMode) {
-    case 'guide-current-knot':
-      return 'guide'
-    case 'care':
-      return 'care'
-    case 'accompany':
-      return 'accompany'
-    case 'screen-repair':
-      return 'repair'
-    default:
-      return 'answer'
-  }
-}
-
-export function resolveMindGovernanceTruth(governance: AlicizationMindTurnGovernance) {
-  if (governance.groundedThisTurn === true)
-    return 'grounded'
-
-  switch (governance.mindTurnFrame?.world.truthState ?? governance.truthState) {
-    case 'live-grounded':
-    case 'dialogue-grounded':
-      return 'grounded'
-    case 'live-observed':
-      return 'coarse'
-    case 'remembered':
-      return 'memory'
-    default:
-      return 'uncertain'
-  }
-}
-
-export function resolveMindGovernanceTone(governance: AlicizationMindTurnGovernance) {
-  switch (governance.mindTurnFrame?.relation.relationshipPosture ?? governance.relationshipPosture) {
-    case 'restrained':
-      return 'restrained'
-    case 'tender':
-      return 'tender'
-    default:
-      return governance.turnMode === 'guide-current-knot' || governance.repairState !== 'none'
-        ? 'direct'
-        : 'warm'
-  }
-}
-
 export function resolveMindGovernanceEmotion(governance: AlicizationMindTurnGovernance, rawEmotion: string) {
   const normalized = normalizeAlicizationEmotion(rawEmotion).emotion
   if (governance.repairState === 'stale-anchor')
@@ -2360,57 +2253,6 @@ export function resolveMindGovernanceEmotion(governance: AlicizationMindTurnGove
     : 'neutral'
 }
 
-export function buildGovernedMindThought(governance: AlicizationMindTurnGovernance, payload: AlicizationConversationTurnInput) {
-  const focus = sanitizeMindThoughtToken(
-    governance.mindTurnFrame?.focusAnchor
-    || governance.mindTurnFrame?.world.visibleSurface
-    || governance.mindTurnFrame?.memory.carriedThread
-    || governance.mindTurnFrame?.obligation.answerIntent
-    || governance.focusAnchor
-    || (governance.screenReferenceMode === 'avoid' ? null : governance.liveSurface)
-    || governance.answerIntent
-    || governance.carriedThread
-    || payload.userText,
-    'current-user-turn',
-  )
-  const move = sanitizeMindThoughtToken(
-    governance.mindTurnFrame?.obligation.openingMove
-    || governance.mindTurnFrame?.obligation.answerIntent
-    || governance.mindTurnFrame?.focusAnchor
-    || governance.mindTurnFrame?.world.visibleSurface
-    || governance.openingMove
-    || governance.answerIntent
-    || governance.focusAnchor
-    || (governance.screenReferenceMode === 'avoid' ? null : governance.liveSurface),
-    'stabilize-and-answer',
-  )
-  return [
-    `obligation=${resolveMindGovernanceObligation(governance)}`,
-    `truth=${resolveMindGovernanceTruth(governance)}`,
-    `focus=${focus}`,
-    `move=${move}`,
-    `tone=${resolveMindGovernanceTone(governance)}`,
-  ].join('; ')
-}
-
-export function readMindThoughtMarker(thought: string, marker: 'obligation=' | 'truth=' | 'tone=') {
-  const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const match = thought.match(new RegExp(`${escapedMarker}\\s*([^;\\n]+)`, 'i'))
-  return match?.[1]?.trim().toLowerCase() ?? ''
-}
-
-export function thoughtConflictsWithMindGovernance(thought: string, governance: AlicizationMindTurnGovernance) {
-  if (!hasMindTurnSpine(thought))
-    return true
-
-  return readMindThoughtMarker(thought, 'obligation=') !== resolveMindGovernanceObligation(governance)
-    || readMindThoughtMarker(thought, 'truth=') !== resolveMindGovernanceTruth(governance)
-    || (
-      (governance.relationshipPosture === 'restrained' || governance.repairState !== 'none')
-      && readMindThoughtMarker(thought, 'tone=') !== resolveMindGovernanceTone(governance)
-    )
-}
-
 export {
   formatGovernedMindMessage,
   governedMindFallbackLocale,
@@ -2419,97 +2261,6 @@ export {
 }
 
 export const translateGovernedMindFallback = translateGovernedMindFallbackShared
-
-export type DialogueScriptFamily = 'none' | 'mixed' | 'cjk' | 'cyrillic' | 'latin'
-
-export function countScriptCharacters(raw: string, pattern: RegExp) {
-  return raw.match(pattern)?.length ?? 0
-}
-
-export function inferDominantDialogueScript(raw: unknown): DialogueScriptFamily {
-  const normalized = sanitizeBriefText(readStringValue(raw), 1_200)
-  if (!normalized)
-    return 'none'
-
-  const cjkCount = countScriptCharacters(normalized, /[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]/gu)
-  const cyrillicCount = countScriptCharacters(normalized, /[\u0400-\u04FF]/gu)
-  const latinCount = countScriptCharacters(normalized, /[A-Z]/gi)
-  const total = cjkCount + cyrillicCount + latinCount
-  if (total < 6)
-    return 'none'
-
-  const ranked = [
-    { family: 'cjk', count: cjkCount },
-    { family: 'cyrillic', count: cyrillicCount },
-    { family: 'latin', count: latinCount },
-  ].sort((left, right) => right.count - left.count)
-  const primary = ranked[0]
-  const secondary = ranked[1]
-  if (!primary || primary.count === 0)
-    return 'none'
-  if (primary.count / total < 0.56)
-    return 'mixed'
-  if (secondary && secondary.count > 0 && (primary.count / secondary.count) < 1.35)
-    return 'mixed'
-  return primary.family as DialogueScriptFamily
-}
-
-export function countLatinWordTokens(raw: string) {
-  return (raw.match(/[A-Z]+/gi) ?? []).length
-}
-
-export function replyScriptMismatchesUserTurn(input: {
-  userText?: string
-  reply: string
-}) {
-  const userText = sanitizeBriefText(input.userText ?? '', 480)
-  const reply = sanitizeBriefText(input.reply, 1_400)
-  if (!userText || !reply)
-    return false
-
-  const userScript = inferDominantDialogueScript(userText)
-  const replyScript = inferDominantDialogueScript(reply)
-  if (userScript === 'none' || userScript === 'mixed')
-    return false
-  if (replyScript === 'none' || replyScript === 'mixed')
-    return false
-  if (userScript === replyScript)
-    return false
-
-  const replyLength = [...reply].length
-  if (replyLength < 18)
-    return false
-
-  const userLatinWords = countLatinWordTokens(userText)
-  const replyLatinWords = countLatinWordTokens(reply)
-
-  if (userScript === 'cjk' && replyScript === 'latin')
-    return replyLatinWords >= 6 && userLatinWords <= 6
-  if (userScript === 'cyrillic' && replyScript === 'latin')
-    return replyLatinWords >= 6
-  if (userScript === 'latin' && (replyScript === 'cjk' || replyScript === 'cyrillic'))
-    return countLatinWordTokens(userText) >= 4
-
-  return true
-}
-
-export {
-  analyzeDialogueFirstVisibleReply,
-  analyzeUnsupportedTechnicalSpecificity,
-  clauseMentionsCue,
-  collectAllowedTechnicalSpecificityCues,
-  dialogueFirstProcessOnlyReplyPattern,
-  dialogueFirstRoleplayPrefacePattern,
-  dialogueFirstStaleCarryClausePattern,
-  extractForeignTechnicalReplyCues,
-  normalizeGovernedAnchorText,
-  repairDialogueFirstVisibleReply,
-  replyIncludesAnchorCue,
-  replyLooksProcessOnlyRepairShell,
-  splitDialogueReplyClauses,
-  technicalSpecificityCueMatches,
-  uniqueTechnicalSpecificityCues,
-}
 
 export function excerptGovernedReply(raw: unknown, maxChars = 220) {
   const normalized = sanitizeBriefText(readStringValue(raw), maxChars)
@@ -2714,7 +2465,7 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
       'some project-state closure has landed',
       'some closure already landed',
       'still-open closure',
-      'same living line',
+      'continuity-axis',
       'same project-state seam',
     ],
   )
@@ -2854,13 +2605,13 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
       ?? digitalLifeSpineWithContinuityAuthority,
   })
   const rememberedSeamManifestationCadenceSuffix = rememberedSeamMoreRoom
-    ? 'relationship_cadence=remembered_boundary; room=more; reentry=slower'
+    ? 'Leave more room before reopening this remembered boundary.'
     : manifestationCadenceSuffix
   const rememberedSeamRelationshipDoctrineSuffix = rememberedSeamMoreRoom
-    ? 'relationship_doctrine=boundary_first; room=more; reentry=slower'
+    ? 'Boundary first; reopen more slowly and with more room.'
     : relationshipDoctrineSuffix
   const rememberedSeamOutcomeSummarySuffix = rememberedSeamMoreRoom
-    ? 'relationship_outcome=measured_reentry; room=more; warmth_widening=deferred'
+    ? 'Measured re-entry with more room before warmth widens.'
     : outcomeSummarySuffix
   const openingGuidanceAuthority = sanitizeBriefText(input.openingGuidanceAuthority ?? '', 220)
   const shouldPreferHoldModeRelationshipDoctrine = companionshipHoldMode === 'rest-protective'
@@ -2892,7 +2643,7 @@ export function applyCompanionshipHoldModeToDigitalLifeSpine(input: {
             relationshipPosture: 'restrained',
             openingGuidance: openingGuidanceAuthority
               || (rememberedSeamMoreRoom
-                ? 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
+                ? 'Keep more room before reopening; do not widen closeness from the remembered seam too quickly.'
                 : 'Keep the return lower-pressure and leave more room before widening closeness.'),
             preferredProactiveStyle: 'silent-observe',
             manifestationCadenceSummary: rememberedSeamManifestationCadenceSuffix,
@@ -3152,47 +2903,6 @@ export function summarizeGovernanceAnchorAuditCandidates(candidates: Alicization
   return candidates.map(candidate => `${candidate.role}:${candidate.text}`)
 }
 
-export function replyUsesWeakGroundedSceneCue(reply: string, governance: AlicizationMindTurnGovernance) {
-  if (governance.screenReferenceMode === 'avoid')
-    return false
-
-  const answerSubject = governance.answerSubject ?? governance.mindTurnFrame?.relation.subject ?? null
-  const screenCentricTurn = answerSubject === 'task-knot'
-    || answerSubject === 'visible-scene'
-    || governance.turnMode === 'guide-current-knot'
-    || governance.turnMode === 'grounded-inspection'
-    || governance.turnMode === 'screen-repair'
-  if (!screenCentricTurn)
-    return false
-
-  const weakShellMentionedInReply = /\b(?:screen\s*\d+|display\s*\d*|window\s*\d*|workspace|desktop|current screen|current view|entire screen)\b/iu.test(reply)
-
-  const weakCandidates = [
-    governance.focusAnchor,
-    governance.answerIntent,
-    governance.liveSurface,
-    governance.mindTurnFrame?.focusAnchor,
-    governance.mindTurnFrame?.world.visibleSurface,
-    governance.mindTurnFrame?.obligation.openingClaim,
-    governance.mindTurnFrame?.obligation.answerIntent,
-    governance.dialogueActKernel?.openingClaim,
-    governance.dialogueActKernel?.activeProject,
-    governance.dialogueActKernel?.selectedEvidence[0]?.summary,
-    governance.dialogueActKernel?.mustSay[0],
-  ]
-    .map(candidate => sanitizeBriefText(readStringValue(candidate), 220))
-    .filter(Boolean)
-    .filter(candidate => isWeakAlicizationScreenSurfaceCue(candidate))
-
-  const weakCueMentioned = weakCandidates.some(candidate => replyIncludesAnchorCue(reply, candidate))
-  if (governance.groundedThisTurn === true)
-    return weakShellMentionedInReply || weakCueMentioned
-
-  const truthState = governance.mindTurnFrame?.world.truthState ?? governance.truthState
-  const uncertainTruth = truthState === 'uncertain' || truthState === 'remembered' || truthState === 'imagined'
-  return uncertainTruth && (weakShellMentionedInReply || weakCueMentioned)
-}
-
 export function reconcileMindGovernanceAnchors(governance: AlicizationMindTurnGovernance, userText?: string) {
   const anchorCandidatesBefore = collectGovernanceAnchorAuditCandidates(governance)
   const coherence = resolveDialogueAnchorCoherence({
@@ -3275,74 +2985,6 @@ export function reconcileMindGovernanceAnchors(governance: AlicizationMindTurnGo
   }
 }
 
-export function detectReplyConflictingAnchors(
-  reply: string,
-  governance: AlicizationMindTurnGovernance,
-  preferredDominant?: string | null,
-) {
-  const coherence = resolveDialogueAnchorCoherence({
-    subject: governance.answerSubject ?? governance.mindTurnFrame?.relation.subject ?? governance.dialogueActKernel?.subject ?? null,
-    screenReferenceMode: governance.screenReferenceMode ?? null,
-    truthState: governance.mindTurnFrame?.world.truthState ?? governance.truthState,
-    groundedThisTurn: governance.groundedThisTurn === true,
-    hostMove: governance.mindTurnFrame?.relation.hostMove ?? null,
-    candidates: [
-      { role: 'focus', text: governance.focusAnchor },
-      { role: 'answer-intent', text: governance.answerIntent },
-      { role: 'carry', text: governance.carriedThread },
-      { role: 'scene', text: governance.dialogueActKernel?.selectedEvidence[0]?.summary },
-      { role: 'visible-surface', text: governance.liveSurface },
-    ],
-  })
-  const dominantAnchor = sanitizeBriefText(readStringValue(preferredDominant ?? coherence.dominant), 220) || null
-  if (!dominantAnchor)
-    return { hasConflict: false, reason: '', coherence }
-
-  const conflictingCandidates = [
-    governance.focusAnchor,
-    governance.answerIntent,
-    governance.carriedThread,
-    governance.dialogueActKernel?.selectedEvidence[0]?.summary,
-    governance.liveSurface,
-  ]
-    .map((candidate) => {
-      const normalized = typeof candidate === 'string' ? sanitizeBriefText(candidate, 220) : ''
-      return normalized || null
-    })
-    .filter((candidate): candidate is string => Boolean(candidate))
-    .filter(candidate => anchorsMateriallyConflict(candidate, dominantAnchor))
-    .filter((candidate, index, items) => items.findIndex(item => item === candidate) === index)
-
-  if (conflictingCandidates.length === 0) {
-    return {
-      hasConflict: false,
-      reason: '',
-      coherence,
-      dominantAnchor,
-      conflictingCandidates: [] as string[],
-      mentionedConflicts: [] as string[],
-    }
-  }
-
-  const mentionsDominant = replyIncludesAnchorCue(reply, dominantAnchor)
-  const mentionedConflicts = conflictingCandidates.filter(candidate => replyIncludesAnchorCue(reply, candidate))
-  const hasConflict = mentionedConflicts.length > 0
-    && (mentionsDominant || coherence.sceneAuthority || governance.groundedThisTurn === true)
-
-  return {
-    hasConflict,
-    reason: hasConflict
-      ? (coherence.sceneAuthority || governance.groundedThisTurn === true
-          ? 'reply-split-brain-scene-thread'
-          : 'reply-conflicting-anchors')
-      : '',
-    coherence,
-    dominantAnchor,
-    conflictingCandidates,
-    mentionedConflicts,
-  }
-}
-
 export function resolveGovernanceTurnOwner(governance?: AlicizationMindTurnGovernance | null) {
   if (!governance)
     return null
@@ -3370,147 +3012,49 @@ export function isExplicitGovernanceRepairTurn(governance: AlicizationMindTurnGo
     || governance.answerAct === 'correct-stale-anchor'
 }
 
-function shouldBlockLocalVisibleOverrideText(governance: AlicizationMindTurnGovernance) {
-  if (governance.screenReferenceMode === 'avoid')
-    return true
+function extractProjectStateContinuityValue(raw: string) {
+  const sanitized = sanitizeBriefText(raw, 260)
+  if (!sanitized)
+    return ''
 
-  const subject = governance.answerSubject ?? governance.mindTurnFrame?.relation.subject ?? null
-  return governance.turnMode === 'care'
-    || governance.turnMode === 'accompany'
-    || governance.answerAct === 'care'
-    || governance.answerAct === 'defer'
-    || subject === 'alicization-self'
-    || subject === 'project-state'
-    || subject === 'relationship'
-    || subject === 'host-state'
+  const separatorIndex = sanitized.indexOf('=')
+  if (separatorIndex <= 0)
+    return sanitized
+
+  const rawKey = sanitized.slice(0, separatorIndex).trim()
+  if (!/^[a-z][\w-]*$/iu.test(rawKey))
+    return sanitized
+
+  const value = sanitizeBriefText(sanitized.slice(separatorIndex + 1), 220)
+  if (!value)
+    return ''
+
+  return value
 }
 
-export function resolveGovernedFallbackPatternId(governance: AlicizationMindTurnGovernance, replyOverridden: boolean) {
-  if (!replyOverridden)
-    return 'none'
-  if (governance.repairState === 'stale-anchor')
-    return 'repair-stale-anchor'
-  if (governance.repairState === 'need-reground')
-    return 'repair-need-reground'
-  if (governance.turnMode === 'guide-current-knot')
-    return 'guide-current-knot'
-  if (governance.turnMode === 'grounded-inspection')
-    return 'grounded-inspection'
-  if (governance.turnMode === 'care')
-    return 'care'
-  if (governance.turnMode === 'accompany')
-    return 'accompany'
-  return 'answer'
-}
-
-function buildGovernedVisibleReplyRewriteRequest(input: {
-  shouldOverrideVisibleReply: boolean
-  reasons: string[]
-  coherentGovernance: AlicizationMindTurnGovernance
-  fallbackPatternId: string
+export function buildPrioritizedProjectStateContinuityLines(input: {
   projectStateContinuityCarry?: string | null
   projectStateContinuityAnchors?: string[] | null
-  openingGuidanceHoldDetail?: string | null
-  companionshipHoldMode?: 'quiet-companionship' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | null
-  renderedOverrideReply?: string | null
-  governedSurfaceReply?: string | null
-  candidateReply: string
-  unsupportedCues: string[]
-  conflictingCandidates: string[]
-  droppedClauses: string[]
-}) {
-  if (!input.shouldOverrideVisibleReply)
-    return null
-
-  const mustPreserve = buildPrioritizedProjectStateRewritePreserveLines({
-    projectStateContinuityCarry: input.projectStateContinuityCarry ?? null,
-    projectStateContinuityAnchors: input.projectStateContinuityAnchors ?? null,
-    answerIntent: input.coherentGovernance.answerIntent ?? null,
-    focusAnchor: input.coherentGovernance.focusAnchor ?? null,
-    openingClaim: input.coherentGovernance.dialogueActKernel?.openingClaim ?? null,
-    obligationOpeningClaim: input.coherentGovernance.mindTurnFrame?.obligation.openingClaim ?? null,
-  })
-  const mustDrop = uniqueCarryAnchors([
-    ...input.unsupportedCues,
-    ...input.conflictingCandidates,
-    ...input.droppedClauses,
-    input.renderedOverrideReply ?? '',
-    input.governedSurfaceReply ?? '',
-  ].filter(item => item && input.candidateReply.includes(item)), 10)
-  if (input.reasons.includes('same-thread-restart-shell'))
-    mustDrop.push('same-thread continuation restart shell that reopens the current reply context as a fresh opening')
-  if (input.reasons.some(reason => reason.startsWith('opening-guidance-')))
-    mustDrop.push('continuity opening drift')
-  const memoryTruthDiscipline = deriveAlicizationTruthDiscipline({
-    answerSubject: input.coherentGovernance.answerSubject ?? input.coherentGovernance.mindTurnFrame?.relation.subject ?? null,
-    screenReferenceMode: input.coherentGovernance.screenReferenceMode ?? null,
-    truthState: input.coherentGovernance.truthState,
-    turnMode: input.coherentGovernance.turnMode,
-    repairState: input.coherentGovernance.repairState,
-    evidenceMode: input.coherentGovernance.evidenceMode ?? input.coherentGovernance.claimEvidence?.evidenceMode ?? null,
-    labelCarryAsMemory: input.coherentGovernance.labelCarryAsMemory,
-    suppressAssociativeRecall: input.coherentGovernance.suppressAssociativeRecall,
-    claimEvidenceLedger: input.coherentGovernance.claimEvidence ?? null,
-  }).mode
-
-  return {
-    required: true,
-    authority: 'llm-second-pass-rewrite' as const,
-    reasonCodes: uniqueCarryAnchors(input.reasons, 12),
-    mustPreserve,
-    mustDrop,
-    openingGuidanceHoldDetail: input.openingGuidanceHoldDetail ?? null,
-    companionshipHoldMode: input.companionshipHoldMode ?? null,
-    surfaceContract: input.coherentGovernance.answerIntent ?? input.coherentGovernance.openingMove ?? null,
-    memoryTruthDiscipline,
-    fallbackPatternId: input.fallbackPatternId,
-  }
-}
-
-export function buildPrioritizedProjectStateRewritePreserveLines(input: {
-  projectStateContinuityCarry?: string | null
-  projectStateContinuityAnchors?: string[] | null
-  answerIntent?: string | null
-  focusAnchor?: string | null
-  openingClaim?: string | null
-  obligationOpeningClaim?: string | null
 }) {
   const projectStateContinuityAnchors = Array.isArray(input.projectStateContinuityAnchors)
     ? input.projectStateContinuityAnchors
     : []
-  const findProjectStatePreserveLine = (prefix: string) =>
-    projectStateContinuityAnchors.find(anchor => anchor.toLowerCase().startsWith(prefix))
-    ?? ''
-  const projectStatePreserveLines = [
-    findProjectStatePreserveLine('project_anchor='),
-    findProjectStatePreserveLine('hold='),
-    findProjectStatePreserveLine('arc='),
-    findProjectStatePreserveLine('cue='),
-    findProjectStatePreserveLine('drift='),
-    findProjectStatePreserveLine('phase='),
-    findProjectStatePreserveLine('landed='),
-    findProjectStatePreserveLine('open='),
-    findProjectStatePreserveLine('next='),
-    findProjectStatePreserveLine('proactive-gap='),
-    findProjectStatePreserveLine('closure='),
-    findProjectStatePreserveLine('body='),
-  ].filter(Boolean)
-  const nonProjectStateContinuityAnchors = projectStateContinuityAnchors.filter(
-    anchor => !/^(?:continuity_anchor|same-her|hold|arc|cue|proactive-gap|phase|landed|open|next|closure|body|drift)=/i.test(anchor),
+  const explicitContinuityValues = uniqueCarryAnchors(
+    projectStateContinuityAnchors.map(extractProjectStateContinuityValue),
+    10,
+    260,
   )
-  const protectedProjectStatePreserveLines = uniqueCarryAnchors(projectStatePreserveLines, 10, 220)
-  const genericCarryTail = uniqueCarryAnchors([
-    input.projectStateContinuityCarry ?? '',
-    ...nonProjectStateContinuityAnchors,
-    input.answerIntent ?? '',
-    input.focusAnchor ?? '',
-    input.openingClaim ?? '',
-    input.obligationOpeningClaim ?? '',
-  ], 10, 220).filter(anchor => !protectedProjectStatePreserveLines.includes(anchor))
+  const genericCarryTail = uniqueCarryAnchors(
+    [
+      input.projectStateContinuityCarry ?? '',
+    ].map(extractProjectStateContinuityValue),
+    10,
+    260,
+  ).filter(value => !explicitContinuityValues.includes(value))
 
   return [
-    ...protectedProjectStatePreserveLines,
-    ...genericCarryTail.slice(0, Math.max(0, 10 - protectedProjectStatePreserveLines.length)),
+    ...explicitContinuityValues,
+    ...genericCarryTail.slice(0, Math.max(0, 10 - explicitContinuityValues.length)),
   ]
 }
 
@@ -3553,7 +3097,7 @@ function deriveProjectStateClosureOpeningMove(projectStateAudit?: {
     latestInflection: sameHerHoldDetail,
     continuityCue: nextClosureTargetSummary,
   })) {
-    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
+    return null
   }
 
   const sameHerClosureStillOpen
@@ -3574,132 +3118,6 @@ function deriveProjectStateClosureOpeningMove(projectStateAudit?: {
   return sameHerClosureStillOpen
     ? 'Stay inside the current continuity baseline. Keep the opening lower-pressure and leave room before widening closeness.'
     : null
-}
-
-function resolveProjectStateContinuityCarry(projectStateAudit?: {
-  sameHerSummary?: string | null
-  sameHerHoldDetail?: string | null
-  continuityArcStage?: string | null
-  continuityCue?: string | null
-  proactiveSameHerGapSummary?: string | null
-  currentPhaseSummary?: string | null
-  landedProgressSummary?: string | null
-  openClosureSummary?: string | null
-  openFocusSummary?: string | null
-  nextFocusSummary?: string | null
-  nextClosureTargetSummary?: string | null
-  emotionalClosureSummary?: string | null
-  continuitySummary?: string | null
-  preDialogueAwarenessSummary?: string | null
-} | null) {
-  const rawContinuitySummary = typeof projectStateAudit?.continuitySummary === 'string'
-    ? projectStateAudit.continuitySummary.replace(/\s+/g, ' ').trim()
-    : ''
-  const preDialogueAwarenessSummary = sanitizeBriefText(projectStateAudit?.preDialogueAwarenessSummary ?? '', 220)
-  const currentPhaseSummary = sanitizeBriefText(projectStateAudit?.currentPhaseSummary ?? '', 220)
-  const landedProgressSummary = sanitizeBriefText(projectStateAudit?.landedProgressSummary ?? '', 220)
-  const openClosureSummary = sanitizeBriefText(projectStateAudit?.openClosureSummary ?? '', 220)
-  const openFocusSummary = sanitizeBriefText(projectStateAudit?.openFocusSummary ?? '', 220)
-  const nextFocusSummary = sanitizeBriefText(projectStateAudit?.nextFocusSummary ?? '', 220)
-  const nextClosureTargetSummary = sanitizeBriefText(projectStateAudit?.nextClosureTargetSummary ?? '', 220)
-  const emotionalClosureSummary = sanitizeBriefText(projectStateAudit?.emotionalClosureSummary ?? '', 220)
-  const continuitySummary = sanitizeBriefText(rawContinuitySummary, 320)
-  const sameHerSummary = sanitizeBriefText(projectStateAudit?.sameHerSummary ?? '', 220)
-  const sameHerHoldDetail = sanitizeBriefText(projectStateAudit?.sameHerHoldDetail ?? '', 220)
-  const continuityArcStage = sanitizeBriefText(projectStateAudit?.continuityArcStage ?? '', 220)
-  const continuityCue = sanitizeBriefText(projectStateAudit?.continuityCue ?? '', 220)
-  const proactiveGapMatch = rawContinuitySummary.match(/(?:^|\|)\s*proactive-gap=([^|]+)/i)
-  const proactiveSameHerGapSummary = sanitizeBriefText(proactiveGapMatch?.[1] ?? '', 220)
-    || sanitizeBriefText(projectStateAudit?.proactiveSameHerGapSummary ?? '', 220)
-  const closureMatch = rawContinuitySummary.match(/(?:^|\|)\s*closure=([^|]+)/i)
-  const closureSummary = sanitizeBriefText(closureMatch?.[1] ?? '', 220) || emotionalClosureSummary
-  const continuityLooksStronger = /\b(?:same-her=|same her=|same-her continuity|same her continuity|one continuous her|one living her|detached shell)\b/i.test(continuitySummary)
-  const sameHerLooksStronger = /\b(?:one living her|one living digital life|holding together mainly through|audible-body rejoin|audible body rejoin|face|motion|voice|lipsync|cross-modal|embodiment closure|same living line|without splitting her continuity|initiative and embodiment closure|one continuous her)\b/i.test(sameHerSummary)
-  const awarenessLooksThinner
-    = isAlicizationThinProjectAwarenessLine(preDialogueAwarenessSummary)
-      || /\b(?:before any local fluency takes over|remember this is still the same digital life project|keep this same digital life project in view)\b/i.test(preDialogueAwarenessSummary)
-  const continuityLine = [
-    sameHerSummary ? `project_anchor=${sameHerSummary}` : '',
-    sameHerHoldDetail ? `hold=${sameHerHoldDetail}` : '',
-    continuityArcStage ? `arc=${continuityArcStage}` : '',
-    continuityCue ? `cue=${continuityCue}` : '',
-    proactiveSameHerGapSummary ? `proactive-gap=${proactiveSameHerGapSummary}` : '',
-    currentPhaseSummary ? `phase=${currentPhaseSummary}` : '',
-    landedProgressSummary ? `landed=${landedProgressSummary}` : '',
-    openClosureSummary ? `open=${openClosureSummary}` : '',
-    openFocusSummary ? `open-focus=${openFocusSummary}` : '',
-    nextFocusSummary ? `next-focus=${nextFocusSummary}` : '',
-    nextClosureTargetSummary ? `next=${nextClosureTargetSummary}` : '',
-    closureSummary ? `closure=${closureSummary}` : '',
-  ].filter(Boolean).join(' | ')
-  if (sameHerLooksStronger && /\bsame-her=keep the same digital life project in view\b/i.test(continuitySummary))
-    return continuityLine || sameHerSummary
-  if (continuityLooksStronger && awarenessLooksThinner)
-    return continuityLine || continuitySummary
-  const strongestAwarenessCarry = resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: {
-      preDialogueAwarenessLine: preDialogueAwarenessSummary,
-      preDialogueAwarenessSummary: continuityLine || continuitySummary,
-      landedProgressSummary,
-      openClosureSummary,
-      openFocusSummary,
-      nextFocusSummary,
-      proactiveSameHerGap: proactiveSameHerGapSummary || null,
-      companionHeadlineLine: sameHerSummary || null,
-      awarenessLine: sameHerHoldDetail || continuityCue || continuityArcStage || sameHerSummary || continuityLine,
-    },
-  })
-  return strongestAwarenessCarry
-    || continuityLine
-    || continuitySummary
-    || sameHerHoldDetail
-    || sameHerSummary
-    || null
-}
-
-function resolveProjectStateContinuityAnchors(projectStateAudit?: {
-  sameHerSummary?: string | null
-  sameHerHoldDetail?: string | null
-  continuityArcStage?: string | null
-  continuityCue?: string | null
-  proactiveSameHerGapSummary?: string | null
-  currentPhaseSummary?: string | null
-  landedProgressSummary?: string | null
-  openClosureSummary?: string | null
-  openFocusSummary?: string | null
-  nextFocusSummary?: string | null
-  nextClosureTargetSummary?: string | null
-  emotionalClosureSummary?: string | null
-  continuitySummary?: string | null
-  preDialogueAwarenessSummary?: string | null
-} | null) {
-  const rawContinuitySummary = typeof projectStateAudit?.continuitySummary === 'string'
-    ? projectStateAudit.continuitySummary.replace(/\s+/g, ' ').trim()
-    : ''
-  const proactiveGapMatch = rawContinuitySummary.match(/(?:^|\|)\s*proactive-gap=([^|]+)/i)
-  const proactiveSameHerGapSummary = sanitizeBriefText(proactiveGapMatch?.[1] ?? '', 220)
-    || sanitizeBriefText(projectStateAudit?.proactiveSameHerGapSummary ?? '', 220)
-  const closureMatch = rawContinuitySummary.match(/(?:^|\|)\s*closure=([^|]+)/i)
-  const closureSummary = sanitizeBriefText(closureMatch?.[1] ?? '', 220)
-    || sanitizeBriefText(projectStateAudit?.emotionalClosureSummary ?? '', 220)
-  const canonicalProjectStateAnchors = [
-    projectStateAudit?.sameHerSummary ? `project_anchor=${sanitizeBriefText(projectStateAudit.sameHerSummary, 220)}` : '',
-    projectStateAudit?.sameHerHoldDetail ? `hold=${sanitizeBriefText(projectStateAudit.sameHerHoldDetail, 220)}` : '',
-    projectStateAudit?.continuityArcStage ? `arc=${sanitizeBriefText(projectStateAudit.continuityArcStage, 220)}` : '',
-    projectStateAudit?.continuityCue ? `cue=${sanitizeBriefText(projectStateAudit.continuityCue, 220)}` : '',
-    proactiveSameHerGapSummary ? `proactive-gap=${proactiveSameHerGapSummary}` : '',
-    projectStateAudit?.currentPhaseSummary ? `phase=${sanitizeBriefText(projectStateAudit.currentPhaseSummary, 220)}` : '',
-    projectStateAudit?.landedProgressSummary ? `landed=${sanitizeBriefText(projectStateAudit.landedProgressSummary, 220)}` : '',
-    projectStateAudit?.openClosureSummary ? `open=${sanitizeBriefText(projectStateAudit.openClosureSummary, 220)}` : '',
-    projectStateAudit?.openFocusSummary ? `open-focus=${sanitizeBriefText(projectStateAudit.openFocusSummary, 220)}` : '',
-    projectStateAudit?.nextFocusSummary ? `next-focus=${sanitizeBriefText(projectStateAudit.nextFocusSummary, 220)}` : '',
-    projectStateAudit?.nextClosureTargetSummary ? `next=${sanitizeBriefText(projectStateAudit.nextClosureTargetSummary, 220)}` : '',
-    closureSummary ? `closure=${closureSummary}` : '',
-  ]
-  return uniqueCarryAnchors([
-    ...canonicalProjectStateAnchors,
-    resolveProjectStateContinuityCarry(projectStateAudit) ?? '',
-  ], 8, 220)
 }
 
 function readStructuredVisibleReplyRealization(
@@ -3742,21 +3160,119 @@ function readStructuredVisibleReplyRealization(
     : undefined
 }
 
+function sanitizeVisibleReplyRealizationForProviderReply(
+  raw: AlicizationConversationTurnInput['visibleReplyRealization'] | null | undefined,
+  providerReply: string,
+): AlicizationConversationTurnInput['visibleReplyRealization'] {
+  if (!raw)
+    return undefined
+
+  const actualAuthority = raw.actualAuthority === 'llm-mind'
+    || raw.actualAuthority === 'local-deterministic-fallback'
+    || raw.actualAuthority === 'non-human-authored-blocked'
+    ? raw.actualAuthority
+    : null
+
+  return {
+    ...raw,
+    expectedAuthority:
+      typeof raw.expectedAuthority === 'string'
+        ? raw.expectedAuthority
+        : null,
+    actualAuthority,
+    providerMindExecuted: raw.providerMindExecuted === true,
+    visibleText: providerReply || null,
+    blockedReasons: Array.isArray(raw.blockedReasons)
+      ? raw.blockedReasons.filter((reason): reason is string => typeof reason === 'string')
+      : [],
+  }
+}
+
+function resolveProviderVisibleReplyAuthorityFailure(input: {
+  turn: AlicizationConversationTurnInput
+  structuredPayload: Record<string, unknown>
+  visibleReplyRealization: AlicizationConversationTurnInput['visibleReplyRealization']
+}) {
+  const structuredAuthority = readStringValue(input.structuredPayload.visibleReplyAuthority).trim()
+  if (structuredAuthority && structuredAuthority !== 'llm-mind')
+    return 'structured-visible-reply-authority-invalid'
+
+  const execution = input.turn.visibleReplyExecution
+  if (
+    execution
+    && (
+      execution.providerMindExecuted !== true
+      || execution.actualVisibleReplyAuthority !== 'llm-mind'
+    )
+  ) {
+    return 'visible-reply-execution-invalid'
+  }
+
+  const realization = input.visibleReplyRealization
+  if (
+    realization
+    && (
+      realization.providerMindExecuted !== true
+      || realization.actualAuthority !== 'llm-mind'
+    )
+  ) {
+    return 'visible-reply-realization-authority-invalid'
+  }
+
+  return null
+}
+
+function blockVisibleReplyRealization(
+  raw: AlicizationConversationTurnInput['visibleReplyRealization'],
+  providerReply: string,
+  reasons: string[],
+): AlicizationConversationTurnInput['visibleReplyRealization'] {
+  if (!raw)
+    return undefined
+
+  return {
+    ...raw,
+    actualAuthority: 'non-human-authored-blocked',
+    visibleText: providerReply || null,
+    nonHumanAuthoredStatus: 'non-human-authored-blocked',
+    blockedReasons: Array.from(new Set([
+      ...(Array.isArray(raw.blockedReasons) ? raw.blockedReasons : []),
+      ...reasons,
+    ])),
+  }
+}
+
 export function coerceConversationTurnToMindGovernedPayload(
   input: AlicizationConversationTurnInput,
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null,
   options?: {
-    dialogueFirstLocalRepairMode?: 'compat-visible' | 'rewrite-request-only'
-    visibleReplyOverrideMode?: 'compat-visible' | 'rewrite-request-only'
     currentConsciousFrame?: AlicizationGovernanceCurrentConsciousFrameInput
   },
 ) {
-  const dialogueFirstLocalRepairMode = options?.dialogueFirstLocalRepairMode ?? 'rewrite-request-only'
-  const visibleReplyOverrideMode = options?.visibleReplyOverrideMode ?? 'rewrite-request-only'
   const normalizedCurrentConsciousFrame = coerceGovernanceCurrentConsciousFrame(options?.currentConsciousFrame)
   const structuredPayload = input.structured && typeof input.structured === 'object'
     ? input.structured as Record<string, unknown>
     : {}
+  const providerReply = readStringValue(structuredPayload.reply).trim()
+  const rawVisibleReplyRealization
+    = input.visibleReplyRealization ?? readStructuredVisibleReplyRealization(structuredPayload)
+  const sanitizedVisibleReplyRealization = sanitizeVisibleReplyRealizationForProviderReply(
+    rawVisibleReplyRealization,
+    providerReply,
+  )
+  const visibleReplyAuthorityFailure = resolveProviderVisibleReplyAuthorityFailure({
+    turn: input,
+    structuredPayload,
+    visibleReplyRealization: rawVisibleReplyRealization,
+  })
+  const sanitizedPayload = {
+    ...input,
+    visibleReplyRealization: sanitizedVisibleReplyRealization,
+    structured: {
+      ...structuredPayload,
+      visibleReplyRealization: sanitizedVisibleReplyRealization,
+    },
+  }
   const structuredRuntimeDigest = normalizeAlicizationRuntimeDigest(
     structuredPayload.runtimeDigest,
   ) as AlicizationRuntimeDigest | null
@@ -3768,7 +3284,7 @@ export function coerceConversationTurnToMindGovernedPayload(
   const governance = normalizeMindTurnGovernance(input.governance ?? structuredPayload.governance)
   if (autonomousDialogueFamily.isAutonomous) {
     if (!governance)
-      return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
+      return { payload: sanitizedPayload, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
 
     const tracedGovernance = {
       ...governance,
@@ -3776,10 +3292,10 @@ export function coerceConversationTurnToMindGovernedPayload(
     } satisfies AlicizationMindTurnGovernance
     return {
       payload: {
-        ...input,
+        ...sanitizedPayload,
         governance: tracedGovernance,
         structured: {
-          ...structuredPayload,
+          ...(sanitizedPayload.structured as Record<string, unknown>),
           governance: tracedGovernance,
         },
       },
@@ -3791,21 +3307,17 @@ export function coerceConversationTurnToMindGovernedPayload(
     }
   }
   if (!governance)
-    return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
+    return { payload: sanitizedPayload, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
 
-  const reply = readStringValue(structuredPayload.reply).trim()
-    || sanitizeBriefText(readStringValue(input.assistantText), 2_000)
-  if (!reply)
-    return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
-
+  const reply = providerReply
   const thought = readStringValue(structuredPayload.thought).trim()
+  const rawFormat = readStringValue(structuredPayload.format).trim()
   const formatResolution = resolveAlicizationRuntimeMindTurnStructuredFormat({
     rawFormat: structuredPayload.format,
     contractFailed: structuredPayload.contractFailed === true,
     hasGovernance: true,
     origin: input.origin,
   })
-  const format = formatResolution.format
   const parsePath = readStringValue(structuredPayload.parsePath).trim().toLowerCase()
   const dialogueActKernel = normalizeDialogueActKernel(
     structuredPayload.dialogueActKernel ?? governance.dialogueActKernel,
@@ -3827,312 +3339,83 @@ export function coerceConversationTurnToMindGovernedPayload(
     decisionTraceId: ensureMindGovernanceDecisionTraceId(governedAnchorRepair.governance.decisionTraceId),
   } satisfies AlicizationMindTurnGovernance
   const executionFirstGovernance = normalizeExecutionFirstGovernance({
-    governance: coerceAlicizationGovernanceForMindFallback(anchorCoherentGovernance),
+    governance: anchorCoherentGovernance,
     userText: input.userText,
   })
   const coherentGovernance = (executionFirstGovernance.governance ?? anchorCoherentGovernance) as AlicizationMindTurnGovernance
-  const fallbackGovernance = coerceAlicizationGovernanceForMindFallback(coherentGovernance)
+  const invalidFormat = rawFormat !== 'mind-turn-v1'
+  const invalidParsePath = parsePath !== 'json'
+  const contractFailed = structuredPayload.contractFailed === true
+  const missingProviderReply = !reply
+  if (
+    contractFailed
+    || invalidFormat
+    || invalidParsePath
+    || missingProviderReply
+    || visibleReplyAuthorityFailure
+  ) {
+    const reasons = [
+      contractFailed ? 'structured-contract-failed' : '',
+      invalidFormat ? 'structured-format-invalid' : '',
+      invalidParsePath ? 'structured-parsepath-invalid' : '',
+      missingProviderReply ? 'structured-reply-missing' : '',
+      visibleReplyAuthorityFailure ?? '',
+    ].filter(Boolean)
+    const blockedVisibleReplyRealization = blockVisibleReplyRealization(
+      sanitizedVisibleReplyRealization,
+      readStringValue(structuredPayload.reply),
+      reasons,
+    )
+    return {
+      payload: {
+        ...sanitizedPayload,
+        visibleReplyRealization: blockedVisibleReplyRealization,
+        governance: coherentGovernance,
+        structured: {
+          ...(sanitizedPayload.structured as Record<string, unknown>),
+          reply: readStringValue(structuredPayload.reply),
+          visibleReplyAuthority: 'non-human-authored-blocked',
+          visibleReplyRealization: blockedVisibleReplyRealization,
+          format: rawFormat || structuredPayload.format,
+          parsePath: parsePath || structuredPayload.parsePath,
+          contractFailed: true,
+          governance: coherentGovernance,
+        },
+      },
+      governance: coherentGovernance,
+      tookOver: false,
+      replyOverridden: false,
+      reasons,
+      audit: {
+        owner_before: ownerBefore,
+        owner_after: resolveGovernanceTurnOwner(coherentGovernance),
+        contract_failed: true,
+      },
+    }
+  }
   const normalizedEmotion = resolveMindGovernanceEmotion(
     coherentGovernance,
     readStringValue(structuredPayload.emotion).trim().toLowerCase(),
   )
-  const thoughtConflict = thoughtConflictsWithMindGovernance(thought, coherentGovernance)
-  const initialGovernedSurface = buildMindGovernedFallbackSurface({
-    governance: fallbackGovernance,
-    userText: input.userText,
-    translate: (path, params) => translateGovernedMindFallback(path, params, input.userText),
+  const candidateReply = reply
+  const effectiveOpeningMove = coherentGovernance.openingMove
+  const companionshipHoldMode = inferCompanionshipHoldModeFromDigitalLifeSpine({
+    digitalLifeSpine: normalizeGovernanceDigitalLifeSpineDigest(
+      (structuredPayload as Record<string, unknown>).digitalLifeSpine,
+    ),
+    currentConsciousFrame: normalizedCurrentConsciousFrame,
   })
-  const strictGovernance = shouldForceGovernedMindSurface(coherentGovernance, input.userText)
-  const initialDialogueFirstVisibleReply = analyzeDialogueFirstVisibleReply({
-    reply,
-    userText: input.userText,
-    governance: coherentGovernance,
-  })
-  const preserveDialogueFirstVisibleReply = shouldPreserveDialogueFirstVisibleReply(coherentGovernance)
-  const dialogueFirstRepairEvidence = preserveDialogueFirstVisibleReply
-    ? repairDialogueFirstVisibleReply({
-        reply,
-        userText: input.userText,
-        governance: coherentGovernance,
-        analysis: initialDialogueFirstVisibleReply,
-      })
-    : {
-        applied: false,
-        reply,
-        analysis: initialDialogueFirstVisibleReply,
-        reason: null as string | null,
-        droppedClauses: [] as string[],
-      }
-  const useDialogueFirstRepairAsVisibleCandidate = dialogueFirstLocalRepairMode === 'compat-visible'
-    && !dialogueFirstRepairEvidence.analysis.decorativePersonaTemplate
-  const candidateReply = useDialogueFirstRepairAsVisibleCandidate && dialogueFirstRepairEvidence.applied
-    ? dialogueFirstRepairEvidence.reply
-    : reply
-  const leakedGovernedSurface = replyLeaksGovernedMindSurface(candidateReply, coherentGovernance, input.userText)
-  const executionSurfaceViolation = replyViolatesExecutionFirstSurface({
-    reply: candidateReply,
-    governance: coherentGovernance,
-    userText: input.userText,
-  })
-  const weakGroundedSceneCue = replyUsesWeakGroundedSceneCue(candidateReply, coherentGovernance)
-  const unsupportedTechnicalSpecificity = analyzeUnsupportedTechnicalSpecificity({
-    reply: candidateReply,
-    userText: input.userText,
-    governance: coherentGovernance,
-  })
-  const projectStateContinuityCarry = resolveProjectStateContinuityCarry(
-    input.visibleReplyRealization?.projectStateAudit ?? null,
-  )
-  const projectStateContinuityAnchors = resolveProjectStateContinuityAnchors(
-    input.visibleReplyRealization?.projectStateAudit ?? null,
-  )
-  const effectiveOpeningMove = deriveProjectStateClosureOpeningMove(
-    input.visibleReplyRealization?.projectStateAudit ?? null,
-  ) ?? coherentGovernance.openingMove
-  const openingGuidanceViolationReason = effectiveOpeningMove
-    ? resolveAlicizationOpeningGuidanceViolationReason({
-        reply: candidateReply,
-        openingGuidance: effectiveOpeningMove,
-      })
-    : null
-  const sameThreadRestartShell = effectiveOpeningMove
-    ? replyViolatesSameThreadContinuationGuidance({
-        reply: candidateReply,
-        openingGuidance: effectiveOpeningMove,
-      })
-    : false
-  const openingGuidanceHoldDetail = openingGuidanceViolationReason
-    ? resolveAlicizationOpeningGuidanceHoldDetail({
-        reply: candidateReply,
-        openingGuidance: effectiveOpeningMove ?? '',
-        openingGuidanceViolationReason,
-      })
-    : null
-  const companionshipHoldMode = openingGuidanceViolationReason === 'proactive-opening-guidance-violation:repair-first'
-    ? 'repair-before-closeness'
-    : openingGuidanceHoldDetail === 'memory-familiarity-closeness-cap'
-      ? 'repair-before-closeness'
-      : openingGuidanceViolationReason === 'proactive-opening-guidance-violation:lower-pressure'
-        ? 'measured-return'
-        : inferCompanionshipHoldModeFromDigitalLifeSpine({
-            digitalLifeSpine: normalizeGovernanceDigitalLifeSpineDigest(
-              (structuredPayload as Record<string, unknown>).digitalLifeSpine,
-            ),
-            currentConsciousFrame: normalizedCurrentConsciousFrame,
-          })
-  const conflictingAnchors = detectReplyConflictingAnchors(
-    candidateReply,
-    coherentGovernance,
-    governedAnchorRepair.coherence.dominant ?? coherentGovernance.focusAnchor,
-  )
-  const scriptMismatch = replyScriptMismatchesUserTurn({
-    userText: input.userText,
-    reply: candidateReply,
-  })
-  const dialogueFirstVisibleReply = useDialogueFirstRepairAsVisibleCandidate
-    ? dialogueFirstRepairEvidence.analysis
-    : initialDialogueFirstVisibleReply
-  const dialogueFirstOverrideRequired = Boolean(
-    preserveDialogueFirstVisibleReply
-    && dialogueFirstVisibleReply.contaminated,
-  )
-  const governedSurface = dialogueFirstOverrideRequired
-    ? buildMindGovernedFallbackSurface({
-        governance: fallbackGovernance,
-        userText: input.userText,
-        translate: (path, params) => translateGovernedMindFallback(path, params, input.userText),
-        forceDialogueAnswerFallback: true,
-      })
-    : initialGovernedSurface
-  const dispatchOnlyVisibleOverride = governedSurface?.visibleReplyMode === 'dispatch-only'
-  const thinGovernedShell = replyLooksThinGovernedShell(
-    candidateReply,
-    governedSurface?.reply ?? '',
-    fallbackGovernance,
-    governedSurface?.thinShellCue,
-  )
-  const coherentSceneReply = replyLooksCoherentSceneAnswer({
-    reply: candidateReply,
-    governance: fallbackGovernance,
-    userText: input.userText,
-  })
-  const organicDirectReply = replyLooksOrganicDirectAnswer({
-    reply: candidateReply,
-    governance: fallbackGovernance,
-    userText: input.userText,
-    thinShellCue: governedSurface?.thinShellCue,
-  })
-  const hasMindThought = hasMindTurnSpine(thought)
-  const missingMindThought = !hasMindThought
-  const invalidFormat = format !== 'mind-turn-v1'
-  const invalidParsePath = !['json', 'repair-json', 'second-pass-json'].includes(parsePath)
-  const contractFailed = structuredPayload.contractFailed === true
   const reasons = [
-    contractFailed ? 'structured-contract-failed' : '',
-    invalidFormat ? 'structured-format-repaired' : '',
-    invalidParsePath ? 'structured-parsepath-repaired' : '',
-    missingMindThought ? 'thought-missing-mind-spine' : '',
-    thoughtConflict ? 'thought-governance-mismatch' : '',
     governedAnchorRepair.changed ? 'governance-anchor-coherence-repaired' : '',
-    executionFirstGovernance.applied ? 'execution-first-governance-override' : '',
-    dispatchOnlyVisibleOverride ? 'execution-first-dispatch-hidden' : '',
-    dialogueFirstRepairEvidence.applied
-      ? (useDialogueFirstRepairAsVisibleCandidate
-          ? 'dialogue-first-visible-reply-soft-repaired'
-          : 'dialogue-first-visible-reply-rewrite-evidence')
-      : '',
-    strictGovernance ? 'strict-governance-surface' : '',
-    executionSurfaceViolation ? 'execution-first-visible-reply-violation' : '',
-    leakedGovernedSurface ? 'reply-leaked-internal-governance' : '',
-    weakGroundedSceneCue ? 'reply-used-weak-grounded-scene-cue' : '',
-    unsupportedTechnicalSpecificity.unsupportedCues.length > 0 ? 'reply-introduced-unsupported-technical-specificity' : '',
-    sameThreadRestartShell ? 'same-thread-restart-shell' : '',
-    openingGuidanceViolationReason
-      ? openingGuidanceViolationReason.replace('proactive-opening-guidance-violation:', 'opening-guidance-')
-      : '',
-    scriptMismatch ? 'reply-script-mismatch-with-user-turn' : '',
-    conflictingAnchors.reason,
-    dialogueFirstVisibleReply.contaminated && (!useDialogueFirstRepairAsVisibleCandidate
-      || !dialogueFirstRepairEvidence.applied)
-      ? 'dialogue-first-visible-reply-contaminated'
-      : '',
-    thinGovernedShell ? 'reply-thin-governed-shell' : '',
-    shouldDeferGovernedMindLocalRepair(coherentGovernance) && (!useDialogueFirstRepairAsVisibleCandidate
-      || !dialogueFirstRepairEvidence.applied)
-      ? 'dialogue-first-repair-deferred'
-      : '',
+    executionFirstGovernance.applied ? 'execution-first-governance-normalized' : '',
     structuredPayload.governance == null ? 'governance-snapshot-injected' : '',
   ].filter(Boolean)
-
-  const hardOverrideRequired = Boolean(
-    executionSurfaceViolation
-    || leakedGovernedSurface
-    || (
-      weakGroundedSceneCue
-      || unsupportedTechnicalSpecificity.shouldOverride
-      || sameThreadRestartShell
-      || Boolean(openingGuidanceViolationReason)
-      || scriptMismatch
-      || conflictingAnchors.hasConflict
-      || dialogueFirstOverrideRequired
-    ),
-  )
-  const thinShellOverrideRequired = Boolean(
-    thinGovernedShell
-    && !preserveDialogueFirstVisibleReply,
-  )
-  const strictOverrideRequired = strictGovernance
-  const explicitRepairTurn = isExplicitGovernanceRepairTurn(coherentGovernance)
-  const strictRepairReplySuppressed = Boolean(
-    strictOverrideRequired
-    && !hardOverrideRequired
-    && !thinShellOverrideRequired
-    && explicitRepairTurn
-    && (coherentSceneReply || organicDirectReply),
-  )
-  const softStrictOverrideSuppressed = Boolean(
-    strictOverrideRequired
-    && !hardOverrideRequired
-    && (!explicitRepairTurn || strictRepairReplySuppressed),
-  )
-  if (softStrictOverrideSuppressed)
-    reasons.push('soft-strict-governance-suppressed')
-  if (strictRepairReplySuppressed) {
-    reasons.push(coherentSceneReply
-      ? 'strict-repair-scene-reply-preserved'
-      : 'strict-repair-organic-reply-preserved')
-  }
-  const overrideCandidateNeeded = Boolean(
-    hardOverrideRequired
-    || thinShellOverrideRequired
-    || (strictOverrideRequired && !softStrictOverrideSuppressed),
-  )
-  const renderedOverrideSurface = overrideCandidateNeeded
-    ? renderAlicizationMindSurface({
-        governance: coherentGovernance,
-        userText: input.userText,
-        moves: [],
-        forceDialogueAnswerFallback: dialogueFirstOverrideRequired,
-      })
-    : null
-  const shouldOverrideVisibleReply = Boolean(
-    overrideCandidateNeeded
-    && (
-      dispatchOnlyVisibleOverride
-      || Boolean(renderedOverrideSurface?.reply)
-      || Boolean(governedSurface?.reply)
-      || dialogueFirstOverrideRequired
-    ),
-  )
-  const replyKeptDespiteMismatch = Boolean(
-    !shouldOverrideVisibleReply
-    && (
-      thoughtConflict
-      || governedAnchorRepair.changed
-      || dialogueFirstVisibleReply.contaminated
-      || unsupportedTechnicalSpecificity.unsupportedCues.length > 0
-      || conflictingAnchors.hasConflict
-    ),
-  )
-  if (replyKeptDespiteMismatch)
-    reasons.push('reply-kept-despite-mismatch')
-  const overrideClass = shouldOverrideVisibleReply
-    ? (hardOverrideRequired ? 'hard-override' : 'soft-override')
-    : 'none'
-  const fallbackPatternId = resolveGovernedFallbackPatternId(coherentGovernance, shouldOverrideVisibleReply)
-  const visibleReplyRewriteRequest = buildGovernedVisibleReplyRewriteRequest({
-    shouldOverrideVisibleReply,
-    reasons,
-    coherentGovernance,
-    fallbackPatternId,
-    projectStateContinuityCarry,
-    projectStateContinuityAnchors,
-    openingGuidanceHoldDetail,
-    companionshipHoldMode,
-    renderedOverrideReply: renderedOverrideSurface?.reply ?? null,
-    governedSurfaceReply: governedSurface?.reply ?? null,
-    candidateReply,
-    unsupportedCues: unsupportedTechnicalSpecificity.unsupportedCues,
-    conflictingCandidates: conflictingAnchors.conflictingCandidates ?? [],
-    droppedClauses: [
-      ...(dialogueFirstRepairEvidence.droppedClauses ?? []),
-      ...(projectStateContinuityCarry ? [projectStateContinuityCarry] : []),
-    ],
-  })
-  const visibleReplyAuditAuthority = resolveAlicizationVisibleReplyGovernanceAuditAuthority({
-    shouldOverrideVisibleReply,
-    governance: coherentGovernance,
-  })
-  const hardFallbackReason = shouldOverrideVisibleReply && hardOverrideRequired
-    ? [
-        executionSurfaceViolation ? 'execution-first-visible-reply-violation' : '',
-        leakedGovernedSurface ? 'reply-leaked-internal-governance' : '',
-        weakGroundedSceneCue ? 'reply-used-weak-grounded-scene-cue' : '',
-        unsupportedTechnicalSpecificity.unsupportedCues.length > 0 ? 'reply-introduced-unsupported-technical-specificity' : '',
-        scriptMismatch ? 'reply-script-mismatch-with-user-turn' : '',
-        conflictingAnchors.reason,
-        dialogueFirstOverrideRequired ? 'dialogue-first-visible-reply-contaminated' : '',
-      ].find(Boolean) ?? 'hard-governance-fallback'
-    : null
-  const blockLocalVisibleOverrideText = shouldBlockLocalVisibleOverrideText(coherentGovernance)
-  const compatVisibleOverrideReply = shouldOverrideVisibleReply && !dispatchOnlyVisibleOverride && !blockLocalVisibleOverrideText
-    ? sanitizeBriefText(renderedOverrideSurface?.reply ?? governedSurface?.reply ?? '', 2_000)
-    : ''
-  const finalReply = shouldOverrideVisibleReply
-    ? (visibleReplyOverrideMode === 'compat-visible' ? compatVisibleOverrideReply : '')
-    : candidateReply
-  const finalThought = shouldOverrideVisibleReply
-    ? renderedOverrideSurface?.thought ?? governedSurface?.thought ?? buildGovernedMindThought(coherentGovernance, input)
-    : (missingMindThought || thoughtConflict)
-        ? governedSurface?.thought ?? buildGovernedMindThought(coherentGovernance, input)
-        : thought
-  const finalEmotion = resolveMindGovernanceEmotion(
-    coherentGovernance,
-    shouldOverrideVisibleReply && renderedOverrideSurface
-      ? renderedOverrideSurface.emotion
-      : normalizedEmotion,
-  )
-  let finalDigitalLifeSpine = applyCompanionshipHoldModeToDigitalLifeSpine({
+  const overrideClass = 'none'
+  const fallbackPatternId = 'none'
+  const finalReply = candidateReply
+  const finalThought = thought
+  const finalEmotion = resolveMindGovernanceEmotion(coherentGovernance, normalizedEmotion)
+  const finalDigitalLifeSpine = applyCompanionshipHoldModeToDigitalLifeSpine({
     digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(
       (structuredPayload as Record<string, unknown>).digitalLifeSpine,
     ),
@@ -4140,82 +3423,7 @@ export function coerceConversationTurnToMindGovernedPayload(
     companionshipHoldMode,
     openingGuidanceAuthority: effectiveOpeningMove,
   })
-  const rememberedSeamMoreRoomOpeningGuidance = companionshipHoldMode === 'measured-return'
-    && typeof effectiveOpeningMove === 'string'
-    && /remembered seam|more room this time|too eagerly/u.test(effectiveOpeningMove.toLowerCase())
-    ? effectiveOpeningMove
-    : null
-  if (rememberedSeamMoreRoomOpeningGuidance) {
-    finalDigitalLifeSpine = normalizeAlicizationDigitalLifeSpineDigest({
-      ...finalDigitalLifeSpine,
-      proactive: {
-        ...finalDigitalLifeSpine?.proactive,
-        continuityRestraint: 'measured-return',
-        personaBias: {
-          ...finalDigitalLifeSpine?.proactive?.personaBias,
-          manifestationCadenceSummary: [
-            finalDigitalLifeSpine?.proactive?.personaBias?.manifestationCadenceSummary,
-            rememberedSeamMoreRoomOpeningGuidance,
-          ].filter(Boolean).join(' | '),
-        },
-      },
-      memory: finalDigitalLifeSpine?.memory
-        ? {
-            ...finalDigitalLifeSpine.memory,
-            personStateProjection: finalDigitalLifeSpine.memory.personStateProjection
-              ? {
-                  ...finalDigitalLifeSpine.memory.personStateProjection,
-                  openingGuidance: rememberedSeamMoreRoomOpeningGuidance,
-                }
-              : {
-                  selfContinuityAuthority: null,
-                  activeClosenessContext: null,
-                  activeClosenessRung: null,
-                  relationshipPosture: null,
-                  openingGuidance: rememberedSeamMoreRoomOpeningGuidance,
-                  preferredProactiveStyle: 'silent-observe',
-                  manifestationCadenceSummary: rememberedSeamMoreRoomOpeningGuidance,
-                },
-          }
-        : {
-            summary: null,
-            recentEpisodeSummary: null,
-            recentEpisodeCount: 0,
-            focusBeliefStatement: null,
-            focusBeliefConfidence: null,
-            leadingGoalSummary: null,
-            dominantConcernSummary: null,
-            reflectionSummary: null,
-            reflectionPressure: null,
-            recallMode: null,
-            recallSeed: null,
-            recollectionSummary: null,
-            recollectionSurfaceSummary: null,
-            recollectionConfidence: null,
-            thoughtThreadSummary: null,
-            longHorizonSummary: null,
-            rememberedPreferenceSummary: null,
-            rememberedConstraintSummary: null,
-            rememberedPlanSummary: null,
-            longHorizonCueCount: 0,
-            personStateProjection: {
-              selfContinuityAuthority: null,
-              activeClosenessContext: null,
-              activeClosenessRung: null,
-              relationshipPosture: null,
-              openingGuidance: rememberedSeamMoreRoomOpeningGuidance,
-              preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: rememberedSeamMoreRoomOpeningGuidance,
-            },
-          },
-    }) as AlicizationDialogueStructuredPayload['digitalLifeSpine']
-  }
-  const finalPerformance = shouldOverrideVisibleReply && renderedOverrideSurface
-    ? alignDialoguePerformanceEmotion(
-        structuredPayload.performance ?? renderedOverrideSurface.performance,
-        finalEmotion,
-      )
-    : alignDialoguePerformanceEmotion(structuredPayload.performance, finalEmotion)
+  const finalPerformance = alignDialoguePerformanceEmotion(structuredPayload.performance, finalEmotion)
   const finalPerformanceActionCueOverride = resolveMeasuredReturnVrmActionCueOverride({
     performance: finalPerformance,
     performanceManifest,
@@ -4227,27 +3435,11 @@ export function coerceConversationTurnToMindGovernedPayload(
         actionCue: finalPerformanceActionCueOverride,
       }, finalEmotion)
     : finalPerformance
-  const finalParsePath = (
-    shouldOverrideVisibleReply
-    || contractFailed
-    || invalidFormat
-    || invalidParsePath
-    || missingMindThought
-    || thoughtConflict
-  )
-    ? 'repair-json'
-    : parsePath
-  const normalizedAssistantText = shouldOverrideVisibleReply
-    ? finalReply
-    : (finalReply || sanitizeBriefText(readStringValue(input.assistantText), 2_000))
+  const finalParsePath = parsePath
+  const normalizedAssistantText = finalReply || sanitizeBriefText(readStringValue(input.assistantText), 2_000)
   const tookOver = Boolean(
-    shouldOverrideVisibleReply
-    || structuredPayload.governance == null
-    || finalThought !== thought
+    structuredPayload.governance == null
     || finalEmotion !== normalizeAlicizationEmotion(readStringValue(structuredPayload.emotion).trim().toLowerCase()).emotion
-    || finalParsePath !== parsePath
-    || invalidFormat
-    || contractFailed
     || readStringValue(input.assistantText).trim() !== normalizedAssistantText
     || JSON.stringify(structuredPayload.performance ?? null) !== JSON.stringify(finalRendererNativePerformance),
   )
@@ -4337,18 +3529,15 @@ export function coerceConversationTurnToMindGovernedPayload(
 
   return {
     payload: {
-      ...input,
+      ...sanitizedPayload,
       assistantText: normalizedAssistantText,
       governance: coherentGovernance,
       structured: {
-        ...structuredPayload,
+        ...(sanitizedPayload.structured as Record<string, unknown>),
         thought: finalThought,
         emotion: finalEmotion,
         reply: finalReply,
-        visibleReplyAuthority: shouldOverrideVisibleReply
-          ? 'llm-second-pass-rewrite'
-          : (coherentGovernance.visibleReplyAuthority ?? 'llm-mind'),
-        visibleReplyRewriteRequest,
+        visibleReplyAuthority: 'llm-mind',
         performance: finalEmbodimentAuthority.embodiment?.performance ?? finalRendererNativePerformance,
         embodiment: finalEmbodimentAuthority.embodiment ?? finalEmbodiment,
         embodimentScript: finalEmbodimentScript,
@@ -4367,7 +3556,7 @@ export function coerceConversationTurnToMindGovernedPayload(
     },
     governance: coherentGovernance,
     tookOver,
-    replyOverridden: shouldOverrideVisibleReply,
+    replyOverridden: false,
     overrideClass,
     fallbackPatternId,
     reasons,
@@ -4397,7 +3586,6 @@ export function coerceConversationTurnToMindGovernedPayload(
       execution_explicit_demand: executionFirstGovernance.explicitExecutionDemand,
       execution_signal_score: executionFirstGovernance.signalScore,
       execution_dispatch_channels: executionFirstGovernance.mentionedDispatchChannels,
-      execution_dispatch_hidden: dispatchOnlyVisibleOverride && shouldOverrideVisibleReply,
       execution_reason_codes: executionFirstGovernance.reasonCodes,
       execution_turn_mode_before: anchorCoherentGovernance.turnMode,
       execution_turn_mode_after: coherentGovernance.turnMode,
@@ -4407,20 +3595,6 @@ export function coerceConversationTurnToMindGovernedPayload(
       execution_screen_mode_after: coherentGovernance.screenReferenceMode ?? null,
       anchor_candidates_before: summarizeGovernanceAnchorAuditCandidates(governedAnchorRepair.anchorCandidatesBefore),
       anchor_candidates_after: summarizeGovernanceAnchorAuditCandidates(governedAnchorRepair.anchorCandidatesAfter),
-      dominant_anchor: conflictingAnchors.dominantAnchor ?? null,
-      conflicting_anchor_candidates: conflictingAnchors.conflictingCandidates,
-      mentioned_conflicting_anchors: conflictingAnchors.mentionedConflicts,
-      dialogue_focus_overlap: Number(dialogueFirstVisibleReply.overlapRatio.toFixed(2)),
-      roleplay_preface: dialogueFirstVisibleReply.roleplayPreface,
-      stale_carry_reference: dialogueFirstVisibleReply.staleCarryReference,
-      scene_cue_mentions: dialogueFirstVisibleReply.sceneCueMentions,
-      foreign_technical_cues: dialogueFirstVisibleReply.foreignTechnicalCues,
-      dialogue_truth_discipline_mode: dialogueFirstVisibleReply.truthDisciplineMode,
-      execution_surface_violation: executionSurfaceViolation,
-      reply_specificity_cues: unsupportedTechnicalSpecificity.replyCues,
-      allowed_specificity_cues: unsupportedTechnicalSpecificity.allowedCues,
-      unsupported_specificity_cues: unsupportedTechnicalSpecificity.unsupportedCues,
-      specificity_truth_discipline_mode: unsupportedTechnicalSpecificity.truthDisciplineMode,
       claim_specificity_budget: coherentGovernance.claimEvidence?.specificityBudget ?? null,
       claim_observed_surface: coherentGovernance.claimEvidence?.observedSurface ?? null,
       claim_task_hypothesis: coherentGovernance.claimEvidence?.taskHypothesis ?? null,
@@ -4429,26 +3603,9 @@ export function coerceConversationTurnToMindGovernedPayload(
       claim_forbid_unsupported_specificity: coherentGovernance.claimEvidence?.forbidUnsupportedSpecificity === true,
       reply_before_excerpt: excerptGovernedReply(reply),
       reply_after_excerpt: excerptGovernedReply(finalReply),
-      local_repair_candidate_blocked: dialogueFirstRepairEvidence.applied && !useDialogueFirstRepairAsVisibleCandidate,
-      local_repair_candidate_reason: dialogueFirstRepairEvidence.reason,
-      local_repair_candidate_reply_excerpt: dialogueFirstRepairEvidence.applied
-        ? excerptGovernedReply(dialogueFirstRepairEvidence.reply)
-        : null,
-      local_repair_candidate_dropped_clauses: dialogueFirstRepairEvidence.droppedClauses,
-      soft_repair_applied: dialogueFirstRepairEvidence.applied && useDialogueFirstRepairAsVisibleCandidate,
-      soft_repair_reason: dialogueFirstRepairEvidence.reason,
-      soft_repair_dropped_clauses: dialogueFirstRepairEvidence.droppedClauses,
-      visible_reply_override_mode: visibleReplyOverrideMode,
-      visible_reply_local_compat_realized: shouldOverrideVisibleReply && visibleReplyOverrideMode === 'compat-visible' && Boolean(finalReply),
-      hard_fallback_reason: hardFallbackReason,
-      fallback_template_key: shouldOverrideVisibleReply ? fallbackPatternId : null,
-      visible_reply_authority: visibleReplyAuditAuthority.visibleReplyAuthority,
-      visible_reply_realization_authority: visibleReplyAuditAuthority.visibleReplyRealizationAuthority,
-      visible_reply_rewrite_request: visibleReplyRewriteRequest,
-      opening_guidance_hold_detail: openingGuidanceHoldDetail,
+      visible_reply_authority: 'llm-mind-structured',
+      visible_reply_realization_authority: 'llm-mind',
       companionship_hold_mode: companionshipHoldMode,
-      reply_kept_despite_mismatch: replyKeptDespiteMismatch,
-      organic_direct_reply: organicDirectReply,
     },
   }
 }
@@ -4781,7 +3938,6 @@ function summarizeReplyMemoryCoherencePayload(input: {
       overlap: Number(item.overlap.toFixed(2)),
     })),
     replyExcerpt: excerptGovernedReply(input.reply),
-    visibleLead: sanitizeMindTraceTelemetryText(input.snapshot.visibleLine, 180) || null,
   }
 }
 
@@ -6014,21 +5170,34 @@ export function normalizeDialogueRespondedPayload(
   const thought = readStringValue((structuredPayload as Record<string, unknown>).thought).trim()
   const rawEmotion = readStringValue((structuredPayload as Record<string, unknown>).emotion).trim().toLowerCase()
   const structuredVisibleReplyRealization = readStructuredVisibleReplyRealization(structuredPayload)
-  const structuredVisibleReplyText = readStringValue(
-    structuredVisibleReplyRealization && typeof structuredVisibleReplyRealization === 'object'
-      ? structuredVisibleReplyRealization.visibleText
-      : '',
-  ).trim()
   const reply = readStringValue((structuredPayload as Record<string, unknown>).reply).trim()
-    || structuredVisibleReplyText
-    || input.assistantText?.trim()
-    || ''
+  const rawFormat = readStringValue((structuredPayload as Record<string, unknown>).format).trim().toLowerCase()
   const parsePath = readStringValue((structuredPayload as Record<string, unknown>).parsePath).trim().toLowerCase()
   const contractFailed = (structuredPayload as Record<string, unknown>).contractFailed === true
   const policyLocked = readStringValue((structuredPayload as Record<string, unknown>).policyLocked).trim()
   const governance = normalizeMindTurnGovernance(
     input.governance ?? (structuredPayload as Record<string, unknown>).governance,
   )
+  const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
+    turnId: input.turnId,
+    rawFormat,
+    origin: input.origin,
+  })
+  const rawVisibleReplyRealization = input.visibleReplyRealization ?? structuredVisibleReplyRealization
+  const visibleReplyAuthorityFailure = resolveProviderVisibleReplyAuthorityFailure({
+    turn: input,
+    structuredPayload: structuredPayload as Record<string, unknown>,
+    visibleReplyRealization: rawVisibleReplyRealization,
+  })
+  const providerContractFailed
+    = !autonomousDialogueFamily.isAutonomous
+      && (
+        contractFailed
+        || rawFormat !== 'mind-turn-v1'
+        || parsePath !== 'json'
+        || !reply
+        || visibleReplyAuthorityFailure !== null
+      )
   const explicitLegacyInputFormat = (() => {
     const rawLegacyInputFormat = readStringValue((structuredPayload as Record<string, unknown>).legacyInputFormat).trim().toLowerCase()
     return rawLegacyInputFormat === 'epoch1-v1' || rawLegacyInputFormat === 'fallback-v1'
@@ -6037,11 +5206,13 @@ export function normalizeDialogueRespondedPayload(
   })()
   const formatResolution = resolveAlicizationRuntimeMindTurnStructuredFormat({
     rawFormat: (structuredPayload as Record<string, unknown>).format,
-    contractFailed,
+    contractFailed: contractFailed || providerContractFailed,
     hasGovernance: Boolean(governance),
     origin: input.origin,
   })
-  const format = formatResolution.format
+  const format = providerContractFailed
+    ? 'fallback-v1'
+    : formatResolution.format
   const visibleReplyAuthority = readStringValue((structuredPayload as Record<string, unknown>).visibleReplyAuthority).trim()
   const proactive = normalizeProactiveMetadata((structuredPayload as Record<string, unknown>).proactive)
   const dialogueActKernel = normalizeDialogueActKernel(
@@ -6071,13 +5242,98 @@ export function normalizeDialogueRespondedPayload(
     (structuredPayload as Record<string, unknown>).memoryResolutionLedger,
   )
   const visibleReplyRealization: AlicizationConversationTurnInput['visibleReplyRealization'] = (() => {
-    const raw = input.visibleReplyRealization ?? structuredVisibleReplyRealization
+    const raw = rawVisibleReplyRealization
     if (!raw)
       return undefined
+    const rawActualAuthority = raw.actualAuthority === 'llm-mind'
+      || raw.actualAuthority === 'local-deterministic-fallback'
+      || raw.actualAuthority === 'non-human-authored-blocked'
+      ? raw.actualAuthority
+      : null
+    const actualAuthority = providerContractFailed
+      ? 'non-human-authored-blocked'
+      : rawActualAuthority
     const currentProjectState = normalizedCurrentConsciousFrame?.projectState
     const rawProjectStateAudit: NonNullable<AlicizationVisibleReplyRealizationArtifact['projectStateAudit']> | null
       = raw.projectStateAudit
-        ? { ...raw.projectStateAudit }
+        ? {
+            sameHerSummary:
+              typeof raw.projectStateAudit.sameHerSummary === 'string'
+                ? raw.projectStateAudit.sameHerSummary
+                : null,
+            sameHerHoldDetail:
+              typeof raw.projectStateAudit.sameHerHoldDetail === 'string'
+                ? raw.projectStateAudit.sameHerHoldDetail
+                : null,
+            continuityArcStage:
+              typeof raw.projectStateAudit.continuityArcStage === 'string'
+                ? raw.projectStateAudit.continuityArcStage
+                : null,
+            continuityCue:
+              typeof raw.projectStateAudit.continuityCue === 'string'
+                ? raw.projectStateAudit.continuityCue
+                : null,
+            sameHerDriftRiskSummary:
+              typeof raw.projectStateAudit.sameHerDriftRiskSummary === 'string'
+                ? raw.projectStateAudit.sameHerDriftRiskSummary
+                : null,
+            proactiveSameHerGapSummary:
+              typeof raw.projectStateAudit.proactiveSameHerGapSummary === 'string'
+                ? raw.projectStateAudit.proactiveSameHerGapSummary
+                : null,
+            currentPhaseSummary:
+              typeof raw.projectStateAudit.currentPhaseSummary === 'string'
+                ? raw.projectStateAudit.currentPhaseSummary
+                : null,
+            landedProgressSummary:
+              typeof raw.projectStateAudit.landedProgressSummary === 'string'
+                ? raw.projectStateAudit.landedProgressSummary
+                : null,
+            openClosureSummary:
+              typeof raw.projectStateAudit.openClosureSummary === 'string'
+                ? raw.projectStateAudit.openClosureSummary
+                : null,
+            openFocusSummary:
+              typeof raw.projectStateAudit.openFocusSummary === 'string'
+                ? raw.projectStateAudit.openFocusSummary
+                : null,
+            nextFocusSummary:
+              typeof raw.projectStateAudit.nextFocusSummary === 'string'
+                ? raw.projectStateAudit.nextFocusSummary
+                : null,
+            nextClosureTargetSummary:
+              typeof raw.projectStateAudit.nextClosureTargetSummary === 'string'
+                ? raw.projectStateAudit.nextClosureTargetSummary
+                : null,
+            memoryClosureSummary:
+              typeof raw.projectStateAudit.memoryClosureSummary === 'string'
+                ? raw.projectStateAudit.memoryClosureSummary
+                : null,
+            recallWhySummary:
+              typeof raw.projectStateAudit.recallWhySummary === 'string'
+                ? raw.projectStateAudit.recallWhySummary
+                : null,
+            emotionalClosureSummary:
+              typeof raw.projectStateAudit.emotionalClosureSummary === 'string'
+                ? raw.projectStateAudit.emotionalClosureSummary
+                : null,
+            emotionalClosureCue:
+              typeof raw.projectStateAudit.emotionalClosureCue === 'string'
+                ? raw.projectStateAudit.emotionalClosureCue
+                : null,
+            continuitySummary:
+              typeof raw.projectStateAudit.continuitySummary === 'string'
+                ? raw.projectStateAudit.continuitySummary
+                : null,
+            embodimentClosureSummary:
+              typeof raw.projectStateAudit.embodimentClosureSummary === 'string'
+                ? raw.projectStateAudit.embodimentClosureSummary
+                : null,
+            preDialogueAwarenessSummary:
+              typeof raw.projectStateAudit.preDialogueAwarenessSummary === 'string'
+                ? raw.projectStateAudit.preDialogueAwarenessSummary
+                : null,
+          }
         : null
     const projectStateAudit: AlicizationVisibleReplyRealizationArtifact['projectStateAudit']
       = rawProjectStateAudit
@@ -6115,20 +5371,94 @@ export function normalizeDialogueRespondedPayload(
                 : currentProjectState?.nextClosureTarget ?? null,
           }
         : null
+    const emotionalClosureAudit: AlicizationVisibleReplyRealizationArtifact['emotionalClosureAudit']
+      = raw.emotionalClosureAudit
+        ? {
+            activeCue:
+              typeof raw.emotionalClosureAudit.activeCue === 'string'
+                ? raw.emotionalClosureAudit.activeCue
+                : null,
+            ...(typeof raw.emotionalClosureAudit.lowPressureRequired === 'boolean'
+              ? { lowPressureRequired: raw.emotionalClosureAudit.lowPressureRequired }
+              : {}),
+            ...(typeof raw.emotionalClosureAudit.antiRestartRequired === 'boolean'
+              ? { antiRestartRequired: raw.emotionalClosureAudit.antiRestartRequired }
+              : {}),
+          }
+        : null
+    const selfAuthorityAudit: AlicizationVisibleReplyRealizationArtifact['selfAuthorityAudit']
+      = raw.selfAuthorityAudit
+        ? {
+            authoritySummary:
+              typeof raw.selfAuthorityAudit.authoritySummary === 'string'
+                ? raw.selfAuthorityAudit.authoritySummary
+                : null,
+            closenessPosture:
+              typeof raw.selfAuthorityAudit.closenessPosture === 'string'
+                ? raw.selfAuthorityAudit.closenessPosture
+                : null,
+          }
+        : null
+    const closureStatus = normalizeAlicizationVisibleReplyValidationStatus(raw.closure?.status)
+    const closure: AlicizationVisibleReplyRealizationArtifact['closure']
+      = raw.closure && closureStatus !== 'unknown'
+        ? {
+            version: 'visible-reply-closure-public-summary-v1',
+            status: closureStatus,
+            reasonCodes: Array.isArray(raw.closure.reasonCodes)
+              ? raw.closure.reasonCodes.filter((reason): reason is string => typeof reason === 'string')
+              : [],
+            initialCriticStatus: raw.closure.initialCriticStatus ?? null,
+            finalCriticStatus: raw.closure.finalCriticStatus ?? null,
+          }
+        : null
     return {
-      ...raw,
-      blockedReasons: Array.isArray(raw.blockedReasons)
-        ? raw.blockedReasons.filter((reason): reason is string => typeof reason === 'string')
-        : [],
-      emotionalClosureAudit: raw.emotionalClosureAudit
-        ? { ...raw.emotionalClosureAudit }
-        : null,
-      selfAuthorityAudit: raw.selfAuthorityAudit
-        ? { ...raw.selfAuthorityAudit }
-        : null,
+      version: 'visible-reply-realization-v1',
+      expectedAuthority:
+        raw.expectedAuthority === 'llm-mind'
+          ? raw.expectedAuthority
+          : 'llm-mind',
+      actualAuthority,
+      providerMindExecuted: raw.providerMindExecuted === true,
+      mode: raw.mode ?? 'provider-stream',
+      visibleText: reply || null,
+      visibleReplyValidationStatus: normalizeAlicizationVisibleReplyValidationStatus(
+        raw.visibleReplyValidationStatus,
+      ),
+      projectStateEvidenceStatus: normalizeAlicizationProjectStateEvidenceStatus(
+        raw.projectStateEvidenceStatus,
+      ),
+      blockedReasons: Array.from(new Set([
+        ...(Array.isArray(raw.blockedReasons)
+          ? raw.blockedReasons.filter((reason): reason is string => typeof reason === 'string')
+          : []),
+        ...(providerContractFailed
+          ? [visibleReplyAuthorityFailure ?? 'provider-structured-contract-invalid']
+          : []),
+      ])),
+      sameHerInwardCarry:
+        typeof raw.sameHerInwardCarry === 'string'
+          ? raw.sameHerInwardCarry
+          : null,
+      nonHumanAuthoredStatus: providerContractFailed
+        ? 'non-human-authored-blocked'
+        : typeof raw.nonHumanAuthoredStatus === 'string'
+          ? raw.nonHumanAuthoredStatus
+          : null,
+      emotionalClosureAudit,
+      selfAuthorityAudit,
       projectStateAudit,
+      openingGuidanceHoldDetail:
+        typeof raw.openingGuidanceHoldDetail === 'string'
+          ? raw.openingGuidanceHoldDetail
+          : null,
+      companionshipHoldMode: raw.companionshipHoldMode ?? null,
+      openingEmbodimentAudit: raw.openingEmbodimentAudit
+        ? { ...raw.openingEmbodimentAudit }
+        : null,
+      reason: typeof raw.reason === 'string' ? raw.reason : null,
       critic: raw.critic ? { ...raw.critic } : null,
-      closure: raw.closure ? { ...raw.closure } : null,
+      closure,
     } satisfies AlicizationVisibleReplyRealizationArtifact
   })()
   const normalizedEmotionResult = normalizeAlicizationEmotion(rawEmotion)
@@ -6413,12 +5743,9 @@ export function normalizeDialogueRespondedPayload(
     speechTimeline: authority.speechTimeline,
     digitalLife,
   })
-  const isFallback = contractFailed || !['json', 'repair-json'].includes(parsePath)
-  const autonomousDialogueFamily = resolveAlicizationAutonomousDialogueFamilyClassification({
-    turnId,
-    rawFormat: format,
-    origin: input.origin,
-  })
+  const isFallback = autonomousDialogueFamily.isAutonomous
+    ? contractFailed || parsePath !== 'json'
+    : providerContractFailed
   const origin = autonomousDialogueFamily.isAutonomous
     ? autonomousDialogueFamily.canonicalOrigin ?? resolveAlicizationAutonomousDialogueOrigin('proactive')
     : 'user-turn'
@@ -6449,9 +5776,12 @@ export function normalizeDialogueRespondedPayload(
     thought,
     emotion: embodiment.emotion,
     reply,
-    visibleReplyAuthority: visibleReplyAuthority
-      ? normalizeAlicizationNormalVisibleReplyAuthority(visibleReplyAuthority as any, 'llm-mind')
-      : governance?.visibleReplyAuthority ?? null,
+    visibleReplyAuthority: providerContractFailed
+      ? 'non-human-authored-blocked'
+      : visibleReplyAuthority === 'local-deterministic-fallback'
+        || visibleReplyAuthority === 'non-human-authored-blocked'
+        ? visibleReplyAuthority
+        : 'llm-mind',
     performance: authority.embodiment?.performance ?? embodiment.performance,
     embodiment: authority.embodiment ?? embodiment,
     embodimentScript,

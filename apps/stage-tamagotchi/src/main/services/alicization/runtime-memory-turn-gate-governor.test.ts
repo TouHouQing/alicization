@@ -70,7 +70,7 @@ describe('runtime-memory-turn-gate-governor', () => {
               preferredVoiceMode: 'lower-pressure',
               preferredLipsyncMode: 'restrained',
               preferredGazeMode: 'soften',
-              reason: 'Hold the same remembered seam before speaking wider.',
+              reason: 'Hold the same remembered seam before outward reply wider.',
             },
           },
           closureState: {

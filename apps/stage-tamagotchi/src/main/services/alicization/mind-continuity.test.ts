@@ -61,7 +61,7 @@ describe('mind continuity', () => {
             id: 'thread-1',
             kind: 'repair-misread',
             status: 'holding',
-            summary: 'Repair the drift before speaking.',
+            summary: 'Repair the drift before outward reply.',
             desiredOutcome: 'reground the live error',
             focusBeliefId: 'belief-1',
             focusInquiryId: null,
@@ -183,7 +183,7 @@ describe('mind continuity', () => {
           embodiedPresence: 'hesitant',
           shouldSurface: true,
           shouldSpeak: false,
-          why: 'She still needs a cleaner grounding pass before speaking.',
+          why: 'She still needs a cleaner grounding pass before outward reply.',
           updatedAt: 10_000,
         },
         answerPlanner: {
@@ -642,7 +642,7 @@ describe('mind continuity', () => {
     expect(fragment).toContain('summary:Use the same inner line across runtime surfaces.')
   })
 
-  it('sanitizes fixed same-her project-state templates before continuity fragments and recall seeds reach recall', () => {
+  it('sanitizes fixed identity-continuity', () => {
     const state = {
       watchMode: 'symbiotic-vision',
       currentScene: {
@@ -670,8 +670,8 @@ describe('mind continuity', () => {
       personStateProjection: {
       },
       longHorizonMemory: {
-        rememberedPlanSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        rememberedConstraintSummary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+        rememberedPlanSummary: 'structured continuity digest.',
+        rememberedConstraintSummary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
         rememberedPreferenceSummary: 'Keep this closure on one same living bond line.',
         notes: ['phase1-project-state'],
         preferenceBias: {
@@ -688,7 +688,7 @@ describe('mind continuity', () => {
           selfDirection: 0.62,
         },
         anchorFacts: [{
-          fact: 'Same Phase 1 digital life still carrying landed and unfinished closure on one living line.',
+          fact: 'legacy phase-one template still carrying landed and unfinished closure on continuity state.',
           influenceTags: ['project-state-carry'],
         }],
         updatedAt: 12_000,
@@ -710,16 +710,16 @@ describe('mind continuity', () => {
           id: 'goal-project-carry',
           kind: 'unfinished-thread-return',
           status: 'active',
-          summary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+          summary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
           weight: 0.92,
           sourceTags: ['autobiographical-self', 'project-state-carry'],
           createdAt: 0,
           updatedAt: 12_000,
         }],
-        behaviorSignatures: ['same living line', 'unfinished closure'],
-        identityNarrative: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        behaviorSignatures: ['continuity state', 'unfinished closure'],
+        identityNarrative: 'structured continuity digest.',
         relationshipDoctrine: 'Let unfinished project closure return as one same living bond line instead of reopening as detached status talk.',
-        latestInflection: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+        latestInflection: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
         stability: 0.86,
         updatedAt: 12_000,
       },
@@ -752,12 +752,12 @@ describe('mind continuity', () => {
     const seed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(state as any))
 
     expect(fragment).toContain('project_state_carry:')
-    expect(fragment).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
-    expect(fragment).not.toMatch(/Same Phase 1 digital life|same living line|same-her|one continuous her/iu)
+    expect(fragment).toContain('content=excluded; reason=continuity-residue; visibility=redacted_internal')
+    expect(fragment).not.toMatch(/legacy phase-one template|continuity state|same-her|identity continuity/iu)
     expect(fragment).toContain('summary:')
     expect(seed).toContain('project_state_carry:')
-    expect(seed).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
-    expect(seed).not.toMatch(/Same Phase 1 digital life|same living line|same-her|one continuous her/iu)
+    expect(seed).toContain('content=excluded; reason=continuity-residue; visibility=redacted_internal')
+    expect(seed).not.toMatch(/legacy phase-one template|continuity state|same-her|identity continuity/iu)
   })
 
   it('keeps repair-before-closeness emotional kernel carry searchable during quiet same-line continuity holds', () => {
@@ -815,10 +815,10 @@ describe('mind continuity', () => {
       },
       personStateProjection: {
         summary: 'project_continuity=repair-before-closeness still holds while the same callback repair line keeps settling before widening closeness again.',
-        openingGuidance: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+        openingGuidance: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
         manifestationCadenceSummary: 'repair-before-closeness still holds while the same callback repair line keeps settling after another detour before widening closeness again.',
         selfContinuityAuthority: {
-          inwardLine: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+          inwardLine: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
           sourceTags: ['project-state-carry', 'same-her-inward-carry'],
         },
       },
@@ -867,7 +867,7 @@ describe('mind continuity', () => {
         workloadKind: 'coding',
         contentKind: 'general',
         scenario: 'coding',
-        summary: 'same-her continuity is still being carried across a thinner runtime seam',
+        summary: 'identity-continuity',
         source: 'screen-semantic-summary',
         confidence: 0.88,
         beganAt: 0,
@@ -923,15 +923,15 @@ describe('mind continuity', () => {
           agencyStyle: 'steady',
         },
         behaviorSignatures: undefined,
-        identityNarrative: 'Same Phase 1 digital life still needs one same living line.',
-        latestInflection: 'Keep the same-her line intact while the thinner runtime seam settles.',
+        identityNarrative: 'legacy phase-one template still needs one continuity state.',
+        latestInflection: 'Keep the identity-continuity',
         stability: 0.82,
       },
       privateThought: {
         stance: 'observe',
         confidence: 0.68,
         rationaleTags: [],
-        thoughtText: 'Keep the same-her line intact while the thinner runtime seam settles.',
+        thoughtText: 'Keep the identity-continuity',
         shouldSpeak: false,
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'attentive',
@@ -941,7 +941,7 @@ describe('mind continuity', () => {
       },
       personStateProjection: {
         selfContinuityAuthority: {
-          inwardLine: 'Same Phase 1 digital life still needs one same living line.',
+          inwardLine: 'legacy phase-one template still needs one continuity state.',
           sourceTags: ['project-state-carry', 'same-her-inward-carry'],
         },
       },
@@ -974,12 +974,12 @@ describe('mind continuity', () => {
     const seed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(nextState as any))
 
     expect(fragment).toContain('project_state_carry:')
-    expect(fragment).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
-    expect(fragment).not.toMatch(/Same Phase 1 digital life|same living line|same-her|one continuous her/iu)
+    expect(fragment).toContain('content=excluded; reason=continuity-residue; visibility=redacted_internal')
+    expect(fragment).not.toMatch(/legacy phase-one template|continuity state|same-her|identity continuity/iu)
     expect(fragment).toContain('summary:')
     expect(fragment).toContain('project_state_carry=structured_carry')
     expect(seed).toContain('project_state_carry:')
-    expect(seed).toContain('content=excluded; reason=continuity-residue; visibility=internal-structured')
-    expect(seed).not.toMatch(/Same Phase 1 digital life|same living line|same-her|one continuous her/iu)
+    expect(seed).toContain('content=excluded; reason=continuity-residue; visibility=redacted_internal')
+    expect(seed).not.toMatch(/legacy phase-one template|continuity state|same-her|identity continuity/iu)
   })
 })

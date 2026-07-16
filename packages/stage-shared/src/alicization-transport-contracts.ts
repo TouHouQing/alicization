@@ -584,9 +584,6 @@ export interface AlicizationRecollectionSpeechPlan {
   surfaceMode: AlicizationRecollectionSurfaceMode
   placement: 'before-payoff' | 'inside-payoff' | 'after-payoff' | 'internal-only'
   certainty: AlicizationRecollectionCertainty
-  internalLead: string
-  visibleLead: string | null
-  styleNote: string
   rationale: string
   confidence: number
 }
@@ -1347,11 +1344,10 @@ export type AlicizationMindTruthState
 export type AlicizationMindRelationshipPosture = 'restrained' | 'warm' | 'tender'
 export type AlicizationMindAnswerSubject = 'alicization-self' | 'project-state' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general'
 export type AlicizationMindScreenReferenceMode = 'required' | 'helpful' | 'incidental' | 'avoid'
-export type AlicizationNormalVisibleReplyAuthority = 'llm-mind' | 'llm-second-pass-rewrite'
+export type AlicizationNormalVisibleReplyAuthority = 'llm-mind'
 export type AlicizationInfraVisibleReplyAuthority = 'local-deterministic-fallback' | 'non-human-authored-blocked'
 export type AlicizationVisibleReplyExecutionAuthority = AlicizationNormalVisibleReplyAuthority | AlicizationInfraVisibleReplyAuthority
 export type AlicizationVisibleReplyAuthority = AlicizationNormalVisibleReplyAuthority
-export type AlicizationLegacyVisibleReplyAuthority = 'governed-repair-fallback' | AlicizationInfraVisibleReplyAuthority
 export interface AlicizationBridgeVisibleReplyExecution {
   mode: 'provider-stream' | 'provider-one-shot' | 'local-fallback'
   expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority | null
@@ -1360,8 +1356,93 @@ export interface AlicizationBridgeVisibleReplyExecution {
   reason: string | null
 }
 
+export type AlicizationVisibleReplyRealizationTransportMode = AlicizationBridgeVisibleReplyExecution['mode']
+export type AlicizationVisibleReplyRealizationValidationStatus = 'approved' | 'blocked' | 'unknown'
+export type AlicizationVisibleReplyRealizationProjectStateEvidenceStatus = 'present' | 'missing' | 'unknown'
+
+export interface AlicizationVisibleReplyRealizationProjectStateAudit {
+  sameHerSummary: string | null
+  sameHerHoldDetail?: string | null
+  continuityArcStage?: string | null
+  continuityCue?: string | null
+  sameHerDriftRiskSummary?: string | null
+  proactiveSameHerGapSummary?: string | null
+  currentPhaseSummary?: string | null
+  landedProgressSummary?: string | null
+  openClosureSummary?: string | null
+  openFocusSummary?: string | null
+  nextFocusSummary?: string | null
+  nextClosureTargetSummary?: string | null
+  memoryClosureSummary?: string | null
+  recallWhySummary?: string | null
+  emotionalClosureSummary?: string | null
+  emotionalClosureCue?: string | null
+  continuitySummary?: string | null
+  embodimentClosureSummary?: string | null
+  preDialogueAwarenessSummary?: string | null
+}
+
+export interface AlicizationVisibleReplyRealizationEmotionalClosureAudit {
+  activeCue: string | null
+  lowPressureRequired?: boolean
+  antiRestartRequired?: boolean
+}
+
+export interface AlicizationVisibleReplyRealizationSelfAuthorityAudit {
+  authoritySummary: string | null
+  closenessPosture: string | null
+}
+
+export interface AlicizationVisibleReplyRealizationOpeningEmbodimentAudit {
+  firstBeatPosture: 'quiet-companionship' | 'measured-return' | 'repair-before-closeness' | 'rest-protective'
+  delivery: 'calm'
+  facialCue: 'soften' | 'settle-repair' | 'quiet' | 'rest-soften'
+  actionCue: 'stillness' | 'leave-room' | 'repair-settle' | 'rest-settle'
+  derivedFrom: string
+}
+
+export type AlicizationVisibleReplyRealizationCriticStatus = 'pass' | 'blocked'
+
+export interface AlicizationVisibleReplyRealizationCriticSummary {
+  version: 'visible-reply-critic-public-summary-v1'
+  status: AlicizationVisibleReplyRealizationCriticStatus
+  providerMindRequired: boolean
+  reasonCodes: string[]
+}
+
+export interface AlicizationVisibleReplyRealizationClosureSummary {
+  version: 'visible-reply-closure-public-summary-v1'
+  status: 'approved' | 'blocked'
+  reasonCodes: string[]
+  initialCriticStatus: AlicizationVisibleReplyRealizationCriticStatus | null
+  finalCriticStatus: AlicizationVisibleReplyRealizationCriticStatus | null
+}
+
+export interface AlicizationVisibleReplyRealizationTransportArtifact {
+  version?: string | null
+  expectedAuthority?: AlicizationNormalVisibleReplyAuthority | null
+  actualAuthority?: AlicizationVisibleReplyExecutionAuthority | null
+  providerMindExecuted?: boolean | null
+  mode?: AlicizationVisibleReplyRealizationTransportMode | null
+  visibleText?: string | null
+  visibleReplyValidationStatus?: AlicizationVisibleReplyRealizationValidationStatus | null
+  projectStateEvidenceStatus?: AlicizationVisibleReplyRealizationProjectStateEvidenceStatus | null
+  sameHerInwardCarry?: string | null
+  nonHumanAuthoredStatus?: string | null
+  blockedReasons?: string[]
+  emotionalClosureAudit?: AlicizationVisibleReplyRealizationEmotionalClosureAudit | null
+  selfAuthorityAudit?: AlicizationVisibleReplyRealizationSelfAuthorityAudit | null
+  projectStateAudit?: AlicizationVisibleReplyRealizationProjectStateAudit | null
+  openingGuidanceHoldDetail?: string | null
+  companionshipHoldMode?: 'quiet-companionship' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | null
+  openingEmbodimentAudit?: AlicizationVisibleReplyRealizationOpeningEmbodimentAudit | null
+  reason?: string | null
+  critic?: AlicizationVisibleReplyRealizationCriticSummary | null
+  closure?: AlicizationVisibleReplyRealizationClosureSummary | null
+}
+
 export function isAlicizationNormalVisibleReplyAuthority(raw: unknown): raw is AlicizationNormalVisibleReplyAuthority {
-  return raw === 'llm-mind' || raw === 'llm-second-pass-rewrite'
+  return raw === 'llm-mind'
 }
 
 export function isAlicizationInfraVisibleReplyAuthority(raw: unknown): raw is AlicizationInfraVisibleReplyAuthority {
@@ -1369,24 +1450,12 @@ export function isAlicizationInfraVisibleReplyAuthority(raw: unknown): raw is Al
 }
 
 export function normalizeAlicizationNormalVisibleReplyAuthority(
-  authority: AlicizationVisibleReplyAuthority | AlicizationLegacyVisibleReplyAuthority | null | undefined,
+  authority: AlicizationVisibleReplyExecutionAuthority | null | undefined,
   fallback: AlicizationNormalVisibleReplyAuthority = 'llm-mind',
 ): AlicizationNormalVisibleReplyAuthority {
-  if (authority === 'llm-mind' || authority === 'llm-second-pass-rewrite')
+  if (authority === 'llm-mind')
     return authority
-  if (authority === 'local-deterministic-fallback' || authority === 'non-human-authored-blocked' || authority === 'governed-repair-fallback')
-    return 'llm-second-pass-rewrite'
   return fallback
-}
-export interface AlicizationVisibleReplyRewriteRequest {
-  required: boolean
-  authority: 'llm-second-pass-rewrite'
-  reasonCodes: string[]
-  mustPreserve: string[]
-  mustDrop: string[]
-  surfaceContract: string | null
-  memoryTruthDiscipline: string | null
-  fallbackPatternId?: string | null
 }
 export type AlicizationDialogueActKernelTruthMode = AlicizationAnswerEvidenceMode | 'memory-only'
 
@@ -1511,7 +1580,7 @@ export interface AlicizationMindTurnGovernance {
   decisionTraceId?: string | null
   turnMode: AlicizationMindTurnMode
   truthState: AlicizationMindTruthState
-  visibleReplyAuthority?: AlicizationVisibleReplyAuthority | null
+  visibleReplyAuthority?: AlicizationVisibleReplyExecutionAuthority | null
   groundedThisTurn?: boolean
   personaKernelMode: 'full' | 'backgrounded' | 'muted'
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
@@ -1652,7 +1721,6 @@ export type AlicizationHumanlikeMemoryCorrectionField
     | 'embodimentTrace'
     | 'autobiographicalImpact'
     | 'metabolism'
-    | 'naturalRecallLine'
     | 'longTermWorthiness'
     | string
 
@@ -1703,7 +1771,6 @@ export interface AlicizationSelfRevisionStatePatchSnapshot {
     warmthReleaseBias: number
   }
   responsePosture: {
-    secondPassRequiredBias: number
     hypothesisLabelBias: number
     specificityClampBias: number
     templateShellSuppressionBias: number
@@ -1971,6 +2038,23 @@ export interface AlicizationReplayBenchmarkTracePointer {
   activeThreadId: string | null
 }
 
+export type AlicizationReplayBenchmarkVisibleReplyValidationStatus = 'approved' | 'blocked' | 'unknown'
+export type AlicizationReplayBenchmarkProjectStateEvidenceStatus = 'present' | 'missing' | 'unknown'
+
+export interface AlicizationReplayBenchmarkValidationStatusSummary {
+  knownTurnCount: number
+  approvedTurnCount: number
+  blockedTurnCount: number
+  unknownTurnCount: number
+}
+
+export interface AlicizationReplayBenchmarkEvidenceStatusSummary {
+  knownTurnCount: number
+  presentTurnCount: number
+  missingTurnCount: number
+  unknownTurnCount: number
+}
+
 export interface AlicizationReplayBenchmarkFailureTurnRecord {
   turnId: string
   userText: string
@@ -2046,8 +2130,8 @@ export interface AlicizationReplayBenchmarkFailureTurnRecord {
   selfAuthoritySummary?: {
     authoritySummary: string | null
     closenessPosture: string | null
-    preservedIntoRewrite: boolean
-    rewriteClosureApplied: boolean
+    visibleReplyValidationStatus: AlicizationReplayBenchmarkVisibleReplyValidationStatus
+    projectStateEvidenceStatus: AlicizationReplayBenchmarkProjectStateEvidenceStatus
   } | null
 }
 
@@ -2080,19 +2164,16 @@ export interface AlicizationReplayBenchmarkDatasetFeedback {
   emotionalClosureSummary?: {
     comparedTurnCount: number
     activeCueTurnCount: number
-    preservedTurnCount: number
-    rewriteAppliedTurnCount: number
-    fullyClosedTurnCount: number
     lowPressureRequiredTurnCount: number
     antiRestartRequiredTurnCount: number
+    validationStatus: AlicizationReplayBenchmarkValidationStatusSummary
   } | null
   selfAuthoritySummary?: {
     comparedTurnCount: number
     authoritySummaryTurnCount: number
     closenessPostureTurnCount: number
-    preservedTurnCount: number
-    rewriteAppliedTurnCount: number
-    fullyCarriedTurnCount: number
+    contentCompleteTurnCount: number
+    validationStatus: AlicizationReplayBenchmarkValidationStatusSummary
   } | null
   projectStateAuditSummary?: {
     comparedTurnCount: number
@@ -2111,9 +2192,9 @@ export interface AlicizationReplayBenchmarkDatasetFeedback {
     continuitySummaryTurnCount: number
     embodimentClosureTurnCount: number
     preDialogueClosureTurnCount: number
-    preservedTurnCount: number
-    rewriteAppliedTurnCount: number
-    fullyCarriedTurnCount: number
+    contentCompleteTurnCount: number
+    validationStatus: AlicizationReplayBenchmarkValidationStatusSummary
+    evidenceStatus: AlicizationReplayBenchmarkEvidenceStatusSummary
   } | null
   longRunSameHerSessionSummary?: {
     comparedSessionCount: number
@@ -3028,7 +3109,6 @@ export interface AlicizationHumanlikeMemoryAuditEntry {
   confidence: number
   recallCertainty: 'steady' | 'tentative' | 'corrected'
   recallReason: string
-  naturalRecallLine: string
   userCorrectableFields: string[]
   revisionMemoryIds: string[]
   revisionReasons: string[]
@@ -6477,6 +6557,7 @@ export type AlicizationBridgeChatStreamEvent
     finishReason?: string
     fullText?: string
     visibleReplyExecution?: AlicizationBridgeVisibleReplyExecution | null
+    visibleReplyRealization?: AlicizationVisibleReplyRealizationTransportArtifact | null
     visibleReplyCritic?: Record<string, unknown> | null
     visibleReplyClosure?: Record<string, unknown> | null
   }
@@ -6649,8 +6730,7 @@ export interface AlicizationDialogueStructuredPayload {
     briefingLines: string[]
     reasons: string[]
   } | null
-  visibleReplyAuthority?: AlicizationVisibleReplyAuthority | null
-  visibleReplyRewriteRequest?: AlicizationVisibleReplyRewriteRequest | null
+  visibleReplyAuthority?: AlicizationVisibleReplyExecutionAuthority | null
   performance: AlicizationDialoguePerformancePayload
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   embodimentScript?: AlicizationEmbodimentScriptV1 | null

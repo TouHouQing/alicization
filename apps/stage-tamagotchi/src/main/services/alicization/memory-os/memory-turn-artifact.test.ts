@@ -47,7 +47,6 @@ describe('memory-turn-artifact', () => {
           surfaceMode: 'gist-first',
           placement: 'inside-payoff',
           certainty: 'approximate',
-          styleNote: 'Let memory guide tone, not wording.',
         } as any,
         memoryResolutionLedger: {
           version: 'memory-resolution-ledger-v1',
@@ -109,7 +108,12 @@ describe('memory-turn-artifact', () => {
       preferredTiming: 'after-payoff',
       intrusionRisk: 'medium',
     }))
-    expect(artifact.speechPosture.styleNote).toBe('Let memory guide tone, not wording.')
+    expect(artifact.speechPosture).toEqual(expect.objectContaining({
+      shouldSurface: true,
+      surfaceMode: 'gist-first',
+      placement: 'inside-payoff',
+      certainty: 'approximate',
+    }))
     expect(artifact.closure).toEqual(expect.objectContaining({
       closureState: 'approximate-recall',
       visibleCarryMode: 'gist-only',
@@ -227,7 +231,7 @@ describe('memory-turn-artifact', () => {
       latencyCost: 0.18,
       status: 'selected',
       statusReason: 'cross-source same-person continuity seam stayed dominant',
-      summary: 'The host was not asking for a generic progress recap; they were testing whether Alicization stayed the same living her across the unfinished seam.',
+      summary: 'The host was not asking for a generic progress recap; they were testing whether Alicization stayed the identity continuity across the unfinished seam.',
       evidenceSummary: 'execution result callback | same-person continuity check | focused-work boundary',
     } as const
 
@@ -299,7 +303,7 @@ describe('memory-turn-artifact', () => {
         },
         personStateProjection: {
           manifestationCadenceSummary: 'Return on one measured-return line and keep the reopening lower-pressure.',
-          relationshipDoctrine: 'Do not let the same living line flatten into a generic tool shell.',
+          relationshipDoctrine: 'Do not let the continuity state flatten into a generic tool shell.',
           summary: 'Measured-return continuity should stay visible across reply, memory, and body.',
         } as any,
         memoryDeliberation: {
@@ -328,7 +332,6 @@ describe('memory-turn-artifact', () => {
           surfaceMode: 'gist-first',
           placement: 'inside-payoff',
           certainty: 'approximate',
-          styleNote: 'Let the remembered relationship seam shape the reply cadence.',
         } as any,
       },
       latencyMs: 18,
@@ -449,8 +452,8 @@ describe('memory-turn-artifact', () => {
           summary: 'Memory should govern reply cadence, proactive restraint, and embodied continuity together.',
           selfContinuityAuthority: {
             relationshipLine: 'same-person continuity',
-            inwardLine: 'Hold the same remembered seam before speaking wider.',
-            authoritySummary: 'Memory OS remains the authority for this same-her closure.',
+            inwardLine: 'Hold the same remembered seam before outward reply wider.',
+            authoritySummary: 'Memory OS remains the authority for this identity-continuity',
             sourceTags: ['phase-1', 'same-her', 'memory-initiative-embodiment'],
           },
         } as any,
@@ -486,7 +489,6 @@ describe('memory-turn-artifact', () => {
           surfaceMode: 'gist-first',
           placement: 'inside-payoff',
           certainty: 'approximate',
-          styleNote: 'Let the remembered same-person seam shape a lower-pressure line.',
         } as any,
         memoryResolutionLedger: {
           version: 'memory-resolution-ledger-v1',

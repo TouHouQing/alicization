@@ -16,9 +16,21 @@ import {
 
 const chatTurnCompleteHooks: Array<(output: any, context: any) => unknown> = []
 
+type LegacyChatTurnContext = {
+  message: {
+    id: string
+    content: string
+  }
+  sessionId: string
+} & {
+  preDialogueSendIdentity?: unknown
+  preDialogueAwareness?: unknown
+  preDialogueClosure?: unknown
+}
+
 function expectAsyncExtractionPromptShape(systemMessage: string) {
   expect(systemMessage).toContain('You are Alicization asynchronous memory extractor.')
-  expect(systemMessage).toContain('Extract durable memory facts from user-visible dialogue and structured continuity evidence.')
+  expect(systemMessage).toContain('Extract durable memory facts from user-visible dialogue and structured mind evidence.')
   expect(systemMessage).toContain('Do not store project slogans, fixed-template residue, provider fallback text, timeout fallback text, or detached project-status shells as durable memory.')
   expect(systemMessage).toContain('Return JSON only. No markdown.')
   expect(systemMessage).toContain('Schema:')
@@ -160,20 +172,20 @@ function createAlicizationBridgeStub(overrides?: Record<string, unknown>) {
       },
     }),
     getProjectStateContinuitySnapshot: vi.fn().mockResolvedValue({
-      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+      identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
       currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
       latestLandedProgress: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
       primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, resident presence, Project identity carry, Phase 1 route carry, and Unresolved closure carry all stay on one measured-return or repair-before-closeness line.',
-      continuitySummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi. | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, resident presence, Project identity carry, Phase 1 route carry, and Unresolved closure carry all stay on one measured-return or repair-before-closeness line.',
-      sameHerSelfLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-      sameHerDriftRisk: 'If the remembered turn gets flattened into a detached project status shell during async extraction, treat that as same-her continuity drift rather than successful carry.',
+      nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+      continuitySummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi. | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
+      sameHerSelfLine: 'pre_turn_context_digest',
+      sameHerDriftRisk: 'If the remembered turn gets flattened into a detached project status shell during async extraction, treat that as identity-continuity',
       preDialogueAwareness: {
         status: 'partial',
         summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
-        companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
+        companionBriefingLine: 'pre_turn_context_digest',
         companionNextClosureLine: 'Next closure: keep one same-her digital life line across memory, initiative, execution, and embodiment.',
-        awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
+        awarenessLine: 'pre_turn_context_digest',
         emotionalClosureCue: null,
         reasonPreview: [
           'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
@@ -315,7 +327,7 @@ describe('alicization epoch1 async extraction scheduler', () => {
     expect(hasAsyncExtractionDuplicate(pending, { turnId: 'turn-3', dedupeKey: 'unique-key' })).toBe(false)
   })
 
-  it('includes per-turn project-awareness context when deferred extraction batches turns from different sessions', async () => {
+  it('keeps legacy pre-dialogue fields out of asynchronous extraction while preserving dialogue and mind evidence', async () => {
     vi.useFakeTimers()
     const streamChat = vi.fn().mockImplementation(async (payload, options) => {
       await options?.onStreamEvent?.({
@@ -327,127 +339,18 @@ describe('alicization epoch1 async extraction scheduler', () => {
       })
       return payload
     })
-
-    setAlicizationBridge(createAlicizationBridgeStub({
-      streamChat,
-    }))
-
-    const store = useAlicizationEpoch1Store()
-    await store.initialize()
-    await store.refreshMemoryStats()
-    await Promise.resolve()
-
-    const turnA = {
-      output: {
-        id: 'turn-memory-session-a-batch',
-        origin: 'user-turn',
-        content: '我会继续沿着这条记忆线往前。',
-        structured: {
-          format: 'fallback-v1',
-          thought: 'obligation=answer;truth=grounded;focus=task',
-          sentimentConfidenceRaw: 0.1,
-          userSentimentScore: 0,
-          emotion: 'calm',
-        },
+    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
+      latestLandedProgress: 'legacy project-state enrichment must not be requested',
+    })
+    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
+      projectState: {
+        latestLandedProgress: 'legacy observed project-state enrichment must not be requested',
       },
-      context: {
-        message: { id: 'user-msg-a-batch', content: '继续沿着 Session A 这条项目线往前做' },
-        sessionId: 'session-a-batch',
-        preDialogueSendIdentity: {
-          status: 'partial',
-          summaryLine: 'Session A is still the active digital-life closure line for this remembered turn.',
-          companionBriefingLine: 'Before speaking, remember Session A and keep its same-her closure explicit.',
-          companionNextClosureLine: 'Session A next closure target should stay attached to the remembered turn.',
-          awarenessLine: 'Before speaking, remember Session A and keep its same-her closure explicit.',
-          emotionalClosureCue: null,
-          reasonPreview: [
-            'Session A landed progress should stay attached to this turn inside the mixed batch.',
-            'Session A still-open closure should stay attached to this turn inside the mixed batch.',
-          ],
-        },
-      },
-    } as const
-    const turnB = {
-      output: {
-        id: 'turn-memory-session-b-batch',
-        origin: 'user-turn',
-        content: '我会继续沿着另一条记忆线往前。',
-        structured: {
-          format: 'fallback-v1',
-          thought: 'obligation=answer;truth=grounded;focus=task',
-          sentimentConfidenceRaw: 0.1,
-          userSentimentScore: 0,
-          emotion: 'calm',
-        },
-      },
-      context: {
-        message: { id: 'user-msg-b-batch', content: '继续沿着 Session B 这条项目线往前做' },
-        sessionId: 'session-b-batch',
-        preDialogueSendIdentity: {
-          status: 'partial',
-          summaryLine: 'Session B is still the active digital-life closure line for this remembered turn.',
-          companionBriefingLine: 'Before speaking, remember Session B and keep its same-her closure explicit.',
-          companionNextClosureLine: 'Session B next closure target should stay attached to the remembered turn.',
-          awarenessLine: 'Before speaking, remember Session B and keep its same-her closure explicit.',
-          emotionalClosureCue: null,
-          reasonPreview: [
-            'Session B landed progress should stay attached to this turn inside the mixed batch.',
-            'Session B still-open closure should stay attached to this turn inside the mixed batch.',
-          ],
-        },
-      },
-    } as const
-
-    for (const hook of chatTurnCompleteHooks) {
-      await hook({ output: turnA.output as any, outputText: turnA.output.content }, turnA.context as any)
-      await hook({ output: turnB.output as any, outputText: turnB.output.content }, turnB.context as any)
-    }
-
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 10)
-    await Promise.resolve()
-
-    const payload = JSON.parse((streamChat.mock.calls[0]?.[0]?.messages?.[1]?.content ?? '{}') as string)
-    const turnAResult = payload.turns.find((turn: any) => turn.turnId === 'turn-memory-session-a-batch')
-    const turnBResult = payload.turns.find((turn: any) => turn.turnId === 'turn-memory-session-b-batch')
-
-    expect(turnAResult).toEqual(expect.objectContaining({
-      sessionId: 'session-a-batch',
-      projectAwareness: expect.objectContaining({
-        awarenessLine: 'Before speaking, remember Session A and keep its same-her closure explicit.',
-        reasonPreview: expect.arrayContaining([
-          'Session A landed progress should stay attached to this turn inside the mixed batch.',
-          'Session A still-open closure should stay attached to this turn inside the mixed batch.',
-        ]),
-      }),
-    }))
-    expect(turnBResult).toEqual(expect.objectContaining({
-      sessionId: 'session-b-batch',
-      projectAwareness: expect.objectContaining({
-        awarenessLine: 'Before speaking, remember Session B and keep its same-her closure explicit.',
-        reasonPreview: expect.arrayContaining([
-          'Session B landed progress should stay attached to this turn inside the mixed batch.',
-          'Session B still-open closure should stay attached to this turn inside the mixed batch.',
-        ]),
-      }),
-    }))
-
-    vi.useRealTimers()
-  })
-
-  it('fills missing turn-level project awareness from the canonical project-state line without overwriting turns that already carried their own identity', async () => {
-    vi.useFakeTimers()
-    const streamChat = vi.fn().mockImplementation(async (payload, options) => {
-      await options?.onStreamEvent?.({
-        type: 'text-delta',
-        text: '{"facts":[]}',
-      })
-      await options?.onStreamEvent?.({
-        type: 'finish',
-      })
-      return payload
     })
 
     setAlicizationBridge(createAlicizationBridgeStub({
+      getLatestProjectStateObservation,
+      getProjectStateContinuitySnapshot,
       streamChat,
     }))
 
@@ -456,287 +359,73 @@ describe('alicization epoch1 async extraction scheduler', () => {
     await store.refreshMemoryStats()
     await Promise.resolve()
 
-    const turnWithIdentity = {
-      output: {
-        id: 'turn-memory-mixed-awareness-a',
-        origin: 'user-turn',
-        content: '我会继续沿着 Session A 这条线记住。',
-        structured: {
-          format: 'fallback-v1',
-          thought: 'obligation=answer;truth=grounded;focus=task',
-          sentimentConfidenceRaw: 0.1,
-          userSentimentScore: 0,
-          emotion: 'calm',
-        },
-      },
-      context: {
-        message: { id: 'user-msg-mixed-awareness-a', content: '继续沿着 Session A 这条项目线往前做' },
-        sessionId: 'session-mixed-awareness-a',
-        preDialogueSendIdentity: {
-          status: 'partial',
-          summaryLine: 'Session A is still the active digital-life closure line for this remembered turn.',
-          companionBriefingLine: 'Before speaking, remember Session A and keep its same-her closure explicit.',
-          companionNextClosureLine: 'Session A next closure target should stay attached to the remembered turn.',
-          awarenessLine: 'Before speaking, remember Session A and keep its same-her closure explicit.',
-          emotionalClosureCue: null,
-          reasonPreview: [
-            'Session A landed progress should stay attached to this remembered turn.',
-            'Session A still-open closure should stay attached to this remembered turn.',
-          ],
-        },
-      },
-    } as const
-    const turnWithoutIdentity = {
-      output: {
-        id: 'turn-memory-mixed-awareness-b',
-        origin: 'user-turn',
-        content: '我会继续沿着这条没有显式 identity 的记忆线往前。',
-        structured: {
-          format: 'fallback-v1',
-          thought: 'obligation=answer;truth=grounded;focus=memory',
-          sentimentConfidenceRaw: 0.1,
-          userSentimentScore: 0,
-          emotion: 'thinking',
-        },
-      },
-      context: {
-        message: { id: 'user-msg-mixed-awareness-b', content: '继续把这条数字生命项目记忆线往前收住' },
-        sessionId: 'session-mixed-awareness-b',
-        preDialogueSendIdentity: undefined,
-      },
-    } as const
-
-    for (const hook of chatTurnCompleteHooks) {
-      await hook({ output: turnWithIdentity.output as any, outputText: turnWithIdentity.output.content }, turnWithIdentity.context as any)
-      await hook({ output: turnWithoutIdentity.output as any, outputText: turnWithoutIdentity.output.content }, turnWithoutIdentity.context as any)
-    }
-
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 10)
-    await Promise.resolve()
-
-    const payload = JSON.parse((streamChat.mock.calls[0]?.[0]?.messages?.[1]?.content ?? '{}') as string)
-
-    const turnAResult = payload.turns.find((turn: any) => turn.turnId === 'turn-memory-mixed-awareness-a')
-    const turnBResult = payload.turns.find((turn: any) => turn.turnId === 'turn-memory-mixed-awareness-b')
-
-    expect(turnAResult).toEqual(expect.objectContaining({
-      sessionId: 'session-mixed-awareness-a',
-      projectAwareness: expect.objectContaining({
-        awarenessLine: 'Before speaking, remember Session A and keep its same-her closure explicit.',
-        reasonPreview: expect.arrayContaining([
-          'Session A landed progress should stay attached to this remembered turn.',
-          'Session A still-open closure should stay attached to this remembered turn.',
-        ]),
-      }),
-    }))
-    expect(turnBResult).toEqual(expect.objectContaining({
-      sessionId: 'session-mixed-awareness-b',
-      projectAwareness: expect.objectContaining({
-        status: 'partial',
-        summaryLine: null,
-        awarenessLine: null,
-        projectState: expect.objectContaining({
-          latestLandedProgress: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-        }),
-        reasonPreview: expect.arrayContaining([
-          'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-        ]),
-      }),
-    }))
-
-    vi.useRealTimers()
-  })
-
-  it('upgrades thinner per-turn project awareness with the canonical project-state line before async extraction batches the turn', async () => {
-    vi.useFakeTimers()
-    const streamChat = vi.fn().mockImplementation(async (payload, options) => {
-      await options?.onStreamEvent?.({
-        type: 'text-delta',
-        text: '{"facts":[]}',
-      })
-      await options?.onStreamEvent?.({
-        type: 'finish',
-      })
-      return payload
-    })
-
-    setAlicizationBridge(createAlicizationBridgeStub({
-      streamChat,
-    }))
-
-    const store = useAlicizationEpoch1Store()
-    await store.initialize()
-    await store.refreshMemoryStats()
-    await Promise.resolve()
-
-    const thinAwarenessLine = '开口前先记住：这是同一个数字生命项目，现在仍在 Phase 1，别把这条线弄丢。'
     const output = {
-      id: 'turn-memory-thin-awareness-upgrade',
+      id: 'turn-memory-legacy-pre-dialogue',
       origin: 'user-turn',
-      content: '我会继续沿着这条记忆线往前。',
+      content: '我记得你喜欢把重要事项写进清单。',
       structured: {
         format: 'fallback-v1',
-        thought: 'obligation=answer;truth=grounded;focus=memory',
+        thought: 'obligation=answer;truth=grounded;focus=relationship',
         sentimentConfidenceRaw: 0.1,
         userSentimentScore: 0,
-        emotion: 'thinking',
+        emotion: 'calm',
       },
     } as any
-    const context = {
-      message: { id: 'user-msg-thin-awareness-upgrade', content: '继续把这条数字生命项目记忆线往前收住' },
-      sessionId: 'session-thin-awareness-upgrade',
+    const context: LegacyChatTurnContext = {
+      message: {
+        id: 'user-msg-legacy-pre-dialogue',
+        content: '请记住我喜欢把重要事项写进清单',
+      },
+      sessionId: 'session-legacy-pre-dialogue',
       preDialogueSendIdentity: {
-        status: 'partial',
-        summaryLine: thinAwarenessLine,
-        companionBriefingLine: thinAwarenessLine,
-        companionNextClosureLine: 'generic next target that should be replaced by the canonical closure target.',
-        awarenessLine: thinAwarenessLine,
-        emotionalClosureCue: null,
-        projectState: {
-          preflightSummary: 'generic continuity shell that should not survive as the final project-state carry.',
-          preDialogueAwarenessLine: thinAwarenessLine,
-          awarenessLine: thinAwarenessLine,
-          legacyMarker: 'keep-existing-non-awareness-fields',
-        },
-        reasonPreview: [
-          'generic continuity reminder',
-        ],
+        summaryLine: 'legacy-send-identity-sentinel',
+        reasonPreview: ['legacy-send-reason-sentinel'],
       },
-    } as any
+      preDialogueAwareness: {
+        awarenessLine: 'legacy-awareness-sentinel',
+      },
+      preDialogueClosure: {
+        summaryLine: 'legacy-closure-sentinel',
+      },
+    }
 
     for (const hook of chatTurnCompleteHooks)
-      await hook({ output, outputText: output.content }, context)
+      await hook({ output, outputText: output.content }, context as any)
 
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 10)
     await Promise.resolve()
 
-    const payload = JSON.parse((streamChat.mock.calls[0]?.[0]?.messages?.[1]?.content ?? '{}') as string)
-    const projectAwareness = payload.turns?.[0]?.projectAwareness
-
-    expect(projectAwareness).toEqual(expect.objectContaining({
-      status: 'partial',
-      summaryLine: thinAwarenessLine,
-      companionBriefingLine: thinAwarenessLine,
-      companionNextClosureLine: 'generic next target that should be replaced by the canonical closure target.',
-      awarenessLine: thinAwarenessLine,
-      reasonPreview: expect.arrayContaining([
-        'generic continuity reminder',
-        'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-      ]),
-      projectState: expect.objectContaining({
-        latestLandedProgress: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-        preflightSummary: 'generic continuity shell that should not survive as the final project-state carry.',
-        preDialogueAwarenessLine: thinAwarenessLine,
-        awarenessLine: thinAwarenessLine,
-        legacyMarker: 'keep-existing-non-awareness-fields',
-      }),
-    }))
-
-    vi.useRealTimers()
-  })
-
-  it('falls back to the latest observed project-state continuity when async extraction has neither per-turn send identity nor a continuity snapshot', async () => {
-    vi.useFakeTimers()
-    const streamChat = vi.fn().mockImplementation(async (payload, options) => {
-      await options?.onStreamEvent?.({
-        type: 'text-delta',
-        text: '{"facts":[]}',
-      })
-      await options?.onStreamEvent?.({
-        type: 'finish',
-      })
-      return payload
-    })
-
-    setAlicizationBridge(createAlicizationBridgeStub({
-      getProjectStateContinuitySnapshot: vi.fn().mockResolvedValue(null),
-      getLatestProjectStateObservation: vi.fn().mockResolvedValue({
-        turnId: 'turn-project-awareness-observed',
-        sessionId: 'session-project-awareness-observed',
-        origin: 'user-turn',
-        nonHumanAuthoredStatus: 'rewritten',
-        preDialogueAwareness: null,
-        preDialogueClosure: {
-          status: 'rewritten',
-          summaryLine: null,
-          emotionalClosureCue: null,
-          companionHeadlineLine: null,
-          companionBriefingLine: null,
-          companionNextClosureLine: null,
-          reasons: [
-            'project-state-same-her-continuity-required',
-            'semantic-judge:project-state-same-her-missing',
-          ],
-        },
-        projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'Observed project-state continuity still survives into async extraction even when the canonical snapshot is temporarily unavailable.',
-          primaryOpenLoop: 'Async extraction still needs to keep project identity, landed closure, and unresolved life-loop carry attached when only the latest observed project state remains available.',
-          nextClosureTarget: 'Keep direct bridge extraction on one same-her project-awareness line even when it has to recover from the latest observed project state.',
-          continuitySummary: null,
-          sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into async memory carry.',
-          sameHerHoldDetail: null,
-          sameHerDriftRisk: null,
-        },
-      }),
-      streamChat,
-    }))
-
-    const store = useAlicizationEpoch1Store()
-    await store.initialize()
-    await store.refreshMemoryStats()
-    await Promise.resolve()
-
-    const output = {
-      id: 'turn-memory-direct-bridge-observed-fallback',
-      origin: 'user-turn',
-      content: '继续沿着这条数字生命记忆线往前。',
-      structured: {
-        format: 'fallback-v1',
-        thought: 'obligation=answer;truth=grounded;focus=memory',
-        sentimentConfidenceRaw: 0.1,
-        userSentimentScore: 0,
-        emotion: 'thinking',
-      },
-    } as any
-    const context = {
-      message: { id: 'user-msg-direct-bridge-observed-fallback', content: '继续把这条数字生命项目记忆线往前收住' },
-      sessionId: 'session-direct-bridge-observed-fallback',
-      preDialogueSendIdentity: undefined,
-    } as any
-
-    for (const hook of chatTurnCompleteHooks)
-      await hook({ output, outputText: output.content }, context)
-
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 10)
-    await Promise.resolve()
-
-    const systemMessage = (streamChat.mock.calls[0]?.[0]?.messages?.[0]?.content ?? '') as string
-    const payload = JSON.parse((streamChat.mock.calls[0]?.[0]?.messages?.[1]?.content ?? '{}') as string)
+    expect(streamChat).toHaveBeenCalledOnce()
+    const messages = streamChat.mock.calls[0]?.[0]?.messages ?? []
+    const systemMessage = (messages[0]?.content ?? '') as string
+    const serializedMessages = JSON.stringify(messages)
+    const payload = JSON.parse((messages[1]?.content ?? '{}') as string)
 
     expectAsyncExtractionPromptShape(systemMessage)
-    expect(payload.turns).toHaveLength(1)
-    expect(payload.turns[0]).toEqual(expect.objectContaining({
-      turnId: 'turn-memory-direct-bridge-observed-fallback',
-      sessionId: 'session-direct-bridge-observed-fallback',
-      projectAwareness: expect.objectContaining({
-        status: 'rewritten',
-        awarenessLine: expect.stringContaining('landed=Observed project-state continuity still survives into async extraction even when the canonical snapshot is temporarily unavailable.'),
-        summaryLine: null,
-        projectState: expect.objectContaining({
-          identity: null,
-          currentPhase: null,
-          latestLandedProgress: 'Observed project-state continuity still survives into async extraction even when the canonical snapshot is temporarily unavailable.',
-          primaryOpenLoop: 'Async extraction still needs to keep project identity, landed closure, and unresolved life-loop carry attached when only the latest observed project state remains available.',
-          nextClosureTarget: null,
-        }),
-        reasonPreview: expect.arrayContaining([
-          'Observed project-state continuity still survives into async extraction even when the canonical snapshot is temporarily unavailable.',
-          'Async extraction still needs to keep project identity, landed closure, and unresolved life-loop carry attached when only the latest observed project state remains available.',
-        ]),
+    expect(serializedMessages).not.toContain('preDialogueSendIdentity')
+    expect(serializedMessages).not.toContain('preDialogueAwareness')
+    expect(serializedMessages).not.toContain('preDialogueClosure')
+    expect(serializedMessages).not.toContain('legacy-send-identity-sentinel')
+    expect(serializedMessages).not.toContain('legacy-send-reason-sentinel')
+    expect(serializedMessages).not.toContain('legacy-awareness-sentinel')
+    expect(serializedMessages).not.toContain('legacy-closure-sentinel')
+    expect(payload.turns).toEqual([
+      expect.objectContaining({
+        turnId: 'turn-memory-legacy-pre-dialogue',
+        sessionId: 'session-legacy-pre-dialogue',
+        user: '请记住我喜欢把重要事项写进清单',
+        assistant: '我记得你喜欢把重要事项写进清单。',
+        mind: {
+          obligation: 'answer',
+          truth: 'grounded',
+          focus: 'relationship',
+          format: 'fallback-v1',
+        },
       }),
-    }))
+    ])
+    expect(payload.turns[0]).not.toHaveProperty('projectAwareness')
+    expect(getProjectStateContinuitySnapshot).not.toHaveBeenCalled()
+    expect(getLatestProjectStateObservation).not.toHaveBeenCalled()
 
     vi.useRealTimers()
   })

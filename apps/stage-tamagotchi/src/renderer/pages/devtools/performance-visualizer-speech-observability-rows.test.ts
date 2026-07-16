@@ -523,7 +523,7 @@ describe('performance visualizer speech observability rows', () => {
     ])
   })
 
-  it('keeps a thin measured-return same-her line visible in speech observability rows instead of collapsing it into lane-only drift', () => {
+  it('keeps a thin measured-return identity-continuity', () => {
     const view = buildSpeechObservabilityView({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -550,7 +550,7 @@ describe('performance visualizer speech observability rows', () => {
         bindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
         matchSummary: 'face:no motion:no lipsync:yes',
         authorityMismatchSummary: 'face-mismatch, motion-mismatch',
-        authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+        authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
         settleSummary: null,
       },
       cueMicroSummary: null,
@@ -620,7 +620,7 @@ describe('performance visualizer speech observability rows', () => {
       {
         section: 'authority',
         label: 'authority-mismatch',
-        value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+        value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
       },
     ])
   })
@@ -2711,7 +2711,7 @@ describe('performance visualizer speech observability rows', () => {
         },
         cue: {
           id: 'segment-invited-observability-rows-1',
-          text: '我还在，只是轻一点接回来。',
+          text: '我还在，只是中性可见占位。',
           prosodyWeight: 0.22,
           mouthWeight: 0.2,
           headWeight: 0.18,
@@ -3101,7 +3101,7 @@ describe('performance visualizer speech observability rows', () => {
     })
   })
 
-  it('surfaces embodiment closure stage rows when only the quieter body+lipsync same-her line is still carrying the segment', () => {
+  it('surfaces embodiment closure stage rows when only the quieter body+lipsync identity-continuity', () => {
     const view = {
       articulation: null,
       articulationSummary: null,
@@ -3239,7 +3239,7 @@ describe('performance visualizer speech observability rows', () => {
     })
   })
 
-  it('keeps structured same-her closure stage rows visible when the stage is carried only by scoped settle authority summaries', () => {
+  it('keeps structured identity-continuity', () => {
     const cueId = 'segment-body-carried-to-renderer-rejoin-row-settle-only-1'
     const view = {
       articulation: null,

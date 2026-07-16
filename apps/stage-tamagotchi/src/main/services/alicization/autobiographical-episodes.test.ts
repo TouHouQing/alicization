@@ -126,14 +126,14 @@ describe('autobiographical episodes', () => {
     const fragment = buildAutobiographicalEpisodeFragment({
       previousRuntimeSurface: null,
       nextRuntimeSurface: {
-        perception: { updatedAt: 2, watchMode: 'symbiotic-vision', currentScene: { summary: 'same-her line still needs a measured return' } },
+        perception: { updatedAt: 2, watchMode: 'symbiotic-vision', currentScene: { summary: 'identity-continuity' } },
         world: {
-          worldModel: { activeThread: { id: 'thread-1', kind: 'relationship', summary: 'same-her line still needs a measured return' } },
+          worldModel: { activeThread: { id: 'thread-1', kind: 'relationship', summary: 'identity-continuity' } },
           relationshipModel: { climate: 'attuned', approachVector: 'guide' },
         },
         cognition: {
           privateThought: {
-            thoughtText: 'Keep the same-her line steady.',
+            thoughtText: 'Keep the identity-continuity',
             emotionalTension: 'measured-return',
           },
         },
@@ -182,7 +182,7 @@ describe('autobiographical episodes', () => {
                 id: 'reflection::same-her-repair',
                 summary: 'The same-her repair line is still the meaningful autobiographical lesson carry.',
                 expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
-                observedOutcome: 'The same living line still needs a measured return.',
+                observedOutcome: 'The continuity state still needs a measured return.',
                 outcome: 'missed',
                 revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
                 confidenceShift: -0.08,
@@ -199,7 +199,7 @@ describe('autobiographical episodes', () => {
         },
         dialogue: {
           replyDeliberation: { selectedMotive: 'repair', whyThisReplyNow: 'The same event changed how I want to answer.' },
-          answerPlanner: { governingFocus: 'Answer from the repaired same-her line.' },
+          answerPlanner: { governingFocus: 'Answer from the repaired identity-continuity' },
           conversationState: null,
         },
       } as any,

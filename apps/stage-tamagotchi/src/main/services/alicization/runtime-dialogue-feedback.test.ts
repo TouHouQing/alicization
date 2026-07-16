@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
-  resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
-  summarizeAlicizationPreDialogueSendIdentityForDebug,
-} from './main-chat-start-awareness'
-import {
   attachSynthesizedReflections as actualAttachSynthesizedReflections,
   buildDialogueReplyFeedbackOutcomeClosure as actualBuildDialogueReplyFeedbackOutcomeClosure,
 } from './outcome-reinforcement'
@@ -54,7 +50,7 @@ describe('runtime dialogue feedback', () => {
         },
         personStateProjection: {
           selfContinuityAuthority: {
-            inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            inwardLine: 'structured continuity digest.',
             sourceTags: ['autobiographical-self', 'project-state-carry'],
           },
         },
@@ -96,12 +92,12 @@ describe('runtime dialogue feedback', () => {
         expect.objectContaining({
           subject: 'project',
           predicate: 'closure',
-          object: expect.stringContaining('Same Phase 1 digital life'),
+          object: expect.stringContaining('memory_continuity=local_runtime'),
         }),
       ]),
       episodicEvents: expect.arrayContaining([
         expect.objectContaining({
-          lesson: expect.stringContaining('same digital life line'),
+          lesson: expect.stringContaining('one continuous response context'),
         }),
       ]),
     }))
@@ -110,18 +106,18 @@ describe('runtime dialogue feedback', () => {
       decisionTraceId: 'trace-1',
       feedback: 'robotic',
       feedbackExperience: expect.objectContaining({
-        felt: expect.stringContaining('same-her line shelled over'),
+        felt: expect.stringContaining('reply shelled over'),
         relationshipMeaning: expect.stringContaining('tool shell'),
         lesson: expect.stringContaining('Let the body return like this'),
         tags: expect.arrayContaining([
           'dialogue-feedback',
           'feedback:robotic',
           'body-rehumanize',
-          'continuity-same-her',
+          'continuity-evidence',
           'residue-shell-pressure',
         ]),
       }),
-      selfContinuityInwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      selfContinuityInwardLine: 'structured continuity digest.',
       selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry'],
     }))
     expect(appendRelationshipDynamics).toHaveBeenCalledWith(expect.objectContaining({
@@ -264,62 +260,5 @@ describe('runtime dialogue feedback', () => {
         }),
       }),
     }))
-  })
-
-  it('re-normalizes missing pre-dialogue project awareness before settling dialogue feedback so auxiliary reply-feedback paths cannot skip the same-her project brief', async () => {
-    const appendAuditLog = vi.fn(async () => {})
-    const payload = {
-      cardId: 'card-1',
-      turnId: 'turn-user',
-      providerId: 'openai',
-      model: 'gpt-test',
-      providerConfig: {},
-      messages: [],
-      preDialogueSendIdentity: null,
-    } as any
-    const expectedDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(
-      resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload),
-    )
-    const runtime = createAlicizationRuntimeDialogueFeedback({
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-      readLatestUserMessageText: () => '你这句太模板了',
-      ensureActiveOrLatestSessionId: async () => 'session-1',
-      withCardScope: async (_cardId, task) => await task(),
-      ensureDialogueReplyFeedbackAck: async () => '',
-      persistDialogueReplyFeedbackAck: vi.fn(async () => {}),
-      parseStoredConversationStructured: () => ({
-        format: 'mind-turn-v1',
-      }),
-      deriveDialogueReplyFeedbackKind: () => 'robotic',
-      attachSynthesizedReflections: input => input,
-      buildDialogueReplyFeedbackOutcomeClosure: input => input as any,
-      persistOutcomeClosure: vi.fn(async () => {}),
-      appendAuditLog,
-      memoryReconsolidationRuntime: {
-        reconsolidateDialogueFeedbackMemoryTrace: vi.fn(async () => {}),
-      },
-      alicizationDb: {
-        listConversationTurnsBySession: async () => [{
-          turnId: 'turn-1',
-          sessionId: 'session-1',
-          assistantText: '上一句像模板壳。',
-          structuredJson: '{}',
-          createdAt: 1,
-        }],
-        getLatestRelationshipDynamics: async () => null,
-        appendRelationshipDynamics: vi.fn(async () => {}),
-      },
-    })
-
-    await runtime.settleRecentDialogueReplyFeedbackFromUserTurn(payload, 10, 'test')
-
-    expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-      payload: expect.objectContaining({
-        preDialogueAwarenessStatus: expectedDebug?.preDialogueAwarenessStatus,
-        preDialogueAwarenessLine: expectedDebug?.preDialogueAwarenessLine,
-        preDialogueCompanionBriefingLine: expectedDebug?.preDialogueCompanionBriefingLine,
-      }),
-    }), 'card-1')
   })
 })

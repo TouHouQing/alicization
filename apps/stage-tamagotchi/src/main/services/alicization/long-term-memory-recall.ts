@@ -1,4 +1,5 @@
 import {
+  buildAlicizationProviderFactBlock,
   containsAlicizationFixedTemplateResidue,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
@@ -347,39 +348,62 @@ export function buildLongTermMemoryRecallBlock(input: {
   const evidence = input.bundle.evidence.slice(0, Math.max(0, Math.min(8, Math.floor(input.maxItems ?? 5))))
   const riskFlags = input.bundle.intent.riskFlags
   const hasExplicitFailure = riskFlags.some(flag => flag.includes('failed') || flag.includes('error'))
-  if (!input.bundle.intent.shouldRecall || evidence.length === 0) {
+  const evidenceFacts = evidence
+    .map((item) => {
+      const summary = sanitizeAlicizationProviderFacingText(item.candidate.summary, 260)
+      if (!summary)
+        return null
+
+      return {
+        id: item.candidate.id,
+        kind: item.candidate.kind,
+        summary,
+        source: item.candidate.source,
+        confidence: item.candidate.confidence,
+        score: item.score,
+        visibility: item.visibleMode,
+        queryMatches: item.queryMatches,
+        rankReasons: item.rankReasons,
+      }
+    })
+    .filter(item => item !== null)
+
+  if (!input.bundle.intent.shouldRecall || evidenceFacts.length === 0) {
     if (!hasExplicitFailure)
       return null
 
-    return [
-      '[ALICIZATION_RECALLED_MEMORY]',
-      'owner=LongTermMemoryRecall',
-      `intent=${input.bundle.intent.mode}`,
-      `confidence=${input.bundle.confidence.toFixed(2)}`,
-      `budget=${input.bundle.budgetClass}`,
-      `temporal_focus=${input.bundle.intent.temporalFocus}`,
-      `risk_flags=${riskFlags.join(',') || 'none'}`,
-      'items=',
-    ].join('\n')
+    return buildAlicizationProviderFactBlock('alicization-long-term-memory-recall', {
+      owner: 'LongTermMemoryRecall',
+      status: 'failed',
+      intent: {
+        mode: input.bundle.intent.mode,
+        shouldRecall: input.bundle.intent.shouldRecall,
+        confidence: input.bundle.intent.confidence,
+        rationale: sanitizeAlicizationProviderFacingText(input.bundle.intent.rationale, 260) || null,
+        temporalFocus: input.bundle.intent.temporalFocus,
+        targetKinds: input.bundle.intent.targetKinds,
+      },
+      confidence: input.bundle.confidence,
+      budget: input.bundle.budgetClass,
+      riskFlags,
+      evidence: [],
+    })
   }
 
-  const lines = [
-    '[ALICIZATION_RECALLED_MEMORY]',
-    'owner=LongTermMemoryRecall',
-    `intent=${input.bundle.intent.mode}`,
-    `confidence=${input.bundle.confidence.toFixed(2)}`,
-    `budget=${input.bundle.budgetClass}`,
-    `temporal_focus=${input.bundle.intent.temporalFocus}`,
-    `risk_flags=${riskFlags.join(',') || 'none'}`,
-    'items=',
-    ...evidence.map((item) => {
-      const prefix = item.visibleMode === 'tentative'
-        ? 'tentative'
-        : item.visibleMode === 'inward-only'
-          ? 'inward'
-          : 'memory'
-      return `- ${prefix}:${sanitizeAlicizationProviderFacingText(item.candidate.summary, 260)} source=${item.candidate.source}:${item.candidate.id} confidence=${item.candidate.confidence.toFixed(2)} score=${item.score.toFixed(2)}`
-    }),
-  ]
-  return lines.join('\n')
+  return buildAlicizationProviderFactBlock('alicization-long-term-memory-recall', {
+    owner: 'LongTermMemoryRecall',
+    status: 'recalled',
+    intent: {
+      mode: input.bundle.intent.mode,
+      shouldRecall: input.bundle.intent.shouldRecall,
+      confidence: input.bundle.intent.confidence,
+      rationale: sanitizeAlicizationProviderFacingText(input.bundle.intent.rationale, 260) || null,
+      temporalFocus: input.bundle.intent.temporalFocus,
+      targetKinds: input.bundle.intent.targetKinds,
+    },
+    confidence: input.bundle.confidence,
+    budget: input.bundle.budgetClass,
+    riskFlags,
+    evidence: evidenceFacts,
+  })
 }

@@ -9,9 +9,9 @@ describe('alicization-browser-main-parity', () => {
       source: 'main-runtime',
       producedAt: 1,
       structured: {
-        thought: 'same-thread-continuation keep the same living line slower than impulse',
+        thought: 'same-thread-continuation keep the continuity state slower than impulse',
         emotion: 'thinking',
-        reply: '我沿着这条线轻一点接回来。',
+        reply: '我沿着这条线中性可见占位。',
         performance: {
           baseEmotion: 'thinking',
           emotion: 'thinking',
@@ -23,14 +23,14 @@ describe('alicization-browser-main-parity', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'transport-same-her-line',
-          reply: '我沿着这条线轻一点接回来。',
+          reply: '我沿着这条线中性可见占位。',
           emotion: 'thinking',
           segments: [{
             id: 'segment-same-her-line',
             index: 0,
             startOffset: 0,
             endOffset: 14,
-            text: '我沿着这条线轻一点接回来。',
+            text: '我沿着这条线中性可见占位。',
             emotion: 'thinking',
             gestureWeight: 0.22,
             facialWeight: 0.46,

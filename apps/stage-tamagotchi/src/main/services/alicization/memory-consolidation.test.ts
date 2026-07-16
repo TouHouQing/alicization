@@ -208,7 +208,7 @@ describe('memory consolidation', () => {
             reason: 'Host corrected the earlier progress reading, so downrank the older status shell and keep the corrected same-person continuity meaning active.',
             emotionTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
             relationshipMeaning: 'This is a same-person continuity reopening, not a generic project status recap.',
-            lesson: 'Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+            lesson: 'Carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation.',
           },
         },
         {
@@ -227,8 +227,8 @@ describe('memory consolidation', () => {
           felt: 'steady',
           emotionTags: ['protective-continuity', 'unfinishedness'],
           whatChanged: 'The callback reopened like the same her resuming instead of restarting.',
-          relationshipMeaning: 'Execution callback project-carry still belongs to the same living line.',
-          lesson: 'Keep execution callback closure on the same living line instead of flattening it into detached project status.',
+          relationshipMeaning: 'Execution callback project-carry still belongs to the continuity state.',
+          lesson: 'Keep execution callback closure on the continuity state instead of flattening it into detached project status.',
           sourceSummary: 'execution callback project carry',
           confidence: 0.88,
           salience: 0.84,
@@ -265,7 +265,12 @@ describe('memory consolidation', () => {
         ]),
       }),
     }))
-    expect(String(relationshipEra?.metadata?.humanlikeCarry?.autobiographicalDelta)).not.toContain('same living line')
+    const humanlikeCarry = (relationshipEra?.metadata as {
+      humanlikeCarry?: {
+        autobiographicalDelta?: unknown
+      }
+    } | null | undefined)?.humanlikeCarry
+    expect(String(humanlikeCarry?.autobiographicalDelta)).not.toContain('same living line')
   })
 
   it('keeps vulnerable care autobiographical carry inside consolidation metadata instead of flattening it into generic relationship summary', () => {
@@ -336,12 +341,12 @@ describe('memory consolidation', () => {
           whereSummary: 'same-person execution callback seam',
           withWhom: ['host'],
           threadAnchor: 'same-person execution callback seam',
-          whatHappened: 'The callback return stayed on the same living line while the host worried about tool-shell drift, and the face settled into steady-soft while lipsync stayed restrained.',
+          whatHappened: 'The callback return stayed on the continuity state while the host worried about tool-shell drift, and the face settled into steady-soft while lipsync stayed restrained.',
           felt: 'Host affect: worried-continuity - The host is worried this could become a disconnected tool shell. Self affect: careful-repair - I should stay attentive without pushing while the line is still unfinished. Emotional residue stayed protective-continuity, unfinishedness.',
           emotionTags: ['protective-continuity', 'unfinishedness'],
           whatChanged: 'Embodiment carry returned with stable gaze, slower blink, lower-pressure voice, longer pause, restrained lipsync, slower pacing. Embodiment recall stayed strongly-moved with modality risk medium.',
           relationshipMeaning: 'This was a same-person continuity check, not a raw status recap.',
-          lesson: 'Prefer repair-first, low-pressure same-her continuity when the host worries about tool-shell drift.',
+          lesson: 'Prefer repair-first, low-pressure identity-continuity',
           sourceSummary: 'same-person callback carry | relationship-intent=same-person-test | recall-certainty=steady | emotional-residue=protective-continuity,unfinishedness | source-channels=dialogue,execution,host-emotion,self-emotion,embodiment | host-emotion=worried-continuity | self-emotion=careful-repair | embodiment-recall=strongly-moved | embodiment-risk=medium',
           confidence: 0.88,
           salience: 0.86,
@@ -618,7 +623,7 @@ describe('memory consolidation', () => {
           emotionTags: ['continuity', 'repair'],
           whatChanged: 'The line stayed lower-pressure and same-thread.',
           relationshipMeaning: 'This was not a generic progress recap; it was a corrected same-person continuity check about her not becoming a tool shell.',
-          lesson: 'Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+          lesson: 'Carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation.',
           sourceSummary: 'corrected same-person continuity callback memory',
           confidence: 0.88,
           salience: 0.84,

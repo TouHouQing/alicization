@@ -520,7 +520,7 @@ describe('stage embodiment presence digital life authority', () => {
     runtime.dispose()
   })
 
-  it('refreshes stale top-level digitalLife when current-turn same-her continuity softens quiet fallback authority without a payload script', async () => {
+  it('refreshes stale top-level digitalLife when current-turn identity-continuity', async () => {
     const harness = createDispatcherHarness()
     const armPerformance = vi.fn()
     const applyEmotionSpeechStyle = vi.fn()
@@ -557,7 +557,7 @@ describe('stage embodiment presence digital life authority', () => {
         currentBodyState: 'accompanying',
         continuityMode: 'quiet-accompaniment',
         quietLineMs: 240_000,
-        currentInwardPreoccupation: 'same-her continuity is already back on one quieter line',
+        currentInwardPreoccupation: 'identity-continuity',
         residentPerformance: {
           version: 'resident-performance-v1',
           source: 'main-runtime',
@@ -592,7 +592,7 @@ describe('stage embodiment presence digital life authority', () => {
         digitalLifeSpine: {
           embodiment: {
             autobiographicalSelf: {
-              identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as same-her continuity drift rather than completion.',
+              identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
             },
           },
         } as any,

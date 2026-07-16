@@ -150,7 +150,6 @@ function formatContinuityDisplayValue(value: string) {
     .replace(/\bboundary-violation\b/, '边界越线')
     .replace(/\bremembered-familiarity-memory-first\b/, '熟悉感记忆先行')
     .replace(/\bproject-state-identity-continuity-continuity-required\b/, '项目状态必须继续守住身份连续性')
-    .replace(/\bsemantic-judge:project-state-identity-continuity-missing\b/, '项目状态回答一度丢失身份连续性明线')
     .replace(/\blane=face-only\b/, '当前仅剩表情维持同一段连续性')
     .replace(/\blane=body-only\b/, '当前仅剩身体维持同一段连续性')
     .replace(/\blane=motion-only\b/, '当前仅剩动作维持同一段连续性')
@@ -246,7 +245,6 @@ function hasProjectStateContinuityDrift(input: SelfEvolutionEvidencePanelInput) 
     || line.includes('Project identity-continuity self line currently reads')
     || line.includes('sameHer=')
     || line.includes('project-state-identity-continuity-continuity-required')
-    || line.includes('semantic-judge:project-state-identity-continuity-missing')
     || line.includes('pre-dialogue briefing drift')
     || line.includes('briefing drift')
     || line.includes('preDialogueBriefingDrift'),
@@ -258,8 +256,6 @@ function resolveProjectStateSameHerRepairEvidence(input: SelfEvolutionEvidencePa
   const repairs: string[] = []
   if (lines.some(line => line.includes('project-state-identity-continuity-continuity-required')))
     repairs.push('project-state-identity-continuity-continuity-required')
-  if (lines.some(line => line.includes('semantic-judge:project-state-identity-continuity-missing')))
-    repairs.push('semantic-judge:project-state-identity-continuity-missing')
   return repairs
 }
 

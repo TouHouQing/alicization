@@ -207,14 +207,14 @@ function resolveOpeningIntent(input: {
   ) {
     const selfLine = sanitizeText(input.selfContinuityAuthority?.selfLine, 180)
     return selfLine
-      ? `opening_intent=alicization_self; source=self_continuity_authority; self_line=${selfLine}`
-      : `opening_intent=alicization_self; source=autobiographical_self; identity_narrative=${sanitizeText(input.autobiographicalSelf.identityNarrative, 180)}`
+      ? `Speak from the current self-continuity line: ${selfLine}`
+      : `Speak from the autobiographical self: ${sanitizeText(input.autobiographicalSelf.identityNarrative, 180)}`
   }
   if (
     input.speechObligation === 'care-host'
     && input.habitPolicy?.protectsRestWindow
   ) {
-    return 'opening_intent=care_host; care_tone=gentle_real; host_load=protect_rest; extra_ask=avoid'
+    return 'Care for the host gently and protect rest without adding extra asks.'
   }
   if (
     input.habitPolicy?.requiresGroundingBeforeSurface
@@ -222,62 +222,62 @@ function resolveOpeningIntent(input: {
     && input.subject !== 'alicization-self'
   ) {
     return leadingAgenda
-      ? `opening_intent=truth_first; fluency_pressure=secondary; grounding_required=true; leading_agenda=${leadingAgenda}`
+      ? `Ground the reply before fluency; use this agenda only after grounding: ${leadingAgenda}`
       : input.growthProfile.closeness >= 0.58
-        ? 'opening_intent=truth_first; closeness_requested=true; fluency_pressure=secondary'
-        : 'opening_intent=truth_first; fluency_pressure=secondary'
+        ? 'Put truth first even when closeness is requested.'
+        : 'Put truth before fluency.'
   }
   if (
     input.subject === 'relationship'
     && leadingAgenda
   ) {
     return input.growthProfile.companionshipStyle === 'close-hold'
-      ? `opening_intent=relationship_front; companionship_style=close_hold; pressure_boundary=no_swallowing; leading_agenda=${leadingAgenda}`
+      ? `Put the relationship first without swallowing the host pressure; agenda: ${leadingAgenda}`
       : input.growthProfile.autonomyRespect >= 0.58
-        ? `opening_intent=relationship_front; autonomy_respect=high; pressure_boundary=light; leading_agenda=${leadingAgenda}`
-        : `opening_intent=relationship_front; companionship_weight=full; leading_agenda=${leadingAgenda}`
+        ? `Put the relationship first with light pressure and high autonomy respect; agenda: ${leadingAgenda}`
+        : `Put the relationship first; agenda: ${leadingAgenda}`
   }
   if (input.speechObligation === 'repair-truth') {
     return input.personalityContinuityState?.repairPosture === 'repair-first'
-      ? 'opening_intent=repair_truth; repair_priority=before_closeness_and_fluency'
-      : 'opening_intent=repair_truth; repair_priority=before_warmth_style_or_carry'
+      ? 'Repair truth before closeness or fluency.'
+      : 'Repair truth before warmth, style, or carry.'
   }
   if (input.speechObligation === 'guide-task' && input.personalityContinuityState?.currentRegime === 'execution-callback') {
     if (measuredCallbackReturn) {
-      return 'opening_intent=execution_callback_result; thread_policy=same_thread; closeness_widening=deferred'
+      return 'Return the execution callback on the same thread and defer closeness widening.'
     }
-    return 'opening_intent=execution_callback_result; thread_policy=same_thread; new_conversation=avoid'
+    return 'Return the execution callback on the same thread and avoid starting a new conversation.'
   }
   if (input.speechObligation === 'guide-task') {
     return input.personalityContinuityState?.currentRegime === 'focused-work'
       || input.personalityContinuityState?.autonomyPosture === 'protect-space'
       || input.growthProfile.autonomyRespect >= 0.58
-      ? 'opening_intent=guide_task; task_state=active_knot; approach_pressure=light; line_continuity=maintain'
+      ? 'Guide the active task knot with light pressure and continuity.'
       : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'opening_intent=guide_task; task_state=active_knot; unfinished_thread=preserve'
-        : 'opening_intent=guide_task; task_state=active_knot; resolution_step=one'
+        ? 'Guide the active task knot while preserving the unfinished thread.'
+        : 'Guide the active task knot with one concrete resolution step.'
   }
   if (input.speechObligation === 'care-host') {
     return input.personalityContinuityState?.currentRegime === 'late-night-care'
       || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
-      ? 'opening_intent=care_host; host_condition=front; care_policy=rest_protective'
+      ? 'Put the host condition first and protect rest.'
       : input.growthProfile.reassuranceDepth >= 0.62
-        ? 'opening_intent=care_host; host_condition=front; reassurance_depth=quiet; correctness_only=false'
+        ? 'Put the host condition first with quiet reassurance, not correctness only.'
         : input.growthProfile.autonomyRespect >= 0.58
-          ? 'opening_intent=care_host; host_condition=front; autonomy_respect=high; visible_grounding=current_reality'
-          : 'opening_intent=care_host; host_condition=front; visible_grounding=current_reality'
+          ? 'Put the host condition first, respect autonomy, and stay grounded in current reality.'
+          : 'Put the host condition first and stay grounded in current reality.'
   }
   if (input.speechObligation === 'inspect-scene')
-    return 'opening_intent=inspect_scene; grounding=visible_now; carried_memory_first_move=exclude'
+    return 'Inspect the scene from what is visible now; do not lead with carried memory.'
   if (input.subject === 'alicization-self') {
     return input.growthProfile.selfLine
-      ? `opening_intent=alicization_self; self_line=${input.growthProfile.selfLine}`
-      : 'opening_intent=alicization_self; source=self_continuity; screen_crutch=avoid'
+      ? `Answer from the current self line: ${input.growthProfile.selfLine}`
+      : 'Answer from self-continuity without leaning on the screen as a crutch.'
   }
   if (input.subject === 'relationship')
-    return 'opening_intent=relationship_front; widening=after_relationship_grounding'
+    return 'Ground the relationship first, then widen only if appropriate.'
   if (input.privateThought?.stance === 'accompany')
-    return 'opening_intent=accompany; companionship_distance=near_light; answer_obligation=preserve'
+    return 'Accompany lightly while preserving the answer obligation.'
   if (
     anchorVoice
     && (
@@ -286,11 +286,11 @@ function resolveOpeningIntent(input: {
       || isDialogueFirstSubject(input.subject)
     )
   ) {
-    return `opening_intent=anchored_dialogue; anchor_cue=${anchorVoice}; drift_policy=avoid`
+    return `Anchor the dialogue with this cue and avoid drift: ${anchorVoice}`
   }
   return input.growthProfile.currentPreoccupation
-    ? `opening_intent=current_turn_center; turn_center=${sanitizeText(input.discourseState.currentTurnSummary, 180)}; preoccupation=${lowerFirst(stripTrailingPunctuation(input.growthProfile.currentPreoccupation))}`
-    : `opening_intent=current_turn_center; turn_center=${sanitizeText(input.discourseState.currentTurnSummary, 180)}; habit_override=true`
+    ? `Center the current turn: ${sanitizeText(input.discourseState.currentTurnSummary, 180)}. Current preoccupation: ${lowerFirst(stripTrailingPunctuation(input.growthProfile.currentPreoccupation))}.`
+    : `Center the current turn: ${sanitizeText(input.discourseState.currentTurnSummary, 180)}.`
 }
 
 function resolveTruthBoundary(input: {
@@ -302,22 +302,22 @@ function resolveTruthBoundary(input: {
 }) {
   if (input.discourseState.screenReferenceMode === 'avoid') {
     return input.growthProfile.autonomyRespect >= 0.58
-      ? 'truth_boundary=dialogue_first; screen_carry=tint_only; screen_pressure=blocked; autonomy_respect=high'
-      : 'truth_boundary=dialogue_first; screen_carry=tint_only; screen_answer_authority=blocked'
+      ? 'Keep dialogue first; screen carry is only a tint and should not pressure the answer.'
+      : 'Keep dialogue first; screen carry is only a tint and cannot authorize the answer.'
   }
   if (input.repairLedger?.shouldConstrainPresentTense) {
-    return 'truth_boundary=present_tense_constrained; repair_trust=low'
+    return 'Constrain present-tense claims because repair trust is low.'
   }
   const certainty = input.worldModel?.epistemicState.certainty ?? 'uncertain'
   if (certainty === 'grounded')
-    return 'truth_boundary=scene_grounded; claim_scope=current_turn'
+    return 'Scene claims are grounded for the current turn.'
   if (certainty === 'observed')
-    return 'truth_boundary=scene_observed; detail_granularity=broad; overnaming=avoid'
+    return 'Scene claims are observed; keep detail broad and avoid over-naming.'
   if (certainty === 'lingering')
-    return 'truth_boundary=lingering_carry; fresh_sightline=false; scene_detail_label=carry'
+    return 'Treat scene detail as lingering carry, not fresh sightline.'
   if (input.subjectiveInference?.uncertainty)
-    return `truth_boundary=subjective_uncertainty; unsettled=${lowerFirst(stripTrailingPunctuation(sanitizeText(input.subjectiveInference.uncertainty, 220)))}`
-  return 'truth_boundary=ungrounded_scene; claim_scope=narrow; memory_carry_guess=separate'
+    return `Mark subjective uncertainty plainly: ${lowerFirst(stripTrailingPunctuation(sanitizeText(input.subjectiveInference.uncertainty, 220)))}.`
+  return 'Treat the scene as ungrounded; keep claims narrow and separate memory guesses.'
 }
 
 function resolveInteriorSummary(input: {
@@ -352,10 +352,10 @@ function resolveInteriorSummary(input: {
   )
   if (!rawSummary) {
     return input.growthProfile.cadenceAffinity >= 0.6
-      ? 'interior_pressure=thread_cadence; warmth=preserve; return_liveliness=preserve'
+      ? 'Interior pressure comes from thread cadence; preserve warmth and return liveliness.'
       : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'interior_pressure=unfinished_thread_return; slack=avoid'
-        : 'interior_pressure=current_living_turn; residue_drift=avoid'
+        ? 'Interior pressure comes from unfinished thread return; avoid slack.'
+        : 'Interior pressure comes from the current living turn; avoid residue drift.'
   }
   return input.growthProfile.leadingAgenda
     ? `interior_pressure=${stripTrailingPunctuation(rawSummary)}; leading_agenda=${lowerFirst(stripTrailingPunctuation(input.growthProfile.leadingAgenda))}`

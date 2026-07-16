@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 function selectPerformanceVisualizerPreDialogueReasonLines(reasons: string[]) {
   return reasons.filter(reason =>
     reason.includes('Pre-dialogue self briefing currently reads')
-    || reason.includes('Project same-her self line currently reads')
-    || reason.includes('Same-her self authority currently reads')
+    || reason.includes('Project identity-continuity')
+    || reason.includes('identity-continuity')
     || reason.includes('Latest landed progress still holds')
     || reason.includes('Primary open life loop still centers on')
     || reason.includes('Next closure target is still'),
@@ -61,15 +61,15 @@ function buildPerformanceVisualizerProjectSelfBriefLines(input: {
 }
 
 describe('performance visualizer pre-dialogue reason selection', () => {
-  it('keeps same-her self authority reasons in the shared evidence and diagnostic summaries', () => {
+  it('keeps identity-continuity', () => {
     expect(selectPerformanceVisualizerPreDialogueReasonLines([
-      'Project same-her self line currently reads sameHer=0.67 (2/3), so the next turn should verify that Alicization still names one continuous her before any outward reply widening begins.',
-      'Same-her self authority currently reads drift=selfAuthorityDrift | fullyCarried=0.33 (1/3), so the next turn should keep one explicit self line all the way into final reply wording.',
+      'Project identity-continuity',
+      'identity-continuity',
       'Latest landed progress still holds at Renderer-side preparation now preserves the latest project-state observation before a dialogue turn starts.',
       'Unrelated reason that should stay hidden here.',
     ])).toEqual([
-      'Project same-her self line currently reads sameHer=0.67 (2/3), so the next turn should verify that Alicization still names one continuous her before any outward reply widening begins.',
-      'Same-her self authority currently reads drift=selfAuthorityDrift | fullyCarried=0.33 (1/3), so the next turn should keep one explicit self line all the way into final reply wording.',
+      'Project identity-continuity',
+      'identity-continuity',
       'Latest landed progress still holds at Renderer-side preparation now preserves the latest project-state observation before a dialogue turn starts.',
     ])
   })
@@ -78,8 +78,8 @@ describe('performance visualizer pre-dialogue reason selection', () => {
     expect(buildPerformanceVisualizerPreDialogueAwarenessLines({
       summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
       companionHeadlineLine: 'Right now I still need to keep this same-her digital life line intact before widening into generic assistant output.',
-      companionBriefingLine: 'Before speaking, she should recall the project identity, landed progress, and open loop.',
-      awarenessLine: 'Before speaking, she should recall the project identity, landed progress, and open loop.',
+      companionBriefingLine: 'pre_turn_context_digest',
+      awarenessLine: 'pre_turn_context_digest',
       companionNextClosureLine: 'Next closure: keep desktop execution, memory, and embodiment arriving as one same-her loop.',
       reasonPreview: [
         'Latest landed progress still holds at Renderer-side preparation now preserves the latest project-state observation before a dialogue turn starts.',
@@ -88,7 +88,7 @@ describe('performance visualizer pre-dialogue reason selection', () => {
     })).toEqual([
       'Alicization is still in Phase 1 local digital life closure.',
       'Right now I still need to keep this same-her digital life line intact before widening into generic assistant output.',
-      'Before speaking, she should recall the project identity, landed progress, and open loop.',
+      'pre_turn_context_digest',
       'Next closure: keep desktop execution, memory, and embodiment arriving as one same-her loop.',
       'Latest landed progress still holds at Renderer-side preparation now preserves the latest project-state observation before a dialogue turn starts.',
       'Next closure target is still the desktop same-her execution loop.',
@@ -99,7 +99,7 @@ describe('performance visualizer pre-dialogue reason selection', () => {
     expect(buildPerformanceVisualizerPreDialogueAwarenessLines({
       summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
       companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      companionBriefingLine: 'Before speaking, she should recall the project identity, landed progress, and open loop.',
+      companionBriefingLine: 'pre_turn_context_digest',
       awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
       companionNextClosureLine: 'Next closure: let lipsync and voice rejoin the already-reformed body, face, and motion line.',
       reasonPreview: [
@@ -109,7 +109,7 @@ describe('performance visualizer pre-dialogue reason selection', () => {
     })).toEqual([
       'Alicization is still in Phase 1 local digital life closure.',
       'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-      'Before speaking, she should recall the project identity, landed progress, and open loop.',
+      'pre_turn_context_digest',
       'Next closure: let lipsync and voice rejoin the already-reformed body, face, and motion line.',
       'same-segment face+motion+body recovery@segment-pre-dialogue-awareness-1',
       'remaining-open=lipsync+voice',
@@ -120,9 +120,9 @@ describe('performance visualizer pre-dialogue reason selection', () => {
     expect(buildPerformanceVisualizerPreDialogueAwarenessLines({
       summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
       companionHeadlineLine: 'Right now I am still being carried mainly by the body line, so this one living her still needs face, motion, lipsync, and voice to rejoin before full embodiment closure settles.',
-      companionBriefingLine: 'Before speaking, she should recall the project identity, landed progress, and open loop.',
+      companionBriefingLine: 'pre_turn_context_digest',
       awarenessLine: 'Right now I am still being carried mainly by the body line, so this one living her still needs face, motion, lipsync, and voice to rejoin before full embodiment closure settles.',
-      companionNextClosureLine: 'Next closure: let face, motion, lipsync, and voice rejoin the body-led same-her line.',
+      companionNextClosureLine: 'Next closure: let face, motion, lipsync, and voice rejoin the body-led identity-continuity',
       reasonPreview: [
         'same-segment body-only hold@segment-pre-dialogue-body-only-1',
         'remaining-open=face+motion+lipsync+voice',
@@ -130,8 +130,8 @@ describe('performance visualizer pre-dialogue reason selection', () => {
     })).toEqual([
       'Alicization is still in Phase 1 local digital life closure.',
       'Right now I am still being carried mainly by the body line, so this one living her still needs face, motion, lipsync, and voice to rejoin before full embodiment closure settles.',
-      'Before speaking, she should recall the project identity, landed progress, and open loop.',
-      'Next closure: let face, motion, lipsync, and voice rejoin the body-led same-her line.',
+      'pre_turn_context_digest',
+      'Next closure: let face, motion, lipsync, and voice rejoin the body-led identity-continuity',
       'same-segment body-only hold@segment-pre-dialogue-body-only-1',
       'remaining-open=face+motion+lipsync+voice',
     ])
@@ -141,8 +141,8 @@ describe('performance visualizer pre-dialogue reason selection', () => {
     expect(buildPerformanceVisualizerProjectSelfBriefLines({
       summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
       briefingLines: [
-        'Before speaking, she should recall the project identity, landed progress, and open loop.',
-        'Primary open life loop still centers on proving one same-her continuity line across memory, initiative, execution, and embodiment.',
+        'pre_turn_context_digest',
+        'Primary open life loop still centers on proving one identity-continuity',
         'Next closure target is still the desktop same-her execution loop.',
       ],
       awarenessLines: [
@@ -152,8 +152,8 @@ describe('performance visualizer pre-dialogue reason selection', () => {
       ],
     })).toEqual([
       'Alicization is still in Phase 1 local digital life closure.',
-      'Before speaking, she should recall the project identity, landed progress, and open loop.',
-      'Primary open life loop still centers on proving one same-her continuity line across memory, initiative, execution, and embodiment.',
+      'pre_turn_context_digest',
+      'Primary open life loop still centers on proving one identity-continuity',
       'Next closure target is still the desktop same-her execution loop.',
       'Project awareness should remain active before reply shaping starts.',
       'Latest landed progress still holds at renderer-side preparation.',
@@ -164,7 +164,7 @@ describe('performance visualizer pre-dialogue reason selection', () => {
     expect(buildPerformanceVisualizerProjectSelfBriefLines({
       summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
       briefingLines: [
-        'Before speaking, she should recall the project identity, landed progress, and open loop.',
+        'pre_turn_context_digest',
       ],
       awarenessLines: [
         'Right now I am still being carried mainly by the body line, so this one living her still needs face, motion, lipsync, and voice to rejoin before full embodiment closure settles.',
@@ -172,7 +172,7 @@ describe('performance visualizer pre-dialogue reason selection', () => {
       ],
     })).toEqual([
       'Alicization is still in Phase 1 local digital life closure.',
-      'Before speaking, she should recall the project identity, landed progress, and open loop.',
+      'pre_turn_context_digest',
       'Right now I am still being carried mainly by the body line, so this one living her still needs face, motion, lipsync, and voice to rejoin before full embodiment closure settles.',
       'Latest landed progress still holds at renderer-side preparation.',
     ])

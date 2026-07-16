@@ -5,7 +5,7 @@ import { createAlicizationDreamRuntime } from './runtime-dream'
 
 describe('runtime dream', () => {
   it('feeds refined consolidation summaries into autobiographical synthesis so same-her memory refinement stays on one life line', async () => {
-    const refinedSummary = 'Same Phase 1 digital life. Some closure already landed. This remembered period still needs the same living line across memory, initiative, and embodiment.'
+    const refinedSummary = 'structured continuity digest.'
     const autobiographicalGateway = vi.fn(async () => [])
     const runtime = createAlicizationDreamRuntime({
       ensureSubconsciousState: vi.fn(async () => ({
@@ -55,7 +55,7 @@ describe('runtime dream', () => {
         content: '',
         frontmatter: {
           host_attitude: '继续沿着同一个她的线慢慢收口。',
-          core_incarnation: 'One local-first digital life still growing into one same-her line.',
+          core_incarnation: 'One local-first digital life still growing into one identity-continuity',
           personality: {
             obedience: 0.5,
             liveliness: 0.5,
@@ -67,7 +67,7 @@ describe('runtime dream', () => {
         content: '',
         frontmatter: {
           host_attitude: '继续沿着同一个她的线慢慢收口。',
-          core_incarnation: 'One local-first digital life still growing into one same-her line.',
+          core_incarnation: 'One local-first digital life still growing into one identity-continuity',
           personality: {
             obedience: 0.5,
             liveliness: 0.5,
@@ -91,7 +91,7 @@ describe('runtime dream', () => {
           liveliness_delta: 0,
           sensibility_delta: 0,
         },
-        next_active_thoughts: [{ text: 'Keep the same living line explicit across dream memory.' }],
+        next_active_thoughts: [{ text: 'Keep the continuity state explicit across dream memory.' }],
         explicit_demoted_thoughts: [],
         new_sediment_fragments: [],
         shattering_event: null,
@@ -100,7 +100,7 @@ describe('runtime dream', () => {
       generateMemoryConsolidationRefinementWithGateway: vi.fn(async () => [{
         id: 'consolidation-phase1-1',
         summary: refinedSummary,
-        lesson: 'Keep autobiographical memory on one same-her line.',
+        lesson: 'Keep autobiographical memory on one identity-continuity',
         cues: ['same-her', 'phase1'],
         confidence: 0.84,
       }]),

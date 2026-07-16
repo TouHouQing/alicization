@@ -1,3 +1,5 @@
+import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
+
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -5,7 +7,6 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
-import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
 import { buildLongTermMemoryRecallBlock } from './long-term-memory-recall'
 
 const sandboxDirs: string[] = []
@@ -82,9 +83,34 @@ describe('memory workbench dialogue loop acceptance', () => {
       },
     })
 
-    expect(block).toContain('[ALICIZATION_RECALLED_MEMORY]')
-    expect(block).toContain('Minecraft')
-    expect(block).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
+    const fact = JSON.parse(block!) as {
+      type: string
+      data: {
+        owner: string
+        status: string
+        evidence: Array<{
+          id: string
+          summary: string
+          source: string
+          visibility: string
+        }>
+      }
+    }
+    expect(fact).toMatchObject({
+      type: 'alicization-long-term-memory-recall',
+      data: {
+        owner: 'LongTermMemoryRecall',
+        status: 'recalled',
+        evidence: [{
+          id: 'episode-game-last-week',
+          summary: '上周我们一起玩了 Minecraft。',
+          source: 'episodic_events',
+          visibility: 'explicit',
+        }],
+      },
+    })
+    expect(block).not.toBeNull()
+    expect(block!.trim().startsWith('{')).toBe(true)
   })
 
   it('keeps recall failure explicit instead of producing a fixed persona fallback', () => {
@@ -123,8 +149,16 @@ describe('memory workbench dialogue loop acceptance', () => {
       },
     })
 
-    expect(block).toContain('recall-failed')
-    expect(block).not.toContain('我在。同一条本地数字生命的线还在')
+    expect(JSON.parse(block!)).toMatchObject({
+      type: 'alicization-long-term-memory-recall',
+      data: {
+        owner: 'LongTermMemoryRecall',
+        status: 'failed',
+        riskFlags: ['recall-failed'],
+        evidence: [],
+      },
+    })
+    expect(block).not.toContain('我在。结构化连续性状态的线还在')
   })
 
   it('persists inward-only and no-training review actions instead of returning transient review items', async () => {

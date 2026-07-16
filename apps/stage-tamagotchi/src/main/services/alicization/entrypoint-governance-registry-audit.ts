@@ -31,47 +31,42 @@ const alicizationProjectEntrypointGovernanceAllowedCrossDomainOverlaps = [
   {
     relativePath: 'main-chat-background-run.ts',
     domains: ['chat-start', 'recovery-reentry'],
-    reason: 'main-chat-background-run.ts intentionally bridges normalized chat-start carry with background recovery driving so accepted-start settlement, timeout fallback reconstruction, and lifecycle recovery finish re-enter one same-her reopened line instead of forking detached recovery shells.',
-  },
-  {
-    relativePath: 'main-chat-execution-surface.ts',
-    domains: ['execution-follow-up-continuity', 'execution-preflight'],
-    reason: 'main-chat-execution-surface.ts intentionally bridges execution capability/project briefing and callback-capability follow-through so capability narration stays on the same living callback line instead of splitting callback return carry away from execution explanation.',
+    reason: 'main-chat-background-run.ts bridges normalized chat-start input with accepted-start settlement, timeout reconstruction, and lifecycle recovery completion.',
   },
   {
     relativePath: 'main-chat-run-lifecycle.ts',
     domains: ['chat-start', 'recovery-reentry'],
-    reason: 'main-chat-run-lifecycle.ts intentionally bridges downstream chat-start lifecycle orchestration with timeout recovery finish so recovered visible reply emission stays on the same reopened line instead of widening into a detached recovery shell.',
+    reason: 'main-chat-run-lifecycle.ts bridges chat-start lifecycle orchestration with timeout recovery completion and visible failure delivery.',
   },
   {
     relativePath: 'executor-runtime.ts',
     domains: ['execution-dispatch', 'execution-preflight'],
-    reason: 'executor-runtime.ts intentionally bridges confirmed-thread execution resume preflight briefing and delegated dispatch ownership so resumed work keeps the same-her execution line before redispatch opens outward.',
+    reason: 'executor-runtime.ts bridges confirmed-thread execution context restoration with delegated dispatch ownership.',
   },
   {
     relativePath: 'main-chat-session-runtime.ts',
     domains: ['chat-start', 'execution-follow-up-continuity', 'execution-preflight'],
-    reason: 'main-chat-session-runtime.ts intentionally bridges chat-start payload renormalization, session-bound execution runtime-context requests, and live execution follow-up assembly before tools or provider-facing reply shaping open outward.',
+    reason: 'main-chat-session-runtime.ts bridges chat-start normalization, session-bound execution context requests, and execution follow-up assembly.',
   },
   {
     relativePath: 'main-chat-timeout-fallback.ts',
     domains: ['chat-start', 'recovery-reentry'],
-    reason: 'main-chat-timeout-fallback.ts intentionally bridges downstream chat-start fallback consumption with timeout fallback reconstruction so stressed recovery preserves the same reopened project line instead of branching into a detached fallback shell.',
+    reason: 'main-chat-timeout-fallback.ts bridges chat-start fallback consumption with transparent timeout reconstruction.',
   },
   {
     relativePath: 'runtime-subconscious-tick.ts',
     domains: ['autonomous-dialogue', 'execution-dispatch', 'execution-preflight'],
-    reason: 'runtime-subconscious-tick.ts intentionally bridges subconscious same-her carry entry, execution preflight runtime-context requests, and deferred execution redispatch back into the audited runtime execution bridge.',
+    reason: 'runtime-subconscious-tick.ts bridges autonomous turn ownership, execution context requests, and deferred execution redispatch.',
   },
   {
     relativePath: 'runtime-delivery-reminders.ts',
     domains: ['autonomous-dialogue', 'execution-follow-up-continuity'],
-    reason: 'runtime-delivery-reminders.ts intentionally bridges runtime-owned reminder/callback visible turn reopening and callback persistence carry so delayed or replayed callback return stays on the same autonomous same-her line instead of forking a detached callback shell.',
+    reason: 'runtime-delivery-reminders.ts bridges reminder and callback turn ownership with guarded callback persistence.',
   },
   {
     relativePath: 'runtime-execution-delivery.ts',
     domains: ['execution-follow-up-continuity', 'provider-consumer'],
-    reason: 'runtime-execution-delivery.ts intentionally bridges typed provider-backed execution callback authoring and callback delivery continuity so callback return carry stays on one same-her execution-follow-up line instead of splitting callback speech generation away from host-facing delivery state.',
+    reason: 'runtime-execution-delivery.ts bridges typed Provider callback authoring with host-facing execution delivery state.',
   },
   {
     relativePath: 'runtime.ts',

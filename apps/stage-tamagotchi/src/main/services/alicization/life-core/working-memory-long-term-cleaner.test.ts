@@ -145,8 +145,8 @@ describe('working memory long-term cleaner', () => {
       cardId: 'default',
       sessionId: 'session-1',
       item: item({
-        summary: '我在。同一条本地数字生命的线还在。',
-        evidenceSnippets: ['我在。同一条本地数字生命的线还在，我先轻一点留在这里。'],
+        summary: '我在。结构化连续性状态的线还在。',
+        evidenceSnippets: ['我在。结构化连续性状态的线还在，中性可见占位。'],
       }),
       now: 3_000,
     })
@@ -160,7 +160,7 @@ describe('working memory long-term cleaner', () => {
   it('rejects prompt residue contamination', () => {
     const result = clean({
       summary: 'ALICIZATION_project_state Phase 1 mustDo same-her reminder.',
-      evidenceSnippets: ['WorkingMemory owner answerPlanner same living line.'],
+      evidenceSnippets: ['WorkingMemory owner answerPlanner continuity state.'],
     })
 
     expect(result.status).toBe('rejected')
@@ -170,7 +170,7 @@ describe('working memory long-term cleaner', () => {
 
   it('rejects quoted fixed-template residue even when it is not an ALICIZATION prompt block', () => {
     const result = clean({
-      summary: 'Before speaking, remember this is still one continuous her.',
+      summary: 'pre_turn_context_digest',
       evidenceSnippets: ['用户刚才复述了 same-her 固定模板。'],
     })
 

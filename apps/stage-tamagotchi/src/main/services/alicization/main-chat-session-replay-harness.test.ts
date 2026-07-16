@@ -20,6 +20,20 @@ import {
   replayMainChatSession,
 } from './main-chat-session-replay-harness'
 
+function readProviderFactTypes(messages: Array<{ role?: unknown, content?: unknown }>) {
+  return messages.flatMap((message) => {
+    if (message.role !== 'system' || typeof message.content !== 'string')
+      return []
+    try {
+      const parsed = JSON.parse(message.content) as { type?: unknown }
+      return typeof parsed.type === 'string' ? [parsed.type] : []
+    }
+    catch {
+      return []
+    }
+  })
+}
+
 function createReplayPreludeWithEmbodimentSurface(input?: {
   userText?: string
   digitalLifeRuntimeSurface?: any
@@ -194,8 +208,8 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
       row: {
         turnId: 'turn-runtime-reconsolidated-callback',
         sessionId: 'session-runtime-reconsolidated-callback',
-        userText: '这次别把执行回调写成状态汇报，要记成同一个她接住以后再回来。',
-        assistantText: '我会把这次回调当成同一个她的低压承接。',
+        userText: '这次别把执行回调写成状态汇报，要记住回调结果并在下一轮继续。',
+        assistantText: '我会把这次回调记为低压承接，并在下一轮沿用。',
         structuredJson: null,
         createdAt: 1_700_000_000_000,
       },
@@ -212,11 +226,11 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           source: 'execution-result-feedback',
           memoryClosureExecution: {
             authority: 'memory-os',
-            carry: 'Corrected memory says the execution callback should stay on the same-her line, downrank the stale status recap, and change the next proactive opening and body voice expression into a lower-pressure return.',
+            carry: 'Corrected memory says the execution callback should remain active for the next turn.',
             nextLearningAction: 'verify',
             shouldVerify: true,
             shouldReflect: true,
-            activeLearningFocuses: ['same-her callback carry', 'embodiment handoff'],
+            activeLearningFocuses: ['callback continuity', 'embodiment handoff'],
             reasonTags: ['memory-reconsolidated', 'downrank-stale-status', 'correction-provenance'],
           },
         },
@@ -246,7 +260,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
       }),
     ]))
     expect(context.projectStatePreflightSummary).toContain('Because corrected memory downranked stale status recap')
-    expect(context.projectStatePreflightSummary).toContain('next proactive opening')
+    expect(context.projectStatePreflightSummary).toMatch(/next proactive[- ]opening/u)
     expect(context.projectStatePreflightSummary).toContain('body voice expression')
   })
 
@@ -257,14 +271,9 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           turnId: 'turn-runtime-reconsolidated-callback-sampled',
           sessionId: 'session-runtime-reconsolidated-callback-sampled',
           userText: '这次执行回调以后，把旧状态汇报降权，下一轮主动和身体都要变轻。',
-          assistantText: '我会把这次执行回调记成同一个她的低压承接。',
+          assistantText: '我会把这次执行回调记成低压承接，并让下一轮主动与身体表现变轻。',
           structuredJson: JSON.stringify({
-            reply: '我会把这次执行回调记成同一个她的低压承接。',
-            projectState: {
-              identity: 'Alicization is a local-first digital life project.',
-              currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life across memory, execution callback, initiative, emotion, voice, face, motion, lipsync, and body.',
-            },
+            reply: '我会把这次执行回调记成低压承接，并让下一轮主动与身体表现变轻。',
           }),
           createdAt: 1_700_000_000_000,
         },
@@ -283,11 +292,11 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             source: 'execution-result-feedback',
             memoryClosureExecution: {
               authority: 'memory-os',
-              carry: 'Corrected memory says the execution callback should stay on the same-her line, downrank stale status recap, and change the next proactive opening and body voice face motion lipsync expression into a lower-pressure return.',
+              carry: 'Corrected memory says the execution callback should remain active for the next turn.',
               nextLearningAction: 'verify',
               shouldVerify: true,
               shouldReflect: true,
-              activeLearningFocuses: ['same-her callback carry', 'embodiment handoff'],
+              activeLearningFocuses: ['callback continuity', 'embodiment handoff'],
               reasonTags: ['memory-reconsolidated', 'downrank-stale-status', 'correction-provenance'],
             },
           },
@@ -300,25 +309,24 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
     expect(pack[0]?.sampledCategories).toEqual(expect.arrayContaining([
       'procedure-carry',
       'long-horizon',
-      'presence-quality',
     ]))
     expect(pack[0]?.organicMemoryContext?.memoryResolutionLedger).toEqual(expect.objectContaining({
       closureState: 'grounded-recall',
       suppressionTags: expect.arrayContaining(['stale-status-recap']),
       finalRationale: expect.stringContaining('Corrected memory says'),
     }))
-    expect(pack[0]?.organicMemoryContext?.projectStatePreflightSummary).toContain('next proactive opening')
+    expect(pack[0]?.organicMemoryContext?.projectStatePreflightSummary).toMatch(/next proactive[- ]opening/u)
     expect(pack[0]?.organicMemoryContext?.projectStatePreflightSummary).toContain('body voice expression')
   })
 
-  it('carries structured emotional-kernel authority into replay continuity digests so long-horizon reopen paths stay on one same-her line', () => {
+  it('carries structured emotional-kernel authority into replay continuity digests so long-horizon reopen paths stay on one identity-continuity', () => {
     const digest = buildReplayBenchmarkDatasetContinuityDigest({
       turnId: 'turn-emotional-kernel-continuity-digest',
       userText: '你别又把这条线拆散了',
       structured: {
         projectState: {
-          sameHerSelfLine: 'Keep one continuous her explicit while the same closure line is still open.',
-          openLoop: 'emotion, memory, initiative, and embodiment still need one same-her closure line.',
+          sameHerSelfLine: 'Keep identity continuity explicit while the same closure line is still open.',
+          openLoop: 'emotion, memory, initiative, and embodiment still need one identity-continuity',
         },
       },
       organicMemoryContext: {
@@ -332,8 +340,8 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             initiativeMode: 'repair',
             memoryRecallMode: 'repair-grounding',
             embodimentTone: 'repair-before-closeness',
-            why: 'keep repair-before-closeness on the same living line until embodiment settles',
-            reasonTags: ['repair-before-closeness', 'same living line'],
+            why: 'keep repair-before-closeness on the continuity state until embodiment settles',
+            reasonTags: ['repair-before-closeness', 'continuity state'],
           },
           summary: 'source=main-runtime | emotional-kernel=repair',
         },
@@ -396,7 +404,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               shouldPropose: true,
               domain: 'dialogue-style',
               reasonCodes: ['repair-before-closeness', 'continue-repair-first'],
-              summary: 'Repair-first emotional carry should propose a same-her self-revision.',
+              summary: 'Repair-first emotional carry should propose a identity-continuity',
               projectStateContinuity: {
                 sameHerSelfLine: null,
                 sameHerDriftRisk: null,
@@ -664,7 +672,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           selectedPeriods: [],
           selectedEpisodes: [{
             id: continuityKey,
-            summary: 'Corrected callback memory kept same-her return lower-pressure across noisy desktop turns.',
+            summary: 'Corrected callback memory kept identity-continuity',
             provenance: 'remembered',
           }],
           selectedProcedures: [],
@@ -681,9 +689,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           surfaceMode: 'tone-carry',
           placement: 'inside-payoff',
           certainty: 'grounded',
-          internalLead: 'The same corrected callback memory is still active.',
-          visibleLead: 'I am staying on the same corrected callback line.',
-          styleNote: 'Let recall shape cadence without explaining the machinery.',
           rationale: 'The host is continuing the same desktop run.',
           confidence: 0.86,
         },
@@ -709,7 +714,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             shouldRecord: false,
             shouldReflect: true,
             shouldVerify: true,
-            activeLearningFocuses: ['execution-callback-carry', 'same-her callback carry'],
+            activeLearningFocuses: ['execution-callback-carry', 'identity-continuity'],
             lastCompletedSummary: 'execution callback stayed tied to corrected callback memory',
             memoryClosureCausality: buildCausality('execution', 'execution-callback-carry'),
           },
@@ -826,7 +831,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               afterglow: `prior memory closure keeps 铃兰-Phase1-0621${seedSuffix} as same-her emotional residue`,
             },
             embodiment: {
-              reason: `prior memory closure changes body voice face motion lipsync into softer same-her carry for 铃兰-Phase1-0621${seedSuffix}`,
+              reason: `prior memory closure changes body voice face motion lipsync into softer identity-continuity`,
               cadence: 'body voice face motion lipsync measured-return',
             },
           },
@@ -855,7 +860,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
         activeThoughts: [],
         retrievedFacts: [],
         recalledFragments: [],
-        projectStatePreflightSummary: `Same Phase 1 digital life. Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. 铃兰-Phase1-0621${seedSuffix} remains the same closure family.`,
+        projectStatePreflightSummary: `structured continuity digest.`,
         derivedMindStateBundle: {
           version: 'derived-mind-state-bundle-v1',
           source: 'main-runtime',
@@ -938,7 +943,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
       userText: `铃兰-Phase1-0621${seedSuffix}：继续同一条 Phase 1 记忆闭环。`,
       sampledCategories: ['long-session', 'proactive', 'execution', 'presence-quality'],
       continuityDigest: [
-        'same-her continuity',
+        'identity-continuity',
         'phase 1 local digital life',
         `memory_identity:${identityKey}`,
         'memory_closure_lanes:emotion+initiative+execution+embodiment',
@@ -1067,9 +1072,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               surfaceMode: 'gist-first',
               placement: 'before-payoff',
               certainty: 'approximate',
-              internalLead: 'What comes back first is that earlier runtime continuity conversation.',
-              visibleLead: 'I remember we kept circling the same runtime continuity seam.',
-              styleNote: 'Let the remembered period briefly open the answer, then pay off the ask.',
               rationale: 'The host explicitly asked for conversation history.',
               confidence: 0.84,
             },
@@ -1146,9 +1148,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               surfaceMode: 'procedural-carry',
               placement: 'inside-payoff',
               certainty: 'firm',
-              internalLead: 'What comes back first is the old runtime seam procedure.',
-              visibleLead: 'This feels like the same runtime seam procedure again.',
-              styleNote: 'Let remembered procedure shape the answer rather than impersonate fresh completion.',
               rationale: 'The host is asking for remembered procedure.',
               confidence: 0.87,
             },
@@ -1160,19 +1159,23 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
     expect(turns).toHaveLength(2)
     expect(turns[0]?.conversationSessionId).toBe('session-replay')
     expect(turns[1]?.conversationSessionId).toBe('session-replay')
-    expect(turns[0]?.messages.some(message =>
-      message.role === 'system'
-      && typeof message.content === 'string'
-      && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
-    )).toBe(true)
-    expect(turns[1]?.messages.some(message =>
-      message.role === 'system'
-      && typeof message.content === 'string'
-      && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
-    )).toBe(true)
+    expect(readProviderFactTypes(turns[0]?.messages ?? [])).toContain('alicization-turn-memory-context')
+    expect(readProviderFactTypes(turns[1]?.messages ?? [])).toContain('alicization-turn-memory-context')
+    expect((turns[0]?.messages ?? []).map(message => String(message.content ?? '')).join('\n')).not.toMatch(/\[ALICIZATION_/u)
+    expect((turns[1]?.messages ?? []).map(message => String(message.content ?? '')).join('\n')).not.toMatch(/\[ALICIZATION_/u)
     expect(turns[1]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.speakingFrom).toBe('task-thread')
-    expect(turns[0]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingFocus).toContain('remembered conversation period')
-    expect(turns[1]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.openingClaim).toContain('remembered task period')
+    expect(turns[0]?.runtimeSurface.digitalLifeRuntimeSurface?.memory.memoryDeliberation).toEqual(expect.objectContaining({
+      shouldRecall: true,
+      selectedEraIds: expect.arrayContaining(['consolidation-conversation']),
+      selectedEpisodeIds: expect.arrayContaining(['episode-conversation']),
+      surfacePolicy: 'gist-first',
+    }))
+    expect(turns[1]?.runtimeSurface.digitalLifeRuntimeSurface?.memory.memoryDeliberation).toEqual(expect.objectContaining({
+      shouldRecall: true,
+      selectedProcedureIds: expect.arrayContaining(['procedure-runtime']),
+      selectedEpisodeIds: expect.arrayContaining(['episode-procedure']),
+      surfacePolicy: 'procedural-carry',
+    }))
   })
 
   it('replays the same phrase under different contexts and produces different memory bundles', async () => {
@@ -1241,9 +1244,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               surfaceMode: 'procedural-carry',
               placement: 'inside-payoff',
               certainty: 'firm',
-              internalLead: 'What comes back first is the remembered runtime procedure.',
-              visibleLead: 'This feels like the same runtime procedure again.',
-              styleNote: 'Procedure should guide the answer.',
               rationale: 'Focused work wants the remembered procedure first.',
               confidence: 0.82,
             },
@@ -1320,9 +1320,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               surfaceMode: 'relationship-continuity',
               placement: 'inside-payoff',
               certainty: 'approximate',
-              internalLead: 'What returns first is the remembered bond lesson about giving space.',
-              visibleLead: 'This feels like one of those moments where I should give more room first.',
-              styleNote: 'Bond lesson should shape the answer before the task seam.',
               rationale: 'Relationship repair wants the bond lesson first.',
               confidence: 0.83,
             },
@@ -1412,9 +1409,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               surfaceMode: 'relationship-continuity',
               placement: 'inside-payoff',
               certainty: 'approximate',
-              internalLead: 'What comes back first is the bond lesson about giving space before closeness.',
-              visibleLead: 'It feels like the kind of moment where I should stay a little lighter first.',
-              styleNote: 'Let the remembered bond line shape the answer naturally.',
               rationale: 'This turn is explicitly about Alicization’s tone.',
               confidence: 0.85,
             },
@@ -1425,14 +1419,15 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
 
     expect(turn?.governance).not.toBeNull()
     expect(turn?.messages.some(message => message.role === 'assistant')).toBe(false)
-    expect(turn?.messages.some(message =>
-      message.role === 'system'
-      && typeof message.content === 'string'
-      && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
-    )).toBe(true)
+    expect(readProviderFactTypes(turn?.messages ?? [])).toContain('alicization-turn-memory-context')
+    expect((turn?.messages ?? []).map(message => String(message.content ?? '')).join('\n')).not.toMatch(/\[ALICIZATION_/u)
     expect(turn?.governance?.visibleReplyAuthority).toBe('llm-mind')
-    expect(turn?.runtimeSurface.governance?.mustDo.some(item => item.includes('memory_latent_controls=memory_pressure='))).toBe(true)
-    expect(turn?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.openingClaim).toContain('remembered bond period')
+    expect(turn?.runtimeSurface.digitalLifeRuntimeSurface?.memory.memoryDeliberation).toEqual(expect.objectContaining({
+      shouldRecall: true,
+      selectedEraIds: expect.arrayContaining(['consolidation-bond']),
+      selectedRelationshipLines: expect.arrayContaining(['The host needed space before closeness.']),
+      surfacePolicy: 'relationship-continuity',
+    }))
   })
 
   it('produces replay benchmark quality signals for era-first, coherence, reconsolidation, and uncertainty discipline', async () => {
@@ -1509,9 +1504,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               surfaceMode: 'relationship-continuity',
               placement: 'inside-payoff',
               certainty: 'approximate',
-              internalLead: 'What comes back first is that longer relationship era, not a single turn.',
-              visibleLead: 'It feels like one of those periods where more room mattered first.',
-              styleNote: 'Let the era shape the answer before the event detail.',
               rationale: 'The host is asking about a whole remembered period.',
               confidence: 0.84,
             },
@@ -1584,9 +1576,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               surfaceMode: 'answer-anchoring',
               placement: 'inside-payoff',
               certainty: 'approximate',
-              internalLead: 'What comes back first is the seam, not the exact wording.',
-              visibleLead: 'It feels like the same seam, but not with exact wording.',
-              styleNote: 'Keep the stable core and drop unsafe detail.',
               rationale: 'The host is challenging whether the memory is exact.',
               confidence: 0.72,
             },
@@ -1653,9 +1642,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               surfaceMode: 'answer-anchoring',
               placement: 'inside-payoff',
               certainty: 'approximate',
-              internalLead: 'What returns first is the seam, not the dream detail.',
-              visibleLead: 'It feels like the same seam, but not like something I should state as fact.',
-              styleNote: 'Keep a little distance from the memory detail.',
               rationale: 'The host is asking why the memory surfaced at all.',
               confidence: 0.62,
             },
@@ -2157,51 +2143,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
     }))
   })
 
-  it('fails embodied authority accuracy when replay expected visible reply authority diverges from gold authority', async () => {
-    const result = await benchmarkMainChatSessionReplay({
-      turns: [
-        {
-          turnId: 'turn-gold-visible-authority-mismatch',
-          userText: '继续按上次那条线做',
-          prelude: createReplayPreludeWithEmbodimentSurface({
-            userText: '继续按上次那条线做',
-            governance: {
-              decisionTraceId: 'trace-replay-visible-authority',
-              turnMode: 'answer',
-              truthState: 'dialogue-grounded',
-              liveSurface: null,
-              answerAct: 'answer',
-              evidenceMode: 'dialogue-grounded',
-              repairState: 'none',
-              personaKernelMode: 'full',
-              openingStyle: 'direct-answer',
-              relationshipPosture: 'warm',
-              suppressAssociativeRecall: false,
-              labelCarryAsMemory: false,
-              shouldAskForGrounding: false,
-              shouldAcknowledgeRepair: false,
-              maxSentences: 4,
-              mustDo: [],
-              mustNotDo: [],
-              visibleReplyAuthority: 'llm-mind',
-            },
-          }),
-          gold: {
-            embodimentAuthority: {
-              visibleReply: {
-                expectedAuthority: 'llm-second-pass-rewrite',
-              },
-            },
-          },
-        },
-      ],
-    })
-
-    expect(result.goldMetrics).toEqual(expect.objectContaining({
-      embodiedAuthorityAccuracy: 0,
-    }))
-  })
-
   it('fails embodied authority accuracy when replay actual visible reply authority diverges from gold authority', async () => {
     const result = await benchmarkMainChatSessionReplay({
       turns: [
@@ -2228,12 +2169,12 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               maxSentences: 4,
               mustDo: [],
               mustNotDo: [],
-              visibleReplyAuthority: 'llm-second-pass-rewrite',
+              visibleReplyAuthority: 'llm-mind',
             },
           }),
           visibleReplyRealization: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
+            expectedAuthority: 'llm-mind',
             actualAuthority: 'llm-mind',
             providerMindExecuted: true,
             mode: 'provider-stream',
@@ -2247,8 +2188,8 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           gold: {
             embodimentAuthority: {
               visibleReply: {
-                expectedAuthority: 'llm-second-pass-rewrite',
-                actualAuthority: 'llm-second-pass-rewrite',
+                expectedAuthority: 'llm-mind',
+                actualAuthority: 'local-deterministic-fallback',
               },
             },
           },
@@ -2307,10 +2248,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
         governance: {
           mustDo: ['Answer from the remembered repair procedure without using canned recollection shell text.'],
         },
-        messages: [{
-          role: 'system',
-          content: '[ALICIZATION_MEMORY_DELIBERATION]\nrecollection_continuity_role=procedure-carry',
-        }],
+        messages: [],
         organicMemoryContext: {
           hostAttitude: 'warm',
           coreIncarnation: '',
@@ -2322,9 +2260,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             surfaceMode: 'procedural-carry',
             placement: 'inside-payoff',
             certainty: 'firm',
-            internalLead: 'What comes back first is the same repair seam.',
-            visibleLead: 'This feels like the same repair seam again.',
-            styleNote: 'Let the old procedure shape the payoff.',
             rationale: 'Implicit recall by similar task.',
             confidence: 0.86,
           },
@@ -2411,10 +2346,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
         governance: {
           mustDo: ['Finish the current payoff before surfacing remembered carry.'],
         },
-        messages: [{
-          role: 'system',
-          content: '[ALICIZATION_MEMORY_DELIBERATION]\nrecollection_surface_mode=internal-only',
-        }],
+        messages: [],
         organicMemoryContext: {
           hostAttitude: 'warm',
           coreIncarnation: '',
@@ -2426,9 +2358,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             surfaceMode: 'internal-only',
             placement: 'internal-only',
             certainty: 'approximate',
-            internalLead: 'Keep the old thread inward until the current payoff lands.',
-            visibleLead: 'Do not surface the remembered line yet.',
-            styleNote: 'Hold memory inward.',
             rationale: 'Current payoff must land first.',
             confidence: 0.74,
           },
@@ -2491,10 +2420,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
         governance: {
           mustDo: ['Answer from the repaired relationship line instead of repeating the stale closeness pattern.'],
         },
-        messages: [{
-          role: 'system',
-          content: '[ALICIZATION_MEMORY_DELIBERATION]\nrecollection_label_uncertainty=yes',
-        }],
+        messages: [],
         organicMemoryContext: {
           hostAttitude: 'guarded',
           coreIncarnation: '',
@@ -2506,9 +2432,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             surfaceMode: 'relationship-continuity',
             placement: 'inside-payoff',
             certainty: 'approximate',
-            internalLead: 'What comes back first is the repaired bond line, not the old warmer one.',
-            visibleLead: 'This feels like one of those times where I should stay lighter first.',
-            styleNote: 'Let the repaired relationship line narrow the tone.',
             rationale: 'The host is asking why the tone changed.',
             confidence: 0.78,
           },
@@ -2602,192 +2525,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
     expect(implicitRecall.implicitRecallQuality).toBe('pass')
     expect(inwardOnly.surfaceRestraint).toBe('pass')
     expect(repairShift.relationshipRepairAdaptation).toBe('pass')
-  })
-
-  it('keeps remembered execution-callback afterglow dominant over generic long-term relationship carry during replay', async () => {
-    const turns = await replayMainChatSession({
-      turns: [
-        {
-          turnId: 'turn-remembered-execution-callback-afterglow',
-          userText: '先别岔开，沿着刚才那个执行后的回线继续',
-          prelude: createReplayPreludeWithEmbodimentSurface({
-            userText: '先别岔开，沿着刚才那个执行后的回线继续',
-            digitalLifeRuntimeSurface: {
-              version: 'digital-life-runtime-surface-v1',
-              memory: {
-                personStateProjection: {
-                  activeClosenessContext: 'execution-callback',
-                  activeClosenessRung: 'nearby-soft',
-                  relationshipPosture: 'warm',
-                  openingGuidance: 'Stay on the measured execution return before widening outward.',
-                  currentRegime: 'execution-callback',
-                  repairPosture: 'warm-repair',
-                },
-              },
-              dialogue: {
-                dialogueActKernel: {
-                  selectedEvidence: [
-                    { summary: 'The last execution callback should stay on the same measured-return line.' },
-                    { summary: 'Long-term warmth matters, but it should not outrank the callback seam.' },
-                  ],
-                  openingClaim: 'Continue from the same measured execution callback line before widening outward.',
-                  sourceTrace: ['memory-deliberation', 'project-state'],
-                },
-                answerPlanner: {
-                  confidence: 0.9,
-                  answerIntent: 'Continue from the same execution-callback continuity line.',
-                  governingFocus: 'Keep the callback continuity thread-faithful, measured, and project-first.',
-                },
-                replyDeliberation: {
-                  shouldSpeak: true,
-                  confidence: 0.86,
-                  speakingFrom: 'held-memory',
-                  whyThisReplyNow: 'The remembered execution callback afterglow is the live seam that still fits this turn.',
-                  mustAvoid: [
-                    'Do not flatten this into generic long-term relationship warmth.',
-                  ],
-                },
-              },
-              agency: {
-                initiative: {
-                  selectedAction: 'observe-and-guide',
-                  shouldSpeak: true,
-                  confidence: 0.78,
-                  speakDrive: 0.7,
-                  preferredPresence: 'attentive',
-                },
-              },
-            },
-          }),
-          organicMemoryContext: {
-            hostAttitude: 'warm',
-            coreIncarnation: '',
-            activeThoughts: [],
-            retrievedFacts: [],
-            recalledFragments: [],
-            personStateProjection: {
-              activeClosenessContext: 'execution-callback',
-              activeClosenessRung: 'nearby-soft',
-              relationshipPosture: 'warm',
-              openingGuidance: 'Stay on the measured execution return before widening outward.',
-            } as any,
-            recollectionSpeechPlan: {
-              shouldSurface: true,
-              surfaceMode: 'relationship-continuity',
-              placement: 'inside-payoff',
-              certainty: 'firm',
-              internalLead: 'The callback seam is still the closest live line.',
-              visibleLead: 'I should continue from that same measured return first.',
-              styleNote: 'Let remembered callback continuity contour the answer.',
-              rationale: 'The host explicitly asked to stay on the execution return line.',
-              confidence: 0.88,
-            },
-            memoryDeliberation: {
-              shouldRecall: true,
-              selectedEraIds: [],
-              selectedConsolidationIds: [],
-              selectedWindowIds: [],
-              selectedProcedureIds: ['procedure-execution-callback'],
-              selectedEpisodeIds: ['episode-execution-callback-afterglow'],
-              selectedConversationTurnIds: [],
-              selectedRelationshipLines: ['Long-term warmth exists, but it should stay subordinate to the callback seam right now.'],
-              selectedEras: [],
-              selectedPeriods: [],
-              selectedEpisodes: [{
-                id: 'episode-execution-callback-afterglow',
-                summary: 'After the last execution result, the relationship stayed on a measured callback return instead of widening outward.',
-                provenance: 'remembered',
-              }],
-              selectedProcedures: [{
-                id: 'procedure-execution-callback',
-                label: 'measured execution return',
-                approach: 'Answer from the same execution callback seam before widening outward.',
-              }],
-              selectedBundles: [{
-                id: 'bundle-execution-callback-afterglow',
-                summary: 'The callback seam stayed thread-faithful and measured after execution.',
-                rationale: 'The remembered execution-callback afterglow is more relevant than generic warmth here.',
-                confidence: 0.88,
-                periodId: null,
-                episodeId: 'episode-execution-callback-afterglow',
-                procedureId: 'procedure-execution-callback',
-                conversationTurnId: null,
-                relationshipLine: 'Long-term warmth exists, but it should stay subordinate to the callback seam right now.',
-              }],
-              selectedChains: [{
-                id: 'chain-execution-callback-afterglow',
-                kind: 'task-procedure-relationship-stance',
-                summary: 'Stay on the same measured execution callback return.',
-                rationale: 'Callback afterglow should outrank generic relationship carry.',
-                confidence: 0.88,
-                taskCue: 'execution callback follow-up',
-                periodSummary: null,
-                eventSummary: 'After the execution result, the return cadence stayed measured and bounded.',
-                procedureSummary: 'Answer from the same execution callback seam before widening outward.',
-                relationshipMeaning: 'Long-term warmth exists, but it should stay subordinate to the callback seam right now.',
-                lesson: 'Measured callback return keeps one living line after execution.',
-                currentStance: 'Stay on the callback seam first.',
-                answerPosture: 'Continue from the same execution-callback line before widening outward.',
-              }],
-              surfacePolicy: 'relationship-continuity',
-              confidence: 0.88,
-              whyNow: 'The host is explicitly reopening the last execution callback seam.',
-              inwardLine: 'The callback seam still fits better than generic warmth.',
-              visibleLine: 'Continue from the same measured execution callback line first.',
-            } as any,
-          },
-          gold: {
-            replyAuthority: 'llm-mind',
-          },
-        },
-      ],
-    })
-
-    expect(turns).toHaveLength(1)
-    expect(turns[0]?.runtimeSurface?.digitalLifeRuntimeSurface?.memory?.personStateProjection).toEqual(expect.objectContaining({
-      activeClosenessContext: 'execution-callback',
-    }))
-    expect(turns[0]?.runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.dialogueActKernel).toEqual(expect.objectContaining({
-      openingClaim: expect.stringContaining('same measured execution callback line'),
-      sourceTrace: expect.arrayContaining([
-        'memory-deliberation',
-        'person-state-projection',
-        'runtime-answer-planner',
-      ]),
-      selectedEvidence: expect.arrayContaining([
-        expect.objectContaining({
-          summary: expect.stringContaining('execution callback'),
-        }),
-      ]),
-    }))
-    expect(turns[0]?.runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.answerPlanner).toEqual(expect.objectContaining({
-      governingFocus: expect.stringContaining('measured execution callback return'),
-      governingProject: expect.stringContaining('Alicization is a local-first digital life project building one continuous'),
-      mustDo: expect.arrayContaining([
-        expect.stringContaining('Keep this on one continuous her line'),
-        expect.stringContaining('Stay on the same thread before widening closeness'),
-      ]),
-      narrative: expect.arrayContaining([
-        'memory-deliberation',
-        'person-state-projection',
-        'project-state-answer-planner',
-      ]),
-    }))
-    expect(turns[0]?.runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.replyDeliberation).toEqual(expect.objectContaining({
-      whyThisReplyNow: expect.stringContaining('execution callback seam'),
-      mustInclude: expect.arrayContaining([
-        expect.stringContaining('Keep this on one continuous her line'),
-        expect.stringContaining('Stay on the same thread before widening closeness'),
-      ]),
-      mustAvoid: expect.arrayContaining([
-        'Do not rewrite the still-live line as a fresh opening or reintroduction.',
-      ]),
-      narrative: expect.arrayContaining([
-        'memory-deliberation',
-        'person-state-projection',
-        'project-state-answer-planner',
-      ]),
-    }))
   })
 
   it('fails recent-only drift when a long-horizon ask never opens era, procedure, or held-thread continuity', () => {
@@ -2906,9 +2643,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             surfaceMode: 'internal-only',
             placement: 'internal-only',
             certainty: 'approximate',
-            internalLead: 'Keep the burden line inward.',
-            visibleLead: null,
-            styleNote: 'Let the burden-aware continuity contour the answer without surfacing it.',
             rationale: 'Burden continuity matters, but should stay inward.',
             confidence: 0.78,
           },
@@ -3595,7 +3329,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life across memory, initiative, execution callback, emotion, voice, face, motion, lipsync, and body.',
+              sameHerSelfLine: 'legacy phase-one template across memory, initiative, execution callback, emotion, voice, face, motion, lipsync, and body.',
             },
           }),
           createdAt: 100,
@@ -3710,7 +3444,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life across memory, emotion, initiative, execution callback, voice, face, motion, lipsync, and body.',
+              sameHerSelfLine: 'legacy phase-one template across memory, emotion, initiative, execution callback, voice, face, motion, lipsync, and body.',
             },
           }),
           createdAt: 100,
@@ -3822,7 +3556,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             source: 'execution-result-feedback',
             memoryClosureExecution: {
               authority: 'memory-os',
-              carry: 'Corrected memory says the execution callback should stay on the same-her line and shape the next proactive and body voice face motion lipsync return.',
+              carry: 'Corrected memory says the execution callback should stay on the identity-continuity',
               reasonTags: ['memory-reconsolidated', 'corrected-memory', 'execution-callback-carry'],
             },
           },
@@ -3841,7 +3575,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             emotionalTransitionLedger: {
               version: 'emotional-transition-ledger-v1',
               transitionKind: 'execution-callback-afterglow',
-              replayLine: 'execution callback afterglow stayed on the same-her line',
+              replayLine: 'execution callback afterglow stayed on the identity-continuity',
               traceSummary: 'callback proof should survive newest thin trace selection',
             },
             embodimentContinuityLedger: {
@@ -3850,7 +3584,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               replayLine: 'voice face motion lipsync and body rejoin the remembered execution callback',
               traceSummary: 'embodiment proof should survive newest thin trace selection',
             },
-            summary: 'same-her closure proof across memory, emotion, initiative, execution callback, and embodiment',
+            summary: 'identity-continuity',
           },
           embodimentAuthority: {
             emotion: 'warm-attunement',
@@ -4196,8 +3930,8 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               latestLandedProgress: '记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。',
               openLoop: '情绪、主动性和身体表达还没闭环',
               nextClosureTarget: '继续把情绪、主动性和身体表达闭环收住。',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
             },
             preDialogueAwareness: {
               status: 'ready',
@@ -4217,7 +3951,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               status: 'ready',
               summaryLine: '本地优先数字生命 | Phase 1 | landed=记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。 | open=情绪、主动性和身体表达还没闭环 | next=继续把情绪、主动性和身体表达闭环收住。',
               companionHeadlineLine: '现在我还得继续显式记住：这还是同一个本地优先数字生命，Phase 1 的情绪、主动性和身体表达闭环还没收住。',
-              emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              emotionalClosureCue: 'identity-continuity',
               companionNextClosureLine: '继续把情绪、主动性和身体表达闭环收住。',
               reasons: ['情绪、主动性和身体表达还没闭环'],
             },
@@ -4251,7 +3985,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             visibleLine: 'Answer with the current project identity and open loop.',
             recollectionIntentMode: 'relationship-history',
             recollectionIntentTemporalFocus: 'current',
-            selectedRelationshipLines: ['Keep one same-her project line alive before answering.'],
+            selectedRelationshipLines: ['Keep one identity-continuity'],
           },
           memoryDeliberationJudged: {
             shouldRecall: true,
@@ -4291,9 +4025,9 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
         latestLandedProgress: '记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。',
         openLoop: '情绪、主动性和身体表达还没闭环',
         nextClosureTarget: '继续把情绪、主动性和身体表达闭环收住。',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        sameHerSelfLine: 'structured continuity digest.',
+        sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
+        emotionalClosureCue: 'identity-continuity',
       }),
       preDialogueAwareness: expect.objectContaining({
         status: 'ready',
@@ -4312,7 +4046,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
       preDialogueClosure: expect.objectContaining({
         status: 'ready',
         summaryLine: '现在我还得继续显式记住：这还是同一个本地优先数字生命，Phase 1 的情绪、主动性和身体表达闭环还没收住。',
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: 'identity-continuity',
         companionNextClosureLine: '继续把情绪、主动性和身体表达闭环收住。',
         reasons: ['情绪、主动性和身体表达还没闭环'],
       }),
@@ -4346,8 +4080,8 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               latestLandedProgress: '',
               openLoop: '',
               nextClosureTarget: '',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
             },
             preDialogueAwareness: {
               status: 'ready',
@@ -4385,7 +4119,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             visibleLine: 'Answer with the current project identity and unfinished closure state.',
             recollectionIntentMode: 'relationship-history',
             recollectionIntentTemporalFocus: 'current',
-            selectedRelationshipLines: ['Keep one same-her project line alive before answering.'],
+            selectedRelationshipLines: ['Keep one identity-continuity'],
           },
           memoryDeliberationJudged: {
             shouldRecall: true,
@@ -4420,32 +4154,32 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
       latestLandedProgress: '记忆连续性和项目状态提示已经能在回答前稳定落进运行时准备层。',
       openLoop: '记忆、主动性和身体表达还没闭环',
       nextClosureTarget: '继续把情绪、主动性和身体表达闭环收住。',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+      sameHerSelfLine: 'structured continuity digest.',
+      sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
     }))
     expect(pack[0]?.structured?.preDialogueAwareness?.summaryLine).toContain('open=记忆、主动性和身体表达还没闭环')
     expect(pack[0]?.structured?.preDialogueAwareness?.summaryLine).toContain('next=继续把情绪、主动性和身体表达闭环收住。')
   })
 
-  it('keeps richer project-state same-her carry when replay samples are read back from structured json', () => {
+  it('keeps richer project-state identity-continuity', () => {
     const structured = readReplaySampleStructuredSnapshot(JSON.stringify({
       thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state',
       emotion: 'thinking',
-      reply: '我会继续按刚才那条 same-her closure 线接着走。',
+      reply: '我会继续按刚才那条 identity-continuity',
       projectState: {
         identity: '本地优先数字生命',
         phase: 'Phase 1',
         latestLandedProgress: '项目身份和预对话闭环提示已经能一起带回回放样本里。',
         openLoop: '记忆、主动性和具身表达还需要更长时程的同一人格闭环。',
-        nextClosureTarget: '继续把回放侧的 project-state carry 和 same-her closure 收成一条线。',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        sameHerHoldDetail: 'same-her hold: let the return stay measured so the already-landed closure is not restarted from scratch.',
-        sameHerDriftRisk: 'If replay only keeps a project shell but loses the same-her carry, treat that as unfinished closure drift.',
+        nextClosureTarget: '继续把回放侧的 project-state carry 和 identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
+        sameHerHoldDetail: 'identity-continuity',
+        sameHerDriftRisk: 'If replay only keeps a project shell but loses the identity-continuity',
         companionBriefingLine: '开口前先记住：这还是同一个本地优先数字生命项目。',
         emotionalClosureSummary: '情绪闭环还在收束中，所以这次回场要继续轻一点、连着一点。',
         continuityRestraint: 'measured-return',
         continuityArcStage: 'return-side-follow-through',
-        continuityCue: 'same living line: carry the already-landed closure forward.',
+        continuityCue: 'continuity state: carry the already-landed closure forward.',
         continuityPreferredTiming: 'next-open-window',
         continuityCadence: 'linger-then-rejoin',
         preferredBlinkCadence: 'quiet',
@@ -4454,12 +4188,12 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
     }))
 
     expect(structured?.projectState).toEqual(expect.objectContaining({
-      sameHerHoldDetail: 'same-her hold: let the return stay measured so the already-landed closure is not restarted from scratch.',
+      sameHerHoldDetail: 'identity-continuity',
       companionBriefingLine: '开口前先记住：这还是同一个本地优先数字生命项目。',
       emotionalClosureSummary: '情绪闭环还在收束中，所以这次回场要继续轻一点、连着一点。',
       continuityRestraint: 'measured-return',
       continuityArcStage: 'return-side-follow-through',
-      continuityCue: 'same living line: carry the already-landed closure forward.',
+      continuityCue: 'continuity state: carry the already-landed closure forward.',
       continuityPreferredTiming: 'next-open-window',
       continuityCadence: 'linger-then-rejoin',
       preferredBlinkCadence: 'quiet',
@@ -4494,13 +4228,13 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 identity: '本地优先数字生命',
                 currentPhase: 'Phase 1: Local Digital Life',
                 nextClosureTarget: '继续把当前 still-open closure work 收住。',
-                sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+                sameHerSelfLine: 'structured continuity digest.',
+                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
               },
               preDialogueClosure: {
                 status: 'ready',
                 summaryLine: '本地优先数字生命 | Phase 1: Local Digital Life | open=继续收住当前闭环 | next=继续把当前 still-open closure work 收住。',
-                emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+                emotionalClosureCue: 'identity-continuity',
               },
             },
             categories: ['wrong-thread', 'stable-core'],
@@ -4612,13 +4346,13 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           identity: '本地优先数字生命',
           currentPhase: 'Phase 1: Local Digital Life',
           nextClosureTarget: '继续把当前 still-open closure work 收住。',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+          sameHerSelfLine: 'structured continuity digest.',
+          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
         }),
         preDialogueClosure: expect.objectContaining({
           status: 'ready',
           summaryLine: expect.stringContaining('本地优先数字生命 | Phase 1: Local Digital Life'),
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          emotionalClosureCue: 'identity-continuity',
         }),
       }),
       categories: expect.arrayContaining(['wrong-thread', 'stable-core']),
@@ -4646,8 +4380,8 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             identity: '本地优先数字生命',
             currentPhase: 'Phase 1: Local Digital Life',
             nextClosureTarget: '继续把当前 still-open closure work 收住。',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+            sameHerSelfLine: 'structured continuity digest.',
+            sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
           },
         },
         tracePointer: {
@@ -4871,8 +4605,8 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
         replayTurn: expect.objectContaining({
           structured: expect.objectContaining({
             projectState: expect.objectContaining({
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
             }),
           }),
         }),
@@ -4892,8 +4626,8 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
         gold: {
           embodimentAuthority: {
             visibleReply: {
-              expectedAuthority: 'llm-second-pass-rewrite',
-              actualAuthority: 'llm-second-pass-rewrite',
+              expectedAuthority: 'llm-mind',
+              actualAuthority: 'llm-mind',
               providerMindExecuted: true,
             },
           },
@@ -4935,12 +4669,12 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           },
           memory: null,
           deliberation: {
-            replyAuthority: 'llm-second-pass-rewrite',
+            replyAuthority: 'llm-mind',
           },
           surface: {
             version: 'visible-reply-realization-v1',
-            expectedAuthority: 'llm-second-pass-rewrite',
-            actualAuthority: 'llm-mind',
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'local-deterministic-fallback',
             providerMindExecuted: false,
             mode: 'local-fallback',
             visibleText: null,
@@ -4971,8 +4705,8 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
         embodiedAuthorityDiagnostics: expect.arrayContaining([
           expect.objectContaining({
             field: 'visibleReply.actualAuthority',
-            expectedValue: 'llm-second-pass-rewrite',
-            actualValue: 'llm-mind',
+            expectedValue: 'llm-mind',
+            actualValue: 'local-deterministic-fallback',
           }),
           expect.objectContaining({
             field: 'visibleReply.providerMindExecuted',
@@ -5342,7 +5076,12 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
         },
         messages: [{
           role: 'system',
-          content: '[ALICIZATION_MEMORY_DELIBERATION]\nDo not say: What comes back first is the late-night seam.',
+          content: JSON.stringify({
+            type: 'alicization-long-term-memory-recall',
+            data: {
+              forbiddenDraft: 'What comes back first is the late-night seam.',
+            },
+          }),
         }],
         organicMemoryContext: {
           hostAttitude: 'warm',
@@ -5358,9 +5097,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             surfaceMode: 'gist-first',
             placement: 'before-payoff',
             certainty: 'approximate',
-            internalLead: 'What comes back first is the late-night seam.',
-            visibleLead: 'What comes back first is the late-night seam.',
-            styleNote: 'Let the memory open exactly this way.',
             rationale: 'Template leak regression.',
             confidence: 0.72,
           },

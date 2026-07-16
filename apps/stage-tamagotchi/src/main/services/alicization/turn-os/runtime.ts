@@ -67,15 +67,15 @@ function buildSurfaceProjectStateAuditSummary(surface: AlicizationVisibleReplyRe
     return null
 
   const anchors = uniqueList([
-    projectStateAudit.sameHerHoldDetail ? `hold=${projectStateAudit.sameHerHoldDetail}` : null,
-    projectStateAudit.continuityArcStage ? `arc=${projectStateAudit.continuityArcStage}` : null,
-    projectStateAudit.continuityCue ? `cue=${projectStateAudit.continuityCue}` : null,
-    projectStateAudit.currentPhaseSummary ? `phase=${projectStateAudit.currentPhaseSummary}` : null,
-    projectStateAudit.sameHerSummary ? `project_anchor=${projectStateAudit.sameHerSummary}` : null,
+    projectStateAudit.sameHerHoldDetail ? `Hold detail: ${projectStateAudit.sameHerHoldDetail}.` : null,
+    projectStateAudit.continuityArcStage ? `Arc: ${projectStateAudit.continuityArcStage}.` : null,
+    projectStateAudit.continuityCue ? `Cue: ${projectStateAudit.continuityCue}.` : null,
+    projectStateAudit.currentPhaseSummary ? `Phase: ${projectStateAudit.currentPhaseSummary}.` : null,
+    projectStateAudit.sameHerSummary ? `Continuity anchor: ${projectStateAudit.sameHerSummary}.` : null,
   ], 5)
 
   return anchors.length > 0
-    ? `project-state=${anchors.join(' | ')}`
+    ? `Project state: ${anchors.join(' ')}`
     : null
 }
 

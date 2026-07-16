@@ -32,7 +32,6 @@ import {
 } from '../composables/alicization-structured-output'
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 import { useAlicizationMindReplayStore } from './alicization-mind-replay'
-import { resolvePreDialogueClosureCompanionHeadlineLine } from './chat/pre-dialogue-send-identity'
 import { projectStateObservationToContinuitySnapshot } from './project-state-observation'
 
 type AlicizationLegacyAwareProjectStateContinuitySnapshot
@@ -3036,7 +3035,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         response: {
           hypothesisLabelingRaised: boolean
           specificityClampRaised: boolean
-          secondPassRequired: boolean
           templateShellSuppressed: boolean
           reasons: string[]
         }
@@ -3062,7 +3060,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const resolvedPosture = repairWindowRaised || closenessCapped ? 'restrained' as const : 'warm' as const
     const hypothesisLabelingRaised = patch.responsePosture.hypothesisLabelBias >= 0.1
     const specificityClampRaised = patch.responsePosture.specificityClampBias >= 0.1
-    const secondPassRequired = patch.responsePosture.secondPassRequiredBias >= 0.1
     const templateShellSuppressed = patch.responsePosture.templateShellSuppressionBias >= 0.1
     const restraintRaised = patch.proactivePolicy.restraintBias >= 0.12
     const cooldownRaised = patch.proactivePolicy.actuationCooldownBias >= 0.12
@@ -3119,7 +3116,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       response: {
         hypothesisLabelingRaised,
         specificityClampRaised,
-        secondPassRequired,
         templateShellSuppressed,
         reasons: uniquePreviewReasons([
           hypothesisLabelingRaised
@@ -3127,9 +3123,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
             : null,
           specificityClampRaised
             ? 'Unsupported specificity should be clamped before warmth or fluency.'
-            : null,
-          secondPassRequired
-            ? 'The answer path is biased toward a second-pass repair before visible certainty.'
             : null,
           templateShellSuppressed
             ? 'Template-shell replies are explicitly suppressed until the turn gives concrete payoff.'
@@ -3224,13 +3217,11 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const expectedSignals = [
       patch.responsePosture.hypothesisLabelBias >= 0.1 ? 'hypothesis-labeling' : null,
       patch.responsePosture.specificityClampBias >= 0.1 ? 'specificity-clamp' : null,
-      patch.responsePosture.secondPassRequiredBias >= 0.1 ? 'second-pass' : null,
       patch.responsePosture.templateShellSuppressionBias >= 0.1 ? 'template-shell-suppression' : null,
     ].filter((value): value is string => Boolean(value))
     const observedSignals = [
       runtimePresence.answerCompiler?.mustDo?.some(item => item.includes('hypothesis labeling')) ? 'hypothesis-labeling' : null,
       runtimePresence.answerCompiler?.mustDo?.some(item => item.includes('clamp unsupported specificity')) ? 'specificity-clamp' : null,
-      runtimePresence.answerCompiler?.mustDo?.some(item => item.includes('repair/rewrite before visible certainty')) ? 'second-pass' : null,
       runtimePresence.answerCompiler?.mustNotDo?.some(item => item.includes('template shell')) ? 'template-shell-suppression' : null,
     ].filter((value): value is string => Boolean(value))
     const responseAligned = expectedSignals.every(signal => observedSignals.includes(signal))
@@ -3334,9 +3325,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         driftingSignals: [],
         reasons: uniquePreviewReasons([
           responseAligned
-            ? 'Current response guardrails already include the active candidate rewrite/labeling discipline.'
+            ? 'Current response guardrails expose every active candidate signal.'
             : observedSignals.length > 0
-              ? 'Some response guardrails reflect the active candidate, but the full rewrite discipline is not visible yet.'
+              ? 'Some response guardrails reflect the active candidate, but the full active signal set is not visible yet.'
               : null,
         ]),
       },
@@ -3739,7 +3730,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     if (!closure)
       return null
 
-    const synthesizedCompanionHeadlineLine = resolvePreDialogueClosureCompanionHeadlineLine(closure)
+    const synthesizedCompanionHeadlineLine = null
 
     const closureStatus
       = closure.status === 'grounded' || closure.status === 'partial' || closure.status === 'drift'

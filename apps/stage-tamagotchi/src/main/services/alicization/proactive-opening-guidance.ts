@@ -158,23 +158,23 @@ export function describeAlicizationOpeningGuidanceRewriteGuidance(input: {
   const lines: string[] = []
 
   if (input.blockedReason === 'opening-guidance:lower-pressure') {
-    lines.push('opening_guidance_repair=lower_pressure; visible_closeness_widening=blocked_until_current_turn_reentered; visible_surface=answer_payoff')
+    lines.push('Repair opening guidance with lower pressure; block visible closeness widening until the current turn is re-entered.')
   }
 
   if (input.openingGuidanceHoldDetail === 'memory-familiarity-closeness-cap') {
-    lines.push('remembered_familiarity_surface=memory_label; closeness_reopen_speed=bounded_by_host_current_room; visible_surface=answer_payoff')
+    lines.push('Surface remembered familiarity as a memory label; bound closeness reopening by the host room in the current turn.')
   }
   if (input.openingGuidanceHoldDetail === 'generic-availability-shell') {
-    lines.push('generic_availability_shell=blocked; lower_pressure_timing=explicit; reentry_source=current_turn_thread; visible_surface=answer_payoff')
+    lines.push('Block generic availability shell; make lower-pressure timing explicit and re-enter from the current turn thread.')
   }
   if (input.openingGuidanceHoldDetail === 'same-thread-restart-shell') {
-    lines.push('fresh_opening_restart=blocked; current_thread_continuation=required; visible_surface=answer_payoff')
+    lines.push('Block fresh opening restart; continue the current thread.')
   }
   if (input.openingGuidanceHoldDetail === 'even-natural-cadence') {
-    lines.push('reentry_cadence=even_steady; pacing=natural_unforced; performative_or_rushed_reopen=blocked; visible_surface=answer_payoff')
+    lines.push('Use even, steady re-entry cadence with natural pacing; block performative or rushed reopening.')
   }
   if (input.openingGuidanceHoldDetail === 'hover-first-live-seam') {
-    lines.push('opening_mode=hover_first; reentry_source=current_turn_thread; reminder_like_framing=defer; service_availability_shell=blocked; visible_surface=answer_payoff')
+    lines.push('Use hover-first opening from the current turn thread; defer reminder-like framing and block service availability shell.')
   }
 
   return lines

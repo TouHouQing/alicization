@@ -176,7 +176,7 @@ describe('memory episodic retrieval', () => {
           emotionTags: ['afterthought'],
           whatChanged: 'The callback kept the room open before leaning in again.',
           relationshipMeaning: 'Leave room before the next follow-up.',
-          lesson: 'Keep the next opening lower-pressure around this seam while the unfinished Phase 1 closure stays on the same digital life line.',
+          lesson: 'Keep the next opening lower-pressure around this seam while the unfinished Phase 1 closure stays on the local continuity state.',
           sourceSummary: 'session mirror execution-callback project-carry afterthought | continuity-execution-callback-project-carry | Alicization is a local-first digital life project | Phase 1: Local Digital Life',
           confidence: 0.82,
           salience: 0.8,
@@ -291,7 +291,7 @@ describe('memory episodic retrieval', () => {
           emotionTags: ['afterthought'],
           whatChanged: 'The callback kept the room open before leaning in again.',
           relationshipMeaning: 'Leave room before the next follow-up.',
-          lesson: 'Keep the next opening lower-pressure around this seam while the unfinished Phase 1 closure stays on the same digital life line.',
+          lesson: 'Keep the next opening lower-pressure around this seam while the unfinished Phase 1 closure stays on the local continuity state.',
           sourceSummary: 'session mirror execution-callback project-carry afterthought | continuity-execution-callback-project-carry | Alicization is a local-first digital life project | Phase 1: Local Digital Life',
           confidence: 0.82,
           salience: 0.8,
@@ -466,22 +466,22 @@ describe('memory episodic retrieval', () => {
     expect(ranked[0]?.adjustedScore).toBeGreaterThan(ranked[1]?.adjustedScore ?? 0)
   })
 
-  it('prefers episodic callback carry with a stronger same-her self line even when legacy preflight summary is absent', () => {
+  it('prefers episodic callback carry with a stronger identity-continuity', () => {
     const nowTs = Date.UTC(2026, 3, 27, 13, 0, 0)
     const ranked = rankAlicizationEpisodicEvents({
       recallSeed: '继续刚才那条 callback line，但别塌成 generic task shell',
       limit: 4,
       nowTs,
       carryAsMemory: true,
-      projectStatePrimaryOpenLoop: 'Execution reopenings still need stronger same-her closure so callback returns do not flatten into generic task-shell reporting.',
+      projectStatePrimaryOpenLoop: 'Execution reopenings still need stronger identity-continuity',
       recollectionIntent: {
         mode: 'execution-procedure',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
         searchConversations: false,
         searchProceduralExperience: false,
-        queryHints: ['same-her callback', 'generic task shell'],
-        rationale: 'The reopening should keep the same-her callback line ahead of a generic receipt line.',
+        queryHints: ['identity-continuity', 'generic task shell'],
+        rationale: 'The reopening should keep the identity-continuity',
         confidence: 0.82,
       },
       events: [
@@ -496,14 +496,14 @@ describe('memory episodic retrieval', () => {
           occurredAt: nowTs - 2 * 24 * 60 * 60 * 1000,
           whereSummary: 'session mirror execution-callback afterthought',
           withWhom: ['host'],
-          threadAnchor: 'same-her callback closure line',
+          threadAnchor: 'identity-continuity',
           whatHappened: 'The callback stayed on one same-her Phase 1 line and did not flatten into generic task-shell reporting.',
           felt: 'steady',
           emotionTags: ['afterthought'],
           whatChanged: 'The callback kept the room open before leaning in again.',
-          relationshipMeaning: 'Keep the same living Phase 1 digital life line steady before widening outward.',
+          relationshipMeaning: 'Keep the same living structured continuity state',
           lesson: 'Let the callback reopen lower-pressure and same-her first so it does not collapse into generic task-shell reporting.',
-          sourceSummary: 'same-her callback carry without legacy metadata | Same Phase 1 digital life | unfinished closure still belongs to the same living line',
+          sourceSummary: 'identity-continuity',
           confidence: 0.82,
           salience: 0.8,
           sceneAttachment: 0.68,
@@ -557,7 +557,7 @@ describe('memory episodic retrieval', () => {
     })
 
     expect(ranked[0]?.event.id).toBe('event-same-her-self-line-carry')
-    expect(ranked[0]?.event.sourceSummary).toContain('Same Phase 1 digital life')
+    expect(ranked[0]?.event.sourceSummary).toContain('legacy phase-one template')
     expect(ranked[0]?.adjustedScore).toBeGreaterThan(ranked[1]?.adjustedScore ?? 0)
   })
 
@@ -865,7 +865,7 @@ describe('memory episodic retrieval', () => {
           occurredAt: nowTs - 7 * 24 * 60 * 60 * 1000,
           whereSummary: 'chat',
           withWhom: ['host'],
-          threadAnchor: 'same-her continuity seam',
+          threadAnchor: 'identity-continuity',
           whatHappened: 'We treated it like another concise status recap.',
           felt: 'careful',
           emotionTags: ['careful'],
@@ -879,7 +879,7 @@ describe('memory episodic retrieval', () => {
           consolidationPriority: 0.74,
           relationshipShift: null,
           derivedFrom: [],
-          tags: ['status recap', 'progress pressure', 'same-her continuity seam'],
+          tags: ['status recap', 'progress pressure', 'identity-continuity'],
           createdAt: nowTs - 7 * 24 * 60 * 60 * 1000,
           updatedAt: nowTs - 2 * 24 * 60 * 60 * 1000,
           lastRecalledAt: nowTs - 1 * 24 * 60 * 60 * 1000,
@@ -899,7 +899,7 @@ describe('memory episodic retrieval', () => {
           occurredAt: nowTs - 2 * 24 * 60 * 60 * 1000,
           whereSummary: 'chat',
           withWhom: ['host'],
-          threadAnchor: 'same-her continuity seam',
+          threadAnchor: 'identity-continuity',
           whatHappened: 'The host clarified this was not a generic status report and cared more about whether she stayed the same person.',
           felt: 'protective-continuity',
           emotionTags: ['protective-continuity', 'corrected-meaning'],
@@ -913,7 +913,7 @@ describe('memory episodic retrieval', () => {
           consolidationPriority: 0.78,
           relationshipShift: null,
           derivedFrom: [],
-          tags: ['same-person continuity', 'not a status report', 'same-her continuity seam'],
+          tags: ['same-person continuity', 'not a status report', 'identity-continuity'],
           createdAt: nowTs - 2 * 24 * 60 * 60 * 1000,
           updatedAt: nowTs - 6 * 60 * 60 * 1000,
           lastRecalledAt: nowTs - 2 * 60 * 60 * 1000,

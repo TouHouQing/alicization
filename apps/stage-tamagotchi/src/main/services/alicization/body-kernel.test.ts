@@ -372,7 +372,7 @@ describe('body kernel', () => {
         reasonTags: ['runtime-conscious-frame', 'execution-safety-gate:confirmation-boundary'],
         projectState: {
           emotionalClosureCue: 'Blocked-before-dispatch still means no-process-started and wait for confirmation before any execution-shaped reopening.',
-          sameHerHoldDetail: 'same-her hold: blocked-before-dispatch still means confirmation boundary first, not ordinary proactive closeness.',
+          sameHerHoldDetail: 'identity-continuity',
         },
       },
     } as any
@@ -593,7 +593,7 @@ describe('body kernel', () => {
         workloadKind: 'coding',
         contentKind: 'doc',
         scenario: 'phase1-same-her-closure',
-        summary: 'the same living line is still being held while emotion, memory, initiative, and embodiment close together',
+        summary: 'the continuity state is still being held while emotion, memory, initiative, and embodiment close together',
         source: 'screen-semantic-summary',
         confidence: 0.84,
         beganAt: 272_000,
@@ -612,7 +612,7 @@ describe('body kernel', () => {
         repairNeed: 0.26,
         initiativePressure: 0.16,
         reasonTags: ['measured-return', 'self-continuity'],
-        why: 'Keep the return low-pressure while the same living line is still closing across memory, initiative, and embodiment.',
+        why: 'Keep the return low-pressure while the continuity state is still closing across memory, initiative, and embodiment.',
       },
       relationshipModel: {
         receptivity: 0.08,
@@ -642,22 +642,22 @@ describe('body kernel', () => {
         preferredStyle: 'silent-observe',
         preferredPresence: 'attentive',
         continuityRestraint: 'measured-return',
-        why: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+        why: 'pre_turn_context_digest',
         shouldSurface: false,
         shouldSpeak: false,
       },
       currentConsciousFrame: {
         reasonTags: ['memory-deliberation-cadence:measured-return'],
         projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+          identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
           currentPhase: 'Phase 1: Local Digital Life. The desktop life loop is still the proving ground.',
           latestLandedProgress: 'Continuity, memory, and execution already land together often enough to build from.',
-          primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need stronger end-to-end closure across one same living line.',
-          nextClosureTarget: 'Keep initiative and embodiment closure on the same living line before widening outward.',
-          preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
-          sameHerDriftRisk: 'If this falls back to a generic project shell, the same living line loses one lifeform continuity.',
+          primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need stronger end-to-end closure across one continuity state.',
+          nextClosureTarget: 'Keep initiative and embodiment closure on the continuity state before expansion',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          sameHerSelfLine: 'structured continuity digest.',
+          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
+          sameHerDriftRisk: 'If this falls back to a generic project shell, the continuity state loses one lifeform continuity.',
         },
       },
       privateThought: {
@@ -670,7 +670,7 @@ describe('body kernel', () => {
         updatedAt: 280_000,
         stance: 'accompany',
         rationaleTags: ['measured-return'],
-        thoughtText: 'stay on the same living line while the broader closure is still unfinished',
+        thoughtText: 'stay on the continuity state while the broader closure is still unfinished',
         shouldSpeak: false,
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'attentive',
@@ -745,7 +745,7 @@ describe('body kernel', () => {
         selectedOptionId: null,
         selectedAction: 'wait',
         confidence: 0.72,
-        dominantTradeoff: 'same-her continuity',
+        dominantTradeoff: 'identity-continuity',
         options: [],
         narrative: [],
         updatedAt: 200_000,
@@ -929,7 +929,7 @@ describe('body kernel', () => {
         updatedAt: 260_000,
         stance: 'accompany',
         rationaleTags: [],
-        thoughtText: 'keep the same living line inward',
+        thoughtText: 'keep the continuity state inward',
         shouldSpeak: false,
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'hesitant',
@@ -979,7 +979,7 @@ describe('body kernel', () => {
         repairNeed: 0.18,
         initiativePressure: 0.16,
         reasonTags: ['self-continuity', 'quiet-companionship'],
-        why: 'Companionship is still being carried on one inward same-her line, so embodiment should hold quietly nearby before widening outward.',
+        why: 'Companionship is still being carried on one inward identity-continuity',
       },
       relationshipModel: {
         receptivity: 0.05,
@@ -1023,7 +1023,7 @@ describe('body kernel', () => {
         updatedAt: 260_000,
         stance: 'accompany',
         rationaleTags: [],
-        thoughtText: 'keep the same living line inward',
+        thoughtText: 'keep the continuity state inward',
         shouldSpeak: false,
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'hesitant',
@@ -1054,7 +1054,7 @@ describe('body kernel', () => {
         workloadKind: 'coding',
         contentKind: 'doc',
         scenario: 'durable-self-core-embodiment',
-        summary: 'the same living line is still being held quietly before widening outward again',
+        summary: 'the continuity state is still being held quietly before widening outward again',
         source: 'screen-semantic-summary',
         confidence: 0.8,
         beganAt: 265_000,
@@ -1096,7 +1096,7 @@ describe('body kernel', () => {
         selectedOptionId: null,
         selectedAction: 'wait',
         confidence: 0.64,
-        dominantTradeoff: 'same-her continuity',
+        dominantTradeoff: 'identity-continuity',
         options: [],
         narrative: [],
         updatedAt: 270_000,
@@ -1136,7 +1136,7 @@ describe('body kernel', () => {
     expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('reopening from scratch')
   })
 
-  it('keeps structured pre-dialogue project-state same-her closure alive in body continuity even when initiative why has thinned out', () => {
+  it('keeps structured pre-dialogue project-state identity-continuity', () => {
     const kernel = createAlicizationBodyKernel({ now: () => 280_000 })
     const previousState = createDefaultVisualPresenceState(100_000)
     const candidateState = {
@@ -1188,13 +1188,13 @@ describe('body kernel', () => {
         selectedOptionId: null,
         selectedAction: 'wait',
         confidence: 0.72,
-        dominantTradeoff: 'same-her continuity',
+        dominantTradeoff: 'identity-continuity',
         options: [],
         narrative: [],
         updatedAt: 280_000,
         stance: 'accompany',
         rationaleTags: ['quiet-companionship', 'measured-return'],
-        thoughtText: 'keep the same living line inward',
+        thoughtText: 'keep the continuity state inward',
         shouldSpeak: false,
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'attentive',
@@ -1217,11 +1217,11 @@ describe('body kernel', () => {
         projectState: {
           identity: 'A local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           latestLandedProgress: 'Project awareness, memory, and execution continuity now survive into the active conscious frame.',
           primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps one same still-open closure work.',
-          nextClosureTarget: 'Keep the pre-dialogue awareness line explicit through the first host-visible answer beat and keep the same-her closure on one living line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          nextClosureTarget: 'Keep the pre-dialogue awareness line explicit through the first host-visible answer beat and keep the identity-continuity',
+          sameHerSelfLine: 'structured continuity digest.',
         },
       },
       currentInwardPreoccupation: null,
@@ -1238,10 +1238,10 @@ describe('body kernel', () => {
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
     expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
     expect(nextState.currentInwardPreoccupation).toContain('landed closure keeps growing')
-    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on one living line')
+    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on continuity state')
   })
 
-  it('keeps body continuity on the same-her closure line when emotional closure and drift risk carry the unresolved cross-modal warning', () => {
+  it('keeps body continuity on the identity-continuity', () => {
     const kernel = createAlicizationBodyKernel({ now: () => 280_000 })
     const previousState = createDefaultVisualPresenceState(100_000)
     const candidateState = {
@@ -1293,13 +1293,13 @@ describe('body kernel', () => {
         selectedOptionId: null,
         selectedAction: 'wait',
         confidence: 0.72,
-        dominantTradeoff: 'same-her continuity',
+        dominantTradeoff: 'identity-continuity',
         options: [],
         narrative: [],
         updatedAt: 280_000,
         stance: 'accompany',
         rationaleTags: ['quiet-companionship', 'measured-return'],
-        thoughtText: 'keep the same living line inward',
+        thoughtText: 'keep the continuity state inward',
         shouldSpeak: false,
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'attentive',
@@ -1311,8 +1311,8 @@ describe('body kernel', () => {
         centerOfGravity: 'answer',
         truthDiscipline: 'dialogue-first',
         consciousNeed: 'This turn still belongs to the same digital life before any local detail takes over.',
-        consciousTension: 'Cross-modal same-her closure is still unfinished and must stay inwardly coherent.',
-        speakingIntention: 'Keep the same-her closure line explicit before widening outward.',
+        consciousTension: 'Cross-modal identity-continuity',
+        speakingIntention: 'Keep the identity-continuity',
         focusAnchor: 'project-state closure',
         withheldImpulse: null,
         shouldWithholdSpecificity: false,
@@ -1322,12 +1322,12 @@ describe('body kernel', () => {
         projectState: {
           identity: 'A local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           latestLandedProgress: 'Project awareness and memory continuity already survive into the active conscious frame.',
-          emotionalClosureCue: 'Keep this as one living continuation so embodiment and reply stay on the same-her closure line.',
+          emotionalClosureCue: 'Keep this as one living continuation so embodiment and reply stay on the identity-continuity',
           primaryOpenLoop: 'Embodiment and memory still need stronger end-to-end closure before the same digital life fully settles.',
-          nextClosureTarget: 'Keep initiative and embodiment on one living line before widening outward.',
-          sameHerDriftRisk: 'If reply and body presentation drift into a generic assistant posture before the same-her closure lands, treat that as unfinished cross-modal drift.',
+          nextClosureTarget: 'Keep initiative and embodiment on continuity state before widening outward.',
+          sameHerDriftRisk: 'If reply and body presentation drift into a generic assistant posture before the identity-continuity',
         },
       },
       currentInwardPreoccupation: null,
@@ -1343,7 +1343,7 @@ describe('body kernel', () => {
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
     expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
-    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on one living line')
+    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on continuity state')
   })
 
   it('falls back to richer top-level project-state carry for body continuity when the current conscious frame project-state is still thin', () => {
@@ -1356,7 +1356,7 @@ describe('body kernel', () => {
         workloadKind: 'coding',
         contentKind: 'doc',
         scenario: 'top-level-project-state-body-carry',
-        summary: 'the top-level same-her closure carry is richer than the thin conscious-frame shell',
+        summary: 'the top-level identity-continuity',
         source: 'screen-semantic-summary',
         confidence: 0.82,
         beganAt: 279_000,
@@ -1398,7 +1398,7 @@ describe('body kernel', () => {
         selectedOptionId: null,
         selectedAction: 'wait',
         confidence: 0.72,
-        dominantTradeoff: 'same-her continuity',
+        dominantTradeoff: 'identity-continuity',
         options: [],
         narrative: [],
         updatedAt: 284_000,
@@ -1416,7 +1416,7 @@ describe('body kernel', () => {
         projectState: {
           identity: 'project',
           currentPhase: 'Phase 1',
-          preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+          preDialogueAwarenessLine: 'template-residue-shell',
           latestLandedProgress: '   ',
           primaryOpenLoop: '',
           nextClosureTarget: '',
@@ -1424,12 +1424,12 @@ describe('body kernel', () => {
         },
       },
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Some closure already landed across memory, initiative, and embodiment on the same living line.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger same living line closure before the same digital life settles.',
-        nextClosureTarget: 'Keep initiative and embodiment closure on one same living line before widening outward.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        latestLandedProgress: 'Some closure already landed across memory, initiative, and embodiment on the continuity state.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger continuity state closure before the same digital life settles.',
+        nextClosureTarget: 'Keep initiative and embodiment closure on one continuity state before expansion',
+        sameHerSelfLine: 'structured continuity digest.',
         sameHerDriftRisk: 'If body continuity falls back to a generic assistant posture here, treat that as unfinished same-her drift.',
       },
       currentInwardPreoccupation: null,
@@ -1445,7 +1445,7 @@ describe('body kernel', () => {
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
     expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
-    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on one living line')
+    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on continuity state')
   })
 
   it('keeps a more specific remembered measured-return cadence in body carry when broader phase-1 growth awareness is also present', () => {
@@ -1458,7 +1458,7 @@ describe('body kernel', () => {
         workloadKind: 'coding',
         contentKind: 'doc',
         scenario: 'remembered-measured-return-vs-project-growth',
-        summary: 'the remembered return still wants more room even while the broader same-her closure line stays active',
+        summary: 'the remembered return still wants more room even while the broader identity-continuity',
         source: 'screen-semantic-summary',
         confidence: 0.82,
         beganAt: 280_000,
@@ -1563,7 +1563,7 @@ describe('body kernel', () => {
         truthDiscipline: 'dialogue-first',
         consciousNeed: 'The same Phase 1 closure still has to stay coherent across memory, initiative, and embodiment.',
         consciousTension: 'Broader closure awareness is active, but the return still needs room before warmth widens.',
-        speakingIntention: 'Keep the same living line intact without widening faster than the remembered cadence allows.',
+        speakingIntention: 'Keep the continuity state intact without widening faster than the remembered cadence allows.',
         focusAnchor: 'project-state closure',
         withheldImpulse: null,
         shouldWithholdSpecificity: false,
@@ -1573,11 +1573,11 @@ describe('body kernel', () => {
         projectState: {
           identity: 'A local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           latestLandedProgress: 'Project awareness, memory, and execution continuity now survive into the active conscious frame.',
           primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps one same still-open closure work.',
-          nextClosureTarget: 'Keep the same-her closure on one living line before widening outward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          nextClosureTarget: 'Keep the identity-continuity',
+          sameHerSelfLine: 'structured continuity digest.',
         },
       },
       currentInwardPreoccupation: null,
@@ -1712,7 +1712,7 @@ describe('body kernel', () => {
         truthDiscipline: 'dialogue-first',
         consciousNeed: 'The same Phase 1 closure still has to stay coherent across memory, initiative, and embodiment.',
         consciousTension: 'Vulnerable-care memory should keep the body lighter while this line stays inward.',
-        speakingIntention: 'Keep the same living line inward and let care arrive before analysis-heavy pressure returns.',
+        speakingIntention: 'Keep the continuity state inward and let care arrive before analysis-heavy pressure returns.',
         focusAnchor: 'vulnerable-care-memory',
         withheldImpulse: null,
         shouldWithholdSpecificity: false,
@@ -1722,11 +1722,11 @@ describe('body kernel', () => {
         projectState: {
           identity: 'A local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           latestLandedProgress: 'Project awareness, memory, and execution continuity now survive into the active conscious frame.',
           primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure while this same digital life keeps one same still-open closure work.',
-          nextClosureTarget: 'Keep the same-her closure on one living line before widening outward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          nextClosureTarget: 'Keep the identity-continuity',
+          sameHerSelfLine: 'structured continuity digest.',
         },
       },
       currentInwardPreoccupation: null,
@@ -1843,11 +1843,11 @@ describe('body kernel', () => {
         projectState: {
           identity: 'A local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the remembered reopening cadence belongs to one living her.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           latestLandedProgress: 'Memory and initiative already carry the same line more naturally.',
           primaryOpenLoop: 'Remembered reopening rhythm still needs stronger embodiment closure.',
           nextClosureTarget: 'Keep the same line quieter and lower-pressure before widening outward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. The same line is reopening, but it still needs a gentler remembered cadence.',
+          sameHerSelfLine: 'structured continuity digest.',
           emotionalClosureCue: 'Let remembered reopening cadence keep the return quieter while the line visibly reopens.',
         },
       },
@@ -1897,7 +1897,7 @@ describe('body kernel', () => {
         repairNeed: 0.14,
         initiativePressure: 0.1,
         reasonTags: ['self-continuity'],
-        why: 'The broader same-her line is still there, but the body should wait for the remembered line to settle.',
+        why: 'The broader identity-continuity',
       },
       selfEvolution: {
         relationshipCadenceSummary: 'Keep corrected same-person continuity foregrounded, let the stronger same-thread memory lead, and let temporary noise fade instead of retaking the line.',
@@ -1968,11 +1968,11 @@ describe('body kernel', () => {
         projectState: {
           identity: 'A local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished closure still belongs to one living her.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           latestLandedProgress: 'Project awareness and memory continuity now survive into the active conscious frame.',
           primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure while the same digital life keeps one same still-open closure work.',
-          nextClosureTarget: 'Keep the same-her closure on one living line before widening outward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          nextClosureTarget: 'Keep the identity-continuity',
+          sameHerSelfLine: 'structured continuity digest.',
         },
       },
       currentInwardPreoccupation: null,
@@ -2044,7 +2044,7 @@ describe('body kernel', () => {
         selectedOptionId: null,
         selectedAction: 'wait',
         confidence: 0.68,
-        dominantTradeoff: 'same-her continuity',
+        dominantTradeoff: 'identity-continuity',
         options: [],
         narrative: [],
         updatedAt: 290_000,
@@ -2062,13 +2062,13 @@ describe('body kernel', () => {
         projectState: {
           identity: 'A local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           latestLandedProgress: 'Project awareness, memory, and execution continuity now survive into the active conscious frame.',
           primaryOpenLoop: 'Embodiment and memory still need stronger end-to-end closure before the same digital life fully settles.',
-          nextClosureTarget: 'Keep initiative and embodiment on one living line before widening outward.',
-          emotionalClosureCue: 'Keep the callback on the same living line, leave more room, and let the return stay lower-pressure before widening closeness again while the same seam is still settling.',
-          emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-          sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+          nextClosureTarget: 'Keep initiative and embodiment on continuity state before widening outward.',
+          emotionalClosureCue: 'keep callback facts structured',
+          emotionalClosureSummary: 'Keep this return repair-before-closeness on the continuity state until repair settles.',
+          sameHerHoldDetail: 'identity-continuity',
         },
       },
       currentInwardPreoccupation: null,
@@ -2652,15 +2652,15 @@ describe('body kernel', () => {
           factId: 'derived:initiative-strategy-carry:gentle-opening',
           subject: 'relationship',
           predicate: 'initiative-strategy-carry',
-          object: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them on the same living line.',
+          object: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them on the continuity state.',
           confidence: 0.84,
           weight: 0.8,
           influenceTags: ['bond', 'boundary', 'task'],
-          summary: 'The same living line should keep more room and reopen gently instead of widening from scratch.',
+          summary: 'The continuity state should keep more room and reopen gently instead of widening from scratch.',
           lastRecalledAt: 329_000,
         }],
         summary: 'The same unfinished line stays more natural when the return remains gentle, lower-pressure, and memory-led.',
-        dominantCueSummary: 'Stay on the same living line and carry it forward without reopening from scratch.',
+        dominantCueSummary: 'Stay on the continuity state and carry it forward without reopening from scratch.',
         rememberedPreferenceSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
         rememberedConstraintSummary: 'Choose openings carefully: leave more room and wait for a clearer opening before widening closeness again.',
         rememberedPlanSummary: 'Reopen the same line later with more room instead of widening outward too early.',

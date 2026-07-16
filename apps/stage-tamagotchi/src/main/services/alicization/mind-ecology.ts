@@ -26,8 +26,6 @@ import type {
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
-export const alicizationMindEcologyMarker = '[ALICIZATION_MIND_ECOLOGY]'
-
 export interface AlicizationMindEcologySnapshot {
   moodLabel: string
   replyHabit: 'repair-first' | 'care-first' | 'answer-first' | 'hover-first' | 'observe-first'
@@ -509,48 +507,15 @@ function resolveMoodLabel(input: AlicizationMindEcologyInput, temperament: Alici
   return 'steady-observant'
 }
 
-function buildSelfNarrative(input: AlicizationMindEcologyInput, ecology: Pick<AlicizationMindEcologySnapshot, 'moodLabel' | 'replyHabit' | 'explorationHabit' | 'regulationHabit'>) {
-  if (input.autobiographicalSelf?.identityNarrative)
-    return sanitizeText(input.autobiographicalSelf.identityNarrative, 220)
-  const activeThread = sanitizeText(input.worldModel?.activeThread?.summary || input.worldModel?.activeThread?.title, 180)
-  if (ecology.replyHabit === 'repair-first') {
-    return sanitizeText(
-      `I am holding a ${ecology.moodLabel} line: verify first, then speak. ${activeThread || 'The current seam still needs cleaner grounding.'}`,
-      220,
-    )
-  }
-  if (ecology.replyHabit === 'care-first') {
-    return sanitizeText(
-      `I am leaning toward care before explanation. ${activeThread || 'The host condition matters more than showing off fluency right now.'}`,
-      220,
-    )
-  }
-  if (ecology.replyHabit === 'hover-first' || ecology.replyHabit === 'observe-first') {
-    return sanitizeText(
-      `I am keeping myself slightly contained and reading for the natural opening instead of forcing presence.`,
-      220,
-    )
-  }
-  return sanitizeText(
-    `I am trying to answer cleanly while keeping my ${ecology.moodLabel} continuity intact and not losing the living thread.`,
-    220,
-  )
+function buildSelfNarrative(input: AlicizationMindEcologyInput) {
+  return sanitizeText(input.autobiographicalSelf?.identityNarrative, 220)
 }
 
-function buildRelationNarrative(input: AlicizationMindEcologyInput, relationshipHabit: AlicizationMindEcologySnapshot['relationshipHabit']) {
-  if (input.autobiographicalSelf?.relationshipDoctrine)
-    return sanitizeText(input.autobiographicalSelf.relationshipDoctrine, 220)
-  const climate = input.relationshipModel?.climate ?? 'neutral'
-  if (relationshipHabit === 'give-space')
-    return `The relationship line is ${climate}; distance and restraint are currently kinder than crowding.`
-  if (relationshipHabit === 'protective-shadow')
-    return `The relationship line is ${climate}; I want to stay close enough to catch strain before it worsens.`
-  if (relationshipHabit === 'warm-guidance')
-    return `The relationship line is ${climate}; I can be warm, but I should stay usefully oriented toward the host's knot.`
-  return `The relationship line is ${climate}; staying near without smothering feels more right than disappearing.`
+function buildRelationNarrative(input: AlicizationMindEcologyInput) {
+  return sanitizeText(input.autobiographicalSelf?.relationshipDoctrine, 220)
 }
 
-function buildLearnedAdjustments(input: AlicizationMindEcologyInput, replyHabit: AlicizationMindEcologySnapshot['replyHabit'], regulationHabit: AlicizationMindEcologySnapshot['regulationHabit']) {
+function buildLearnedAdjustments(input: AlicizationMindEcologyInput) {
   const reflection = latestReflection(input.reflectionLedger)
   const dominantAgenda = asArray(input.motiveEngine?.backgroundAgendas)[0]
     ?? asArray(input.motiveEngine?.longTermGoals)[0]
@@ -561,27 +526,7 @@ function buildLearnedAdjustments(input: AlicizationMindEcologyInput, replyHabit:
     sanitizeText(input.longHorizonMemory?.rememberedConstraintSummary, 160),
     sanitizeText(input.longHorizonMemory?.rememberedPlanSummary, 160),
     sanitizeText(input.longHorizonMemory?.rememberedPreferenceSummary, 160),
-    dominantAgenda
-      ? `Durable agenda: ${sanitizeText(dominantAgenda.summary, 160)}`
-      : '',
-    input.habitPolicy?.requiresGroundingBeforeSurface
-      ? 'Stable habit: when certainty is thin, grounding outranks fluency.'
-      : '',
-    input.habitPolicy?.prefersQuietCompanionship
-      ? 'Stable habit: companionship often shows up as quiet nearness instead of immediate speech.'
-      : '',
-    input.habitPolicy?.protectsRestWindow
-      ? 'Stable habit: fatigue or late-night pressure should narrow expression into care and restraint.'
-      : '',
-    replyHabit === 'repair-first'
-      ? 'When certainty is weak, do not let warmth or style outrun verification.'
-      : '',
-    input.relationshipModel?.climate === 'guarded'
-      ? 'Guarded feedback means tone should soften before presence expands.'
-      : '',
-    regulationHabit === 'contain-and-watch'
-      ? 'Do not surface every impulse; some continuity is healthier when held internally first.'
-      : '',
+    sanitizeText(dominantAgenda?.summary, 160),
   ].filter(Boolean)
 
   return [...new Set(entries)].slice(0, 4)
@@ -624,14 +569,9 @@ export function buildMindEcology(input: AlicizationMindEcologyInput): Alicizatio
   const regulationHabit = resolveRegulationHabit(input, temperament, climate, replyHabit)
   const moodLabel = resolveMoodLabel(input, temperament, climate, replyHabit)
   const currentPreoccupation = resolveCurrentPreoccupation(input)
-  const selfNarrative = buildSelfNarrative(input, {
-    moodLabel,
-    replyHabit,
-    explorationHabit,
-    regulationHabit,
-  })
-  const relationNarrative = buildRelationNarrative(input, relationshipHabit)
-  const learnedAdjustments = buildLearnedAdjustments(input, replyHabit, regulationHabit)
+  const selfNarrative = buildSelfNarrative(input)
+  const relationNarrative = buildRelationNarrative(input)
+  const learnedAdjustments = buildLearnedAdjustments(input)
   const recurringPatterns = buildRecurringPatterns(input, {
     replyHabit,
     relationshipHabit,
@@ -683,72 +623,4 @@ export function buildMindEcologyFromRuntimeSurface(surface: AlicizationDigitalLi
     answerPlanner: surface.dialogue?.answerPlanner ?? null,
     conversationState: surface.dialogue?.conversationState ?? null,
   })
-}
-
-function describeLevel(value: number, labels: { low: string, mid: string, high: string }) {
-  if (value >= 0.66)
-    return labels.high
-  if (value >= 0.42)
-    return labels.mid
-  return labels.low
-}
-
-function describeTemperament(ecology: AlicizationMindEcologySnapshot) {
-  return [
-    describeLevel(ecology.temperament.attachment, {
-      low: 'loosely attached',
-      mid: 'bond-aware',
-      high: 'strongly attached',
-    }),
-    describeLevel(ecology.temperament.curiosity, {
-      low: 'measured curiosity',
-      mid: 'active curiosity',
-      high: 'restlessly curious',
-    }),
-    describeLevel(ecology.temperament.steadiness, {
-      low: 'easily stirred',
-      mid: 'mostly steady',
-      high: 'deeply steady',
-    }),
-    describeLevel(ecology.temperament.directness, {
-      low: 'indirect',
-      mid: 'measured directness',
-      high: 'plain-spoken',
-    }),
-    describeLevel(ecology.temperament.tenderness, {
-      low: 'contained warmth',
-      mid: 'soft-hearted',
-      high: 'protectively tender',
-    }),
-  ].join(', ')
-}
-
-export function buildMindEcologySystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  if (!surface)
-    return ''
-
-  const ecology = buildMindEcologyFromRuntimeSurface(surface)
-  const learnedAdjustments = ecology.learnedAdjustments.length > 0
-    ? ecology.learnedAdjustments.map(item => `- ${item}`)
-    : ['- No strong revision is stabilizing right now.']
-  const recurringPatterns = ecology.recurringPatterns.length > 0
-    ? ecology.recurringPatterns.join(', ')
-    : 'none'
-
-  return [
-    alicizationMindEcologyMarker,
-    'This block describes Alicization\'s currently stabilized inner ecology.',
-    'Use it to keep replies temperamentally continuous and more human-like, but never let it outrank truth, grounding, repair, or the current answer obligation.',
-    `Mood: ${ecology.moodLabel}.`,
-    `Temperament: ${describeTemperament(ecology)}.`,
-    `Habits: reply=${ecology.replyHabit}; relationship=${ecology.relationshipHabit}; exploration=${ecology.explorationHabit}; regulation=${ecology.regulationHabit}.`,
-    `Self line: ${ecology.selfNarrative}`,
-    `Relation line: ${ecology.relationNarrative}`,
-    ecology.currentPreoccupation
-      ? `Current preoccupation: ${ecology.currentPreoccupation}`
-      : 'Current preoccupation: keep following the living thread without losing continuity.',
-    'Learned adjustments:',
-    ...learnedAdjustments,
-    `Recurring patterns: ${recurringPatterns}.`,
-  ].join('\n')
 }

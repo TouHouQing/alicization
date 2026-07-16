@@ -781,7 +781,7 @@ describe('stage embodiment resident performance', () => {
     expect(resolved.variationToken).toContain('rest-protective')
   })
 
-  it('promotes same-her inward carry from emotional-kernel self-continuity into explicit quiet resident companionship instead of leaving it as a generic ambient fallback', () => {
+  it('promotes identity-continuity', () => {
     const resolved = resolveStageEmbodimentResidentPerformance({
       activePresence: null,
       performanceManifest: createManifest(),
@@ -823,7 +823,7 @@ describe('stage embodiment resident performance', () => {
           repairNeed: 0.18,
           initiativePressure: 0.14,
           reasonTags: ['self-continuity', 'hesitant-curiosity', 'quiet-companionship', 'same-her-inward-carry'],
-          why: 'Companionship is still being carried on one inward same-her line, so memory, initiative, and embodiment should hold quietly nearby before widening outward.',
+          why: 'Companionship is still being carried on one inward identity-continuity',
         },
         residentPerformance: null,
       }),
@@ -1144,11 +1144,11 @@ describe('stage embodiment resident performance', () => {
         architecture: {
           dominantSystem: 'memory',
           operatingMode: 'thinking',
-          summary: 'remembered same-her continuity stays inward and nearby after another detour',
+          summary: 'remembered identity-continuity',
         },
         embodiment: {
           autobiographicalSelf: {
-            identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as same-her continuity drift rather than completion.',
+            identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
           },
         },
         outcomeLearning: null,
@@ -1190,7 +1190,7 @@ describe('stage embodiment resident performance', () => {
         currentBodyState: 'accompanying',
         continuityMode: 'quiet-accompaniment',
         quietLineMs: 240_000,
-        currentInwardPreoccupation: 'remembered same-her continuity after another coding detour',
+        currentInwardPreoccupation: 'remembered identity-continuity',
       }),
     })
 
@@ -1201,14 +1201,14 @@ describe('stage embodiment resident performance', () => {
     expect(resolved.performance.emphasis).toBeLessThanOrEqual(1)
   })
 
-  it('pulls published resident action cues back to steady_focus when autobiographical same-her carry is present but the current action cue is still a harder observe shell', () => {
+  it('pulls published resident action cues back to steady_focus when autobiographical identity-continuity', () => {
     const visualPresenceState = createVisualPresenceState({
       watchMode: 'symbiotic-vision',
       currentScene: {
         workloadKind: 'coding',
         contentKind: 'doc',
         scenario: 'coding',
-        summary: 'Published resident performance should still keep the same-her line visibly steady instead of slipping back into a harder observe shell.',
+        summary: 'Published resident performance should still keep the identity-continuity',
         source: 'screen-semantic-summary',
         confidence: 0.72,
         target: null,
@@ -1258,11 +1258,11 @@ describe('stage embodiment resident performance', () => {
         architecture: {
           dominantSystem: 'memory',
           operatingMode: 'thinking',
-          summary: 'remembered same-her continuity stays inward and nearby after another detour',
+          summary: 'remembered identity-continuity',
         },
         embodiment: {
           autobiographicalSelf: {
-            identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as same-her continuity drift rather than completion.',
+            identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
           },
         },
         outcomeLearning: null,

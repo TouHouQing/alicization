@@ -3,33 +3,19 @@ import type { CommonContentPart, Message, UserMessage } from '@xsai/shared-chat'
 import { sanitizeText } from './runtime-soul'
 
 export function parseJsonObjectFromText(raw: string) {
-  const normalized = sanitizeText(raw, '')
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/, '')
-    .trim()
+  const normalized = sanitizeText(raw, '').trim()
   if (!normalized)
     return null
 
-  const tryParse = (candidate: string) => {
-    try {
-      const parsed = JSON.parse(candidate) as unknown
-      return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null
-    }
-    catch {
-      return null
-    }
+  try {
+    const parsed = JSON.parse(normalized) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null
   }
-
-  const direct = tryParse(normalized)
-  if (direct)
-    return direct
-
-  const firstBrace = normalized.indexOf('{')
-  const lastBrace = normalized.lastIndexOf('}')
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    return tryParse(normalized.slice(firstBrace, lastBrace + 1))
+  catch {
+    return null
   }
-  return null
 }
 
 export function readTransportContentAsText(content: unknown) {

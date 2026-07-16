@@ -2,12 +2,12 @@ import type { PlaybackItem } from '@proj-alicization/pipelines-audio'
 import type { AlicizationDigitalLifeFrame } from '@proj-alicization/stage-shared'
 
 import type { BrowserSpeechAudioSource } from '../../libs/speech-audio-playback'
-import type { AlicizationDigitalLifeSpineDigest } from '../../stores/alicization-bridge'
+
+import { readFileSync } from 'node:fs'
 
 import { createLive2DLipSync } from '@proj-alicization/model-driver-lipsync'
 import { createBufferedSpeechAudioSource } from '@proj-alicization/pipelines-audio'
 import {
-
   alignAlicizationDialogueSpeechTimelineSegment,
   buildAlicizationDialogueSpeechTimeline,
   createIdleStageEmbodimentMotorState,
@@ -23,8 +23,6 @@ import {
 } from '@proj-alicization/stage-shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-
-import { buildAlicizationEmbodimentScript } from '../../services/embodiment/director'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -223,103 +221,18 @@ function createDigitalLifeFrameFixture(
       },
     },
   }
-}
+}describe('stage embodiment speech contract', () => {
+  it('does not interpret project-state or same-her governance cues as speech authority', () => {
+    const source = readFileSync(new URL('./use-stage-embodiment-speech.ts', import.meta.url), 'utf8')
 
-function createDigitalLifeSpineDigestFixture(input: {
-  confidence?: number
-  dominantSystem?: NonNullable<AlicizationDigitalLifeSpineDigest['architecture']>['dominantSystem']
-  operatingMode?: NonNullable<AlicizationDigitalLifeSpineDigest['architecture']>['operatingMode']
-  recallMode?: string
-  watchMode?: string
-} = {}): AlicizationDigitalLifeSpineDigest {
-  return {
-    version: 'digital-life-spine-digest-v1',
-    runtime: {
-      watchMode: input.watchMode ?? 'symbiotic-vision',
-      sceneScenario: 'coding',
-      sceneSummary: 'runtime focus',
-      activeThreadId: 'thread-1',
-      activeThreadTitle: 'runtime',
-      dominantMode: 'thinking',
-      dominantDrive: 'stabilize',
-      answerIntent: 'guide',
-      preferredPresence: 'attentive',
-      selectedAction: 'warn',
-      updatedAt: 1_000,
-    },
-    architecture: {
-      operatingMode: input.operatingMode ?? 'observing',
-      dominantSystem: input.dominantSystem ?? 'memory',
-      supportingSystems: ['dialogue'],
-      governingFocus: 'runtime coherence',
-      summary: 'runtime coherence',
-    },
-    continuitySignal: null,
-    embodiment: {
-      privateThought: null,
-      selfContinuity: null,
-      autobiographicalSelf: {
-        attachmentStyle: null,
-        expressionStyle: null,
-        conflictStyle: null,
-        agencyStyle: null,
-        attachmentNeed: null,
-        autonomyNeed: null,
-        truthAnchor: null,
-        careBias: null,
-        playBias: null,
-        irritabilityThreshold: null,
-        stubbornness: null,
-        companionship: null,
-        truthfulGrounding: null,
-        gentleRepair: null,
-        quietObservation: null,
-        proactiveCare: null,
-        playfulIntimacy: null,
-        autonomyRespect: null,
-        unfinishedThreadReturn: null,
-        stability: null,
-        identityNarrative: null,
-        relationshipDoctrine: null,
-        latestInflection: null,
-      },
-      relationship: null,
-      selfState: null,
-      mindEcology: null,
-      initiative: null,
-    },
-    proactive: {
-      selectedAction: 'warn',
-      preferredStyle: 'firm-warning',
-      confidence: input.confidence ?? 0.8,
-      shouldSpeak: false,
-      activeThreadId: 'thread-1',
-      activeThreadTitle: 'runtime',
-      dominantConcernKind: null,
-      dominantConcernSummary: null,
-      leadingGoalId: null,
-      leadingGoalSummary: null,
-      preferredPresence: 'attentive',
-      personaBias: null,
-    },
-    memory: {
-      summary: null,
-      recentEpisodeSummary: null,
-      recentEpisodeCount: 0,
-      focusBeliefStatement: null,
-      focusBeliefConfidence: null,
-      leadingGoalSummary: null,
-      dominantConcernSummary: null,
-      reflectionSummary: null,
-      reflectionPressure: null,
-      recallMode: input.recallMode ?? 'working-memory',
-      recallSeed: null,
-      thoughtThreadSummary: null,
-    },
-  }
-}
+    expect(source).not.toMatch(
+      /resolveProjectClosureSpeechEmbodimentBias|resolveProjectClosureSpeechResidentModeFromMetadata|resolveProjectClosureRendererHintsFromMetadata/u,
+    )
+    expect(source).not.toMatch(
+      /hasAlicization(?:Audible|BodyVoiceOnly|Quieter|Softened|StillVoiced)SameHerCarry|SameHerRendererCarry|SameHerResidentLine/u,
+    )
+  })
 
-describe('stage embodiment speech contract', () => {
   it('creates an idle playback state snapshot', () => {
     expect(createIdleStageEmbodimentSpeechPlaybackState()).toEqual({
       phase: 'idle',
@@ -3564,7 +3477,7 @@ describe('stage embodiment speech contract', () => {
             relationshipHabit: 'protective-shadow',
             explorationHabit: 'verify-before-speaking',
             regulationHabit: 'contain-and-watch',
-            selfNarrative: 'stabilize before speaking',
+            selfNarrative: 'stabilize before outward reply',
             relationNarrative: 'stay near enough to catch drift',
             currentPreoccupation: 'unsupported specificity',
             temperament: {
@@ -3674,7 +3587,7 @@ describe('stage embodiment speech contract', () => {
           operatingMode: 'observing',
           dominantSystem: 'memory',
           supportingSystems: ['dialogue'],
-          governingFocus: 'same-her continuity',
+          governingFocus: 'identity-continuity',
           summary: 'memory-led continuity return',
         },
         continuitySignal: null,
@@ -3820,7 +3733,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-spine-voice-restraint-plain',
       streamId: 'stream-spine-voice-restraint-plain',
       segmentId: 'segment-spine-voice-restraint-plain',
-      text: '我先把这一段轻一点接回来。',
+      text: '我先把这一段中性可见占位。',
       special: null,
       continuityHoldMs: 180,
       metadata: {
@@ -3828,7 +3741,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-spine-voice-restraint-plain',
           rendererTarget: 'vrm',
-          replyText: '我先把这一段轻一点接回来。',
+          replyText: '我先把这一段中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -3842,7 +3755,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-spine-voice-restraint-plain',
               index: 0,
-              text: '我先把这一段轻一点接回来。',
+              text: '我先把这一段中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 260,
@@ -3867,7 +3780,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-spine-voice-restraint-measured',
       streamId: 'stream-spine-voice-restraint-measured',
       segmentId: 'segment-spine-voice-restraint-measured',
-      text: '我先把这一段轻一点接回来。',
+      text: '我先把这一段中性可见占位。',
       special: null,
       continuityHoldMs: 180,
       metadata: {
@@ -3875,7 +3788,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-spine-voice-restraint-measured',
           rendererTarget: 'vrm',
-          replyText: '我先把这一段轻一点接回来。',
+          replyText: '我先把这一段中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -3889,7 +3802,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-spine-voice-restraint-measured',
               index: 0,
-              text: '我先把这一段轻一点接回来。',
+              text: '我先把这一段中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 280,
@@ -3914,7 +3827,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-spine-voice-restraint-repair',
       streamId: 'stream-spine-voice-restraint-repair',
       segmentId: 'segment-spine-voice-restraint-repair',
-      text: '我先把这一段轻一点接回来。',
+      text: '我先把这一段中性可见占位。',
       special: null,
       continuityHoldMs: 180,
       metadata: {
@@ -3922,7 +3835,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-spine-voice-restraint-repair',
           rendererTarget: 'vrm',
-          replyText: '我先把这一段轻一点接回来。',
+          replyText: '我先把这一段中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -3936,7 +3849,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-spine-voice-restraint-repair',
               index: 0,
-              text: '我先把这一段轻一点接回来。',
+              text: '我先把这一段中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 320,
@@ -3986,7 +3899,7 @@ describe('stage embodiment speech contract', () => {
     speech.dispose()
   })
 
-  it('keeps measured-return spine-fallback voice slightly more inward when a still-voiced face-and-motion same-her line is carrying the return', async () => {
+  it('keeps measured-return spine-fallback voice slightly more inward when a still-voiced face-and-motion identity-continuity', async () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -4014,7 +3927,7 @@ describe('stage embodiment speech contract', () => {
           operatingMode: 'observing',
           dominantSystem: 'memory',
           supportingSystems: ['dialogue'],
-          governingFocus: 'same-her continuity',
+          governingFocus: 'identity-continuity',
           summary: 'memory-led continuity return',
         },
         continuitySignal: null,
@@ -4160,7 +4073,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-spine-same-her-ordinary-measured',
       streamId: 'stream-spine-same-her-ordinary-measured',
       segmentId: 'segment-spine-same-her-ordinary-measured',
-      text: '我先沿着这条线轻一点接回来。',
+      text: '我先沿着这条线中性可见占位。',
       special: null,
       continuityHoldMs: 180,
       metadata: {
@@ -4168,7 +4081,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-spine-same-her-ordinary-measured',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条线轻一点接回来。',
+          replyText: '我先沿着这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -4182,7 +4095,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-spine-same-her-ordinary-measured',
               index: 0,
-              text: '我先沿着这条线轻一点接回来。',
+              text: '我先沿着这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 280,
@@ -4212,7 +4125,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-spine-same-her-face-motion-measured',
       streamId: 'stream-spine-same-her-face-motion-measured',
       segmentId: 'segment-spine-same-her-face-motion-measured',
-      text: '我先沿着这条线轻一点接回来。',
+      text: '我先沿着这条线中性可见占位。',
       special: null,
       continuityHoldMs: 180,
       metadata: {
@@ -4220,7 +4133,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-spine-same-her-face-motion-measured',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条线轻一点接回来。',
+          replyText: '我先沿着这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -4234,7 +4147,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-spine-same-her-face-motion-measured',
               index: 0,
-              text: '我先沿着这条线轻一点接回来。',
+              text: '我先沿着这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 280,
@@ -4394,7 +4307,7 @@ describe('stage embodiment speech contract', () => {
             relationshipHabit: 'protective-shadow',
             explorationHabit: 'verify-before-speaking',
             regulationHabit: 'contain-and-watch',
-            selfNarrative: 'stabilize before speaking',
+            selfNarrative: 'stabilize before outward reply',
             relationNarrative: 'stay near enough to catch drift',
             currentPreoccupation: 'authority drift',
             temperament: {
@@ -5742,7 +5655,7 @@ describe('stage embodiment speech contract', () => {
       segmentId: 'segment-measured-return-same-her-tail-1',
       ownerId: 'alice',
       priority: 0,
-      text: '我先沿着这条线轻一点接回来。',
+      text: '我先沿着这条线中性可见占位。',
       special: null,
       continuityHoldMs: 340,
       audio: createBufferedSpeechAudioSource({} as AudioBuffer),
@@ -5752,7 +5665,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-measured-return-same-her-tail-1',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条线轻一点接回来。',
+          replyText: '我先沿着这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -5763,7 +5676,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-measured-return-same-her-tail-1',
               index: 0,
-              text: '我先沿着这条线轻一点接回来。',
+              text: '我先沿着这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 320,
@@ -6113,572 +6026,6 @@ describe('stage embodiment speech contract', () => {
     repairHarness.speech.dispose()
   })
 
-  it('keeps project-derived closure resident modes through direct playback stop tails before resident snapshots catch up', async () => {
-    vi.useFakeTimers()
-    vi.stubGlobal('AudioWorkletNode', class AudioWorkletNodeMock {})
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-
-    function createSpeechHarness() {
-      let startListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) | undefined
-      let endListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, endedAt: number, stopReason?: string }) => void) | undefined
-      const mouthOpenSize = ref(0)
-
-      const speech = useStageEmbodimentSpeech({
-        audioContext: {
-          createAnalyser: vi.fn(() => ({
-            fftSize: 2048,
-            getByteTimeDomainData: vi.fn(),
-          })),
-          resume: vi.fn(() => Promise.resolve()),
-          state: 'running',
-        } as unknown as AudioContext,
-        mouthOpenSize,
-        paused: ref(false),
-        speechStylePitch: ref(0),
-        speechStyleRate: ref(1),
-        stageModelRenderer: ref('live2d'),
-      })
-
-      speech.bindPlaybackManager({
-        onStart(listener) {
-          startListener = listener
-        },
-        onEnd(listener) {
-          endListener = listener
-        },
-        onInterrupt() {},
-      })
-
-      return {
-        speech,
-        start(item: PlaybackItem<BrowserSpeechAudioSource>) {
-          startListener?.({ item, startedAt: 100 })
-        },
-        end(item: PlaybackItem<BrowserSpeechAudioSource>) {
-          endListener?.({ item, endedAt: 240, stopReason: 'ended' })
-        },
-        setMouthOpenSize(value: number) {
-          mouthOpenSize.value = value
-        },
-      }
-    }
-
-    function createProjectClosureScript(input: {
-      turnId: string
-      replyText: string
-      emotionalClosureCue: string
-    }) {
-      const speechTimeline = buildAlicizationDialogueSpeechTimeline({
-        reply: input.replyText,
-        candidateEmotion: 'thinking',
-        candidatePerformance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: null,
-          actionCue: 'steady_focus',
-          delivery: 'calm',
-          emphasis: 0,
-        },
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: null,
-          primaryOpenLoop: null,
-          emotionalClosureCue: input.emotionalClosureCue,
-        },
-      })
-
-      expect(speechTimeline?.segments[0]?.rendererHints?.residentMode).toBeDefined()
-
-      return buildAlicizationEmbodimentScript({
-        seed: {
-          decisionTraceId: `trace-${input.turnId}`,
-          turnId: input.turnId,
-          replyText: input.replyText,
-          performance: {
-            baseEmotion: 'thinking',
-            emotion: 'thinking',
-            facialCue: null,
-            actionCue: 'steady_focus',
-            delivery: 'calm',
-            emphasis: 0,
-          },
-          embodiment: null,
-          speechTimeline,
-          digitalLife: null,
-          digitalLifeSpine: null,
-        },
-        manifest: {
-          renderer: 'live2d',
-          supportedBaseEmotions: ['neutral', 'thinking'],
-          supportedFacialCues: [],
-          supportedActions: [],
-          supportsLookAt: true,
-          supportsVisemeLipSync: true,
-          supportsMicroDynamics: true,
-        },
-        residentPerformance: null,
-        rendererTarget: 'live2d',
-      })
-    }
-
-    const measuredReturnScript = createProjectClosureScript({
-      turnId: 'turn-project-closure-measured-return-stop-tail',
-      replyText: '我先沿着同一条线轻一点接回来。',
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-    })
-    const repairBeforeClosenessScript = createProjectClosureScript({
-      turnId: 'turn-project-closure-repair-stop-tail',
-      replyText: '我先把这一下稳住。',
-      emotionalClosureCue: 'same-her repair seam: keep this return repair-before-closeness on the same living line before closeness widens again.',
-    })
-
-    expect(measuredReturnScript.state.residentMode).toBe('dialogue')
-    expect(repairBeforeClosenessScript.state.residentMode).toBe('dialogue')
-
-    const measuredHarness = createSpeechHarness()
-    const repairHarness = createSpeechHarness()
-
-    const measuredItem = {
-      id: 'playback-project-closure-measured-return-stop-tail',
-      streamId: 'stream-project-closure-measured-return-stop-tail',
-      intentId: 'intent-project-closure-measured-return-stop-tail',
-      segmentId: 'segment-project-closure-measured-return-stop-tail',
-      ownerId: 'alice',
-      priority: 0,
-      text: measuredReturnScript.replyText,
-      special: null,
-      continuityHoldMs: 320,
-      audio: createBufferedSpeechAudioSource({} as AudioBuffer),
-      createdAt: 0,
-      metadata: {
-        embodimentScript: measuredReturnScript,
-      },
-    } satisfies PlaybackItem<BrowserSpeechAudioSource>
-    const repairItem = {
-      id: 'playback-project-closure-repair-stop-tail',
-      streamId: 'stream-project-closure-repair-stop-tail',
-      intentId: 'intent-project-closure-repair-stop-tail',
-      segmentId: 'segment-project-closure-repair-stop-tail',
-      ownerId: 'alice',
-      priority: 0,
-      text: repairBeforeClosenessScript.replyText,
-      special: null,
-      continuityHoldMs: 320,
-      audio: createBufferedSpeechAudioSource({} as AudioBuffer),
-      createdAt: 0,
-      metadata: {
-        embodimentScript: repairBeforeClosenessScript,
-      },
-    } satisfies PlaybackItem<BrowserSpeechAudioSource>
-
-    measuredHarness.start(measuredItem)
-    repairHarness.start(repairItem)
-    measuredHarness.setMouthOpenSize(18)
-    repairHarness.setMouthOpenSize(18)
-    measuredHarness.end(measuredItem)
-    repairHarness.end(repairItem)
-
-    expect(measuredHarness.speech.speechRenderState.value.phase).toBe('stopping')
-    expect(repairHarness.speech.speechRenderState.value.phase).toBe('stopping')
-    expect(measuredHarness.speech.speechPlayback.value.item?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      rendererHints: expect.objectContaining({
-        residentMode: 'measured-return',
-        preferredExpressionAliases: expect.arrayContaining(['CalmInspect']),
-        preferredMotionAliases: expect.arrayContaining(['ObserveSoft']),
-      }),
-    }))
-    expect(repairHarness.speech.speechPlayback.value.item?.cue).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      actionCue: 'idle_settle',
-      rendererHints: expect.objectContaining({
-        residentMode: 'repair-before-closeness',
-        preferredExpressionAliases: expect.arrayContaining(['RecoverSoft']),
-        preferredMotionAliases: expect.arrayContaining(['StillnessGuard']),
-      }),
-    }))
-    expect(measuredHarness.speech.speechPlayback.value.item?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      mode: 'speaking',
-      face: expect.objectContaining({
-        rendererHints: expect.objectContaining({
-          preferredExpressionAliases: expect.arrayContaining(['CalmInspect']),
-        }),
-      }),
-      action: expect.objectContaining({
-        rendererHints: expect.objectContaining({
-          preferredMotionAliases: expect.arrayContaining(['ObserveSoft']),
-        }),
-      }),
-    }))
-    expect(repairHarness.speech.speechPlayback.value.item?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      mode: 'thinking',
-      face: expect.objectContaining({
-        rendererHints: expect.objectContaining({
-          preferredExpressionAliases: expect.arrayContaining(['RecoverSoft']),
-        }),
-      }),
-      action: expect.objectContaining({
-        actionCue: 'idle_settle',
-        actionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          preferredMotionAliases: expect.arrayContaining(['StillnessGuard']),
-        }),
-      }),
-    }))
-    expect(repairHarness.speech.playbackTelemetry.value?.driverAuthority?.bodySegmentMatched).toBe(false)
-
-    measuredHarness.speech.dispose()
-    repairHarness.speech.dispose()
-  })
-
-  it('keeps project-derived quiet-companionship vrm settle restrained through direct playback stop tails before resident snapshots catch up', async () => {
-    vi.useFakeTimers()
-    vi.stubGlobal('AudioWorkletNode', class AudioWorkletNodeMock {})
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-
-    let startListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) | undefined
-    let endListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, endedAt: number, stopReason?: string }) => void) | undefined
-    const mouthOpenSize = ref(0)
-
-    const speech = useStageEmbodimentSpeech({
-      audioContext: {} as AudioContext,
-      mouthOpenSize,
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('vrm'),
-    })
-
-    speech.bindPlaybackManager({
-      onStart(listener) {
-        startListener = listener
-      },
-      onEnd(listener) {
-        endListener = listener
-      },
-      onInterrupt() {},
-    })
-
-    const speechTimeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先安静陪着把这条线轻一点接稳。',
-      candidateEmotion: 'thinking',
-      candidatePerformance: {
-        baseEmotion: 'thinking',
-        emotion: 'thinking',
-        facialCue: 'soft-gaze',
-        actionCue: 'steady_focus',
-        delivery: 'gentle',
-        emphasis: 0,
-      },
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        continuityCadence: 'rest-protective',
-        memoryClosureSummary: null,
-        primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware before warmth widens again.',
-      },
-      performanceManifest: {
-        renderer: 'vrm',
-        supportedBaseEmotions: ['neutral', 'thinking'],
-        supportedFacialCues: [],
-        supportedActions: [],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-      } as any,
-    })
-
-    expect(speechTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'quiet-companionship',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-    }))
-
-    const script = buildAlicizationEmbodimentScript({
-      seed: {
-        decisionTraceId: 'trace-project-closure-vrm-stop-tail-quiet-companionship',
-        turnId: 'turn-project-closure-vrm-stop-tail-quiet-companionship',
-        replyText: '我先安静陪着把这条线轻一点接稳。',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: 'soft-gaze',
-          actionCue: 'steady_focus',
-          delivery: 'gentle',
-          emphasis: 0,
-        },
-        embodiment: null,
-        speechTimeline,
-        digitalLife: null,
-        digitalLifeSpine: null,
-      },
-      manifest: {
-        renderer: 'vrm',
-        supportedBaseEmotions: ['neutral', 'thinking'],
-        supportedFacialCues: [],
-        supportedActions: [],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-      } as any,
-      residentPerformance: null,
-      rendererTarget: 'vrm',
-    })
-
-    expect(script.speechPlan.segments[0]?.rendererHints?.residentMode).toBe('quiet-companionship')
-
-    if (script.speechPlan.segments[0]) {
-      script.speechPlan.segments[0] = {
-        ...script.speechPlan.segments[0],
-        rendererSettle: {
-          live2dFacialReleaseMs: 188,
-          live2dMotionFollowThroughMs: 172,
-          vrmActionFadeMs: 118,
-          vrmExpressionBlendMs: 154,
-        },
-      }
-    }
-
-    const item = {
-      id: 'playback-project-closure-vrm-stop-tail-quiet-companionship',
-      streamId: 'stream-project-closure-vrm-stop-tail-quiet-companionship',
-      intentId: 'intent-project-closure-vrm-stop-tail-quiet-companionship',
-      segmentId: 'segment-project-closure-vrm-stop-tail-quiet-companionship',
-      ownerId: 'alice',
-      priority: 0,
-      text: script.replyText,
-      special: null,
-      continuityHoldMs: 320,
-      audio: createBufferedSpeechAudioSource({} as AudioBuffer),
-      createdAt: 0,
-      metadata: {
-        embodimentScript: script,
-      },
-    } satisfies PlaybackItem<BrowserSpeechAudioSource>
-
-    startListener?.({ item, startedAt: 100 })
-    mouthOpenSize.value = 18
-    endListener?.({ item, endedAt: 240, stopReason: 'ended' })
-
-    expect(speech.speechRenderState.value.phase).toBe('stopping')
-    expect(speech.speechPlayback.value.item?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      rendererHints: expect.objectContaining({
-        residentMode: 'quiet-companionship',
-        preferredBlinkCadence: 'linger',
-        preferredGazeMode: 'soften',
-      }),
-      rendererSettle: expect.objectContaining({
-        vrmActionFadeMs: expect.any(Number),
-        vrmExpressionBlendMs: expect.any(Number),
-      }),
-    }))
-    expect(speech.speechPlayback.value.item?.cue?.rendererSettle?.vrmActionFadeMs ?? 0).toBeGreaterThanOrEqual(220)
-    expect(speech.speechPlayback.value.item?.cue?.rendererSettle?.vrmExpressionBlendMs ?? 0).toBeGreaterThanOrEqual(320)
-
-    speech.dispose()
-  })
-
-  it('keeps pre-dialogue closure resident modes through direct playback stop tails even before embodiment scripts arrive', async () => {
-    vi.useFakeTimers()
-    vi.stubGlobal('AudioWorkletNode', class AudioWorkletNodeMock {})
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-
-    function createSpeechHarness() {
-      let startListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) | undefined
-      let endListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, endedAt: number, stopReason?: string }) => void) | undefined
-      const mouthOpenSize = ref(0)
-
-      const speech = useStageEmbodimentSpeech({
-        audioContext: {
-          createAnalyser: vi.fn(() => ({
-            fftSize: 2048,
-            getByteTimeDomainData: vi.fn(),
-          })),
-          resume: vi.fn(() => Promise.resolve()),
-          state: 'running',
-        } as unknown as AudioContext,
-        digitalLifeSpineDigest: ref(createDigitalLifeSpineDigestFixture()),
-        mouthOpenSize,
-        paused: ref(false),
-        speechStylePitch: ref(0),
-        speechStyleRate: ref(1),
-        stageModelRenderer: ref('live2d'),
-      })
-
-      speech.bindPlaybackManager({
-        onStart(listener) {
-          startListener = listener
-        },
-        onEnd(listener) {
-          endListener = listener
-        },
-        onInterrupt() {},
-      })
-
-      return {
-        speech,
-        start(item: PlaybackItem<BrowserSpeechAudioSource>) {
-          startListener?.({ item, startedAt: 100 })
-        },
-        end(item: PlaybackItem<BrowserSpeechAudioSource>) {
-          endListener?.({ item, endedAt: 240, stopReason: 'ended' })
-        },
-        setMouthOpenSize(value: number) {
-          mouthOpenSize.value = value
-        },
-      }
-    }
-
-    const measuredReturnClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
-    const repairBeforeClosenessClosureCue = 'same-her repair seam: keep this return repair-before-closeness on the same living line before closeness widens again.'
-
-    const measuredHarness = createSpeechHarness()
-    const repairHarness = createSpeechHarness()
-
-    const measuredItem = {
-      id: 'playback-pre-dialogue-closure-measured-return-stop-tail',
-      streamId: 'stream-pre-dialogue-closure-measured-return-stop-tail',
-      intentId: 'intent-pre-dialogue-closure-measured-return-stop-tail',
-      segmentId: 'segment-pre-dialogue-closure-measured-return-stop-tail',
-      ownerId: 'alice',
-      priority: 0,
-      text: '我先沿着同一条线轻一点接回来。',
-      special: null,
-      continuityHoldMs: 320,
-      audio: createBufferedSpeechAudioSource({} as AudioBuffer),
-      createdAt: 0,
-      metadata: {
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: null,
-          primaryOpenLoop: null,
-          emotionalClosureCue: measuredReturnClosureCue,
-        },
-        preDialogueAwareness: {
-          status: 'grounded',
-          summaryLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          companionHeadlineLine: null,
-          companionBriefingLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          companionNextClosureLine: null,
-          awarenessLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          emotionalClosureCue: measuredReturnClosureCue,
-          reasonPreview: ['keep the return low-pressure on the same living line'],
-        },
-      },
-    } satisfies PlaybackItem<BrowserSpeechAudioSource>
-    const repairItem = {
-      id: 'playback-pre-dialogue-closure-repair-stop-tail',
-      streamId: 'stream-pre-dialogue-closure-repair-stop-tail',
-      intentId: 'intent-pre-dialogue-closure-repair-stop-tail',
-      segmentId: 'segment-pre-dialogue-closure-repair-stop-tail',
-      ownerId: 'alice',
-      priority: 0,
-      text: '我先把这一下稳住。',
-      special: null,
-      continuityHoldMs: 320,
-      audio: createBufferedSpeechAudioSource({} as AudioBuffer),
-      createdAt: 0,
-      metadata: {
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: null,
-          primaryOpenLoop: null,
-          emotionalClosureCue: repairBeforeClosenessClosureCue,
-        },
-        preDialogueAwareness: {
-          status: 'grounded',
-          summaryLine: 'same-her hold: repair-before-closeness should keep this callback line inward before closeness widens again.',
-          companionHeadlineLine: null,
-          companionBriefingLine: 'same-her hold: repair-before-closeness should keep this callback line inward before closeness widens again.',
-          companionNextClosureLine: null,
-          awarenessLine: 'same-her hold: repair-before-closeness should keep this callback line inward before closeness widens again.',
-          emotionalClosureCue: repairBeforeClosenessClosureCue,
-          reasonPreview: ['repair-before-closeness on the same living line'],
-        },
-      },
-    } satisfies PlaybackItem<BrowserSpeechAudioSource>
-
-    measuredHarness.start(measuredItem)
-    repairHarness.start(repairItem)
-    measuredHarness.setMouthOpenSize(18)
-    repairHarness.setMouthOpenSize(18)
-    measuredHarness.end(measuredItem)
-    repairHarness.end(repairItem)
-
-    expect(measuredHarness.speech.speechRenderState.value.phase).toBe('stopping')
-    expect(repairHarness.speech.speechRenderState.value.phase).toBe('stopping')
-    expect(measuredHarness.speech.speechPlayback.value.item?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      rendererHints: expect.objectContaining({
-        residentMode: 'measured-return',
-      }),
-    }))
-    expect(repairHarness.speech.speechPlayback.value.item?.cue).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      rendererHints: expect.objectContaining({
-        residentMode: 'repair-before-closeness',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
-      }),
-    }))
-    expect(measuredHarness.speech.speechPlayback.value.item?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      mode: 'speaking',
-      face: expect.objectContaining({
-        rendererHints: expect.objectContaining({
-          residentMode: 'measured-return',
-          preferredExpressionAliases: ['CalmInspect'],
-          preferredMotionAliases: ['ObserveSoft'],
-        }),
-      }),
-      action: expect.objectContaining({
-        rendererHints: expect.objectContaining({
-          residentMode: 'measured-return',
-          preferredExpressionAliases: ['CalmInspect'],
-          preferredMotionAliases: ['ObserveSoft'],
-        }),
-      }),
-    }))
-    expect(repairHarness.speech.speechPlayback.value.item?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      mode: 'thinking',
-      face: expect.objectContaining({
-        rendererHints: expect.objectContaining({
-          residentMode: 'repair-before-closeness',
-          preferredExpressionAliases: ['RecoverSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-      action: expect.objectContaining({
-        actionCue: 'idle_settle',
-        actionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'repair-before-closeness',
-          preferredExpressionAliases: ['RecoverSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-    }))
-
-    measuredHarness.speech.dispose()
-    repairHarness.speech.dispose()
-  })
-
   it('keeps same-thread stop-tail continuity while letting the next segment reopen on a different restrained living line', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('AudioWorkletNode', class AudioWorkletNodeMock {})
@@ -6725,7 +6072,7 @@ describe('stage embodiment speech contract', () => {
       segmentId: 'segment-same-thread-restrained-measured-return-1',
       ownerId: 'alice',
       priority: 0,
-      text: '我先沿着刚才那条线轻一点接回来。',
+      text: '我先沿着刚才那条线中性可见占位。',
       special: null,
       continuityHoldMs: 340,
       audio: createBufferedSpeechAudioSource({} as AudioBuffer),
@@ -6735,7 +6082,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-same-thread-restrained-line-shift-1',
           rendererTarget: 'live2d',
-          replyText: '我先沿着刚才那条线轻一点接回来。',
+          replyText: '我先沿着刚才那条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -6746,7 +6093,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-same-thread-restrained-measured-return-1',
               index: 0,
-              text: '我先沿着刚才那条线轻一点接回来。',
+              text: '我先沿着刚才那条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 320,
@@ -6907,7 +6254,7 @@ describe('stage embodiment speech contract', () => {
     speech.dispose()
   })
 
-  it('keeps interruption tail continuity on one same-her callback line while the resumed later segment reopens more inward', async () => {
+  it('keeps interruption tail continuity on one identity-continuity', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('AudioWorkletNode', class AudioWorkletNodeMock {})
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
@@ -9440,1311 +8787,6 @@ describe('stage embodiment speech contract', () => {
     speech.dispose()
   })
 
-  it('keeps project-derived closure resident modes alive through preview playback even before resident snapshots catch up', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('live2d'),
-    })
-
-    const createProjectClosureScript = (input: {
-      turnId: string
-      replyText: string
-      emotionalClosureCue: string
-    }) => {
-      const speechTimeline = buildAlicizationDialogueSpeechTimeline({
-        reply: input.replyText,
-        candidateEmotion: 'thinking',
-        candidatePerformance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: null,
-          actionCue: 'steady_focus',
-          delivery: 'calm',
-          emphasis: 0,
-        },
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: null,
-          primaryOpenLoop: null,
-          emotionalClosureCue: input.emotionalClosureCue,
-        },
-      })
-
-      expect(speechTimeline?.segments[0]?.rendererHints?.residentMode).toBeDefined()
-
-      return buildAlicizationEmbodimentScript({
-        seed: {
-          decisionTraceId: `trace-${input.turnId}`,
-          turnId: input.turnId,
-          replyText: input.replyText,
-          performance: {
-            baseEmotion: 'thinking',
-            emotion: 'thinking',
-            facialCue: null,
-            actionCue: 'steady_focus',
-            delivery: 'calm',
-            emphasis: 0,
-          },
-          embodiment: null,
-          speechTimeline,
-          digitalLife: null,
-          digitalLifeSpine: null,
-        },
-        manifest: {
-          renderer: 'live2d',
-          supportedBaseEmotions: ['neutral', 'thinking'],
-          supportedFacialCues: [],
-          supportedActions: [],
-          supportsLookAt: true,
-          supportsVisemeLipSync: true,
-          supportsMicroDynamics: true,
-        },
-        residentPerformance: null,
-        rendererTarget: 'live2d',
-      })
-    }
-
-    const measuredReturnScript = createProjectClosureScript({
-      turnId: 'turn-project-closure-measured-return-preview',
-      replyText: '我先沿着同一条线轻一点接回来。',
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-    })
-    const repairBeforeClosenessScript = createProjectClosureScript({
-      turnId: 'turn-project-closure-repair-preview',
-      replyText: '我先把这一下稳住。',
-      emotionalClosureCue: 'same-her repair seam: keep this return repair-before-closeness on the same living line before closeness widens again.',
-    })
-
-    expect(measuredReturnScript.state.residentMode).toBe('dialogue')
-    expect(repairBeforeClosenessScript.state.residentMode).toBe('dialogue')
-
-    const measuredReturnPreview = speech.previewSpeechSegment({
-      intentId: 'intent-project-closure-measured-return-preview',
-      streamId: 'stream-project-closure-measured-return-preview',
-      segmentId: 'preview-project-closure-measured-return',
-      text: measuredReturnScript.replyText,
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        embodimentScript: measuredReturnScript,
-      },
-    })
-    const repairBeforeClosenessPreview = speech.previewSpeechSegment({
-      intentId: 'intent-project-closure-repair-preview',
-      streamId: 'stream-project-closure-repair-preview',
-      segmentId: 'preview-project-closure-repair-before-closeness',
-      text: repairBeforeClosenessScript.replyText,
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        embodimentScript: repairBeforeClosenessScript,
-      },
-    })
-
-    expect(measuredReturnPreview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      rendererHints: expect.objectContaining({
-        residentMode: 'measured-return',
-      }),
-    }))
-    expect(repairBeforeClosenessPreview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      actionCue: 'idle_settle',
-      rendererHints: expect.objectContaining({
-        residentMode: 'repair-before-closeness',
-      }),
-    }))
-    expect(measuredReturnPreview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      mode: 'speaking',
-      settleMode: 'linger',
-      face: expect.objectContaining({
-        expressionMode: 'hold',
-      }),
-    }))
-    expect(repairBeforeClosenessPreview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      mode: 'thinking',
-      settleMode: 'hold',
-      action: expect.objectContaining({
-        actionCue: 'idle_settle',
-        actionMode: 'hold',
-      }),
-      face: expect.objectContaining({
-        expressionMode: 'hold',
-      }),
-    }))
-
-    speech.dispose()
-  })
-
-  it('keeps pre-dialogue closure resident modes alive through preview playback even before embodiment scripts arrive', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      digitalLifeSpineDigest: ref(createDigitalLifeSpineDigestFixture()),
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('live2d'),
-    })
-
-    const measuredReturnClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
-    const repairBeforeClosenessClosureCue = 'same-her repair seam: keep this return repair-before-closeness on the same living line before closeness widens again.'
-
-    const measuredReturnPreview = speech.previewSpeechSegment({
-      intentId: 'intent-pre-dialogue-closure-measured-return-preview',
-      streamId: 'stream-pre-dialogue-closure-measured-return-preview',
-      segmentId: 'segment-pre-dialogue-closure-measured-return-preview',
-      text: '我先沿着同一条线轻一点接回来。',
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: null,
-          primaryOpenLoop: null,
-          emotionalClosureCue: measuredReturnClosureCue,
-        },
-        preDialogueAwareness: {
-          status: 'grounded',
-          summaryLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          companionHeadlineLine: null,
-          companionBriefingLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          companionNextClosureLine: null,
-          awarenessLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          emotionalClosureCue: measuredReturnClosureCue,
-          reasonPreview: ['keep the return low-pressure on the same living line'],
-        },
-      },
-    })
-    const repairBeforeClosenessPreview = speech.previewSpeechSegment({
-      intentId: 'intent-pre-dialogue-closure-repair-preview',
-      streamId: 'stream-pre-dialogue-closure-repair-preview',
-      segmentId: 'segment-pre-dialogue-closure-repair-preview',
-      text: '我先把这一下稳住。',
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: null,
-          primaryOpenLoop: null,
-          emotionalClosureCue: repairBeforeClosenessClosureCue,
-        },
-        preDialogueAwareness: {
-          status: 'grounded',
-          summaryLine: 'same-her hold: repair-before-closeness should keep this callback line inward before closeness widens again.',
-          companionHeadlineLine: null,
-          companionBriefingLine: 'same-her hold: repair-before-closeness should keep this callback line inward before closeness widens again.',
-          companionNextClosureLine: null,
-          awarenessLine: 'same-her hold: repair-before-closeness should keep this callback line inward before closeness widens again.',
-          emotionalClosureCue: repairBeforeClosenessClosureCue,
-          reasonPreview: ['repair-before-closeness on the same living line'],
-        },
-      },
-    })
-
-    expect(measuredReturnPreview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      facialCue: 'soft-gaze',
-      actionCue: null,
-      rendererHints: expect.objectContaining({
-        residentMode: 'measured-return',
-        preferredExpressionAliases: ['CalmInspect'],
-        preferredMotionAliases: ['ObserveSoft'],
-        preferredBlinkCadence: 'linger',
-        preferredGazeMode: 'soften',
-      }),
-    }))
-    expect(repairBeforeClosenessPreview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      rendererHints: expect.objectContaining({
-        residentMode: 'repair-before-closeness',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
-        preferredBlinkCadence: 'quiet',
-        preferredGazeMode: 'soften',
-      }),
-    }))
-    expect(measuredReturnPreview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      face: expect.objectContaining({
-        facialCue: 'soft-gaze',
-        expressionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'measured-return',
-          preferredExpressionAliases: ['CalmInspect'],
-          preferredMotionAliases: ['ObserveSoft'],
-        }),
-      }),
-      action: expect.objectContaining({
-        actionCue: null,
-        actionMode: 'none',
-        rendererHints: expect.objectContaining({
-          residentMode: 'measured-return',
-          preferredExpressionAliases: ['CalmInspect'],
-          preferredMotionAliases: ['ObserveSoft'],
-        }),
-      }),
-    }))
-    expect(repairBeforeClosenessPreview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      face: expect.objectContaining({
-        expressionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'repair-before-closeness',
-          preferredExpressionAliases: ['RecoverSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-      action: expect.objectContaining({
-        actionCue: 'idle_settle',
-        actionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'repair-before-closeness',
-          preferredExpressionAliases: ['RecoverSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-    }))
-
-    speech.dispose()
-  })
-
-  it('keeps rest-protective pre-dialogue closure aliases alive through preview playback even before embodiment scripts arrive', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      digitalLifeSpineDigest: ref(createDigitalLifeSpineDigestFixture()),
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('live2d'),
-    })
-
-    const restProtectiveClosureCue = 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware before warmth widens again.'
-
-    const preview = speech.previewSpeechSegment({
-      intentId: 'intent-pre-dialogue-closure-quiet-companionship-preview',
-      streamId: 'stream-pre-dialogue-closure-quiet-companionship-preview',
-      segmentId: 'segment-pre-dialogue-closure-quiet-companionship-preview',
-      text: '我先轻一点陪着你，把这条线慢慢接稳。',
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-          continuityCadence: 'rest-protective',
-          memoryClosureSummary: null,
-          primaryOpenLoop: null,
-          emotionalClosureCue: restProtectiveClosureCue,
-        },
-        preDialogueAwareness: {
-          status: 'grounded',
-          summaryLine: 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware before warmth widens again.',
-          companionHeadlineLine: null,
-          companionBriefingLine: 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware before warmth widens again.',
-          companionNextClosureLine: null,
-          awarenessLine: 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware before warmth widens again.',
-          emotionalClosureCue: restProtectiveClosureCue,
-          reasonPreview: ['keep this return rest-protective and on the same living line inward before widening outward'],
-        },
-      },
-    })
-
-    expect(preview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      rendererHints: expect.objectContaining({
-        residentMode: 'quiet-companionship',
-        preferredExpressionAliases: ['ObserveSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
-        preferredBlinkCadence: 'linger',
-        preferredGazeMode: 'soften',
-      }),
-    }))
-    expect(preview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      face: expect.objectContaining({
-        expressionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'quiet-companionship',
-          preferredExpressionAliases: ['ObserveSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-      action: expect.objectContaining({
-        actionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'quiet-companionship',
-          preferredExpressionAliases: ['ObserveSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-    }))
-
-    speech.dispose()
-  })
-
-  it('keeps raw pre-dialogue closure carry alive through preview playback even before rebuilt awareness snapshots arrive', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      digitalLifeSpineDigest: ref(createDigitalLifeSpineDigestFixture()),
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('live2d'),
-    })
-
-    const measuredReturnClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
-    const repairBeforeClosenessClosureCue = 'same-her repair seam: keep this return repair-before-closeness on the same living line before closeness widens again.'
-
-    const measuredReturnPreview = speech.previewSpeechSegment({
-      intentId: 'intent-raw-pre-dialogue-closure-measured-return-preview',
-      streamId: 'stream-raw-pre-dialogue-closure-measured-return-preview',
-      segmentId: 'segment-raw-pre-dialogue-closure-measured-return-preview',
-      text: '我先沿着同一条线轻一点接回来。',
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        preDialogueClosure: {
-          status: 'partial',
-          summaryLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          companionHeadlineLine: null,
-          companionBriefingLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          companionNextClosureLine: null,
-          emotionalClosureCue: measuredReturnClosureCue,
-          briefingLines: [],
-          reasons: ['keep the return low-pressure on the same living line'],
-        },
-      },
-    })
-    const repairBeforeClosenessPreview = speech.previewSpeechSegment({
-      intentId: 'intent-raw-pre-dialogue-closure-repair-preview',
-      streamId: 'stream-raw-pre-dialogue-closure-repair-preview',
-      segmentId: 'segment-raw-pre-dialogue-closure-repair-preview',
-      text: '我先把这一下稳住。',
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        preDialogueClosure: {
-          status: 'partial',
-          summaryLine: 'same-her hold: repair-before-closeness should keep this callback line inward before closeness widens again.',
-          companionHeadlineLine: null,
-          companionBriefingLine: 'same-her hold: repair-before-closeness should keep this callback line inward before closeness widens again.',
-          companionNextClosureLine: null,
-          emotionalClosureCue: repairBeforeClosenessClosureCue,
-          briefingLines: [],
-          reasons: ['repair-before-closeness on the same living line'],
-        },
-      },
-    })
-
-    expect(measuredReturnPreview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      facialCue: 'soft-gaze',
-      actionCue: null,
-      rendererHints: expect.objectContaining({
-        residentMode: 'measured-return',
-        preferredExpressionAliases: ['CalmInspect'],
-        preferredMotionAliases: ['ObserveSoft'],
-        preferredBlinkCadence: 'linger',
-        preferredGazeMode: 'soften',
-      }),
-    }))
-    expect(repairBeforeClosenessPreview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      rendererHints: expect.objectContaining({
-        residentMode: 'repair-before-closeness',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
-        preferredBlinkCadence: 'quiet',
-        preferredGazeMode: 'soften',
-      }),
-    }))
-    expect(measuredReturnPreview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      face: expect.objectContaining({
-        facialCue: 'soft-gaze',
-        expressionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'measured-return',
-          preferredExpressionAliases: ['CalmInspect'],
-          preferredMotionAliases: ['ObserveSoft'],
-        }),
-      }),
-      action: expect.objectContaining({
-        actionCue: null,
-        actionMode: 'none',
-        rendererHints: expect.objectContaining({
-          residentMode: 'measured-return',
-          preferredExpressionAliases: ['CalmInspect'],
-          preferredMotionAliases: ['ObserveSoft'],
-        }),
-      }),
-    }))
-    expect(repairBeforeClosenessPreview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      face: expect.objectContaining({
-        expressionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'repair-before-closeness',
-          preferredExpressionAliases: ['RecoverSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-      action: expect.objectContaining({
-        actionCue: 'idle_settle',
-        actionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'repair-before-closeness',
-          preferredExpressionAliases: ['RecoverSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-    }))
-
-    speech.dispose()
-  })
-
-  it('keeps runtime-digest closure carry alive through preview playback even before rebuilt awareness snapshots arrive', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      digitalLifeSpineDigest: ref(createDigitalLifeSpineDigestFixture()),
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('live2d'),
-    })
-
-    const measuredReturnClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
-    const repairBeforeClosenessClosureCue = 'same-her repair seam: keep this return repair-before-closeness on the same living line before closeness widens again.'
-
-    const measuredReturnPreview = speech.previewSpeechSegment({
-      intentId: 'intent-runtime-digest-closure-measured-return-preview',
-      streamId: 'stream-runtime-digest-closure-measured-return-preview',
-      segmentId: 'segment-runtime-digest-closure-measured-return-preview',
-      text: '我先沿着同一条线轻一点接回来。',
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        runtimeDigest: {
-          version: 'alicization-runtime-digest-v1',
-          dominantChannel: 'active-memory',
-          projectState: {
-            emotionalClosureCue: measuredReturnClosureCue,
-          },
-          shouldProactivelySpeak: false,
-          shouldProactivelyAct: false,
-          continuityPressure: 0.64,
-          companionshipPressure: 0.52,
-          channels: [],
-          summary: 'dominant=active-memory | closure=measured-return',
-        },
-      },
-    })
-    const repairBeforeClosenessPreview = speech.previewSpeechSegment({
-      intentId: 'intent-runtime-digest-closure-repair-preview',
-      streamId: 'stream-runtime-digest-closure-repair-preview',
-      segmentId: 'segment-runtime-digest-closure-repair-preview',
-      text: '我先把这一下稳住。',
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        runtimeDigest: {
-          version: 'alicization-runtime-digest-v1',
-          dominantChannel: 'active-memory',
-          emotionalClosureCue: repairBeforeClosenessClosureCue,
-          shouldProactivelySpeak: false,
-          shouldProactivelyAct: false,
-          continuityPressure: 0.66,
-          companionshipPressure: 0.54,
-          channels: [],
-          summary: 'dominant=active-memory | closure=repair-before-closeness',
-        },
-      },
-    })
-
-    expect(measuredReturnPreview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      rendererHints: expect.objectContaining({
-        residentMode: 'measured-return',
-        preferredExpressionAliases: ['CalmInspect'],
-        preferredMotionAliases: ['ObserveSoft'],
-        preferredBlinkCadence: 'linger',
-        preferredGazeMode: 'soften',
-      }),
-    }))
-    expect(repairBeforeClosenessPreview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'hold',
-      rendererHints: expect.objectContaining({
-        residentMode: 'repair-before-closeness',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
-        preferredBlinkCadence: 'quiet',
-        preferredGazeMode: 'soften',
-      }),
-    }))
-
-    speech.dispose()
-  })
-
-  it('preserves runtime-digest closure carry through playback start and stop reconciliation', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    let startListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) | undefined
-    let endListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, endedAt: number, stopReason: string | null }) => void) | undefined
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      digitalLifeSpineDigest: ref(createDigitalLifeSpineDigestFixture()),
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('live2d'),
-    })
-
-    speech.bindPlaybackManager({
-      onStart(listener) {
-        startListener = listener
-      },
-      onEnd(listener) {
-        endListener = listener
-      },
-      onInterrupt() {},
-    })
-
-    const closureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
-    const preview = speech.previewSpeechSegment({
-      intentId: 'intent-runtime-digest-closure-playback-carry',
-      streamId: 'stream-runtime-digest-closure-playback-carry',
-      segmentId: 'segment-runtime-digest-closure-playback-carry',
-      text: '我先沿着同一条线轻一点接回来。',
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        runtimeDigest: {
-          version: 'alicization-runtime-digest-v1',
-          dominantChannel: 'active-memory',
-          projectState: {
-            emotionalClosureCue: closureCue,
-          },
-          shouldProactivelySpeak: false,
-          shouldProactivelyAct: false,
-          continuityPressure: 0.64,
-          companionshipPressure: 0.52,
-          channels: [],
-          summary: 'dominant=active-memory | closure=measured-return',
-        },
-      },
-    })
-
-    const readRuntimeDigestClosureCue = (metadata: unknown) => {
-      const runtimeDigest = (metadata as {
-        runtimeDigest?: {
-          projectState?: {
-            emotionalClosureCue?: string | null
-          } | null
-        } | null
-      } | null | undefined)?.runtimeDigest
-      return runtimeDigest?.projectState?.emotionalClosureCue ?? null
-    }
-
-    expect(readRuntimeDigestClosureCue(preview?.metadata)).toBe(closureCue)
-
-    startListener?.({
-      item: {
-        id: 'playback-runtime-digest-closure-playback-carry',
-        streamId: 'stream-runtime-digest-closure-playback-carry',
-        intentId: 'intent-runtime-digest-closure-playback-carry',
-        segmentId: 'segment-runtime-digest-closure-playback-carry',
-        ownerId: 'alice',
-        priority: 0,
-        text: '我先沿着同一条线轻一点接回来。',
-        special: null,
-        continuityHoldMs: 180,
-        audio: createBufferedSpeechAudioSource({ duration: 0.3 } as AudioBuffer),
-        createdAt: 0,
-        metadata: preview?.metadata ?? null,
-      },
-      startedAt: 120,
-    })
-
-    expect(readRuntimeDigestClosureCue(speech.speechPlayback.value.item?.metadata)).toBe(closureCue)
-
-    endListener?.({
-      item: {
-        id: 'playback-runtime-digest-closure-playback-carry',
-        streamId: 'stream-runtime-digest-closure-playback-carry',
-        intentId: 'intent-runtime-digest-closure-playback-carry',
-        segmentId: 'segment-runtime-digest-closure-playback-carry',
-        ownerId: 'alice',
-        priority: 0,
-        text: '我先沿着同一条线轻一点接回来。',
-        special: null,
-        continuityHoldMs: 180,
-        audio: createBufferedSpeechAudioSource({ duration: 0.3 } as AudioBuffer),
-        createdAt: 0,
-        metadata: preview?.metadata ?? null,
-      },
-      endedAt: 420,
-      stopReason: 'ended',
-    })
-
-    expect(readRuntimeDigestClosureCue(speech.speechPlayback.value.item?.metadata)).toBe(closureCue)
-    expect(readRuntimeDigestClosureCue(speech.speechRenderState.value.item?.metadata)).toBe(closureCue)
-
-    speech.dispose()
-  })
-
-  it('preserves runtime-digest quiet-companionship carry through playback start and stop reconciliation', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    let startListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) | undefined
-    let endListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, endedAt: number, stopReason: string | null }) => void) | undefined
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      digitalLifeSpineDigest: ref(createDigitalLifeSpineDigestFixture()),
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('live2d'),
-    })
-
-    speech.bindPlaybackManager({
-      onStart(listener) {
-        startListener = listener
-      },
-      onEnd(listener) {
-        endListener = listener
-      },
-      onInterrupt() {},
-    })
-
-    const closureCue = 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware before warmth widens again.'
-    const preview = speech.previewSpeechSegment({
-      intentId: 'intent-runtime-digest-quiet-companionship-playback-carry',
-      streamId: 'stream-runtime-digest-quiet-companionship-playback-carry',
-      segmentId: 'segment-runtime-digest-quiet-companionship-playback-carry',
-      text: '我先轻一点陪着你，把这条线慢慢接稳。',
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        runtimeDigest: {
-          version: 'alicization-runtime-digest-v1',
-          dominantChannel: 'active-memory',
-          projectState: {
-            continuityCadence: 'rest-protective',
-            emotionalClosureCue: closureCue,
-          },
-          shouldProactivelySpeak: false,
-          shouldProactivelyAct: false,
-          continuityPressure: 0.64,
-          companionshipPressure: 0.52,
-          channels: [],
-          summary: 'dominant=active-memory | closure=quiet-companionship',
-        },
-      },
-    })
-
-    expect(preview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      rendererHints: expect.objectContaining({
-        residentMode: 'quiet-companionship',
-        preferredExpressionAliases: ['ObserveSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
-      }),
-    }))
-
-    startListener?.({
-      item: {
-        id: 'playback-runtime-digest-quiet-companionship-playback-carry',
-        streamId: 'stream-runtime-digest-quiet-companionship-playback-carry',
-        intentId: 'intent-runtime-digest-quiet-companionship-playback-carry',
-        segmentId: 'segment-runtime-digest-quiet-companionship-playback-carry',
-        ownerId: 'alice',
-        priority: 0,
-        text: '我先轻一点陪着你，把这条线慢慢接稳。',
-        special: null,
-        continuityHoldMs: 180,
-        audio: createBufferedSpeechAudioSource({ duration: 0.3 } as AudioBuffer),
-        createdAt: 0,
-        metadata: preview?.metadata ?? null,
-      },
-      startedAt: 120,
-    })
-
-    endListener?.({
-      item: {
-        id: 'playback-runtime-digest-quiet-companionship-playback-carry',
-        streamId: 'stream-runtime-digest-quiet-companionship-playback-carry',
-        intentId: 'intent-runtime-digest-quiet-companionship-playback-carry',
-        segmentId: 'segment-runtime-digest-quiet-companionship-playback-carry',
-        ownerId: 'alice',
-        priority: 0,
-        text: '我先轻一点陪着你，把这条线慢慢接稳。',
-        special: null,
-        continuityHoldMs: 180,
-        audio: createBufferedSpeechAudioSource({ duration: 0.3 } as AudioBuffer),
-        createdAt: 0,
-        metadata: preview?.metadata ?? null,
-      },
-      endedAt: 420,
-      stopReason: 'ended',
-    })
-
-    expect(speech.speechPlayback.value.item?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      rendererHints: expect.objectContaining({
-        residentMode: 'quiet-companionship',
-        preferredExpressionAliases: ['ObserveSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
-      }),
-    }))
-    expect(speech.speechPlayback.value.item?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      face: expect.objectContaining({
-        rendererHints: expect.objectContaining({
-          residentMode: 'quiet-companionship',
-          preferredExpressionAliases: ['ObserveSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-      action: expect.objectContaining({
-        rendererHints: expect.objectContaining({
-          residentMode: 'quiet-companionship',
-          preferredExpressionAliases: ['ObserveSoft'],
-          preferredMotionAliases: ['StillnessGuard'],
-        }),
-      }),
-    }))
-
-    speech.dispose()
-  })
-
-  it('keeps measured-return pre-dialogue spine fallback on the same softer resident action line when a cached measured-return cue is still carrying the segment before scripts catch up', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      digitalLifeSpineDigest: ref(createDigitalLifeSpineDigestFixture()),
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('live2d'),
-    })
-
-    const segmentId = 'segment-pre-dialogue-measured-return-cached-action-line'
-    const text = '我会稳一点回来，不只是先观察。'
-    const measuredReturnClosureCue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
-
-    const seededPreview = speech.previewSpeechSegment({
-      intentId: 'intent-pre-dialogue-measured-return-cached-action-line-seed',
-      streamId: 'stream-pre-dialogue-measured-return-cached-action-line-seed',
-      segmentId,
-      text,
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        embodimentScript: {
-          version: 'embodiment-script-v1',
-          turnId: 'turn-pre-dialogue-measured-return-cached-action-line-seed',
-          rendererTarget: 'live2d',
-          replyText: text,
-          state: {
-            baseEmotion: 'thinking',
-            delivery: 'gentle',
-            emphasis: 0,
-            residentMode: 'measured-return',
-          },
-          speechPlan: {
-            segments: [{
-              id: segmentId,
-              index: 0,
-              text,
-              interruptPolicy: 'soft-settle',
-              preRollMs: 40,
-              settleMs: 300,
-              rendererHints: {
-                preferredGazeMode: 'steady',
-                preferredBlinkCadence: 'quiet',
-                residentMode: 'measured-return',
-              },
-            }],
-            interruptPolicy: 'soft-settle',
-            preRollMs: 40,
-            settleMs: 300,
-          },
-          facePlan: {
-            preUtteranceCue: 'steady-inhale',
-            postUtteranceCue: 'eyes-soften',
-            speakingCues: [{
-              segmentId,
-              emotion: 'thinking',
-              facialCue: 'soft-gaze',
-              intensity: 0.44,
-              holdMs: 360,
-              preUtteranceCue: 'steady-inhale',
-              postUtteranceCue: 'eyes-soften',
-              source: 'prosody-authority',
-              confidence: 0.95,
-            }],
-          },
-          motionPlan: {
-            idleBase: 'steady_focus',
-            attentionMode: 'attentive',
-            actionBursts: [{
-              segmentId,
-              actionCue: 'steady_focus',
-              intensity: 0.22,
-              holdMs: 280,
-              source: 'timeline-projection',
-              confidence: 0.9,
-            }],
-          },
-          lipsyncPlan: {
-            mode: 'energy-phoneme-hybrid',
-            visemeHints: [],
-          },
-        },
-      },
-    })
-
-    expect(seededPreview?.cue).toEqual(expect.objectContaining({
-      actionCue: 'steady_focus',
-      rendererHints: expect.objectContaining({
-        residentMode: 'measured-return',
-        preferredGazeMode: 'steady',
-        preferredBlinkCadence: 'quiet',
-      }),
-    }))
-    expect(seededPreview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      action: expect.objectContaining({
-        actionCue: 'steady_focus',
-        actionMode: 'hold',
-      }),
-    }))
-
-    const fallbackPreview = speech.previewSpeechSegment({
-      intentId: 'intent-pre-dialogue-measured-return-cached-action-line-fallback',
-      streamId: 'stream-pre-dialogue-measured-return-cached-action-line-fallback',
-      segmentId,
-      text,
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: null,
-          primaryOpenLoop: null,
-          emotionalClosureCue: measuredReturnClosureCue,
-        },
-        preDialogueAwareness: {
-          status: 'grounded',
-          summaryLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          companionHeadlineLine: null,
-          companionBriefingLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          companionNextClosureLine: null,
-          awarenessLine: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-          emotionalClosureCue: measuredReturnClosureCue,
-          reasonPreview: ['keep the return low-pressure on the same living line'],
-        },
-      },
-    })
-
-    expect(fallbackPreview?.cue).toEqual(expect.objectContaining({
-      actionCue: 'steady_focus',
-      rendererHints: expect.objectContaining({
-        residentMode: 'measured-return',
-        preferredGazeMode: 'steady',
-        preferredBlinkCadence: 'quiet',
-      }),
-    }))
-    expect(fallbackPreview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      action: expect.objectContaining({
-        actionCue: 'steady_focus',
-        actionMode: 'hold',
-      }),
-    }))
-
-    speech.dispose()
-  })
-
-  it('keeps thin vrm settle timing restrained when project-derived measured-return already survives only through cue resident mode before resident snapshots catch up', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('vrm'),
-    })
-
-    const speechTimeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着同一条线轻一点接回来。',
-      candidateEmotion: 'thinking',
-      candidatePerformance: {
-        baseEmotion: 'thinking',
-        emotion: 'thinking',
-        facialCue: null,
-        actionCue: 'steady_focus',
-        delivery: 'hesitant',
-        emphasis: 0,
-      },
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: null,
-        primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-      },
-      performanceManifest: {
-        renderer: 'vrm',
-        supportedBaseEmotions: ['neutral', 'thinking'],
-        supportedFacialCues: [],
-        supportedActions: [],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-      } as any,
-    })
-
-    expect(speechTimeline?.segments[0]?.rendererHints?.residentMode).toBe('measured-return')
-
-    const script = buildAlicizationEmbodimentScript({
-      seed: {
-        decisionTraceId: 'trace-project-closure-vrm-preview-thin-settle',
-        turnId: 'turn-project-closure-vrm-preview-thin-settle',
-        replyText: '我先沿着同一条线轻一点接回来。',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: null,
-          actionCue: 'steady_focus',
-          delivery: 'hesitant',
-          emphasis: 0,
-        },
-        embodiment: null,
-        speechTimeline,
-        digitalLife: null,
-        digitalLifeSpine: null,
-      },
-      manifest: {
-        renderer: 'vrm',
-        supportedBaseEmotions: ['neutral', 'thinking'],
-        supportedFacialCues: [],
-        supportedActions: [],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-      } as any,
-      residentPerformance: null,
-      rendererTarget: 'vrm',
-    })
-
-    expect(script.state.residentMode).toBe('dialogue')
-    expect(script.speechPlan.segments[0]?.rendererHints?.residentMode).toBe('measured-return')
-
-    if (script.speechPlan.segments[0]) {
-      script.speechPlan.segments[0] = {
-        ...script.speechPlan.segments[0],
-        rendererSettle: {
-          live2dFacialReleaseMs: 294,
-          live2dMotionFollowThroughMs: 189,
-          vrmActionFadeMs: 167,
-          vrmExpressionBlendMs: 256,
-        },
-      }
-    }
-
-    const preview = speech.previewSpeechSegment({
-      intentId: 'intent-project-closure-vrm-preview-thin-settle',
-      streamId: 'stream-project-closure-vrm-preview-thin-settle',
-      segmentId: 'segment-project-closure-vrm-preview-thin-settle',
-      text: script.replyText,
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        embodimentScript: script,
-      },
-    })
-
-    expect(preview?.cue?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-    }))
-    expect(preview?.cue?.rendererSettle).toEqual(expect.objectContaining({
-      vrmActionFadeMs: expect.any(Number),
-      vrmExpressionBlendMs: expect.any(Number),
-    }))
-    expect(preview?.cue?.rendererSettle?.vrmActionFadeMs ?? 0).toBeGreaterThanOrEqual(300)
-    expect(preview?.cue?.rendererSettle?.vrmExpressionBlendMs ?? 0).toBeGreaterThanOrEqual(360)
-
-    speech.dispose()
-  })
-
-  it('keeps project-derived quiet-companionship vrm preview on the inward restraint line before resident snapshots catch up', async () => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
-    const audioContext = {
-      createAnalyser: vi.fn(() => ({
-        fftSize: 2048,
-        getByteTimeDomainData: vi.fn(),
-      })),
-      resume: vi.fn(() => Promise.resolve()),
-      state: 'running',
-    } as unknown as AudioContext
-    const speech = useStageEmbodimentSpeech({
-      audioContext,
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      speechStylePitch: ref(0),
-      speechStyleRate: ref(1),
-      stageModelRenderer: ref('vrm'),
-    })
-
-    const speechTimeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先安静陪着把这条线轻一点接稳。',
-      candidateEmotion: 'thinking',
-      candidatePerformance: {
-        baseEmotion: 'thinking',
-        emotion: 'thinking',
-        facialCue: 'soft-gaze',
-        actionCue: 'steady_focus',
-        delivery: 'gentle',
-        emphasis: 0,
-      },
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        continuityCadence: 'rest-protective',
-        memoryClosureSummary: null,
-        primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her hold: rest-protective companionship is still keeping this return inward and fatigue-aware before warmth widens again.',
-      },
-      performanceManifest: {
-        renderer: 'vrm',
-        supportedBaseEmotions: ['neutral', 'thinking'],
-        supportedFacialCues: [],
-        supportedActions: [],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-      } as any,
-    })
-
-    expect(speechTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'quiet-companionship',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-    }))
-
-    const script = buildAlicizationEmbodimentScript({
-      seed: {
-        decisionTraceId: 'trace-project-closure-vrm-preview-quiet-companionship',
-        turnId: 'turn-project-closure-vrm-preview-quiet-companionship',
-        replyText: '我先安静陪着把这条线轻一点接稳。',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: 'soft-gaze',
-          actionCue: 'steady_focus',
-          delivery: 'gentle',
-          emphasis: 0,
-        },
-        embodiment: null,
-        speechTimeline,
-        digitalLife: null,
-        digitalLifeSpine: null,
-      },
-      manifest: {
-        renderer: 'vrm',
-        supportedBaseEmotions: ['neutral', 'thinking'],
-        supportedFacialCues: [],
-        supportedActions: [],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-      } as any,
-      residentPerformance: null,
-      rendererTarget: 'vrm',
-    })
-
-    expect(script.state.residentMode).toBe('dialogue')
-    expect(script.speechPlan.segments[0]?.rendererHints?.residentMode).toBe('quiet-companionship')
-
-    if (script.speechPlan.segments[0]) {
-      script.speechPlan.segments[0] = {
-        ...script.speechPlan.segments[0],
-        rendererSettle: {
-          live2dFacialReleaseMs: 188,
-          live2dMotionFollowThroughMs: 172,
-          vrmActionFadeMs: 118,
-          vrmExpressionBlendMs: 154,
-        },
-      }
-    }
-
-    const preview = speech.previewSpeechSegment({
-      intentId: 'intent-project-closure-vrm-preview-quiet-companionship',
-      streamId: 'stream-project-closure-vrm-preview-quiet-companionship',
-      segmentId: 'segment-project-closure-vrm-preview-quiet-companionship',
-      text: script.replyText,
-      special: null,
-      continuityHoldMs: 180,
-      metadata: {
-        embodimentScript: script,
-      },
-    })
-
-    expect(preview?.cue).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      rendererHints: expect.objectContaining({
-        residentMode: 'quiet-companionship',
-        preferredBlinkCadence: 'linger',
-        preferredGazeMode: 'soften',
-      }),
-      rendererSettle: expect.objectContaining({
-        vrmActionFadeMs: expect.any(Number),
-        vrmExpressionBlendMs: expect.any(Number),
-      }),
-    }))
-    expect(preview?.cue?.rendererSettle?.vrmActionFadeMs ?? 0).toBeGreaterThanOrEqual(220)
-    expect(preview?.cue?.rendererSettle?.vrmExpressionBlendMs ?? 0).toBeGreaterThanOrEqual(320)
-    expect(preview?.digitalLifeFrame).toEqual(expect.objectContaining({
-      settleMode: 'linger',
-      face: expect.objectContaining({
-        expressionMode: 'hold',
-      }),
-      action: expect.objectContaining({
-        actionMode: 'hold',
-      }),
-    }))
-
-    speech.dispose()
-  })
-
   it('keeps softer live2d alias preferences visible when hesitant audible-body continuity is still carrying the line before face and motion rejoin', async () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
@@ -10881,7 +8923,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-live2d-body-voice-only-audible-carry',
       streamId: 'stream-live2d-body-voice-only-audible-carry',
       segmentId: 'segment-live2d-body-voice-only-audible-carry',
-      text: '我先沿着身体和声音还连着的这条线轻一点接回来。',
+      text: '我先沿着身体和声音还连着的这条线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -10889,7 +8931,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-body-voice-only-audible-carry',
           rendererTarget: 'live2d',
-          replyText: '我先沿着身体和声音还连着的这条线轻一点接回来。',
+          replyText: '我先沿着身体和声音还连着的这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -10900,7 +8942,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-live2d-body-voice-only-audible-carry',
               index: 0,
-              text: '我先沿着身体和声音还连着的这条线轻一点接回来。',
+              text: '我先沿着身体和声音还连着的这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -12877,7 +10919,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-script-digital-life-preview-fallback',
       streamId: 'stream-script-digital-life-preview-fallback',
       segmentId: 'segment-script-digital-life-preview-fallback',
-      text: '我先沿着这条还活着的生命线轻一点接回来。',
+      text: '我先沿着这条还活着的生命线中性可见占位。',
       special: null,
       continuityHoldMs: 220,
       metadata: {
@@ -12885,7 +10927,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-script-digital-life-preview-fallback',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条还活着的生命线轻一点接回来。',
+          replyText: '我先沿着这条还活着的生命线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -12896,7 +10938,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-script-digital-life-preview-fallback',
               index: 0,
-              text: '我先沿着这条还活着的生命线轻一点接回来。',
+              text: '我先沿着这条还活着的生命线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 260,
@@ -12979,7 +11021,7 @@ describe('stage embodiment speech contract', () => {
               index: 0,
               startOffset: 0,
               endOffset: 20,
-              text: '我先沿着这条还活着的生命线轻一点接回来。',
+              text: '我先沿着这条还活着的生命线中性可见占位。',
               mode: 'speaking',
               interruptPolicy: 'continue',
               settleMode: 'release',
@@ -13213,12 +11255,12 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-measured-return-body-voice-only-rejoin',
       streamId: 'stream-measured-return-body-voice-only-rejoin',
       segmentId: 'segment-measured-return-body-voice-only-rejoin',
-      text: '我先沿着这条还活着的身体和声音线轻一点接回来。',
+      text: '我先沿着这条还活着的身体和声音线中性可见占位。',
       special: null,
       continuityHoldMs: 340,
       digitalLifeFrame: createDigitalLifeFrameFixture({
         id: 'segment-measured-return-body-voice-only-rejoin',
-        text: '我先沿着这条还活着的身体和声音线轻一点接回来。',
+        text: '我先沿着这条还活着的身体和声音线中性可见占位。',
         settleMode: 'linger',
         mode: 'thinking',
         voice: {
@@ -13267,7 +11309,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-measured-return-body-voice-only-rejoin',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条还活着的身体和声音线轻一点接回来。',
+          replyText: '我先沿着这条还活着的身体和声音线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -13278,7 +11320,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-measured-return-body-voice-only-rejoin',
               index: 0,
-              text: '我先沿着这条还活着的身体和声音线轻一点接回来。',
+              text: '我先沿着这条还活着的身体和声音线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 340,
@@ -13383,7 +11425,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-measured-return-cue-only-body-voice-rejoin',
       streamId: 'stream-measured-return-cue-only-body-voice-rejoin',
       segmentId: 'segment-measured-return-cue-only-body-voice-rejoin',
-      text: '我先沿着这条还活着的身体和声音线轻一点接回来，等身体画面慢一点跟上。',
+      text: '我先沿着这条还活着的身体和声音线中性可见占位，等身体画面慢一点跟上。',
       special: null,
       continuityHoldMs: 340,
       metadata: {
@@ -13391,7 +11433,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-measured-return-cue-only-body-voice-rejoin',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条还活着的身体和声音线轻一点接回来，等身体画面慢一点跟上。',
+          replyText: '我先沿着这条还活着的身体和声音线中性可见占位，等身体画面慢一点跟上。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -13402,7 +11444,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-measured-return-cue-only-body-voice-rejoin',
               index: 0,
-              text: '我先沿着这条还活着的身体和声音线轻一点接回来，等身体画面慢一点跟上。',
+              text: '我先沿着这条还活着的身体和声音线中性可见占位，等身体画面慢一点跟上。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 340,
@@ -13462,7 +11504,7 @@ describe('stage embodiment speech contract', () => {
             index: 0,
             startOffset: 0,
             endOffset: 33,
-            text: '我先沿着这条还活着的身体和声音线轻一点接回来，等身体画面慢一点跟上。',
+            text: '我先沿着这条还活着的身体和声音线中性可见占位，等身体画面慢一点跟上。',
             emotion: 'thinking',
             facialCue: 'focused',
             actionCue: 'observe_focus',
@@ -13567,7 +11609,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-measured-return-cue-only-body-voice-rejoin-no-face-plan',
       streamId: 'stream-measured-return-cue-only-body-voice-rejoin-no-face-plan',
       segmentId: 'segment-measured-return-cue-only-body-voice-rejoin-no-face-plan',
-      text: '我先沿着这条还活着的身体和声音线轻一点接回来，等表情也慢一点跟上。',
+      text: '我先沿着这条还活着的身体和声音线中性可见占位，等表情也慢一点跟上。',
       special: null,
       continuityHoldMs: 340,
       metadata: {
@@ -13575,7 +11617,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-measured-return-cue-only-body-voice-rejoin-no-face-plan',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条还活着的身体和声音线轻一点接回来，等表情也慢一点跟上。',
+          replyText: '我先沿着这条还活着的身体和声音线中性可见占位，等表情也慢一点跟上。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -13586,7 +11628,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-measured-return-cue-only-body-voice-rejoin-no-face-plan',
               index: 0,
-              text: '我先沿着这条还活着的身体和声音线轻一点接回来，等表情也慢一点跟上。',
+              text: '我先沿着这条还活着的身体和声音线中性可见占位，等表情也慢一点跟上。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 340,
@@ -13636,7 +11678,7 @@ describe('stage embodiment speech contract', () => {
             index: 0,
             startOffset: 0,
             endOffset: 32,
-            text: '我先沿着这条还活着的身体和声音线轻一点接回来，等表情也慢一点跟上。',
+            text: '我先沿着这条还活着的身体和声音线中性可见占位，等表情也慢一点跟上。',
             emotion: 'thinking',
             facialCue: 'focused',
             actionCue: 'observe_focus',
@@ -13741,7 +11783,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-measured-return-cue-only-explicit-voice-driver-rejoin',
       streamId: 'stream-measured-return-cue-only-explicit-voice-driver-rejoin',
       segmentId: 'segment-measured-return-cue-only-explicit-voice-driver-rejoin',
-      text: '我先沿着这条还活着的身体和声音线轻一点接回来，等表情慢一点跟上。',
+      text: '我先沿着这条还活着的身体和声音线中性可见占位，等表情慢一点跟上。',
       special: null,
       continuityHoldMs: 340,
       metadata: {
@@ -13749,7 +11791,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-measured-return-cue-only-explicit-voice-driver-rejoin',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条还活着的身体和声音线轻一点接回来，等表情慢一点跟上。',
+          replyText: '我先沿着这条还活着的身体和声音线中性可见占位，等表情慢一点跟上。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -13760,7 +11802,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-measured-return-cue-only-explicit-voice-driver-rejoin',
               index: 0,
-              text: '我先沿着这条还活着的身体和声音线轻一点接回来，等表情慢一点跟上。',
+              text: '我先沿着这条还活着的身体和声音线中性可见占位，等表情慢一点跟上。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 340,
@@ -13810,7 +11852,7 @@ describe('stage embodiment speech contract', () => {
             index: 0,
             startOffset: 0,
             endOffset: 31,
-            text: '我先沿着这条还活着的身体和声音线轻一点接回来，等表情慢一点跟上。',
+            text: '我先沿着这条还活着的身体和声音线中性可见占位，等表情慢一点跟上。',
             emotion: 'thinking',
             facialCue: 'focused',
             actionCue: 'observe_focus',
@@ -14973,7 +13015,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-quiet-companionship-cue-only-still-voiced-rejoin',
       streamId: 'stream-quiet-companionship-cue-only-still-voiced-rejoin',
       segmentId: 'segment-quiet-companionship-cue-only-still-voiced-rejoin',
-      text: '我先沿着这条还活着的动作和声音线轻一点接回来，等身体画面慢一点跟上。',
+      text: '我先沿着这条还活着的动作和声音线中性可见占位，等身体画面慢一点跟上。',
       special: null,
       continuityHoldMs: 340,
       metadata: {
@@ -14981,7 +13023,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-quiet-companionship-cue-only-still-voiced-rejoin',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条还活着的动作和声音线轻一点接回来，等身体画面慢一点跟上。',
+          replyText: '我先沿着这条还活着的动作和声音线中性可见占位，等身体画面慢一点跟上。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -14992,7 +13034,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-quiet-companionship-cue-only-still-voiced-rejoin',
               index: 0,
-              text: '我先沿着这条还活着的动作和声音线轻一点接回来，等身体画面慢一点跟上。',
+              text: '我先沿着这条还活着的动作和声音线中性可见占位，等身体画面慢一点跟上。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 340,
@@ -15051,7 +13093,7 @@ describe('stage embodiment speech contract', () => {
             index: 0,
             startOffset: 0,
             endOffset: 34,
-            text: '我先沿着这条还活着的动作和声音线轻一点接回来，等身体画面慢一点跟上。',
+            text: '我先沿着这条还活着的动作和声音线中性可见占位，等身体画面慢一点跟上。',
             emotion: 'thinking',
             facialCue: 'soft-gaze',
             actionCue: 'observe_focus',
@@ -15155,7 +13197,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-quiet-companionship-cue-only-still-voiced-rejoin-no-face-plan',
       streamId: 'stream-quiet-companionship-cue-only-still-voiced-rejoin-no-face-plan',
       segmentId: 'segment-quiet-companionship-cue-only-still-voiced-rejoin-no-face-plan',
-      text: '我先沿着这条还活着的动作和声音线轻一点接回来，等表情也慢一点跟上。',
+      text: '我先沿着这条还活着的动作和声音线中性可见占位，等表情也慢一点跟上。',
       special: null,
       continuityHoldMs: 340,
       metadata: {
@@ -15163,7 +13205,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-quiet-companionship-cue-only-still-voiced-rejoin-no-face-plan',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条还活着的动作和声音线轻一点接回来，等表情也慢一点跟上。',
+          replyText: '我先沿着这条还活着的动作和声音线中性可见占位，等表情也慢一点跟上。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -15174,7 +13216,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-quiet-companionship-cue-only-still-voiced-rejoin-no-face-plan',
               index: 0,
-              text: '我先沿着这条还活着的动作和声音线轻一点接回来，等表情也慢一点跟上。',
+              text: '我先沿着这条还活着的动作和声音线中性可见占位，等表情也慢一点跟上。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 340,
@@ -15223,7 +13265,7 @@ describe('stage embodiment speech contract', () => {
             index: 0,
             startOffset: 0,
             endOffset: 32,
-            text: '我先沿着这条还活着的动作和声音线轻一点接回来，等表情也慢一点跟上。',
+            text: '我先沿着这条还活着的动作和声音线中性可见占位，等表情也慢一点跟上。',
             emotion: 'thinking',
             facialCue: 'focused',
             actionCue: 'observe_focus',
@@ -15915,7 +13957,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-live2d-body-lipsync-only-audible-carry',
       streamId: 'stream-live2d-body-lipsync-only-audible-carry',
       segmentId: 'segment-live2d-body-lipsync-only-audible-carry',
-      text: '我先沿着身体和口型还连着的这条线轻一点接回来。',
+      text: '我先沿着身体和口型还连着的这条线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -15923,7 +13965,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-body-lipsync-only-audible-carry',
           rendererTarget: 'live2d',
-          replyText: '我先沿着身体和口型还连着的这条线轻一点接回来。',
+          replyText: '我先沿着身体和口型还连着的这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -15934,7 +13976,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-live2d-body-lipsync-only-audible-carry',
               index: 0,
-              text: '我先沿着身体和口型还连着的这条线轻一点接回来。',
+              text: '我先沿着身体和口型还连着的这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -16232,7 +14274,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-live2d-face-lipsync-only-audible-carry',
       streamId: 'stream-live2d-face-lipsync-only-audible-carry',
       segmentId: 'segment-live2d-face-lipsync-only-audible-carry',
-      text: '我先沿着表情和口型还连着的这条线轻一点接回来。',
+      text: '我先沿着表情和口型还连着的这条线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -16240,7 +14282,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-face-lipsync-only-audible-carry',
           rendererTarget: 'live2d',
-          replyText: '我先沿着表情和口型还连着的这条线轻一点接回来。',
+          replyText: '我先沿着表情和口型还连着的这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -16251,7 +14293,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-live2d-face-lipsync-only-audible-carry',
               index: 0,
-              text: '我先沿着表情和口型还连着的这条线轻一点接回来。',
+              text: '我先沿着表情和口型还连着的这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -16548,7 +14590,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-live2d-motion-lipsync-only-audible-carry',
       streamId: 'stream-live2d-motion-lipsync-only-audible-carry',
       segmentId: 'segment-live2d-motion-lipsync-only-audible-carry',
-      text: '我先沿着动作和口型还连着的这条线轻一点接回来。',
+      text: '我先沿着动作和口型还连着的这条线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -16556,7 +14598,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-motion-lipsync-only-audible-carry',
           rendererTarget: 'live2d',
-          replyText: '我先沿着动作和口型还连着的这条线轻一点接回来。',
+          replyText: '我先沿着动作和口型还连着的这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -16567,7 +14609,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-live2d-motion-lipsync-only-audible-carry',
               index: 0,
-              text: '我先沿着动作和口型还连着的这条线轻一点接回来。',
+              text: '我先沿着动作和口型还连着的这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -16864,7 +14906,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-live2d-lipsync-voice-only-audible-carry',
       streamId: 'stream-live2d-lipsync-voice-only-audible-carry',
       segmentId: 'segment-live2d-lipsync-voice-only-audible-carry',
-      text: '我先沿着口型和声音还连着的这条线轻一点接回来。',
+      text: '我先沿着口型和声音还连着的这条线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -16872,7 +14914,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-lipsync-voice-only-audible-carry',
           rendererTarget: 'live2d',
-          replyText: '我先沿着口型和声音还连着的这条线轻一点接回来。',
+          replyText: '我先沿着口型和声音还连着的这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -16883,7 +14925,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-live2d-lipsync-voice-only-audible-carry',
               index: 0,
-              text: '我先沿着口型和声音还连着的这条线轻一点接回来。',
+              text: '我先沿着口型和声音还连着的这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -17002,7 +15044,7 @@ describe('stage embodiment speech contract', () => {
       intentId: 'intent-live2d-still-voiced-motion-line-carry',
       streamId: 'stream-live2d-still-voiced-motion-line-carry',
       segmentId: 'segment-live2d-still-voiced-motion-line-carry',
-      text: '我先沿着动作和声音还连着的这条线轻一点接回来。',
+      text: '我先沿着动作和声音还连着的这条线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -17010,7 +15052,7 @@ describe('stage embodiment speech contract', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-still-voiced-motion-line-carry',
           rendererTarget: 'live2d',
-          replyText: '我先沿着动作和声音还连着的这条线轻一点接回来。',
+          replyText: '我先沿着动作和声音还连着的这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -17021,7 +15063,7 @@ describe('stage embodiment speech contract', () => {
             segments: [{
               id: 'segment-live2d-still-voiced-motion-line-carry',
               index: 0,
-              text: '我先沿着动作和声音还连着的这条线轻一点接回来。',
+              text: '我先沿着动作和声音还连着的这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -17110,6 +15152,139 @@ describe('stage embodiment speech contract', () => {
       idleBase: 'observe_focus',
       actionCue: null,
     }))
+
+    speech.dispose()
+  })
+
+  it('ignores legacy pre-dialogue metadata when explicit embodiment renderer hints define the playback cue', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+    const speech = useStageEmbodimentSpeech({
+      audioContext: {
+        createAnalyser: vi.fn(() => ({
+          fftSize: 2048,
+          getByteTimeDomainData: vi.fn(),
+        })),
+        resume: vi.fn(() => Promise.resolve()),
+        state: 'running',
+      } as unknown as AudioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+    const segmentId = 'segment-explicit-renderer-hints-over-legacy-metadata'
+    const text = '我会慢一点把这句话说完。'
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-explicit-renderer-hints-over-legacy-metadata',
+      streamId: 'stream-explicit-renderer-hints-over-legacy-metadata',
+      segmentId,
+      text,
+      special: null,
+      continuityHoldMs: 180,
+      metadata: {
+        preDialogueSendIdentity: {
+          awarenessLine: 'legacy-value',
+        },
+        preDialogueAwareness: {
+          awarenessLine: 'legacy-value',
+          emotionalClosureCue: 'repair-before-closeness',
+        },
+        preDialogueClosure: {
+          emotionalClosureCue: 'repair-before-closeness',
+        },
+        visibleReplyRealization: {
+          awarenessLine: 'legacy-value',
+        },
+        projectState: {
+          sameHerSelfLine: 'legacy-value',
+          companionBriefingLine: 'legacy-value',
+          awarenessLine: 'legacy-value',
+          emotionalClosureCue: 'repair-before-closeness',
+          proactiveSameHerGap: 'legacy-value',
+        },
+        embodimentScript: {
+          version: 'embodiment-script-v1',
+          turnId: 'turn-explicit-renderer-hints-over-legacy-metadata',
+          rendererTarget: 'live2d',
+          replyText: text,
+          state: {
+            baseEmotion: 'thinking',
+            delivery: 'gentle',
+            emphasis: 0,
+            residentMode: 'measured-return',
+          },
+          speechPlan: {
+            segments: [{
+              id: segmentId,
+              index: 0,
+              text,
+              interruptPolicy: 'soft-settle',
+              preRollMs: 40,
+              settleMs: 300,
+              rendererHints: {
+                residentMode: 'measured-return',
+                preferredExpressionAliases: ['CalmInspect'],
+                preferredMotionAliases: ['ObserveSoft'],
+                preferredBlinkCadence: 'linger',
+                preferredGazeMode: 'soften',
+              },
+              rendererSettle: {
+                live2dFacialReleaseMs: 280,
+                live2dMotionFollowThroughMs: 320,
+                vrmActionFadeMs: 360,
+                vrmExpressionBlendMs: 420,
+              },
+            }],
+            interruptPolicy: 'soft-settle',
+            preRollMs: 40,
+            settleMs: 300,
+          },
+          facePlan: {
+            speakingCues: [{
+              segmentId,
+              emotion: 'thinking',
+              facialCue: 'soft-gaze',
+              intensity: 0.42,
+              holdMs: 320,
+              source: 'timeline-projection',
+              confidence: 0.92,
+            }],
+          },
+          motionPlan: {
+            idleBase: 'observe_focus',
+            attentionMode: 'attentive',
+            actionBursts: [],
+          },
+          lipsyncPlan: {
+            mode: 'energy-phoneme-hybrid',
+            visemeHints: [],
+          },
+        },
+      } as any,
+    })
+
+    expect(preview?.cue).toEqual(expect.objectContaining({
+      settleMode: 'linger',
+      facialCue: 'soft-gaze',
+      rendererHints: expect.objectContaining({
+        residentMode: 'measured-return',
+        preferredExpressionAliases: ['CalmInspect'],
+        preferredMotionAliases: ['ObserveSoft'],
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+      }),
+      rendererSettle: expect.objectContaining({
+        live2dFacialReleaseMs: expect.any(Number),
+        live2dMotionFollowThroughMs: expect.any(Number),
+      }),
+    }))
+    expect(preview?.cue?.rendererHints?.residentMode).not.toBe('repair-before-closeness')
 
     speech.dispose()
   })

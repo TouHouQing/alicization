@@ -360,7 +360,6 @@ describe('epoch3 proactive closure e2e', () => {
             warmthReleaseBias: 0.09,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.16,
             hypothesisLabelBias: 0.22,
             specificityClampBias: 0.28,
             templateShellSuppressionBias: 0.24,
@@ -538,7 +537,7 @@ describe('epoch3 proactive closure e2e', () => {
     expect(proactiveEvent?.structured.projectState).toEqual(expect.objectContaining({
       identity: expect.stringContaining('local-first digital life project'),
       currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-      sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
+      sameHerSelfLine: expect.stringContaining('legacy phase-one template'),
     }))
 
     dbStub.appendEpisodicEvents.mockClear()

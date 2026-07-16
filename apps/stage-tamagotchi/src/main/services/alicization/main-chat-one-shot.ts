@@ -7,7 +7,6 @@ import type { MainGatewayResolvedConfig } from './runtime-soul'
 import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 
-import { assertAlicizationCanonicalProjectState } from './main-chat-project-state-guard'
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { createAbortError, sanitizeText } from './main-chat-stream-primitives'
@@ -87,8 +86,6 @@ async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneSh
   }, Math.max(1_000, input.timeoutMs))
 
   try {
-    assertAlicizationCanonicalProjectState(input.messages, 'one-shot')
-
     const invokeGenerateText = input.generateTextImpl ?? (generateText as unknown as GenerateTextInvoker)
     const result = await invokeGenerateText({
       ...input.chatConfig,

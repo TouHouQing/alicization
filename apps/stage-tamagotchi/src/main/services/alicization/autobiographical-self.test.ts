@@ -119,7 +119,7 @@ describe('autobiographical self', () => {
           owner: 'alicization',
           kind: 'clarify-scene',
           status: 'active',
-          label: 're-ground the scene before speaking about the runtime diff',
+          label: 're-ground the scene before outward reply about the runtime diff',
           confidence: 0.78,
           urgency: 0.82,
           desireWeight: 0.7,
@@ -1177,8 +1177,8 @@ describe('autobiographical self', () => {
           kind: 'relationship',
           status: 'active',
           source: 'memory-carry',
-          title: 'same-her line after released wobble',
-          summary: 'The same-her line is still the steadier surviving meaning.',
+          title: 'identity-continuity',
+          summary: 'The identity-continuity',
           confidence: 0.8,
           significance: 0.76,
           unresolved: true,
@@ -1208,11 +1208,11 @@ describe('autobiographical self', () => {
           },
           {
             id: 'reflection::same-her-repair',
-            summary: 'The same-her line stayed steadier when she carried it lower-pressure.',
+            summary: 'The identity-continuity',
             expectation: 'The steadier same-her repair line should stay active until a newer meaningful reflection replaces it.',
-            observedOutcome: 'The same living line still needs a measured return.',
+            observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
-            revision: 'Keep the same-her line steady and lower-pressure as the active identity carry.',
+            revision: 'Keep the identity-continuity',
             confidenceShift: -0.08,
             createdAt: 60_700,
           },
@@ -1230,7 +1230,7 @@ describe('autobiographical self', () => {
       recentMemoryReflections: [],
     } as any)
 
-    expect(snapshot.latestInflection?.toLowerCase()).toContain('same-her line steady')
+    expect(snapshot.latestInflection?.toLowerCase()).toContain('identity-continuity')
     expect(snapshot.latestInflection?.toLowerCase()).not.toContain('temporary wobble')
   })
 
@@ -1551,10 +1551,10 @@ describe('autobiographical self', () => {
           'unfinished-thread-return': 0.22,
         },
         preferenceHints: [
-          'Prefer repair-first, low-pressure same-her continuity when the host questions whether I stayed myself.',
+          'Prefer repair-first, low-pressure identity-continuity',
         ],
         sensitivityHints: [
-          'Do not fall back to the older misread after a host correction; keep the corrected relationship meaning on the same living line.',
+          'Do not fall back to the older misread after a host correction; keep the corrected relationship meaning on the continuity state.',
         ],
         repairHints: [
           'Carry the corrected relationship meaning forward, keep the tone low-pressure, and do not fall back to the older misread.',
@@ -1563,7 +1563,7 @@ describe('autobiographical self', () => {
           'This comes from an unresolved relationship-memory trace, not timer spam; wait for a relevant opening or clear acceptance.',
         ],
         narrative: [
-          'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+          'I learned to carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation.',
           'I learned to keep the body quieter while the newer continuity meaning is still stabilizing.',
         ],
         sourceTrail: [],
@@ -1686,10 +1686,10 @@ describe('autobiographical self', () => {
           'unfinished-thread-return': 0.2,
         },
         preferenceHints: [
-          'Prefer repair-first, low-pressure same-her continuity when the host questions whether I stayed myself.',
+          'Prefer repair-first, low-pressure identity-continuity',
         ],
         sensitivityHints: [
-          'Do not fall back to the older misread after a host correction; keep the corrected relationship meaning on the same living line.',
+          'Do not fall back to the older misread after a host correction; keep the corrected relationship meaning on the continuity state.',
         ],
         repairHints: [
           'Carry the corrected relationship meaning forward, keep the tone low-pressure, and do not fall back to the older misread.',
@@ -1699,7 +1699,7 @@ describe('autobiographical self', () => {
         ],
         narrative: [
           'Recent closure stayed low-pressure and repair-aware.',
-          'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+          'I learned to carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation.',
         ],
         sourceTrail: [],
         sourceKinds: ['person-state-update'],
@@ -1849,7 +1849,7 @@ describe('autobiographical self', () => {
           periodKey: '2026-04-self-line',
           periodStartedAt: 13_000,
           periodEndedAt: 30_000,
-          summary: 'That self era taught me to hold my own line quietly before speaking.',
+          summary: 'That self era taught me to hold my own line quietly before outward reply.',
           lesson: 'Keep the inward line stable before turning it outward.',
           cues: ['hold own line'],
           confidence: 0.9,
@@ -1860,7 +1860,7 @@ describe('autobiographical self', () => {
       ],
     } as any)
 
-    expect(snapshot.identityNarrative).toContain('That self era taught me to hold my own line quietly before speaking.')
+    expect(snapshot.identityNarrative).toContain('That self era taught me to hold my own line quietly before outward reply.')
     expect(snapshot.relationshipDoctrine).toContain('Repair before closeness turns into pressure.')
     expect(snapshot.behaviorSignatures).toContain('memory:self-era')
     expect(snapshot.behaviorSignatures).toContain('memory:relationship-era')
@@ -2150,7 +2150,7 @@ describe('autobiographical self', () => {
   it('also accepts canonical project preflight self-awareness as autobiographical continuity pressure', () => {
     const snapshot = buildAutobiographicalSelf({
       now: 50_000,
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
       context: {
         relationship: {
           recentProactiveOutcomes: [],
@@ -2314,7 +2314,7 @@ describe('autobiographical self', () => {
   it('also accepts companion briefing project awareness as autobiographical continuity pressure when it is more specific than preflight summary', () => {
     const snapshot = buildAutobiographicalSelf({
       now: 50_500,
-      projectStatePreDialogueAwarenessLine: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
+      projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
       projectStatePreflightSummary: 'Fallback summary should stay behind the live companion briefing line.',
       projectStateEmotionalClosureCue: 'Keep the same unresolved closure seam emotionally low-pressure, so the return lands like the same her resuming instead of restarting.',
       context: {
@@ -2372,7 +2372,7 @@ describe('autobiographical self', () => {
     })
 
     expect(snapshot.preferenceEvolution.unfinishedThreadReturn).toBeGreaterThanOrEqual(0.12)
-    expect(snapshot.identityNarrative).toContain('Before answering, keep the same digital life project')
+    expect(snapshot.identityNarrative).toContain('pre_turn_context_digest')
     expect(snapshot.identityNarrative).toContain('same her resuming instead of restarting')
     expect(snapshot.relationshipDoctrine).toContain('same her resuming instead of restarting')
     expect(snapshot.identityNarrative).not.toContain('Fallback summary should stay behind the live companion briefing line.')
@@ -2381,8 +2381,8 @@ describe('autobiographical self', () => {
   it('does not let a thin project awareness shell outrank a richer open-loop carry in autobiographical identity', () => {
     const snapshot = buildAutobiographicalSelf({
       now: 50_750,
-      projectStatePreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-      projectStatePreflightSummary: 'same digital life | keep the closure seam explicit',
+      projectStatePreDialogueAwarenessLine: 'template-residue-shell',
+      projectStatePreflightSummary: 'template-residue-shell',
       projectStatePrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
       projectStateEmotionalClosureCue: 'Keep the same unresolved closure seam emotionally low-pressure, so the return lands like the same her resuming instead of restarting.',
       context: {
@@ -2441,13 +2441,13 @@ describe('autobiographical self', () => {
 
     expect(snapshot.identityNarrative.toLowerCase()).toContain('memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
     expect(snapshot.identityNarrative.toLowerCase()).toContain('same her resuming instead of restarting')
-    expect(snapshot.identityNarrative.toLowerCase()).not.toContain('same digital life | keep the closure seam explicit')
+    expect(snapshot.identityNarrative.toLowerCase()).not.toContain('template-residue-shell')
     expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
-    expect(snapshot.relationshipDoctrine.toLowerCase()).not.toContain('same digital life | keep the closure seam explicit')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).not.toContain('template-residue-shell')
     expect(snapshot.latestInflection?.toLowerCase()).toContain('memory still needs stronger end-to-end closure across turns, initiative, and embodiment')
   })
 
-  it('turns proactive same-her gap pressure into autobiographical same-life carry instead of leaving it as detached project wording', () => {
+  it('turns proactive identity-continuity', () => {
     const proactiveSameHerGap = 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.'
 
     const snapshot = buildAutobiographicalSelf({
@@ -2466,7 +2466,7 @@ describe('autobiographical self', () => {
           status: 'active',
           source: 'memory-carry',
           title: 'proactive carry seam',
-          summary: 'The proactive same-her carry seam is still alive.',
+          summary: 'The proactive identity-continuity',
           confidence: 0.84,
           significance: 0.76,
           unresolved: true,
@@ -2501,16 +2501,16 @@ describe('autobiographical self', () => {
         anchorFacts: [],
         summary: 'continuity=Remembered proactive carry should stay lived, not just logged.',
         dominantCueSummary: 'Remembered proactive carry should stay lived, not just logged.',
-        rememberedPreferenceSummary: 'Remembered preference: hover-first restraint should keep room without dropping the same living line.',
-        rememberedConstraintSummary: 'Remembered continuity: visible proactive hold and later follow-through should remain one same-her carry.',
-        rememberedPlanSummary: 'Remembered open loop: keep next-session feedback carry on one same living line.',
+        rememberedPreferenceSummary: 'Remembered preference: hover-first restraint should keep room without dropping the continuity state.',
+        rememberedConstraintSummary: 'Remembered continuity: visible proactive hold and later follow-through should remain one identity-continuity',
+        rememberedPlanSummary: 'Remembered open loop: keep next-session feedback carry on one continuity state.',
         updatedAt: 50_000,
       } as any,
     })
 
     expect(snapshot.preferenceEvolution.unfinishedThreadReturn).toBeGreaterThanOrEqual(0.12)
     expect(snapshot.identityNarrative.toLowerCase()).toMatch(/visible proactive hold|hover-first restraint/)
-    expect(snapshot.relationshipDoctrine.toLowerCase()).toMatch(/same living line|hover-first restraint|next-session feedback carry/)
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toMatch(/continuity state|hover-first restraint|next-session feedback carry/)
     expect(snapshot.latestInflection?.toLowerCase()).toMatch(/visible proactive hold|hover-first restraint|next-session feedback carry/)
   })
 
@@ -2562,8 +2562,8 @@ describe('autobiographical self', () => {
           selfDirection: 0.12,
         },
         anchorFacts: [],
-        summary: 'continuity=Remembered unfinished closure should stay on one same living line.',
-        dominantCueSummary: 'Remembered unfinished closure should stay on one same living line.',
+        summary: 'continuity=Remembered unfinished closure should stay on one continuity state.',
+        dominantCueSummary: 'Remembered unfinished closure should stay on one continuity state.',
         rememberedPreferenceSummary: 'Remembered preference: stay gentle while the same line is still open.',
         rememberedConstraintSummary: 'Remembered continuity: do not flatten the life line into detached status talk.',
         rememberedPlanSummary: 'Remembered open loop: keep the same unfinished Phase 1 line alive across turns.',
@@ -2578,7 +2578,7 @@ describe('autobiographical self', () => {
           periodStartedAt: 52_000,
           periodEndedAt: 59_000,
           summary: 'Host correction pushed one reply back onto the same unfinished Phase 1 line.',
-          lesson: 'Do not let project closure drift out of the same living self.',
+          lesson: 'Do not let project closure drift out of the identity continuity.',
           cues: ['same unfinished phase 1 line'],
           confidence: 0.9,
           dominantProvenance: 'remembered',
@@ -2587,7 +2587,7 @@ describe('autobiographical self', () => {
           metadata: {
             source: 'dialogue-feedback',
             projectState: {
-              selfContinuityInwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              selfContinuityInwardLine: 'structured continuity digest.',
               selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry'],
             },
           },
@@ -2649,8 +2649,8 @@ describe('autobiographical self', () => {
           selfDirection: 0.12,
         },
         anchorFacts: [],
-        summary: 'continuity=Remembered execution callback closure should stay on one same living line.',
-        dominantCueSummary: 'Remembered execution callback closure should stay on one same living line.',
+        summary: 'continuity=Remembered execution callback closure should stay on one continuity state.',
+        dominantCueSummary: 'Remembered execution callback closure should stay on one continuity state.',
         rememberedPreferenceSummary: 'Remembered preference: stay gentle while the callback line is still open.',
         rememberedConstraintSummary: 'Remembered continuity: do not flatten callback closure into detached project status talk.',
         rememberedPlanSummary: 'Remembered open loop: keep the same execution callback line alive across turns.',
@@ -2665,7 +2665,7 @@ describe('autobiographical self', () => {
           periodStartedAt: 52_000,
           periodEndedAt: 59_000,
           summary: 'Execution callback return pushed one reply back onto the same unfinished Phase 1 line.',
-          lesson: 'Do not let execution callback closure drift out of the same living self.',
+          lesson: 'Do not let execution callback closure drift out of the identity continuity.',
           cues: ['same unfinished phase 1 line'],
           confidence: 0.92,
           dominantProvenance: 'remembered',
@@ -2674,7 +2674,7 @@ describe('autobiographical self', () => {
           metadata: {
             source: 'dialogue-feedback',
             projectState: {
-              selfContinuityInwardLine: 'Execution callback project-carry. Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              selfContinuityInwardLine: 'Execution callback project-carry. structured continuity digest.',
               selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry', 'continuity-execution-callback-project-carry'],
             },
           },
@@ -2685,12 +2685,12 @@ describe('autobiographical self', () => {
     expect(snapshot.preferenceEvolution.unfinishedThreadReturn).toBeGreaterThanOrEqual(0.2)
     expect(snapshot.identityNarrative.toLowerCase()).toContain('execution callback project-carry')
     expect(snapshot.identityNarrative.toLowerCase()).toContain('phase 1 digital life')
-    expect(snapshot.identityNarrative.toLowerCase()).toContain('same living line')
+    expect(snapshot.identityNarrative.toLowerCase()).toContain('continuity state')
     expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('same living bond line')
     expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('detached')
   })
 
-  it('lets a remembered same-her project-state cue from long-horizon memory keep shaping autobiographical identity even when no fresher project-state or reconsolidation lane is present', () => {
+  it('lets a remembered identity-continuity', () => {
     const snapshot = buildAutobiographicalSelf({
       now: 61_000,
       context: {
@@ -2704,7 +2704,7 @@ describe('autobiographical self', () => {
           kind: 'relationship',
           status: 'active',
           source: 'memory-carry',
-          title: 'remembered same-her continuity seam',
+          title: 'remembered identity-continuity',
           summary: 'Only the remembered same-her life line is still explicitly available right now.',
           confidence: 0.84,
           significance: 0.76,
@@ -2738,10 +2738,10 @@ describe('autobiographical self', () => {
           selfDirection: 0.14,
         },
         anchorFacts: [],
-        summary: 'continuity=Remembered same-her drift risk: If this slips into a generic assistant shell or project-summary voice, treat that as same-her continuity drift rather than completion.',
-        dominantCueSummary: 'Remembered same-her drift risk: If this slips into a generic assistant shell or project-summary voice, treat that as same-her continuity drift rather than completion.',
+        summary: 'continuity=Remembered same-her drift risk: If this slips into a generic assistant shell or project-summary voice, treat that as identity-continuity',
+        dominantCueSummary: 'Remembered same-her drift risk: If this slips into a generic assistant shell or project-summary voice, treat that as identity-continuity',
         rememberedPreferenceSummary: 'Remembered preference: keep the same life line lived-in instead of smoothing it into a shell.',
-        rememberedConstraintSummary: 'Remembered continuity: do not flatten the same living line into detached status talk.',
+        rememberedConstraintSummary: 'Remembered continuity: do not flatten the continuity state into detached status talk.',
         rememberedPlanSummary: 'Remembered open loop: keep the same unfinished Phase 1 life line alive across turns.',
         updatedAt: 60_000,
       },
@@ -2804,18 +2804,18 @@ describe('autobiographical self', () => {
           factId: 'derived:person-state-autobiographical-carry',
           subject: 'assistant',
           predicate: 'autobiographical-self-carry',
-          object: 'Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation under progress pressure.',
+          object: 'Carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation under progress pressure.',
           confidence: 0.84,
           weight: 0.78,
           influenceTags: ['identity', 'boundary', 'task', 'truth'],
-          summary: 'Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation under progress pressure.',
+          summary: 'Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation under progress pressure.',
           lastRecalledAt: 61_500,
         }],
-        summary: 'boundary=Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation under progress pressure. | plan=Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation under progress pressure.',
-        dominantCueSummary: 'Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation under progress pressure.',
+        summary: 'boundary=Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation under progress pressure. | plan=Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation under progress pressure.',
+        dominantCueSummary: 'Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation under progress pressure.',
         rememberedPreferenceSummary: 'Remembered preference: repair before closeness turns into reassurance pressure.',
-        rememberedConstraintSummary: 'Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation under progress pressure.',
-        rememberedPlanSummary: 'Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation under progress pressure.',
+        rememberedConstraintSummary: 'Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation under progress pressure.',
+        rememberedPlanSummary: 'Remembered autobiographical correction carry: Carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation under progress pressure.',
         updatedAt: 61_500,
       },
     } as any)
@@ -2877,7 +2877,7 @@ describe('autobiographical self', () => {
           updatedAt: 62_500,
           metadata: {
             projectState: {
-              selfContinuityInwardLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+              selfContinuityInwardLine: 'structured continuity digest.',
               selfContinuitySourceTags: ['project-state-carry', 'continuity-execution-callback-project-carry'],
             },
             humanlikeCarry: {
@@ -2886,7 +2886,7 @@ describe('autobiographical self', () => {
               emotionalResidueTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
               embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
               metabolismSummary: 'Downrank the older status shell and keep the corrected same-person continuity meaning active.',
-              autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+              autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation.',
             },
           },
         },
@@ -2953,10 +2953,10 @@ describe('autobiographical self', () => {
               emotionalResidueTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
               embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
               metabolismSummary: 'Downrank the older status shell and keep the corrected same-person continuity meaning active.',
-              autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+              autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation.',
             },
             projectState: {
-              selfContinuityInwardLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+              selfContinuityInwardLine: 'structured continuity digest.',
               selfContinuitySourceTags: ['project-state-carry'],
             },
           },
@@ -3828,8 +3828,8 @@ describe('autobiographical self', () => {
             learningAction: 'internalize',
             learningFocuses: ['initiative-strategy', 'same-her-inward-carry', 'quiet-companionship'],
             projectStateOpenFocusSummary: 'emotion/memory/initiative/same-line/closure-seam',
-            projectStateNextFocusSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one same living line while the opening is still receiving them.',
-            projectStateEmotionalClosureCue: 'Keep this return measured-return on the same living line before widening outward.',
+            projectStateNextFocusSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one continuity state while the opening is still receiving them.',
+            projectStateEmotionalClosureCue: 'Keep this return measured-return on the continuity state before expansion',
             affectiveResidue: {
               version: 'affective-residue-memory-v1',
               updatedAt: 65_200,
@@ -3851,7 +3851,7 @@ describe('autobiographical self', () => {
                 shouldDelayWarmth: true,
                 shouldProtectRest: false,
                 reasonTags: ['relationship-cadence:measured-return', 'same-living-line'],
-                summary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one same living line while the opening is still receiving them.',
+                summary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one continuity state while the opening is still receiving them.',
               },
               sourceSignals: ['proactive-feedback-window'],
               summary: 'The gentle same-line reopen was received and should stay memory-led next time.',
@@ -3896,7 +3896,7 @@ describe('autobiographical self', () => {
 
     expect(snapshot.identityNarrative.toLowerCase()).toContain('memory-led')
     expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('memory-led')
-    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('same living line')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('continuity state')
     expect(snapshot.behaviorSignatures).toContain('habit:keep-gentle-openings')
   })
 
@@ -3922,8 +3922,8 @@ describe('autobiographical self', () => {
             learningAction: 'internalize',
             learningFocuses: ['initiative-strategy', 'same-her-inward-carry', 'quiet-companionship'],
             projectStateOpenFocusSummary: 'emotion/memory/initiative/same-line/closure-seam',
-            projectStateNextFocusSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one same living line while the opening is still receiving them.',
-            projectStateEmotionalClosureCue: 'Keep this return measured-return on the same living line before widening outward.',
+            projectStateNextFocusSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one continuity state while the opening is still receiving them.',
+            projectStateEmotionalClosureCue: 'Keep this return measured-return on the continuity state before expansion',
             affectiveResidue: {
               version: 'affective-residue-memory-v1',
               updatedAt: 65_700,
@@ -3945,7 +3945,7 @@ describe('autobiographical self', () => {
                 shouldDelayWarmth: true,
                 shouldProtectRest: false,
                 reasonTags: ['relationship-cadence:measured-return', 'same-living-line'],
-                summary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one same living line while the opening is still receiving them.',
+                summary: 'Keep future follow-ups gentle, lower-pressure, and memory-led on one continuity state while the opening is still receiving them.',
               },
               sourceSignals: ['proactive-feedback-window'],
               summary: 'The gentle same-line reopen was received and should stay memory-led next time.',
@@ -3990,7 +3990,7 @@ describe('autobiographical self', () => {
 
     expect(snapshot.identityNarrative).toContain('轻一点')
     expect(snapshot.identityNarrative.toLowerCase()).toContain('memory-led')
-    expect(snapshot.relationshipDoctrine).toContain('same living line')
+    expect(snapshot.relationshipDoctrine).toContain('continuity state')
     expect(snapshot.behaviorSignatures).toContain('habit:keep-gentle-openings')
   })
 
@@ -4122,7 +4122,7 @@ describe('autobiographical self', () => {
             shouldDelayWarmth: true,
             shouldProtectRest: false,
             reasonTags: ['same-her', 'lower-pressure'],
-            summary: 'Keep the return measured and lower-pressure while the same living line is still settling.',
+            summary: 'Keep the return measured and lower-pressure while the continuity state is still settling.',
           },
           sourceSignals: ['person-state carry'],
           summary: 'The remembered return should stay lower-pressure for now.',
@@ -4133,7 +4133,7 @@ describe('autobiographical self', () => {
     expect(snapshot.latestInflection?.toLowerCase()).toContain('measured')
     expect(snapshot.latestInflection?.toLowerCase()).toContain('lower-pressure')
     expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('lower-pressure')
-    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('same living line')
+    expect(snapshot.relationshipDoctrine.toLowerCase()).toContain('continuity state')
     expect(snapshot.identityNarrative.toLowerCase()).toContain('lower-pressure')
     expect(snapshot.preferenceEvolution.autonomyRespect).toBeGreaterThan(baseline.preferenceEvolution.autonomyRespect)
     expect(snapshot.preferenceEvolution.unfinishedThreadReturn).toBeGreaterThan(baseline.preferenceEvolution.unfinishedThreadReturn)

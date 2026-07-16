@@ -9,7 +9,7 @@ describe('runtime memory runtime', () => {
         kind: 'recall-attribution',
         payload: {
           whyNow: 'The remembered runtime seam still matters here.',
-          inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          inwardLine: 'structured continuity digest.',
           selectedEpisodes: [
             {
               summary: 'repair before closeness landed better on the same thread',
@@ -150,7 +150,7 @@ describe('runtime memory runtime', () => {
       sessionId: 'session-1',
       turnId: 'turn-1',
       at: 10,
-      selfContinuityInwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      selfContinuityInwardLine: 'structured continuity digest.',
       selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry'],
     })
 
@@ -182,7 +182,7 @@ describe('runtime memory runtime', () => {
           source: 'dialogue-feedback',
           feedback: 'robotic',
           projectState: expect.objectContaining({
-            selfContinuityInwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            selfContinuityInwardLine: 'structured continuity digest.',
             selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry'],
           }),
         }),

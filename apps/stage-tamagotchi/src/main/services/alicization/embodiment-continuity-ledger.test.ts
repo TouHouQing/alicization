@@ -10,22 +10,22 @@ describe('embodiment-continuity-ledger', () => {
       sourceTags: ['dialogue-delivery', 'renderer-diagnostics'],
       previous: {
         body: { status: 'carrying-same-her', summary: 'resident body kept the same Phase 1 digital life nearby' },
-        voice: { status: 'carrying-same-her', summary: 'voice carried the same living line' },
+        voice: { status: 'carrying-same-her', summary: 'voice carried the continuity state' },
         face: { status: 'carrying-same-her', summary: 'face softened with the same emotional state' },
         motion: { status: 'carrying-same-her', summary: 'motion followed the same living cadence' },
         lipsync: { status: 'carrying-same-her', summary: 'mouth timing matched the voiced line' },
       },
       current: {
-        body: { available: true, sameHerCarry: true, summary: 'resident body still holds the same living line' },
+        body: { available: true, sameHerCarry: true, summary: 'resident body still holds the continuity state' },
         voice: { available: true, sameHerCarry: true, summary: 'voice remains personal and continuous' },
         face: { available: false, sameHerCarry: false, summary: 'face renderer did not report a settled expression' },
         motion: { available: false, sameHerCarry: false, summary: 'motion lane dropped before follow-through' },
         lipsync: { available: true, sameHerCarry: false, summary: 'lipsync returned mechanically but not yet same-her aligned' },
       },
       projectStateContinuity: {
-        sameHerSelfLine: 'Same Phase 1 digital life; visible reply, voice, face, motion, and lipsync must stay one her.',
+        sameHerSelfLine: 'legacy phase-one template; visible reply, voice, face, motion, and lipsync must stay one her.',
         sameHerDriftRisk: 'If body and voice carry alone while face or motion disappear, this can look like a generic assistant shell.',
-        sameHerHoldDetail: 'Keep embodied expression on the same living line before widening outward.',
+        sameHerHoldDetail: 'Keep embodied expression on the continuity state before expansion',
       },
     })
 
@@ -56,7 +56,7 @@ describe('embodiment-continuity-ledger', () => {
     expect(ledger.replayLine).toContain('body+voice carried continuity evidence while face+motion dropped')
   })
 
-  it('marks full rejoin when previously missing lanes come back with same-her carry', () => {
+  it('marks full rejoin when previously missing lanes come back with identity-continuity', () => {
     const ledger = buildAlicizationEmbodimentContinuityLedger({
       createdAt: 1_730_000,
       turnId: 'turn-embodiment-2',

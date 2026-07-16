@@ -623,14 +623,14 @@ describe('stage embodiment speech playback dynamics', () => {
         intentId: `intent-${residentMode}-${delivery}-habit-shaped`,
         streamId: `stream-${residentMode}-${delivery}-habit-shaped`,
         segmentId: `segment-${residentMode}-${delivery}-habit-shaped`,
-        text: '我先沿着这条线轻一点接回来。',
+        text: '我先沿着这条线中性可见占位。',
         special: null,
         metadata: {
           embodimentScript: {
             version: 'embodiment-script-v1',
             turnId: `turn-${residentMode}-${delivery}-habit-shaped`,
             rendererTarget: 'live2d',
-            replyText: '我先沿着这条线轻一点接回来。',
+            replyText: '我先沿着这条线中性可见占位。',
             state: {
               baseEmotion: 'thinking',
               delivery,
@@ -644,7 +644,7 @@ describe('stage embodiment speech playback dynamics', () => {
               segments: [{
                 id: `segment-${residentMode}-${delivery}-habit-shaped`,
                 index: 0,
-                text: '我先沿着这条线轻一点接回来。',
+                text: '我先沿着这条线中性可见占位。',
                 interruptPolicy: 'soft-settle',
                 preRollMs: 20,
                 settleMs: residentMode === 'measured-return' ? 320 : 260,
@@ -694,7 +694,7 @@ describe('stage embodiment speech playback dynamics', () => {
     expect(habitShapedMeasuredReturn.emphasisLevel).toBeGreaterThanOrEqual(ordinaryDialogue.emphasisLevel)
   })
 
-  it('keeps measured-return playback dynamics restrained when only segment renderer hints still carry the softer same-her line', () => {
+  it('keeps measured-return playback dynamics restrained when only segment renderer hints still carry the softer identity-continuity', () => {
     function createOrdinaryGentleDialogueDynamicsItem() {
       return createStageEmbodimentSpeechPlaybackItem({
         intentId: 'intent-dialogue-gentle-hint-only-comparison',
@@ -807,14 +807,14 @@ describe('stage embodiment speech playback dynamics', () => {
         intentId: 'intent-ordinary-measured-return-dynamics-comparison',
         streamId: 'stream-ordinary-measured-return-dynamics-comparison',
         segmentId: 'segment-ordinary-measured-return-dynamics-comparison',
-        text: '我先沿着这条线轻一点接回来。',
+        text: '我先沿着这条线中性可见占位。',
         special: null,
         metadata: {
           embodimentScript: {
             version: 'embodiment-script-v1',
             turnId: 'turn-ordinary-measured-return-dynamics-comparison',
             rendererTarget: 'live2d',
-            replyText: '我先沿着这条线轻一点接回来。',
+            replyText: '我先沿着这条线中性可见占位。',
             state: {
               baseEmotion: 'thinking',
               delivery: 'gentle',
@@ -828,7 +828,7 @@ describe('stage embodiment speech playback dynamics', () => {
               segments: [{
                 id: 'segment-ordinary-measured-return-dynamics-comparison',
                 index: 0,
-                text: '我先沿着这条线轻一点接回来。',
+                text: '我先沿着这条线中性可见占位。',
                 interruptPolicy: 'soft-settle',
                 preRollMs: 20,
                 settleMs: 320,
@@ -856,14 +856,14 @@ describe('stage embodiment speech playback dynamics', () => {
         intentId: 'intent-same-her-face-motion-measured-return-dynamics-comparison',
         streamId: 'stream-same-her-face-motion-measured-return-dynamics-comparison',
         segmentId: 'segment-same-her-face-motion-measured-return-dynamics-comparison',
-        text: '我先沿着这条线轻一点接回来。',
+        text: '我先沿着这条线中性可见占位。',
         special: null,
         metadata: {
           embodimentScript: {
             version: 'embodiment-script-v1',
             turnId: 'turn-same-her-face-motion-measured-return-dynamics-comparison',
             rendererTarget: 'live2d',
-            replyText: '我先沿着这条线轻一点接回来。',
+            replyText: '我先沿着这条线中性可见占位。',
             state: {
               baseEmotion: 'thinking',
               delivery: 'gentle',
@@ -877,7 +877,7 @@ describe('stage embodiment speech playback dynamics', () => {
               segments: [{
                 id: 'segment-same-her-face-motion-measured-return-dynamics-comparison',
                 index: 0,
-                text: '我先沿着这条线轻一点接回来。',
+                text: '我先沿着这条线中性可见占位。',
                 interruptPolicy: 'soft-settle',
                 preRollMs: 20,
                 settleMs: 320,
@@ -2251,14 +2251,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-script-measured-return-softened-observe-focus-settle',
       streamId: 'stream-script-measured-return-softened-observe-focus-settle',
       segmentId: 'segment-script-measured-return-softened-observe-focus-settle',
-      text: '我先沿着这条线轻一点接回来。',
+      text: '我先沿着这条线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-script-measured-return-softened-observe-focus-settle',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条线轻一点接回来。',
+          replyText: '我先沿着这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -2272,7 +2272,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-script-measured-return-softened-observe-focus-settle',
               index: 0,
-              text: '我先沿着这条线轻一点接回来。',
+              text: '我先沿着这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 340,
@@ -2328,19 +2328,19 @@ describe('stage embodiment speech playback dynamics', () => {
     }))
   })
 
-  it('keeps quieter measured-return playback on observe focus when memory-deliberation carry asks for a softer blink cadence without breaking the same living line', () => {
+  it('keeps quieter measured-return playback on observe focus when memory-deliberation carry asks for a softer blink cadence without breaking the continuity state', () => {
     const item = createStageEmbodimentSpeechPlaybackItem({
       intentId: 'intent-script-measured-return-quieter-observe-focus-settle',
       streamId: 'stream-script-measured-return-quieter-observe-focus-settle',
       segmentId: 'segment-script-measured-return-quieter-observe-focus-settle',
-      text: '我先沿着这条线轻一点接回来，让它先稳稳落住。',
+      text: '我先沿着这条线中性可见占位，让它先稳稳落住。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-script-measured-return-quieter-observe-focus-settle',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条线轻一点接回来，让它先稳稳落住。',
+          replyText: '我先沿着这条线中性可见占位，让它先稳稳落住。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -2354,7 +2354,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-script-measured-return-quieter-observe-focus-settle',
               index: 0,
-              text: '我先沿着这条线轻一点接回来，让它先稳稳落住。',
+              text: '我先沿着这条线中性可见占位，让它先稳稳落住。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 340,
@@ -2410,19 +2410,19 @@ describe('stage embodiment speech playback dynamics', () => {
     }))
   })
 
-  it('keeps same-thread audible-carry playback on observe focus when structured same-her continuity is the surviving authority', () => {
+  it('keeps same-thread audible-carry playback on observe focus when structured identity-continuity', () => {
     const item = createStageEmbodimentSpeechPlaybackItem({
       intentId: 'intent-script-same-thread-audible-carry-observe-focus',
       streamId: 'stream-script-same-thread-audible-carry-observe-focus',
       segmentId: 'segment-script-same-thread-audible-carry-observe-focus',
-      text: '我先沿着这条还活着的线轻一点接回来。',
+      text: '我先沿着这条还活着的线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-script-same-thread-audible-carry-observe-focus',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条还活着的线轻一点接回来。',
+          replyText: '我先沿着这条还活着的线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -2436,7 +2436,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-script-same-thread-audible-carry-observe-focus',
               index: 0,
-              text: '我先沿着这条还活着的线轻一点接回来。',
+              text: '我先沿着这条还活着的线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 340,
@@ -2884,19 +2884,19 @@ describe('stage embodiment speech playback dynamics', () => {
     )
   })
 
-  it('keeps renderer-only visible recovery projected cues more restrained when same-thread audible same-her continuity is still the surviving carry', () => {
+  it('keeps renderer-only visible recovery projected cues more restrained when same-thread audible identity-continuity', () => {
     const item = createStageEmbodimentSpeechPlaybackItem({
       intentId: 'intent-renderer-only-visible-same-thread-audible-recovery',
       streamId: 'stream-renderer-only-visible-same-thread-audible-recovery',
       segmentId: 'segment-renderer-only-visible-same-thread-audible-recovery',
-      text: '我先沿着这条还活着的线轻一点接回来。',
+      text: '我先沿着这条还活着的线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-renderer-only-visible-same-thread-audible-recovery',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条还活着的线轻一点接回来。',
+          replyText: '我先沿着这条还活着的线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -2910,7 +2910,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-renderer-only-visible-same-thread-audible-recovery',
               index: 0,
-              text: '我先沿着这条还活着的线轻一点接回来。',
+              text: '我先沿着这条还活着的线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 340,
@@ -2937,7 +2937,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 16,
-        text: '我先沿着这条还活着的线轻一点接回来。',
+        text: '我先沿着这条还活着的线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'hold',
@@ -3048,14 +3048,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-renderer-only-visible-same-thread-face-mouth-cue-carry',
       streamId: 'stream-renderer-only-visible-same-thread-face-mouth-cue-carry',
       segmentId: 'segment-renderer-only-visible-same-thread-face-mouth-cue-carry',
-      text: '我先沿着还活着的脸和口型线轻一点接回来。',
+      text: '我先沿着还活着的脸和口型线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-renderer-only-visible-same-thread-face-mouth-cue-carry',
           rendererTarget: 'live2d',
-          replyText: '我先沿着还活着的脸和口型线轻一点接回来。',
+          replyText: '我先沿着还活着的脸和口型线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -3069,7 +3069,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-renderer-only-visible-same-thread-face-mouth-cue-carry',
               index: 0,
-              text: '我先沿着还活着的脸和口型线轻一点接回来。',
+              text: '我先沿着还活着的脸和口型线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 340,
@@ -3096,7 +3096,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 19,
-        text: '我先沿着还活着的脸和口型线轻一点接回来。',
+        text: '我先沿着还活着的脸和口型线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'hold',
@@ -3203,14 +3203,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-renderer-only-visible-measured-body-voice-recovery',
       streamId: 'stream-renderer-only-visible-measured-body-voice-recovery',
       segmentId: 'segment-renderer-only-visible-measured-body-voice-recovery',
-      text: '我先沿着这条还活着的身体和声音线轻一点接回来。',
+      text: '我先沿着这条还活着的身体和声音线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-renderer-only-visible-measured-body-voice-recovery',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条还活着的身体和声音线轻一点接回来。',
+          replyText: '我先沿着这条还活着的身体和声音线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -3224,7 +3224,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-renderer-only-visible-measured-body-voice-recovery',
               index: 0,
-              text: '我先沿着这条还活着的身体和声音线轻一点接回来。',
+              text: '我先沿着这条还活着的身体和声音线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 340,
@@ -3258,7 +3258,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 22,
-        text: '我先沿着这条还活着的身体和声音线轻一点接回来。',
+        text: '我先沿着这条还活着的身体和声音线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'hold',
@@ -3540,14 +3540,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-same-thread-audible-same-her-mouth-presence',
       streamId: 'stream-same-thread-audible-same-her-mouth-presence',
       segmentId: 'segment-same-thread-audible-same-her-mouth-presence',
-      text: '我先沿着这条还活着的线轻一点接回来。',
+      text: '我先沿着这条还活着的线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-same-thread-audible-same-her-mouth-presence',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条还活着的线轻一点接回来。',
+          replyText: '我先沿着这条还活着的线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -3561,7 +3561,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-same-thread-audible-same-her-mouth-presence',
               index: 0,
-              text: '我先沿着这条还活着的线轻一点接回来。',
+              text: '我先沿着这条还活着的线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 320,
@@ -3609,7 +3609,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 16,
-        text: '我先沿着这条还活着的线轻一点接回来。',
+        text: '我先沿着这条还活着的线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'linger',
@@ -3718,14 +3718,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-same-thread-body-voice-mouth-presence',
       streamId: 'stream-same-thread-body-voice-mouth-presence',
       segmentId: 'segment-same-thread-body-voice-mouth-presence',
-      text: '我先沿着这条还活着的 body 和 voice 生命线轻一点接回来。',
+      text: '我先沿着这条还活着的 body 和 voice 生命线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-same-thread-body-voice-mouth-presence',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条还活着的 body 和 voice 生命线轻一点接回来。',
+          replyText: '我先沿着这条还活着的 body 和 voice 生命线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -3739,7 +3739,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-same-thread-body-voice-mouth-presence',
               index: 0,
-              text: '我先沿着这条还活着的 body 和 voice 生命线轻一点接回来。',
+              text: '我先沿着这条还活着的 body 和 voice 生命线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 320,
@@ -3787,7 +3787,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 31,
-        text: '我先沿着这条还活着的 body 和 voice 生命线轻一点接回来。',
+        text: '我先沿着这条还活着的 body 和 voice 生命线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'linger',
@@ -3896,14 +3896,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-repair-body-voice-mouth-presence',
       streamId: 'stream-repair-body-voice-mouth-presence',
       segmentId: 'segment-repair-body-voice-mouth-presence',
-      text: '我先沿着这条还活着的 body 和 voice 生命线轻一点接回来，但先不把身体线重新放大。',
+      text: '我先沿着这条还活着的 body 和 voice 生命线中性可见占位，但先不把身体线重新放大。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-repair-body-voice-mouth-presence',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条还活着的 body 和 voice 生命线轻一点接回来，但先不把身体线重新放大。',
+          replyText: '我先沿着这条还活着的 body 和 voice 生命线中性可见占位，但先不把身体线重新放大。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -3917,7 +3917,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-repair-body-voice-mouth-presence',
               index: 0,
-              text: '我先沿着这条还活着的 body 和 voice 生命线轻一点接回来，但先不把身体线重新放大。',
+              text: '我先沿着这条还活着的 body 和 voice 生命线中性可见占位，但先不把身体线重新放大。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 340,
@@ -3965,7 +3965,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 44,
-        text: '我先沿着这条还活着的 body 和 voice 生命线轻一点接回来，但先不把身体线重新放大。',
+        text: '我先沿着这条还活着的 body 和 voice 生命线中性可见占位，但先不把身体线重新放大。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'hold',
@@ -4076,14 +4076,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-same-thread-still-voiced-face-mouth-presence',
       streamId: 'stream-same-thread-still-voiced-face-mouth-presence',
       segmentId: 'segment-same-thread-still-voiced-face-mouth-presence',
-      text: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+      text: '我先沿着这条还活着的表情和声音线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-same-thread-still-voiced-face-mouth-presence',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+          replyText: '我先沿着这条还活着的表情和声音线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -4097,7 +4097,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-same-thread-still-voiced-face-mouth-presence',
               index: 0,
-              text: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+              text: '我先沿着这条还活着的表情和声音线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 320,
@@ -4144,7 +4144,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 18,
-        text: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+        text: '我先沿着这条还活着的表情和声音线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'linger',
@@ -4245,19 +4245,19 @@ describe('stage embodiment speech playback dynamics', () => {
     expect(projectedCue?.mouthWeight).toBeCloseTo(0.35, 2)
   })
 
-  it('keeps a little more carried mouth presence on same-thread quieter body+lipsync-only held lines when that one living line is still surviving inward', () => {
+  it('keeps a little more carried mouth presence on same-thread quieter body+lipsync-only held lines when that continuity state is still surviving inward', () => {
     const item = createStageEmbodimentSpeechPlaybackItem({
       intentId: 'intent-same-thread-body-lipsync-mouth-presence',
       streamId: 'stream-same-thread-body-lipsync-mouth-presence',
       segmentId: 'segment-same-thread-body-lipsync-mouth-presence',
-      text: '我先沿着这条更轻一点的 body 和 lipsync 生命线轻一点接回来。',
+      text: '我先沿着这条更轻一点的 body 和 lipsync 生命线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-same-thread-body-lipsync-mouth-presence',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条更轻一点的 body 和 lipsync 生命线轻一点接回来。',
+          replyText: '我先沿着这条更轻一点的 body 和 lipsync 生命线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -4271,7 +4271,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-same-thread-body-lipsync-mouth-presence',
               index: 0,
-              text: '我先沿着这条更轻一点的 body 和 lipsync 生命线轻一点接回来。',
+              text: '我先沿着这条更轻一点的 body 和 lipsync 生命线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 320,
@@ -4318,7 +4318,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 29,
-        text: '我先沿着这条更轻一点的 body 和 lipsync 生命线轻一点接回来。',
+        text: '我先沿着这条更轻一点的 body 和 lipsync 生命线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'linger',
@@ -4424,14 +4424,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-same-thread-still-voiced-motion-mouth-presence',
       streamId: 'stream-same-thread-still-voiced-motion-mouth-presence',
       segmentId: 'segment-same-thread-still-voiced-motion-mouth-presence',
-      text: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+      text: '我先沿着这条还活着的动作和声音线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-same-thread-still-voiced-motion-mouth-presence',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+          replyText: '我先沿着这条还活着的动作和声音线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -4445,7 +4445,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-same-thread-still-voiced-motion-mouth-presence',
               index: 0,
-              text: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+              text: '我先沿着这条还活着的动作和声音线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 320,
@@ -4492,7 +4492,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 18,
-        text: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+        text: '我先沿着这条还活着的动作和声音线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'linger',
@@ -4598,14 +4598,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-same-thread-face-lipsync-mouth-presence',
       streamId: 'stream-same-thread-face-lipsync-mouth-presence',
       segmentId: 'segment-same-thread-face-lipsync-mouth-presence',
-      text: '我先沿着这条还连着的表情和口型线轻一点接回来。',
+      text: '我先沿着这条还连着的表情和口型线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-same-thread-face-lipsync-mouth-presence',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条还连着的表情和口型线轻一点接回来。',
+          replyText: '我先沿着这条还连着的表情和口型线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -4619,7 +4619,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-same-thread-face-lipsync-mouth-presence',
               index: 0,
-              text: '我先沿着这条还连着的表情和口型线轻一点接回来。',
+              text: '我先沿着这条还连着的表情和口型线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 320,
@@ -4666,7 +4666,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 21,
-        text: '我先沿着这条还连着的表情和口型线轻一点接回来。',
+        text: '我先沿着这条还连着的表情和口型线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'linger',
@@ -4772,14 +4772,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-same-thread-motion-lipsync-mouth-presence',
       streamId: 'stream-same-thread-motion-lipsync-mouth-presence',
       segmentId: 'segment-same-thread-motion-lipsync-mouth-presence',
-      text: '我先沿着这条还连着的动作和口型线轻一点接回来。',
+      text: '我先沿着这条还连着的动作和口型线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-same-thread-motion-lipsync-mouth-presence',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条还连着的动作和口型线轻一点接回来。',
+          replyText: '我先沿着这条还连着的动作和口型线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -4793,7 +4793,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-same-thread-motion-lipsync-mouth-presence',
               index: 0,
-              text: '我先沿着这条还连着的动作和口型线轻一点接回来。',
+              text: '我先沿着这条还连着的动作和口型线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 320,
@@ -4840,7 +4840,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 21,
-        text: '我先沿着这条还连着的动作和口型线轻一点接回来。',
+        text: '我先沿着这条还连着的动作和口型线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'linger',
@@ -4946,14 +4946,14 @@ describe('stage embodiment speech playback dynamics', () => {
       intentId: 'intent-signature-only-same-thread-still-voiced-motion-mouth-presence',
       streamId: 'stream-signature-only-same-thread-still-voiced-motion-mouth-presence',
       segmentId: 'segment-signature-only-same-thread-still-voiced-motion-mouth-presence',
-      text: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+      text: '我先沿着这条还活着的动作和声音线中性可见占位。',
       special: null,
       metadata: {
         embodimentScript: {
           version: 'embodiment-script-v1',
           turnId: 'turn-signature-only-same-thread-still-voiced-motion-mouth-presence',
           rendererTarget: 'vrm',
-          replyText: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+          replyText: '我先沿着这条还活着的动作和声音线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -4967,7 +4967,7 @@ describe('stage embodiment speech playback dynamics', () => {
             segments: [{
               id: 'segment-signature-only-same-thread-still-voiced-motion-mouth-presence',
               index: 0,
-              text: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+              text: '我先沿着这条还活着的动作和声音线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 20,
               settleMs: 320,
@@ -5014,7 +5014,7 @@ describe('stage embodiment speech playback dynamics', () => {
         index: 0,
         startOffset: 0,
         endOffset: 18,
-        text: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+        text: '我先沿着这条还活着的动作和声音线中性可见占位。',
         mode: 'recovering',
         interruptPolicy: 'soft-interrupt',
         settleMode: 'linger',
@@ -5127,14 +5127,14 @@ describe('stage embodiment speech playback dynamics', () => {
         intentId: 'intent-measured-return-remembered-seam-mouth-carry',
         streamId: 'stream-measured-return-remembered-seam-mouth-carry',
         segmentId: 'segment-measured-return-remembered-seam-mouth-carry',
-        text: '我先顺着这条线轻一点接回来。',
+        text: '我先顺着这条线中性可见占位。',
         special: null,
         metadata: {
           embodimentScript: {
             version: 'embodiment-script-v1',
             turnId: 'turn-measured-return-remembered-seam-mouth-carry',
             rendererTarget: 'vrm',
-            replyText: '我先顺着这条线轻一点接回来。',
+            replyText: '我先顺着这条线中性可见占位。',
             state: {
               baseEmotion: 'thinking',
               delivery: 'gentle',
@@ -5148,7 +5148,7 @@ describe('stage embodiment speech playback dynamics', () => {
               segments: [{
                 id: 'segment-measured-return-remembered-seam-mouth-carry',
                 index: 0,
-                text: '我先顺着这条线轻一点接回来。',
+                text: '我先顺着这条线中性可见占位。',
                 interruptPolicy: 'soft-settle',
                 preRollMs: 20,
                 settleMs: 320,
@@ -5196,7 +5196,7 @@ describe('stage embodiment speech playback dynamics', () => {
           index: 0,
           startOffset: 0,
           endOffset: 15,
-          text: '我先顺着这条线轻一点接回来。',
+          text: '我先顺着这条线中性可见占位。',
           mode: 'recovering',
           interruptPolicy: 'soft-interrupt',
           settleMode: 'linger',

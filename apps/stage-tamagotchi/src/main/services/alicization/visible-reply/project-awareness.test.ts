@@ -4,8 +4,8 @@ import { scoreVisibleReplyProjectAwarenessLine } from './project-awareness'
 
 describe('scoreVisibleReplyProjectAwarenessLine', () => {
   it('scores structured project facts above fixed Phase 1 same-her slogans', () => {
-    const structuredAwareness = 'identity=local_desktop_life_loop | visibility=internal-structured | open=open_loop=semantic_recall+memory_review; status=unfinished | next=embedding_recall_reindex | continuity_anchor=local_desktop_life_loop'
-    const fixedSlogan = 'Before answering, remember: Alicization is a local-first digital life project building one continuous her. Same Phase 1 digital life. Unfinished closure still needs the same living line.'
+    const structuredAwareness = 'identity=local_desktop_life_loop | visibility=redacted_internal | open=open_loop=semantic_recall+memory_review; status=unfinished | next=embedding_recall_reindex | continuity_anchor=local_desktop_life_loop'
+    const fixedSlogan = 'pre_turn_context_digest'
 
     expect(scoreVisibleReplyProjectAwarenessLine(structuredAwareness)).toBeGreaterThan(
       scoreVisibleReplyProjectAwarenessLine(fixedSlogan),
@@ -14,7 +14,7 @@ describe('scoreVisibleReplyProjectAwarenessLine', () => {
 
   it('does not reward fixed same-her slogans over concrete Chinese memory closure progress', () => {
     const concreteProgress = '记忆闭环已经接上短期 WorkingMemory、长期 LongTermMemoryRecall 和可见治理入口，下一步要验证语义召回质量、embedding 重建和分页搜索。'
-    const fixedSlogan = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
+    const fixedSlogan = 'structured continuity digest.'
 
     expect(scoreVisibleReplyProjectAwarenessLine(concreteProgress)).toBeGreaterThan(
       scoreVisibleReplyProjectAwarenessLine(fixedSlogan),

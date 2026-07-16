@@ -289,21 +289,21 @@ describe('runtime proactive feedback', () => {
     })
 
     const next = await runtime.settlePendingProactiveOutcomesFromUserTurn('card-1', 110, 'chat-start', {
-      userText: '先别催，但这条线你可以轻一点接回来。',
+      userText: '先别催，但这条线你可以中性可见占位。',
     })
 
     expect(next.recentOutcomes.at(-1)).toEqual(expect.objectContaining({
       turnId: 'turn-proactive-lived-dialogue',
       outcome: 'reply-within-120s',
       assistantText: '我没有催你，但我还记得那条 runtime seam 没收完，要不要我轻轻接一下？',
-      userText: '先别催，但这条线你可以轻一点接回来。',
+      userText: '先别催，但这条线你可以中性可见占位。',
     }))
     expect(buildProactiveFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
       outcomes: [
         expect.objectContaining({
           turnId: 'turn-proactive-lived-dialogue',
           assistantText: '我没有催你，但我还记得那条 runtime seam 没收完，要不要我轻轻接一下？',
-          userText: '先别催，但这条线你可以轻一点接回来。',
+          userText: '先别催，但这条线你可以中性可见占位。',
         }),
       ],
     }))

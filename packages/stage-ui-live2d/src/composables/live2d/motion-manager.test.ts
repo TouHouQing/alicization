@@ -1171,7 +1171,7 @@ describe('live2d motion manager performance layers', () => {
     expect(readParameter(quietModel, 'ParamMouthOpen')).toBeGreaterThanOrEqual(0)
   })
 
-  it('keeps scripted live2d mouth continuity alive through post-stop frames when continuityHoldMs extends the same living line', async () => {
+  it('keeps scripted live2d mouth continuity alive through post-stop frames when continuityHoldMs extends the continuity state', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
     const defaultPlugin = useMotionUpdatePluginPerformanceLayers()
     const extendedPlugin = useMotionUpdatePluginPerformanceLayers()
@@ -1695,7 +1695,7 @@ describe('live2d motion manager performance layers', () => {
     expect(lateExtendedStopCheek).toBeGreaterThanOrEqual(beforeStopCheek * 0.35)
   })
 
-  it('refreshes the live2d facial release window before expiry fallback when same-her continuity changes on the same active cue', async () => {
+  it('refreshes the live2d facial release window before expiry fallback when identity-continuity', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
     const controlPlugin = useMotionUpdatePluginPerformanceLayers()
     const refreshedPlugin = useMotionUpdatePluginPerformanceLayers()

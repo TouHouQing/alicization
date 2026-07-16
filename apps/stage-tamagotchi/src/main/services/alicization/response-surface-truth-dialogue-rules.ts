@@ -67,13 +67,13 @@ export function buildAlicizationResponseSurfaceTruthDialogueRules(input: {
   }
   if (input.truthDiscipline.shouldOnlySurfaceMemoryStableCore) {
     pushUniqueAlicizationResponseSurfaceRule(mustDo, 'If recollection becomes visible, let only the stable remembered core cross onto the surface.')
-    pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'contested_remembered_detail_outruns_stable_core=blocked')
+    pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'Do not let contested remembered detail outrun the stable remembered core.')
   }
   if (input.truthDiscipline.shouldLabelMemoryProvenance)
     pushUniqueAlicizationResponseSurfaceRule(mustDo, 'If recollection becomes visible, mark it as memory, residue, inference, or reconstruction rather than settled live fact.')
   if (input.truthDiscipline.shouldDelayMemoryUntilAfterPayoff) {
     pushUniqueAlicizationResponseSurfaceRule(mustDo, 'Land the live payoff first, then reopen remembered continuity only if room remains.')
-    pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'recollection_before_current_payoff=blocked')
+    pushUniqueAlicizationResponseSurfaceRule(mustNotDo, 'Do not surface recollection before the current payoff lands.')
   }
   if (
     input.briefTurnMode === 'care'

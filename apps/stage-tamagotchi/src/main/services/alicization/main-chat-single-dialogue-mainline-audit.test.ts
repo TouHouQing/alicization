@@ -24,7 +24,6 @@ const productionDialogueFiles = [
   'apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/execution-delivery-surface.ts',
-  'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/settlement.ts',
   'packages/stage-ui/src/stores/chat.ts',
   'packages/stage-ui/src/composables/alicization-structured-output.ts',
@@ -38,6 +37,8 @@ describe('single memory dialogue mainline audit', () => {
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-fast-path-project-state-provider.test.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-follow-up-payoff.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-follow-up-payoff.test.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts',
     ] as const
 
     for (const path of deletedPaths)
@@ -102,10 +103,7 @@ describe('single memory dialogue mainline audit', () => {
 
     for (const { path, source } of sources) {
       expect(source, path).not.toMatch(
-        /active-dialogue-fast-path|active-dialogue-compact|stageAssistantFallback|createStructuredFallback|repairStructuredContractLocally|structuredRetrySystemPrompt/u,
-      )
-      expect(source, path).not.toMatch(
-        /enrichProjectStateAnswerGovernanceIfNeeded|alicizationProjectStateAnswerContractLines/u,
+        /active-dialogue-fast-path|active-dialogue-compact|stageAssistantFallback|createStructuredFallback|repairStructuredContractLocally|structuredRetrySystemPrompt|rewriteAlicizationVisibleReplySecondPass|rewriteSecondPass|rewriteStructuredVisibleReply/u,
       )
     }
 

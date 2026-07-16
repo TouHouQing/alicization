@@ -33,7 +33,7 @@ describe('alicization same-her renderer hints', () => {
     ])
   })
 
-  it('keeps coordinator-style body+voice-only continuity on a softer same-her carry instead of overstating it as an audible-body carry', () => {
+  it('keeps coordinator-style body+voice-only continuity on a softer identity-continuity', () => {
     expect(hasAlicizationAudibleSameHerCarry({
       signature: 'embodiment:audible_continuity_line',
       reasonTags: ['embodiment:body+voice-only'],
@@ -45,7 +45,7 @@ describe('alicization same-her renderer hints', () => {
     })).toBe(true)
   })
 
-  it('keeps resident freeform body+voice-only signatures on the softer same-her carry instead of widening them into audible-body carry', () => {
+  it('keeps resident freeform body+voice-only signatures on the softer identity-continuity', () => {
     expect(hasAlicizationAudibleSameHerCarry({
       signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
       reasonTags: ['companionship'],
@@ -57,7 +57,7 @@ describe('alicization same-her renderer hints', () => {
     })).toBe(true)
   })
 
-  it('treats body-lipsync-voice-rejoin continuity as an audible same-her carry across signature and reason-tag variants', () => {
+  it('treats body-lipsync-voice-rejoin continuity as an audible identity-continuity', () => {
     expect(hasAlicizationAudibleSameHerCarry({
       signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
@@ -69,7 +69,7 @@ describe('alicization same-her renderer hints', () => {
     })).toBe(true)
   })
 
-  it('treats body+lipsync-only and lipsync+voice-only continuity as quieter same-her carry', () => {
+  it('treats body+lipsync-only and lipsync+voice-only continuity as quieter identity-continuity', () => {
     expect(hasAlicizationQuieterSameHerCarry({
       signature: 'resident|main-runtime|same-thread',
       reasonTags: ['embodiment:body+lipsync-only'],
@@ -81,7 +81,7 @@ describe('alicization same-her renderer hints', () => {
     })).toBe(true)
   })
 
-  it('treats face+lipsync-only and motion+lipsync-only continuity as quieter same-her carry', () => {
+  it('treats face+lipsync-only and motion+lipsync-only continuity as quieter identity-continuity', () => {
     expect(hasAlicizationQuieterSameHerCarry({
       signature: 'resident|main-runtime|same-thread',
       reasonTags: ['lane=face+lipsync-only'],
@@ -93,7 +93,7 @@ describe('alicization same-her renderer hints', () => {
     })).toBe(true)
   })
 
-  it('treats still-voiced face and motion continuity as still-voiced same-her carry', () => {
+  it('treats still-voiced face and motion continuity as still-voiced identity-continuity', () => {
     expect(hasAlicizationStillVoicedSameHerCarry({
       signature: 'embodiment:still-voiced-face-line',
       reasonTags: ['companionship'],
@@ -110,7 +110,7 @@ describe('alicization same-her renderer hints', () => {
     })).toBe(true)
   })
 
-  it('treats richer still-voiced face-and-mouth and motion-and-mouth continuity as still-voiced same-her carry', () => {
+  it('treats richer still-voiced face-and-mouth and motion-and-mouth continuity as still-voiced identity-continuity', () => {
     expect(hasAlicizationStillVoicedSameHerCarry({
       signature: 'lane=face+lipsync+voice-only',
       reasonTags: ['companionship'],
@@ -144,7 +144,7 @@ describe('alicization same-her renderer hints', () => {
     })).toBe(false)
   })
 
-  it('treats richer still-voiced face-and-motion continuity as still-voiced same-her carry', () => {
+  it('treats richer still-voiced face-and-motion continuity as still-voiced identity-continuity', () => {
     expect(hasAlicizationStillVoicedSameHerCarry({
       signature: 'lane=face+motion+voice-only',
       reasonTags: ['companionship'],
@@ -156,7 +156,7 @@ describe('alicization same-her renderer hints', () => {
     })).toBe(true)
   })
 
-  it('treats audible, quieter, and still-voiced continuity as softened same-her carry', () => {
+  it('treats audible, quieter, and still-voiced continuity as softened identity-continuity', () => {
     expect(hasAlicizationSoftenedSameHerCarry({
       signature: 'embodiment:audible_continuity_line',
       reasonTags: ['companionship'],
@@ -173,7 +173,7 @@ describe('alicization same-her renderer hints', () => {
     })).toBe(true)
   })
 
-  it('does not overstate unrelated continuity cues into audible same-her carry', () => {
+  it('does not overstate unrelated continuity cues into audible identity-continuity', () => {
     expect(hasAlicizationAudibleSameHerCarry({
       signature: 'resident|ordinary-thinking',
       reasonTags: ['companionship', 'timing:lower-pressure-opening'],

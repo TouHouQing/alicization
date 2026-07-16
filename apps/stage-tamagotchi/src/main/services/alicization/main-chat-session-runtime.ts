@@ -71,16 +71,14 @@ import type { AlicizationMainChatReplyAuthoritySurface, AlicizationMainChatReply
 import { errorMessageFrom } from '@moeru/std'
 import {
   alicizationFixedTemplateReplacement,
+  buildAlicizationProviderFactBlock,
   containsAlicizationFixedTemplateResidue,
   formatAlicizationProjectStateAwarenessFields,
   resolveAlicizationChatFailureSurface,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
-import {
-  buildAlicizationDialogueMemoryCarrySystemBlock,
-  deriveAlicizationDialogueMemoryCarryPolicy,
-} from './dialogue-memory-governor'
+import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 import {
@@ -106,18 +104,16 @@ import {
   buildMainGatewayTools,
 } from './main-chat-execution-surface'
 import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
-import { carriesAlicizationCanonicalProjectState } from './main-chat-project-state-guard'
 import { shouldIncludeProjectStateProviderContext } from './main-chat-project-state-injection-policy'
 import {
   buildAlicizationMainChatRuntimeSurface,
+  filterAlicizationProviderSystemMessages,
   shouldUseDialogueFirstLivingPromptMode,
 } from './main-chat-runtime-surface'
-import { resolveAlicizationChatStartPayloadPreDialogueSendIdentity } from './main-chat-start-awareness'
 import {
   emptyAlicizationExecutionLedgerContext,
 } from './memory-ledger-runtime'
 import { runAlicizationMemoryOsTurnRuntime } from './memory-os/runtime'
-import { buildAlicizationMindTurnContractSystemBlock } from './mind-turn-contract'
 import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import {
@@ -125,7 +121,6 @@ import {
   resolvePreparedRuntimeProjectPreDialogueAwarenessSummary,
 } from './prepared-runtime-continuity'
 import {
-  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
   compactProjectLatestProgressForSystemBlock,
   isAlicizationThinProjectAwarenessLine,
   preferStrongerSameHerDriftRisk,
@@ -160,10 +155,6 @@ import {
   sanitizeToolPhaseSegment,
 } from './runtime-turn-composition'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
-import {
-
-  buildRecollectionSpeechVisibleSurfaceRules,
-} from './visible-reply/facade'
 
 export interface AlicizationMainChatPerceptionAugmentation {
   messages: Message[]
@@ -297,15 +288,15 @@ function buildFallbackProviderFacingAnswerPlanner(input: {
     confidence: 0.5,
     governingFocus: input.contract?.governingFocus ?? '',
     governingProject: input.governingProject,
-    openingMove: input.contract?.projectState?.preDialogueAwarenessLine ?? '',
+    openingMove: '',
     answerIntent: input.contract?.answerIntent ?? '',
     relationshipPosture: input.contract?.relationshipPosture ?? 'restrained',
     activeClosenessContext: input.contract?.activeClosenessContext ?? null,
     activeClosenessRung: input.contract?.activeClosenessRung ?? null,
     shouldAskForGrounding: false,
     shouldAcknowledgeRepair: false,
-    mustDo: [...(input.contract?.mustDo ?? [])],
-    mustNotDo: [...(input.contract?.mustNotDo ?? [])],
+    mustDo: [],
+    mustNotDo: [],
     narrative: [],
     updatedAt: input.now,
   }
@@ -326,10 +317,6 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     includeProjectStateContext?: boolean
     personaKernel?: AlicizationPersonaKernelSnapshot | null
   }) => string[]
-  buildOrganicMemorySystemBlocks: (
-    context: OrganicMemoryPromptContext,
-    memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact> | null,
-  ) => string[]
   buildPerformanceManifestSystemBlocks: (manifest: CharacterPerformanceCapabilitiesManifest | null) => string[]
   dialogueSessionManager?: AlicizationDialogueSessionManager
   dialogueSessionMirrorTtlMs?: number
@@ -379,8 +366,8 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   resolveOrganicMemoryPromptContext: (input: {
     recallSeed: string
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
-    sessionId?: string | null
     sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
+    sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
@@ -554,6 +541,10 @@ function normalizePreparedExecutionText(raw: unknown, maxChars = 320) {
   return normalized || null
 }
 
+function removedChatStartPayloadState(): Record<string, unknown> | null {
+  return null
+}
+
 function readLatestUserMessageText(messages: Message[]) {
   const latestUserMessage = [...messages].reverse().find(message => message?.role === 'user')
   return normalizePreparedExecutionText(readTransportContentAsText(latestUserMessage?.content), 1200) || ''
@@ -569,8 +560,9 @@ const ordinaryDialogueProjectStateBlockMarkers = [
 const ordinaryDialogueMemoryOwnerBlockMarkers = [
   '[ALICIZATION_WORKING_MEMORY_OWNER]',
   '[ALICIZATION_WORKING_MEMORY]',
-  '[ALICIZATION_RECALLED_MEMORY]',
 ] as readonly string[]
+
+const ordinaryDialogueLegacyStructuredBlockPattern = /^\[ALICIZATION_[A-Z0-9_]+\]/u
 
 const ordinaryDialogueProjectStateLinePattern
   = /^(?:Provider-facing same-her project orientation|Project identity|Project phase|Project preflight self-awareness|Project pre-dialogue awareness line|Project companion headline|Project proactive same-her gap|Project memory closure summary|Project emotional closure seam|Project emotional closure summary|Project same-her hold detail|Latest landed continuity progress|Landed progress|Still-open life loop pressure|Still-open closure work|Open closure focus|Next closure target|Next closure focus|Emotional closure seam|Project same-her self line|Project same-her hold detail|Project same-her drift risk|Project continuity current phase|Project continuity latest progress|Project continuity primary open loop|Project continuity proactive gap|Project continuity next closure target|Project continuity pre-dialogue awareness line|Project continuity emotional closure cue|Project continuity self line|Project continuity drift risk|Project continuity self line required|Project continuity restraint|Project continuity arc stage|Project continuity cue|Project continuity timing|Project continuity preferred timing|Project continuity cadence|Project preferred blink cadence|Project preferred gaze mode|Project preferred pause mode|Project preferred lipsync mode|Project preferred voice mode|Project preferred pacing mode|Pre-dialogue closure summary|Pre-dialogue next closure line|Pre-dialogue closure cue|Governing project|Canonical Phase 1 continuity progress still anchoring her|How the living project is still shaping her before she speaks|Pre-dialogue closure briefing):/u
@@ -583,6 +575,9 @@ function isBlockedProviderFacingTemplateLine(line: string) {
     || line.includes('visibility=internal-structured')
     || line.includes('phase1_local_digital_life')
     || line.includes('runtime_personhood')
+    || line.includes('life_core')
+    || line.includes('owner=project_state_governance')
+    || /^keep\b.*\bproject identity\b/iu.test(line)
     || containsAlicizationFixedTemplateResidue(line)
 }
 
@@ -609,6 +604,13 @@ function sanitizeOrdinaryDialogueMemoryOwnerSystemBlock(block: string) {
 }
 
 function sanitizeOrdinaryDialogueProviderSystemBlock(block: string) {
+  if (
+    ordinaryDialogueLegacyStructuredBlockPattern.test(block)
+    && !ordinaryDialogueMemoryOwnerBlockMarkers.some(marker => block.includes(marker))
+  ) {
+    return ''
+  }
+
   if (ordinaryDialogueMemoryOwnerBlockMarkers.some(marker => block.includes(marker)))
     return sanitizeOrdinaryDialogueMemoryOwnerSystemBlock(block)
 
@@ -1065,11 +1067,11 @@ function buildProviderFacingProjectGovernanceSummary(
   projectState: Record<string, unknown> | null | undefined,
 ) {
   const canonicalProjectBrief = resolveAlicizationProjectStateBrief()
-  const canonicalCurrentPhase = normalizeProviderFacingProjectText(
+  const canonicalCurrentPhase = normalizeProviderFacingProjectStateScalar(
     canonicalProjectBrief.currentPhase,
     1600,
   )
-  const currentPhase = normalizeProviderFacingProjectText(projectState?.currentPhase, 1600)
+  const currentPhase = normalizeProviderFacingProjectStateScalar(projectState?.currentPhase, 1600)
   const preferredCurrentPhase = currentPhase
     && canonicalCurrentPhase
     && canonicalCurrentPhase.startsWith(currentPhase)
@@ -1118,24 +1120,65 @@ function buildProviderFacingProjectGovernanceSummary(
     ? canonicalNextClosureTarget
     : nextClosureTarget ?? canonicalNextClosureTarget
   return normalizeProviderFacingProjectText([
-    normalizeProviderFacingProjectText(projectState?.identity, 12000),
+    normalizeProviderFacingProjectStateScalar(projectState?.identity, 12000),
     preferredCurrentPhase,
-    normalizeProviderFacingProjectText(projectState?.sameHerSelfLine, 12000),
+    normalizeProviderFacingProjectStateScalar(projectState?.sameHerSelfLine, 12000),
     preferredLatestLandedProgress,
     preferredPrimaryOpenLoop,
     preferredNextClosureTarget,
   ].filter(Boolean).join(' | '), 12000)
 }
 
+function buildProviderFacingProjectStateFactsSystemBlock(
+  projectState: Record<string, unknown> | null | undefined,
+) {
+  const canonicalBrief = resolveAlicizationProjectStateBrief()
+  const fields = {
+    identity:
+      normalizeProviderFacingProjectStateScalar(projectState?.identity, 1200)
+      ?? normalizeProviderFacingProjectStateScalar(canonicalBrief.identity, 1200),
+    phase:
+      normalizeProviderFacingProjectStateScalar(projectState?.currentPhase, 320)
+      ?? normalizeProviderFacingProjectStateScalar(canonicalBrief.currentPhase, 320),
+    landed:
+      normalizeProviderFacingProjectStateScalar(
+        projectState?.latestLandedProgress ?? projectState?.latestProgress,
+        1200,
+      )
+      ?? normalizeProviderFacingProjectStateScalar(
+        canonicalBrief.latestProgress ?? canonicalBrief.continuityProgressSummary,
+        1200,
+      ),
+    open:
+      normalizeProviderFacingProjectStateScalar(projectState?.primaryOpenLoop, 1200)
+      ?? normalizeProviderFacingProjectStateScalar(
+        canonicalBrief.primaryOpenLoop ?? canonicalBrief.openLoops[0],
+        1200,
+      ),
+    next:
+      normalizeProviderFacingProjectStateScalar(projectState?.nextClosureTarget, 1200)
+      ?? normalizeProviderFacingProjectStateScalar(canonicalBrief.nextClosureTarget, 1200),
+  }
+
+  if (!Object.values(fields).some(Boolean))
+    return ''
+
+  return buildAlicizationProviderFactBlock('alicization-project-state-facts', {
+    source: 'project-state',
+    visibility: 'governance',
+    fields,
+  })
+}
+
 function buildIdentityAwarePreparedDiagnosticsAwarenessLine(
   projectState: Record<string, unknown> | null | undefined,
 ) {
-  const identity = normalizePreparedExecutionText(projectState?.identity, 320)
+  const identity = normalizeProviderFacingProjectStateScalar(projectState?.identity, 320)
   if (!identity || !identity.includes('Alicization'))
     return null
 
-  const currentPhase = normalizePreparedExecutionText(projectState?.currentPhase, 160)
-  const sameHerSelfLine = normalizePreparedExecutionText(projectState?.sameHerSelfLine, 1600)
+  const currentPhase = normalizeProviderFacingProjectStateScalar(projectState?.currentPhase, 160)
+  const sameHerSelfLine = normalizeProviderFacingProjectStateScalar(projectState?.sameHerSelfLine, 1600)
   const rawLatestLandedProgress = normalizePreparedExecutionText(
     projectState?.latestLandedProgress,
     4000,
@@ -1171,23 +1214,8 @@ function resolvePreparedDiagnosticsAwarenessLine(input: {
     ? readRuntimeProjectStateFromSurface(input.preparedSurface) as Record<string, unknown>
     : null
   const projectState = resolvedSurfaceProjectState ?? dialogueProjectState
-  const payloadIdentity = input.payload.preDialogueSendIdentity as {
-    projectState?: Record<string, unknown> | null
-    awarenessLine?: unknown
-    companionHeadlineLine?: unknown
-  } | null | undefined
-  const payloadHeadline
-    = normalizePreparedExecutionText(
-      payloadIdentity?.projectState?.companionHeadlineLine ?? payloadIdentity?.companionHeadlineLine,
-      1600,
-    )
-  const payloadAwareness
-    = normalizePreparedExecutionText(
-      payloadIdentity?.projectState?.preDialogueAwarenessLine
-      ?? payloadIdentity?.projectState?.awarenessLine
-      ?? payloadIdentity?.awarenessLine,
-      1600,
-    )
+  const payloadHeadline = null
+  const payloadAwareness = null
   const currentAwareness
     = (() => {
       const awarenessCandidate = normalizePreparedExecutionText(
@@ -1491,10 +1519,27 @@ function isBlockedFixedTemplateEvidence(value: unknown) {
     || normalized.includes('visibility=internal-structured')
     || normalized.includes('phase1_local_digital_life')
     || normalized.includes('runtime_personhood')
+    || normalized.includes('life_core')
+    || normalized.includes('owner=project_state_governance')
+    || /^keep\b.*\bproject identity\b/iu.test(normalized)
     || (
       Boolean(alicizationFixedTemplateReplacement)
       && normalized.includes(alicizationFixedTemplateReplacement.toLowerCase())
     )
+}
+
+function normalizeProviderFacingProjectStateScalar(raw: unknown, maxChars = 1600) {
+  const normalized = normalizeProviderFacingProjectText(raw, maxChars)
+  if (!normalized || isBlockedFixedTemplateEvidence(normalized))
+    return null
+
+  const providerSafe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
+  if (!providerSafe || providerSafe === alicizationFixedTemplateReplacement)
+    return null
+  if (isBlockedFixedTemplateEvidence(providerSafe))
+    return null
+
+  return providerSafe
 }
 
 function sanitizeProviderFacingProjectStateRecord<T extends Record<string, unknown> | null | undefined>(
@@ -2311,6 +2356,8 @@ function pickPreferredRuntimeProjectPhase(
     const normalized = normalizeProviderFacingProjectText(value, maxChars)
     if (!normalized)
       continue
+    if (isBlockedFixedTemplateEvidence(normalized))
+      continue
 
     const lowerCased = normalized.toLowerCase()
     let score = Math.min(normalized.length, 200) / 200
@@ -2797,8 +2844,10 @@ function readProjectStateFallbackFromSessionMirror(
     = readContinuitySummaryMarker(continuityArcSummary, ['preflight_summary', 'awareness_summary', 'project_preflight'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['preflight_summary', 'awareness_summary', 'project_preflight', 'preflight'], 1600)
   const currentPhase
-    = readContinuitySummaryMarker(continuityProjectSummary, ['phase'], 1600)
-      ?? readContinuitySummaryMarker(continuityArcSummary, ['phase'], 1600)
+    = pickPreferredRuntimeProjectPhase([
+      readContinuitySummaryMarker(continuityProjectSummary, ['phase'], 1600),
+      readContinuitySummaryMarker(continuityArcSummary, ['phase'], 1600),
+    ], 1600)
   const latestLandedProgress
     = readContinuitySummaryMarker(continuityArcSummary, ['landed'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['landed'], 1600)
@@ -4236,9 +4285,7 @@ function seedPreparedRuntimeProjectAwareness(input: {
 
   const payloadProjectState = readProviderFacingPayloadProjectState(input.rawPayload)
   const mirrorProjectState = readProjectStateFallbackFromSessionMirror(input.sessionMirror)
-  const directPayloadIdentity
-    = (input.rawPayload as { preDialogueSendIdentity?: Record<string, unknown> | null } | null | undefined)?.preDialogueSendIdentity
-      ?? null
+  const directPayloadIdentity = removedChatStartPayloadState()
   const directPayloadProjectState
     = (directPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)
       ?? null
@@ -4476,12 +4523,14 @@ function seedPreparedRuntimeProjectAwareness(input: {
   )
   const anchoredPreparedAwarenessLine = buildProviderFacingProjectAwarenessLine({
     identity:
-      normalizeProviderFacingProjectText(currentProjectState.identity, 1600)
-      ?? normalizeProviderFacingProjectText(resolvedSurfaceProjectState.identity, 1600)
+      normalizeProviderFacingProjectStateScalar(currentProjectState.identity, 1600)
+      ?? normalizeProviderFacingProjectStateScalar(resolvedSurfaceProjectState.identity, 1600)
       ?? canonicalProjectStateBrief.identity,
     currentPhase:
-      normalizeProviderFacingProjectText(currentProjectState.currentPhase, 1600)
-      ?? normalizeProviderFacingProjectText(resolvedSurfaceProjectState.currentPhase, 1600)
+      pickPreferredRuntimeProjectPhase([
+        currentProjectState.currentPhase,
+        resolvedSurfaceProjectState.currentPhase,
+      ], 1600)
       ?? canonicalProjectStateBrief.currentPhase,
     sameHerSelfLine: pickPreferredRuntimeProjectStateDetail([
       currentProjectState.sameHerSelfLine,
@@ -4669,11 +4718,14 @@ function seedPreparedRuntimeProjectAwareness(input: {
       currentProjectState.identity,
       resolvedSurfaceProjectState.identity,
     ], 'identity', 1600)
-    ?? currentProjectState.identity,
+    ?? normalizeProviderFacingProjectStateScalar(currentProjectState.identity, 1600)
+    ?? null,
     currentPhase:
-      normalizeProviderFacingProjectText(currentProjectState.currentPhase, 1600)
-      ?? normalizeProviderFacingProjectText(resolvedSurfaceProjectState.currentPhase, 1600)
-      ?? currentProjectState.currentPhase,
+      pickPreferredRuntimeProjectPhase([
+        currentProjectState.currentPhase,
+        resolvedSurfaceProjectState.currentPhase,
+      ], 1600)
+      ?? null,
     preflightSummary: seededPreflightSummary ?? currentProjectState.preflightSummary,
     preDialogueAwarenessLine: seededAwarenessLine ?? currentProjectState.preDialogueAwarenessLine,
     awarenessLine: seededAwarenessLine ?? currentProjectState.awarenessLine,
@@ -5324,13 +5376,14 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
         currentProjectState.identity,
         resolvedProjectState.identity,
       ], 'identity', 1600)
-      ?? currentProjectState.identity,
+      ?? normalizeProviderFacingProjectStateScalar(currentProjectState.identity, 1600)
+      ?? null,
     currentPhase:
       pickPreferredRuntimeProjectPhase([
         currentProjectState.currentPhase,
         resolvedProjectState.currentPhase,
       ], 1600)
-      ?? currentProjectState.currentPhase,
+      ?? null,
     latestLandedProgress: preferProjectDetail(
       currentProjectState.latestLandedProgress ?? currentProjectState.latestProgress,
       resolvedProjectState.latestLandedProgress ?? resolvedProjectState.latestProgress,
@@ -6430,7 +6483,7 @@ export function normalizeProviderFacingMindTurnContract(
         })
       )
       || (
-        /one living her|same unfinished closure work|same phase 1 digital life|same living her|still belongs to one living her/iu.test(
+        /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation|owner=project_state_governance/iu.test(
           currentAwarenessLine,
         )
         && currentAwarenessLineMissesSpecificRuntimeCarry
@@ -6509,12 +6562,12 @@ export function normalizeProviderFacingMindTurnContract(
   )
   const rescuedRuntimeAwarenessLineCarriesLivingSameHerClosure = Boolean(
     rescuedRuntimeAwarenessLine
-    && /unfinished closure|same unfinished closure work|same living her|one living her|same phase 1 digital life|one same her|same living line|one continuous her/iu.test(
+    && /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(
       rescuedRuntimeAwarenessLine,
     )
-    && /local-first digital life|same local-first digital life|数字生命/iu.test(rescuedRuntimeAwarenessLine),
+    && /(?:^|\b)(?:landed|open|next|identity|phase)=|open_loop=|closure_status=|runtime_context=/iu.test(rescuedRuntimeAwarenessLine),
   )
-  const finalAwarenessLineMissesLivingSameHerClosure = !/unfinished closure|same unfinished closure work|same living her|one living her|same phase 1 digital life|one same her|same living line|one continuous her/iu.test(
+  const finalAwarenessLineMissesLivingSameHerClosure = !/identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(
     finalAwarenessLine ?? '',
   )
   const rescuedFinalAwarenessLine = shouldKeepFinalAwarenessLineVerbatim
@@ -6711,29 +6764,27 @@ export function normalizeProviderFacingMindTurnContract(
   )
   const effectiveFinalAwarenessCarriesBroadPhase1ProjectClosureFrame = Boolean(
     effectiveFinalAwarenessLine
-    && /phase 1/iu.test(effectiveFinalAwarenessLine)
-    && /local-first digital life project|same local-first digital life project|same digital life project/iu.test(
+    && /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(
       effectiveFinalAwarenessLine,
     )
     && (
-      /live project awareness already survives|what has already landed is|already survives into the current conscious frame/iu.test(
+      /landed=|continuity_progress=|already survives into the current conscious frame/iu.test(
         effectiveFinalAwarenessLine,
       )
-      || /memory|initiative|embodiment|still-open closure|same-life seam/iu.test(
+      || /memory|initiative|embodiment|open=|open_loop=|closure_status=unfinished/iu.test(
         effectiveFinalAwarenessLine,
       )
-      || /current project-state awareness explicit|first visible answer beat|this reply should keep moving toward/iu.test(
+      || /project-state awareness explicit|first visible answer beat|next=|embodiment_scale_validation/iu.test(
         effectiveFinalAwarenessLine,
       )
     ),
   )
   const finalAwarenessCarriesPhase1SameHerFollowThrough = Boolean(
     effectiveFinalAwarenessLine
-    && /phase 1/iu.test(effectiveFinalAwarenessLine)
-    && /same digital life|same living line|same-her|same her|one continuous her/iu.test(effectiveFinalAwarenessLine)
+    && /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(effectiveFinalAwarenessLine)
     && (
-      /what has already landed is|the still-open closure is|this reply should keep moving toward/iu.test(effectiveFinalAwarenessLine)
-      || /memory still needs stronger end-to-end closure|keep extending cross-modal same-her proof/iu.test([
+      /landed=|open=|next=|closure_status=unfinished|continuity_progress=/iu.test(effectiveFinalAwarenessLine)
+      || /memory_dialogue_embodiment_closure|embodiment_scale_validation|project_identity_route_carry/iu.test([
         liveRuntimeProjectState.primaryOpenLoop,
         liveRuntimeProjectState.nextClosureTarget,
       ].filter(Boolean).join(' '))
@@ -7031,12 +7082,10 @@ export function normalizeProviderFacingMindTurnContract(
 }
 
 function readDirectPayloadPreflightSummary(
-  rawPayload: AlicizationChatStartPayload | null | undefined,
+  _rawPayload: AlicizationChatStartPayload | null | undefined,
   maxChars = 1600,
 ) {
-  const directPayloadIdentity
-    = (rawPayload as { preDialogueSendIdentity?: Record<string, unknown> | null } | null | undefined)?.preDialogueSendIdentity
-      ?? null
+  const directPayloadIdentity = removedChatStartPayloadState()
   const directPayloadProjectState
     = (directPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)
       ?? null
@@ -7094,8 +7143,7 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
     && !isLegacyProjectAwarenessTemplateShell(rebuiltAwarenessLine)
     && !carriesSpecificSameHerAuthorityLine(rebuiltAwarenessLine)
     && !hasModalitySpecificEmbodimentCue(rebuiltAwarenessLine)
-    && /phase 1/iu.test(rebuiltAwarenessLine)
-    && /local-first digital life project|same local-first digital life project|same digital life project/iu.test(
+    && /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation|owner=project_state_governance/iu.test(
       rebuiltAwarenessLine,
     )
   ) {
@@ -7199,19 +7247,18 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
     : rebuiltAwarenessLine
   const providerSafePreferredAwarenessLine = isLegacyProjectAwarenessTemplateShell(preferredAwarenessLine)
     ? buildProviderFacingProjectAwarenessLine({
-        identity: normalizeProviderFacingProjectText(
+        identity: normalizeProviderFacingProjectStateScalar(
           (input.normalizedContract.projectState as Record<string, unknown> | null)?.identity
           ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.identity
           ?? input.preparedProjectState?.identity,
           1600,
         ) ?? '',
-        currentPhase: normalizeProviderFacingProjectText(
-          (input.normalizedContract.projectState as Record<string, unknown> | null)?.currentPhase
-          ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.currentPhase
-          ?? input.preparedProjectState?.currentPhase,
-          1600,
-        ) ?? '',
-        sameHerSelfLine: normalizeProviderFacingProjectText(
+        currentPhase: pickPreferredRuntimeProjectPhase([
+          (input.normalizedContract.projectState as Record<string, unknown> | null)?.currentPhase,
+          (input.rebuiltContract.projectState as Record<string, unknown> | null)?.currentPhase,
+          input.preparedProjectState?.currentPhase,
+        ], 1600) ?? '',
+        sameHerSelfLine: normalizeProviderFacingProjectStateScalar(
           (input.normalizedContract.projectState as Record<string, unknown> | null)?.sameHerSelfLine
           ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.sameHerSelfLine
           ?? input.preparedProjectState?.sameHerSelfLine,
@@ -7250,19 +7297,18 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
       return providerSafePreferredAwarenessLine
 
     return buildProviderFacingProjectAwarenessLine({
-      identity: normalizeProviderFacingProjectText(
+      identity: normalizeProviderFacingProjectStateScalar(
         (input.normalizedContract.projectState as Record<string, unknown> | null)?.identity
         ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.identity
         ?? input.preparedProjectState?.identity,
         1600,
       ) ?? '',
-      currentPhase: normalizeProviderFacingProjectText(
-        (input.normalizedContract.projectState as Record<string, unknown> | null)?.currentPhase
-        ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.currentPhase
-        ?? input.preparedProjectState?.currentPhase,
-        1600,
-      ) ?? '',
-      sameHerSelfLine: normalizeProviderFacingProjectText(
+      currentPhase: pickPreferredRuntimeProjectPhase([
+        (input.normalizedContract.projectState as Record<string, unknown> | null)?.currentPhase,
+        (input.rebuiltContract.projectState as Record<string, unknown> | null)?.currentPhase,
+        input.preparedProjectState?.currentPhase,
+      ], 1600) ?? '',
+      sameHerSelfLine: normalizeProviderFacingProjectStateScalar(
         (input.normalizedContract.projectState as Record<string, unknown> | null)?.sameHerSelfLine
         ?? (input.rebuiltContract.projectState as Record<string, unknown> | null)?.sameHerSelfLine
         ?? input.preparedProjectState?.sameHerSelfLine,
@@ -7296,14 +7342,9 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
 }
 
 function readProviderFacingPayloadProjectState(
-  rawPayload: AlicizationChatStartPayload | null | undefined,
+  _rawPayload: AlicizationChatStartPayload | null | undefined,
 ) {
-  const directPayloadIdentity
-    = (rawPayload as { preDialogueSendIdentity?: Record<string, unknown> | null } | null | undefined)?.preDialogueSendIdentity
-      ?? null
-  const payload = rawPayload && directPayloadIdentity
-    ? resolveAlicizationChatStartPayloadPreDialogueSendIdentity(rawPayload)
-    : null
+  const directPayloadIdentity = removedChatStartPayloadState()
   const readSameHerDriftRiskPayloadFromReason = (value: unknown) => {
     const normalized = normalizeProviderFacingProjectAwarenessPayloadText(value, 1600)
     if (!normalized)
@@ -7333,9 +7374,7 @@ function readProviderFacingPayloadProjectState(
 
     return preferred
   }
-  const resolvedPayloadIdentity
-    = (payload?.preDialogueSendIdentity as Record<string, unknown> | null | undefined)
-      ?? null
+  const resolvedPayloadIdentity = removedChatStartPayloadState()
   const preferResolvedPayloadHeadlineTruth = (input: {
     direct: unknown
     repaired: unknown
@@ -7605,7 +7644,7 @@ function readProviderFacingPayloadProjectState(
     = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preflightSummary, 1600)
       ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.summaryLine, 1600)
   const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
-  const payloadProjectStructuredIdentity = normalizeProviderFacingProjectAwarenessPayloadText(
+  const payloadProjectStructuredIdentity = normalizeProviderFacingProjectStateScalar(
     directPayloadProjectState?.identity
     ?? payloadProjectState?.identity
     ?? normalizedPayloadIdentity?.identity
@@ -7613,14 +7652,13 @@ function readProviderFacingPayloadProjectState(
     ?? canonicalProjectStateBrief.identity,
     1600,
   ) ?? ''
-  const payloadProjectStructuredPhase = normalizeProviderFacingProjectAwarenessPayloadText(
-    directPayloadProjectState?.currentPhase
-    ?? payloadProjectState?.currentPhase
-    ?? normalizedPayloadIdentity?.currentPhase
-    ?? (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.currentPhase
-    ?? canonicalProjectStateBrief.currentPhase,
-    1600,
-  ) ?? ''
+  const payloadProjectStructuredPhase = pickPreferredRuntimeProjectPhase([
+    directPayloadProjectState?.currentPhase,
+    payloadProjectState?.currentPhase,
+    normalizedPayloadIdentity?.currentPhase,
+    (resolvedPayloadIdentity?.projectState as Record<string, unknown> | null | undefined)?.currentPhase,
+    canonicalProjectStateBrief.currentPhase,
+  ], 1600) ?? ''
   const payloadProjectStructuredLanded = normalizeProviderFacingProjectAwarenessPayloadText(
     directPayloadProjectState?.latestLandedProgress
     ?? directPayloadProjectState?.latestProgress
@@ -7988,34 +8026,6 @@ function applyProviderFacingProjectStateToRuntimeSurface(input: {
   return preparedProjectState ?? projectState
 }
 
-function injectProviderFacingMindTurnContractSystemMessage(input: {
-  contract: AlicizationMindTurnContractSnapshot | null
-  includeProjectStateFacts?: boolean
-  messages: Message[]
-}) {
-  if (!input.contract)
-    return input.messages
-  const systemBlock = buildAlicizationMindTurnContractSystemBlock(input.contract, {
-    includeProjectStateFacts: input.includeProjectStateFacts,
-  })
-  if (!systemBlock)
-    return input.messages
-  if (input.messages.some(message =>
-    message.role === 'system'
-    && typeof message.content === 'string'
-    && message.content.includes('[ALICIZATION_MIND_TURN_CONTRACT]'),
-  )) {
-    return input.messages
-  }
-  return [
-    {
-      role: 'system',
-      content: systemBlock,
-    } as Message,
-    ...input.messages,
-  ]
-}
-
 function buildProviderFacingAwarenessResolutionDiagnostics(input: {
   rawPayload: AlicizationChatStartPayload | null | undefined
   rebuiltProjectState: Record<string, unknown> | null | undefined
@@ -8057,14 +8067,15 @@ function buildStructuredPreDialogueClosureBriefingLine(input: {
   sameHerSelfLine?: unknown
 }) {
   return normalizeProviderFacingProjectText(formatAlicizationProjectStateAwarenessFields({
-    identity: input.identity,
-    currentPhase: input.currentPhase,
+    identity: normalizeProviderFacingProjectStateScalar(input.identity, 1600),
+    currentPhase: pickPreferredRuntimeProjectPhase([
+      input.currentPhase,
+    ], 1600),
     latestLandedProgress: input.latestLandedProgress,
     primaryOpenLoop: input.primaryOpenLoop,
     nextClosureTarget: input.nextClosureTarget,
-    continuityAnchor: input.sameHerSelfLine,
+    continuityAnchor: normalizeProviderFacingProjectStateScalar(input.sameHerSelfLine, 1600),
     emotionalClosureCue: input.emotionalClosureCue,
-    visibility: 'internal-structured',
     maxChars: 1600,
   }), 1600)
 }
@@ -8108,24 +8119,26 @@ function overrideMindTurnContractNextClosureTarget(input: {
   )
   const shouldAppendNextClosureTarget = Boolean(
     currentAwarenessLine
-    && /one continuous "her"|same living line|project shell|without splitting her continuity/iu.test(currentAwarenessLine),
+    && /identity=runtime_personhood|phase=life_core|owner=project_state_governance|project shell|memory_dialogue_embodiment_closure|project_identity_route_carry/iu.test(currentAwarenessLine),
   )
   const currentAwareness = currentAwarenessLine ?? ''
   const refreshedAwarenessLine = shouldRefreshAwarenessLine
     ? normalizeProviderFacingProjectText(
         formatAlicizationProjectStateAwarenessFields({
-          identity: projectState?.identity,
-          currentPhase: projectState?.currentPhase,
+          identity: normalizeProviderFacingProjectStateScalar(projectState?.identity, 1600),
+          currentPhase: pickPreferredRuntimeProjectPhase([
+            projectState?.currentPhase,
+          ], 1600),
           latestLandedProgress: projectState?.latestLandedProgress ?? projectState?.latestProgress,
           primaryOpenLoop: projectState?.primaryOpenLoop,
           nextClosureTarget,
-          continuityAnchor: projectState?.sameHerSelfLine,
+          continuityAnchor: normalizeProviderFacingProjectStateScalar(projectState?.sameHerSelfLine, 1600),
           sameHerHoldDetail: projectState?.sameHerHoldDetail,
           continuityDriftRisk: projectState?.sameHerDriftRisk,
           proactiveSameHerGap: projectState?.proactiveSameHerGap,
           emotionalClosureCue: projectState?.emotionalClosureCue ?? projectState?.emotionalClosureSummary,
           status: shouldAppendNextClosureTarget ? currentAwareness : null,
-          visibility: 'internal-structured',
+          visibility: 'internal',
           maxChars: 1600,
         }),
         1600,
@@ -8334,15 +8347,17 @@ function rescueReturnedProviderFacingProjectAwareness(input: {
     return contract
   }
 
-  const identity = normalizePreparedExecutionText(projectState.identity, 1600)
-  const currentPhase = normalizePreparedExecutionText(projectState.currentPhase, 1600)
+  const identity = normalizeProviderFacingProjectStateScalar(projectState.identity, 1600)
+  const currentPhase = pickPreferredRuntimeProjectPhase([
+    projectState.currentPhase,
+  ], 1600)
   const latestLandedProgress = normalizePreparedExecutionText(
     projectState.latestLandedProgress ?? projectState.latestProgress,
     12000,
   )
   const primaryOpenLoop = normalizePreparedExecutionText(projectState.primaryOpenLoop, 12000)
   const nextClosureTarget = normalizePreparedExecutionText(projectState.nextClosureTarget, 12000)
-  const sameHerSelfLine = normalizePreparedExecutionText(projectState.sameHerSelfLine, 1600)
+  const sameHerSelfLine = normalizeProviderFacingProjectStateScalar(projectState.sameHerSelfLine, 1600)
   const rebuiltAwarenessLine = buildProviderFacingProjectAwarenessLine({
     identity: identity ?? '',
     currentPhase: currentPhase ?? '',
@@ -8458,12 +8473,6 @@ async function readLightweightPerformanceManifest(
 
 export function createAlicizationMainChatSessionRuntime(options: CreateAlicizationMainChatSessionRuntimeOptions) {
   const getNow = options.getNow ?? Date.now
-  const buildOrganicMemorySystemBlocks
-    = options.buildOrganicMemorySystemBlocks
-      ?? (() => [])
-  const buildPerformanceManifestSystemBlocks
-    = options.buildPerformanceManifestSystemBlocks
-      ?? (() => [])
   const turnRuntime = createAlicizationTurnRuntime({
     now: getNow,
   })
@@ -8478,9 +8487,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     payload: AlicizationChatStartPayload
     prelude: AlicizationPreparedMainChatPrelude
   }): Promise<AlicizationPreparedMainChatExecutionResult> {
-    const rawPayload = input.payload
-    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(input.payload)
-    const payload = normalizedPayload
+    const payload = input.payload
+    const rawPayload = payload
     const { prelude } = input
     const originalPreludeProjectAwarenessLine = normalizePreparedExecutionText(
       prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine
@@ -8574,8 +8582,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       mirrorStaleAfterMs: options.dialogueSessionMirrorTtlMs,
       spine: digitalLifeSpine,
     })
-    const memoryCarrySystemBlock = buildAlicizationDialogueMemoryCarrySystemBlock(memoryCarryPolicy)
-
     const provisionalHasVisualGrounding = !effectiveExecutionRoutingIntent && options.latestUserMessageContainsVisualInput(messages)
     const dialogueFirstLeanRuntimeBase = shouldUseDialogueFirstLivingPromptMode({
       actionObligation: prelude.actionObligation ?? null,
@@ -8691,13 +8697,13 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           resolveContext: async () => await options.resolveOrganicMemoryPromptContext({
             recallSeed: organicRecallSeed,
             recallGovernor: prelude.perceptionAugmentation.recallGovernor,
+            sessionMirrorRecollection: previousSessionMirror?.recollection ?? null,
             turnId: payload.turnId,
             budgetClass: organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass,
             retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
             digitalLifeRuntimeSurface: digitalLifeSpine?.runtimeSurface
               ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface
               ?? null,
-            sessionMirrorRecollection: previousSessionMirror?.recollection ?? null,
           }),
           tuneContext: input => options.tuneOrganicMemoryPromptContextForExecutiveTurn({
             context: input.context,
@@ -8765,24 +8771,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       memoryTurnArtifact,
       applyMemoryDeliberationToGovernance,
       applyHostPersonModelToGovernance,
-      applyRecollectionSurfaceRules: (governance) => {
-        const recollectionSpeechVisibleSurfaceRules = buildRecollectionSpeechVisibleSurfaceRules(
-          organicPromptContext.recollectionSpeechPlan ?? null,
-        )
-        return governance
-          ? {
-              ...governance,
-              mustDo: mergeUniqueRules([
-                ...recollectionSpeechVisibleSurfaceRules.mustDo,
-                ...(governance.mustDo ?? []),
-              ]),
-              mustNotDo: mergeUniqueRules([
-                ...recollectionSpeechVisibleSurfaceRules.mustNotDo,
-                ...(governance.mustNotDo ?? []),
-              ]),
-            }
-          : governance
-      },
     })
 
     // NOTICE: Execution-routing intents are execution-governed turns. Do not allow
@@ -9326,12 +9314,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ...agentTurn.snapshot().phaseOrder,
       'runtime-surface',
     ])
-    const sessionMirrorSystemBlock = agentTurn.conversationSessionId
-      ? dialogueSessionManager.buildSessionMirrorSystemBlock({
-          cardId: payload.cardId,
-          sessionId: agentTurn.conversationSessionId,
-        })
-      : ''
     const preludePreparedRuntimeSurface = prelude.perceptionAugmentation.digitalLifeRuntimeSurface ?? null
     const spinePreparedRuntimeSurface = digitalLifeSpine?.runtimeSurface ?? null
     const preludeDirectPreparedAwarenessLine = pickProjectAwarenessLineWithoutCompactSummaryShell([
@@ -9419,18 +9401,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         sensorySnapshot: agentSessionSensorySnapshot,
       }).projectBriefing ?? null
       : null
-    const executionCapabilityRuntimeContext = buildAlicizationExecutionRuntimeContext({
-      agentSessionId: agentTurn.agentSessionId,
-      affectiveResidue: executionRuntimeAffectiveResidue ?? null,
-      cardId: payload.cardId,
-      turnId: payload.turnId,
-      decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
-      derivedMindStateBundle: executionRuntimeDerivedMindStateBundle ?? null,
-      memoryClosureTrace: executionRuntimeMemoryClosureTrace ?? null,
-      sessionId: agentTurn.conversationSessionId,
-      projectBriefing: executionRuntimeProjectBriefing,
-      sensorySnapshot: agentSessionSensorySnapshot,
-    })
     const effectiveDigitalLifeSpine = buildEffectiveDigitalLifeSpine({
       digitalLifeSpine,
       fresherRuntimeSurface: preparedRuntimeSurfaceSelection.fresherRuntimeSurface,
@@ -9455,9 +9425,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
               executionCapabilities,
               options.executionCapabilityChannels,
               {
-                allowTools,
                 inquiry: prelude.executionCapabilityInquiry,
-                runtimeContext: executionCapabilityRuntimeContext,
               },
             )
           : [],
@@ -9473,15 +9441,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         executionReplyObligationSystemBlock: executionReplyObligation
           ? buildMainChatExecutionReplyObligationSystemBlock(executionReplyObligation)
           : undefined,
-        agentRuntimeSystemBlocks: [
-          memoryCarrySystemBlock,
-          sessionMirrorSystemBlock,
-          shouldIncludeProviderProjectStateContext
-            ? agentTurn.buildSessionSystemBlock()
-            : '',
-        ],
-        organicMemorySystemBlocks: buildOrganicMemorySystemBlocks(organicPromptContext, memoryTurnArtifact),
-        performanceManifestSystemBlocks: buildPerformanceManifestSystemBlocks(performanceManifest),
+        agentRuntimeSystemBlocks: [],
+        organicMemorySystemBlocks: [],
+        performanceManifestSystemBlocks: [],
         customDirectivesResolution,
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
         personaKernelReason: prelude.perceptionAugmentation.chatGovernance.personaKernelMode === 'muted'
@@ -10017,10 +9979,23 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ?? preludeSpineRuntimeProjectState.nextClosureTarget
       ?? mirrorNextClosureTarget
       ?? fresherDirectNextClosureTarget
+    const preferredSeedProviderFacingIdentity = normalizeProviderFacingProjectStateScalar(
+      fresherRuntimeProjectState.identity,
+      1600,
+    ) ?? ''
+    const preferredSeedProviderFacingCurrentPhase = pickPreferredRuntimeProjectPhase([
+      fresherRuntimeProjectState.currentPhase,
+      preludeSpineRuntimeProjectState.currentPhase,
+      mirrorProjectStateFallback.currentPhase,
+    ], 1600) ?? ''
+    const preferredSeedProviderFacingSameHerSelfLine = normalizeProviderFacingProjectStateScalar(
+      preferredSeedSameHerSelfLine ?? fresherRuntimeProjectState.sameHerSelfLine,
+      1600,
+    )
     const preferredSeedAnchoredAwarenessLine = buildProviderFacingProjectAwarenessLine({
-      identity: fresherRuntimeProjectState.identity,
-      currentPhase: fresherRuntimeProjectState.currentPhase,
-      sameHerSelfLine: preferredSeedSameHerSelfLine ?? fresherRuntimeProjectState.sameHerSelfLine,
+      identity: preferredSeedProviderFacingIdentity,
+      currentPhase: preferredSeedProviderFacingCurrentPhase,
+      sameHerSelfLine: preferredSeedProviderFacingSameHerSelfLine,
       latestLandedProgress: preferredSeedLatestLandedProgress ?? fresherRuntimeProjectState.latestLandedProgress,
       primaryOpenLoop: preferredSeedPrimaryOpenLoop ?? fresherRuntimeProjectState.primaryOpenLoop,
       nextClosureTarget: preferredSeedNextClosureTarget ?? fresherRuntimeProjectState.nextClosureTarget,
@@ -10035,7 +10010,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           preferredSeedAwarenessLine,
           preferredSeedAnchoredAwarenessLine,
         )
-        || /same unfinished closure work|still belongs to one living her|same living line|one living her|same phase 1 digital life|one continuous her|still-open phase 1 closure|initiative and embodiment closure/iu.test(
+        || /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(
           preferredSeedAwarenessLine,
         )
       ),
@@ -10050,14 +10025,14 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           preferredSeedCompanionCandidate,
           preferredSeedAnchoredAwarenessLine,
         )
-        || /same unfinished closure work|still belongs to one living her|same living line|one living her|same phase 1 digital life|one continuous her|still-open phase 1 closure|initiative and embodiment closure/iu.test(
+        || /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(
           preferredSeedCompanionCandidate,
         )
       ),
     )
     const preferredSeedSameHerSelfLineLooksLikeGenericSummaryCarry = Boolean(
       preferredSeedSameHerSelfLine
-      && /^same phase 1 digital life\./iu.test(preferredSeedSameHerSelfLine),
+      && /^(?:owner=project_state_governance|identity=runtime_personhood)\.?$/iu.test(preferredSeedSameHerSelfLine),
     )
     const shouldPreferAnchoredSameHerContinuitySeed = Boolean(
       preferredSeedAnchoredAwarenessLine
@@ -10066,7 +10041,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       && !preferredSeedAwarenessAlreadyCarriesLivedInSameHerClosure
       && !preferredSeedCompanionAlreadyCarriesLivedInSameHerClosure
       && !looksLikeThinRuntimeProjectStateDetail(preferredSeedSameHerSelfLine, 'same-her')
-      && /same living line|same-her|same her|one living her|one continuous her|generic project shell|generic assistant|without splitting her continuity/iu.test(
+      && /identity=runtime_personhood|owner=project_state_governance|continuity_identity|memory_dialogue_embodiment_closure|generic project shell|generic assistant/iu.test(
         preferredSeedSameHerSelfLine,
       )
       && (
@@ -10132,9 +10107,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     if (shouldPreferMirrorContinuityPreflightOverStructuredSeedAwareness) {
       preferredSeedAwarenessLine = isLegacyProjectAwarenessTemplateShell(preferredSeedMirrorPreflightAwarenessLine)
         ? buildProviderFacingProjectAwarenessLine({
-            identity: fresherRuntimeProjectState.identity,
-            currentPhase: fresherRuntimeProjectState.currentPhase,
-            sameHerSelfLine: preferredSeedSameHerSelfLine ?? fresherRuntimeProjectState.sameHerSelfLine,
+            identity: preferredSeedProviderFacingIdentity,
+            currentPhase: preferredSeedProviderFacingCurrentPhase,
+            sameHerSelfLine: preferredSeedProviderFacingSameHerSelfLine,
             latestLandedProgress: preferredSeedLatestLandedProgress ?? fresherRuntimeProjectState.latestLandedProgress,
             primaryOpenLoop: preferredSeedPrimaryOpenLoop ?? fresherRuntimeProjectState.primaryOpenLoop,
             nextClosureTarget: preferredSeedNextClosureTarget ?? fresherRuntimeProjectState.nextClosureTarget,
@@ -10477,9 +10452,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       const providerSafeSeedAwarenessLine = (value: string | null | undefined) => {
         return isLegacyProjectAwarenessTemplateShell(value)
           ? buildProviderFacingProjectAwarenessLine({
-              identity: fresherRuntimeProjectState.identity,
-              currentPhase: fresherRuntimeProjectState.currentPhase,
-              sameHerSelfLine: preferredSeedSameHerSelfLine ?? fresherRuntimeProjectState.sameHerSelfLine,
+              identity: preferredSeedProviderFacingIdentity,
+              currentPhase: preferredSeedProviderFacingCurrentPhase,
+              sameHerSelfLine: preferredSeedProviderFacingSameHerSelfLine,
               latestLandedProgress: preferredSeedLatestLandedProgress ?? fresherRuntimeProjectState.latestLandedProgress,
               primaryOpenLoop: preferredSeedPrimaryOpenLoop ?? fresherRuntimeProjectState.primaryOpenLoop,
               nextClosureTarget: preferredSeedNextClosureTarget ?? fresherRuntimeProjectState.nextClosureTarget,
@@ -10827,18 +10802,24 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         governingProject: finalGoverningProject,
       } satisfies AlicizationAnswerPlannerSnapshot
     }
-    messages = injectProviderFacingMindTurnContractSystemMessage({
-      contract: finalizedReturnedMindTurnContract,
-      includeProjectStateFacts: shouldIncludeProviderProjectStateContext,
-      messages: runtimeSurface.messages,
-    })
-    if (shouldIncludeProviderProjectStateContext && !carriesAlicizationCanonicalProjectState(messages)) {
-      messages = [
-        ...buildAlicizationProviderFacingProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
-        ...messages,
-      ]
+    messages = runtimeSurface.messages
+    if (shouldIncludeProviderProjectStateContext) {
+      const projectStateFactsSystemBlock = buildProviderFacingProjectStateFactsSystemBlock(
+        finalReturnedRuntimeSurfaceProjectState,
+      )
+      if (projectStateFactsSystemBlock) {
+        messages = [
+          {
+            role: 'system',
+            content: projectStateFactsSystemBlock,
+          } as Message,
+          ...messages,
+        ]
+      }
     }
-    messages = sanitizeOrdinaryDialogueProviderMessages(messages)
+    if (!shouldIncludeProviderProjectStateContext)
+      messages = sanitizeOrdinaryDialogueProviderMessages(messages)
+    messages = filterAlicizationProviderSystemMessages(messages)
     messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
     if (!shouldIncludeProviderProjectStateContext) {
       sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeRuntimeSurface)
@@ -11001,16 +10982,17 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           ?? null
       const runtimeGroundedStructuredAwarenessLine = buildProviderFacingProjectAwarenessLine({
         identity:
-          normalizePreparedExecutionText(runtimeGroundedProjectState?.identity, 1600)
-          ?? normalizePreparedExecutionText(runtimeGroundedResolvedProjectState?.identity, 1600)
+          normalizeProviderFacingProjectStateScalar(runtimeGroundedProjectState?.identity, 1600)
+          ?? normalizeProviderFacingProjectStateScalar(runtimeGroundedResolvedProjectState?.identity, 1600)
           ?? '',
         currentPhase:
-          normalizePreparedExecutionText(runtimeGroundedProjectState?.currentPhase, 1600)
-          ?? normalizePreparedExecutionText(runtimeGroundedResolvedProjectState?.currentPhase, 1600)
-          ?? '',
+          pickPreferredRuntimeProjectPhase([
+            runtimeGroundedProjectState?.currentPhase,
+            runtimeGroundedResolvedProjectState?.currentPhase,
+          ], 1600) ?? '',
         sameHerSelfLine:
-          normalizePreparedExecutionText(runtimeGroundedProjectState?.sameHerSelfLine, 1600)
-          ?? normalizePreparedExecutionText(runtimeGroundedResolvedProjectState?.sameHerSelfLine, 1600)
+          normalizeProviderFacingProjectStateScalar(runtimeGroundedProjectState?.sameHerSelfLine, 1600)
+          ?? normalizeProviderFacingProjectStateScalar(runtimeGroundedResolvedProjectState?.sameHerSelfLine, 1600)
           ?? null,
         latestLandedProgress: runtimeGroundedLatestLandedProgress,
         primaryOpenLoop: runtimeGroundedPrimaryOpenLoop,
@@ -11184,16 +11166,17 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       )
         ? buildProviderFacingProjectAwarenessLine({
             identity:
-              normalizePreparedExecutionText(runtimeGroundedProjectState?.identity, 1600)
-              ?? normalizePreparedExecutionText(runtimeGroundedResolvedProjectState?.identity, 1600)
+              normalizeProviderFacingProjectStateScalar(runtimeGroundedProjectState?.identity, 1600)
+              ?? normalizeProviderFacingProjectStateScalar(runtimeGroundedResolvedProjectState?.identity, 1600)
               ?? '',
             currentPhase:
-              normalizePreparedExecutionText(runtimeGroundedProjectState?.currentPhase, 1600)
-              ?? normalizePreparedExecutionText(runtimeGroundedResolvedProjectState?.currentPhase, 1600)
-              ?? '',
+              pickPreferredRuntimeProjectPhase([
+                runtimeGroundedProjectState?.currentPhase,
+                runtimeGroundedResolvedProjectState?.currentPhase,
+              ], 1600) ?? '',
             sameHerSelfLine:
-              normalizePreparedExecutionText(runtimeGroundedProjectState?.sameHerSelfLine, 1600)
-              ?? normalizePreparedExecutionText(runtimeGroundedResolvedProjectState?.sameHerSelfLine, 1600)
+              normalizeProviderFacingProjectStateScalar(runtimeGroundedProjectState?.sameHerSelfLine, 1600)
+              ?? normalizeProviderFacingProjectStateScalar(runtimeGroundedResolvedProjectState?.sameHerSelfLine, 1600)
               ?? null,
             latestLandedProgress: runtimeGroundedLatestLandedProgress,
             primaryOpenLoop: runtimeGroundedPrimaryOpenLoop,
@@ -11459,27 +11442,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       })
     }
 
-    if (finalGoverningProject && runtimeSurface.digitalLifeRuntimeSurface?.dialogue) {
-      const existingAnswerPlanner = runtimeSurface.digitalLifeRuntimeSurface.dialogue.answerPlanner ?? {
-        mustDo: [...(normalizedMindTurnContract?.mustDo ?? [])],
-        mustNotDo: [...(normalizedMindTurnContract?.mustNotDo ?? [])],
-        governingProject: null,
-      }
-      const providerFacingAnswerPlannerMustDo = mergeUniqueRules([
-        ...((existingAnswerPlanner.mustDo as string[] | null | undefined) ?? []),
-        ...(normalizedMindTurnContract?.mustDo ?? []),
-      ])
-      if (!providerFacingAnswerPlannerMustDo.some(item =>
-        item.includes('continuity_policy=project_state_required'),
-      )) {
-        providerFacingAnswerPlannerMustDo.push(
-          'continuity_policy=project_state_required | owner=ProjectStateGovernance-structured',
-        )
-      }
+    if (finalGoverningProject && runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.answerPlanner) {
+      const existingAnswerPlanner = runtimeSurface.digitalLifeRuntimeSurface.dialogue.answerPlanner
       if (!String(existingAnswerPlanner.governingProject ?? '').trim()) {
         runtimeSurface.digitalLifeRuntimeSurface.dialogue.answerPlanner = {
           ...existingAnswerPlanner,
-          mustDo: providerFacingAnswerPlannerMustDo,
           governingProject: finalGoverningProject,
         } as typeof runtimeSurface.digitalLifeRuntimeSurface.dialogue.answerPlanner
       }

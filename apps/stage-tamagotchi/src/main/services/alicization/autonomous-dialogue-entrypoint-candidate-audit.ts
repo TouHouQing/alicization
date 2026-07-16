@@ -26,7 +26,8 @@ function intersectRelativePaths(left: string[], right: string[]) {
   return left.filter(relativePath => right.includes(relativePath))
 }
 
-const proactiveAuthorityCandidatePattern = String.raw`ALICIZATION_PROACTIVE_SELF_BRIEF`
+const proactiveSourceCandidatePattern = String.raw`source:\s*'proactive'`
+const proactiveMemoryFactBuilderCandidatePattern = String.raw`buildOrganicMemoryProviderFactBlocks\(`
 const proactiveGatewayStructuredFormatCandidatePattern = String.raw`resolveAlicizationAutonomousDialogueStructuredFormat\('subconscious-proactive-llm'\)`
 const autonomousDialogueTurnIdCandidatePattern = String.raw`buildAlicizationAutonomousDialogueTurnId\(`
 const reminderOrCallbackKindCandidatePattern = String.raw`kind: '(reminder|execution-callback)'`
@@ -35,9 +36,18 @@ const subconsciousKindCandidatePattern = String.raw`kind: 'subconscious'`
 const subconsciousStructuredFormatCandidatePattern = String.raw`resolveAlicizationAutonomousDialogueStructuredFormat\('subconscious-proactive'\)`
 
 export function collectAlicizationAutonomousDialogueCandidateFiles(rootDir: string) {
-  const proactiveAuthorityFiles = collectServiceRelativePaths(rootDir, [
+  const proactiveSourceFiles = collectServiceRelativePaths(rootDir, [
     '-l',
-    proactiveAuthorityCandidatePattern,
+    proactiveSourceCandidatePattern,
+    '.',
+    '-g',
+    '!**/*.test.ts',
+    '-g',
+    '!**/*-audit.ts',
+  ])
+  const proactiveMemoryFactBuilderFiles = collectServiceRelativePaths(rootDir, [
+    '-l',
+    proactiveMemoryFactBuilderCandidatePattern,
     '.',
     '-g',
     '!**/*.test.ts',
@@ -108,12 +118,15 @@ export function collectAlicizationAutonomousDialogueCandidateFiles(rootDir: stri
     autonomousDialogueTurnIdFiles,
     intersectRelativePaths(subconsciousKindFiles, subconsciousStructuredFormatFiles),
   )
+  const proactiveAuthorityFiles = intersectRelativePaths(
+    proactiveGatewayStructuredFormatFiles,
+    intersectRelativePaths(proactiveSourceFiles, proactiveMemoryFactBuilderFiles),
+  )
 
   return [
     ...new Set([
       ...collectAlicizationAutonomousDialogueGovernedFiles(rootDir),
       ...proactiveAuthorityFiles,
-      ...proactiveGatewayStructuredFormatFiles,
       ...reminderOrCallbackEntryFiles,
       ...reminderGatewayStructuredFormatFiles,
       ...subconsciousEntryFiles,

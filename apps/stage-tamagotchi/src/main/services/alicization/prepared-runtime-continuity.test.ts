@@ -11,11 +11,11 @@ import {
 const fixedTemplateResiduePattern = new RegExp([
   'Before (?:answering|speaking|acting)',
   'Right now I am',
-  'Same Phase 1 digital life',
+  'legacy phase-one template',
   'same-her',
-  'same living line',
+  'continuity state',
   'one living her',
-  'one continuous her',
+  'identity continuity',
   'host computer',
   'better chat wrapper',
   '同一个她',
@@ -41,15 +41,15 @@ function expectNoFixedTemplateResidue(value: unknown) {
 }
 
 function legacyProjectIdentity() {
-  return 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.'
+  return 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.'
 }
 
 function legacySelfLine() {
-  return 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
+  return 'structured continuity digest.'
 }
 
 function legacyAwarenessLine() {
-  return 'Before answering, remember: this is still one same digital life and embodiment closure is still open.'
+  return 'pre_turn_context_digest'
 }
 
 function legacyEmbodimentHeadline() {
@@ -62,13 +62,13 @@ function legacyEmbodimentHeadline() {
 describe('prepared-runtime-continuity', () => {
   it('derives relationship carry from quiet-companionship projection cues without returning the cue template', () => {
     const carry = deriveRuntimeProjectionRelationshipCarry({
-      openingGuidance: 'Keep the same living line inward in quiet-companionship before widening outward.',
+      openingGuidance: 'Keep the continuity state inward in quiet-companionship before widening outward.',
       manifestationCadenceSummary: 'quiet-companionship inward continuity',
-      summary: 'quiet-companionship same living line',
+      summary: 'quiet-companionship continuity state',
     })
 
     expect(carry).toBe('relationship_carry=low_pressure; continuity=quiet_companionship; closeness=widen_later')
-    expect(carry).not.toContain('same living line')
+    expect(carry).not.toContain('continuity state')
   })
 
   it('resolves runtime project state into structured canonical identity and preserves runtime progress evidence', () => {
@@ -91,12 +91,12 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(projectState?.identity).toContain('local_desktop_life_loop')
-    expect(projectState?.currentPhase).toContain('local_desktop_life_loop')
+    expect(projectState?.identity).toBe('')
+    expect(projectState?.currentPhase).toBe('')
     expect(projectState?.latestLandedProgress).toBe('Runtime project-state carry reached prepared continuity.')
     expect(projectState?.primaryOpenLoop).toBe('Memory, initiative, and embodiment review remain open.')
     expect(projectState?.nextClosureTarget).toBe('Review closure evidence before broadening.')
-    expect(projectState?.sameHerSelfLine).toContain('project_state_governance')
+    expect(projectState?.sameHerSelfLine).toBe('')
     expectNoFixedTemplateResidue(projectState)
   })
 
@@ -122,7 +122,7 @@ describe('prepared-runtime-continuity', () => {
                 latestLandedProgress: 'thin landed',
                 primaryOpenLoop: 'thin open',
                 nextClosureTarget: 'generic next closure shell',
-                preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+                preDialogueAwarenessLine: 'template-residue-shell',
               },
             },
           },
@@ -158,10 +158,10 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(snapshot.identity).toContain('local_desktop_life_loop')
-    expect(snapshot.currentPhase).toContain('local_desktop_life_loop')
+    expect(snapshot.identity).toBe('')
+    expect(snapshot.currentPhase).toBe('')
     expect(snapshot.latestLandedProgress).toContain('continuity_progress=partial')
-    expect(snapshot.sameHerSelfLine).toContain('project_state_governance')
+    expect(snapshot.sameHerSelfLine).toBe('')
     expectNoFixedTemplateResidue(snapshot)
   })
 
@@ -183,7 +183,7 @@ describe('prepared-runtime-continuity', () => {
 
     expect(awareness).toContain('landed=')
     expect(awareness).toContain('open=memory_dialogue_embodiment_closure')
-    expect(awareness).toContain('next=cross_modal_continuity_proof')
+    expect(awareness).toContain('next=embodiment_scale_validation')
     expectNoFixedTemplateResidue(awareness)
   })
 
@@ -207,7 +207,7 @@ describe('prepared-runtime-continuity', () => {
                 preDialogueAwarenessLine: '开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。',
                 awarenessLine: '开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。',
                 preDialogueAwarenessSummary: '开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。',
-                preflightSummary: 'same digital life | keep the closure seam explicit',
+                preflightSummary: 'template-residue-shell',
                 sameHerSelfLine: legacySelfLine(),
               },
             },

@@ -432,7 +432,7 @@ describe('renderer capability adapter', () => {
     expect(adapted.performance.actionCue).toBe('observe_focus')
   })
 
-  it('keeps still-voiced continuity callback baselines on observe focus after a gentle release when the same-her line is still carried through face and voice', () => {
+  it('keeps still-voiced continuity callback baselines on observe focus after a gentle release when the identity-continuity', () => {
     const adapted = adaptAlicizationEmbodimentPerformanceToRenderer({
       performance: createPerformance({
         baseEmotion: 'thinking',
@@ -532,7 +532,7 @@ describe('renderer capability adapter', () => {
     expect(adapted.performance.actionCue).toBe('observe_focus')
   })
 
-  it('keeps signature-only still-voiced motion-line callback baselines on observe focus when the same-her line is carried only through resident signature continuity', () => {
+  it('keeps signature-only still-voiced motion-line callback baselines on observe focus when the identity-continuity', () => {
     const adapted = adaptAlicizationEmbodimentPerformanceToRenderer({
       performance: createPerformance({
         baseEmotion: 'thinking',
@@ -581,7 +581,7 @@ describe('renderer capability adapter', () => {
     expect(adapted.performance.actionCue).toBe('observe_focus')
   })
 
-  it('keeps body+voice-only same-her callback baselines on observe focus instead of warming back up to steady focus in renderer fallback', () => {
+  it('keeps body+voice-only identity-continuity', () => {
     const adapted = adaptAlicizationEmbodimentPerformanceToRenderer({
       performance: createPerformance({
         baseEmotion: 'thinking',
@@ -632,7 +632,7 @@ describe('renderer capability adapter', () => {
     expect(adapted.performance.actionCue).toBe('observe_focus')
   })
 
-  it('keeps body-lipsync-voice-rejoin same-her callback baselines on observe focus instead of warming back up to steady focus in renderer fallback', () => {
+  it('keeps body-lipsync-voice-rejoin identity-continuity', () => {
     const adapted = adaptAlicizationEmbodimentPerformanceToRenderer({
       performance: createPerformance({
         baseEmotion: 'thinking',
@@ -683,7 +683,7 @@ describe('renderer capability adapter', () => {
     expect(adapted.performance.actionCue).toBe('observe_focus')
   })
 
-  it('keeps quieter body+lipsync-only same-her callback baselines on observe focus instead of warming back up to steady focus in renderer fallback', () => {
+  it('keeps quieter body+lipsync-only identity-continuity', () => {
     const adapted = adaptAlicizationEmbodimentPerformanceToRenderer({
       performance: createPerformance({
         baseEmotion: 'thinking',

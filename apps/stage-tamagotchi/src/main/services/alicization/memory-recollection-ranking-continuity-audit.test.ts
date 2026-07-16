@@ -44,10 +44,10 @@ function createRealHelpers() {
 }
 
 describe('memory recollection ranking continuity audit', () => {
-  it('keeps project-state same-her closure memory ahead of a generic project recap once continuity project state already reopened the unfinished line', () => {
+  it('keeps project-state identity-continuity', () => {
     const recallSeed = [
-      '继续这条 Phase 1 digital life 主线，不要把未闭环的 same-her closure 丢成泛化项目说明。',
-      'continuity_project_state: label=project-aware-return | summary=Reopen the unfinished Phase 1 digital-life closure line before generic task detail takes over. | project_pre_dialogue=Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop. | project_preflight=Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop. | phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi. | landed=Project-state carry already survives into runtime preparation. | unresolved=Memory, initiative, and embodiment still need to close as one same-life seam. | open_focus=memory/initiative/embodiment/same-line/closure-seam | next_focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs. | same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn. | emotion=Hold the unfinished same-life seam gently instead of flattening it into generic productivity.',
+      '继续这条 Phase 1 digital life 主线，不要把未闭环的 identity-continuity',
+      'continuity_project_state: label=project-aware-return | summary=Reopen the unfinished Phase 1 digital-life closure line before generic task detail takes over. | project_pre_dialogue=pre_turn_context_digest',
     ].join('\n')
     const recollectionIntent = deriveSceneTriggeredRecollectionIntent({
       recallSeed,
@@ -111,13 +111,13 @@ describe('memory recollection ranking continuity audit', () => {
           occurredAt: 5,
           whereSummary: 'Phase 1 desktop runtime return',
           withWhom: ['host'],
-          threadAnchor: 'same-her project-state closure line',
-          whatHappened: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line while memory, initiative, and embodiment still need to close as one same-life seam.',
+          threadAnchor: 'identity-continuity',
+          whatHappened: 'structured continuity digest.',
           felt: 'careful',
           emotionTags: ['continuity', 'careful'],
-          whatChanged: 'The project-state carry stayed on one living line instead of flattening into a recap shell.',
+          whatChanged: 'The project-state carry stayed on continuity state instead of flattening into a recap shell.',
           sourceKind: 'execution-result',
-          sourceSummary: 'same-her project-state closure memory',
+          sourceSummary: 'identity-continuity',
           provenance: 'remembered',
           confidence: 0.84,
           salience: 0.81,
@@ -126,8 +126,8 @@ describe('memory recollection ranking continuity audit', () => {
           relationshipShift: null,
           derivedFrom: [],
           tags: ['same-her', 'phase-1', 'closure-seam', 'project-state'],
-          relationshipMeaning: 'Keep the project-state answer on one living line.',
-          lesson: 'Do not flatten the same-her closure seam into generic productivity.',
+          relationshipMeaning: 'Keep the project-state answer on continuity state.',
+          lesson: 'Do not flatten the identity-continuity',
           latestReconsolidation: null,
           createdAt: 5,
           updatedAt: 6,
@@ -140,15 +140,15 @@ describe('memory recollection ranking continuity audit', () => {
     } as any)
 
     expect(result.agendaRankedEpisodes[0]?.id).toBe('same-her-project-state-closure')
-    expect(result.clusterState.dominantSummary).toContain('Same Phase 1 digital life')
+    expect(result.clusterState.dominantSummary).toContain('legacy phase-one template')
   })
 
-  it('keeps inward same-her callback afterthought memory ahead of a generic callback receipt once the ripe recollection line is reopened', () => {
+  it('keeps inward identity-continuity', () => {
     const sessionMirrorRecollection = {
       afterthoughtState: 'ripe' as const,
       certainty: 'approximate' as const,
       confidence: 0.8,
-      foreground: 'Keep the callback closure line inward until there is more room.',
+      foreground: 'Keep the identity-continuity',
       mode: 'execution-procedure' as const,
       placement: 'internal-only' as const,
       surfaceMode: 'internal-only' as const,
@@ -216,13 +216,13 @@ describe('memory recollection ranking continuity audit', () => {
           occurredAt: 5,
           whereSummary: 'quiet callback return',
           withWhom: ['host'],
-          threadAnchor: 'same-her callback closure line inward',
-          whatHappened: 'Keep the same-her callback closure line inward until there is more room.',
+          threadAnchor: 'identity-continuity',
+          whatHappened: 'Keep the identity-continuity',
           felt: 'quiet',
           emotionTags: ['quiet', 'continuity'],
           whatChanged: 'The callback line stayed inward instead of reopening loudly.',
           sourceKind: 'execution-result',
-          sourceSummary: 'same-her callback afterthought continuity',
+          sourceSummary: 'identity-continuity',
           provenance: 'remembered',
           confidence: 0.83,
           salience: 0.8,
@@ -232,7 +232,7 @@ describe('memory recollection ranking continuity audit', () => {
           derivedFrom: [],
           tags: ['same-her', 'callback', 'inward', 'closure-line'],
           relationshipMeaning: 'Keep the living callback line inward until there is more room.',
-          lesson: 'Do not reopen the same-her callback line from scratch while it is still settling.',
+          lesson: 'Do not reopen the identity-continuity',
           latestReconsolidation: null,
           createdAt: 5,
           updatedAt: 6,
@@ -245,13 +245,13 @@ describe('memory recollection ranking continuity audit', () => {
     } as any)
 
     expect(result.agendaRankedEpisodes[0]?.id).toBe('same-her-callback-afterthought')
-    expect(result.clusterState.dominantSummary).toContain('same-her callback closure line inward')
+    expect(result.clusterState.dominantSummary).toContain('identity-continuity')
   })
 
-  it('keeps same-her callback afterglow memory ahead of a generic callback receipt once afterglow continuity already says the line should reopen gently', () => {
+  it('keeps identity-continuity', () => {
     const recallSeed = [
       '先把 callback afterglow 那条 same-her 线接回来，再继续这次回答。',
-      'continuity_afterglow: label=afterglow:execution-callback:lower-pressure summary=thread=runtime same-her callback seam | continuity=execution-callback | carry-mode=lower-pressure | carry=Keep the same-her callback afterglow line inward until there is more room before widening outward again. | source=execution-result thread=runtime same-her callback seam kind=autobiographical-afterglow',
+      'continuity_afterglow: label=afterglow:execution-callback:lower-pressure summary=thread=runtime identity-continuity',
     ].join('\n')
     const recollectionIntent = deriveSceneTriggeredRecollectionIntent({
       recallSeed,
@@ -315,13 +315,13 @@ describe('memory recollection ranking continuity audit', () => {
           occurredAt: 5,
           whereSummary: 'quiet callback return afterglow',
           withWhom: ['host'],
-          threadAnchor: 'runtime same-her callback seam',
-          whatHappened: 'Keep the same-her callback afterglow line inward until there is more room before widening outward again.',
+          threadAnchor: 'runtime identity-continuity',
+          whatHappened: 'Keep the identity-continuity',
           felt: 'quiet',
           emotionTags: ['quiet', 'continuity'],
           whatChanged: 'The callback line stayed lower-pressure instead of reopening from scratch.',
           sourceKind: 'execution-result',
-          sourceSummary: 'same-her callback afterglow continuity',
+          sourceSummary: 'identity-continuity',
           provenance: 'remembered',
           confidence: 0.84,
           salience: 0.82,
@@ -331,7 +331,7 @@ describe('memory recollection ranking continuity audit', () => {
           derivedFrom: [],
           tags: ['same-her', 'callback', 'afterglow', 'lower-pressure'],
           relationshipMeaning: 'Keep the callback return lower-pressure and on the same line.',
-          lesson: 'Do not reopen the same-her callback line from scratch while afterglow continuity is still active.',
+          lesson: 'Do not reopen the identity-continuity',
           latestReconsolidation: null,
           createdAt: 5,
           updatedAt: 6,
@@ -344,7 +344,7 @@ describe('memory recollection ranking continuity audit', () => {
     } as any)
 
     expect(result.agendaRankedEpisodes[0]?.id).toBe('same-her-callback-afterglow')
-    expect(result.clusterState.dominantSummary).toContain('same-her callback afterglow line inward')
+    expect(result.clusterState.dominantSummary).toContain('identity-continuity')
   })
 
   it('keeps measured-return room-first cadence memory ahead of warmth-first reopenings once cadence reconfirmation is explicit', () => {

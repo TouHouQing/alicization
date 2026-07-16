@@ -18,8 +18,6 @@ function createMockChatProvider(): ChatProvider {
   }
 }
 
-const EXCLUDED_CONTINUITY_RESIDUE = 'content=excluded; reason=continuity-residue; visibility=internal-structured'
-
 describe('stage desktop page helpers', () => {
   describe('resolveDesktopMouseCaptureState', () => {
     it('forces mouse capture during active stage interactions even on blank pixels', () => {
@@ -255,22 +253,8 @@ describe('stage desktop page helpers', () => {
   })
 
   describe('desktop voice turn dispatch', () => {
-    it('forwards the explicit pre-dialogue send identity through the primary desktop voice entry', async () => {
+    it('dispatches voice through the central memory-owned dialogue entry without renderer reply governance', async () => {
       const ingest = vi.fn(async () => undefined)
-      const preDialogueSendIdentity = {
-        status: 'partial',
-        summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-        companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-        companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-        awarenessLine: 'Before speaking, remember this is still the same digital life project before local fluency takes over.',
-        emotionalClosureCue: null,
-        reasonPreview: [
-          'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          'Some closure has already landed in the primary desktop proving ground before this voice turn opens outward.',
-          'Memory, initiative, execution, and embodiment still need stronger same-her continuity across noisier desktop runs.',
-        ],
-      }
 
       await dispatchDesktopVoiceTurn({
         text: '继续沿着这条数字生命主线推进',
@@ -278,7 +262,6 @@ describe('stage desktop page helpers', () => {
         model: 'mock-model',
         chatProvider: createMockChatProvider(),
         providerConfig: { apiKey: 'test-key' },
-        preDialogueSendIdentity,
         origin: 'ui-user',
         ingest,
       })
@@ -292,13 +275,7 @@ describe('stage desktop page helpers', () => {
         providerConfig: { apiKey: 'test-key' },
         origin: 'ui-user',
       }))
-      const forwardedIdentity = ingest.mock.calls[0]?.[1]?.preDialogueSendIdentity
-      expect(forwardedIdentity).toEqual(expect.objectContaining({
-        companionBriefingLine: EXCLUDED_CONTINUITY_RESIDUE,
-        companionNextClosureLine: EXCLUDED_CONTINUITY_RESIDUE,
-        awarenessLine: EXCLUDED_CONTINUITY_RESIDUE,
-      }))
-      expect(JSON.stringify(forwardedIdentity)).not.toMatch(/Before speaking|same-her|local-first digital life project|one continuous/u)
+      expect(ingest.mock.calls[0]?.[1]).not.toHaveProperty('preDialogueSendIdentity')
     })
   })
 })

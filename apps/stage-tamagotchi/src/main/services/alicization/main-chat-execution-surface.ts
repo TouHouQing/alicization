@@ -37,11 +37,8 @@ import { createHash } from 'node:crypto'
 import * as nodePath from 'node:path'
 
 import {
-  alicizationFixedTemplateReplacement,
+  buildAlicizationProviderFactBlock,
   detectAlicizationExecutionRoutingIntent,
-  isAlicizationThinProjectAwarenessLine,
-  sanitizeAlicizationProviderFacingText,
-  scoreAlicizationProjectAwarenessLine,
 } from '@proj-alicization/stage-shared'
 import { tool } from '@xsai/tool'
 import { z } from 'zod'
@@ -83,12 +80,10 @@ export interface MainGatewayExecutionTaskThreadResult {
 }
 
 export interface BuildExecutionCapabilitySystemBlocksOptions {
-  allowTools?: boolean
   inquiry?: {
     capabilityQuestion: boolean
     mentionedChannels: AlicizationExecutionCapabilityChannel[]
   }
-  runtimeContext?: AlicizationExecutionRuntimeContext | null
 }
 
 export interface BuildMainGatewayToolsOptions {
@@ -228,71 +223,6 @@ function normalizeFilesystemReturnLimit(raw: number | undefined) {
 
 function hashTextContent(content: string) {
   return createHash('sha256').update(content, 'utf8').digest('hex')
-}
-
-function sanitizeExecutionProjectBriefingLine(raw: unknown) {
-  return sanitizeText(raw)
-}
-
-function shouldPreferExecutionProjectAwarenessPreflight(input: {
-  preDialogueAwarenessLine?: unknown
-  preDialogueAwarenessSummary?: unknown
-  sameHerSelfLine?: unknown
-}) {
-  const awarenessLine = sanitizeExecutionProjectBriefingLine(
-    input.preDialogueAwarenessSummary ?? input.preDialogueAwarenessLine,
-  )
-  if (!awarenessLine || isAlicizationThinProjectAwarenessLine(awarenessLine))
-    return false
-
-  const sameHerSelfLine = sanitizeExecutionProjectBriefingLine(input.sameHerSelfLine)
-  if (!sameHerSelfLine)
-    return true
-
-  const awarenessScore = scoreAlicizationProjectAwarenessLine(awarenessLine)
-  const sameHerScore = scoreAlicizationProjectAwarenessLine(sameHerSelfLine)
-  if (awarenessScore !== sameHerScore)
-    return awarenessScore > sameHerScore
-
-  return awarenessLine.length > sameHerSelfLine.length
-}
-
-function resolveExecutionProjectAwarenessLine(input: {
-  preDialogueAwarenessLine?: unknown
-  preDialogueAwarenessSummary?: unknown
-}) {
-  const awarenessSummary = sanitizeExecutionProjectBriefingLine(input.preDialogueAwarenessSummary)
-  const awarenessLine = sanitizeExecutionProjectBriefingLine(input.preDialogueAwarenessLine)
-  if (!awarenessSummary)
-    return awarenessLine || null
-  if (!awarenessLine)
-    return awarenessSummary
-  if (isAlicizationThinProjectAwarenessLine(awarenessLine) && !isAlicizationThinProjectAwarenessLine(awarenessSummary))
-    return awarenessSummary
-
-  const awarenessSummaryScore = scoreAlicizationProjectAwarenessLine(awarenessSummary)
-  const awarenessLineScore = scoreAlicizationProjectAwarenessLine(awarenessLine)
-  if (awarenessSummaryScore !== awarenessLineScore)
-    return awarenessSummaryScore > awarenessLineScore ? awarenessSummary : awarenessLine
-
-  return awarenessSummary.length > awarenessLine.length
-    ? awarenessSummary
-    : awarenessLine
-}
-
-function resolveExecutionProjectPreflightLine(input: {
-  preDialogueAwarenessLine?: unknown
-  preDialogueAwarenessSummary?: unknown
-  preflightSummary?: unknown
-  sameHerSelfLine?: unknown
-}) {
-  if (shouldPreferExecutionProjectAwarenessPreflight(input))
-    return resolveExecutionProjectAwarenessLine(input)
-
-  return sanitizeExecutionProjectBriefingLine(input.sameHerSelfLine)
-    || resolveExecutionProjectAwarenessLine(input)
-    || sanitizeExecutionProjectBriefingLine(input.preflightSummary)
-    || null
 }
 
 function truncateTextByByteLimit(input: {
@@ -815,22 +745,12 @@ function defineMainGatewayExecutorToolSpec<TSchema extends z.ZodTypeAny>(spec: {
 }
 
 export function buildExecutionRoutingEnforcementSystemBlock(intent: AlicizationExecutionRoutingIntent) {
-  const overrideLines = Object.entries(intent.toolInputOverrides ?? {})
-    .map(([toolName, payload]) => {
-      const serialized = JSON.stringify(payload)
-      return serialized
-        ? `For ${toolName}, include workflow arguments: ${serialized}.`
-        : ''
-    })
-    .filter(Boolean)
-  return [
-    '[ALICIZATION_EXECUTION_ROUTING_GUARD]',
-    `Detected explicit execution request for channels: ${intent.requestedChannels.join(', ')}.`,
-    `Before writing any natural-language answer, you MUST call one of: ${intent.requiredToolNames.join(', ')}.`,
-    ...overrideLines,
-    'Do not pretend execution happened. If execution fails, report the tool failure honestly with its reason.',
-    'Do not switch to screenshot narration when this execution guard is active.',
-  ].join('\n')
+  return buildAlicizationProviderFactBlock('alicization-execution-routing', {
+    reasonCodes: intent.reasonCodes,
+    requestedChannels: intent.requestedChannels,
+    requiredToolNames: intent.requiredToolNames,
+    toolInputOverrides: intent.toolInputOverrides ?? null,
+  })
 }
 
 export function buildExecutionCapabilitySystemBlocks(
@@ -838,12 +758,6 @@ export function buildExecutionCapabilitySystemBlocks(
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[],
   options?: BuildExecutionCapabilitySystemBlocksOptions,
 ) {
-  const cleanProjectBriefingValue = (value: unknown, maxChars = 420) =>
-    sanitizeAlicizationProviderFacingText(value, maxChars)
-  const cleanProjectBriefingFact = (value: unknown, maxChars = 420) => {
-    const normalized = cleanProjectBriefingValue(value, maxChars)
-    return normalized === alicizationFixedTemplateReplacement ? '' : normalized
-  }
   const capabilityMap = new Map(capabilities.map(item => [item.channel, item]))
   const inquiryChannels = Array.isArray(options?.inquiry?.mentionedChannels)
     ? options.inquiry.mentionedChannels
@@ -855,129 +769,23 @@ export function buildExecutionCapabilitySystemBlocks(
         ...executionCapabilityChannels.filter(channel => !focusedChannels.includes(channel)),
       ]
     : [...executionCapabilityChannels]
-  const projectPreflightLine = options?.runtimeContext?.projectBriefing
-    ? resolveExecutionProjectPreflightLine({
-        sameHerSelfLine: options.runtimeContext.projectBriefing.sameHerSelfLine,
-        preDialogueAwarenessLine: options.runtimeContext.projectBriefing.preDialogueAwarenessLine,
-        preDialogueAwarenessSummary: options.runtimeContext.projectBriefing.preDialogueAwarenessSummary,
-        preflightSummary: options.runtimeContext.projectBriefing.preflightSummary,
-      })
-    : null
-  const projectAwarenessLine = options?.runtimeContext?.projectBriefing
-    ? resolveExecutionProjectAwarenessLine({
-        preDialogueAwarenessLine: options.runtimeContext.projectBriefing.preDialogueAwarenessLine,
-        preDialogueAwarenessSummary: options.runtimeContext.projectBriefing.preDialogueAwarenessSummary,
-      })
-    : null
-
-  const rows = displayChannels.map((channel) => {
+  const channels = displayChannels.map((channel) => {
     const capability = capabilityMap.get(channel)
     const ready = capability?.ready !== false && capability?.available !== false && capability?.enabled !== false
-    return [
-      `- ${channel}: available=${capability?.available !== false ? 'true' : 'false'}`,
-      `enabled=${capability?.enabled !== false ? 'true' : 'false'}`,
-      `ready=${ready ? 'true' : 'false'}`,
-      capability?.reason ? `reason=${capability.reason}` : '',
-    ].filter(Boolean).join(', ')
+    return {
+      channel,
+      available: capability?.available !== false,
+      enabled: capability?.enabled !== false,
+      ready,
+      reason: capability?.reason ?? null,
+    }
   })
 
-  const projectBriefingBlock = options?.runtimeContext?.projectBriefing
-    ? [
-        '[ALICIZATION_EXECUTION_BRIEFING]',
-        'briefing_scope=execution_capability-structured | owner=execution-runtime-context',
-        'runtime_context=local_runtime',
-        options.runtimeContext.projectBriefing.latestLandedProgress
-          ? `latest_landed_progress=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.latestLandedProgress)}`
-          : '',
-        options.runtimeContext.projectBriefing.primaryOpenLoop
-          ? `primary_open_loop=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.primaryOpenLoop)}`
-          : '',
-        options.runtimeContext.projectBriefing.nextClosureTarget
-          ? `next_closure_target=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.nextClosureTarget)}`
-          : '',
-        options.runtimeContext.projectBriefing.continuityArcStage
-          ? `execution_continuity_arc_stage=${options.runtimeContext.projectBriefing.continuityArcStage}`
-          : '',
-        options.runtimeContext.projectBriefing.continuityCue
-          ? `execution_continuity=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.continuityCue)}`
-          : '',
-        options.runtimeContext.projectBriefing.companionBriefingLine
-          ? `execution_companion_briefing=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.companionBriefingLine)}`
-          : '',
-        options.runtimeContext.projectBriefing.emotionalClosureSummary
-          ? `execution_emotional_context=${cleanProjectBriefingFact(options.runtimeContext.projectBriefing.emotionalClosureSummary)}`
-          : '',
-        options.runtimeContext.projectBriefing.continuityPreferredTiming
-          ? `execution_continuity_preferred_timing=${options.runtimeContext.projectBriefing.continuityPreferredTiming}`
-          : '',
-        options.runtimeContext.projectBriefing.continuityCadence
-          ? `execution_continuity_cadence=${options.runtimeContext.projectBriefing.continuityCadence}`
-          : '',
-        options.runtimeContext.projectBriefing.preferredBlinkCadence
-          ? `execution_preferred_blink_cadence=${options.runtimeContext.projectBriefing.preferredBlinkCadence}`
-          : '',
-        options.runtimeContext.projectBriefing.preferredGazeMode
-          ? `execution_preferred_gaze_mode=${options.runtimeContext.projectBriefing.preferredGazeMode}`
-          : '',
-        options.runtimeContext.projectBriefing.preferredPauseMode
-          ? `execution_pause_mode=${options.runtimeContext.projectBriefing.preferredPauseMode}`
-          : '',
-        options.runtimeContext.projectBriefing.preferredLipsyncMode
-          ? `execution_lipsync_mode=${options.runtimeContext.projectBriefing.preferredLipsyncMode}`
-          : '',
-        options.runtimeContext.projectBriefing.preferredVoiceMode
-          ? `execution_voice_mode=${options.runtimeContext.projectBriefing.preferredVoiceMode}`
-          : '',
-        options.runtimeContext.projectBriefing.preferredPacingMode
-          ? `execution_pacing_mode=${options.runtimeContext.projectBriefing.preferredPacingMode}`
-          : '',
-        projectPreflightLine || projectAwarenessLine || options.runtimeContext.projectBriefing.preDialogueAwarenessSummary
-          ? 'template_awareness=withheld_from_execution_capability_answer'
-          : '',
-      ].filter(Boolean).join('\n')
-    : ''
-
-  const capabilityBlock = [
-    '[ALICIZATION_EXECUTION_CAPABILITIES]',
-    'Use this capability snapshot as the source of truth when answering whether you can execute through Alicization channels.',
-    ...rows,
-    focusedChannels.length > 0
-      ? `Capability query focus: ${focusedChannels.join(', ')}.`
-      : '',
-    options?.inquiry?.capabilityQuestion
-      ? 'Never collapse multi-channel capability answers into a blanket "cannot".'
-      : '',
-    options?.inquiry?.capabilityQuestion
-      ? 'Answer each focused channel separately with yes/no and one short reason from this snapshot.'
-      : '',
-    options?.inquiry?.capabilityQuestion
-      ? 'If any focused channel has ready=true, explicitly state that this channel is available now.'
-      : '',
-    options?.inquiry?.capabilityQuestion && options.allowTools
-      ? 'When capability question is asked, call executor_capability_snapshot first if you need to re-check status before answering.'
-      : '',
-    'When user asks if you can use CLI/Codex/Claude Code/OpenClaw, answer strictly from this snapshot and never claim unavailable when ready=true.',
-    'If ready=false, explain it is currently unavailable and suggest next setup/check step.',
-  ].filter(Boolean).join('\n')
-
-  const routerBlock = [
-    '[ALICIZATION_EXECUTION_ROUTER]',
-    'When the host asks you to execute real actions, route through executor tools instead of generic refusal.',
-    '- Shell/terminal command tasks should call executor_run_cli when CLI is ready.',
-    '- Codebase investigation/edit tasks should call executor_run_codex or executor_run_claude_code when the channel is ready.',
-    '- For direct local browser and desktop operations, prefer browser_open_url/browser_search_web/browser_read_page/browser_click_element/browser_type_text/browser_navigate/browser_scroll/browser_wait/desktop_inspect_scene/desktop_list_interactables/desktop_click_element/desktop_type_text/desktop_press_keys/desktop_open_application/desktop_wait before escalating to a governed visual executor thread.',
-    '- When you need a governed multi-step host-local GUI executor thread, call executor_run_local_visual.',
-    '- Call executor_run_openclaw only when the host explicitly asked for OpenClaw or you need explicit OpenClaw transport.',
-    '- For direct file reads/writes/edits/patching/listing/searching, prefer filesystem_read_file/filesystem_write_file/filesystem_edit_file/filesystem_patch_file/filesystem_list_directory/filesystem_search_files before generic mcp_call_tool.',
-    '- executor_run_local_visual automatically carries the latest Alicization grounded runtime context into the host-local GUI chain.',
-    '- executor_run_openclaw automatically carries the latest Alicization grounded runtime context; when OpenClaw transport is selected it also carries the latest sensory snapshot into that embodied route.',
-    '- If you need to know whether live desktop capture is available or which window is foreground, call sensory_capture_state.',
-    '- Use mcp_call_tool as an escape hatch only when no first-class filesystem/executor tool covers the requested operation.',
-    '- If requested channel is not ready, say which channel is unavailable and propose the nearest ready structured channel.',
-    '- If required arguments are missing, ask one concise clarification question instead of refusing capability.',
-  ].join('\n')
-
-  return [projectBriefingBlock, capabilityBlock, routerBlock].filter(Boolean)
+  return [buildAlicizationProviderFactBlock('alicization-execution-capabilities', {
+    capabilityQuestion: options?.inquiry?.capabilityQuestion === true,
+    channels,
+    focusedChannels,
+  })]
 }
 
 export async function buildMainGatewayTools(options: BuildMainGatewayToolsOptions) {

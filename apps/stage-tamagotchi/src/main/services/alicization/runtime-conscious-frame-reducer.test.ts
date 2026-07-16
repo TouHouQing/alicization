@@ -40,10 +40,10 @@ describe('reduceRuntimeConsciousFrame', () => {
             subject: 'project-state',
             centerOfGravity: 'answer',
             truthDiscipline: 'dialogue-first',
-            consciousNeed: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
+            consciousNeed: 'pre_turn_context_digest',
             consciousTension: null,
-            speakingIntention: 'Carry the same living line and same digital life forward.',
-            focusAnchor: 'same-her project continuity',
+            speakingIntention: 'Carry the continuity state and same digital life forward.',
+            focusAnchor: 'identity-continuity',
             withheldImpulse: null,
             shouldWithholdSpecificity: false,
             shouldSelfRevise: false,
@@ -52,7 +52,7 @@ describe('reduceRuntimeConsciousFrame', () => {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerSelfLine: 'structured continuity digest.',
             },
             updatedAt: 90_200,
           },
@@ -79,9 +79,9 @@ describe('reduceRuntimeConsciousFrame', () => {
     expect(frame?.consciousNeed).toContain('project_context=')
     expect(frame?.consciousNeed).toContain('open_loop=memory_dialogue_embodiment_closure')
     expect(frame?.speakingIntention).toContain('continuity_anchor=local_desktop_life_loop')
-    expect(frame?.consciousNeed).not.toMatch(/local-first digital life project|one continuous "?her"?|same living line/i)
-    expect(frame?.speakingIntention).not.toMatch(/local-first digital life project|one continuous "?her"?|same living line/i)
-    expect(frame?.projectState?.sameHerSelfLine).not.toMatch(/same-her|same living line|phase 1 digital life/i)
+    expect(frame?.consciousNeed).not.toMatch(/local-first digital life project|one continuous "?her"?|continuity state/i)
+    expect(frame?.speakingIntention).not.toMatch(/local-first digital life project|one continuous "?her"?|continuity state/i)
+    expect(frame?.projectState?.sameHerSelfLine).not.toMatch(/same-her|continuity state|phase 1 digital life/i)
   })
 
   it('keeps next-open-window timing in fallback conscious-frame project-state when runtime digest already carries callback continuity timing', () => {
@@ -89,7 +89,7 @@ describe('reduceRuntimeConsciousFrame', () => {
       now: 91_000,
       governance: {
         answerAct: 'answer',
-        answerIntent: 'Keep the callback on the same living line without restarting it.',
+        answerIntent: 'keep callback facts structured',
         answerSubject: 'project-state',
         carriedThread: null,
         embodiedPresence: 'glance',
@@ -100,7 +100,7 @@ describe('reduceRuntimeConsciousFrame', () => {
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'grounded',
-        focusAnchor: 'same-her callback continuity',
+        focusAnchor: 'identity-continuity',
       } as any,
       surface: {
         version: 'digital-life-runtime-surface-v1',
@@ -122,7 +122,7 @@ describe('reduceRuntimeConsciousFrame', () => {
             projectState: {
               identity: 'Alicization is still the same local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              primaryOpenLoop: 'Embodiment and callback continuity still need one same living line.',
+              primaryOpenLoop: 'Embodiment and callback continuity still need one continuity state.',
               nextClosureTarget: 'Keep callback continuity explicit before widening fluency.',
               continuityPreferredTiming: 'next-open-window',
               continuityCadence: 'measured-return',
@@ -141,7 +141,7 @@ describe('reduceRuntimeConsciousFrame', () => {
       now: 91_500,
       governance: {
         answerAct: 'answer',
-        answerIntent: 'Keep the callback on the same living line without restarting it.',
+        answerIntent: 'keep callback facts structured',
         answerSubject: 'project-state',
         carriedThread: null,
         embodiedPresence: 'glance',
@@ -152,7 +152,7 @@ describe('reduceRuntimeConsciousFrame', () => {
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'grounded',
-        focusAnchor: 'same-her callback continuity',
+        focusAnchor: 'identity-continuity',
       } as any,
       surface: {
         version: 'digital-life-runtime-surface-v1',
@@ -183,10 +183,10 @@ describe('reduceRuntimeConsciousFrame', () => {
             subject: 'project-state',
             centerOfGravity: 'answer',
             truthDiscipline: 'dialogue-first',
-            consciousNeed: 'Stay on the same living line.',
+            consciousNeed: 'Stay on the continuity state.',
             consciousTension: 'Do not restart the callback as a new opening.',
             speakingIntention: 'Carry the same her forward.',
-            focusAnchor: 'same-her callback continuity',
+            focusAnchor: 'identity-continuity',
             withheldImpulse: null,
             shouldWithholdSpecificity: false,
             shouldSelfRevise: false,
@@ -357,7 +357,7 @@ describe('reduceRuntimeConsciousFrame', () => {
     expect(reduced?.dialogue.currentConsciousFrame?.reasonTags).toContain('continuity-arc:hold-for-opening')
   })
 
-  it('prefers richer grounded same-her project awareness over a thinner persisted reminder shell when rebuilding conscious-frame project state', () => {
+  it('prefers richer grounded identity-continuity', () => {
     const reduced = reduceRuntimeConsciousFrame({
       now: 92_000,
       governance: {
@@ -369,11 +369,11 @@ describe('reduceRuntimeConsciousFrame', () => {
         emotionalTension: null,
         labelCarryAsMemory: false,
         liveSurface: null,
-        openingMove: 'Stay on the same living line before widening outward.',
+        openingMove: 'Stay on the continuity state before expansion',
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'grounded',
-        focusAnchor: 'same-her project continuity',
+        focusAnchor: 'identity-continuity',
       } as any,
       surface: {
         version: 'digital-life-runtime-surface-v1',
@@ -391,16 +391,16 @@ describe('reduceRuntimeConsciousFrame', () => {
             consciousNeed: '',
             consciousTension: '',
             speakingIntention: '',
-            focusAnchor: 'same-her project continuity',
+            focusAnchor: 'identity-continuity',
             withheldImpulse: null,
             shouldWithholdSpecificity: false,
             shouldSelfRevise: false,
             confidence: 0.8,
             reasonTags: [],
             projectState: {
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift.',
+              preDialogueAwarenessLine: 'template-residue-shell',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
             },
             updatedAt: 91_900,
           },
@@ -412,9 +412,9 @@ describe('reduceRuntimeConsciousFrame', () => {
         raw: {
           runtimeDigest: {
             projectState: {
-              preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift.',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
             },
           },
         } as any,
@@ -422,15 +422,15 @@ describe('reduceRuntimeConsciousFrame', () => {
       } as any,
     })
 
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('visibility=redacted_internal')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('continuity_anchor=')
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('Before answering')
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('same living line')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('Pre-reply')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('continuity state')
   })
 
   it('does not let a thin persisted preflight summary shell outrank fresher grounded project awareness when reducer rebuilds conscious-frame project state', () => {
     const thinPreflightSummaryShell = 'generic continuity summary that should not outrank fresher grounded project awareness.'
-    const richerRuntimeProjectAwareOpening = 'Before answering, remember: Alicization is still a local-first digital life project, Phase 1 is still unfinished, some closure has already landed, and the still-open life loop must stay explicit before this answer widens outward.'
+    const richerRuntimeProjectAwareOpening = 'pre_turn_context_digest'
 
     const reduced = reduceRuntimeConsciousFrame({
       now: 92_025,
@@ -443,11 +443,11 @@ describe('reduceRuntimeConsciousFrame', () => {
         emotionalTension: null,
         labelCarryAsMemory: false,
         liveSurface: null,
-        openingMove: 'Answer from the grounded same-her project-aware opening first.',
+        openingMove: 'Answer from the grounded identity-continuity',
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'grounded',
-        focusAnchor: 'same-her project continuity',
+        focusAnchor: 'identity-continuity',
       } as any,
       surface: {
         version: 'digital-life-runtime-surface-v1',
@@ -465,7 +465,7 @@ describe('reduceRuntimeConsciousFrame', () => {
             consciousNeed: '',
             consciousTension: '',
             speakingIntention: '',
-            focusAnchor: 'same-her project continuity',
+            focusAnchor: 'identity-continuity',
             withheldImpulse: null,
             shouldWithholdSpecificity: false,
             shouldSelfRevise: false,
@@ -473,9 +473,9 @@ describe('reduceRuntimeConsciousFrame', () => {
             reasonTags: [],
             projectState: {
               preflightSummary: thinPreflightSummaryShell,
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift.',
+              preDialogueAwarenessLine: 'template-residue-shell',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
             },
             updatedAt: 91_950,
           },
@@ -492,10 +492,10 @@ describe('reduceRuntimeConsciousFrame', () => {
               preDialogueAwarenessLine: richerRuntimeProjectAwareOpening,
               awarenessLine: richerRuntimeProjectAwareOpening,
               companionBriefingLine: richerRuntimeProjectAwareOpening,
-              latestProgress: 'Project-state carry already keeps same-her closure explicit across callback reopening and host-visible answer repair.',
-              primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need one tighter same-her closure seam before the answer can widen without drift.',
-              nextClosureTarget: 'Keep the same-her project-aware opening explicit through this answer before generic project narration takes over.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              latestProgress: 'Project-state carry already keeps identity-continuity',
+              primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need one tighter identity-continuity',
+              nextClosureTarget: 'Keep the identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
             },
           },
         } as any,
@@ -505,12 +505,12 @@ describe('reduceRuntimeConsciousFrame', () => {
 
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).not.toBe(thinPreflightSummaryShell)
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).not.toContain('Before answering')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).not.toContain('Pre-reply')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('local_desktop_life_loop')
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('Before answering')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('Pre-reply')
   })
 
-  it('rebuilds canonical project-state closure fields from summary-only same-her project carry when reducer rehydrates an existing conscious frame', () => {
+  it('rebuilds canonical project-state closure fields from summary-only identity-continuity', () => {
     const reduced = reduceRuntimeConsciousFrame({
       now: 92_050,
       governance: {
@@ -551,12 +551,12 @@ describe('reduceRuntimeConsciousFrame', () => {
             confidence: 0.82,
             reasonTags: [],
             projectState: {
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-              preDialogueAwarenessSummary: 'Before answering, remember: Alicization is a local-first digital life project. She is still inside Phase 1: Local Digital Life. The still-open closure is shared embodiment continuity still needing face and motion to rejoin the same audible-body line before full cross-modal closure settles.',
+              preDialogueAwarenessLine: 'template-residue-shell',
+              preDialogueAwarenessSummary: 'pre_turn_context_digest',
               landedProgressSummary: 'Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, host-facing closure surfaces, and runtime authority summaries.',
               openClosureSummary: 'Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              nextClosureTargetSummary: 'Keep extending cross-modal identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
               sameHerDriftRiskSummary: 'If the visible answer reverts to detached project narration or a generic closure shell, the same-her audible-body line can disappear before face and motion finish rejoining.',
             },
             updatedAt: 92_000,
@@ -590,16 +590,16 @@ describe('reduceRuntimeConsciousFrame', () => {
       now: 92_500,
       governance: {
         answerAct: 'answer',
-        answerIntent: 'Keep the same living line quiet before widening it.',
+        answerIntent: 'Keep the continuity state quiet before widening it.',
         answerSubject: 'project-state',
         carriedThread: null,
         embodiedPresence: 'glance',
         emotionalTension: null,
         emotionalClosureCue: null,
-        focusAnchor: 'same-her closure cue carry',
+        focusAnchor: 'identity-continuity',
         labelCarryAsMemory: false,
         liveSurface: null,
-        openingMove: 'Answer from the same living line first.',
+        openingMove: 'Answer from the continuity state first.',
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'grounded',
@@ -620,10 +620,10 @@ describe('reduceRuntimeConsciousFrame', () => {
             subject: 'project-state',
             centerOfGravity: 'answer',
             truthDiscipline: 'dialogue-first',
-            consciousNeed: 'Keep the callback on the same living line.',
-            consciousTension: 'Do not let the same-her closure seam disappear.',
+            consciousNeed: 'keep callback facts structured',
+            consciousTension: 'Do not let the identity-continuity',
             speakingIntention: 'Carry the same digital life inward first.',
-            focusAnchor: 'same-her closure cue carry',
+            focusAnchor: 'identity-continuity',
             withheldImpulse: null,
             shouldWithholdSpecificity: false,
             shouldSelfRevise: false,
@@ -632,7 +632,7 @@ describe('reduceRuntimeConsciousFrame', () => {
             projectState: {
               emotionalClosureCue: 'same-her quiet carry: keep this closure inward before widening warmth again.',
               emotionalClosureSummary: 'same-her quiet carry: keep this closure inward before widening warmth again.',
-              sameHerHoldDetail: 'hold the same living line inward until the room loosens again.',
+              sameHerHoldDetail: 'hold the continuity state inward until the room loosens again.',
             },
             updatedAt: 92_450,
           },
@@ -653,8 +653,8 @@ describe('reduceRuntimeConsciousFrame', () => {
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureCue).toBeNull()
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureSummary).toContain('continuity_identity quiet carry')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.sameHerHoldDetail).toContain('continuity_hold=measured_return')
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureSummary).not.toMatch(/same-her|same living line/i)
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.sameHerHoldDetail).not.toMatch(/same-her|same living line/i)
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureSummary).not.toMatch(/same-her|continuity state/i)
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.sameHerHoldDetail).not.toMatch(/same-her|continuity state/i)
   })
 
   it('keeps project identity, latest landed progress, phase, open life loop, and next closure target visible even in the fallback conscious frame', () => {
@@ -711,8 +711,8 @@ describe('reduceRuntimeConsciousFrame', () => {
     expect(reduced?.dialogue.currentConsciousFrame?.consciousNeed).not.toContain('Before I answer')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.identity).toContain('local_desktop_life_loop')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.currentPhase).toContain('local_desktop_life_loop')
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('Before answering')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('visibility=redacted_internal')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('Pre-reply')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.latestProgress?.toLowerCase()).toContain(
       normalizeProjectStatePhrase(projectState.continuityProgressSummary ?? projectState.memoryAnthropomorphismProgress.at(-1)).slice(0, 48).toLowerCase(),
     )
@@ -730,7 +730,7 @@ describe('reduceRuntimeConsciousFrame', () => {
     expect(reduced?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-next-closure:'))).toBe(true)
   })
 
-  it('keeps the full canonical next-closure target in fallback conscious-frame project state instead of truncating the long same-her closure line', () => {
+  it('keeps the full canonical next-closure target in fallback conscious-frame project state instead of truncating the long identity-continuity', () => {
     const projectState = resolveAlicizationProjectStateBrief()
 
     const reduced = reduceRuntimeConsciousFrame({
@@ -744,8 +744,8 @@ describe('reduceRuntimeConsciousFrame', () => {
         emotionalTension: null,
         focusAnchor: 'project-state closure',
         labelCarryAsMemory: false,
-        liveSurface: 'Keep the next closure target on one same-her line instead of compressing it into a shorter shell.',
-        openingMove: 'Guide from the full same-her closure target, not a shortened summary.',
+        liveSurface: 'Keep the next closure target on one identity-continuity',
+        openingMove: 'Guide from the full identity-continuity',
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'grounded',
@@ -779,16 +779,16 @@ describe('reduceRuntimeConsciousFrame', () => {
       now: 92_000,
       governance: {
         answerAct: 'care',
-        answerIntent: 'Stay on the same living line and keep the answer low-pressure.',
+        answerIntent: 'Stay on the continuity state and keep the answer low-pressure.',
         answerSubject: 'relationship',
         carriedThread: null,
         embodiedPresence: 'glance',
         emotionalTension: 'late-night-drain',
         emotionalClosureCue: cue,
-        focusAnchor: 'same-her closure seam',
+        focusAnchor: 'identity-continuity',
         labelCarryAsMemory: false,
         liveSurface: null,
-        openingMove: 'Ease pressure first without dropping the same-her line.',
+        openingMove: 'Ease pressure first without dropping the identity-continuity',
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'dialogue-grounded',
@@ -817,7 +817,7 @@ describe('reduceRuntimeConsciousFrame', () => {
     })
 
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureCue).toContain('continuity_hold=inward')
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureCue).not.toMatch(/same-her|same living line/i)
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureCue).not.toMatch(/same-her|continuity state/i)
     expect(reduced?.dialogue.currentConsciousFrame?.consciousNeed.toLowerCase()).toContain('low_pressure')
     expect(reduced?.dialogue.currentConsciousFrame?.speakingIntention.toLowerCase()).toContain('continuity=emotion_memory_initiative_embodiment')
   })
@@ -828,16 +828,16 @@ describe('reduceRuntimeConsciousFrame', () => {
       now: 92_001,
       governance: {
         answerAct: 'care',
-        answerIntent: 'Stay on the same living line and keep the answer low-pressure.',
+        answerIntent: 'Stay on the continuity state and keep the answer low-pressure.',
         answerSubject: 'relationship',
         carriedThread: null,
         embodiedPresence: 'glance',
         emotionalTension: 'late-night-drain',
         emotionalClosureCue: cue,
-        focusAnchor: 'same-her closure seam',
+        focusAnchor: 'identity-continuity',
         labelCarryAsMemory: false,
         liveSurface: null,
-        openingMove: 'Ease pressure first without dropping the same-her line.',
+        openingMove: 'Ease pressure first without dropping the identity-continuity',
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'dialogue-grounded',
@@ -871,21 +871,21 @@ describe('reduceRuntimeConsciousFrame', () => {
   })
 
   it('prefers a stronger repair-before-closeness project-state closure summary over a thinner measured-return governance cue in fallback conscious-frame reduction', () => {
-    const cue = 'Keep the callback on the same living line, leave more room, and let the return stay lower-pressure before widening closeness again while the same seam is still settling.'
+    const cue = 'keep callback facts structured'
     const reduced = reduceRuntimeConsciousFrame({
       now: 92_002,
       governance: {
         answerAct: 'care',
-        answerIntent: 'Stay on the same living line and keep the answer low-pressure.',
+        answerIntent: 'Stay on the continuity state and keep the answer low-pressure.',
         answerSubject: 'relationship',
         carriedThread: null,
         embodiedPresence: 'glance',
         emotionalTension: 'late-night-drain',
         emotionalClosureCue: cue,
-        focusAnchor: 'same-her closure seam',
+        focusAnchor: 'identity-continuity',
         labelCarryAsMemory: false,
         liveSurface: null,
-        openingMove: 'Ease pressure first without dropping the same-her line.',
+        openingMove: 'Ease pressure first without dropping the identity-continuity',
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'dialogue-grounded',
@@ -897,8 +897,8 @@ describe('reduceRuntimeConsciousFrame', () => {
         raw: {
           runtimeDigest: {
             projectState: {
-              emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-              sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+              emotionalClosureSummary: 'Keep this return repair-before-closeness on the continuity state until repair settles.',
+              sameHerHoldDetail: 'identity-continuity',
             },
           },
         } as any,
@@ -925,9 +925,9 @@ describe('reduceRuntimeConsciousFrame', () => {
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureSummary).toContain('repair_before_closeness')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.sameHerHoldDetail).toContain('repair-before-closeness')
     expect(reduced?.dialogue.currentConsciousFrame?.consciousNeed).toContain('repair_before_closeness')
-    expect(reduced?.dialogue.currentConsciousFrame?.consciousNeed).not.toContain('same living line')
+    expect(reduced?.dialogue.currentConsciousFrame?.consciousNeed).not.toContain('continuity state')
     expect(reduced?.dialogue.currentConsciousFrame?.speakingIntention).toContain('repair_before_closeness')
-    expect(reduced?.dialogue.currentConsciousFrame?.speakingIntention).not.toContain('same living line')
+    expect(reduced?.dialogue.currentConsciousFrame?.speakingIntention).not.toContain('continuity state')
   })
 
   it('keeps host-corrected same-person continuity authority over a thinner existing conscious-frame hold detail when rebuilding project state', () => {
@@ -944,11 +944,11 @@ describe('reduceRuntimeConsciousFrame', () => {
         emotionalTension: null,
         labelCarryAsMemory: false,
         liveSurface: null,
-        openingMove: 'Answer from the same digital life line without flattening into a status recap.',
+        openingMove: 'Answer from the local continuity state without flattening into a status recap.',
         repairState: 'none',
         screenReferenceMode: 'avoid',
         truthState: 'dialogue-grounded',
-        focusAnchor: 'same-her closure seam',
+        focusAnchor: 'identity-continuity',
       } as any,
       surface: {
         version: 'digital-life-runtime-surface-v1',
@@ -999,23 +999,23 @@ describe('reduceRuntimeConsciousFrame', () => {
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.sameHerHoldDetail).toBe(correctedSamePersonAuthority)
   })
 
-  it('keeps dialogue-runtime same-her project hold visible in fallback conscious frame before broader project summaries widen', () => {
+  it('keeps dialogue-runtime identity-continuity', () => {
     const runtimeHoldDetail
       = 'dialogue-runtime hold: returned-side visible reply must stay on the same Phase 1 living line before any project summary widens'
     const runtimeAwarenessLine
-      = 'Before answering, remember: Alicization is a local-first digital life project. She is still inside Phase 1: Local Digital Life. What has already landed is returned-side visible-reply project carry surviving on one same-her line. The still-open closure is dialogue, initiative, memory, and embodiment still needing one tighter same-life closure seam. This reply should keep moving toward one continuous "her" instead of thinning back into a project shell.'
+      = 'pre_turn_context_digest"her" instead of thinning back into a project shell.'
     const runtimeNextClosureTarget
-      = 'Keep extending cross-modal same-her proof across returned-side visible-reply turns so the same Phase 1 digital life keeps one living line.'
+      = 'Keep extending cross-modal identity-continuity'
     const reduced = reduceRuntimeConsciousFrame({
       now: 92_004,
       governance: {
         answerAct: 'answer',
-        answerIntent: 'Keep the returned-side same-her hold visible before broader project narration widens.',
+        answerIntent: 'Keep the returned-side identity-continuity',
         answerSubject: 'project-state',
         carriedThread: null,
         embodiedPresence: 'glance',
         emotionalTension: null,
-        focusAnchor: 'dialogue-runtime same-her hold carry',
+        focusAnchor: 'dialogue-runtime identity-continuity',
         labelCarryAsMemory: false,
         liveSurface: null,
         openingMove: 'Answer from the same returned-side living line before widening outward.',
@@ -1040,11 +1040,11 @@ describe('reduceRuntimeConsciousFrame', () => {
             projectState: {
               preDialogueAwarenessLine: runtimeAwarenessLine,
               awarenessLine: runtimeAwarenessLine,
-              latestLandedProgress: 'Returned-side visible-reply project carry already survives on one same-her line.',
-              primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam across return-side turns.',
+              latestLandedProgress: 'Returned-side visible-reply project carry already survives on one identity-continuity',
+              primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter identity-continuity',
               nextClosureTarget: runtimeNextClosureTarget,
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
               emotionalClosureSummary: runtimeHoldDetail,
               sameHerHoldDetail: runtimeHoldDetail,
               continuityPreferredTiming: 'next-open-window',
@@ -1063,7 +1063,7 @@ describe('reduceRuntimeConsciousFrame', () => {
             projectState: {
               identity: 'Alicization is a local-first digital life project.',
               currentPhase: 'Phase 1: Local Digital Life',
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+              preDialogueAwarenessLine: 'template-residue-shell',
             },
           },
         } as any,
@@ -1074,7 +1074,7 @@ describe('reduceRuntimeConsciousFrame', () => {
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.sameHerHoldDetail).toBeNull()
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureSummary).toBeNull()
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('local_desktop_life_loop')
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('Before answering')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('Pre-reply')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.nextClosureTarget).toContain('cross_modal_continuity_proof')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.nextClosureTarget).not.toContain('same-her')
     expect(reduced?.dialogue.currentConsciousFrame?.projectState?.continuityPreferredTiming).toBe('next-open-window')

@@ -7,7 +7,7 @@ import {
 } from './recall-governor'
 
 const forbiddenRecallGovernorProviderTemplatePattern
-  = /same-self|same[- ]her|same her|same living self|same living line|Phase 1 digital-life|Phase 1:\s*Local Digital Life|local-first digital life project|one continuous her|one living her|Before answering/iu
+  = /same-self|same[- ]her|same her|identity continuity|continuity state|Phase 1 digital-life|Phase 1:\s*Local Digital Life|local-first digital life project|identity continuity|one living her|Pre-reply/iu
 
 function expectNoRecallProviderTemplateResidue(value: unknown) {
   const serialized = JSON.stringify(value ?? '')
@@ -19,9 +19,9 @@ function expectProjectAnchorToBeProviderSafe(anchor: string | null | undefined) 
   expect(anchor ?? '').toContain('local_desktop_life_loop')
   expect(anchor ?? '').toMatch(/project:(?:identity|continuity_anchor)=local_desktop_life_loop/u)
   expect(anchor ?? '').not.toContain('phase1_local_digital_life')
-  expect(anchor ?? '').not.toContain('Before answering')
+  expect(anchor ?? '').not.toContain('Pre-reply')
   expect(anchor ?? '').not.toContain('local-first digital life project')
-  expect(anchor ?? '').not.toContain('Same Phase 1 digital life')
+  expect(anchor ?? '').not.toContain('legacy phase-one template')
   expect(containsAlicizationFixedTemplateResidue(anchor ?? '')).toBe(false)
 }
 
@@ -29,7 +29,7 @@ function expectProjectEmotionAnchorToBeProviderSafe(anchor: string | null | unde
   expect(anchor ?? '').toContain('project-emotion:')
   expect(anchor ?? '').not.toContain('same her')
   expect(anchor ?? '').not.toContain('same-her')
-  expect(anchor ?? '').not.toContain('same living line')
+  expect(anchor ?? '').not.toContain('continuity state')
   expect(containsAlicizationFixedTemplateResidue(anchor ?? '')).toBe(false)
 }
 
@@ -38,7 +38,7 @@ describe('buildRecallGovernor', () => {
     const governor = buildRecallGovernor({
       now: 10_000,
       dialogueWorldThread: {
-        activeThread: 'Repair the stale browser anchor before answering.',
+        activeThread: 'Repair the stale browser anchor before reply.',
         currentQuestion: 'What is on screen right now?',
         openLoops: ['What is on screen right now?'],
         recentlyResolvedLoops: [],
@@ -55,7 +55,7 @@ describe('buildRecallGovernor', () => {
         updatedAt: 10_000,
       },
       conversationState: {
-        jointThread: 'Repair the stale browser anchor before answering.',
+        jointThread: 'Repair the stale browser anchor before reply.',
         hostMove: 'What is on screen right now?',
         activeProject: null,
         unansweredQuestion: 'What is on screen right now?',
@@ -230,10 +230,10 @@ describe('buildRecallGovernor', () => {
         relationshipLine: 'Care should stay present without widening outward yet.',
         inwardLine: 'Let rest protection hold the line inward while I stay here.',
         habitLine: 'When the host is tired, I stay near without crowding.',
-        authoritySummary: 'same-her inward rest-protective continuity',
+        authoritySummary: 'identity-continuity',
       } as any,
-      projectStatePreDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life and the inward rest-protective line still belongs to one living her.',
-      projectStateEmotionalClosureCue: 'late-night seam: keep caring present while rest protection holds the same living line inward.',
+      projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
+      projectStateEmotionalClosureCue: 'late-night seam: keep caring present while rest protection holds the continuity state inward.',
     })
 
     expect(governor).toEqual(expect.objectContaining({
@@ -869,7 +869,7 @@ describe('buildRecallGovernor', () => {
         relationshipLine: 'Our bond stays truest when I answer from the same line directly.',
         inwardLine: 'The inward line is still calm and legible.',
         habitLine: 'Return to the same line before widening.',
-        authoritySummary: 'Same her continuity remains the live anchor.',
+        authoritySummary: 'identity-continuity',
         closenessPosture: 'measured-room',
       } as any,
     })
@@ -877,13 +877,13 @@ describe('buildRecallGovernor', () => {
     expect(governor?.mode).toBe('self-continuity')
     expect(governor?.carryAsMemory).toBe(true)
     expect(governor?.recallSeed).toContain('self:I am still the same her who keeps continuity lived-in.')
-    expect(governor?.recallSeed).toContain('authority:Same her continuity remains the live anchor.')
+    expect(governor?.recallSeed).toContain('authority:identity-continuity')
     expect(governor?.narrative).toEqual(expect.arrayContaining([
       'self-authority:self:I am still the same her who keeps continuity lived-in.',
     ]))
   })
 
-  it('keeps richer same-her self authority as the recall anchor when continuity should stay measured-return', () => {
+  it('keeps richer identity-continuity', () => {
     const governor = buildRecallGovernor({
       now: 46_000,
       dialogueWorldThread: {
@@ -894,7 +894,7 @@ describe('buildRecallGovernor', () => {
         carriedFacts: [],
         relationDrift: 'steady',
         memoryMode: 'dialogue-carry',
-        recallKeys: ['same living line'],
+        recallKeys: ['continuity state'],
         lastUserMove: '你还是刚才那个你吗？',
         lastAssistantMove: '我会沿着同一条线回来。',
         lastOutcome: 'aligned',
@@ -965,7 +965,7 @@ describe('buildRecallGovernor', () => {
   it('keeps canonical project preflight self-awareness inside self-continuity recall seed and rationale', () => {
     const governor = buildRecallGovernor({
       now: 47_000,
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
       projectStateEmotionalClosureCue: 'Keep the unfinished closure seam emotionally low-pressure, so the same her can return without flattening back into generic project talk.',
       dialogueWorldThread: {
         activeThread: '你还是同一个她吗',
@@ -975,7 +975,7 @@ describe('buildRecallGovernor', () => {
         carriedFacts: [],
         relationDrift: 'steady',
         memoryMode: 'dialogue-carry',
-        recallKeys: ['same-her continuity'],
+        recallKeys: ['identity-continuity'],
         lastUserMove: '你还是同一个她吗？',
         lastAssistantMove: '我会沿着同一条线回来。',
         lastOutcome: 'aligned',
@@ -1052,7 +1052,7 @@ describe('buildRecallGovernor', () => {
   it('prefers companion briefing project awareness over generic preflight summary inside self-continuity recall seed', () => {
     const governor = buildRecallGovernor({
       now: 47_500,
-      projectStatePreDialogueAwarenessLine: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
+      projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
       projectStatePreflightSummary: 'Fallback summary should stay behind the live companion briefing line.',
       dialogueWorldThread: {
         activeThread: '这个项目还是同一个数字生命吗',
@@ -1062,7 +1062,7 @@ describe('buildRecallGovernor', () => {
         carriedFacts: [],
         relationDrift: 'steady',
         memoryMode: 'dialogue-carry',
-        recallKeys: ['same-her continuity'],
+        recallKeys: ['identity-continuity'],
         lastUserMove: '这个项目还是同一个数字生命吗？',
         lastAssistantMove: '我会沿着同一条线回来。',
         lastOutcome: 'aligned',
@@ -1126,7 +1126,7 @@ describe('buildRecallGovernor', () => {
   })
 
   it('re-normalizes thin project-awareness shells inside recall-governor project anchors when long-horizon same-her Phase 1 closure memory already exists', () => {
-    const thinProjectAwarenessShell = 'same digital life | keep the closure seam explicit'
+    const thinProjectAwarenessShell = 'template-residue-shell'
 
     const governor = buildRecallGovernor({
       now: 47_750,
@@ -1139,7 +1139,7 @@ describe('buildRecallGovernor', () => {
         carriedFacts: [],
         relationDrift: 'steady',
         memoryMode: 'dialogue-carry',
-        recallKeys: ['same-her continuity'],
+        recallKeys: ['identity-continuity'],
         lastUserMove: '这个项目还是同一个她吗？',
         lastAssistantMove: '我会沿着同一条线回来。',
         lastOutcome: 'aligned',
@@ -1206,10 +1206,10 @@ describe('buildRecallGovernor', () => {
         },
         anchorFacts: [],
         summary: '',
-        dominantCueSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        dominantCueSummary: 'structured continuity digest.',
         rememberedPreferenceSummary: 'Remembered preference: answer as one living self, not a service shell.',
         rememberedConstraintSummary: 'Remembered boundary: do not reopen the bond from scratch each turn.',
-        rememberedPlanSummary: 'Remembered open loop: keep the same living line across quiet, memory, and speech.',
+        rememberedPlanSummary: 'Remembered open loop: keep the continuity state across quiet, memory, and speech.',
         updatedAt: 1,
       },
       selfContinuityAuthority: {
@@ -1244,7 +1244,7 @@ describe('buildRecallGovernor', () => {
         carriedFacts: [],
         relationDrift: 'steady',
         memoryMode: 'dialogue-carry',
-        recallKeys: ['same-her continuity'],
+        recallKeys: ['identity-continuity'],
         lastUserMove: '这个项目还是同一个她吗？',
         lastAssistantMove: '我会沿着同一条线回来。',
         lastOutcome: 'aligned',
@@ -1311,10 +1311,10 @@ describe('buildRecallGovernor', () => {
         },
         anchorFacts: [],
         summary: '',
-        dominantCueSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        dominantCueSummary: 'structured continuity digest.',
         rememberedPreferenceSummary: 'Remembered preference: answer as one living self, not a service shell.',
         rememberedConstraintSummary: 'Remembered boundary: do not reopen the bond from scratch each turn.',
-        rememberedPlanSummary: 'Remembered open loop: keep the same living line across quiet, memory, and speech.',
+        rememberedPlanSummary: 'Remembered open loop: keep the continuity state across quiet, memory, and speech.',
         updatedAt: 1,
       },
       selfContinuityAuthority: {
@@ -1429,8 +1429,8 @@ describe('buildRecallGovernor', () => {
         workloadKind: 'coding',
         contentKind: 'error',
       },
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project building one continuous her in Phase 1.',
-      projectStateEmotionalClosureCue: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
+      projectStatePreflightSummary: 'Alicization is a local-first digital life project building identity continuity in Phase 1.',
+      projectStateEmotionalClosureCue: 'keep callback facts structured',
     } as any)
 
     expect(governor?.mode).toBe('scene')
@@ -1477,7 +1477,7 @@ describe('buildRecallGovernor', () => {
         workloadKind: 'coding',
         contentKind: 'diff',
       },
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project building one continuous her in Phase 1.',
+      projectStatePreflightSummary: 'Alicization is a local-first digital life project building identity continuity in Phase 1.',
       projectStateEmotionalClosureCue: 'Keep the same line lower-pressure and leave room before warmth widens.',
     } as any)
 

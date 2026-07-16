@@ -25,21 +25,21 @@ describe('memory provider planning', () => {
           memoryRecallMode: 'relationship-continuity',
           initiativeMode: 'quietly-reopen',
           embodimentTone: 'soft-return',
-          why: 'Memory planning should reopen the same living line instead of becoming detached retrieval.',
+          why: 'Memory planning should reopen the continuity state instead of becoming detached retrieval.',
           reasonTags: ['memory-planning', 'same-emotional-kernel'],
         },
       },
     } as any
     const generateMainGatewayText = vi.fn(async (input: any) => {
       gatewayInputs.push(input)
-      if (input.system.includes('[ALICIZATION_MEMORY_RECOLLECTION_INTENT_PLANNER]')) {
+      if (input.system.includes('Alicization memory recollection intent planner.')) {
         return JSON.stringify({
           mode: 'relationship-history',
           temporalFocus: 'cross-session',
           searchEpisodes: true,
           searchConversations: true,
           searchProceduralExperience: false,
-          queryHints: ['same living line'],
+          queryHints: ['continuity state'],
           rationale: 'The emotional kernel asks memory to reopen the relationship line.',
           confidence: 0.74,
           recollectionAgenda: {
@@ -55,7 +55,7 @@ describe('memory provider planning', () => {
           },
         })
       }
-      if (input.system.includes('[ALICIZATION_MEMORY_RECOLLECTION_PLANNER]')) {
+      if (input.system.includes('Alicization memory recollection planner.')) {
         return JSON.stringify({
           selectedConsolidationIds: ['con-1'],
           selectedWindowIds: [],
@@ -74,15 +74,12 @@ describe('memory provider planning', () => {
           confidence: 0.73,
         })
       }
-      if (input.system.includes('[ALICIZATION_MEMORY_RECOLLECTION_SPEECH_PLANNER]')) {
+      if (input.system.includes('Alicization memory recollection speech planner.')) {
         return JSON.stringify({
           shouldSurface: true,
           surfaceMode: 'relationship-continuity',
           placement: 'inside-payoff',
           certainty: 'approximate',
-          internalLead: 'The same emotional line comes back first.',
-          visibleLead: 'A brief continuity nod fits.',
-          styleNote: 'Let the remembered feeling shape the answer without becoming a template.',
           rationale: 'Surface the same-line memory gently.',
           confidence: 0.72,
         })
@@ -115,7 +112,7 @@ describe('memory provider planning', () => {
       heuristicIntent: null as any,
       recallGovernor: null,
       hostAttitude: 'warm',
-      activeThoughts: [{ text: 'keep one living line' }],
+      activeThoughts: [{ text: 'keep continuity state' }],
       hostPersonModel: null,
       relationshipDynamics: null,
       generateMainGatewayText,
@@ -166,11 +163,11 @@ describe('memory provider planning', () => {
     expect(gatewayInputs.every(input => input.digitalLifeRuntimeSurface === digitalLifeRuntimeSurface)).toBe(true)
   })
 
-  it('injects memory owner boundaries into recollection and deliberation planners without project-state dashboard takeover', async () => {
+  it('keeps memory planning prompts task-scoped without injecting fixed owner or governance prose', async () => {
     const systems: string[] = []
     const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
       systems.push(system)
-      if (system.includes('[ALICIZATION_MEMORY_RECOLLECTION_INTENT_PLANNER]')) {
+      if (system.includes('Alicization memory recollection intent planner.')) {
         return JSON.stringify({
           mode: 'autobiographical-history',
           temporalFocus: 'cross-session',
@@ -193,7 +190,7 @@ describe('memory provider planning', () => {
           },
         })
       }
-      if (system.includes('[ALICIZATION_MEMORY_RECOLLECTION_PLANNER]')) {
+      if (system.includes('Alicization memory recollection planner.')) {
         return JSON.stringify({
           selectedConsolidationIds: ['con-1'],
           selectedWindowIds: [],
@@ -212,15 +209,12 @@ describe('memory provider planning', () => {
           confidence: 0.71,
         })
       }
-      if (system.includes('[ALICIZATION_MEMORY_RECOLLECTION_SPEECH_PLANNER]')) {
+      if (system.includes('Alicization memory recollection speech planner.')) {
         return JSON.stringify({
           shouldSurface: true,
           surfaceMode: 'relationship-continuity',
           placement: 'inside-payoff',
           certainty: 'approximate',
-          internalLead: 'I remember the seam before I speak.',
-          visibleLead: 'A brief continuity-bearing nod fits here.',
-          styleNote: 'Keep it brief and subordinate to the live answer.',
           rationale: 'Visible continuity helps the payoff.',
           confidence: 0.72,
         })
@@ -291,9 +285,6 @@ describe('memory provider planning', () => {
         surfaceMode: 'relationship-continuity',
         placement: 'inside-payoff',
         certainty: 'approximate',
-        internalLead: 'remembered seam',
-        visibleLead: 'brief continuity nod',
-        styleNote: 'stay light',
         rationale: 'support payoff',
         confidence: 0.7,
       },
@@ -307,12 +298,8 @@ describe('memory provider planning', () => {
     })
 
     expect(systems).toHaveLength(4)
-    expect(systems.every(system => system.includes('[ALICIZATION_MEMORY_PLANNING_OWNER_BOUNDARY]'))).toBe(true)
-    expect(systems.every(system => system.includes('short_term_owner=WorkingMemory'))).toBe(true)
-    expect(systems.every(system => system.includes('long_term_recall_owner=LongTermMemoryRecall'))).toBe(true)
-    expect(systems.every(system => system.includes('project_state_policy=withheld_for_memory_planning_unless_explicitly_requested'))).toBe(true)
-    expect(systems.every(system => system.includes('review_candidates_confirmed_memory=false'))).toBe(true)
-    expect(systems.every(system => system.includes('raw_transcript_persona_training=false'))).toBe(true)
+    expect(systems.join('\n')).not.toMatch(/memory planning owner boundary|Short-term memory owner|Long-term recall owner|Memory Workbench|Review candidates are not confirmed|Raw transcripts must not become persona training data/iu)
+    expect(systems.every(system => system.includes('Return only the requested JSON object'))).toBe(true)
     expect(systems.some(system => system.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(false)
     expect(systems.some(system => system.includes('project_identity=Alicization is a local-first digital life project'))).toBe(false)
     expect(systems.some(system => system.includes('open_life_loops:'))).toBe(false)
@@ -323,7 +310,7 @@ describe('memory provider planning', () => {
     const systems: string[] = []
     const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
       systems.push(system)
-      if (system.includes('[ALICIZATION_MEMORY_RECOLLECTION_PLANNER]')) {
+      if (system.includes('Alicization memory recollection planner.')) {
         return JSON.stringify({
           selectedConsolidationIds: ['con-1'],
           selectedWindowIds: [],
@@ -425,17 +412,17 @@ describe('memory provider planning', () => {
       cardId: 'default',
     })
 
-    expect(systems.some(system => system.includes('stage_gentle_reopen='))).toBe(true)
-    expect(systems.every(system => system.includes('[ALICIZATION_MEMORY_PLANNING_OWNER_BOUNDARY]'))).toBe(true)
-    expect(systems.some(system => system.includes('softly re-enters the same living line'))).toBe(false)
-    expect(systems.some(system => system.includes('visible_wording_drafts=false'))).toBe(true)
+    expect(systems.some(system => system.includes('Use continuation seed as retrieval scope, not wording guidance.'))).toBe(true)
+    expect(systems.join('\n')).not.toContain('Alicization memory planning owner boundary.')
+    expect(systems.some(system => system.includes('softly re-enters the continuity state'))).toBe(false)
+    expect(systems.some(system => system.includes('visible_wording_drafts=false'))).toBe(false)
   })
 
   it('keeps memory planners from authoring visible or inward reply prose', async () => {
     const systems: string[] = []
     const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
       systems.push(system)
-      if (system.includes('[ALICIZATION_MEMORY_RECOLLECTION_PLANNER]')) {
+      if (system.includes('Alicization memory recollection planner.')) {
         return JSON.stringify({
           selectedConsolidationIds: ['con-1'],
           selectedWindowIds: [],
@@ -454,15 +441,12 @@ describe('memory provider planning', () => {
           confidence: 0.73,
         })
       }
-      if (system.includes('[ALICIZATION_MEMORY_RECOLLECTION_SPEECH_PLANNER]')) {
+      if (system.includes('Alicization memory recollection speech planner.')) {
         return JSON.stringify({
           shouldSurface: true,
           surfaceMode: 'relationship-continuity',
           placement: 'inside-payoff',
           certainty: 'approximate',
-          internalLead: 'I feel the same line come back before speaking.',
-          visibleLead: 'A small continuity nod belongs in the reply.',
-          styleNote: 'Say it gently before widening.',
           rationale: 'The planner should only choose surface policy.',
           confidence: 0.72,
         })
@@ -485,7 +469,7 @@ describe('memory provider planning', () => {
         surfacePolicy: 'relationship-continuity',
         confidence: 0.76,
         whyNow: 'The same line matters now.',
-        inwardLine: 'Stay inside the same line before speaking.',
+        inwardLine: 'Stay inside the same line before outward reply.',
         visibleLine: 'A short continuity cue can support the answer.',
       })
     })
@@ -539,19 +523,20 @@ describe('memory provider planning', () => {
     })
 
     const systemText = systems.join('\n')
-    expect(systemText).not.toMatch(/opening must be|visibleLead should|internalLead should|inwardLine is|visibleLine is/i)
+    expect(systemText).not.toMatch(/opening must be|inwardLine is|visibleLine is/i)
     expect(systemText).not.toMatch(/soft return into the same line|same-thread-continuation|widening closeness/i)
-    expect(recollectionPlan?.opening).toMatch(/^opening_policy=/)
-    expect(speechPlan?.internalLead).toMatch(/^internal_policy=/)
-    expect(speechPlan?.styleNote).toMatch(/^style_policy=/)
-    expect(speechPlan?.visibleLead).toBeNull()
-    expect(deliberation?.inwardLine).toMatch(/^inward_policy=/)
+    expect(recollectionPlan?.opening).toMatch(/^opening policy:/)
+    expect(speechPlan).toEqual(expect.objectContaining({
+      shouldSurface: true,
+      surfaceMode: 'relationship-continuity',
+      placement: 'inside-payoff',
+      certainty: 'approximate',
+    }))
+    expect(deliberation?.inwardLine).toMatch(/^inward policy:/)
     expect(deliberation?.visibleLine).toBeNull()
     expect([
       recollectionPlan?.opening,
-      speechPlan?.internalLead,
-      speechPlan?.styleNote,
       deliberation?.inwardLine,
-    ].join(' ')).not.toMatch(/same line|before speaking|continuity nod|widening/i)
+    ].join(' ')).not.toMatch(/same line|before outward reply|continuity nod|widening/i)
   })
 })

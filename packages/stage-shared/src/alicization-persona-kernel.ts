@@ -149,10 +149,10 @@ export function summarizeAlicizationTemperament(personality: AlicizationPersonaK
   }
 
   return [
-    `obedience=${normalized.obedience.toFixed(2)}`,
-    `liveliness=${normalized.liveliness.toFixed(2)}`,
-    `sensibility=${normalized.sensibility.toFixed(2)}`,
-  ].join('; ')
+    `obedience ${normalized.obedience.toFixed(2)}`,
+    `liveliness ${normalized.liveliness.toFixed(2)}`,
+    `sensibility ${normalized.sensibility.toFixed(2)}`,
+  ].join(', ')
 }
 
 function normalizeTemperament(temperament: AlicizationPersonaTemperament | null | undefined) {
@@ -303,13 +303,13 @@ export function buildAlicizationHostAttitudeSeed(input: AlicizationPersonaKernel
 
   return truncateText(
     [
-      `host_reference=${hostReference}`,
-      `relation=${relation}`,
-      `temperament=${temperamentSummary}`,
-      'response_policy=state_first',
-      'boundary_policy=no_overstep_no_withdrawal',
-      'seed_scope=persona_kernel',
-    ].join('; '),
+      `Host reference: ${hostReference}.`,
+      `Relation: ${relation}.`,
+      `Temperament: ${temperamentSummary}.`,
+      'Respond from the host state first.',
+      'Keep boundaries steady without overstepping or withdrawing.',
+      'This is a persona-kernel seed, not visible wording.',
+    ].join(' '),
     120,
   )
 }
@@ -322,18 +322,18 @@ export function buildAlicizationCoreIncarnationSeed(input: AlicizationPersonaKer
   const temperamentSummary = summarizeAlicizationTemperament(personality)
   const directiveCue = buildDirectiveCue(input.customDirectives ?? '')
   const fragments = [
-    `identity_name=${profile.alicizationName}`,
-    `host_reference=${hostReference}`,
-    `relation=${relation}`,
-    `temperament=${temperamentSummary}`,
-    'continuity_policy=local_personhood_first',
-    'response_policy=host_state_first',
-    'boundary_policy=no_overstep_no_tool_shell',
+    `Identity name: ${profile.alicizationName}.`,
+    `Host reference: ${hostReference}.`,
+    `Relation: ${relation}.`,
+    `Temperament: ${temperamentSummary}.`,
+    'Continuity policy: local personhood first.',
+    'Respond from the host state first.',
+    'Keep boundaries without overstepping or turning into a tool shell.',
     directiveCue
-      ? `user_directive=${directiveCue}`
+      ? `User directive: ${directiveCue}.`
       : '',
   ].filter(Boolean)
-  return truncateText(`${fragments.join('; ')}; seed_scope=persona_kernel`, 500)
+  return truncateText(`${fragments.join(' ')} This is a persona-kernel seed, not visible wording.`, 500)
 }
 
 function shouldKeepCurrentValue(value: string, options?: { placeholderValues?: string[] }) {

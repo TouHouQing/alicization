@@ -71,13 +71,15 @@ function numberFromHumanlikeRecallSeed(raw: unknown, fallback: number | null | u
   return Number.isFinite(fallbackValue) ? fallbackValue : 0
 }
 
-function traceListFromHumanlikeRecallSeed(raw: unknown, maxItems = 16, maxChars = 220) {
+function rawTraceListFromHumanlikeRecallSeed(raw: unknown, maxItems = 16, maxChars = 220) {
   if (!Array.isArray(raw))
     return []
 
   const result: string[] = []
   for (const item of raw) {
-    const normalized = sanitizeHumanlikeMemoryText(item, maxChars)
+    const normalized = typeof item === 'string'
+      ? item.trim().replace(/\s+/gu, ' ').slice(0, maxChars).trim()
+      : ''
     if (!normalized)
       continue
     if (result.some(existing => existing.toLowerCase() === normalized.toLowerCase()))
@@ -103,29 +105,17 @@ function readHumanlikeRecallTraceLabel(trace: string[], kind: 'host' | 'self') {
   )
 }
 
-function readHumanlikeRecallTraceReason(trace: string[], kind: 'host' | 'self') {
-  const entry = trace.find(item => item.startsWith(`${kind}-reason:`))
-  if (!entry)
-    return ''
-
-  return normalizeHumanlikeSentenceEnding(entry.slice(`${kind}-reason:`.length), 220)
-}
-
 function buildAffectivePerspectiveRecallSeedParts(emotionalResidue: Record<string, unknown> | null) {
   if (!emotionalResidue)
     return []
 
-  const trace = traceListFromHumanlikeRecallSeed(emotionalResidue.trace, 16, 220)
+  const trace = rawTraceListFromHumanlikeRecallSeed(emotionalResidue.trace, 16, 220)
   const hostEmotionLabel = readHumanlikeRecallTraceLabel(trace, 'host')
-  const hostEmotionSummary = readHumanlikeRecallTraceReason(trace, 'host')
   const selfEmotionLabel = readHumanlikeRecallTraceLabel(trace, 'self')
-  const selfEmotionSummary = readHumanlikeRecallTraceReason(trace, 'self')
 
   return [
     hostEmotionLabel ? `host_emotion_label=${hostEmotionLabel}` : null,
-    hostEmotionSummary ? `host_emotion_summary=${hostEmotionSummary}` : null,
     selfEmotionLabel ? `self_emotion_label=${selfEmotionLabel}` : null,
-    selfEmotionSummary ? `self_emotion_summary=${selfEmotionSummary}` : null,
   ].filter(Boolean)
 }
 
@@ -172,12 +162,10 @@ function buildInitiativeOutcomeRecallSeedParts(initiativeOutcomeRecord: Record<s
 
   const outcome = sanitizeHumanlikeMemoryText(initiativeOutcomeRecord.outcome, 80)
   const reaction = sanitizeHumanlikeMemoryText(initiativeOutcomeRecord.userReaction, 80)
-  const strategy = sanitizeHumanlikeMemoryText(initiativeOutcomeRecord.strategyUpdate, 260)
 
   return [
     outcome ? `initiative_outcome=${outcome}` : null,
     reaction ? `initiative_reaction=${reaction}` : null,
-    strategy ? `initiative_strategy=${strategy}` : null,
   ].filter(Boolean)
 }
 
@@ -185,43 +173,11 @@ function buildInitiativeOpportunityRecallSeedParts(initiativeOpportunity: Record
   if (!initiativeOpportunity)
     return []
 
-  const suggestedWindow = sanitizeHumanlikeMemoryText(initiativeOpportunity.suggestedWindow, 220)
   const pressure = sanitizeHumanlikeMemoryText(initiativeOpportunity.pressure, 64)
-  const antiSpamReason = sanitizeHumanlikeMemoryText(initiativeOpportunity.antiSpamReason, 220)
-  const rawVisibleLine = sanitizeHumanlikeMemoryText(initiativeOpportunity.visibleLine, 220)
-  const visiblePolicy = rawVisibleLine
-    ? rawVisibleLine.startsWith('initiative_visible_policy=')
-      ? rawVisibleLine.replace(/^initiative_visible_policy=/iu, '').trim()
-      : 'memory_structured_only'
-    : ''
 
   return [
-    suggestedWindow ? `initiative_window=${suggestedWindow}` : null,
     pressure ? `initiative_pressure=${pressure}` : null,
-    antiSpamReason ? `initiative_anti_spam=${antiSpamReason}` : null,
-    visiblePolicy ? `initiative_visible_policy=${visiblePolicy}` : null,
   ].filter(Boolean)
-}
-
-function normalizeHumanlikeRecallSeedLinePolicy(rawLine: string) {
-  const line = sanitizeHumanlikeMemoryText(rawLine, 260)
-  if (!line)
-    return ''
-
-  const isStructuredLine
-    = /^[a-z]\w*(?:=[^|;]+)?(?:;\s*[a-z]\w*(?:=[^|;]+)?)*$/iu.test(line)
-      && /[a-z]\w*=/iu.test(line)
-  if (isStructuredLine)
-    return line
-
-  return 'recall_line_policy=withheld; reason=provider_generated_only; visibility=memory_structured'
-}
-
-function buildCorrectionAwareRecallLine(correctedValue: string) {
-  return sanitizeHumanlikeMemoryText(
-    `recall_source=host_correction; field=relationship_context; corrected_value=${correctedValue}; posture=relationship_context_not_status_pressure; visibility=memory_structured`,
-    260,
-  )
 }
 
 function continuityPriorityFromText(...values: Array<string | null | undefined>) {
@@ -274,7 +230,6 @@ function buildHumanlikeMemoryRecallSeedPriority(input: {
   const auditTrail = objectFromHumanlikeRecallSeed(input.candidate.auditTrail)
 
   const relationshipSummary = sanitizeHumanlikeMemoryText(relationshipContext?.summary, 260)
-  const naturalRecallLine = sanitizeHumanlikeMemoryText(input.candidate.naturalRecallLine, 260)
   const whyRemember = sanitizeHumanlikeMemoryText(auditTrail?.whyRemember, 220)
   const emotionalTags = stringListFromHumanlikeRecallSeed(emotionalResidue?.tags, 8)
   const recallCertainty = sanitizeHumanlikeMemoryText(recallPosture?.certainty, 40).toLowerCase()
@@ -284,7 +239,6 @@ function buildHumanlikeMemoryRecallSeedPriority(input: {
   let priority = 0
   priority += continuityPriorityFromText(
     relationshipSummary,
-    naturalRecallLine,
     whyRemember,
     input.correction?.correctedValue ?? null,
     input.correction?.reason ?? null,
@@ -357,30 +311,6 @@ function preferRecallSeedCorrection(
     })[0] ?? null
 }
 
-function mergeCorrectionAwareReason(
-  whyRemember: string,
-  correction: HumanlikeMemoryRecallCorrection,
-) {
-  const parts: string[] = []
-  if (whyRemember)
-    parts.push(whyRemember)
-  parts.push('host correction')
-  if (correction.reason)
-    parts.push(correction.reason)
-
-  const merged: string[] = []
-  for (const part of parts) {
-    const normalized = sanitizeHumanlikeMemoryText(part, 220)
-    if (!normalized)
-      continue
-    if (merged.some(existing => existing.toLowerCase() === normalized.toLowerCase()))
-      continue
-    merged.push(normalized)
-  }
-
-  return merged.join(' | ')
-}
-
 function humanlikeCandidateFromMindTurnPayload(payload: unknown) {
   const object = objectFromHumanlikeRecallSeed(payload)
   const candidate = objectFromHumanlikeRecallSeed(object?.humanlikeMemoryCandidate)
@@ -412,10 +342,9 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
   const dominantResidueKind = sanitizeHumanlikeMemoryText(affectiveResidue.dominantResidueKind, 48).toLowerCase()
   const cadence = objectFromHumanlikeRecallSeed(affectiveResidue.relationshipCadence)
   const cadenceMode = sanitizeHumanlikeMemoryText(cadence?.cadenceMode, 64).toLowerCase()
+  const distancePosture = sanitizeHumanlikeMemoryText(cadence?.distancePosture, 64).toLowerCase()
   const cadenceSummary = sanitizeHumanlikeMemoryText(cadence?.summary, 220)
   const residueSummary = sanitizeHumanlikeMemoryText(affectiveResidue.summary, 220)
-  const reasonTags = stringListFromHumanlikeRecallSeed(cadence?.reasonTags, 6)
-  const remembersSameHer = reasonTags.some(tag => /same[- ]?her|same[- ]?person|same living line/u.test(tag))
   const shouldDelayWarmth = cadence?.shouldDelayWarmth === true
   const shouldProtectRest = cadence?.shouldProtectRest === true
   const afterglowCarry = Math.max(0, Math.min(1, numberFromHumanlikeRecallSeed(cadence?.afterglowCarry, 0)))
@@ -433,11 +362,6 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
       || afterglowCarry >= 0.18
       || fatigueGuard >= 0.18
       || overreachRisk >= 0.22
-  const relationshipSummary = shouldProtectRest
-    ? 'relationship_cadence=rest_protective; return_pressure=none; rest_protection=true; source=affective_residue; visibility=memory_structured'
-    : hasMeasuredReturnCarry
-      ? 'relationship_cadence=measured_return; return_pressure=low; warmth=delayed; source=affective_residue; visibility=memory_structured'
-      : 'relationship_cadence=available; return_pressure=low; source=affective_residue; visibility=memory_structured'
 
   if (!dominantResidueKind && !cadenceMode && !cadenceSummary && !residueSummary)
     return null
@@ -446,29 +370,13 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
     dominantResidueKind === 'afterglow' ? 'afterglow-carry' : null,
     dominantResidueKind === 'repair' ? 'repair-residue' : null,
     dominantResidueKind === 'rest-protective' ? 'rest-protective' : null,
-    remembersSameHer ? 'protective-continuity' : null,
     shouldDelayWarmth ? 'unfinishedness' : null,
   ], 6, 48)
 
-  const naturalRecallLine = shouldProtectRest
-    ? 'relationship_cadence=rest_protective; return_pressure=none; pacing=slower; rest_protection=true; visibility=memory_structured'
-    : shouldDelayWarmth || hasMeasuredReturnCarry
-      ? 'relationship_cadence=measured_return; return_pressure=low; warmth=delayed; visibility=memory_structured'
-      : 'relationship_cadence=available; return_pressure=low; visibility=memory_structured'
-  const embodimentSummary = shouldProtectRest
-    ? 'relationship_cadence=rest_protective; body_pressure=none; pacing=slower; rest_protection=true; visibility=memory_structured'
-    : hasMeasuredReturnCarry
-      ? 'relationship_cadence=measured_return; body_pressure=lower; pacing=slower; visibility=memory_structured'
-      : 'relationship_cadence=available; body_pressure=low; pacing=natural; visibility=memory_structured'
-  const initiativeKind = shouldProtectRest || hasMeasuredReturnCarry
-    ? 'low-pressure-follow-up'
-    : 'remember-without-prompt'
-  const initiativePressure = shouldProtectRest ? 'none' : 'low'
   const worthinessScore = Math.max(0.58, Math.min(
     0.92,
     0.54
     + (dominantResidueKind ? 0.06 : 0)
-    + (remembersSameHer ? 0.08 : 0)
     + (shouldDelayWarmth ? 0.08 : 0)
     + (shouldProtectRest ? 0.08 : 0)
     + Math.min(0.08, afterglowCarry * 0.12)
@@ -483,38 +391,33 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
       shouldPersist: true,
       score: worthinessScore,
       reasons: uniqueHumanlikeRecallSeedTexts([
-        'affective residue carry',
-        hasMeasuredReturnCarry ? 'relationship cadence carry' : null,
-        remembersSameHer ? 'continuity carry' : null,
+        dominantResidueKind ? `residue:${dominantResidueKind}` : null,
+        cadenceMode ? `cadence:${cadenceMode}` : null,
       ], 4, 80),
     },
     relationshipContext: {
       threadAnchor: 'persisted-affective-residue',
-      summary: relationshipSummary,
-      primaryIntent: remembersSameHer ? 'same-person-test' : hasMeasuredReturnCarry ? 'continuity-worry' : 'mixed',
+      summary: '',
+      primaryIntent: 'mixed',
     },
     emotionalResidue: {
       tags: emotionTags.length > 0 ? emotionTags : ['low-affect-trace'],
     },
-    initiativeOpportunity: {
-      kind: initiativeKind,
-      suggestedWindow: shouldProtectRest
-        ? 'next_rest_safe_window; return_pressure=none; opening=after_rest'
-        : 'next_open_window; return_pressure=low; opening=memory_led',
-      pressure: initiativePressure,
-      antiSpamReason: shouldProtectRest
-        ? 'rest_protection_first; repeated_nudge=false; wait_for_host_room=true'
-        : 'cadence_memory_only; timer_spam=false; wait_for_visible_reentry=true',
-      visibleLine: shouldProtectRest
-        ? 'initiative_visible_policy=rest_protective_wait; pressure=none; opening=after_rest; visibility=memory_structured'
-        : 'initiative_visible_policy=memory_led_low_pressure; pressure=low; opening=natural_reopen; visibility=memory_structured',
+    affectiveResidueFacts: {
+      kind: dominantResidueKind,
+      cadenceMode,
+      distancePosture,
+      shouldDelayWarmth,
+      shouldProtectRest,
+      afterglowCarry,
+      fatigueGuard,
+      overreachRisk,
     },
     embodimentTrace: {
-      summary: embodimentSummary,
       recallStrength: shouldProtectRest ? 'cautious-avoidance' : 'lightly-noticed',
       expressionState: {
         face: hasMeasuredReturnCarry ? 'steady-soft' : 'neutral-soft',
-        gaze: hasMeasuredReturnCarry || remembersSameHer ? 'stable' : 'soft',
+        gaze: hasMeasuredReturnCarry ? 'stable' : 'soft',
         blink: hasMeasuredReturnCarry ? 'slower' : 'natural',
         voice: hasMeasuredReturnCarry ? 'lower-pressure' : 'even',
         pause: hasMeasuredReturnCarry ? 'longer' : 'natural',
@@ -523,87 +426,86 @@ function buildAffectiveResidueRecallCandidate(payload: unknown, eventCreatedAt: 
       },
     },
     auditTrail: {
-      whyRemember: shouldProtectRest
-        ? 'affective_residue_cadence=rest_protective; crowding_rest=blocked'
-        : 'affective_residue_cadence=measured_return; reopen_eagerness=downranked',
+      whyRemember: '',
       confidence: worthinessScore,
       correctionSurface: {
-        userCorrectableFields: ['relationshipContext', 'naturalRecallLine', 'embodimentTrace'],
+        userCorrectableFields: ['relationshipContext', 'embodimentTrace'],
       },
     },
     recallPosture: {
       certainty: 'steady',
-      reason: hasMeasuredReturnCarry
-        ? 'recall_cadence=gentle; remembered_line_settling=true; visibility=memory_structured'
-        : 'recall_cadence=light; affective_residue_carry=true; visibility=memory_structured',
+      reason: '',
     },
-    naturalRecallLine,
   }
+}
+
+function buildAffectiveResidueRecallSeedParts(affectiveResidueFacts: Record<string, unknown> | null) {
+  if (!affectiveResidueFacts)
+    return []
+
+  const kind = sanitizeHumanlikeMemoryText(affectiveResidueFacts.kind, 48)
+  const cadenceMode = sanitizeHumanlikeMemoryText(affectiveResidueFacts.cadenceMode, 64)
+  const distancePosture = sanitizeHumanlikeMemoryText(affectiveResidueFacts.distancePosture, 64)
+  const afterglowCarry = numberFromHumanlikeRecallSeed(affectiveResidueFacts.afterglowCarry, 0)
+  const fatigueGuard = numberFromHumanlikeRecallSeed(affectiveResidueFacts.fatigueGuard, 0)
+  const overreachRisk = numberFromHumanlikeRecallSeed(affectiveResidueFacts.overreachRisk, 0)
+
+  return [
+    kind ? `affective_residue_kind=${kind}` : null,
+    cadenceMode ? `affective_cadence_mode=${cadenceMode}` : null,
+    distancePosture ? `affective_distance_posture=${distancePosture}` : null,
+    `affective_should_delay_warmth=${affectiveResidueFacts.shouldDelayWarmth === true ? 'true' : 'false'}`,
+    `affective_should_protect_rest=${affectiveResidueFacts.shouldProtectRest === true ? 'true' : 'false'}`,
+    `affective_afterglow_carry=${afterglowCarry.toFixed(2)}`,
+    `affective_fatigue_guard=${fatigueGuard.toFixed(2)}`,
+    `affective_overreach_risk=${overreachRisk.toFixed(2)}`,
+  ].filter(Boolean)
 }
 
 function buildHumanlikeMemoryRecallSeedLine(candidate: Record<string, unknown>, event: HumanlikeMemoryRecallSeedEvent) {
   const eventCreatedAt = numberFromHumanlikeRecallSeed(event.createdAt, 0)
+  const affectiveResidueFacts = objectFromHumanlikeRecallSeed(candidate.affectiveResidueFacts)
   const relationshipContext = objectFromHumanlikeRecallSeed(candidate.relationshipContext)
   const emotionalResidue = objectFromHumanlikeRecallSeed(candidate.emotionalResidue)
   const initiativeOpportunity = objectFromHumanlikeRecallSeed(candidate.initiativeOpportunity)
   const initiativeOutcomeRecord = objectFromHumanlikeRecallSeed(candidate.initiativeOutcomeRecord)
   const embodimentTrace = objectFromHumanlikeRecallSeed(candidate.embodimentTrace)
-  const autobiographicalImpact = objectFromHumanlikeRecallSeed(candidate.autobiographicalImpact)
   const recallPosture = objectFromHumanlikeRecallSeed(candidate.recallPosture)
   const metabolism = objectFromHumanlikeRecallSeed(candidate.metabolism)
-  const revisionEvents = Array.isArray(metabolism?.revisionEvents) ? metabolism.revisionEvents : []
   const forgettingPolicy = objectFromHumanlikeRecallSeed(metabolism?.forgettingPolicy)
-  const auditTrail = objectFromHumanlikeRecallSeed(candidate.auditTrail)
-  const naturalRecallLine = sanitizeHumanlikeMemoryText(candidate.naturalRecallLine, 260)
   const relationshipSummary = sanitizeHumanlikeMemoryText(relationshipContext?.summary, 220)
   const emotionalTags = stringListFromHumanlikeRecallSeed(emotionalResidue?.tags, 6)
   const initiativeKind = sanitizeHumanlikeMemoryText(initiativeOpportunity?.kind, 80)
   const initiativeOpportunityParts = buildInitiativeOpportunityRecallSeedParts(initiativeOpportunity)
   const initiativeOutcomeParts = buildInitiativeOutcomeRecallSeedParts(initiativeOutcomeRecord)
-  const embodimentSummary = sanitizeHumanlikeMemoryText(embodimentTrace?.summary, 180)
   const embodimentParts = buildEmbodimentRecallSeedParts(embodimentTrace)
   const affectivePerspectiveParts = buildAffectivePerspectiveRecallSeedParts(emotionalResidue)
-  const autobiographicalDelta = sanitizeHumanlikeMemoryText(autobiographicalImpact?.selfNarrativeDelta, 160)
   const recallCertainty = sanitizeHumanlikeMemoryText(recallPosture?.certainty, 40)
-  const recallReason = sanitizeHumanlikeMemoryText(recallPosture?.reason, 220)
   const downrankMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.downrankMemoryIds, 8)
   const mergeMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.mergeMemoryIds, 8)
   const forgetMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.forgetMemoryIds, 8)
-  const metabolismReasons = uniqueHumanlikeRecallSeedTexts([
-    ...stringListFromHumanlikeRecallSeed(forgettingPolicy?.reasons, 4),
-    ...revisionEvents.map((entry) => {
-      const revision = objectFromHumanlikeRecallSeed(entry)
-      return sanitizeHumanlikeMemoryText(revision?.reason, 260) || null
-    }),
-  ], 6, 260)
-  const whyRemember = sanitizeHumanlikeMemoryText(auditTrail?.whyRemember, 220)
-
-  const line = normalizeHumanlikeRecallSeedLinePolicy(naturalRecallLine)
-  if (!line)
-    return null
 
   const parts = [
-    `line=${line}`,
+    ...buildAffectiveResidueRecallSeedParts(affectiveResidueFacts),
     relationshipSummary ? `relationship=${relationshipSummary}` : null,
     emotionalTags.length > 0 ? `emotion=${emotionalTags.join(',')}` : null,
     ...affectivePerspectiveParts,
     initiativeKind ? `initiative=${initiativeKind}` : null,
     ...initiativeOpportunityParts,
     ...initiativeOutcomeParts,
-    embodimentSummary ? `embodiment=${embodimentSummary}` : null,
     ...embodimentParts,
-    autobiographicalDelta ? `self=${autobiographicalDelta}` : null,
-    whyRemember ? `why=${whyRemember}` : null,
     recallCertainty ? `certainty=${recallCertainty}` : null,
-    recallReason ? `reason=${recallReason}` : null,
     downrankMemoryIds.length > 0 ? `downrank=${downrankMemoryIds.join(',')}` : null,
     mergeMemoryIds.length > 0 ? `merge=${mergeMemoryIds.join(',')}` : null,
     forgetMemoryIds.length > 0 ? `forget=${forgetMemoryIds.join(',')}` : null,
-    metabolismReasons.length > 0 ? `metabolism=${metabolismReasons.join(' ; ')}` : null,
-    `created=${Math.max(0, Math.floor(numberFromHumanlikeRecallSeed(candidate.createdAt, eventCreatedAt)))}`,
   ].filter(Boolean)
+  if (parts.length === 0)
+    return null
 
-  return `humanlike_memory_recall: ${parts.join(' | ')}`
+  return `humanlike_memory_recall: ${[
+    ...parts,
+    `created=${Math.max(0, Math.floor(numberFromHumanlikeRecallSeed(candidate.createdAt, eventCreatedAt)))}`,
+  ].join(' | ')}`
 }
 
 export function buildHumanlikeMemoryRecallSeedFromMindTurnEvents(
@@ -638,68 +540,51 @@ export function buildHumanlikeMemoryRecallSeedFromMindTurnEvents(
         if (!normalizedCandidate)
           return null
 
+        const affectiveResidueFacts = objectFromHumanlikeRecallSeed(normalizedCandidate.affectiveResidueFacts)
         const relationshipContext = objectFromHumanlikeRecallSeed(normalizedCandidate.relationshipContext)
         const emotionalResidue = objectFromHumanlikeRecallSeed(normalizedCandidate.emotionalResidue)
         const initiativeOpportunity = objectFromHumanlikeRecallSeed(normalizedCandidate.initiativeOpportunity)
         const initiativeOutcomeRecord = objectFromHumanlikeRecallSeed(normalizedCandidate.initiativeOutcomeRecord)
         const embodimentTrace = objectFromHumanlikeRecallSeed(normalizedCandidate.embodimentTrace)
-        const autobiographicalImpact = objectFromHumanlikeRecallSeed(normalizedCandidate.autobiographicalImpact)
         const recallPosture = objectFromHumanlikeRecallSeed(normalizedCandidate.recallPosture)
         const metabolism = objectFromHumanlikeRecallSeed(normalizedCandidate.metabolism)
-        const revisionEvents = Array.isArray(metabolism?.revisionEvents) ? metabolism.revisionEvents : []
         const forgettingPolicy = objectFromHumanlikeRecallSeed(metabolism?.forgettingPolicy)
-        const auditTrail = objectFromHumanlikeRecallSeed(normalizedCandidate.auditTrail)
         const emotionalTags = stringListFromHumanlikeRecallSeed(emotionalResidue?.tags, 6)
         const initiativeKind = sanitizeHumanlikeMemoryText(initiativeOpportunity?.kind, 80)
         const initiativeOpportunityParts = buildInitiativeOpportunityRecallSeedParts(initiativeOpportunity)
         const initiativeOutcomeParts = buildInitiativeOutcomeRecallSeedParts(initiativeOutcomeRecord)
-        const embodimentSummary = sanitizeHumanlikeMemoryText(embodimentTrace?.summary, 180)
         const embodimentParts = buildEmbodimentRecallSeedParts(embodimentTrace)
         const affectivePerspectiveParts = buildAffectivePerspectiveRecallSeedParts(emotionalResidue)
-        const autobiographicalDelta = sanitizeHumanlikeMemoryText(autobiographicalImpact?.selfNarrativeDelta, 160)
         const recallCertainty = sanitizeHumanlikeMemoryText(recallPosture?.certainty, 40)
-        const recallReason = sanitizeHumanlikeMemoryText(recallPosture?.reason, 220)
         const downrankMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.downrankMemoryIds, 8)
         const mergeMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.mergeMemoryIds, 8)
         const forgetMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.forgetMemoryIds, 8)
-        const metabolismReasons = uniqueHumanlikeRecallSeedTexts([
-          ...stringListFromHumanlikeRecallSeed(forgettingPolicy?.reasons, 4),
-          ...revisionEvents.map((entry) => {
-            const revision = objectFromHumanlikeRecallSeed(entry)
-            return sanitizeHumanlikeMemoryText(revision?.reason, 260) || null
-          }),
-        ], 6, 260)
-        const whyRemember = mergeCorrectionAwareReason(
-          sanitizeHumanlikeMemoryText(auditTrail?.whyRemember, 220),
-          correction,
-        )
         const correctedRelationshipSummary = correction.field === 'relationshipContext'
-          ? sanitizeHumanlikeMemoryText(`Host corrected this memory meaning: ${normalizeHumanlikeSentenceEnding(correction.correctedValue, 220)}`, 220)
+          ? normalizeHumanlikeSentenceEnding(correction.correctedValue, 220)
           : sanitizeHumanlikeMemoryText(relationshipContext?.summary, 220)
 
         const parts = [
-          `line=${buildCorrectionAwareRecallLine(correction.correctedValue)}`,
+          ...buildAffectiveResidueRecallSeedParts(affectiveResidueFacts),
           correctedRelationshipSummary ? `relationship=${correctedRelationshipSummary}` : null,
           emotionalTags.length > 0 ? `emotion=${emotionalTags.join(',')}` : null,
           ...affectivePerspectiveParts,
           initiativeKind ? `initiative=${initiativeKind}` : null,
           ...initiativeOpportunityParts,
           ...initiativeOutcomeParts,
-          embodimentSummary ? `embodiment=${embodimentSummary}` : null,
           ...embodimentParts,
-          autobiographicalDelta ? `self=${autobiographicalDelta}` : null,
-          whyRemember ? `why=${whyRemember}` : null,
           recallCertainty ? `certainty=${recallCertainty}` : null,
-          recallReason ? `reason=${recallReason}` : null,
           downrankMemoryIds.length > 0 ? `downrank=${downrankMemoryIds.join(',')}` : null,
           mergeMemoryIds.length > 0 ? `merge=${mergeMemoryIds.join(',')}` : null,
           forgetMemoryIds.length > 0 ? `forget=${forgetMemoryIds.join(',')}` : null,
-          metabolismReasons.length > 0 ? `metabolism=${metabolismReasons.join(' ; ')}` : null,
-          `created=${correction.createdAt}`,
         ].filter(Boolean)
+        if (parts.length === 0)
+          return null
 
         return {
-          line: `humanlike_memory_recall: ${parts.join(' | ')}`,
+          line: `humanlike_memory_recall: ${[
+            ...parts,
+            `created=${correction.createdAt}`,
+          ].join(' | ')}`,
           createdAt: correction.createdAt,
           priority: buildHumanlikeMemoryRecallSeedPriority({
             candidate,

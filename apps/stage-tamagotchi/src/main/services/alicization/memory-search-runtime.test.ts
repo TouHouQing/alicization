@@ -82,7 +82,7 @@ describe('memory-search-runtime', () => {
   it('keeps fresher runtime self continuity carry together with richer same-her doctrine in recall governor anchors', () => {
     const governor = buildTurnRecallGovernor({
       now: 20_000,
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
       dialogueWorldThread: {
         activeThread: 'same callback line still lives here',
         currentQuestion: '是不是还该沿着同一条线回来',
@@ -125,7 +125,7 @@ describe('memory-search-runtime', () => {
         selectedMotive: 'attune',
       } as any,
       selfContinuityAuthority: {
-        selfLine: 'I am still here in this exact return, picking up the same living line.',
+        selfLine: 'I am still here in this exact return, picking up the continuity state.',
         relationshipLine: 'When I come back, I should reopen gently and let trust arrive before closeness widens.',
         motiveLine: null,
         habitLine: null,

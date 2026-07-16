@@ -1,15 +1,4 @@
-import type {
-  AlicizationChatEntryIngest,
-  AlicizationChatEntryIngestOptions,
-  AlicizationChatEntryPreDialogueSendIdentity,
-} from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
-
-import {
-  assertAlicizationChatEntryPreDialogueSendIdentity,
-  sanitizeAlicizationChatEntryPreDialogueSendIdentity,
-} from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
-
-type WebVoiceIngestOptions = AlicizationChatEntryIngestOptions<AlicizationChatEntryPreDialogueSendIdentity | null | undefined>
+import type { AlicizationChatEntryIngest } from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
 
 export interface WebVoiceTurnDispatchInput<TChatProvider = unknown> {
   text: string
@@ -17,19 +6,14 @@ export interface WebVoiceTurnDispatchInput<TChatProvider = unknown> {
   model: string
   chatProvider: TChatProvider
   providerConfig: Record<string, unknown>
-  preDialogueSendIdentity: WebVoiceIngestOptions['preDialogueSendIdentity']
-  ingest: AlicizationChatEntryIngest<AlicizationChatEntryPreDialogueSendIdentity, TChatProvider>
+  ingest: AlicizationChatEntryIngest<TChatProvider>
 }
 
 export async function dispatchWebVoiceTurn<TChatProvider>(input: WebVoiceTurnDispatchInput<TChatProvider>) {
-  assertAlicizationChatEntryPreDialogueSendIdentity(input.preDialogueSendIdentity, 'dispatchWebVoiceTurn')
-  const preDialogueSendIdentity = sanitizeAlicizationChatEntryPreDialogueSendIdentity(input.preDialogueSendIdentity)
-
   return input.ingest(input.text, {
     providerId: input.providerId,
     model: input.model,
     chatProvider: input.chatProvider,
     providerConfig: input.providerConfig,
-    preDialogueSendIdentity,
   })
 }

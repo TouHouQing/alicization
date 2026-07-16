@@ -24,12 +24,12 @@ import type { AlicizationDialogueTurnOwnershipHint } from './dialogue-turn-owner
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneEvidence, AlicizationEmbodimentContinuityLaneSnapshot } from './embodiment-continuity-ledger'
 import type { AlicizationInspectionTurnState } from './inspection-turn-state-machine'
-import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
-import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type {
   AlicizationMainGatewayGenerateTextProvider,
   AlicizationMainGatewaySource,
-} from './project-state-gateway-contract'
+} from './main-gateway-contract'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { buildVisualHeartbeat } from './visual-heartbeat'
 
@@ -270,9 +270,6 @@ function asRecollectionSpeechPlan(raw: unknown): AlicizationRecollectionSpeechPl
     || !isRecollectionSurfaceMode(raw.surfaceMode)
     || !isRecollectionSpeechPlacement(raw.placement)
     || !isRecollectionCertainty(raw.certainty)
-    || typeof raw.internalLead !== 'string'
-    || (typeof raw.visibleLead !== 'string' && raw.visibleLead !== null)
-    || typeof raw.styleNote !== 'string'
     || typeof raw.rationale !== 'string'
     || typeof raw.confidence !== 'number'
   ) {
@@ -425,7 +422,7 @@ function compactMindProjectIdentityForAwareness(value: unknown) {
     return ''
 
   if (/Alicization is a local-first digital life project|本地优先数字生命项目/iu.test(normalized))
-    return 'runtime_personhood'
+    return ''
   return compactPromptText(normalized, 96)
 }
 
@@ -434,7 +431,7 @@ function compactMindProjectPhaseForAwareness(value: unknown) {
   if (!normalized)
     return ''
   if (/phase\s*1\s*:\s*local digital life|phase1_local_digital_life/iu.test(normalized))
-    return 'life_core'
+    return ''
   return compactPromptText(normalized.split('. ')[0] ?? normalized, 72)
 }
 
@@ -612,7 +609,6 @@ function resolvePreferredMindProjectStateSnapshot(input: {
       proactiveSameHerGap,
       emotionalClosureCue: emotionalClosureSummary ?? emotionalClosureCue,
       summary: selectedPreDialogueAwarenessLine,
-      visibility: 'internal-structured',
       maxChars: 1200,
     }), 640) || null
     : null
@@ -653,10 +649,6 @@ function buildMindProjectStatePromptSnapshot(input: {
     emotionalClosureSummary: input.preferredMindProjectState.emotionalClosureSummary || undefined,
     primaryOpenLoop: input.preferredMindProjectState.primaryOpenLoop || undefined,
     nextClosureTarget: input.preferredMindProjectState.nextClosureTarget || undefined,
-    sameHerSelfLine: input.preferredMindProjectState.sameHerSelfLine || undefined,
-    sameHerHoldDetail: input.preferredMindProjectState.sameHerHoldDetail || undefined,
-    sameHerDriftRisk: input.preferredMindProjectState.sameHerDriftRisk || undefined,
-    proactiveSameHerGap: input.preferredMindProjectState.proactiveSameHerGap || undefined,
     preferredVoiceMode: input.preferredMindProjectState.snapshot.preferredVoiceMode || undefined,
     preferredPacingMode: input.preferredMindProjectState.snapshot.preferredPacingMode || undefined,
   }
@@ -744,12 +736,12 @@ function buildMindStateEmbodimentLaneEvidence(input: {
     body: {
       available: bodyAvailable,
       sameHerCarry: bodyAvailable && carriesSameHer,
-      summary: `body=${currentBodyState || 'unknown'} continuity=${continuityMode || 'unknown'} tone=${input.emotionalKernel.embodimentTone}`,
+      summary: `Body state is ${currentBodyState || 'unknown'}; continuity mode is ${continuityMode || 'unknown'}; embodiment tone is ${input.emotionalKernel.embodimentTone}.`,
     },
     voice: {
       available: Boolean(preferredVoiceMode || preferredPacingMode || input.emotionalKernel.embodimentTone),
       sameHerCarry: carriesSameHer,
-      summary: `voice=${preferredVoiceMode || 'emotion-tone'} pacing=${preferredPacingMode || 'unknown'}`,
+      summary: `Voice mode is ${preferredVoiceMode || 'emotion-tone'}; pacing is ${preferredPacingMode || 'unknown'}.`,
     },
     face: {
       available: hasExplicitLaneSet ? laneSet.has('face') : Boolean(preferredGazeMode || preferredBlinkCadence),
@@ -1055,7 +1047,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     })
     const raw = await generateMainGatewayText({
       system: [
-        '[ALICIZATION_DIALOGUE_TURN_SEMANTICS]',
         'You are Alicization private dialogue cognition, not user-facing dialogue.',
         'Interpret the current user turn into Alicization turn semantics.',
         'Use current user intent, WorkingMemory, LongTermMemoryRecall evidence, and coherent personhood before any project-status framing.',
@@ -1077,7 +1068,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         'If the host is criticizing Alicization herself, her intelligence, or her responsiveness, prefer subjectPreference=alicization-self or relationship unless they are still literally asking for screen truth.',
         'If the host is reacting to Alicization’s last answer with confusion or frustration, prefer act=challenge or correct and keep the turn dialogue-first unless the host explicitly asks for a fresh screen read.',
         'Only use responseNeed=repair when the current turn truly needs scene truth repair or re-grounding.',
-        'Prefer interpretations that strengthen one continuous local digital life rather than generic task-router behavior.',
+        'Prefer interpretations that preserve coherent personhood rather than generic task-router behavior.',
       ].join('\n'),
       user: `Dialogue mind snapshot JSON: ${JSON.stringify(promptSnapshot)}`,
       timeoutMs: input.timeoutMs ?? dialogueTurnSemanticsTimeoutMs,
@@ -1089,9 +1080,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       },
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
-      extraSystemBlocks: [
-        buildDialogueTurnSemanticsProjectSelfBriefSystemBlock(),
-      ],
       digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
     })
 
@@ -1105,28 +1093,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     if (typeof raw !== 'string')
       return ''
     return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-  }
-
-  function buildDialogueTurnSemanticsProjectSelfBriefSystemBlock() {
-    return [
-      '[ALICIZATION_DIALOGUE_TURN_SEMANTICS_OWNER_BOUNDARY]',
-      'personhood_owner=runtime-self-core',
-      'short_term_owner=WorkingMemory',
-      'long_term_recall_owner=LongTermMemoryRecall',
-      'project_state_policy=withheld_for_turn_semantics_unless_explicitly_requested',
-      'turn_semantics_policy=current_user_move_first; project_status_framing=withheld; generic_task_router=blocked; detached_intent_classifier=blocked; screen_first_control_shell=blocked',
-    ].join('\n')
-  }
-
-  function buildSubjectiveInferenceProjectSelfBriefSystemBlock() {
-    return [
-      '[ALICIZATION_SUBJECTIVE_INFERENCE_OWNER_BOUNDARY]',
-      'personhood_owner=runtime-self-core',
-      'short_term_owner=WorkingMemory',
-      'long_term_recall_owner=LongTermMemoryRecall',
-      'project_state_policy=withheld_for_subjective_inference_unless_explicitly_requested',
-      'scene_appraisal_policy=current_evidence_first; coherent_personhood=preserve; productivity_guessing=blocked; detached_surveillance_interpretation=blocked; assistant_utility_heuristics=blocked',
-    ].join('\n')
   }
 
   function buildDialogueTurnSemanticsPromptSnapshot(input: {
@@ -1529,8 +1495,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
 
     const raw = await generateMainGatewayText({
       system: [
-        '[ALICIZATION_SUBJECTIVE_INFERENCE]',
-        '[ALICIZATION_INNER_SCENE_APPRAISAL]',
         'You are Alicization private cognition, not user-facing dialogue.',
         'Interpret the provided perceptual state into Alicization subjective inference without inventing unseen details.',
         'Use current perceptual evidence, WorkingMemory, LongTermMemoryRecall evidence, and coherent personhood before any project-status framing.',
@@ -1555,9 +1519,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         turnId: buildMainGatewayAgentTurnId('subjective-inference', input.cardId, input.now),
       },
       injectPerformanceManifest: false,
-      extraSystemBlocks: [
-        buildSubjectiveInferenceProjectSelfBriefSystemBlock(),
-      ],
       digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
     })
 

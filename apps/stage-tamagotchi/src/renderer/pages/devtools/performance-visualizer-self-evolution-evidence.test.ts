@@ -541,7 +541,7 @@ describe('performance visualizer self evolution evidence', () => {
     expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain('rendererRejoinSurfaceKey: authority:renderer-rejoin:live2d')
   })
 
-  it('keeps body-led same-her continuity visible in runtime continuity evidence instead of flattening it into a generic lane summary', () => {
+  it('keeps body-led identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
         status: 'partial',
@@ -571,7 +571,7 @@ describe('performance visualizer self evolution evidence', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority projection already shows body-led same-her continuity, so higher-level continuity evidence should keep that body-led partial recovery visible instead of flattening it into a generic lane summary.',
+          'Renderer authority projection already shows body-led identity-continuity',
         ],
       },
     })
@@ -603,12 +603,12 @@ describe('performance visualizer self evolution evidence', () => {
         'matchedSignals: runtime-channel:active-dialogue, runtime-thread:runtime-thread-body-led-evidence-1, runtime-scenario:coding, authority-body:yes, lane=body-only',
         'missingSignals: n/a',
         'driftingSignals: authority-face:no, authority-motion:no',
-        'reasons: Renderer authority projection already shows body-led same-her continuity, so higher-level continuity evidence should keep that body-led partial recovery visible instead of flattening it into a generic lane summary.',
+        'reasons: Renderer authority projection already shows body-led identity-continuity',
       ],
     })
   })
 
-  it('does not hide voice authority drift behind body-led same-her continuity in runtime continuity evidence', () => {
+  it('does not hide voice authority drift behind body-led identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
         status: 'partial',
@@ -685,7 +685,7 @@ describe('performance visualizer self evolution evidence', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority projection already shows body-led same-her continuity, so higher-level continuity evidence should keep that body-led partial recovery visible instead of flattening it into a generic lane summary.',
+          'Renderer authority projection already shows body-led identity-continuity',
         ],
       },
     })
@@ -724,7 +724,7 @@ describe('performance visualizer self evolution evidence', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority projection already shows body-led same-her continuity, so higher-level continuity evidence should keep that body-led partial recovery visible instead of flattening it into a generic lane summary.',
+          'Renderer authority projection already shows body-led identity-continuity',
         ],
       },
     })
@@ -734,7 +734,7 @@ describe('performance visualizer self evolution evidence', () => {
     )
   })
 
-  it('keeps audible body-carried same-her continuity visible in runtime continuity evidence instead of flattening it into a generic lane summary', () => {
+  it('keeps audible body-carried identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
         status: 'partial',
@@ -779,7 +779,7 @@ describe('performance visualizer self evolution evidence', () => {
     )
   })
 
-  it('keeps body-only-hold same-her continuity visible in runtime continuity evidence instead of flattening it into a generic lane summary', () => {
+  it('keeps body-only-hold identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
         status: 'partial',
@@ -810,7 +810,7 @@ describe('performance visualizer self evolution evidence', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no'],
         reasons: [
-          'Body continuity is still the only lane carrying this same living segment, so runtime continuity should keep reading the current embodiment as one continuous her being held inward rather than a renderer-neutral idle settle.',
+          'Body continuity is still the only lane carrying this same living segment, so runtime continuity should keep reading the current embodiment as identity continuity being held inward rather than a renderer-neutral idle settle.',
         ],
       },
     })
@@ -841,7 +841,7 @@ describe('performance visualizer self evolution evidence', () => {
     )
   })
 
-  it('keeps cross-modal-lock same-her continuity visible in runtime continuity evidence instead of flattening it into a generic lane summary', () => {
+  it('keeps cross-modal-lock identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
         status: 'grounded',
@@ -948,7 +948,7 @@ describe('performance visualizer self evolution evidence', () => {
         driftingSignals: [],
         reasons: [
           'Latest visible reply governance still blocks proactive wording by opening-guidance:lower-pressure, so the outer utterance gate is preserving the same restraint the inner line already holds.',
-          'That lower-pressure hold specifically says remembered familiarity was restrained before closeness widened, keeping the same-her return inside the current room.',
+          'That lower-pressure hold specifically says remembered familiarity was restrained before closeness widened, keeping the identity-continuity',
         ],
       },
     })
@@ -968,7 +968,7 @@ describe('performance visualizer self evolution evidence', () => {
         'matchedSignals: private-thought-stance:accompany, private-thought-shouldSpeak:false, visible-reply-blocked:opening-guidance:lower-pressure',
         'missingSignals: n/a',
         'driftingSignals: n/a',
-        'reasons: Latest visible reply governance still blocks proactive wording by opening-guidance:lower-pressure, so the outer utterance gate is preserving the same restraint the inner line already holds., That lower-pressure hold specifically says remembered familiarity was restrained before closeness widened, keeping the same-her return inside the current room.',
+        'reasons: Latest visible reply governance still blocks proactive wording by opening-guidance:lower-pressure, so the outer utterance gate is preserving the same restraint the inner line already holds., That lower-pressure hold specifically says remembered familiarity was restrained before closeness widened, keeping the identity-continuity',
       ],
     })
   })
@@ -991,7 +991,7 @@ describe('performance visualizer self evolution evidence', () => {
         missingSignals: ['visible-reply-blocked-reason'],
         driftingSignals: [],
         reasons: [
-          'Latest visible proactive hold says remembered familiarity must stay explicitly remembered before visible closeness widens, so the outer utterance gate is keeping the same-her return from jumping ahead of the current room.',
+          'Latest visible proactive hold says remembered familiarity must stay explicitly remembered before visible closeness widens, so the outer utterance gate is keeping the identity-continuity',
         ],
       },
     })
@@ -1011,7 +1011,7 @@ describe('performance visualizer self evolution evidence', () => {
         'matchedSignals: private-thought-stance:accompany, private-thought-shouldSpeak:false',
         'missingSignals: visible-reply-blocked-reason',
         'driftingSignals: n/a',
-        'reasons: Latest visible proactive hold says remembered familiarity must stay explicitly remembered before visible closeness widens, so the outer utterance gate is keeping the same-her return from jumping ahead of the current room.',
+        'reasons: Latest visible proactive hold says remembered familiarity must stay explicitly remembered before visible closeness widens, so the outer utterance gate is keeping the identity-continuity',
       ],
     })
   })
@@ -1334,7 +1334,7 @@ describe('performance visualizer self evolution evidence', () => {
     )
   })
 
-  it('keeps the quieter face+lipsync same-her line visible inside runtime continuity evidence panels instead of flattening it into renderer-rejoin-without-body drift', () => {
+  it('keeps the quieter face+lipsync identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
         status: 'partial',
@@ -1365,7 +1365,7 @@ describe('performance visualizer self evolution evidence', () => {
         missingSignals: [],
         driftingSignals: ['authority-body:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority continuity still says the quieter face+lipsync carry is the surviving visible same-her line, so higher-level continuity evidence should keep body motion and voice as still pending rejoin instead of flattening this into a generic body-loss drift bucket.',
+          'Renderer authority continuity still says the quieter face+lipsync carry is the surviving visible identity-continuity',
         ],
       },
     })
@@ -1375,7 +1375,7 @@ describe('performance visualizer self evolution evidence', () => {
     )
   })
 
-  it('keeps the quieter motion+lipsync same-her line visible inside runtime continuity evidence panels instead of flattening it into renderer-rejoin-without-body drift', () => {
+  it('keeps the quieter motion+lipsync identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
         status: 'partial',
@@ -1406,7 +1406,7 @@ describe('performance visualizer self evolution evidence', () => {
         missingSignals: [],
         driftingSignals: ['authority-body:no', 'authority-face:no'],
         reasons: [
-          'Renderer authority continuity still says the quieter motion+lipsync carry is the surviving visible same-her line, so higher-level continuity evidence should keep body face and voice as still pending rejoin instead of flattening this into a generic body-loss drift bucket.',
+          'Renderer authority continuity still says the quieter motion+lipsync carry is the surviving visible identity-continuity',
         ],
       },
     })
@@ -1416,7 +1416,7 @@ describe('performance visualizer self evolution evidence', () => {
     )
   })
 
-  it('keeps the quieter face+lipsync+voice same-her line visible inside runtime continuity evidence panels instead of collapsing it into a shorter lane-only summary', () => {
+  it('keeps the quieter face+lipsync+voice identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
         status: 'partial',
@@ -1448,17 +1448,17 @@ describe('performance visualizer self evolution evidence', () => {
         missingSignals: [],
         driftingSignals: ['authority-body:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority continuity still says the quieter face+lipsync+voice carry is the surviving visible same-her line, so higher-level continuity evidence should keep body and motion as still pending rejoin instead of collapsing this into a shorter lane-only summary.',
+          'Renderer authority continuity still says the quieter face+lipsync+voice carry is the surviving visible identity-continuity',
         ],
       },
     })
 
     expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
-      'continuityAuthoritySummary: 当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线',
+      'continuityAuthoritySummary: 当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
     )
   })
 
-  it('keeps the quieter motion+lipsync+voice same-her line visible inside runtime continuity evidence panels instead of collapsing it into a shorter lane-only summary', () => {
+  it('keeps the quieter motion+lipsync+voice identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       runtimeContinuityProjection: {
         status: 'partial',
@@ -1490,13 +1490,13 @@ describe('performance visualizer self evolution evidence', () => {
         missingSignals: [],
         driftingSignals: ['authority-body:no', 'authority-face:no'],
         reasons: [
-          'Renderer authority continuity still says the quieter motion+lipsync+voice carry is the surviving visible same-her line, so higher-level continuity evidence should keep body and face as still pending rejoin instead of collapsing this into a shorter lane-only summary.',
+          'Renderer authority continuity still says the quieter motion+lipsync+voice carry is the surviving visible identity-continuity',
         ],
       },
     })
 
     expect(panels.find(panel => panel.id === 'runtime-continuity-projection')?.lines).toContain(
-      'continuityAuthoritySummary: 当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线',
+      'continuityAuthoritySummary: 当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
     )
   })
 
@@ -1869,15 +1869,15 @@ describe('performance visualizer self evolution evidence', () => {
     ])
   })
 
-  it('includes project-state continuity internalization readiness inside evidence panels when same-her carry is still blocked by project identity, phase, and open loops', () => {
+  it('includes project-state continuity internalization readiness inside evidence panels when identity-continuity', () => {
     const panels = buildSelfEvolutionEvidencePanels({
       internalizationReadinessSummary: {
         status: 'partial',
         lines: [
-          'same-her continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization.',
+          'identity-continuity',
           'Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch.',
           'Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the same-her roadmap.',
-          'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable same-her continuity.',
+          'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable identity-continuity',
           'keep this candidate in shadow until replay can carry project identity, the Phase 1 route, and unresolved closure work without dropping them across turns.',
         ],
       },
@@ -1889,7 +1889,7 @@ describe('performance visualizer self evolution evidence', () => {
         title: 'internalization readiness summary',
         lines: [
           'status: partial',
-          'lines: same-her continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization., Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch., Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the same-her roadmap., Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable same-her continuity., keep this candidate in shadow until replay can carry project identity, the Phase 1 route, and unresolved closure work without dropping them across turns.',
+          'lines: identity-continuity',
         ],
       },
     ])

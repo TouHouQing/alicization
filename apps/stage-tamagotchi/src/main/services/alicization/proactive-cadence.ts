@@ -256,7 +256,7 @@ function deriveAutobiographicalCadenceBias(autobiographicalSelf?: AlicizationAut
     'corrected same-person continuity',
     'corrected same person continuity',
     'corrected same-person line',
-    'same living line',
+    'continuity-axis',
     '同一个人连续性',
     '纠正后的同一人格连续性',
   ])
@@ -284,7 +284,7 @@ function deriveAutobiographicalCadenceBias(autobiographicalSelf?: AlicizationAut
     'return more slowly',
     'return more steadily',
     'less eagerly',
-    'same living line',
+    'continuity-axis',
     '同一个她',
   ])
   const inflectionSoftensCadence = includesAny(latestInflection, [
@@ -349,8 +349,8 @@ function deriveContinuityGovernanceCadenceBias(
     'still-open closure',
     'unfinished closure',
     'memory, initiative, and embodiment',
-    'one same living line',
-    'one living line',
+    'continuity-axis',
+    'identity-continuity',
   ])
   const hasEmotionalGovernanceReason = reasonCodes.some(code =>
     code.startsWith('emotion-transition:')
@@ -407,7 +407,7 @@ function deriveContinuityGovernanceCadenceBias(
     || lanes.includes('relationship-policy')
     || reasonCodes.includes('domain:relationship')
   const continuityWeighted = reasonCodes.includes('same-her-baseline')
-    || reasonCodes.includes('project-state-same-her-continuity-required')
+    || reasonCodes.includes('project-state-continuity-required')
     || summary.includes('same-her-baseline')
     || summary.includes('continuity=')
     || summary.includes('slower')

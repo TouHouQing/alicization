@@ -1,3 +1,8 @@
+import type {
+  AlicizationBridgeChatStreamEvent,
+  AlicizationVisibleReplyRealizationTransportArtifact,
+} from './alicization-transport-contracts'
+
 import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
@@ -9,6 +14,58 @@ import {
 } from './alicization-transport-contracts'
 
 describe('alicization transport contracts', () => {
+  it('carries visible-reply realization as a finish sidecar without merging it into Provider JSON', () => {
+    const source = readFileSync(new URL('./alicization-transport-contracts.ts', import.meta.url), 'utf8')
+    const finishEventSection = source.split('type: \'finish\'')[1]?.split('| {')[0] ?? ''
+
+    expect(source).toContain('export interface AlicizationVisibleReplyRealizationTransportArtifact')
+    expect(finishEventSection).toContain(
+      'visibleReplyRealization?: AlicizationVisibleReplyRealizationTransportArtifact | null',
+    )
+
+    const visibleReplyRealization = {
+      version: 'visible-reply-realization-v1',
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+      visibleText: 'Provider 原样回答。',
+      projectStateAudit: null,
+    } satisfies AlicizationVisibleReplyRealizationTransportArtifact
+    const fullText = JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'answer directly',
+      emotion: 'neutral',
+      reply: 'Provider 原样回答。',
+      performance: {
+        baseEmotion: 'neutral',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+      memoryUsage: {
+        workingMemoryVersion: null,
+        longTermEvidenceIds: [],
+      },
+    })
+    const event = {
+      type: 'finish',
+      fullText,
+      visibleReplyRealization,
+    } satisfies AlicizationBridgeChatStreamEvent
+
+    expect(Object.keys(JSON.parse(event.fullText))).toEqual([
+      'format',
+      'thought',
+      'emotion',
+      'reply',
+      'performance',
+      'memoryUsage',
+    ])
+    expect(event.visibleReplyRealization).toBe(visibleReplyRealization)
+  })
+
   it('keeps shared dialogue structured project-state payloads explicitly legacy-aware for latestProgress-based continuity carry', () => {
     const source = readFileSync(new URL('./alicization-transport-contracts.ts', import.meta.url), 'utf8')
     const structuredPayloadSection = source.split('export interface AlicizationDialogueStructuredPayload')[1]?.split('preDialogueClosure?:')[0] ?? ''
@@ -96,7 +153,7 @@ describe('alicization transport contracts', () => {
         },
       },
       memory: {
-        summary: 'capsule=Prioritize memory and personality self-learning | person=one continuous her',
+        summary: 'capsule=Prioritize memory and personality self-learning | person=identity continuity',
         recentEpisodeSummary: null,
         recentEpisodeCount: 0,
         focusBeliefStatement: null,
@@ -122,27 +179,27 @@ describe('alicization transport contracts', () => {
       version: 'derived-mind-state-bundle-v1',
       source: 'main-runtime',
       producedAt: 123,
-      summary: 'same-her closure carry',
+      summary: 'runtime facts',
       structured: {
-        thought: 'keep one continuous her explicit before the visible reply',
+        thought: 'keep current facts available before the visible reply',
         emotion: 'thinking',
-        reply: '我先按当前 Phase 1 的闭环状态来回答。',
+        reply: '我先按当前状态来回答。',
         projectState: {
-          identity: '  Alicization is a local-first digital life project.  ',
-          currentPhase: ' Phase 1: Local Digital Life ',
-          preflightSummary: '  Alicization is a local-first digital life project still proving Phase 1: Local Digital Life closure before each reply.  ',
-          preDialogueAwarenessLine: '  Before answering, remember this is the same digital life project, still in Phase 1, with memory, initiative, and embodiment still needing one same-her closure line.  ',
-          latestLandedProgress: ' project identity and closure pressure already enter the main dialogue path ',
-          primaryOpenLoop: ' keep cross-modal same-her proof alive across longer noisy desktop runs ',
-          nextClosureTarget: ' stabilize shared structured transport for pre-turn closure awareness ',
-          sameHerSelfLine: ' keep one continuous her explicit from self-understanding into the reply ',
-          sameHerHoldDetail: ' same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again. ',
-          sameHerDriftRisk: '  visible replies still risk collapsing into generic assistant guidance instead of one same-her digital life voice  ',
-          companionBriefingLine: ' keep the same digital life project in view before widening outward ',
+          identity: '  Alicization  ',
+          currentPhase: ' local-runtime ',
+          preflightSummary: '  runtime status is available before the reply.  ',
+          preDialogueAwarenessLine: '  runtime awareness ',
+          latestLandedProgress: ' current facts enter the main dialogue path ',
+          primaryOpenLoop: ' verify memory recall ',
+          nextClosureTarget: ' stabilize shared structured transport ',
+          sameHerSelfLine: ' keep the current self description available ',
+          sameHerHoldDetail: ' quiet return ',
+          sameHerDriftRisk: '  visible replies still require validation  ',
+          companionBriefingLine: ' keep current context in view ',
           emotionalClosureSummary: ' emotional closure is still settling, so the response should keep the return gentle and continuous ',
           continuityRestraint: ' rest-protective ',
           continuityArcStage: ' return-side-follow-through ',
-          continuityCue: ' same living line: keep the already-landed closure moving forward without restarting it ',
+          continuityCue: ' closure remains bounded ',
           continuityPreferredTiming: ' next-open-window ',
           continuityCadence: ' measured-return ',
           preferredBlinkCadence: ' quiet ',
@@ -152,33 +209,33 @@ describe('alicization transport contracts', () => {
         },
         preDialogueClosure: {
           status: ' drift ',
-          summaryLine: ' closure still open before speaking ',
-          companionHeadlineLine: ' Right now I am still holding together mainly through face and motion, and those two body lanes have already re-formed on the same segment, so my full cross-modal same-her line is not closed yet. ',
-          companionBriefingLine: ' remember what this project is before widening outward ',
-          companionNextClosureLine: ' keep building the same digital life instead of restarting the proof ',
-          briefingLines: [' landed: project identity carry ', '', ' open: cross-modal same-her proof '],
+          summaryLine: ' closure still open before outward reply ',
+          companionHeadlineLine: ' face and motion status is available ',
+          companionBriefingLine: ' remember the current context ',
+          companionNextClosureLine: ' keep the next reply grounded ',
+          briefingLines: [' landed: current facts ', '', ' open: memory recall'],
           reasons: [' current reply path still needs stronger closure carry ', ' '],
         },
       },
     })
 
     expect(bundle?.structured?.projectState).toEqual({
-      identity: 'Alicization is a local-first digital life project.',
-      currentPhase: 'Phase 1: Local Digital Life',
-      preflightSummary: 'Alicization is a local-first digital life project still proving Phase 1: Local Digital Life closure before each reply.',
-      preDialogueAwarenessLine: 'Before answering, remember this is the same digital life project, still in Phase 1, with memory, initiative, and embodiment still needing one same-her closure line.',
-      latestLandedProgress: 'project identity and closure pressure already enter the main dialogue path',
-      primaryOpenLoop: 'keep cross-modal same-her proof alive across longer noisy desktop runs',
-      nextClosureTarget: 'stabilize shared structured transport for pre-turn closure awareness',
-      sameHerSelfLine: 'keep one continuous her explicit from self-understanding into the reply',
-      sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-      sameHerDriftRisk: 'visible replies still risk collapsing into generic assistant guidance instead of one same-her digital life voice',
-      companionBriefingLine: 'keep the same digital life project in view before widening outward',
+      identity: 'Alicization',
+      currentPhase: 'local-runtime',
+      preflightSummary: 'runtime status is available before the reply.',
+      preDialogueAwarenessLine: 'runtime awareness',
+      latestLandedProgress: 'current facts enter the main dialogue path',
+      primaryOpenLoop: 'verify memory recall',
+      nextClosureTarget: 'stabilize shared structured transport',
+      sameHerSelfLine: 'keep the current self description available',
+      sameHerHoldDetail: 'quiet return',
+      sameHerDriftRisk: 'visible replies still require validation',
+      companionBriefingLine: 'keep current context in view',
       emotionalClosureCue: null,
       emotionalClosureSummary: 'emotional closure is still settling, so the response should keep the return gentle and continuous',
       continuityRestraint: 'rest-protective',
       continuityArcStage: 'return-side-follow-through',
-      continuityCue: 'same living line: keep the already-landed closure moving forward without restarting it',
+      continuityCue: 'closure remains bounded',
       continuityPreferredTiming: 'next-open-window',
       continuityCadence: 'measured-return',
       preferredBlinkCadence: 'quiet',
@@ -190,13 +247,13 @@ describe('alicization transport contracts', () => {
     })
     expect(bundle?.structured?.preDialogueClosure).toEqual({
       status: 'drift',
-      summaryLine: 'closure still open before speaking',
-      companionHeadlineLine: 'Right now I am still holding together mainly through face and motion, and those two body lanes have already re-formed on the same segment, so my full cross-modal same-her line is not closed yet.',
-      companionBriefingLine: 'remember what this project is before widening outward',
-      companionNextClosureLine: 'keep building the same digital life instead of restarting the proof',
+      summaryLine: 'closure still open before outward reply',
+      companionHeadlineLine: 'face and motion status is available',
+      companionBriefingLine: 'remember the current context',
+      companionNextClosureLine: 'keep the next reply grounded',
       briefingLines: [
-        'landed: project identity carry',
-        'open: cross-modal same-her proof',
+        'landed: current facts',
+        'open: memory recall',
       ],
       reasons: [
         'current reply path still needs stronger closure carry',
@@ -278,7 +335,7 @@ describe('alicization transport contracts', () => {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
           latestProgress: ' legacy project progress still survives in older structured payloads ',
-          primaryOpenLoop: ' keep Phase 1 same-her continuity explicit before widening outward ',
+          primaryOpenLoop: ' keep Phase 1 identity-continuity',
           nextClosureTarget: ' preserve legacy project progress across shared transport normalization ',
         },
       },
@@ -321,7 +378,7 @@ describe('alicization transport contracts', () => {
           latestLandedProgress: ' ',
           latestProgress: '   ',
           landedProgressSummary: ' audit-style project progress still survives in structured payloads ',
-          primaryOpenLoop: ' keep Phase 1 same-her continuity explicit before widening outward ',
+          primaryOpenLoop: ' keep Phase 1 identity-continuity',
           nextClosureTarget: ' preserve audit-style project progress across shared transport normalization ',
         },
       },
@@ -357,13 +414,13 @@ describe('alicization transport contracts', () => {
       producedAt: 792,
       summary: 'voice and pacing closure carry',
       structured: {
-        thought: 'keep the same living line audible and paced as one digital life before speaking outwardly',
+        thought: 'keep the continuity state audible and paced as one digital life before outward reply outwardly',
         emotion: 'thinking',
         reply: '我会先把这条仍在收口的声音和节奏线保持成同一个她。',
         projectState: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          latestLandedProgress: 'Audible same-her continuity already survives into shared structured transport.',
+          latestLandedProgress: 'Audible identity-continuity',
           primaryOpenLoop: 'Voice, pacing, face, motion, and lipsync still need fuller cross-modal convergence.',
           nextClosureTarget: 'Keep audible closure preferences explicit across transport normalization.',
           preferredVoiceMode: ' even ',
@@ -383,7 +440,7 @@ describe('alicization transport contracts', () => {
       projectState: {
         identity: 'Alicization is a local-first digital life project.',
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Audible same-her continuity already survives into runtime digest carry.',
+        latestLandedProgress: 'Audible identity-continuity',
         primaryOpenLoop: 'Voice, pacing, face, motion, and lipsync still need fuller cross-modal convergence.',
         nextClosureTarget: 'Keep audible closure preferences explicit across runtime digest normalization.',
         preferredVoiceMode: ' lower-pressure ',
@@ -397,25 +454,25 @@ describe('alicization transport contracts', () => {
     }))
   })
 
-  it('keeps proactive same-her gap alive across structured and runtime project-state normalization', () => {
+  it('keeps proactive identity-continuity', () => {
     const proactiveSameHerGap = 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.'
 
     const bundle = normalizeAlicizationDerivedMindStateBundle({
       version: 'derived-mind-state-bundle-v1',
       source: 'main-runtime',
       producedAt: 791,
-      summary: 'proactive same-her gap carry',
+      summary: 'proactive identity-continuity',
       structured: {
-        thought: 'keep proactive same-her closure pressure explicit before the next reply',
+        thought: 'keep proactive identity-continuity',
         emotion: 'thinking',
         reply: '我会先把主动性闭环还没收住的压力留在眼前。',
         projectState: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          latestLandedProgress: 'Proactive self-brief already carries the same-her project line.',
-          primaryOpenLoop: 'Long-run same-her continuity still needs stronger proof across initiative, memory, and embodiment.',
+          latestLandedProgress: 'Proactive self-brief already carries the identity-continuity',
+          primaryOpenLoop: 'Long-run identity-continuity',
           proactiveSameHerGap,
-          nextClosureTarget: 'Keep proactive same-her closure pressure explicit across longer noisy desktop runs.',
+          nextClosureTarget: 'Keep proactive identity-continuity',
         },
       },
     } as any)
@@ -430,10 +487,10 @@ describe('alicization transport contracts', () => {
       projectState: {
         identity: 'Alicization is a local-first digital life project.',
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Proactive self-brief already carries the same-her project line.',
-        primaryOpenLoop: 'Long-run same-her continuity still needs stronger proof across initiative, memory, and embodiment.',
+        latestLandedProgress: 'Proactive self-brief already carries the identity-continuity',
+        primaryOpenLoop: 'Long-run identity-continuity',
         proactiveSameHerGap,
-        nextClosureTarget: 'Keep proactive same-her closure pressure explicit across longer noisy desktop runs.',
+        nextClosureTarget: 'Keep proactive identity-continuity',
       },
     } as any)
 
@@ -461,7 +518,7 @@ describe('alicization transport contracts', () => {
         repairNeed: 0.31,
         initiativePressure: 0.24,
         reasonTags: [' same-her ', '', ' measured-return '],
-        why: ' keep one lower-pressure same-her line through memory, initiative, and embodiment ',
+        why: ' keep one lower-pressure identity-continuity',
       },
       visualPresenceState: {
         watchMode: 'symbiotic-vision',
@@ -482,8 +539,8 @@ describe('alicization transport contracts', () => {
           closenessDrive: 0.26,
           repairNeed: 0.88,
           initiativePressure: 0.42,
-          reasonTags: [' repair-first ', ' same living line '],
-          why: ' keep repair-before-closeness on the same living line until embodiment settles ',
+          reasonTags: [' repair-first ', ' continuity state '],
+          why: ' keep repair-before-closeness on the continuity state until embodiment settles ',
         },
       },
     })
@@ -501,7 +558,7 @@ describe('alicization transport contracts', () => {
       repairNeed: 0.31,
       initiativePressure: 0.24,
       reasonTags: ['same-her', 'measured-return'],
-      why: 'keep one lower-pressure same-her line through memory, initiative, and embodiment',
+      why: 'keep one lower-pressure identity-continuity',
     })
     expect(bundle?.visualPresenceState?.emotionalKernel).toEqual({
       version: 'emotional-kernel-v1',
@@ -515,8 +572,8 @@ describe('alicization transport contracts', () => {
       closenessDrive: 0.26,
       repairNeed: 0.88,
       initiativePressure: 0.42,
-      reasonTags: ['repair-first', 'same living line'],
-      why: 'keep repair-before-closeness on the same living line until embodiment settles',
+      reasonTags: ['repair-first', 'continuity state'],
+      why: 'keep repair-before-closeness on the continuity state until embodiment settles',
     })
   })
 
@@ -567,14 +624,14 @@ describe('alicization transport contracts', () => {
           shouldPropose: true,
           domain: 'dialogue-style',
           reasonCodes: [' repair-before-closeness ', 'continue-repair-first', ''],
-          summary: ' Repair-first emotional carry should propose a same-her self-revision. ',
+          summary: ' Repair-first emotional carry should propose a identity-continuity',
           projectStateContinuity: {
-            sameHerSelfLine: ' one continuous her ',
+            sameHerSelfLine: ' identity continuity ',
             sameHerDriftRisk: ' generic assistant shell ',
             proactiveSameHerGap: '',
             emotionalClosureCue: ' repair should settle before closeness widens ',
             sameHerHoldDetail: ' hold repair-first ',
-            continuityGuard: ' keep repair-first same-her continuity ',
+            continuityGuard: ' keep repair-first identity-continuity',
           },
         },
         traceSummary: ' warm-attunement -> repair-tension; kind=repair-shift ',
@@ -625,14 +682,14 @@ describe('alicization transport contracts', () => {
         shouldPropose: true,
         domain: 'dialogue-style',
         reasonCodes: ['repair-before-closeness', 'continue-repair-first'],
-        summary: 'Repair-first emotional carry should propose a same-her self-revision.',
+        summary: 'Repair-first emotional carry should propose a identity-continuity',
         projectStateContinuity: {
-          sameHerSelfLine: 'one continuous her',
+          sameHerSelfLine: 'identity continuity',
           sameHerDriftRisk: 'generic assistant shell',
           proactiveSameHerGap: null,
           emotionalClosureCue: 'repair should settle before closeness widens',
           sameHerHoldDetail: 'hold repair-first',
-          continuityGuard: 'keep repair-first same-her continuity',
+          continuityGuard: 'keep repair-first identity-continuity',
         },
       },
       traceSummary: 'warm-attunement -> repair-tension; kind=repair-shift',
@@ -683,7 +740,7 @@ describe('alicization transport contracts', () => {
         recollectionSurfaceSummary: 'carry=memory | fragments=enabled',
         recollectionConfidence: 0.71,
         thoughtThreadSummary: 'same callback line',
-        longHorizonSummary: 'same-her closure still matters',
+        longHorizonSummary: 'identity-continuity',
         rememberedPreferenceSummary: 'prefer measured return',
         rememberedConstraintSummary: 'do not restart from scratch',
         rememberedPlanSummary: 'return on the same line',
@@ -786,7 +843,7 @@ describe('alicization transport contracts', () => {
         sceneScenario: 'coding',
         activeThreadId: 'thread-memory-emotional-afterglow',
         dominantMode: 'observe',
-        answerIntent: 'keep the callback afterglow on the same-her line',
+        answerIntent: 'keep the callback afterglow on the identity-continuity',
         selectedAction: 'silent-observe',
         continuityArcStage: 'same-thread-continuation',
         continuityCue: 'prior recall changed the next emotional afterglow',
@@ -838,7 +895,7 @@ describe('alicization transport contracts', () => {
             },
             emotion: {
               reason: 'prior recall changed the next emotional afterglow into quieter same-her residue',
-              afterglow: 'quieter same-her callback afterglow',
+              afterglow: 'quieter identity-continuity',
               residue: 'downranked stale emotional noise',
             },
             embodiment: {
@@ -876,7 +933,7 @@ describe('alicization transport contracts', () => {
     })
     expect(digest?.memory?.memoryClosureTrace?.nextInfluence.emotion).toEqual({
       reason: 'prior recall changed the next emotional afterglow into quieter same-her residue',
-      afterglow: 'quieter same-her callback afterglow',
+      afterglow: 'quieter identity-continuity',
       residue: 'downranked stale emotional noise',
     })
   })

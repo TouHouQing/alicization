@@ -9,7 +9,7 @@ import {
   deriveSessionMirrorRecollectionIntent,
 } from './runtime-organic-memory-search-prelude'
 
-const fixedTemplateResiduePattern = /Before (?:answering|speaking|acting)|Same Phase 1 digital life|same-her|same her|same living line|one living her|one continuous her|local-first digital life project|同一个她|同一个 her|数字生命主线/iu
+const fixedTemplateResiduePattern = /Before (?:answering|speaking|acting)|legacy phase-one template|same-her|same her|continuity state|one living her|identity continuity|local-first digital life project|同一个她|同一个 her|数字生命主线/iu
 
 function expectNoFixedTemplateResidue(value: unknown) {
   expect(JSON.stringify(value)).not.toMatch(fixedTemplateResiduePattern)
@@ -196,8 +196,8 @@ describe('memory-search-retrieval-operators', () => {
         isPersonaResidueMemoryText: () => false,
       },
       recallSeed: [
-        '我切回来了，继续沿着刚才那条线，不要把这条 same-her closure 说丢了。',
-        'mirror_runtime_continuity: loop=execution-callback | thread=thread-project-state-mirror-same-her | project_preflight=Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop. | same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | landed=Project-state carry already survives into runtime preparation. | open=Keep the unfinished digital-life closure work explicit in the answer. | open-focus=memory/initiative/embodiment/same-line/closure-seam | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs. | next-focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn. | dominant=dialogue | phase=dialogue | handoff=active-dialogue | scenario=coding | reason=carry the same project-state closure seam through the callback return',
+        '我切回来了，继续沿着刚才那条线，不要把这条 identity-continuity',
+        'mirror_runtime_continuity: loop=execution-callback | thread=thread-project-state-mirror-same-her | project_preflight=pre_turn_context_digest',
       ].join('\n'),
       recallGovernor: {
         allowRecalledFragments: true,
@@ -253,8 +253,8 @@ describe('memory-search-retrieval-operators', () => {
         isPersonaResidueMemoryText: () => false,
       },
       recallSeed: [
-        '先记住这条 deferred same-her closure 线，等我切回来继续。',
-        'continuity_held_autonomy: label=proactive:held-autonomy | summary=Hold the unfinished same-her closure line until the next directly addressed turn can reopen it. | thread=thread-held-autonomy-same-her | intent=continue-deferred-closure | goal=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs. | defer=wait for the next directly addressed turn | why_now=The same unfinished digital-life closure seam should reopen once the host returns. | line=Stay with the same living line instead of switching personas. | project_preflight=Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop. | landed=Project-state carry already survives into runtime preparation. | same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn. | open_focus=emotion/memory/initiative/embodiment/same-line/closure-seam | next_focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment | project_emotional_closure=Hold the same digital-life closure line gently instead of rushing into generic productivity.',
+        '先记住这条 deferred identity-continuity',
+        'continuity_held_autonomy: label=proactive:held-autonomy | summary=Hold the unfinished identity-continuity',
       ].join('\n'),
       recallGovernor: {
         allowRecalledFragments: true,
@@ -311,8 +311,8 @@ describe('memory-search-retrieval-operators', () => {
         isPersonaResidueMemoryText: () => false,
       },
       recallSeed: [
-        '继续这条 Phase 1 digital life 主线，不要把未闭环的 same-her closure 丢成泛化项目说明。',
-        'continuity_project_state: label=project-aware-return | summary=Reopen the unfinished Phase 1 digital-life closure line before generic task detail takes over. | project_pre_dialogue=Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop. | project_preflight=Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop. | phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi. | landed=Project-state carry already survives into runtime preparation. | unresolved=Memory, initiative, and embodiment still need to close as one same-life seam. | open_focus=memory/initiative/embodiment/same-line/closure-seam | next_focus=project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs. | same_her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | drift_risk=If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn. | emotion=Hold the unfinished same-life seam gently instead of flattening it into generic productivity.',
+        '继续这条 Phase 1 digital life 主线，不要把未闭环的 identity-continuity',
+        'continuity_project_state: label=project-aware-return | summary=Reopen the unfinished Phase 1 digital-life closure line before generic task detail takes over. | project_pre_dialogue=pre_turn_context_digest',
       ].join('\n'),
       recallGovernor: {
         allowRecalledFragments: true,
@@ -433,7 +433,7 @@ describe('memory-search-retrieval-operators', () => {
       },
       recallSeed: [
         '先把 callback afterglow 那条 same-her 线接回来，再继续这次回答。',
-        'continuity_afterglow: label=afterglow:execution-callback:lower-pressure summary=thread=runtime same-her callback seam | continuity=execution-callback | carry-mode=lower-pressure | carry=Keep the same-her callback afterglow line inward until there is more room before widening outward again. | source=execution-result thread=runtime same-her callback seam kind=autobiographical-afterglow',
+        'continuity_afterglow: label=afterglow:execution-callback:lower-pressure summary=thread=runtime identity-continuity',
       ].join('\n'),
       recallGovernor: {
         allowRecalledFragments: true,

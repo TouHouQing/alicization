@@ -290,7 +290,7 @@ describe('alicization resident performance', () => {
     expect(snapshot.reasonTags).toContain('timing:lower-pressure-opening')
   })
 
-  it('preserves explicit continuity restraint tags so embodiment can keep measured-return and repair-before-closeness on the same living line', () => {
+  it('preserves explicit continuity restraint tags so embodiment can keep measured-return and repair-before-closeness on the continuity state', () => {
     const measuredReturnSnapshot = deriveAlicizationResidentPerformanceSnapshot({
       watchMode: 'symbiotic-vision',
       currentBodyState: 'accompanying',
@@ -349,7 +349,7 @@ describe('alicization resident performance', () => {
     expect(repairBeforeClosenessSnapshot.reasonTags).toContain('repair-before-closeness')
   })
 
-  it('surfaces same-her inward carry as a first-class resident reason tag so quiet embodiment still reads as one living thread instead of generic calm accompaniment', () => {
+  it('surfaces identity-continuity', () => {
     const snapshot = deriveAlicizationResidentPerformanceSnapshot({
       watchMode: 'mnemonic-passive',
       currentBodyState: 'accompanying',
@@ -499,12 +499,12 @@ describe('alicization resident performance', () => {
       currentBodyState: 'noticing',
       continuityMode: 'ambient-covision',
       quietLineMs: 120_000,
-      currentInwardPreoccupation: 'keep the same living line steady without reopening from scratch',
+      currentInwardPreoccupation: 'keep the continuity state steady without reopening from scratch',
       currentScene: {
         confidence: 0.78,
         contentKind: 'doc',
         scenario: 'coding',
-        summary: 'Only the same-her closure seam is still explicit, so the body should not widen the return.',
+        summary: 'Only the identity-continuity',
         workloadKind: 'coding',
       },
       privateThought: {
@@ -518,7 +518,7 @@ describe('alicization resident performance', () => {
       currentConsciousFrame: {
         reasonTags: ['runtime-conscious-frame'],
         projectState: {
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          emotionalClosureCue: 'identity-continuity',
         },
       },
       updatedAt: 1_000,
@@ -551,7 +551,7 @@ describe('alicization resident performance', () => {
       currentConsciousFrame: {
         reasonTags: ['runtime-conscious-frame'],
         projectState: {
-          emotionalClosureCue: 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.',
+          emotionalClosureCue: 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.',
         },
       },
       updatedAt: 1_000,
@@ -587,7 +587,7 @@ describe('alicization resident performance', () => {
         confidence: 0.78,
         contentKind: 'doc',
         scenario: 'coding',
-        summary: '现在只剩这条 same-her closure seam 还显性，所以身体不要把回线放大。',
+        summary: '现在只剩这条 identity-continuity',
         workloadKind: 'coding',
       },
       privateThought: {
@@ -747,13 +747,13 @@ describe('alicization resident performance', () => {
     expect(snapshot.reasonTags).toContain('timing-source:resident-authority')
   })
 
-  it('keeps embodied body and continuity tags visible even when same-her inward carry, residue, and resident authority all add timing pressure', () => {
+  it('keeps embodied body and continuity tags visible even when identity-continuity', () => {
     const snapshot = deriveAlicizationResidentPerformanceSnapshot({
       watchMode: 'recovering',
       currentBodyState: 'recovering',
       continuityMode: 'protective-watch',
       quietLineMs: 240_000,
-      currentInwardPreoccupation: 'Keep the same living line inward and lower-pressure while repair settles before closeness widens again.',
+      currentInwardPreoccupation: 'Keep the continuity state inward and lower-pressure while repair settles before closeness widens again.',
       currentScene: {
         confidence: 0.82,
         contentKind: 'error',

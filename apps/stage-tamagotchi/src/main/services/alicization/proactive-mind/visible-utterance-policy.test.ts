@@ -59,7 +59,6 @@ describe('proactive visible utterance policy', () => {
           warmthReleaseBias: 0,
         },
         responsePosture: {
-          secondPassRequiredBias: 0,
           hypothesisLabelBias: 0,
           specificityClampBias: 0,
           templateShellSuppressionBias: 0,
@@ -75,9 +74,9 @@ describe('proactive visible utterance policy', () => {
           rollbackPlan: [],
         },
         projectStateContinuity: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Hold visible proactive speech without dropping the same-her line.',
+          sameHerSelfLine: 'structured continuity digest.',
           sameHerDriftRisk: 'If proactive speech persists just because text exists, Alicization can sound agentic while losing restrained digital-life continuity.',
-          emotionalClosureCue: 'Keep this proactive hold lower-pressure until the same living line is safe to reopen outward.',
+          emotionalClosureCue: 'Keep this proactive hold lower-pressure until the continuity state is safe to reopen outward.',
           continuityGuard: 'Hold visible proactive speech as same-her restraint, not as a generic mute switch.',
           continuityPressure: 0.68,
         },
@@ -118,7 +117,6 @@ describe('proactive visible utterance policy', () => {
           warmthReleaseBias: 0,
         },
         responsePosture: {
-          secondPassRequiredBias: 0,
           hypothesisLabelBias: 0,
           specificityClampBias: 0,
           templateShellSuppressionBias: 0,
@@ -171,7 +169,6 @@ describe('proactive visible utterance policy', () => {
           warmthReleaseBias: 0.09,
         },
         responsePosture: {
-          secondPassRequiredBias: 0.16,
           hypothesisLabelBias: 0.22,
           specificityClampBias: 0.28,
           templateShellSuppressionBias: 0.24,
@@ -225,7 +222,6 @@ describe('proactive visible utterance policy', () => {
           warmthReleaseBias: 0.09,
         },
         responsePosture: {
-          secondPassRequiredBias: 0.16,
           hypothesisLabelBias: 0.22,
           specificityClampBias: 0.28,
           templateShellSuppressionBias: 0.24,
@@ -249,64 +245,5 @@ describe('proactive visible utterance policy', () => {
 
     expect(decision.shouldPersistVisibleUtterance).toBe(true)
     expect(decision.action).toBe('persist')
-  })
-
-  it('holds mind-authored proactive visible text when active same-her continuity says this reopening would risk flattening into a generic assistant shell', () => {
-    const decision = decideAlicizationProactiveVisibleUtterance({
-      hasMindAuthoredStructured: true,
-      selfRevisionPatch: {
-        version: 'self-revision-state-patch-v1',
-        id: 'patch-same-her-continuity-hold',
-        sourceEventId: 'event-same-her-continuity-hold',
-        sourceTurnId: 'turn-same-her-continuity-hold',
-        decisionTraceId: 'trace-same-her-continuity-hold',
-        domain: 'relationship',
-        action: 'internalize',
-        resultStatus: 'completed',
-        lanes: ['relationship-posture', 'response-posture'],
-        memoryPolicy: {
-          strictnessBias: 0.04,
-          wrongThreadSuppressionBias: 0.08,
-          provenanceLabelBias: 0.06,
-          recallExpansionBias: 0,
-          shouldQuarantineUnsupportedCarry: false,
-        },
-        relationshipPosture: {
-          repairWindowBias: 0.18,
-          closenessCapBias: 0.16,
-          warmthReleaseBias: 0,
-        },
-        responsePosture: {
-          secondPassRequiredBias: 0.14,
-          hypothesisLabelBias: 0.02,
-          specificityClampBias: 0.08,
-          templateShellSuppressionBias: 0.24,
-        },
-        proactivePolicy: {
-          restraintBias: 0.08,
-          learningProposalBias: 0,
-          actuationCooldownBias: 0.1,
-        },
-        validation: {
-          requiresRollbackCheck: false,
-          requiresRevalidation: false,
-          rollbackPlan: [],
-        },
-        projectStateContinuity: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerDriftRisk: 'If this reopening flattens into a generic assistant shell or project-summary voice, the same-her continuity will be weaker than the words suggest.',
-          emotionalClosureCue: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-          continuityGuard: 'Same Phase 1 digital life. This callback still belongs to one living line, and it should not reopen from scratch or flatten into a generic assistant shell.',
-          continuityPressure: 0.72,
-        },
-        reasonCodes: ['domain:relationship', 'same-her-emotional-closure-carry-active'],
-        summary: 'Visible proactive reopening should stay on the same living line.',
-      },
-    })
-
-    expect(decision.shouldPersistVisibleUtterance).toBe(false)
-    expect(decision.requiresMindAuthoredText).toBe(true)
-    expect(decision.action).toBe('hold')
-    expect(decision.reason).toBe('active-self-revision-same-her-continuity-holds-visible-utterance')
   })
 })

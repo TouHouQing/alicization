@@ -595,7 +595,7 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.reasons).toContain('Prosody authority still anchors energy-phoneme-hybrid on segment-live2d-1, so the mouth-driving chain remains attributable to one authoritative speech segment instead of a renderer-local guess.')
   })
 
-  it('projects body-led renderer rejoin as same-her continuity instead of generic drift when body and a renderer lane stay on the same segment', () => {
+  it('projects body-led renderer rejoin as identity-continuity', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       speechEmbodiment: {
         runtimeDynamics: {
@@ -2550,7 +2550,7 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.driftingSignals).toContain('authority-lipsync:no')
   })
 
-  it('keeps audible body-carried same-her continuity visible in self-evolution renderer authority projection when body lipsync and voice still hold one living segment', () => {
+  it('keeps audible body-carried identity-continuity', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       embodimentOutputProjection: {
         status: 'grounded',
@@ -2671,7 +2671,7 @@ describe('performance visualizer self evolution renderer authority projection', 
     )
   })
 
-  it('surfaces body-led same-her continuity in renderer authority projection when body and voice still carry the living segment before face and motion return', () => {
+  it('surfaces body-led identity-continuity', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       embodimentOutputProjection: {
         status: 'grounded',
@@ -2865,11 +2865,11 @@ describe('performance visualizer self evolution renderer authority projection', 
       'Authority matching remains body:yes face:no motion:no lipsync:no on vrm, which shows the bound renderer segment is the one the desktop runtime actually executed.',
     )
     expect(projection?.reasons).toContain(
-      'Body continuity is still the only lane carrying this same living segment, so the current embodiment should be read as one continuous her being held inward rather than as a renderer-neutral idle settle.',
+      'Body continuity is still the only lane carrying this same living segment, so the current embodiment should be read as identity continuity being held inward rather than as a renderer-neutral idle settle.',
     )
   })
 
-  it('treats body-segment authority loss as real drift because same-her continuity is broken before renderer lanes can meaningfully rejoin', () => {
+  it('treats body-segment authority loss as real drift because identity-continuity', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       embodimentOutputProjection: {
         status: 'grounded',

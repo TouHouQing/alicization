@@ -104,7 +104,7 @@ function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
 }
 
 function resolveRememberedSeamMoreRoomHoldDetail() {
-  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; widening=deferred'
+  return null
 }
 
 function joinPresenceOnlyStructuredTokens(tokens: string[]) {
@@ -126,10 +126,7 @@ function resolvePresenceOnlyHoldStructuredTokens(raw: string) {
       || /execution_safety_gate=blocked_dispatch/iu.test(normalized)
   if (carriesExecutionSafetyGate) {
     tokens.push(
-      'execution_safety_gate=blocked_dispatch',
-      'confirmation=required',
-      'interrupt=no-process-started',
-      'permission=none',
+      'Execution dispatch is blocked until host confirmation; no process has started and no permission is active.',
     )
   }
 
@@ -139,81 +136,49 @@ function resolvePresenceOnlyHoldStructuredTokens(raw: string) {
       || /execution_resume_confirmation=host-confirmed-before-redispatch/iu.test(normalized)
   if (carriesExecutionResumeConfirmation) {
     tokens.push(
-      'execution_resume_confirmation=host-confirmed-before-redispatch',
-      'audit=resume-before-dispatch',
-      'interrupt=process-not-yet-restarted',
-      'permission=bounded',
+      'The host confirmed resume before redispatch; the process has not restarted and permission stays bounded.',
     )
   }
-
-  const carriesRememberedSeamMoreRoom = hasRememberedSeamMoreRoomCarry(normalized)
-    || /relationship_cadence=remembered_boundary|room=more|reentry=slower/iu.test(normalized)
-  if (carriesRememberedSeamMoreRoom) {
-    tokens.push(
-      'relationship_cadence=remembered_boundary',
-      'room=more',
-      'reentry=slower',
-      'widening=deferred',
-    )
-  }
-
-  const carriesRepairBeforeCloseness
-    = /repair-before-closeness|repair before closeness|repair-first|repair first|continuity_hold=repair_before_closeness|before_closeness_widens|先修复|修复优先/iu.test(normalized)
-  if (carriesRepairBeforeCloseness) {
-    tokens.push(
-      'cadence=repair_before_closeness',
-      'timing=before_closeness_widens',
-    )
-  }
-
-  const carriesRestProtective
-    = /rest-protective|rest protective|rest protection|rest-guard|quiet-companionship|quiet companionship|fatigue-aware|continuity_hold=rest_protective|fatigue_aware=true|protect rest|protecting rest|late-night-drain|line holds inward|holds inward|quietly inward|stay inward|body stay inward|休息保护|先收住|先往内收|别把身体再往外推/iu.test(normalized)
-  if (carriesRestProtective) {
-    tokens.push(
-      'cadence=rest_protective',
-      'direction=inward',
-      'fatigue_aware=true',
-    )
-  }
-
-  const explicitMeasuredReturn = !carriesRememberedSeamMoreRoom
-    && /measured-return|lower-pressure|continuity_hold=measured_return|pressure=lower|same remembered|remembered seam|relationship seam|without reopening from scratch|reopen from scratch|leave more room|more room|room-making|余韵|留白|接回去|不要.*温度放大|不要重开得太快|上次太急/iu.test(normalized)
-  const implicitMeasuredReturn = !carriesRepairBeforeCloseness
-    && !carriesRestProtective
-    && !carriesExecutionSafetyGate
-    && !carriesExecutionResumeConfirmation
-    && /callback line|same callback|same-thread|same thread|before widening outward/iu.test(normalized)
-  if (explicitMeasuredReturn || implicitMeasuredReturn) {
-    tokens.push(
-      'cadence=measured_return',
-      'pressure=lower',
-      'reopen_from_scratch=false',
-    )
-  }
-
-  if (/emotion,\s*memory,\s*initiative,?\s*and\s*embodiment|memory,\s*emotion,?\s*and\s*embodiment|memory.*emotion.*embodiment|emotion\+memory\+initiative\+embodiment|情绪.*记忆.*主动性.*具身/u.test(normalized)) {
-    tokens.push('lanes=emotion+memory+initiative+embodiment')
-  }
-
-  if (/ordinary proactive closeness|proactive closeness|visible impulse/iu.test(normalized))
-    tokens.push('proactive_closeness=blocked')
-
-  if (/generic assistant shell|generic helper shell|assistant shell|project-summary voice|project summary voice|detached summary|generic project guidance|generic status|generic.*(?:guidance|assistant|shell|project)|flatten|collapse into a generic|same-her drift|continuity drift|closure drift/iu.test(normalized))
-    tokens.push('generic_shell=blocked')
 
   if (/permanent permission|permanent autonomous permission|permanent execution permission|永久权限/iu.test(normalized))
-    tokens.push('permission_scope=bounded')
-
-  if (/Alicization|runtime_personhood|local-first digital life project|Phase\s*1|Local Digital Life|本地优先数字生命项目|数字生命项目/iu.test(normalized))
-    tokens.push('identity=runtime_personhood')
-
-  if (/visible reply|voice|facial state|face|motion|lipsync|resident presence|embodiment|body|mouth|语音|表情|动作|唇形|身体/u.test(normalized))
-    tokens.push('cover=visible_reply,voice,face,motion,lipsync,resident_presence')
-
-  if (/^(?:do not|don't|stay|keep|before answering|before speaking|speak from|hold|leave|protect|remember|recognize)\b/iu.test(normalized) && !tokens.length)
-    tokens.push('fixed_template=excluded')
+    tokens.push('Permission must stay bounded.')
 
   return joinPresenceOnlyStructuredTokens(tokens)
+}
+
+function containsPresenceOnlyFixedTemplateCue(raw: unknown) {
+  const normalized = typeof raw === 'string'
+    ? raw.trim().replace(/\s+/g, ' ').slice(0, 2400)
+    : ''
+  if (!normalized)
+    return false
+
+  return /\bidentity=runtime_personhood\b/iu.test(normalized)
+    || /\blanes=emotion\+memory\+initiative\+embodiment\b/iu.test(normalized)
+    || /^before (?:answering|speaking|acting)\b/iu.test(normalized)
+    || /\bSame Phase 1 digital life\b/iu.test(normalized)
+    || /\bsame living line\b/iu.test(normalized)
+    || /\bone living her\b/iu.test(normalized)
+    || /\bone continuous her\b/iu.test(normalized)
+    || /\bStay on the same (?:callback|remembered|relationship|line|thread)\b/iu.test(normalized)
+    || /\bKeep this callback\b/iu.test(normalized)
+    || /\bcadence=(?:measured_return|repair_before_closeness|rest_protective)\b/iu.test(normalized)
+	    || /\brelationship_cadence=remembered_boundary\b/iu.test(normalized)
+	    || /\bcontinuity_(?:hold|mode|cue|scope|context)=/iu.test(normalized)
+	    || /\b(?:landed|evidence|remaining|dialogue_entry_governance|memory_dialogue_loop|execution_safety|template_cleanup|provider_authored_reply_required|allowed_failures|memory_workbench|owner_boundary)=/iu.test(normalized)
+	    || /\breopen_from_scratch=false\b/iu.test(normalized)
+	    || /\bfixed_template=excluded\b/iu.test(normalized)
+	    || /\bgeneric_shell=blocked\b/iu.test(normalized)
+	    || /\bcover=visible_reply\b/iu.test(normalized)
+	    || /\bvalidation=noisy_desktop_runs\b/iu.test(normalized)
+    || /\btiming=measured_return_or_repair_before_closeness\b/iu.test(normalized)
+    || /\blocal_desktop_life_loop\b/iu.test(normalized)
+}
+
+function sanitizePresenceOnlyReasonTags(reasonTags: readonly unknown[]) {
+  return reasonTags
+    .map(tag => typeof tag === 'string' ? tag.trim() : '')
+    .filter((tag): tag is string => Boolean(tag) && !containsPresenceOnlyFixedTemplateCue(tag))
 }
 
 function looksLikeGenericMeasuredReturnHoldDetail(text: string | null | undefined) {
@@ -323,7 +288,7 @@ function normalizePresenceOnlyHoldCarryText(raw: unknown, maxChars = 420) {
   if (structuredTokens)
     return structuredTokens.slice(0, maxChars)
   const sanitized = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  if (sanitized)
+  if (sanitized && !containsPresenceOnlyFixedTemplateCue(sanitized))
     return sanitized
   const fragments = normalized
     .split(/\s*(?:[。!?！？]\s+|\s\|\s+|;\s+)/u)
@@ -333,7 +298,7 @@ function normalizePresenceOnlyHoldCarryText(raw: unknown, maxChars = 420) {
         return fragmentTokens
       return sanitizeAlicizationProviderFacingText(fragment, Math.min(260, maxChars), '')
     })
-    .filter((fragment): fragment is string => Boolean(fragment))
+    .filter((fragment): fragment is string => Boolean(fragment) && !containsPresenceOnlyFixedTemplateCue(fragment))
   return fragments.join(' | ')
 }
 
@@ -561,7 +526,7 @@ function resolvePresenceOnlyHoldSameHerHoldDetail(input: {
 
   return current
     || candidate
-    || 'cadence=measured_return; pressure=lower'
+    || null
 }
 
 export function buildPresenceOnlyHoldContinuityProjection(input: {
@@ -588,11 +553,6 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
   }
 
   const previousProjection = input.previousProjection ?? null
-  const synthesizedOpeningGuidance = input.continuityRestraint === 'repair-before-closeness'
-    ? 'continuity_mode=repair_before_closeness; timing=before_widening'
-    : input.continuityRestraint === 'rest-protective'
-      ? 'continuity_mode=rest_protective; direction=inward'
-      : 'continuity_mode=measured_return; pressure=lower; reopening=fresh_start_blocked'
   const guidanceCandidates = [
     String(input.openingGuidance ?? '').trim(),
     String(previousProjection?.openingGuidance ?? '').trim(),
@@ -608,14 +568,9 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
       || hasThinAffectiveResidueRoomMakingCue(candidate)
   })
   const openingGuidance = normalizePresenceOnlyHoldCarryText(
-    meaningfullySpecificGuidance ?? synthesizedOpeningGuidance,
+    meaningfullySpecificGuidance ?? '',
     320,
-  ) || synthesizedOpeningGuidance
-  const manifestationCadenceSummary = input.continuityRestraint === 'repair-before-closeness'
-    ? 'cadence=repair_before_closeness; timing=before_closeness_widens; thread=continuation'
-    : input.continuityRestraint === 'rest-protective'
-      ? 'cadence=rest_protective; direction=inward; thread=continuation'
-      : 'cadence=measured_return; pressure=lower; thread=continuation'
+  )
   const rememberedSeamMoreRoomCarry = hasRememberedSeamMoreRoomCarry([
     openingGuidance,
     input.projectContinuityCue,
@@ -624,11 +579,7 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
   ].filter(Boolean).join(' '))
   const sameHerHoldDetail = rememberedSeamMoreRoomCarry
     ? resolveRememberedSeamMoreRoomHoldDetail()
-    : input.continuityRestraint === 'repair-before-closeness'
-      ? 'cadence=repair_before_closeness; timing=before_closeness_widens'
-      : input.continuityRestraint === 'rest-protective'
-        ? 'cadence=rest_protective; timing=fatigue_aware'
-        : 'cadence=measured_return; pressure=lower'
+    : ''
   const inwardLine = [
     normalizePresenceOnlyHoldCarryText(previousProjection?.selfContinuityAuthority?.inwardLine, 240),
     normalizePresenceOnlyHoldCarryText(input.projectContinuityCue, 240),
@@ -640,10 +591,10 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
   return {
     ...previousProjection,
     summary: String(previousProjection?.summary ?? '').trim()
-      || `project_continuity=${manifestationCadenceSummary}`,
+      || '',
     openingGuidance,
     manifestationCadenceSummary: String(previousProjection?.manifestationCadenceSummary ?? '').trim()
-      || manifestationCadenceSummary,
+      || '',
     sameHerHoldDetail,
     selfContinuityAuthority: {
       ...previousProjection?.selfContinuityAuthority,
@@ -745,20 +696,16 @@ export function preserveResidentSameLineProjection(input: {
     ...baseProjection,
     summary: shouldPreferNextRepairBeforeCloseness || shouldPreferNextRestProtective
       ? nextSummary
-      : previousSummary.includes('project_continuity=')
-        ? previousSummary
-        : `project_continuity=${carrySummary || carryNarrative || 'continuation_state=active; cadence=lower_pressure; restart_policy=context_preserving'}`,
+      : previousSummary || carrySummary || carryNarrative || nextSummary,
     openingGuidance: shouldPreferNextRepairBeforeCloseness || shouldPreferNextRestProtective
       ? nextOpeningGuidance
       : shouldPreferNextOpeningGuidance
         ? nextOpeningGuidance
         : previousOpeningGuidance
-          || nextOpeningGuidance
-          || 'callback_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving',
+          || nextOpeningGuidance,
     manifestationCadenceSummary: shouldPreferNextRepairBeforeCloseness || shouldPreferNextRestProtective
       ? nextCadenceSummary
-      : previousCadenceSummary
-        || 'manifestation_cadence=measured_return; continuation_state=active',
+      : previousCadenceSummary,
     selfContinuityAuthority: mergedSelfContinuityAuthority,
   }
 }
@@ -834,7 +781,7 @@ export function buildPresenceOnlyHoldInitiativeFallback(input: {
     String(input.decision?.whyNow ?? '').trim(),
     String(input.projectContinuityCue ?? '').trim(),
     String(input.privateThought?.thoughtText ?? '').trim(),
-  ].filter(Boolean)[0] || 'continuity_state=active; cadence=lower_pressure'
+  ].filter(Boolean)[0] || 'Active continuity with lower pressure.'
 
   const preferredPresence = continuityRestraint === 'repair-before-closeness'
     ? 'concerned'
@@ -1175,11 +1122,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
       : projectStatePreDialogueAwarenessLine,
   ].find(candidate => hasExplicitRepairBeforeClosenessAuthority(candidate))
   ?? null
-  const repairBeforeClosenessSummaryLead = repairBeforeClosenessProjectAuthority
-    ? /same living line|one living her|same line|same-her|同一条线|同一生命线/u.test(repairBeforeClosenessProjectAuthority)
-      ? repairBeforeClosenessProjectAuthority
-      : `${repairBeforeClosenessProjectAuthority}; continuity_mode=repair_before_closeness; widening=deferred`
-    : null
+  const repairBeforeClosenessSummaryLead = repairBeforeClosenessProjectAuthority || null
   const restProtectiveProjectAuthority = [
     projectStateSameHerHoldDetail,
     projectStateEmotionalClosureSummary,
@@ -1202,16 +1145,14 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
   ?? null
   const restProtectiveSummaryLead = restProtectiveProjectAuthority
     ? (() => {
-        const base = /rest-protective|rest protective|rest protection|quiet-companionship|quiet companionship|fatigue-aware|continuity_hold=rest_protective|continuity_mode=rest_protective|fatigue_aware=true/u.test(restProtectiveProjectAuthority)
-          ? restProtectiveProjectAuthority
-          : `${restProtectiveProjectAuthority}; continuity_mode=rest_protective; fatigue_aware=true`
+        const base = restProtectiveProjectAuthority
 
         if (/same living line|same line|同一条线|同一生命线/u.test(base))
           return base
 
         return appendPresenceOnlyHoldCarryText(
           base,
-          restProtectiveLineAuthority ?? 'continuity_mode=rest_protective; until=rest_protection_settles',
+          restProtectiveLineAuthority,
           420,
         )
       })()
@@ -1233,11 +1174,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
       ? projectStateSameHerHoldDetail
       : rememberedSeamMoreRoomProjectAuthority
     : null
-  const crossModalSameHerSummaryLead = crossModalSameHerProjectAuthority
-    ? /cross-modal same-her proof|cross-modal same-her closure|visible reply|voice|face|motion|lipsync|resident presence/u.test(crossModalSameHerProjectAuthority)
-      ? crossModalSameHerProjectAuthority
-      : `${crossModalSameHerProjectAuthority} continuity_context=deferred-return; closure=cross-modal; cover=visible_reply,voice,face,motion,lipsync,resident_presence.`
-    : null
+  const crossModalSameHerSummaryLead = crossModalSameHerProjectAuthority || null
   const sameHerDriftRiskSummaryLead = projectStateSameHerDriftRisk
     && /same-her|same her|generic assistant shell|project-summary voice|generic project guidance|detached project|continuity drift|closure drift/u.test(projectStateSameHerDriftRisk)
     ? projectStateSameHerDriftRisk
@@ -1392,7 +1329,7 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
     return frame
   }
 
-  const reasonTags = Array.isArray(frame.reasonTags) ? frame.reasonTags.filter(tag => typeof tag === 'string') : []
+  const reasonTags = Array.isArray(frame.reasonTags) ? sanitizePresenceOnlyReasonTags(frame.reasonTags) : []
   const safetyGateCarryText = [
     input.holdDetail,
     input.projectStateCarry?.continuityCue,
@@ -1444,11 +1381,15 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
     fallbackProjectState: projectStateBrief,
   })
   const rawCurrentPreDialogueAwarenessLine = String(projectState.preDialogueAwarenessLine ?? '').trim() || null
+  const preferredSnapshotPreDialogueAwarenessLine = normalizePresenceOnlyHoldCarryText(
+    preferredProjectState.preDialogueAwarenessLine,
+    900,
+  ) || null
   const preferredPreDialogueAwarenessLine
     = (looksLikeSameHerClosureSummary(rawCurrentPreDialogueAwarenessLine)
       || looksLikeProjectAwarePreDialogueReminder(rawCurrentPreDialogueAwarenessLine))
       ? rawCurrentPreDialogueAwarenessLine
-      : preferredProjectState.preDialogueAwarenessLine ?? projectStateBrief.preDialogueAwarenessLine ?? null
+      : preferredSnapshotPreDialogueAwarenessLine
   const shouldBackfillCanonicalPreDialogueAwareness
     = !looksLikeProjectAwarePreDialogueReminder(preferredPreDialogueAwarenessLine)
       && (
@@ -1457,14 +1398,33 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
       )
   const mergedPreDialogueAwarenessLine
     = shouldBackfillCanonicalPreDialogueAwareness
-      && projectStateBrief.preDialogueAwarenessLine
-      ? projectStateBrief.preDialogueAwarenessLine.includes(preferredPreDialogueAwarenessLine ?? '')
-        ? projectStateBrief.preDialogueAwarenessLine
-        : `${projectStateBrief.preDialogueAwarenessLine} ${preferredPreDialogueAwarenessLine}`.trim()
+      && preferredSnapshotPreDialogueAwarenessLine
+      ? preferredSnapshotPreDialogueAwarenessLine.includes(preferredPreDialogueAwarenessLine ?? '')
+        ? preferredSnapshotPreDialogueAwarenessLine
+        : `${preferredSnapshotPreDialogueAwarenessLine} ${preferredPreDialogueAwarenessLine}`.trim()
       : preferredPreDialogueAwarenessLine
   const resolvedPreDialogueAwarenessLine = normalizePresenceOnlyHoldCarryText(
     mergedPreDialogueAwarenessLine,
     900,
+  ) || null
+  const resolvedPreflightSummary = normalizePresenceOnlyHoldCarryText(
+    preferredProjectState.preflightSummary ?? projectStateBrief.preflightSummary ?? null,
+    560,
+  ) || null
+  const resolvedProjectIdentity = normalizePresenceOnlyHoldCarryText(
+    preferredProjectState.identity ?? projectStateBrief.identity ?? null,
+    360,
+  ) || null
+  const resolvedProjectPhase = normalizePresenceOnlyHoldCarryText(
+    preferredProjectState.currentPhase ?? projectStateBrief.currentPhase ?? null,
+    260,
+  ) || null
+  const resolvedLatestLandedProgress = normalizePresenceOnlyHoldCarryText(
+    preferredProjectState.latestLandedProgress
+    ?? projectStateBrief.continuityProgressSummary
+    ?? projectStateBrief.memoryAnthropomorphismProgress.at(-1)
+    ?? null,
+    560,
   ) || null
   const resolvedSameHerSelfLine = normalizePresenceOnlyHoldCarryText(
     input.projectStateCarry?.sameHerSummary
@@ -1518,30 +1478,14 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
         carriesExecutionSafetyGateRestraint || carriesExecutionResumeConfirmationBoundary
           ? null
           : projectState.sameHerHoldDetail,
-      candidate:
-        input.holdDetail
-        ?? (input.continuityRestraint === 'repair-before-closeness'
-          ? 'cadence=repair_before_closeness; timing=before_closeness_widens'
-          : input.continuityRestraint === 'rest-protective'
-            ? 'cadence=rest_protective; timing=fatigue_aware'
-            : 'cadence=measured_return; pressure=lower'),
+      candidate: input.holdDetail ?? null,
       continuityCue: input.projectStateCarry?.continuityCue,
       continuityRestraint: input.continuityRestraint,
     }),
     320,
   )
-  const synthesizedConsciousNeed
-    = input.continuityRestraint === 'repair-before-closeness'
-      ? 'continuity_mode=repair_before_closeness; until=repair_settles; lanes=emotion+memory+initiative+embodiment'
-      : input.continuityRestraint === 'rest-protective'
-        ? 'continuity_mode=rest_protective; direction=inward; lanes=emotion+memory+initiative+embodiment'
-        : 'continuity_mode=measured_return; pressure=lower; lanes=emotion+memory+initiative+embodiment'
-  const synthesizedSpeakingIntention
-    = input.continuityRestraint === 'repair-before-closeness'
-      ? 'reply_context=current; continuity_mode=repair_before_closeness; reopen_from_scratch=false; lanes=emotion+memory+initiative+embodiment'
-      : input.continuityRestraint === 'rest-protective'
-        ? 'reply_context=current; continuity_mode=rest_protective; direction=inward; lanes=emotion+memory+initiative+embodiment'
-        : 'reply_context=current; continuity_mode=measured_return; pressure=lower; lanes=emotion+memory+initiative+embodiment'
+  const synthesizedConsciousNeed = null
+  const synthesizedSpeakingIntention = null
   const normalizedFrameConsciousNeed = normalizePresenceOnlyHoldCarryText(frame.consciousNeed, 520)
   const nextConsciousNeed = hasPresenceOnlyHoldSameHerProjectCue(normalizedFrameConsciousNeed)
     ? normalizedFrameConsciousNeed
@@ -1565,32 +1509,25 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
 
   return {
     ...frame,
-    consciousNeed: nextConsciousNeed || normalizedFrameConsciousNeed || frame.consciousNeed,
-    speakingIntention: nextSpeakingIntention || normalizedFrameSpeakingIntention || frame.speakingIntention,
+    consciousNeed: nextConsciousNeed || normalizedFrameConsciousNeed || '',
+    speakingIntention: nextSpeakingIntention || normalizedFrameSpeakingIntention || '',
     reasonTags: nextReasonTags,
     projectState: {
       ...projectState,
-      preflightSummary: preferredProjectState.preflightSummary ?? projectStateBrief.preflightSummary ?? null,
+      preflightSummary: resolvedPreflightSummary,
       preDialogueAwarenessLine: resolvedPreDialogueAwarenessLine,
-      identity: preferredProjectState.identity ?? projectStateBrief.identity,
-      currentPhase: preferredProjectState.currentPhase ?? projectStateBrief.currentPhase,
-      latestLandedProgress: preferredProjectState.latestLandedProgress ?? projectStateBrief.continuityProgressSummary ?? projectStateBrief.memoryAnthropomorphismProgress.at(-1) ?? null,
-      primaryOpenLoop: preferredProjectState.primaryOpenLoop ?? projectStateBrief.openLoops[0] ?? null,
-      nextClosureTarget: preferredProjectState.nextClosureTarget ?? projectStateBrief.nextClosureTarget,
+      identity: resolvedProjectIdentity ?? '',
+      currentPhase: resolvedProjectPhase ?? '',
+      latestLandedProgress: resolvedLatestLandedProgress,
+      primaryOpenLoop: resolvedPrimaryOpenLoop || null,
+      nextClosureTarget: resolvedNextClosureTarget || null,
       sameHerSelfLine: resolvedSameHerSelfLine || null,
       sameHerDriftRisk: resolvedSameHerDriftRisk || projectStateBrief.sameHerDriftRisk,
       emotionalClosureCue:
         resolvedEmotionalClosureSummary
-        || input.projectStateCarry?.emotionalClosureSummary
-        || projectState.emotionalClosureCue
-        || preferredProjectState.emotionalClosureCue
-        || projectStateBrief.emotionalClosureCue
         || null,
       emotionalClosureSummary:
         resolvedEmotionalClosureSummary
-        || input.projectStateCarry?.emotionalClosureSummary
-        || projectState.emotionalClosureSummary
-        || preferredProjectState.emotionalClosureSummary
         || null,
       continuityCue:
         normalizePresenceOnlyHoldCarryText(

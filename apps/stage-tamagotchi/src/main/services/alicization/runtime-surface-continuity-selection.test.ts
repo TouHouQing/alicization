@@ -86,7 +86,7 @@ describe('runtime surface continuity selection', () => {
     })).toBe(preparedRuntimeSurface)
   })
 
-  it('keeps the spine runtime surface when a newer prepared surface is thinner and loses the same-her line', () => {
+  it('keeps the spine runtime surface when a newer prepared surface is thinner and loses the identity-continuity', () => {
     const spineRuntimeSurface: RuntimeSurfaceContinuitySelectionTestShape = {
       perception: { updatedAt: 120 },
       dialogue: {
@@ -161,7 +161,7 @@ describe('runtime surface continuity selection', () => {
     })).toBe(preparedRuntimeSurface)
   })
 
-  it('prefers a fresher prepared runtime surface when same-her continuity already lives in structured continuity governance even before frame tags are rebuilt', () => {
+  it('prefers a fresher prepared runtime surface when identity-continuity', () => {
     const spineRuntimeSurface: RuntimeSurfaceContinuitySelectionTestShape = {
       perception: { updatedAt: 120 },
       dialogue: {
@@ -233,7 +233,7 @@ describe('runtime surface continuity selection', () => {
     })).toBe(preparedRuntimeSurface)
   })
 
-  it('keeps an older runtime surface when a newer one loses the project-state same-her closure carry', () => {
+  it('keeps an older runtime surface when a newer one loses the project-state identity-continuity', () => {
     const spineRuntimeSurface: RuntimeSurfaceContinuitySelectionTestShape = {
       perception: { updatedAt: 120 },
       dialogue: {
@@ -247,12 +247,12 @@ describe('runtime surface continuity selection', () => {
       raw: {
         runtimeDigest: {
           projectState: {
-            identity: 'Alicization is a local-first digital life project building one continuous her.',
+            identity: 'Alicization is a local-first digital life project building identity continuity.',
             currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-            preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and the unfinished closure seam still belongs to one living her.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
             primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-            nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       },
@@ -285,7 +285,7 @@ describe('runtime surface continuity selection', () => {
       raw: {
         runtimeDigest: {
           projectState: {
-            sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+            sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
           },
         },
       },
@@ -309,7 +309,7 @@ describe('runtime surface continuity selection', () => {
       raw: {
         runtimeDigest: {
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. This callback still belongs to one living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       },
@@ -318,7 +318,7 @@ describe('runtime surface continuity selection', () => {
       raw: {
         runtimeDigest: {
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. This callback still belongs to one living line.',
+            sameHerSelfLine: 'structured continuity digest.',
             preferredVoiceMode: 'lower-pressure',
             preferredPacingMode: 'slower',
           },
@@ -335,7 +335,7 @@ describe('runtime surface continuity selection', () => {
       raw: {
         runtimeDigest: {
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. This callback still belongs to one living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       },
@@ -344,7 +344,7 @@ describe('runtime surface continuity selection', () => {
       raw: {
         runtimeDigest: {
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. This callback still belongs to one living line.',
+            sameHerSelfLine: 'structured continuity digest.',
             preferredPauseMode: 'longer',
             preferredLipsyncMode: 'restrained',
           },
@@ -364,8 +364,8 @@ describe('runtime surface continuity selection', () => {
           reasonTags: ['runtime-conscious-frame', 'continuity-arc:hold-for-opening'],
           projectState: {
             primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-            nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-            sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+            nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+            sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
           },
         },
       },
@@ -381,7 +381,7 @@ describe('runtime surface continuity selection', () => {
         currentConsciousFrame: {
           reasonTags: [],
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. This callback still belongs to one living line and should not reopen from scratch or flatten into a generic assistant shell.',
+            sameHerSelfLine: 'structured continuity digest.',
             sameHerDriftRisk: 'If this reopening flattens into a generic assistant shell or project-summary voice, treat that as unfinished same-her drift instead of a completed return.',
             continuityPreferredTiming: 'next-open-window',
             continuityCadence: 'repair-before-closeness',
@@ -518,7 +518,7 @@ describe('runtime surface continuity selection', () => {
           reasonTags: [],
           projectState: {
             companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, and the living audio thread is still intact while face and motion rejoin before full cross-modal closure settles.',
-            preDialogueAwarenessLine: 'Before answering, keep the audible-body line explicit while face and motion rejoin.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
             continuityPreferredTiming: 'audible-body-carry',
             preferredBlinkCadence: 'linger',
             preferredGazeMode: 'soften',

@@ -723,26 +723,6 @@ function hasCorrectedSamePersonContinuityCarryFromRuntimeSurface(
   )
 }
 
-function hasProjectEmotionalClosureDisciplineFocus(focusDimensions?: string[] | null) {
-  const focus = Array.isArray(focusDimensions) ? focusDimensions : []
-  return (
-    focus.includes('projectEmotionalClosureCarry')
-    || focus.includes('projectEmotionalClosureRewriteCarry')
-    || focus.includes('projectEmotionalClosureLowPressureCarry')
-    || focus.includes('projectEmotionalClosureAntiRestartCarry')
-  )
-}
-
-function hasProjectStateCarryDisciplineFocus(focusDimensions?: string[] | null) {
-  const focus = Array.isArray(focusDimensions) ? focusDimensions : []
-  return (
-    focus.includes('projectStateRichAwarenessCarry')
-    || focus.includes('projectStateLandedProgressCarry')
-    || focus.includes('projectStateNextClosureCarry')
-    || focus.includes('projectStateEmotionalClosureCarry')
-  )
-}
-
 function hasTruthBoundarySignal(raw: unknown) {
   const text = sanitizeText(raw, 320).toLowerCase()
   if (!text)
@@ -1665,32 +1645,32 @@ function openingMove(input: {
     runtimeProjectState?.preDialogueAwarenessLine,
   )
   if (/body and lipsync|body\+lipsync-only|quieter living line/i.test(runtimeProjectAwarenessLine ?? '')) {
-    return 'opening_act=embodiment_rejoin; initial_lane=body_lipsync; visibility=inward_first'
+    return 'Rejoin through embodiment first, starting from body and lipsync; keep it inward before surfacing.'
   }
   if (hasAudibleBodyContinuityCue(runtimeProjectAwarenessLine)) {
-    return 'opening_act=embodiment_rejoin; initial_lane=body_lipsync_voice; visibility=inward_first'
+    return 'Rejoin through embodiment first, starting from body, lipsync, and voice; keep it inward before surfacing.'
   }
   if (input.privateThought?.emotionalTension === 'late-night-drain')
-    return 'opening_act=low_pressure; rest_protection=active'
+    return 'Open with low pressure and protect rest.'
   if (input.privateThought?.emotionalTension === 'restless-switching')
-    return 'opening_act=single_concrete_thread; branch_count=one'
+    return 'Open on one concrete thread only.'
   if (input.evidenceMode === 'dialogue-grounded')
-    return 'opening_act=answer_current_subject; screen_reference=only_if_material'
+    return 'Answer the current subject; mention the screen only if it materially matters.'
   if (input.dialogueObligation?.mustRepairFirst && (input.act === 'correct-stale-anchor' || input.act === 'ask-reground'))
-    return 'opening_act=truth_repair; priority=current_evidence'
+    return 'Open with truth repair and prioritize current evidence.'
   if (input.act === 'correct-stale-anchor')
-    return 'opening_act=correct_stale_anchor; new_interpretation=defer_until_corrected'
+    return 'Correct the stale anchor before adding a new interpretation.'
   if (input.act === 'ask-reground')
-    return 'opening_act=reground_request; certainty=insufficient_live_view'
+    return 'Ask to reground because the live view is insufficient.'
   if (input.act === 'guide')
-    return 'opening_act=guide; focus=current_concrete_knot; scope=actionable'
+    return 'Guide the current concrete knot with an actionable scope.'
   if (input.act === 'care')
-    return 'opening_act=care; anchor=present_condition; performance_shell=blocked'
+    return 'Care from the present condition; block performance shells.'
   if (input.act === 'defer')
-    return 'opening_act=defer; concern_visibility=mostly_internal'
+    return 'Defer and keep the concern mostly internal.'
   if (input.evidenceMode === 'continuity-carry')
-    return 'opening_act=label_memory_boundary; inference=after_boundary'
-  return 'opening_act=direct_answer; evidence=freshest_available'
+    return 'Label the memory boundary before making any inference.'
+  return 'Answer directly from the freshest available evidence.'
 }
 
 function answerIntent(input: {
@@ -1717,42 +1697,42 @@ function answerIntent(input: {
     dialogueObligation: input.dialogueObligation,
   })
   if (input.replyDeliberation?.whyThisReplyNow)
-    return sanitizeText(input.replyDeliberation.whyThisReplyNow, 160) || 'answer_source=reply_deliberation; fallback=structured'
+    return sanitizeText(input.replyDeliberation.whyThisReplyNow, 160) || 'Use the reply deliberation as the answer source.'
   if (currentTurnAnchor)
-    return sanitizeText(currentTurnAnchor, 160) || 'answer_source=current_turn_anchor; evidence=freshest_available'
+    return sanitizeText(currentTurnAnchor, 160) || 'Use the current turn anchor and freshest available evidence.'
   if (input.dialogueWorldThread?.currentQuestion)
-    return sanitizeText(input.dialogueWorldThread.currentQuestion, 160) || 'answer_source=current_question; obligation=payoff'
+    return sanitizeText(input.dialogueWorldThread.currentQuestion, 160) || 'Answer the current question with payoff.'
   if (
     input.turnProfile.screenReferenceMode === 'avoid'
   ) {
     return sanitizeText(
       input.dialogueObligation?.summary
       || input.dialogueSemantics?.summary
-      || 'answer_source=current_turn; screen_residue=avoid',
+      || 'Use the current turn and avoid screen residue.',
       160,
-    ) || 'answer_source=current_turn; screen_residue=avoid'
+    ) || 'Use the current turn and avoid screen residue.'
   }
   if (input.dialogueObligation?.kind === 'teach')
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=teach; source=host_actual_knot'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'Teach from the host actual knot.'
   if (input.dialogueObligation?.kind === 'guide')
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=guide; source=current_host_knot'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'Guide from the current host knot.'
   if (input.dialogueObligation?.kind === 'repair' && (input.act === 'correct-stale-anchor' || input.act === 'ask-reground'))
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=repair; priority=truth_boundary'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'Repair first and prioritize the truth boundary.'
   if (input.dialogueObligation?.kind === 'care')
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=care; obligation=current_turn'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'Care while preserving the current turn obligation.'
   if (input.dialogueObligation?.kind === 'accompany')
-    return sanitizeText(input.dialogueObligation.summary, 160) || 'answer_act=accompany; response_size=bounded'
+    return sanitizeText(input.dialogueObligation.summary, 160) || 'Accompany with a bounded response.'
   if (input.act === 'correct-stale-anchor')
-    return sanitizeText(repair?.summary, 160) || 'answer_act=repair_stale_anchor; false_continuity=blocked'
+    return sanitizeText(repair?.summary, 160) || 'Repair the stale anchor and block false continuity.'
   if (input.act === 'ask-reground')
-    return 'answer_act=ask_reground; truth_over_fluency=true'
+    return 'Ask to reground; truth outranks fluency.'
   if (input.act === 'guide')
-    return sanitizeText(concern?.summary, 160) || 'answer_act=guide; localize_current_knot=true'
+    return sanitizeText(concern?.summary, 160) || 'Guide by localizing the current knot.'
   if (input.act === 'care')
-    return sanitizeText(concern?.summary, 160) || 'answer_act=care; preserve_current_subject=true'
+    return sanitizeText(concern?.summary, 160) || 'Care while preserving the current subject.'
   if (input.act === 'defer')
-    return 'answer_act=defer; surface_reply=bounded'
-  return sanitizeText(input.worldModel?.activeThread?.summary, 160) || 'answer_act=answer; source=current_turn'
+    return 'Defer with a bounded surface reply.'
+  return sanitizeText(input.worldModel?.activeThread?.summary, 160) || 'Answer from the current turn.'
 }
 
 function buildMustDo(input: {
@@ -1765,57 +1745,57 @@ function buildMustDo(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
 }) {
   const rows = [
-    'priority=executive_answer_plan; persona_flourish=lower_priority; older_residue=lower_priority',
-    'current_move=primary; nearest_remembered_topic=secondary',
+    'The executive answer plan has priority; persona flourish and older residue are lower priority.',
+    'The current move is primary; the nearest remembered topic is secondary.',
   ]
   if (input.privateThought?.emotionalTension === 'late-night-drain') {
     rows.push(
-      'emotional_tension=late_night_drain; pressure=max_low; emotional_surface=do_not_enlarge',
-      'payoff_count=one; companionship_flourish=avoid_layering',
+      'Late-night drain is active; keep pressure very low and do not enlarge the emotional surface.',
+      'Use one payoff and avoid layering companionship flourish.',
     )
   }
   if (input.privateThought?.emotionalTension === 'restless-switching') {
     rows.push(
-      'emotional_tension=restless_switching; branch_count=one; fragmentation=avoid',
-      'next_step=one_concrete; parallel_branches=avoid',
+      'Restless switching is active; keep to one branch and avoid fragmentation.',
+      'Offer one concrete next step and avoid parallel branches.',
     )
   }
   if (input.turnProfile.screenReferenceMode === 'avoid') {
     rows.push(
-      'screen_reference=background_unless_explicit',
-      'opening_source=current_subject_not_screen_residue',
+      'Keep screen reference in the background unless the user explicitly asks for it.',
+      'Open from the current subject, not from stale screen residue.',
     )
   }
   if (input.dialogueObligation?.mustAnswerDirectly) {
-    rows.push('first_sentence=fulfill_current_obligation; atmosphere_runway=blocked')
+    rows.push('Use the first sentence to fulfill the current obligation; do not add atmosphere runway.')
   }
   if (input.dialogueObligation?.mustStayTaskBound) {
-    rows.push('task_bound=true; answer_before_widening=true')
+    rows.push('Stay task-bound and answer before widening the conversation.')
   }
   if (input.dialogueSemantics?.truthExpectation === 'strict') {
-    rows.push('truth_priority=strict; comfort_language=secondary')
+    rows.push('Strict truth priority is active; comfort language is secondary.')
   }
   if (input.act === 'correct-stale-anchor') {
     rows.push(
-      'stale_anchor=correct_before_continue',
-      'memory_boundary=label; live_evidence=separate',
+      'Correct stale anchors before continuing.',
+      'Label memory boundaries and keep live evidence separate.',
     )
   }
   else if (input.act === 'ask-reground') {
     rows.push(
-      'present_tense_certainty=blocked_until_grounded',
-      'reground_request=allowed; held_context=label_if_needed',
+      'Do not claim present-tense certainty until grounding is available.',
+      'A regrounding request is allowed; label held context if needed.',
     )
   }
   else if (input.act === 'guide') {
     rows.push(
-      'guide_scope=concrete_knot; next_step=actionable',
-      'generic_advice=avoid; co_debugging=true',
+      'Guide the concrete knot and make the next step actionable.',
+      'Avoid generic advice; keep this as co-debugging.',
     )
   }
   else if (input.act === 'care') {
     rows.push(
-      'care_role=serve_present_issue; replacement=blocked',
+      'Care should serve the present issue and must not replace the answer.',
     )
   }
   if (input.evidenceMode === 'continuity-carry' || input.evidenceMode === 'repair-first') {
@@ -1836,18 +1816,18 @@ function buildMustNotDo(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
 }) {
   const rows = [
-    'avoid=affection_or_theatrical_language_over_truth_boundary',
-    'avoid=stale_page_names_old_screenshots_old_window_titles_as_current_facts',
-    'avoid=nearby_remembered_concern_when_current_host_request_differs',
+    'Avoid affection or theatrical language that crosses the truth boundary.',
+    'Avoid treating stale page names, old screenshots, or old window titles as current facts.',
+    'Avoid substituting a nearby remembered concern when the current host request differs.',
   ]
   if (input.privateThought?.emotionalTension === 'late-night-drain') {
     rows.push(
-      'avoid=late_night_protectiveness_to_intensity_urgency_heavy_closeness',
+      'Avoid turning late-night protectiveness into intensity, urgency, or heavy closeness.',
     )
   }
   if (input.privateThought?.emotionalTension === 'restless-switching') {
     rows.push(
-      'avoid=inner_switching_to_multiple_unfinished_threads',
+      'Avoid turning inner switching into multiple unfinished threads.',
     )
   }
   if (input.turnProfile.screenReferenceMode === 'avoid') {
@@ -1924,7 +1904,6 @@ export function buildAnswerPlanner(input: {
   const dialogueWorldThread = runtimeSurface?.dialogue.dialogueWorldThread ?? input.dialogueWorldThread ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
-  const memoryTuningAdvice = runtimeSurface?.memory.memoryTuningAdvice ?? null
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
     deliberation: normalizePlannerMemoryDeliberation(
       readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedMindStateBundle)
@@ -1943,7 +1922,6 @@ export function buildAnswerPlanner(input: {
       ?? runtimeSurface?.memory.hostPersonModel
       ?? null,
     projectStateContinuity: resolveAnswerPlannerProjectStateContinuity(runtimeSurface),
-    tuningAdvice: memoryTuningAdvice,
   })
   const compiledActiveClosenessContext = answerCompiler?.activeClosenessContext ?? null
   const compiledActiveClosenessRung = answerCompiler?.activeClosenessRung ?? null
@@ -1991,14 +1969,6 @@ export function buildAnswerPlanner(input: {
     dialogueFocus,
     dialogueSemantics,
   })
-  const projectStateCarryDisciplineRequired
-    = hasProjectStateCarryDisciplineFocus(memoryTuningAdvice?.focusDimensions)
-      && (turnProfile.subject === 'alicization-self' || turnProfile.subject === 'relationship')
-      && turnProfile.screenReferenceMode === 'avoid'
-  const projectEmotionalClosureDisciplineRequired
-    = hasProjectEmotionalClosureDisciplineFocus(memoryTuningAdvice?.focusDimensions)
-      && (turnProfile.subject === 'alicization-self' || turnProfile.subject === 'relationship')
-      && turnProfile.screenReferenceMode === 'avoid'
   const governingProject = buildAnswerPlannerGoverningProject({
     runtimeSurface,
     answerCompiler,
@@ -2167,30 +2137,20 @@ export function buildAnswerPlanner(input: {
     pushUniqueText(mustNotDo, ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []))
     pushUniqueText(narrative, ...buildMemoryDeliberationPlannerNarrative(memoryDeliberationKernel))
     if (isSameHerProjectDriftRiskReason(sameHerProjectStateReplyReason) || sameHerProjectDriftRiskFromSurface || correctedSamePersonContinuityCarry) {
-      mustDo.push('project_drift_risk=active; anchor=current_first_person_continuity; avoid=detached_project_narration')
-      mustNotDo.push('avoid=generic_task_shell,detached_project_summary,external_status_report')
-      narrative.push('project_drift_risk=active; generic_project_shell=avoid')
+      mustDo.push('Project drift risk is active; answer from current first-person continuity and avoid detached project narration.')
+      mustNotDo.push('Avoid generic task shells, detached project summaries, and external status reports.')
+      narrative.push('Project drift risk is active; avoid generic project shells.')
     }
     if (sameHerProjectClosureCallbackCarry) {
-      mustDo.push('callback_result=use_current_conversation_context; avoid=detached_utility_notice')
-      mustNotDo.push('callback_result_restart=avoid; avoid=generic_callback_shell')
+      mustDo.push('Use current conversation context for callback results; avoid detached utility notices.')
+      mustNotDo.push('Do not restart callback results; avoid generic callback shells.')
       if (sameHerProjectStateReplyReason) {
-        mustNotDo.push('project_state_thread=preserve; avoid=fresh_report_opening,detached_project_summary')
+        mustNotDo.push('Preserve the current project-state thread; avoid fresh report openings and detached project summaries.')
       }
-      narrative.push('callback_context=required; generic_callback_shell=avoid')
+      narrative.push('Callback context is required; avoid generic callback shells.')
     }
-    if (projectEmotionalClosureDisciplineRequired) {
-      mustDo.push('emotional_closure=low_pressure; placement=inward_until_live_payoff')
-      mustNotDo.push('avoid_restart=current_thread; reason=active_emotional_closure')
-      narrative.push('emotional_closure=active; pressure=low; restart=avoid')
-    }
-    if (projectStateCarryDisciplineRequired) {
-      mustDo.push('Use project-state context only after the current answer has landed; keep landed progress and next closure secondary.')
-      if (projectStateExplicitOpenLoopCarryDirective)
-        mustDo.push(projectStateExplicitOpenLoopCarryDirective)
-      mustNotDo.push('project_state_pressure=do_not_spill_into_external_summary_voice; timing=before_current_answer_lands')
-      narrative.push('project_state_carry=inward_first_until_live_payoff')
-    }
+    if (projectStateExplicitOpenLoopCarryDirective)
+      mustDo.push(projectStateExplicitOpenLoopCarryDirective)
     if (resumeConfirmationBoundaryCarry) {
       mustDo.push('resume_confirmation_boundary=bounded_before_redispatch')
       mustNotDo.push('avoid=permanent_execution_permission_or_reusable_autonomy_from_single_resume')
@@ -2250,7 +2210,7 @@ export function buildAnswerPlanner(input: {
         memoryDeliberationKernel,
       }), 220)
       || sanitizePlannerProviderText(answerCompiler.openingDirective, 220)
-      || 'answer_move=current_turn; source=planner',
+      || 'Use the current turn as the planner source.',
       answerIntent: sanitizeText([
         baseAnswerIntent,
         projectedPlannerAnswerCarry,
@@ -2349,36 +2309,23 @@ export function buildAnswerPlanner(input: {
     turnProfile,
     privateThought,
   })
-  if (projectEmotionalClosureDisciplineRequired) {
-    mustDo.push('emotional_closure=low_pressure; placement=inward_until_live_payoff')
-    mustNotDo.push('avoid_restart=current_thread; reason=active_emotional_closure')
-  }
   pushUniqueText(mustDo, ...(memoryDeliberationKernel?.restraint.mustDo ?? []))
   pushUniqueText(mustNotDo, ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []))
-  if (projectStateCarryDisciplineRequired) {
-    mustDo.push('Use project-state context only after the current answer has landed; keep landed progress and next closure secondary.')
-    if (projectStateExplicitOpenLoopCarryDirective)
-      mustDo.push(projectStateExplicitOpenLoopCarryDirective)
-    mustNotDo.push('project_state_pressure=do_not_spill_into_external_summary_voice; timing=before_live_answer_lands')
-  }
+  if (projectStateExplicitOpenLoopCarryDirective)
+    mustDo.push(projectStateExplicitOpenLoopCarryDirective)
   if (correctedSamePersonContinuityCarry) {
-    mustDo.push('host_corrected_same_person_continuity=authoritative_before_progress_or_status_recap')
-    mustNotDo.push('avoid=generic_progress_pressure,status_recap,task_shell_after_host_correction')
+    mustDo.push('Host-corrected person continuity is authoritative before progress or status recap.')
+    mustNotDo.push('Avoid generic progress pressure, status recap, or task shells after a host correction.')
   }
   if (resumeConfirmationBoundaryCarry) {
-    mustDo.push('resume_confirmation_boundary=bounded_before_redispatch')
-    mustNotDo.push('avoid=permanent_execution_permission_or_reusable_autonomy_from_single_resume')
+    mustDo.push('Treat resume confirmation as bounded before redispatch.')
+    mustNotDo.push('Avoid permanent execution permission or reusable autonomy from a single resume confirmation.')
   }
   const emotionalClosureCue = deriveAnswerPlannerEmotionalClosureCue({
     privateThought,
     mustDo,
     mustNotDo,
   })
-  ?? (
-    projectEmotionalClosureDisciplineRequired
-      ? 'emotional_closure=low_pressure_return; restart=avoid; room=leave_more; settling=current_thread'
-      : null
-  )
   const focus = governingFocus({
     worldModel,
     concernContinuity,
@@ -2475,7 +2422,7 @@ export function buildAnswerPlanner(input: {
       }),
       memoryDeliberationKernel,
     }), 220)
-    || 'answer_move=current_turn; source=planner',
+    || 'Use the current turn as the planner source.',
     answerIntent: projectionShapedFallbackAnswerIntent,
     relationshipPosture: posture,
     activeClosenessContext: compiledActiveClosenessContext,
@@ -2528,25 +2475,25 @@ export function buildAlicizationAnswerPlannerSystemBlock(plan: AlicizationAnswer
   )
   return [
     '[ALICIZATION_ANSWER_PLAN]',
-    `answer_act=${plan.act}`,
-    `evidence_mode=${plan.evidenceMode}`,
-    `governing_focus=${sanitizeAlicizationProviderFacingText(plan.governingFocus, 160, '') || 'none'}`,
-    `governing_project=${sanitizeAlicizationProviderFacingText(plan.governingProject, 420, '') || 'none'}`,
-    preDialogueClosure ? `pre_dialogue_closure=${preDialogueClosure}` : 'pre_dialogue_closure_status=none',
-    `opening_move_status=${plan.openingMove ? 'present' : 'none'}`,
-    `answer_intent_status=${plan.answerIntent ? 'present' : 'none'}`,
-    `relationship_posture=${plan.relationshipPosture}`,
-    `closeness_ladder=${plan.activeClosenessContext && plan.activeClosenessRung ? `${plan.activeClosenessContext}/${plan.activeClosenessRung}` : 'none'}`,
-    `ask_for_grounding=${plan.shouldAskForGrounding ? 'yes' : 'no'}`,
-    `acknowledge_repair=${plan.shouldAcknowledgeRepair ? 'yes' : 'no'}`,
-    `selected_concern_continuity=${plan.selectedConcernEntryId ?? 'none'}`,
-    `selected_repair=${plan.selectedRepairId ?? 'none'}`,
-    `selected_commitment=${plan.selectedCommitmentId ?? 'none'}`,
-    `selected_inquiry_plan=${plan.selectedInquiryPlanId ?? 'none'}`,
-    `selected_mind_project=${plan.selectedProjectId ?? 'none'}`,
-    `selected_reflection=${plan.selectedReflectionId ?? 'none'}`,
-    `executive_phase=${plan.executivePhase ?? 'none'}`,
-    `must_do_count=${plan.mustDo.length}`,
-    `must_not_do_count=${plan.mustNotDo.length}`,
+    `Answer act: ${plan.act}.`,
+    `Evidence mode: ${plan.evidenceMode}.`,
+    `Governing focus: ${sanitizeAlicizationProviderFacingText(plan.governingFocus, 160, '') || 'none'}.`,
+    `Governing project: ${sanitizeAlicizationProviderFacingText(plan.governingProject, 420, '') || 'none'}.`,
+    preDialogueClosure ? `Pre-dialogue closure: ${preDialogueClosure}.` : 'Pre-dialogue closure: none.',
+    `Opening move status: ${plan.openingMove ? 'present' : 'none'}.`,
+    `Answer intent status: ${plan.answerIntent ? 'present' : 'none'}.`,
+    `Relationship posture: ${plan.relationshipPosture}.`,
+    `Closeness ladder: ${plan.activeClosenessContext && plan.activeClosenessRung ? `${plan.activeClosenessContext}/${plan.activeClosenessRung}` : 'none'}.`,
+    `Ask for grounding: ${plan.shouldAskForGrounding ? 'yes' : 'no'}.`,
+    `Acknowledge repair: ${plan.shouldAcknowledgeRepair ? 'yes' : 'no'}.`,
+    `Selected concern continuity: ${plan.selectedConcernEntryId ?? 'none'}.`,
+    `Selected repair: ${plan.selectedRepairId ?? 'none'}.`,
+    `Selected commitment: ${plan.selectedCommitmentId ?? 'none'}.`,
+    `Selected inquiry plan: ${plan.selectedInquiryPlanId ?? 'none'}.`,
+    `Selected mind project: ${plan.selectedProjectId ?? 'none'}.`,
+    `Selected reflection: ${plan.selectedReflectionId ?? 'none'}.`,
+    `Executive phase: ${plan.executivePhase ?? 'none'}.`,
+    `Must-do count: ${plan.mustDo.length}.`,
+    `Must-not-do count: ${plan.mustNotDo.length}.`,
   ].filter(Boolean).join('\n')
 }

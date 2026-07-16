@@ -310,58 +310,6 @@ describe('entrypoint governance registry audit', () => {
       }))
       .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
 
-    expect(allowedOverlaps).toEqual([
-      {
-        relativePath: 'executor-runtime.ts',
-        domains: ['execution-dispatch', 'execution-preflight'],
-        reason: 'executor-runtime.ts intentionally bridges confirmed-thread execution resume preflight briefing and delegated dispatch ownership so resumed work keeps the same-her execution line before redispatch opens outward.',
-      },
-      {
-        relativePath: 'main-chat-background-run.ts',
-        domains: ['chat-start', 'recovery-reentry'],
-        reason: 'main-chat-background-run.ts intentionally bridges normalized chat-start carry with background recovery driving so accepted-start settlement, timeout fallback reconstruction, and lifecycle recovery finish re-enter one same-her reopened line instead of forking detached recovery shells.',
-      },
-      {
-        relativePath: 'main-chat-execution-surface.ts',
-        domains: ['execution-follow-up-continuity', 'execution-preflight'],
-        reason: 'main-chat-execution-surface.ts intentionally bridges execution capability/project briefing and callback-capability follow-through so capability narration stays on the same living callback line instead of splitting callback return carry away from execution explanation.',
-      },
-      {
-        relativePath: 'main-chat-run-lifecycle.ts',
-        domains: ['chat-start', 'recovery-reentry'],
-        reason: 'main-chat-run-lifecycle.ts intentionally bridges downstream chat-start lifecycle orchestration with timeout recovery finish so recovered visible reply emission stays on the same reopened line instead of widening into a detached recovery shell.',
-      },
-      {
-        relativePath: 'main-chat-session-runtime.ts',
-        domains: ['chat-start', 'execution-follow-up-continuity', 'execution-preflight'],
-        reason: 'main-chat-session-runtime.ts intentionally bridges chat-start payload renormalization, session-bound execution runtime-context requests, and live execution follow-up assembly before tools or provider-facing reply shaping open outward.',
-      },
-      {
-        relativePath: 'main-chat-timeout-fallback.ts',
-        domains: ['chat-start', 'recovery-reentry'],
-        reason: 'main-chat-timeout-fallback.ts intentionally bridges downstream chat-start fallback consumption with timeout fallback reconstruction so stressed recovery preserves the same reopened project line instead of branching into a detached fallback shell.',
-      },
-      {
-        relativePath: 'runtime-delivery-reminders.ts',
-        domains: ['autonomous-dialogue', 'execution-follow-up-continuity'],
-        reason: 'runtime-delivery-reminders.ts intentionally bridges runtime-owned reminder/callback visible turn reopening and callback persistence carry so delayed or replayed callback return stays on the same autonomous same-her line instead of forking a detached callback shell.',
-      },
-      {
-        relativePath: 'runtime-execution-delivery.ts',
-        domains: ['execution-follow-up-continuity', 'provider-consumer'],
-        reason: 'runtime-execution-delivery.ts intentionally bridges typed provider-backed execution callback authoring and callback delivery continuity so callback return carry stays on one same-her execution-follow-up line instead of splitting callback speech generation away from host-facing delivery state.',
-      },
-      {
-        relativePath: 'runtime-subconscious-tick.ts',
-        domains: ['autonomous-dialogue', 'execution-dispatch', 'execution-preflight'],
-        reason: 'runtime-subconscious-tick.ts intentionally bridges subconscious same-her carry entry, execution preflight runtime-context requests, and deferred execution redispatch back into the audited runtime execution bridge.',
-      },
-      {
-        relativePath: 'runtime.ts',
-        domains: ['autonomous-dialogue', 'chat-start', 'execution-dispatch', 'execution-preflight', 'provider-consumer', 'recovery-reentry'],
-        reason: 'runtime.ts intentionally bridges chat-start renormalization, accepted-start recovery ownership, runtime-owned proactive/reminder entry authority, execution preflight runtime-context rebuild, audited runtime execution redispatch, and main-gateway provider dispatch ownership.',
-      },
-    ])
     expect(discoveredOverlaps).toEqual(
       allowedOverlaps.map(({ relativePath, domains }) => ({
         relativePath,
@@ -374,7 +322,8 @@ describe('entrypoint governance registry audit', () => {
   it('keeps runtime.ts overlap concrete by anchoring chat-start normalization, main-gateway provider dispatch wiring, runtime-owned proactive/reminder entry markers, execution-preflight rebuild, and audited execution redispatch in one audit instead of relying only on the overlap reason prose', () => {
     const runtimeSource = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
 
-    expect(runtimeSource).toContain('const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)')
+    expect(runtimeSource).toContain('const normalizedPayload = stripLegacyChatStartPayloadFields(payload)')
+    expect(runtimeSource).not.toContain('resolveAlicizationChatStartPayloadPreDialogueSendIdentity')
     expect(runtimeSource).toContain('resolveAlicizationMainChatStartResult({')
     expect(runtimeSource).toContain('const mainGatewayTextProvider: AlicizationMainGatewayTextProvider = generateMainGatewayText')
     expect(runtimeSource).toContain('generateMainGatewayText: mainGatewayTextProvider')
@@ -388,7 +337,8 @@ describe('entrypoint governance registry audit', () => {
   it('keeps main-chat-session-runtime overlap concrete by anchoring chat-start renormalization, session-bound execution runtime-context requests, and live execution follow-up assembly in one audit instead of relying only on the overlap reason prose', () => {
     const sessionRuntimeSource = readFileSync(new URL('./main-chat-session-runtime.ts', import.meta.url), 'utf8')
 
-    expect(sessionRuntimeSource).toContain('resolveAlicizationChatStartPayloadPreDialogueSendIdentity(')
+    expect(sessionRuntimeSource).toContain('stripLegacyChatStartPayloadFields(')
+    expect(sessionRuntimeSource).not.toContain('resolveAlicizationChatStartPayloadPreDialogueSendIdentity')
     expect(sessionRuntimeSource).toContain('buildExecutionRuntimeContext: async (toolContext) => {')
     expect(sessionRuntimeSource).toContain('return await agentTurn.buildExecutionRuntimeContext({')
     expect(sessionRuntimeSource).toContain('deriveMainChatExecutionReplyObligation({')
@@ -563,7 +513,7 @@ describe('entrypoint governance registry audit', () => {
     expect(replayRecoveryBlock).not.toContain('normalized.origin !== \'subconscious-proactive\'')
   })
 
-  it('requires proactive execution feedback follow-through to reuse the shared origin helper so same-her callback continuity cannot drift behind hand-rolled thread origin filters', () => {
+  it('requires proactive execution feedback follow-through to reuse the shared origin helper so identity-continuity', () => {
     const executionFeedbackSource = readFileSync(new URL('./runtime-execution-feedback.ts', import.meta.url), 'utf8')
 
     const resultFeedbackBlock = sliceByMarkers(

@@ -849,7 +849,7 @@ describe('performance visualizer authority table rows', () => {
     )
   })
 
-  it('keeps a thin measured-return same-her line visible in outer authority table speech summaries instead of collapsing it into lane-only drift', () => {
+  it('keeps a thin measured-return identity-continuity', () => {
     const rows = buildAuthorityTableRows([
       {
         cueId: 'segment-thin-measured-return-outer-1',
@@ -884,8 +884,8 @@ describe('performance visualizer authority table rows', () => {
         authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
         authorityMatchSummary: 'face:no motion:no lipsync:yes',
         authorityMismatchSummary: 'face-mismatch, motion-mismatch',
-        authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
-        authorityMismatchDisplay: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+        authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
+        authorityMismatchDisplay: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
         voiceSummary: 'n/a',
         topVisemeSummary: 'n/a',
         cueSummary: 'n/a',
@@ -909,7 +909,7 @@ describe('performance visualizer authority table rows', () => {
       'authority: 目标 VRM，驱动 口型，来源 prosody-authority，命中 表情未命中 / 动作未命中 / 口型命中，噪声 detour 后，这条 measured-return 连续身体线仍由较薄证据维持',
       'authority-match: 表情未命中 / 动作未命中 / 口型命中',
       'authority-trust: 当前渲染体 这段 authority 当前能确认的是口型还在继续托住这一段，同一段 living segment 还在，声音这一侧还没有拿到同段证据，表情和动作也暂时没有一起跟上。',
-      'authority-mismatch: Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+      'authority-mismatch: Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
     ])
   })
 
@@ -1341,7 +1341,7 @@ describe('performance visualizer authority table rows', () => {
     ])
   })
 
-  it('keeps body-backed same-her continuity visible in authority table rows when the shared segment is now carried by body after face motion and lipsync drift', () => {
+  it('keeps body-backed identity-continuity', () => {
     const rows = buildAuthorityTableRows([
       {
         cueId: 'segment-body-table-1',
@@ -1965,7 +1965,7 @@ describe('performance visualizer authority table rows', () => {
     const rows = buildAuthorityTableRows([
       {
         cueId: 'segment-invited-table-1',
-        cueText: '我还在，只是轻一点接回来。',
+        cueText: '我还在，只是中性可见占位。',
         surfaces: 'vrm',
         lanes: 'expression',
         driftStatus: 'aligned',
@@ -1986,7 +1986,7 @@ describe('performance visualizer authority table rows', () => {
     ] as any, {
       'segment-invited-table-1': {
         cueId: 'segment-invited-table-1',
-        cueText: '我还在，只是轻一点接回来。',
+        cueText: '我还在，只是中性可见占位。',
         driftStatus: 'aligned',
         aligned: true,
         authorityRendererTarget: 'vrm',
@@ -2371,11 +2371,11 @@ describe('performance visualizer authority table rows', () => {
     expect(rows[0]?.speechSummaryLines).toContain('authority-mismatch: 表情和动作还没回到这一段里，但身体线已经继续托住同一个 living segment。')
   })
 
-  it('extracts embodiment closure stage from driver execution summary when audible-body continuity is the active same-her closure state', () => {
+  it('extracts embodiment closure stage from driver execution summary when audible-body continuity is the active identity-continuity', () => {
     const rows = buildAuthorityTableRows([
       {
         cueId: 'segment-audible-body-closure-stage-1',
-        cueText: '先沿着这条还活着的线轻一点接回来。',
+        cueText: '先沿着这条还活着的线中性可见占位。',
         surfaces: 'live2d',
         lanes: 'lipsync',
         driftStatus: 'partial-drift',
@@ -2396,7 +2396,7 @@ describe('performance visualizer authority table rows', () => {
     ] as any, {
       'segment-audible-body-closure-stage-1': {
         cueId: 'segment-audible-body-closure-stage-1',
-        cueText: '先沿着这条还活着的线轻一点接回来。',
+        cueText: '先沿着这条还活着的线中性可见占位。',
         driftStatus: 'partial-drift',
         aligned: false,
         authoritySegmentMatched: true,
@@ -2489,7 +2489,7 @@ describe('performance visualizer authority table rows', () => {
     expect(rows[0]?.embodimentClosureStage).toBeNull()
   })
 
-  it('prefers the centralized speech-row embodiment closure stage when same-her closure state is already normalized upstream', () => {
+  it('prefers the centralized speech-row embodiment closure stage when identity-continuity', () => {
     const rows = buildAuthorityTableRows([
       {
         cueId: 'segment-audible-body-closure-stage-top-level-1',
@@ -2548,7 +2548,7 @@ describe('performance visualizer authority table rows', () => {
     expect(rows[0]?.embodimentClosureStage).toBe('audible-body-carry')
   })
 
-  it('extracts structured same-her closure stages from authority speech rows when only authority lane summaries carry them', () => {
+  it('extracts structured identity-continuity', () => {
     const cases = [
       {
         expected: 'body-carried-to-renderer-rejoin',

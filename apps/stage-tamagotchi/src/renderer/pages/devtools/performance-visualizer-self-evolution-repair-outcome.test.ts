@@ -184,7 +184,7 @@ describe('performance visualizer self evolution repair outcome', () => {
     })
   })
 
-  it('reports same-her continuity confirmation instead of generic drift repair when the governance loop closes', () => {
+  it('reports identity-continuity', () => {
     expect(buildSelfEvolutionRepairOutcome({
       repairClosureBefore: {
         isClosed: false,

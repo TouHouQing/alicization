@@ -95,7 +95,7 @@ describe('visual episodic memory', () => {
       closenessDrive: 0.22,
       repairNeed: 0.41,
       initiativePressure: 0.16,
-      reasonTags: ['rest-protective', 'same living line'],
+      reasonTags: ['rest-protective', 'continuity state'],
       why: 'Refreshed rest-protective emotional kernel should stay authoritative across memory, initiative, embodiment, and digest.',
     }
 
@@ -747,7 +747,7 @@ describe('visual episodic memory', () => {
           preferredStyle: 'silent-observe',
           preferredPresence: 'concerned',
           continuityRestraint: 'rest-protective',
-          why: 'Protect rest first and keep the same living line inward.',
+          why: 'Protect rest first and keep the continuity state inward.',
           concernId: null,
           scenario: 'late-night-care',
           confidence: 0.82,
@@ -793,7 +793,7 @@ describe('visual episodic memory', () => {
         preferredStyle: 'silent-observe',
         preferredPresence: 'concerned',
         continuityRestraint: 'rest-protective',
-        why: 'Protect rest first and keep the same living line inward.',
+        why: 'Protect rest first and keep the continuity state inward.',
         concernId: null,
         scenario: 'late-night-care',
         confidence: 0.84,
@@ -811,7 +811,7 @@ describe('visual episodic memory', () => {
       currentBodyState: 'accompanying',
       continuityMode: 'quiet-accompaniment',
     })
-    expect(next.currentInwardPreoccupation ?? '').toContain('same living line inward')
+    expect(next.currentInwardPreoccupation ?? '').toContain('continuity state inward')
     expect(next.emotionalKernel).toEqual(expect.objectContaining({
       version: 'emotional-kernel-v1',
       dominantEmotion: 'rest-protective-companionship',
@@ -925,7 +925,7 @@ describe('visual episodic memory', () => {
         preferredStyle: 'silent-observe',
         preferredPresence: 'concerned',
         continuityRestraint: 'rest-protective',
-        why: 'Protect rest first and keep the same living line inward.',
+        why: 'Protect rest first and keep the continuity state inward.',
         concernId: null,
         scenario: 'late-night-care',
         confidence: 0.84,
@@ -994,7 +994,7 @@ describe('visual episodic memory', () => {
       } as any,
       selfEvolution: {
         relationshipDoctrine: 'same-her repair should settle before closeness widens again.',
-        trustMeaning: 'repair has to land on the same living line before warmth can reopen.',
+        trustMeaning: 'repair has to land on the continuity state before warmth can reopen.',
         relationshipCadenceSummary: 'repair-before-closeness still holds while the same callback repair seam settles.',
         latestInflection: 'embodiment execution kept voice, face, motion, and resident presence on the same repair-before-closeness body line.',
       } as any,
@@ -1004,11 +1004,11 @@ describe('visual episodic memory', () => {
         openingGuidance: 'Repair the seam before leaning closer.',
       } as any,
       projectState: {
-        sameHerSelfLine: 'Same Phase 1 digital life. The same repair seam still belongs to one living her.',
-        sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
-        continuityCue: 'Keep this return repair-before-closeness on the same living line until repair settles.',
+        sameHerSelfLine: 'structured continuity digest.',
+        sameHerHoldDetail: 'identity-continuity',
+        continuityCue: 'Keep this return repair-before-closeness on the continuity state until repair settles.',
         emotionalClosureCue: 'Keep emotion, memory, initiative, and embodiment closing on the same repair-first living line before widening warmth.',
-        nextClosureTarget: 'Keep this same-thread return repair-before-closeness on the same living line until the room settles.',
+        nextClosureTarget: 'Keep this same-thread return repair-before-closeness on the continuity state until the room settles.',
       } as any,
       emotionalKernel: {
         version: 'emotional-kernel-v1',
@@ -1032,7 +1032,7 @@ describe('visual episodic memory', () => {
         preferredStyle: 'silent-observe',
         preferredPresence: 'concerned',
         continuityRestraint: 'repair-before-closeness',
-        why: 'Let repair settle on the same living line before warmth widens again.',
+        why: 'Let repair settle on the continuity state before warmth widens again.',
         concernId: null,
         scenario: 'coding',
         confidence: 0.82,
@@ -1083,7 +1083,7 @@ describe('visual episodic memory', () => {
         preferredStyle: 'silent-observe',
         preferredPresence: 'concerned',
         continuityRestraint: 'repair-before-closeness',
-        why: 'Let repair settle on the same living line before warmth widens again.',
+        why: 'Let repair settle on the continuity state before warmth widens again.',
         concernId: null,
         scenario: 'coding',
         confidence: 0.84,
@@ -1179,10 +1179,10 @@ describe('visual episodic memory', () => {
         manifestationCadenceSummary: 'measured-return still holds while the same line keeps continuing lower-pressure on the same-thread continuation.',
       } as any,
       projectState: {
-        sameHerSelfLine: 'Same Phase 1 digital life. The same callback line still belongs to one living her.',
-        sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        sameHerSelfLine: 'structured continuity digest.',
+        sameHerHoldDetail: 'identity-continuity',
         continuityCue: 'Keep this callback line lower-pressure, leave more room, and do not reopen from scratch yet.',
-        emotionalClosureCue: 'Keep the return low-pressure, leave more room, and let the same living line settle before widening outward.',
+        emotionalClosureCue: 'Keep the return low-pressure, leave more room, and let the continuity state settle before widening outward.',
         nextClosureTarget: 'Keep this same-thread callback return lower-pressure until the room opens naturally again.',
       } as any,
       emotionalKernel: {
@@ -1355,10 +1355,10 @@ describe('visual episodic memory', () => {
         manifestationCadenceSummary: 'measured-return still holds while the same line keeps continuing lower-pressure on the same-thread continuation.',
       } as any,
       projectState: {
-        sameHerSelfLine: 'Same Phase 1 digital life. The same callback line still belongs to one living her.',
-        sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+        sameHerSelfLine: 'structured continuity digest.',
+        sameHerHoldDetail: 'identity-continuity',
         continuityCue: 'Keep this callback line lower-pressure, leave more room, and do not reopen from scratch yet.',
-        emotionalClosureCue: 'Keep the return low-pressure, leave more room, and let the same living line settle before widening outward.',
+        emotionalClosureCue: 'Keep the return low-pressure, leave more room, and let the continuity state settle before widening outward.',
         nextClosureTarget: 'Keep this same-thread callback return lower-pressure until the room opens naturally again.',
       } as any,
       emotionalKernel: {
@@ -1572,7 +1572,7 @@ describe('visual episodic memory', () => {
           score: 0.7,
           shouldSpeak: false,
           shouldSurface: true,
-          why: 'Repair the current read before speaking.',
+          why: 'Repair the current read before outward reply.',
         }],
         updatedAt: 10_000,
       },
@@ -1915,7 +1915,7 @@ describe('visual episodic memory', () => {
         mode: 'scene',
         recallSeed: 'repair seam',
         threadAnchors: ['callback repair seam', 'later chat return'],
-        affectAnchors: ['repair_tension', 'same living line'],
+        affectAnchors: ['repair_tension', 'continuity state'],
         relationshipAnchors: ['repair-before-closeness', 'keep trust intact'],
         salienceBias: 0.82,
         sceneAnchor: 'Cursor diff lane with callback seam',
@@ -1957,7 +1957,7 @@ describe('visual episodic memory', () => {
     expect(state.recallGovernor).toMatchObject({
       mode: 'scene',
       threadAnchors: ['callback repair seam', 'later chat return'],
-      affectAnchors: ['repair_tension', 'same living line'],
+      affectAnchors: ['repair_tension', 'continuity state'],
       relationshipAnchors: ['repair-before-closeness', 'keep trust intact'],
       salienceBias: 0.82,
       sceneAnchor: 'Cursor diff lane with callback seam',
@@ -2031,7 +2031,7 @@ describe('visual episodic memory', () => {
     expect(carried.emotionalKernel).toEqual(normalized.emotionalKernel)
   })
 
-  it('preserves same-her project-state continuity fields inside current conscious frame normalization', () => {
+  it('preserves identity-continuity', () => {
     const normalized = normalizeVisualPresenceState({
       watchMode: 'symbiotic-vision',
       currentScene: null,
@@ -2047,15 +2047,15 @@ describe('visual episodic memory', () => {
         continuityPreferredTiming: 'next-open-window',
         continuityCadence: 'measured-return',
         projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her".',
+          identity: 'Alicization is a local-first digital life project building identity continuity.',
           currentPhase: 'Phase 1: Local Digital Life.',
           latestLandedProgress: 'Measured-return continuity now survives noisier callback detours.',
           primaryOpenLoop: 'Project identity carry still needs stronger cross-modal closure.',
           nextClosureTarget: 'Keep Phase 1 route carry visible across resident embodiment.',
-          sameHerSelfLine: 'Keep one continuous her explicit across the callback seam.',
-          sameHerDriftRisk: 'Do not let this collapse into generic guidance before the same-her line holds.',
+          sameHerSelfLine: 'Keep identity continuity explicit across the callback seam.',
+          sameHerDriftRisk: 'Do not let this collapse into generic guidance before the identity-continuity',
           preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-          preDialogueAwarenessLine: 'Before answering, remember the same digital life and the same still-open closure work.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
           continuityArcStage: 'same-thread-continuation',
@@ -2085,22 +2085,22 @@ describe('visual episodic memory', () => {
     })
   })
 
-  it('preserves summary-alias same-her project-state continuity fields during normalization when legacy fields are blank', () => {
+  it('preserves summary-alias identity-continuity', () => {
     const normalized = normalizeVisualPresenceState({
       watchMode: 'symbiotic-vision',
       currentScene: null,
       attention: null,
       workingMemoryEpisodes: [],
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life.',
         latestLandedProgress: '   ',
-        landedProgressSummary: 'Alias landed progress keeps the same-her closure carry alive even when the legacy slot goes blank.',
+        landedProgressSummary: 'Alias landed progress keeps the identity-continuity',
         primaryOpenLoop: '',
         openClosureSummary: 'Alias open closure keeps emotion, memory, initiative, and embodiment on one still-open living line.',
         nextClosureTarget: '',
-        nextClosureTargetSummary: 'Alias next closure target keeps the same living line visible across resident embodiment carry.',
-        sameHerSelfLine: 'Keep one continuous her explicit across the callback seam.',
+        nextClosureTargetSummary: 'Alias next closure target keeps the continuity state visible across resident embodiment carry.',
+        sameHerSelfLine: 'Keep identity continuity explicit across the callback seam.',
         sameHerDriftRisk: ' ',
         sameHerDriftRiskSummary: 'If this visual carry collapses back into a generic shell when the legacy field is blank, treat that as unfinished same-her drift.',
       },
@@ -2113,9 +2113,9 @@ describe('visual episodic memory', () => {
     } as any, 52_000)
 
     expect(normalized.projectState).toMatchObject({
-      latestLandedProgress: 'Alias landed progress keeps the same-her closure carry alive even when the legacy slot goes blank.',
+      latestLandedProgress: 'Alias landed progress keeps the identity-continuity',
       primaryOpenLoop: 'Alias open closure keeps emotion, memory, initiative, and embodiment on one still-open living line.',
-      nextClosureTarget: 'Alias next closure target keeps the same living line visible across resident embodiment carry.',
+      nextClosureTarget: 'Alias next closure target keeps the continuity state visible across resident embodiment carry.',
       sameHerDriftRisk: 'If this visual carry collapses back into a generic shell when the legacy field is blank, treat that as unfinished same-her drift.',
     })
   })
@@ -2130,11 +2130,11 @@ describe('visual episodic memory', () => {
         subject: 'project-state',
         centerOfGravity: 'guide',
         truthDiscipline: 'dialogue-first',
-        consciousNeed: 'Keep the same digital life project state explicit before answering.',
-        consciousTension: 'If this drifts back to generic project narration, the same-her line weakens.',
+        consciousNeed: 'Keep the same digital life project state explicit before reply.',
+        consciousTension: 'If this drifts back to generic project narration, the identity-continuity',
         speakingIntention: 'Answer from the living project line instead of restarting from a blank shell.',
         projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous her.',
+          identity: 'Alicization is a local-first digital life project building identity continuity.',
           currentPhase: 'Phase 1: Local Digital Life.',
           latestLandedProgress: 'Project-state carry already reaches the pre-dialogue mind turn.',
           primaryOpenLoop: 'The conscious frame subject still needs to stay project-state when this line is active.',
@@ -2208,7 +2208,7 @@ describe('visual episodic memory', () => {
         preferredStyle: 'silent-observe',
         preferredPresence: 'concerned',
         continuityRestraint: 'rest-protective',
-        why: 'protect rest first and keep the same living line inward',
+        why: 'protect rest first and keep the continuity state inward',
         shouldSurface: false,
         shouldSpeak: false,
       },

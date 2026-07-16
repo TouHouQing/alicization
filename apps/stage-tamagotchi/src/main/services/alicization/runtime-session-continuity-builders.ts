@@ -130,9 +130,9 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     field: ProjectStateCarryField,
   ) {
     if (field === 'identity')
-      return 'runtime_personhood'
+      return ''
     if (field === 'phase')
-      return 'life_core'
+      return ''
 
     const embodimentFact = structureEmbodimentProjectCarry(normalized)
     if (embodimentFact && (field === 'awareness' || field === 'summary'))
@@ -142,7 +142,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       (field === 'next' || field === 'emotional_closure')
       && /repair[_-]before[_-]closeness|repair before closeness|repair-first|repair first|先修复|修复优先/u.test(normalized)
     ) {
-      return 'repair_before_closeness; timing=before_closeness_widens; until=repair_settles'
+      return ''
     }
 
     if (field === 'preflight') {
@@ -155,14 +155,9 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
 
     if (field === 'summary') {
       const lower = normalized.toLowerCase()
-      const summaryParts = [
-        /callback|回调/u.test(lower) ? 'callback_continuity=true' : '',
-        /lower-pressure|low-pressure|measured-return|measured return|leave room|more room/u.test(lower) ? 'cadence=lower_pressure' : '',
-        /repair[_-]before[_-]closeness|repair before closeness|repair-first|repair first|先修复|修复优先/u.test(lower) ? 'carry_mode=repair_before_closeness' : '',
-        /memory|initiative|embodiment|dialogue|记忆|主动性|具身|对话/u.test(lower) ? 'life_loop=memory_initiative_embodiment' : '',
-      ].filter(Boolean)
-      if (summaryParts.length > 1)
-        return summaryParts.join('; ')
+      const summaryHasOldCue = /callback|回调|lower-pressure|low-pressure|measured-return|measured return|leave room|more room|repair[_-]before[_-]closeness|repair before closeness|repair-first|repair first|先修复|修复优先/u.test(lower)
+      if (summaryHasOldCue)
+        return ''
     }
 
     const structuredAwareness = formatAlicizationProjectStateAwarenessFields({
@@ -382,12 +377,12 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       ? eventCompanionBriefingLine || rawEventProjectAwarenessLine
       : rawEventProjectAwarenessLine
     const compactProjectIdentity = /local-first digital life project/i.test(projectIdentity ?? '')
-      ? 'runtime_personhood'
+      ? ''
       : projectIdentity
         ? sanitizeBriefText(projectIdentity.split(/[.。]/u)[0]?.trim() ?? projectIdentity, 120)
         : ''
     const compactProjectPhase = /phase 1:\s*local digital life/i.test(projectPhase ?? '')
-      ? 'life_core'
+      ? ''
       : projectPhase
         ? sanitizeBriefText(projectPhase.split(/[.。]/u)[0]?.trim() ?? projectPhase, 80)
         : ''
@@ -728,7 +723,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         summaryLead,
         `scenario=${scenario}`,
         learningAction ? `learning=${learningAction}` : '',
-        learningFocuses[0] ? `focus=${learningFocuses.join('|')}` : '',
+        learningFocuses[0] ? `Focus: ${learningFocuses.join(', ')}.` : '',
         outcome.outcome === 'reply-within-120s' ? 'continuity=same-thread-continuation' : '',
         outcome.outcome === 'reply-within-120s' ? 'timing=next-open-window' : '',
         outcome.outcome === 'reply-within-120s'
@@ -832,7 +827,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         `${elapsedMinutes.toFixed(1)}m elapsed`,
         `${feedbackWindowMinutes.toFixed(1)}m direct-reply window`,
         learningAction ? `learning=${learningAction}` : '',
-        learningFocuses[0] ? `focus=${learningFocuses.join('|')}` : '',
+        learningFocuses[0] ? `Focus: ${learningFocuses.join(', ')}.` : '',
       ].join(' | '),
       signature: [
         'proactive-pending',

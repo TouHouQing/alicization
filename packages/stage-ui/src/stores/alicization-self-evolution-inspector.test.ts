@@ -223,7 +223,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.34,
             hypothesisLabelBias: 0.16,
             specificityClampBias: 0.41,
             templateShellSuppressionBias: 0.28,
@@ -1457,7 +1456,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -1628,7 +1626,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.06,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.09,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.11,
             templateShellSuppressionBias: 0.13,
@@ -1804,7 +1801,6 @@ describe('alicization self evolution inspector store', () => {
               warmthReleaseBias: 0,
             },
             responsePosture: {
-              secondPassRequiredBias: 0.4,
               hypothesisLabelBias: 0.3,
               specificityClampBias: 0.52,
               templateShellSuppressionBias: 0.21,
@@ -1865,7 +1861,6 @@ describe('alicization self evolution inspector store', () => {
               warmthReleaseBias: 0,
             },
             responsePosture: {
-              secondPassRequiredBias: 0.1,
               hypothesisLabelBias: 0.08,
               specificityClampBias: 0.2,
               templateShellSuppressionBias: 0.12,
@@ -1956,7 +1951,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.29,
             hypothesisLabelBias: 0.17,
             specificityClampBias: 0.34,
             templateShellSuppressionBias: 0.21,
@@ -2045,7 +2039,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -2134,7 +2127,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -2242,7 +2234,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -2434,7 +2425,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -2628,7 +2618,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.05,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.1,
@@ -2794,7 +2783,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -2928,7 +2916,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -3056,7 +3043,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -3217,7 +3203,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -3365,7 +3350,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -3498,7 +3482,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,
@@ -3782,7 +3765,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.09,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.16,
             hypothesisLabelBias: 0.22,
             specificityClampBias: 0.28,
             templateShellSuppressionBias: 0.24,
@@ -3851,12 +3833,10 @@ describe('alicization self evolution inspector store', () => {
       response: {
         hypothesisLabelingRaised: true,
         specificityClampRaised: true,
-        secondPassRequired: true,
         templateShellSuppressed: true,
         reasons: [
           'Visible replies should label hypotheses more explicitly instead of implying certainty.',
           'Unsupported specificity should be clamped before warmth or fluency.',
-          'The answer path is biased toward a second-pass repair before visible certainty.',
           'Template-shell replies are explicitly suppressed until the turn gives concrete payoff.',
         ],
       },
@@ -3908,7 +3888,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.09,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.16,
             hypothesisLabelBias: 0.22,
             specificityClampBias: 0.28,
             templateShellSuppressionBias: 0.24,
@@ -3950,7 +3929,6 @@ describe('alicization self evolution inspector store', () => {
         mustDo: [
           'Let the active self-revision patch make hypothesis labeling more visible this turn.',
           'Let the active self-revision patch clamp unsupported specificity before warmth or fluency.',
-          'Let the active self-revision patch bias this answer toward repair/rewrite before visible certainty.',
         ],
         mustNotDo: [
           'Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.',
@@ -4025,13 +4003,13 @@ describe('alicization self evolution inspector store', () => {
       },
       response: {
         status: 'aligned',
-        expectedSignals: ['hypothesis-labeling', 'specificity-clamp', 'second-pass', 'template-shell-suppression'],
-        observedSignals: ['hypothesis-labeling', 'specificity-clamp', 'second-pass', 'template-shell-suppression'],
-        confirmedSignals: ['hypothesis-labeling', 'specificity-clamp', 'second-pass', 'template-shell-suppression'],
+        expectedSignals: ['hypothesis-labeling', 'specificity-clamp', 'template-shell-suppression'],
+        observedSignals: ['hypothesis-labeling', 'specificity-clamp', 'template-shell-suppression'],
+        confirmedSignals: ['hypothesis-labeling', 'specificity-clamp', 'template-shell-suppression'],
         missingSignals: [],
         driftingSignals: [],
         reasons: [
-          'Current response guardrails already include the active candidate rewrite/labeling discipline.',
+          'Current response guardrails expose every active candidate signal.',
         ],
       },
       proactive: {
@@ -4127,7 +4105,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.09,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.16,
             hypothesisLabelBias: 0.22,
             specificityClampBias: 0.28,
             templateShellSuppressionBias: 0.24,
@@ -4240,13 +4217,13 @@ describe('alicization self evolution inspector store', () => {
       },
       response: {
         status: 'partial',
-        expectedSignals: ['hypothesis-labeling', 'specificity-clamp', 'second-pass', 'template-shell-suppression'],
+        expectedSignals: ['hypothesis-labeling', 'specificity-clamp', 'template-shell-suppression'],
         observedSignals: ['specificity-clamp'],
         confirmedSignals: ['specificity-clamp'],
-        missingSignals: ['hypothesis-labeling', 'second-pass', 'template-shell-suppression'],
+        missingSignals: ['hypothesis-labeling', 'template-shell-suppression'],
         driftingSignals: [],
         reasons: [
-          'Some response guardrails reflect the active candidate, but the full rewrite discipline is not visible yet.',
+          'Some response guardrails reflect the active candidate, but the full active signal set is not visible yet.',
         ],
       },
       proactive: {
@@ -4313,7 +4290,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.09,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.16,
             hypothesisLabelBias: 0.22,
             specificityClampBias: 0.28,
             templateShellSuppressionBias: 0.24,
@@ -4355,7 +4331,6 @@ describe('alicization self evolution inspector store', () => {
         mustDo: [
           'Let the active self-revision patch make hypothesis labeling more visible this turn.',
           'Let the active self-revision patch clamp unsupported specificity before warmth or fluency.',
-          'Let the active self-revision patch bias this answer toward repair/rewrite before visible certainty.',
         ],
         mustNotDo: [
           'Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.',
@@ -4462,13 +4437,13 @@ describe('alicization self evolution inspector store', () => {
       },
       response: {
         status: 'aligned',
-        expectedSignals: ['hypothesis-labeling', 'specificity-clamp', 'second-pass', 'template-shell-suppression'],
-        observedSignals: ['hypothesis-labeling', 'specificity-clamp', 'second-pass', 'template-shell-suppression'],
-        confirmedSignals: ['hypothesis-labeling', 'specificity-clamp', 'second-pass', 'template-shell-suppression'],
+        expectedSignals: ['hypothesis-labeling', 'specificity-clamp', 'template-shell-suppression'],
+        observedSignals: ['hypothesis-labeling', 'specificity-clamp', 'template-shell-suppression'],
+        confirmedSignals: ['hypothesis-labeling', 'specificity-clamp', 'template-shell-suppression'],
         missingSignals: [],
         driftingSignals: [],
         reasons: [
-          'Current response guardrails already include the active candidate rewrite/labeling discipline.',
+          'Current response guardrails expose every active candidate signal.',
         ],
       },
       proactive: {
@@ -4536,7 +4511,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.08,
             templateShellSuppressionBias: 0.12,
@@ -4835,7 +4809,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.12,
             templateShellSuppressionBias: 0.12,
@@ -4967,7 +4940,7 @@ describe('alicization self evolution inspector store', () => {
         missingSignals: [],
         driftingSignals: [],
         reasons: [
-          'Current response guardrails already include the active candidate rewrite/labeling discipline.',
+          'Current response guardrails expose every active candidate signal.',
         ],
       },
       proactive: {
@@ -5043,7 +5016,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -5292,7 +5264,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -5547,7 +5518,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -5757,7 +5727,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.08,
             templateShellSuppressionBias: 0.12,
@@ -5914,7 +5883,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -6215,7 +6183,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -6529,7 +6496,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -6881,7 +6847,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.14,
             hypothesisLabelBias: 0.12,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.14,
@@ -7009,7 +6974,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.08,
             templateShellSuppressionBias: 0.12,
@@ -7134,7 +7098,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -7476,7 +7439,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -7651,7 +7613,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -7827,7 +7788,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -8049,7 +8009,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -8150,7 +8109,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -8244,7 +8202,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.08,
             templateShellSuppressionBias: 0.12,
@@ -8491,7 +8448,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -8714,7 +8670,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.08,
             templateShellSuppressionBias: 0.12,
@@ -9012,7 +8967,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -9243,7 +9197,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -9356,7 +9309,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -9578,7 +9530,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -10112,7 +10063,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.08,
             templateShellSuppressionBias: 0.12,
@@ -10368,7 +10318,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -10591,7 +10540,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -10860,7 +10808,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -11130,7 +11077,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -11418,7 +11364,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -11707,7 +11652,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.08,
             templateShellSuppressionBias: 0.12,
@@ -11972,7 +11916,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -12260,7 +12203,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.08,
             templateShellSuppressionBias: 0.12,
@@ -12513,7 +12455,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.22,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.04,
             hypothesisLabelBias: 0.04,
             specificityClampBias: 0.06,
             templateShellSuppressionBias: 0.04,
@@ -12802,7 +12743,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.08,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.08,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.1,
             templateShellSuppressionBias: 0.12,
@@ -13106,7 +13046,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.04,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.08,
             templateShellSuppressionBias: 0.12,
@@ -13362,7 +13301,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0.22,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.04,
             hypothesisLabelBias: 0.04,
             specificityClampBias: 0.06,
             templateShellSuppressionBias: 0.04,
@@ -13666,7 +13604,6 @@ describe('alicization self evolution inspector store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.1,
             hypothesisLabelBias: 0.08,
             specificityClampBias: 0.2,
             templateShellSuppressionBias: 0.12,

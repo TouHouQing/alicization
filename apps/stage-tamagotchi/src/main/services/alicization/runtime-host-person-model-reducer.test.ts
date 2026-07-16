@@ -279,7 +279,7 @@ describe('runtime-host-person-model-reducer', () => {
 
   it('preserves richer same-her governingProject carry while host-person social shaping adds relationship timing guidance', () => {
     const governingProject
-      = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". She is still inside Phase 1: Local Digital Life. What has already landed is callback continuity now survives on one same living line. The still-open closure is initiative, memory, and embodiment still needing one same-life seam.'
+      = 'pre_turn_context_digest'
 
     const surface: any = {
       version: 'digital-life-runtime-surface-v1',
@@ -310,7 +310,7 @@ describe('runtime-host-person-model-reducer', () => {
       },
       memory: {
         autobiographicalSelf: {
-          relationshipDoctrine: 'Stay on the same living line and do not widen too fast.',
+          relationshipDoctrine: 'Stay on the continuity state and do not widen too fast.',
         },
         hostPersonModel: {
           summary: 'The host wants lower-pressure follow-through while still focused.',
@@ -347,7 +347,7 @@ describe('runtime-host-person-model-reducer', () => {
           confidence: 0.82,
           governingFocus: 'Keep the same callback line explicit.',
           governingProject,
-          openingMove: 'Stay on the same living line before widening.',
+          openingMove: 'Stay on the continuity state before widening.',
           answerIntent: 'Answer from the same living project line.',
           relationshipPosture: 'restrained',
           shouldAskForGrounding: false,
@@ -390,7 +390,7 @@ describe('runtime-host-person-model-reducer', () => {
       answerIntent: 'Keep the runtime seam coherent while we continue the same line.',
       openingMove: 'Keep the opening lower-pressure and leave room before widening closeness.',
       liveSurface: 'runtime diff',
-      focusAnchor: 'same-her callback continuity',
+      focusAnchor: 'identity-continuity',
       relationshipPosture: 'restrained',
       evidenceMode: 'dialogue-grounded',
       turnMode: 'answer',

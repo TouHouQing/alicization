@@ -69,7 +69,6 @@ export interface AlicizationMemoryTurnArtifact {
     surfaceMode: string | null
     placement: string | null
     certainty: string | null
-    styleNote: string | null
   }
   closure: {
     closureState: string | null

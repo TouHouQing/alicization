@@ -71,8 +71,8 @@ describe('memory ledger runtime', () => {
     expect(context.recallText).toContain('execution_channel:cli')
     expect(context.recallText).toContain('execution_status:completed')
     expect(context.recallText).toContain('execution_outcome:all tests passed')
-    expect(context.recallText).toContain('execution_history_scope:alicization-local-life-loop')
-    expect(context.recallText).toContain('execution_boundary:owner=ExecutionLedger; confirmed_entries_only=true; detached_task_shell=false.')
+    expect(context.recallText).not.toContain('execution_history_scope:')
+    expect(context.recallText).not.toContain('execution_boundary:')
     expect(context.recallText).not.toContain('execution_project_identity:')
     expect(context.recallText).not.toContain('execution_project_phase:')
     expect(context.recallText).not.toContain('execution_same_her_line:')
@@ -87,23 +87,13 @@ describe('memory ledger runtime', () => {
       status: 'completed',
       summary: 'pnpm test completed successfully',
     }])
-    expect(context.systemBlock).toContain('[ALICIZATION_EXECUTION_LEDGER]')
-    expect(context.systemBlock).toContain('execution_history_scope=alicization-local-life-loop; owner=ExecutionLedger; detached_task_shell=false.')
-    expect(context.systemBlock).toContain('short_term_owner=WorkingMemory')
-    expect(context.systemBlock).toContain('long_term_recall_owner=LongTermMemoryRecall')
-    expect(context.systemBlock).toContain('failure_surface=report_provider_tool_and_execution_failures_directly')
-    expect(context.systemBlock).toContain('execution_boundary=confirmed_entries_only; review_queue_candidates_are_not_confirmed_memory.')
-    expect(context.systemBlock).not.toContain('project_identity=')
-    expect(context.systemBlock).not.toContain('project_phase=')
-    expect(context.systemBlock).not.toContain('same_her_line=')
-    expect(context.systemBlock).not.toContain('same_her_hold=')
-    expect(context.systemBlock).not.toContain('same_her_drift_risk=')
-    expect(context.systemBlock).not.toContain('project_continuity=')
-    expect(context.systemBlock).toContain('channel=cli')
-    expect(context.systemBlock).toContain('summary=pnpm test completed successfully')
-    expect(context.systemBlock).toContain('outcome=all tests passed')
-    expect(context.systemBlock).not.toContain('Same Phase 1 digital life. Some closure already landed.')
-    expect(context.systemBlock).not.toContain('same-her hold:')
+    expect(JSON.parse(context.systemBlock)).toEqual({
+      type: 'alicization-execution-ledger',
+      data: {
+        entries: context.entries,
+      },
+    })
+    expect(context.systemBlock).not.toMatch(/WorkingMemory owns|LongTermMemoryRecall owns|Do not|Treat only|Failure surface/iu)
     expect(listExecutionEvents).toBeCalledWith({
       threadId: 'thread-1',
       limit: 8,

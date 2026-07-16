@@ -797,7 +797,7 @@ describe('stage runtime embodiment cues', () => {
     expect(repairKey).toContain('quiet')
   })
 
-  it('changes the active cue watch key when repair-before-closeness body+voice-only same-her continuity becomes explicit even if companionship micro-state and settle stay the same', () => {
+  it('changes the active cue watch key when repair-before-closeness body+voice-only identity-continuity', () => {
     const ordinaryRepairKey = resolveActiveCueWatchKey({
       id: 'segment-repair-body-voice-watch-key',
       emotion: 'thinking',
@@ -889,7 +889,7 @@ describe('stage runtime embodiment cues', () => {
     expect(slowerLowerPressureKey).toContain('slower')
   })
 
-  it('extends measured-return settle further when slower lower-pressure restrained speech timing is explicit on the same living line', () => {
+  it('extends measured-return settle further when slower lower-pressure restrained speech timing is explicit on the continuity state', () => {
     const ordinaryMeasuredReturnSettle = resolveRendererSettleMsWithPersonaBias({
       baseMs: 420,
       bodySegmentMatched: true,

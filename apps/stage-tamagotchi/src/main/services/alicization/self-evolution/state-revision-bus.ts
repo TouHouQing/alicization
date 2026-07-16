@@ -34,7 +34,6 @@ export interface AlicizationSelfRevisionStatePatch {
     warmthReleaseBias: number
   }
   responsePosture: {
-    secondPassRequiredBias: number
     hypothesisLabelBias: number
     specificityClampBias: number
     templateShellSuppressionBias: number
@@ -180,12 +179,6 @@ export function buildAlicizationSelfRevisionStatePatch(input: {
   }
 
   const responsePosture = {
-    secondPassRequiredBias: clamp01(
-      (worldModel || selfLike || relationshipLike ? 0.08 : 0)
-      + contradictionPressure * 0.35
-      + (rollbackPressure ? 0.18 : 0)
-      + (blocked ? 0.12 : 0),
-    ),
     hypothesisLabelBias: clamp01(
       (worldModel ? 0.18 : 0.04)
       + (requiresRevalidation ? 0.18 : 0)

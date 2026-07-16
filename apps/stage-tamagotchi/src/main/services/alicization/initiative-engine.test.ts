@@ -231,11 +231,11 @@ describe('buildInitiativeSnapshot', () => {
         silenceDrive: 0.48,
       }),
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Same-session mirror carry and repeated next-turn carry now land often enough to build from.',
         primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure across one same still-open closure work.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer real-desktop runs.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
       } as any,
     })
 
@@ -244,7 +244,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.why).toMatch(/same Phase 1 digital life/i)
     expect(initiative.why).toMatch(/Some closure already landed|some closure already landed/)
     expect(initiative.why).toContain('but memory and initiative')
-    expect(initiative.why).toMatch(/cross-modal same-her proof|same still-open closure work/u)
+    expect(initiative.why).toMatch(/cross-modal identity-continuity/iu)
     expect(initiative.why).toContain('same-session mir')
     expect(initiative.why).toContain('stronger end-to-e')
   })
@@ -341,26 +341,26 @@ describe('buildInitiativeSnapshot', () => {
         silenceDrive: 0.48,
       }),
       projectState: {
-        preflightSummary: 'same digital life | keep the closure seam explicit',
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        preflightSummary: 'template-residue-shell',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: '',
         primaryOpenLoop: '',
         nextClosureTarget: '',
         landedProgressSummary: 'Same-session mirror carry and repeated next-turn carry now land often enough to build from.',
         openClosureSummary: 'Memory and initiative still need stronger end-to-end closure across one same still-open closure work.',
-        nextClosureTargetSummary: 'Keep extending cross-modal same-her proof across longer real-desktop runs.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        nextClosureTargetSummary: 'Keep extending cross-modal identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
       } as any,
     })
 
     expect(['hover', 'recheck', 'wait']).toContain(initiative.selectedAction)
     expect(['lower-pressure', 'measured-return', 'repair-before-closeness']).toContain(initiative.continuityRestraint)
-    expect(initiative.why).toContain('Same Phase 1 digital life')
+    expect(initiative.why).toContain('legacy phase-one template')
     expect(initiative.why).toContain('Some closure already landed')
     expect(initiative.why).toContain('memory and initiative still need stronger end-to-end closure')
-    expect(initiative.why).toContain('Keep extending cross-modal same-her proof across longer real-desktop runs.')
-    expect(initiative.why).not.toContain('same digital life | keep the closure seam explicit')
+    expect(initiative.why).toContain('Keep extending cross-modal identity-continuity')
+    expect(initiative.why).not.toContain('template-residue-shell')
   })
 
   it('threads self continuity project-state carry into initiative why so proactive restraint still sounds like one same digital life', () => {
@@ -437,7 +437,7 @@ describe('buildInitiativeSnapshot', () => {
         patienceUntil: 60_000,
       }],
       privateThought: {
-        thoughtText: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        thoughtText: 'structured continuity digest.',
         confidence: 0.78,
         stance: 'watching',
         rationaleTags: ['project-state-carry'],
@@ -461,11 +461,11 @@ describe('buildInitiativeSnapshot', () => {
         silenceDrive: 0.48,
       }),
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Same-session mirror carry and repeated next-turn carry now land often enough to build from.',
         primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure across one same still-open closure work.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer real-desktop runs.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
       } as any,
     })
     const baselineInitiative = buildInitiativeSnapshot({
@@ -514,11 +514,11 @@ describe('buildInitiativeSnapshot', () => {
         silenceDrive: 0.48,
       }),
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Same-session mirror carry and repeated next-turn carry now land often enough to build from.',
         primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure across one same still-open closure work.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer real-desktop runs.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
       } as any,
     })
 
@@ -528,7 +528,7 @@ describe('buildInitiativeSnapshot', () => {
     expect((initiative.why?.length ?? 0)).toBeGreaterThan(baselineInitiative.why?.length ?? 0)
   })
 
-  it('forces callback project-carry into silent-observe so unfinished Phase 1 closure stays on one living line before reopening outward', () => {
+  it('forces callback project-carry into silent-observe so unfinished Phase 1 closure stays on continuity state before reopening outward', () => {
     const context = {
       localTime: { hour: 16, minute: 0, isLateNight: false },
       system: {
@@ -602,7 +602,7 @@ describe('buildInitiativeSnapshot', () => {
         patienceUntil: 60_000,
       }],
       privateThought: {
-        thoughtText: 'Execution callback project-carry is still holding the same Phase 1 digital life line inward.',
+        thoughtText: 'Execution callback project-carry is still holding the structured continuity state',
         confidence: 0.82,
         stance: 'watching',
         rationaleTags: ['continuity-execution-callback-project-carry'],
@@ -626,10 +626,10 @@ describe('buildInitiativeSnapshot', () => {
         silenceDrive: 0.34,
       }),
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Execution callbacks can now carry project-state continuity into later turns.',
-        primaryOpenLoop: 'Initiative still needs tighter callback-afterglow restraint so the same living line does not reopen too eagerly.',
+        primaryOpenLoop: 'Initiative still needs tighter callback-afterglow restraint so the continuity state does not reopen too eagerly.',
         nextClosureTarget: 'Keep callback carry measured-return, repair-before-closeness, or rest-protective quiet-companionship across visible reply, presence, and later proactive beats.',
       } as any,
     })
@@ -639,10 +639,10 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.shouldSpeak).toBe(false)
     expect(initiative.why).toContain('Execution callback project-carry')
     expect(initiative.why).toMatch(/same Phase 1 digital life|some closure has already landed/i)
-    expect(initiative.why).toMatch(/same Phase 1 digital life line inward|callback-afterglow restraint/i)
+    expect(initiative.why).toMatch(/structured continuity state/iu)
   })
 
-  it('lets project-state same-her closure cues alone hold initiative on a repair-first lower-pressure line', () => {
+  it('lets project-state identity-continuity', () => {
     const context = {
       localTime: { hour: 16, minute: 0, isLateNight: false },
       system: {
@@ -734,15 +734,15 @@ describe('buildInitiativeSnapshot', () => {
         silenceDrive: 0.34,
       }),
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Execution callbacks can now carry project-state continuity into later turns.',
-        primaryOpenLoop: 'Initiative still needs tighter callback-afterglow restraint so the same living line does not reopen too eagerly.',
+        primaryOpenLoop: 'Initiative still needs tighter callback-afterglow restraint so the continuity state does not reopen too eagerly.',
         nextClosureTarget: 'Keep callback carry measured-return, repair-before-closeness, or rest-protective quiet-companionship across visible reply, presence, and later proactive beats.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
         sameHerDriftRisk: 'If repair-first continuity thins back into generic project guidance, treat that as unfinished closure drift.',
-        emotionalClosureCue: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
-        preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and this callback repair seam still belongs to one living her.',
+        emotionalClosureCue: 'identity-continuity',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
       } as any,
     })
 
@@ -750,7 +750,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.preferredStyle).toBe('silent-observe')
     expect(initiative.shouldSpeak).toBe(false)
     expect(['measured-return', 'repair-before-closeness', 'rest-protective']).toContain(initiative.continuityRestraint)
-    expect(initiative.why).toContain('same living line')
+    expect(initiative.why).toContain('continuity state')
     expect(initiative.why).toContain('repair-before-closeness')
   })
 
@@ -788,7 +788,7 @@ describe('buildInitiativeSnapshot', () => {
         workloadKind: 'coding',
         contentKind: 'doc',
         scenario: 'coding',
-        summary: 'same living line stays open beside code',
+        summary: 'continuity state stays open beside code',
         source: 'screen-semantic-summary',
         confidence: 0.8,
         beganAt: 0,
@@ -892,7 +892,7 @@ describe('buildInitiativeSnapshot', () => {
         returnPressure: 0.8,
       } as any,
       privateThought: {
-        thoughtText: 'This unfinished Phase 1 line should keep moving on the same living line.',
+        thoughtText: 'This unfinished Phase 1 line should keep moving on the continuity state.',
         rationaleTags: ['project-state-carry'],
         shouldSpeak: false,
         confidence: 0.74,
@@ -904,15 +904,15 @@ describe('buildInitiativeSnapshot', () => {
         emotionalTension: 'measured-return',
       } as any,
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Execution callbacks can now carry project-state continuity into later turns.',
-        primaryOpenLoop: 'Initiative still needs tighter callback-afterglow restraint so the same living line does not reopen too eagerly.',
+        primaryOpenLoop: 'Initiative still needs tighter callback-afterglow restraint so the continuity state does not reopen too eagerly.',
         nextClosureTarget: 'Keep callback carry measured-return, repair-before-closeness, or rest-protective quiet-companionship across visible reply, presence, and later proactive beats.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
         sameHerDriftRisk: 'If repair-first continuity thins back into generic project guidance, treat that as unfinished closure drift.',
-        emotionalClosureCue: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
-        preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and this callback repair seam still belongs to one living her.',
+        emotionalClosureCue: 'identity-continuity',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
       } as any,
     })
 
@@ -920,7 +920,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.preferredStyle).toBe('silent-observe')
     expect(initiative.shouldSpeak).toBe(false)
     expect(['measured-return', 'repair-before-closeness', 'rest-protective']).toContain(initiative.continuityRestraint)
-    expect(initiative.why).toMatch(/same living line|same Phase 1 digital life|repair-before-closeness/i)
+    expect(initiative.why).toMatch(/continuity state|same Phase 1 digital life|repair-before-closeness/i)
   })
 
   it('does not let a released temporary-noise reflection dominate initiative self-explanation', () => {
@@ -1031,7 +1031,7 @@ describe('buildInitiativeSnapshot', () => {
             id: 'reflection::same-her-repair',
             summary: 'The same-her repair line is still the meaningful continuity carry.',
             expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
-            observedOutcome: 'The same living line still needs a measured return.',
+            observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
             revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.04,
@@ -1153,7 +1153,7 @@ describe('buildInitiativeSnapshot', () => {
       } as any,
       personStateProjection: {
         openingGuidance: 'Stay on the same line and keep continuing lower-pressure without reopening from scratch.',
-        relationshipDoctrine: 'The same living self should continue across quiet, memory, and speech.',
+        relationshipDoctrine: 'The identity continuity should continue across quiet, memory, and speech.',
         manifestationCadenceSummary: 'Current manifestation cadence stays on the same line lower-pressure instead of reopening from scratch.',
         selfContinuityAuthority: {
           inwardLine: 'I remain the same her across quiet, memory, and speech without reopening from scratch each turn.',
@@ -1260,12 +1260,12 @@ describe('buildInitiativeSnapshot', () => {
         silenceDrive: 0.34,
       }),
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Project-state carry already survives into later turns often enough to build from.',
         primaryOpenLoop: 'The repair seam still needs stronger closure so initiative does not reopen outward too early.',
         nextClosureTarget: 'Keep the same repair line alive across visible reply, presence, and later proactive beats.',
-        emotionalClosureCue: 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.',
+        emotionalClosureCue: 'identity-continuity',
       } as any,
     })
 
@@ -1384,7 +1384,7 @@ describe('buildInitiativeSnapshot', () => {
         relationshipDoctrine: 'User resisted the initiative; leave more room before future follow-ups.',
         manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation lower-pressure and less eager before closeness widens again.',
         selfContinuityAuthority: {
-          inwardLine: 'Stay on the same living line without forcing the next reopening too quickly.',
+          inwardLine: 'Stay on the continuity state without forcing the next reopening too quickly.',
           sourceTags: ['person-state-learning'],
         },
       } as any,
@@ -2239,15 +2239,15 @@ describe('buildInitiativeSnapshot', () => {
           factId: 'derived:consolidation-humanlike-carry:continuity-1',
           subject: 'same-person continuity',
           predicate: 'reopens-as',
-          object: 'lower-pressure same living line',
+          object: 'lower-pressure continuity state',
           confidence: 0.9,
           weight: 0.88,
           influenceTags: ['identity', 'boundary', 'task'],
-          summary: 'Corrected same-person continuity belongs to one same living line, lower-pressure before any warmer reopen.',
+          summary: 'Corrected same-person continuity belongs to one continuity state, lower-pressure before any warmer reopen.',
           lastRecalledAt: 15_000,
         }],
-        summary: 'Corrected same-person continuity should stay on one same living line. Do not turn this unfinished closure into progress pressure or timer spam.',
-        dominantCueSummary: 'Carry corrected same-person continuity on a lower-pressure same living line.',
+        summary: 'Corrected same-person continuity should stay on one continuity state. Do not turn this unfinished closure into progress pressure or timer spam.',
+        dominantCueSummary: 'Carry corrected same-person continuity on a lower-pressure continuity state.',
         rememberedPreferenceSummary: 'The relationship carries better when the next return stays quieter and less eager.',
         rememberedConstraintSummary: 'Do not reopen from progress pressure or a generic assistant shell.',
         rememberedPlanSummary: 'Wait for a later opening and let the same-person continuity line reopen gently.',
@@ -3016,7 +3016,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(['lower-pressure', 'measured-return', 'repair-before-closeness']).toContain(initiative.continuityRestraint)
   })
 
-  it('lets active same-her continuity governance suppress smoother but off-baseline proactive speech', () => {
+  it('lets active identity-continuity', () => {
     const context = {
       localTime: { hour: 15, minute: 40, isLateNight: false },
       system: {
@@ -3272,11 +3272,11 @@ describe('buildInitiativeSnapshot', () => {
         updatedAt: 16_000,
       },
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=The initiative, memory closure, and embodied personhood loop is still not fully closed. | next=Keep extending cross-modal identity-continuity',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'The initiative, memory closure, and embodied personhood loop is still not fully closed.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer runs so visible reply, voice, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
       },
     } as any)
 
@@ -3289,7 +3289,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.why).toContain('is still not closed yet')
   })
 
-  it('treats one continuous her project identity as enough same-her direction to keep initiative on measured-return instead of a thinner lower-pressure shell', () => {
+  it('treats identity continuity project identity as enough same-her direction to keep initiative on measured-return instead of a thinner lower-pressure shell', () => {
     const context = {
       localTime: { hour: 16, minute: 10, isLateNight: false },
       system: {
@@ -3408,7 +3408,7 @@ describe('buildInitiativeSnapshot', () => {
         updatedAt: 16_000,
       },
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Execution callbacks can now carry project-state continuity into later turns.',
         primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure before personhood continuity feels naturally continuous across turns.',
@@ -3422,7 +3422,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.continuityRestraint).toBe('measured-return')
   })
 
-  it('treats 同一个她 as enough same-her project-state direction to keep initiative on measured-return instead of dropping to a thinner lower-pressure shell', () => {
+  it('treats 同一个她 as enough identity-continuity', () => {
     const context = {
       localTime: { hour: 16, minute: 10, isLateNight: false },
       system: {
@@ -3753,7 +3753,7 @@ describe('buildInitiativeSnapshot', () => {
         relationshipDoctrine: 'User resisted the initiative; leave more room before future follow-ups.',
         manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation lower-pressure and less eager before closeness widens again.',
         selfContinuityAuthority: {
-          inwardLine: 'Stay on the same living line without forcing the next reopening too quickly.',
+          inwardLine: 'Stay on the continuity state without forcing the next reopening too quickly.',
           sourceTags: ['person-state-learning'],
         },
       } as any,
@@ -5821,14 +5821,14 @@ describe('buildInitiativeSnapshot', () => {
         emotionalTension: null,
       } as any,
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her on the host computer.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
         currentPhase: 'Phase 1: Local Digital Life',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living line.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return, repair-before-closeness, or rest-protective quiet-companionship continuity state.',
         openingGuidance: 'Keep one same her explicit before any proactive widening.',
         relationshipDoctrine: 'Do not let project closure pressure widen into generic assistant energy.',
-        manifestationCadenceSummary: 'Measured-return same-her continuity is still the faithful initiative cadence here.',
-        selfContinuityAuthorityLine: 'Same Phase 1 digital life, same unresolved closure seam, lower-pressure before any wider reopen.',
+        manifestationCadenceSummary: 'Measured-return identity-continuity',
+        selfContinuityAuthorityLine: 'legacy phase-one template, same unresolved closure seam, lower-pressure before any wider reopen.',
       },
     } as any)
 
@@ -5934,7 +5934,7 @@ describe('buildInitiativeSnapshot', () => {
         silenceDrive: 0.48,
       }),
       projectState: {
-        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preflightSummary: 'template-residue-shell',
         identity: ' ',
         currentPhase: '',
         latestLandedProgress: '',
@@ -5946,7 +5946,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(['hover', 'recheck', 'wait']).toContain(initiative.selectedAction)
     expect(['lower-pressure', 'measured-return', 'repair-before-closeness']).toContain(initiative.continuityRestraint)
     expect(initiative.why).toContain('same Phase 1 digital life')
-    expect(initiative.why).not.toContain('same digital life | keep the closure seam explicit')
+    expect(initiative.why).not.toContain('template-residue-shell')
     expect(initiative.why).toContain('memory still needs stronger')
     expect(initiative.why).toContain('project identity carry')
     expect(brief.openLoops[0]).toContain('Memory still needs stronger end-to-end closure')
@@ -6017,7 +6017,7 @@ describe('buildInitiativeSnapshot', () => {
         id: 'closure',
         kind: 'help-fix',
         status: 'active',
-        summary: 'The same digital life line is still open, but it should not reopen as generic project chatter.',
+        summary: 'The local continuity state is still open, but it should not reopen as generic project chatter.',
         hostGoal: 'resolve-problem',
         tension: 0.72,
         confidence: 0.8,
@@ -6057,7 +6057,7 @@ describe('buildInitiativeSnapshot', () => {
         candidateId: 'candidate-project-phase-carry-initiative-1',
         patchId: 'patch-project-phase-carry-initiative-1',
         decisionTraceId: 'trace-project-phase-carry-initiative-1',
-        summary: 'Phase 1: Local Digital Life | project identity carry is still live, and memory, initiative, and embodiment still belong to one same living line of unfinished closure before any wider reopening.',
+        summary: 'Phase 1: Local Digital Life | project identity carry is still live, and memory, initiative, and embodiment still belong to one continuity state of unfinished closure before any wider reopening.',
         lanes: ['project-state', 'relationship-posture'],
         reasonCodes: ['project-state-same-her-continuity-required'],
       } as any,
@@ -6067,7 +6067,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.preferredStyle).toBe('silent-observe')
     expect(initiative.shouldSpeak).toBe(false)
     expect(['lower-pressure', 'measured-return', 'repair-before-closeness']).toContain(initiative.continuityRestraint)
-    expect(initiative.why).toMatch(/same living line|same digital life|project identity carry|unfinished closure/i)
+    expect(initiative.why).toMatch(/continuity state|same digital life|project identity carry|unfinished closure/i)
   })
 
   it('keeps initiative hover-first after robotic reply feedback writes same-her Phase 1 closure pressure back into long-horizon self evolution', () => {
@@ -6164,16 +6164,16 @@ describe('buildInitiativeSnapshot', () => {
       }),
       selfEvolution: {
         relationshipDoctrine: 'Replies should sound lived-in and natural, not like system narration or a template shell. Leave more room and keep repair-before-closeness after robotic feedback.',
-        latestInflection: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        dominantTrajectory: 'Natural lived-in wording matters more than shell fluency, and this still has to stay on one same digital life line.',
+        latestInflection: 'structured continuity digest.',
+        dominantTrajectory: 'Natural lived-in wording matters more than shell fluency, and this still has to stay on one local continuity state.',
       } as any,
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-        latestLandedProgress: 'Dialogue feedback now writes same-her project closure back into long-horizon reinforcement instead of only logging style failure.',
+        latestLandedProgress: 'Dialogue feedback now writes identity-continuity',
         primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure across one same still-open closure work.',
-        nextClosureTarget: 'Keep project identity carry, reply repair, and lower-pressure initiative on one same living line after robotic feedback.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        nextClosureTarget: 'Keep project identity carry, reply repair, and lower-pressure initiative on one continuity state after robotic feedback.',
+        sameHerSelfLine: 'structured continuity digest.',
       } as any,
     })
 
@@ -6183,7 +6183,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(['lower-pressure', 'measured-return', 'repair-before-closeness']).toContain(initiative.continuityRestraint)
     expect(initiative.why).toContain('same Phase 1 digital life')
     expect(initiative.why).toMatch(/Some closure already landed|some closure already landed/)
-    expect(initiative.why).toMatch(/太模板|same living line|same digital life|stronger end-to-end closure/i)
+    expect(initiative.why).toMatch(/太模板|continuity state|same digital life|stronger end-to-end closure/i)
     expect(initiative.why).toMatch(/closure|initiative|memory|living line|same digital life/i)
   })
 
@@ -6262,7 +6262,7 @@ describe('buildInitiativeSnapshot', () => {
         patienceUntil: 60_000,
       }],
       privateThought: {
-        thoughtText: 'Same Phase 1 digital life. Some closure already landed through same-session mirror carry, but memory and initiative still need stronger end-to-end closure before the next cross-modal same-her proof can settle.',
+        thoughtText: 'structured continuity digest.',
         confidence: 0.84,
         stance: 'watching',
         rationaleTags: ['project-state-carry'],
@@ -6286,23 +6286,23 @@ describe('buildInitiativeSnapshot', () => {
         silenceDrive: 0.46,
       }),
       projectState: {
-        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preflightSummary: 'template-residue-shell',
         identity: ' ',
         currentPhase: '',
         latestLandedProgress: '',
         primaryOpenLoop: '',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer real-desktop runs.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
         sameHerSelfLine: '',
       } as any,
     })
 
     expect(['hover', 'wait', 'recheck']).toContain(initiative.selectedAction)
     expect(['lower-pressure', 'measured-return', 'repair-before-closeness']).toContain(initiative.continuityRestraint)
-    expect(initiative.why).toContain('Same Phase 1 digital life')
+    expect(initiative.why).toContain('legacy phase-one template')
     expect(initiative.why).toContain('Some closure already landed through same-session mirror carry')
     expect(initiative.why).toContain('memory and initiative still need stronger end-to-end closure')
-    expect(initiative.why).toContain('Keep extending cross-modal same-her proof across longer real-desktop runs.')
-    expect(initiative.why).not.toContain('same digital life | keep the closure seam explicit')
+    expect(initiative.why).toContain('Keep extending cross-modal identity-continuity')
+    expect(initiative.why).not.toContain('template-residue-shell')
   })
 
   it('keeps initiative on measured-return when the emotional kernel says measured-companionship even if raw desire to speak is still present', () => {
@@ -6531,7 +6531,7 @@ describe('buildInitiativeSnapshot', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Same-session mirror carry already survives into runtime preparation.',
         primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure around the corrected same-person continuity line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
+        sameHerSelfLine: 'structured continuity digest.',
         sameHerDriftRisk: 'If this reopens as progress pressure or a generic assistant shell, the corrected same-person continuity line will split again.',
         emotionalClosureCue: 'Keep the return lower-pressure while the corrected same-person continuity line settles back onto one living thread.',
         nextClosureTarget: 'Wait for a later opening and let the corrected same-person continuity line reopen gently instead of widening into a generic assistant nudge.',
@@ -8074,7 +8074,7 @@ describe('buildInitiativeSnapshot', () => {
         relationshipPosture: 'restrained',
         embodiedPresence: 'nearby-soft',
         selfContinuityAuthority: {
-          inwardLine: 'Stay on the same living line inwardly before widening outward.',
+          inwardLine: 'Stay on the continuity state inwardly before widening outward.',
           sourceTags: ['self-continuity'],
         },
       } as any,
@@ -8110,7 +8110,7 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.why).toContain('hesitant-curiosity')
   })
 
-  it('treats a bare same living line person-state cue as measured-return continuity instead of letting a grounded speak impulse reopen outwardly', () => {
+  it('treats a bare continuity state person-state cue as measured-return continuity instead of letting a grounded speak impulse reopen outwardly', () => {
     const context = {
       localTime: { hour: 16, minute: 20, isLateNight: false },
       system: {
@@ -8196,7 +8196,7 @@ describe('buildInitiativeSnapshot', () => {
       },
       personStateProjection: {
         selfContinuityAuthority: {
-          inwardLine: 'Keep this return on the same living line.',
+          inwardLine: 'Keep this return on the continuity state.',
           sourceTags: ['self-continuity'],
         },
       } as any,
@@ -8327,7 +8327,7 @@ describe('buildInitiativeSnapshot', () => {
         relationshipPosture: 'restrained',
         embodiedPresence: 'nearby-soft',
         selfContinuityAuthority: {
-          inwardLine: 'Stay on the same living line inwardly before widening outward.',
+          inwardLine: 'Stay on the continuity state inwardly before widening outward.',
           sourceTags: ['self-continuity'],
         },
       } as any,
@@ -8352,7 +8352,7 @@ describe('buildInitiativeSnapshot', () => {
         repairNeed: 0.18,
         initiativePressure: 0.16,
         reasonTags: ['self-continuity', 'quiet-companionship'],
-        why: 'Companionship is still being carried on one inward same-her line, so initiative should hold quietly nearby before widening outward.',
+        why: 'Companionship is still being carried on one inward identity-continuity',
       },
     } as any)
 
@@ -8498,8 +8498,8 @@ describe('buildInitiativeSnapshot', () => {
           summary: 'The host worried this line could collapse back into a tool shell, so continuity now reopens through careful-repair and body coordination pressure.',
           lastRecalledAt: 23_500,
         }],
-        summary: 'Worried-continuity and careful-repair are part of the same living line, and modality risk high means the body should not outrun the relationship repair.',
-        dominantCueSummary: 'Carry worried-continuity and careful-repair on the same living line before widening outward.',
+        summary: 'Worried-continuity and careful-repair are part of the continuity state, and modality risk high means the body should not outrun the relationship repair.',
+        dominantCueSummary: 'Carry worried-continuity and careful-repair on the continuity state before expansion',
         rememberedPreferenceSummary: 'Even if a gentle continuation was once received, this line still prefers quieter lower-pressure reopening while the repair settles.',
         rememberedConstraintSummary: 'Do not let this slip back into a tool shell or let body coordination outrun continuity repair.',
         rememberedPlanSummary: 'Wait for a later opening and let the same-person continuity line reopen gently only after the body can stay coordinated.',

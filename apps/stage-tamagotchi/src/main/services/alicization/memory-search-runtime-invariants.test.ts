@@ -46,9 +46,6 @@ describe('memory-search-runtime invariants', () => {
       surfaceMode: 'internal-only',
       placement: 'internal-only',
       certainty: 'approximate',
-      internalLead: 'What comes back first is the runtime seam we kept carrying.',
-      visibleLead: null,
-      styleNote: 'Let the remembered seam stay inward.',
       rationale: 'The recollection should remain latent this turn.',
       confidence: 0.76,
     }
@@ -126,7 +123,7 @@ describe('memory-search-runtime invariants', () => {
     expect(memorySurface.memoryDeliberation?.surfacePolicy).toBe('procedural-carry')
   })
 
-  it('keeps same-turn search trace replayable for the same memory-search input', async () => {
+  it('keeps same-turn search trace replayable without projecting search instructions into provider facts', async () => {
     const runtime = createAlicizationMemorySearchRuntime({
       organicMemoryPrompt: {
         normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
@@ -242,15 +239,26 @@ describe('memory-search-runtime invariants', () => {
     })
 
     expect(first.recollectionPlan?.searchTrace).toEqual(second.recollectionPlan?.searchTrace)
-    const firstBlocks = runtime.buildOrganicMemorySystemBlocks(first).join('\n')
-    const secondBlocks = runtime.buildOrganicMemorySystemBlocks(second).join('\n')
-    expect(firstBlocks).toContain('search_first_hop=procedure:')
-    expect(secondBlocks).toContain('search_second_hop=expand-procedure:need-episode-detail:')
-    expect(firstBlocks).toContain('search_third_hop=approximate:')
+    const firstBlocks = runtime.buildOrganicMemoryProviderFactBlocks(first).join('\n')
+    const secondBlocks = runtime.buildOrganicMemoryProviderFactBlocks(second).join('\n')
     expect(firstBlocks).toEqual(secondBlocks)
+    expect(firstBlocks).not.toMatch(/search_(?:first|second|third)_hop=/u)
+    expect(JSON.parse(firstBlocks.split('\n').find(block => block.includes('"type":"alicization-long-term-memory-recall"')) ?? '{}'))
+      .toMatchObject({
+        data: {
+          owner: 'LongTermMemoryRecall',
+          selection: {
+            plan: {
+              selectedConsolidationIds: ['consolidation-runtime'],
+              selectedProceduralIds: ['runtime seam'],
+              selectedEpisodeIds: ['episode-runtime'],
+            },
+          },
+        },
+      })
   })
 
-  it('keeps reply-layer recollection controls structural instead of regrowing drafted wording authority', () => {
+  it('keeps reply-layer recollection controls empty instead of regrowing drafted wording authority', () => {
     const result = buildAlicizationResponseSurfaceContract({
       brief: {
         turnMode: 'guide-current-knot',
@@ -272,33 +280,21 @@ describe('memory-search-runtime invariants', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: 'remembered',
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       recollectionSpeechPlan: {
         shouldSurface: true,
         surfaceMode: 'procedural-carry',
         placement: 'inside-payoff',
         certainty: 'approximate',
-        internalLead: 'The remembered way through this is to return to the same seam first.',
-        visibleLead: 'I mostly remember handling this by returning to the same seam before branching.',
-        styleNote: 'Let the remembered procedure sit inside the answer instead of becoming a separate memory monologue.',
         rationale: 'The host is explicitly asking how this used to be handled.',
         confidence: 0.83,
       },
     })
 
-    expect(result.contract.recollectionLatentControls ?? []).toEqual(expect.arrayContaining([
-      'recollection_continuity_role=procedure-carry',
-      'recollection_template_boundary=guard-against-drafted-wording',
-      'recollection_frame_prior_procedure=yes',
-    ]))
+    expect(Object.keys(result.contract).some(key => key.toLowerCase().includes('recollection'))).toBe(false)
     expect(result.contract.mustDo.join(' | ')).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
     expect(result.systemBlock).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
   })

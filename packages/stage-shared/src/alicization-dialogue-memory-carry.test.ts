@@ -103,17 +103,17 @@ describe('alicization dialogue memory carry', () => {
     const policy = deriveAlicizationDialogueMemoryCarryPolicyFromDigest({
       now: 1_200,
       mirror: {
-        memorySummary: 'Before answering, remember this is still the same local-first digital life project.',
+        memorySummary: 'pre_turn_context_digest',
         updatedAt: 1_100,
       },
       digest: createSpineDigest({
         memory: {
-          summary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          summary: 'structured continuity digest.',
           recentEpisodeSummary: 'Keep this same digital life project in view, but do not widen into a detached project shell.',
           recentEpisodeCount: 1,
           focusBeliefStatement: null,
           focusBeliefConfidence: null,
-          leadingGoalSummary: 'Next closure: keep personality, initiative, memory, and embodiment on one same-her line.',
+          leadingGoalSummary: 'Next closure: keep personality, initiative, memory, and embodiment on one identity-continuity',
           dominantConcernSummary: null,
           reflectionSummary: 'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
           reflectionPressure: 0.72,
@@ -126,7 +126,7 @@ describe('alicization dialogue memory carry', () => {
     const block = buildAlicizationDialogueMemoryCarrySystemBlock(policy)
 
     expect(block).toContain(alicizationFixedTemplateReplacement)
-    expect(block).not.toMatch(/Before answering|Same Phase 1 digital life|same living line|same-her|one continuous her|local-first digital life project/iu)
+    expect(block).not.toMatch(/Pre-reply|legacy phase-one template|continuity state|same-her|identity continuity|local-first digital life project/iu)
   })
 
   it('falls back to quiet mode when there are no thread or reflection cues', () => {

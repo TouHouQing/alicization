@@ -2,7 +2,7 @@ import type { AlicizationDigitalLifeRuntimeSurface } from '../digital-life-kerne
 import type {
   AlicizationMainGatewayGenerateTextProvider,
   AlicizationMainGatewaySource,
-} from '../project-state-gateway-contract'
+} from '../main-gateway-contract'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
 import { parseJsonObjectFromText } from '../runtime-transport-content'
@@ -20,41 +20,21 @@ function sanitizeBriefText(raw: unknown, maxChars = 220) {
 }
 
 function structuredMemoryPolicyLine(kind: string, fields: Record<string, string | number | boolean | null | undefined>, maxChars = 220) {
+  const label = kind.replace(/_/gu, ' ')
   const body = Object.entries(fields)
     .map(([key, value]) => {
       const normalized = typeof value === 'number'
         ? Number(value.toFixed(2))
         : typeof value === 'boolean'
-          ? String(value)
+          ? (value ? 'yes' : 'no')
           : sanitizeBriefText(value, 80)
       return normalized || normalized === 0 || normalized === 'false'
-        ? `${key}=${normalized}`
+        ? `${key.replace(/_/gu, ' ')} ${normalized}`
         : ''
     })
     .filter(Boolean)
-    .join('; ')
-  return sanitizeBriefText(`${kind}=${body || 'none'}`, maxChars)
-}
-
-function buildMemoryPlanningProjectSelfBriefSystemBlock() {
-  return [
-    '[ALICIZATION_MEMORY_PLANNING_OWNER_BOUNDARY]',
-    'short_term_owner=WorkingMemory',
-    'long_term_recall_owner=LongTermMemoryRecall',
-    'workbench_role=governance_surface_only',
-    'project_state_policy=withheld_for_memory_planning_unless_explicitly_requested',
-    'retrieval_inputs=user_intent,entity,time,relationship,memory_evidence',
-    'project_status_narration=false',
-    'review_candidates_confirmed_memory=false',
-    'raw_transcript_persona_training=false',
-  ].join('\n')
-}
-
-function withProjectStateSystem(input: string) {
-  return [
-    input,
-    buildMemoryPlanningProjectSelfBriefSystemBlock(),
-  ].filter(Boolean).join('\n')
+    .join(', ')
+  return sanitizeBriefText(`${label}: ${body || 'none'}.`, maxChars)
 }
 
 export interface AlicizationMemoryGatewayTextProvider extends AlicizationMainGatewayGenerateTextProvider<
@@ -361,18 +341,6 @@ export function parseMemoryRecollectionSpeechPlanPayload(raw: string) {
     surfaceMode: shouldSurface ? surfaceMode : 'internal-only',
     placement: shouldSurface ? placement : 'internal-only',
     certainty,
-    internalLead: structuredMemoryPolicyLine('internal_policy', {
-      surface: shouldSurface ? surfaceMode : 'internal-only',
-      placement: shouldSurface ? placement : 'internal-only',
-      certainty,
-    }),
-    // NOTICE: Memory planner is not allowed to author visible reply drafts.
-    visibleLead: null,
-    styleNote: structuredMemoryPolicyLine('style_policy', {
-      reply_author: 'visible_reply_engine',
-      template_policy: 'forbidden',
-      source: 'memory_policy',
-    }),
     rationale: rationale || 'The recollection speech plan decided whether the memory should stay inward or contour the answer silently.',
     confidence,
   } satisfies NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']>
@@ -578,20 +546,17 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
     return null
 
   const raw = await input.generateMainGatewayText({
-    system: withProjectStateSystem([
-      '[ALICIZATION_MEMORY_RECOLLECTION_SPEECH_PLANNER]',
-      'planner_role=private_recollection_speech_planning; user_facing_dialogue=false',
-      'decision_scope=surface_permission_and_answer_contour; visible_reply_authority=false',
-      'fixed_template_system=false; exact_turn_policy=required',
-      'memory_visibility=internal_allowed; visible_recall_requires_current_payoff=true',
-      'visible_recall_priority=subordinate_to_live_answer',
-      'output_format=json_only; keys=shouldSurface,surfaceMode,placement,certainty,surfacePolicy,rationale,confidence',
-      'enum.surfaceMode=internal-only,gist-first,answer-anchoring,procedural-carry,relationship-continuity',
-      'enum.placement=before-payoff,inside-payoff,after-payoff,internal-only',
-      'enum.certainty=firm,approximate,fragmentary',
-      'reply_prose=false; private_monologue=false; visible_leads=false; sample_wording=false; style_sentences=false',
-      'internal_memory_output=shouldSurface:false,surfaceMode:internal-only,placement:internal-only',
-    ].join('\n')),
+    system: [
+      'Alicization memory recollection speech planner.',
+      'Decide whether recalled memory should remain internal or lightly shape the answer contour.',
+      'Visible recall is allowed only when it pays off the current turn; the live answer remains primary.',
+      'Return only the requested JSON object for shouldSurface, surfaceMode, placement, certainty, surfacePolicy, rationale, and confidence.',
+      'Use surfaceMode values from internal-only, gist-first, answer-anchoring, procedural-carry, or relationship-continuity.',
+      'Use placement values from before-payoff, inside-payoff, after-payoff, or internal-only.',
+      'Use certainty values from firm, approximate, or fragmentary.',
+      'Do not write reply prose, private monologue, visible leads, sample wording, or style sentences.',
+      'When memory should stay internal, set shouldSurface false, surfaceMode internal-only, and placement internal-only.',
+    ].join('\n'),
     user: `Recollection speech candidate JSON: ${JSON.stringify({
       recallSeed: sanitizeBriefText(input.recallSeed, 220),
       recollectionIntent: input.recollectionIntent,
@@ -663,28 +628,22 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
   const raw = await input.generateMainGatewayText({
-    system: withProjectStateSystem([
-      '[ALICIZATION_MEMORY_RECOLLECTION_PLANNER]',
-      'planner_role=private_recollection_planning; user_facing_dialogue=false',
-      'intent_status=chosen; decision_scope=foreground_remembered_anchors',
-      'output_format=json_only; keys=selectedConsolidationIds,selectedWindowIds,selectedProceduralIds,selectedEpisodeIds,selectedConversationTurnIds,selectedRelationshipLines,searchTrace,certainty,rationale,confidence',
-      'enum.certainty=firm,approximate,fragmentary',
-      'recollection_openings=false; private_monologue=false; visible_leads=false; sample_wording=false; reply_prose=false',
-      'selectedRelationshipLines=max3_relationship_meanings_or_lessons',
-      'searchTrace is required and must contain firstHop, secondHop, thirdHop.',
-      'schema.firstHop=focus,summary,targetIds; enum.firstHop.focus=era,procedure,relationship-line,conversation-turn,episode',
-      'schema.secondHop=action,evidenceGap,summary,targetIds; enum.secondHop.action=hold,expand-era,expand-procedure,expand-relationship-line,expand-conversation,narrow-to-stable-core',
-      'enum.evidenceGap=none,need-period-anchor,need-episode-detail,need-procedure-detail,need-relationship-meaning,need-conversation-evidence,need-disambiguation',
-      'schema.thirdHop=ambiguityPosture,summary; enum.thirdHop.ambiguityPosture=settled,approximate,ambiguous',
-      'search_trace_hops=anchor_first,evidence_expand_or_narrow,ambiguity_assessment',
-      'non_foregrounded_lane=empty_array',
-      'selection_budget=usually_1_to_2_foreground_items',
-      'task_procedure_turn=prefer_procedural_memory_or_execution_episodes',
-      'prior_conversation_turn=prefer_consolidated_or_period_memory_before_raw_snippets',
-      'stage_hold_for_opening=internal_only_or_answer_anchoring',
-      'stage_gentle_reopen=small_evidence_bundles; visible_wording_drafts=false',
-      'continuation_seed=retrieval_scope_not_wording_guidance',
-    ].join('\n')),
+    system: [
+      'Alicization memory recollection planner.',
+      'Choose foreground remembered anchors from the selected intent without drafting visible dialogue.',
+      'Return only the requested JSON object with selected memory ids, selected relationship lines, searchTrace, certainty, rationale, and confidence.',
+      'Use certainty values from firm, approximate, or fragmentary.',
+      'Do not write recollection openings, private monologue, visible leads, sample wording, or reply prose.',
+      'Keep selected relationship lines to at most three meanings or lessons.',
+      'searchTrace is required and must contain firstHop, secondHop, and thirdHop.',
+      'First hop chooses the anchor focus and target ids.',
+      'Second hop decides whether to hold, expand evidence, or narrow to a stable core.',
+      'Third hop states whether ambiguity is settled, approximate, or ambiguous.',
+      'Prefer one or two foreground items unless the evidence genuinely needs more.',
+      'For task or procedure turns, prefer procedural memories or execution episodes.',
+      'For prior conversation turns, prefer consolidated or period memory before raw snippets.',
+      'Use continuation seed as retrieval scope, not wording guidance.',
+    ].join('\n'),
     user: `Memory recollection candidate JSON: ${JSON.stringify({
       recallSeed: sanitizeBriefText(input.recallSeed, 220),
       recollectionIntent: input.recollectionIntent,
@@ -763,24 +722,20 @@ export async function generateMemoryRecollectionIntentWithGateway(input: {
     return null
 
   const raw = await input.generateMainGatewayText({
-    system: withProjectStateSystem([
-      '[ALICIZATION_MEMORY_RECOLLECTION_INTENT_PLANNER]',
-      'planner_role=private_recollection_intent_planning; user_facing_dialogue=false',
-      'heuristic_cues=draft_only; decision_scope=engage_recollection_and_lane',
-      'present_facing_allowed=true; memory_lane_before_retrieval=optional',
-      'memory_not_engaged_output=mode:none,all_search_flags:false',
-      'memory_engaged_lane_budget=single_best_lane',
-      'output_format=json_only; keys=mode,temporalFocus,searchEpisodes,searchConversations,searchProceduralExperience,queryHints,rationale,confidence,recollectionAgenda',
-      'enum.mode=none,conversation-history,autobiographical-history,relationship-history,execution-procedure,experience-pattern',
-      'enum.temporalFocus=recent,recent-or-mid,cross-session,experience-matched,distant',
-      'recollectionAgenda is required and must be an object with keys: whyRecallNow, goalSimilarity, relationshipNeed, affectivePull, sceneFamiliarity, candidateTimeScopes, candidateEraFacets, candidateProcedureLines, uncertaintyTolerance.',
-      'candidateTimeScopes must be up to 4 objects with keys: scope, weight, rationale.',
-      'candidateEraFacets must be up to 4 objects with keys: facet, weight, rationale.',
-      'candidateProcedureLines=max4_short_task_or_bond_lines_before_exact_detail',
-      'enum.uncertaintyTolerance=low,medium,high',
-      'time_language=candidate_search_space_not_exact_day_rule',
-      'long_range_recall_default=false; present_facing_preferred_when_memory_low_value=true',
-    ].join('\n')),
+    system: [
+      'Alicization memory recollection intent planner.',
+      'Decide whether this turn should engage recollection, and choose the single best memory lane when it should.',
+      'Present-facing answering is allowed when memory would add low value.',
+      'When memory is not engaged, return mode none and keep every search flag false.',
+      'Return only the requested JSON object for mode, temporalFocus, search flags, query hints, rationale, confidence, and recollectionAgenda.',
+      'Use mode values from none, conversation-history, autobiographical-history, relationship-history, execution-procedure, or experience-pattern.',
+      'Use temporalFocus values from recent, recent-or-mid, cross-session, experience-matched, or distant.',
+      'recollectionAgenda must explain why recall matters now, similarity, relationship need, affect, scene familiarity, candidate scopes, facets, procedure lines, and uncertainty tolerance.',
+      'Keep candidate time scopes and era facets to at most four each.',
+      'Keep candidate procedure lines to at most four short task or relationship lines before exact detail.',
+      'Use uncertaintyTolerance values from low, medium, or high.',
+      'Treat time language as candidate search space, not an exact-day rule.',
+    ].join('\n'),
     user: `Recollection intent candidate JSON: ${JSON.stringify({
       recallSeed: sanitizeBriefText(input.recallSeed, 220),
       heuristicIntent: input.heuristicIntent,
@@ -849,31 +804,22 @@ export async function generateMemoryDeliberationWithGateway(input: {
     return null
 
   const raw = await input.generateMainGatewayText({
-    system: withProjectStateSystem([
-      '[ALICIZATION_MEMORY_DELIBERATION]',
-      'planner_role=private_memory_deliberation; user_facing_dialogue=false',
-      'candidate_inputs=recollectionIntent,recollectionPlan,recollectionSpeechPlan; final_authority=memory_deliberation',
-      'decision_order=recall_value,bundle_selection,surface_policy',
-      'recollectionAgenda=search_authority; time_scopes=candidates; era_facets=probe_order; procedure_lines=similarity_cues',
-      'candidate_presence_forces_recall=false; present_facing_output=shouldRecall:false,selected_ids:empty',
-      'output_format=json_only; keys=shouldRecall,selectedEraIds,selectedConsolidationIds,selectedWindowIds,selectedProcedureIds,selectedEpisodeIds,selectedConversationTurnIds,selectedRelationshipLines,selectedBundles,selectedChains,conflictSeverity,conflictVariants,stableCore,unsafeDetails,surfacePolicy,confidence,whyNow',
-      'enum.surfacePolicy=internal-only,gist-first,answer-anchoring,procedural-carry,relationship-continuity',
-      'selectedEraIds=max3_dominant_eras_or_periods_before_lower_level_events',
-      'selectedRelationshipLines=short_relationship_meanings_or_lessons',
-      'enum.conflictSeverity=none,low,medium,high',
-      'conflictVariants=material_disagreement_or_unsafe_settled_fact',
-      'stableCore=safe_across_variants_only',
-      'unsafeDetails=not_certain_visible_fact',
-      'selectedBundles=max4_linked_bundles_with_ids_summary_rationale_confidence_relationshipLine_optional',
-      'strong_bundle_shape=period_plus_event_or_procedure_plus_relationship_meaning',
-      'selectedChains=max4; allowed=task-procedure-relationship-stance,period-event-lesson-posture',
-      'task_procedure_chain=task_or_procedure_to_current_stance',
-      'period_event_chain=period_and_event_to_current_answer_posture',
-      'private_monologue=false; visible_lines=false; sample_wording=false; closeness_guidance=false; reply_prose=false',
-      'stage_hold_for_opening=internal_only_or_answer_anchoring; selected_evidence=small',
-      'stage_gentle_reopen=policy_and_evidence_only; return_sentence=false',
-      'continuation_seed=retrieval_scope_not_wording_guidance',
-    ].join('\n')),
+    system: [
+      'Alicization memory deliberation.',
+      'Combine recollection intent, recollection plan, and speech plan before deciding whether recall should affect the turn.',
+      'Decide recall value first, then bundle selection, then surface policy.',
+      'Candidate presence alone must not force recall; choose present-facing output when recall adds no value.',
+      'Return only the requested JSON object for recall decision, selected ids, relationship lines, bundles, chains, conflicts, stable core, unsafe details, surface policy, confidence, and whyNow.',
+      'Use surfacePolicy values from internal-only, gist-first, answer-anchoring, procedural-carry, or relationship-continuity.',
+      'Keep selected eras to at most three dominant eras or periods before lower-level events.',
+      'Keep selected relationship lines short and limited to meanings or lessons.',
+      'Use conflictSeverity values from none, low, medium, or high.',
+      'Conflict variants are only for material disagreement or unsafe settled facts.',
+      'Stable core must include only facts safe across variants; unsafe details are not certain visible facts.',
+      'Keep selected bundles and chains to at most four.',
+      'Do not write private monologue, visible lines, sample wording, closeness guidance, or reply prose.',
+      'Use continuation seed as retrieval scope, not wording guidance.',
+    ].join('\n'),
     user: `Memory deliberation candidate JSON: ${JSON.stringify({
       recallSeed: sanitizeBriefText(input.recallSeed, 220),
       recollectionIntent: input.recollectionIntent,

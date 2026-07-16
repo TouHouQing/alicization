@@ -103,7 +103,7 @@ function sanitizeRecallSeedBlockForMemoryPrompt(raw: unknown) {
       ? prefix
       : ''
     const structuredProject = [
-      'project:identity=runtime_personhood',
+      'project:continuity_context=present',
       /open=|still needs|unfinished/iu.test(normalized) ? 'open=continuity_pending' : '',
       /already landed|already survives|has landed|some closure/iu.test(normalized) ? 'landed=partial' : '',
     ].filter(Boolean).join('; ')
@@ -136,12 +136,12 @@ function sanitizeStructuredRecallSeedLineForMemorySearch(raw: string) {
     .trim()
     .replace(/\s+/g, ' ')
     .replace(/\bBefore (?:answering|speaking|acting),?\s*(?:remember\s*)?/giu, 'structured_carry=')
-    .replace(/\bAlicization is (?:still )?(?:the same )?(?:a )?local-first digital life project\b/giu, 'runtime_personhood')
-    .replace(/\bthis is still the same digital life project\b/giu, 'runtime_personhood')
-    .replace(/\bsame digital life project\b/giu, 'runtime_personhood')
-    .replace(/\blocal-first digital life project\b/giu, 'runtime_personhood')
-    .replace(/\bPhase\s*1\s*:\s*Local Digital Life\b/giu, 'life_core')
-    .replace(/\bSame Phase 1 digital life\b/giu, 'life_core')
+    .replace(/\bAlicization is (?:still )?(?:the same )?(?:a )?local-first digital life project\b/giu, 'continuity_project')
+    .replace(/\bthis is still the same digital life project\b/giu, 'continuity_project')
+    .replace(/\bsame digital life project\b/giu, 'continuity_project')
+    .replace(/\blocal-first digital life project\b/giu, 'continuity_project')
+    .replace(/\bPhase\s*1\s*:\s*Local Digital Life\b/giu, 'life_loop')
+    .replace(/\bSame Phase 1 digital life\b/giu, 'life_loop')
     .replace(/\bcross-modal same-her proof\b/giu, 'embodiment_scale_validation')
     .replace(/\bsame-her proof\b/giu, 'continuity_proof')
     .replace(/\bsame-her closure\b/giu, 'identity-continuity closure')

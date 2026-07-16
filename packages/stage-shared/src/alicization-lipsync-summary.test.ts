@@ -52,7 +52,7 @@ describe('alicization lipsync summary', () => {
     )
   })
 
-  it('can carry companionship mode and settle gaze rhythm so lipsync remains on the same living line as face and motion', () => {
+  it('can carry companionship mode and settle gaze rhythm so lipsync remains on the continuity state as face and motion', () => {
     expect(buildAlicizationLipsyncSummary({
       mode: 'closed',
       continuityHoldMs: 300,
@@ -78,7 +78,7 @@ describe('alicization lipsync summary', () => {
     )
   })
 
-  it('can also carry same-her inward carry wording when lipsync is the surviving visible lane of one quieter living line', () => {
+  it('can also carry identity-continuity', () => {
     expect(buildAlicizationLipsyncSummary({
       mode: 'energy-phoneme-hybrid',
       phase: 'playing',
@@ -86,7 +86,7 @@ describe('alicization lipsync summary', () => {
       companionshipMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonSummary: 'Keep the same living line inward for now, and leave room before widening outward again',
+      reasonSummary: 'Keep the continuity state inward for now, and leave room before widening outward again',
     } as any)).toBe(
       'mode=energy-phoneme-hybrid | phase=playing | hint=I | companion=measured-return | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower',
     )
@@ -106,7 +106,7 @@ describe('alicization lipsync summary', () => {
       preferredLipsyncMode: 'restrained',
       preferredVoiceMode: 'lower-pressure',
       preferredPacingMode: 'slower',
-      reasonSummary: 'Keep the same living line audible while face and motion rejoin',
+      reasonSummary: 'Keep the continuity state audible while face and motion rejoin',
       source: 'prosody-authority',
       confidence: 0.91,
       segmentId: 'segment-audible-body-lipsync-1',
@@ -115,7 +115,7 @@ describe('alicization lipsync summary', () => {
     )
   })
 
-  it('can also carry a quieter body-lipsync timing marker when voice has not rejoined the same living line yet', () => {
+  it('can also carry a quieter body-lipsync timing marker when voice has not rejoined the continuity state yet', () => {
     expect(buildAlicizationLipsyncSummary({
       mode: 'energy-phoneme-hybrid',
       phase: 'idle',
@@ -125,7 +125,7 @@ describe('alicization lipsync summary', () => {
       continuityTiming: 'body-lipsync-carry',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonSummary: 'Keep the same living line inward while face, motion, and voice rejoin',
+      reasonSummary: 'Keep the continuity state inward while face, motion, and voice rejoin',
       source: 'prosody-authority',
       confidence: 0.91,
       segmentId: 'segment-body-lipsync-carry-1',

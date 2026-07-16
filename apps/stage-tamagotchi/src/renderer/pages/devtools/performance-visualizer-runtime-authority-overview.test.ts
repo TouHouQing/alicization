@@ -296,7 +296,7 @@ describe('performance visualizer runtime authority overview', () => {
     })
   })
 
-  it('surfaces embodiment closure stage in overview summary entries when only the quieter body+lipsync same-her line is still carrying the segment', () => {
+  it('surfaces embodiment closure stage in overview summary entries when only the quieter body+lipsync identity-continuity', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -580,7 +580,7 @@ describe('performance visualizer runtime authority overview', () => {
     }
   })
 
-  it('prefers normalized playback cue embodiment closure stage over re-parsing body continuity text when same-her closure is already structured upstream', () => {
+  it('prefers normalized playback cue embodiment closure stage over re-parsing body continuity text when identity-continuity', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -958,7 +958,7 @@ describe('performance visualizer runtime authority overview', () => {
     })
   })
 
-  it('preserves body-backed upstream authority summaries so overview keeps same-her continuity when only the body line still carries the segment', () => {
+  it('preserves body-backed upstream authority summaries so overview keeps identity-continuity', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         authoritySummary: {
@@ -2380,7 +2380,7 @@ describe('performance visualizer runtime authority overview', () => {
     expect(overview?.summaryEntries).toContainEqual({
       key: 'same-her-continuity',
       label: '同一生命线总览',
-      value: '当前 same-her continuity 主要由渲染帧线继续托住，活跃片段 segment-runtime-vrm-same-her-frame，处在 renderer-rejoin-without-body，口型、声音 还没重新接回。',
+      value: '当前 identity-continuity',
       technicalValue: 'source=frame | segment=segment-runtime-vrm-same-her-frame | closure=renderer-rejoin-without-body | aligned=false | mismatch=lipsync, voice | summary=drift | performance=segment-runtime-vrm-same-her-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
     })
   })
@@ -2450,7 +2450,7 @@ describe('performance visualizer runtime authority overview', () => {
     expect(overview?.summaryEntries).toContainEqual({
       key: 'same-her-continuity',
       label: '同一生命线总览',
-      value: '当前 same-her continuity 主要由执行线继续托住，活跃片段 segment-runtime-live2d-same-her-execution，口型 还没重新接回。',
+      value: '当前 identity-continuity',
       technicalValue: 'source=execution | segment=segment-runtime-live2d-same-her-execution | aligned=false | mismatch=lipsync | summary=drift | authority=segment-runtime-live2d-same-her-execution | active=face, motion, lipsync | mismatch=lipsync',
     })
   })
@@ -2638,7 +2638,7 @@ describe('performance visualizer runtime authority overview', () => {
     )).toBe(false)
   })
 
-  it('does not infer embodiment closure stage from stale VRM same-her summary-only evidence when explicit same-her segment ids are absent', () => {
+  it('does not infer embodiment closure stage from stale VRM same-her summary-only evidence when explicit identity-continuity', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {

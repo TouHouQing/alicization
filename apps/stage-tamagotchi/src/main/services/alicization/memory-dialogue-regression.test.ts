@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import { buildHostPersonModelSnapshot } from './humanlike-memory'
 import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
-import { buildRecollectionSpeechVisibleSurfaceRules } from './response-surface-contract'
 
 function createEpisode(overrides: Record<string, unknown> = {}) {
   return {
@@ -187,41 +186,6 @@ describe('humanlike memory dialogue regression set', () => {
   })
 
   describe('failure mode regression set', () => {
-    it('keeps approximate recollection explicitly uncertainty-aware instead of sounding exact', () => {
-      const rules = buildRecollectionSpeechVisibleSurfaceRules({
-        shouldSurface: true,
-        surfaceMode: 'answer-anchoring',
-        placement: 'inside-payoff',
-        certainty: 'approximate',
-        internalLead: 'I vaguely remember the runtime seam drifting the same way before.',
-        visibleLead: 'I think this resembles the runtime seam we dealt with before.',
-        styleNote: 'Keep the memory approximate and humility-forward.',
-        rationale: 'The recall is real but interference-prone.',
-        confidence: 0.58,
-      })
-
-      expect(rules.mustDo).toContain('Keep the visible recollection approximate and uncertainty-aware instead of claiming exactness.')
-      expect(rules.mustNotDo).toContain('Do not present fragmentary or approximate recollection as exact remembered wording.')
-    })
-
-    it('keeps inward recollection from being dumped into the visible reply', () => {
-      const rules = buildRecollectionSpeechVisibleSurfaceRules({
-        shouldSurface: false,
-        surfaceMode: 'internal-only',
-        placement: 'internal-only',
-        certainty: 'approximate',
-        internalLead: 'The remembered line should stay inward.',
-        visibleLead: null,
-        styleNote: 'Let memory bend tone quietly.',
-        rationale: 'The answer needs continuity but not overt retrospection.',
-        confidence: 0.7,
-      })
-
-      expect(rules.mustDo).toContain('Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
-      expect(rules.mustDo).toContain('If memory stays internal, let it bend stance, choice of detail, or tone rather than announcing the memory itself.')
-      expect(rules.mustNotDo).toContain('Do not dump recalled memory into the visible reply just because it became mentally active.')
-    })
-
     it('wakes relationship-triggered recollection instead of failing to recall when the host asks why the tone changed', () => {
       const intent = buildMemoryRecollectionIntent({
         userText: '你为什么这次会这样回应我',

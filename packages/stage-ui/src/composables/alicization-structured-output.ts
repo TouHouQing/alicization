@@ -1,10 +1,14 @@
+import type { AlicizationProviderMemoryUsage } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationDialoguePerformancePayload,
   AlicizationDigitalLifeEnvelope,
 } from '../stores/alicization-bridge'
 
 import {
+  alicizationEmotionWhitelist,
   alicizationFixedTemplateReplacement,
+  alicizationPerformanceDeliveryWhitelist,
   containsAlicizationFixedTemplateResidue,
   isAlicizationDecorativePersonaTemplateContamination,
   sanitizeAlicizationStructuredInternalText,
@@ -53,9 +57,6 @@ const emotionToSentiment: Record<string, number> = {
   surprised: 0.2,
   thinking: 0,
 }
-
-const jsonRepairMaxChars = 32 * 1024
-const jsonRepairTimeBudgetMs = 20
 
 function clamp(value: number, min: number, max: number) {
   if (Number.isNaN(value))
@@ -221,24 +222,11 @@ function hasPerformanceDynamicsHint(payload: Record<string, unknown> | null) {
   })
 }
 
-interface ActPayload {
-  emotion?: unknown
-  userSentimentScore?: unknown
-  user_sentiment_score?: unknown
-  sentimentConfidenceRaw?: unknown
-  sentiment_confidence_raw?: unknown
-  sentimentConfidence?: unknown
-  sentiment_confidence?: unknown
-  confidence?: unknown
-  [key: string]: unknown
-}
-
-export type StructuredParsePath = 'json' | 'repair-json' | 'act' | 'fallback'
+export type StructuredParsePath = 'json' | 'fallback'
 
 interface StructuredPayloadParseResult {
   payload: Record<string, unknown> | null
   parsePath: StructuredParsePath
-  repairTimedOut: boolean
 }
 
 function toObjectRecord(value: unknown): Record<string, unknown> | null {
@@ -258,174 +246,27 @@ function toFiniteNumber(value: unknown): number | undefined {
   return undefined
 }
 
-function parseObjectCandidate(candidate: string, depth = 0): Record<string, unknown> | null {
-  if (depth > 2)
-    return null
-
-  const parseNestedString = (value: unknown): Record<string, unknown> | null => {
-    if (typeof value !== 'string')
-      return null
-    const nested = value.trim()
-    if (!nested)
-      return null
-    return parseObjectCandidate(nested, depth + 1)
-  }
-
-  try {
-    const parsed = JSON.parse(candidate) as unknown
-    return toObjectRecord(parsed) || parseNestedString(parsed)
-  }
-  catch {
-    const normalizedCandidate = candidate
-      .replace(/,\s*\}/g, '}')
-      .replace(/,\s*\]/g, ']')
-      .replace(/^\uFEFF/, '')
-      .trim()
-
-    try {
-      const repaired = JSON.parse(normalizedCandidate) as unknown
-      return toObjectRecord(repaired) || parseNestedString(repaired)
-    }
-    catch {
-      if (/\\"(?:thought|emotion|reply)\\"/i.test(normalizedCandidate)) {
-        const unescapedCandidate = normalizedCandidate
-          .replace(/\\r/g, '\r')
-          .replace(/\\n/g, '\n')
-          .replace(/\\t/g, '\t')
-          .replace(/\\"/g, '"')
-        try {
-          const rescued = JSON.parse(unescapedCandidate) as unknown
-          return toObjectRecord(rescued) || parseNestedString(rescued)
-        }
-        catch {
-          return null
-        }
-      }
-      return null
-    }
-  }
-}
-
-function parseLastActPayload(content: string): ActPayload | null {
-  let searchEnd = content.length
-  while (searchEnd > 0) {
-    const openIndex = content.lastIndexOf('<|ACT', searchEnd)
-    if (openIndex < 0)
-      return null
-
-    const closeIndex = content.indexOf('|>', openIndex)
-    if (closeIndex < 0) {
-      searchEnd = openIndex - 1
-      continue
-    }
-
-    const block = content.slice(openIndex + '<|ACT'.length, closeIndex)
-    const jsonStart = block.indexOf('{')
-    const jsonEnd = block.lastIndexOf('}')
-    if (jsonStart < 0 || jsonEnd < jsonStart) {
-      searchEnd = openIndex - 1
-      continue
-    }
-
-    const payloadText = block.slice(jsonStart, jsonEnd + 1)
-    const parsed = parseObjectCandidate(payloadText)
-    if (parsed)
-      return parsed as ActPayload
-
-    searchEnd = openIndex - 1
-  }
-
-  return null
-}
-
-function stripJsonFence(content: string): string {
-  const trimmed = content.trim()
-  if (!trimmed.startsWith('```'))
-    return trimmed
-
-  const lines = trimmed.split('\n')
-  const firstLine = (lines[0] ?? '').trim().toLowerCase()
-  const lastLine = (lines.at(-1) ?? '').trim()
-  if ((firstLine !== '```' && firstLine !== '```json') || lastLine !== '```') {
-    return trimmed
-  }
-
-  return lines.slice(1, -1).join('\n').trim()
-}
-
-function parseStrictJsonPayload(content: string): Record<string, unknown> | null {
-  const stripped = stripJsonFence(content)
-  if (!stripped.startsWith('{') || !stripped.endsWith('}'))
-    return null
-  return parseObjectCandidate(stripped)
-}
-
-function extractJsonWindow(content: string, maxChars: number, startedAt: number): { candidate?: string, timedOut: boolean } {
-  const text = content.trim()
-  if (!text)
-    return { timedOut: false }
-
-  const firstBrace = text.indexOf('{')
-  const lastBrace = text.lastIndexOf('}')
-  if (firstBrace < 0 || lastBrace < firstBrace)
-    return { timedOut: false }
-
-  if (Date.now() - startedAt > jsonRepairTimeBudgetMs)
-    return { timedOut: true }
-
-  if (lastBrace - firstBrace + 1 > maxChars)
-    return { timedOut: true }
-
-  return {
-    candidate: text.slice(firstBrace, lastBrace + 1),
-    timedOut: false,
-  }
-}
-
 function parseStructuredPayloadFromText(content: string): StructuredPayloadParseResult {
-  const strict = parseStrictJsonPayload(content)
-  if (strict) {
-    return {
-      payload: strict,
-      parsePath: 'json',
-      repairTimedOut: false,
-    }
-  }
-
-  const startedAt = Date.now()
-  const repairWindow = extractJsonWindow(content, jsonRepairMaxChars, startedAt)
-  if (repairWindow.timedOut) {
+  const candidate = content.trim()
+  if (!candidate) {
     return {
       payload: null,
       parsePath: 'fallback',
-      repairTimedOut: true,
     }
   }
 
-  if (repairWindow.candidate) {
-    const repaired = parseObjectCandidate(repairWindow.candidate)
-    if (repaired) {
-      return {
-        payload: repaired,
-        parsePath: 'repair-json',
-        repairTimedOut: false,
-      }
-    }
-  }
-
-  const actPayload = parseLastActPayload(content)
-  if (actPayload) {
+  try {
+    const payload = toObjectRecord(JSON.parse(candidate) as unknown)
     return {
-      payload: actPayload as Record<string, unknown>,
-      parsePath: 'act',
-      repairTimedOut: false,
+      payload,
+      parsePath: payload ? 'json' : 'fallback',
     }
   }
-
-  return {
-    payload: null,
-    parsePath: 'fallback',
-    repairTimedOut: false,
+  catch {
+    return {
+      payload: null,
+      parsePath: 'fallback',
+    }
   }
 }
 
@@ -453,6 +294,27 @@ function getString(payload: Record<string, unknown> | null, keys: string[]) {
   }
 
   return undefined
+}
+
+function parsePayloadMemoryUsage(payload: Record<string, unknown> | null): AlicizationProviderMemoryUsage | undefined {
+  const memoryUsage = toObjectRecord(payload?.memoryUsage)
+  if (!memoryUsage)
+    return undefined
+
+  const workingMemoryVersion = memoryUsage.workingMemoryVersion
+  const longTermEvidenceIds = memoryUsage.longTermEvidenceIds
+  if (
+    (workingMemoryVersion !== null && typeof workingMemoryVersion !== 'string')
+    || !Array.isArray(longTermEvidenceIds)
+    || !longTermEvidenceIds.every(id => typeof id === 'string')
+  ) {
+    return undefined
+  }
+
+  return {
+    workingMemoryVersion,
+    longTermEvidenceIds: [...longTermEvidenceIds],
+  }
 }
 
 function sanitizeProjectStateText(value: unknown, maxChars: number) {
@@ -765,12 +627,6 @@ function parsePayloadPerformance(
   }, normalizedFallbackEmotion)
 }
 
-export function parseLastActEmotion(content: string) {
-  const payload = parseLastActPayload(content)
-  const emotion = parsePayloadEmotion(payload as Record<string, unknown> | null)
-  return emotion || 'neutral'
-}
-
 function computeConfidenceCap(input: {
   lexicalStrength: number
   emotionCoherence: number
@@ -836,7 +692,6 @@ function emotionToScore(emotion: string) {
 
 export interface StructuredOutputInput {
   fullText: string
-  reply: string
   thought: string
   previousEmotion?: string
   userSentimentScore?: number
@@ -854,7 +709,8 @@ export interface StructuredOutputResult {
   sentimentConfidence: number
   format: 'mind-turn-v1' | 'fallback-v1'
   parsePath?: StructuredParsePath
-  repairTimedOut?: boolean
+  memoryUsage?: AlicizationProviderMemoryUsage
+  providerContractIssues?: StructuredValidationIssue[]
   visibleReplyBlocked?: boolean
   nonHumanAuthoredStatus?: string | null
   visibleReplyAuthority?: string | null
@@ -903,7 +759,14 @@ export interface StructuredOutputResult {
 
 export type StructuredValidationIssueCode
   = | 'json-contract-missing'
+    | 'json-contract-extra-properties'
+    | 'format-invalid'
+    | 'thought-missing'
     | 'emotion-not-whitelisted'
+    | 'reply-missing'
+    | 'performance-invalid'
+    | 'performance-emotion-mismatch'
+    | 'memory-usage-invalid'
     | 'thought-missing-mind-spine'
     | 'reply-surface-roleplay-residue'
 
@@ -912,16 +775,26 @@ export interface StructuredValidationIssue {
   message: string
 }
 
-const structuredEmotionWhitelist = new Set([
-  'neutral',
-  'happy',
-  'sad',
-  'angry',
-  'concerned',
-  'tired',
-  'apologetic',
-  'surprised',
-  'thinking',
+const structuredEmotionWhitelist = new Set<string>(alicizationEmotionWhitelist)
+const structuredPerformanceDeliveryWhitelist = new Set<string>(alicizationPerformanceDeliveryWhitelist)
+const providerTopLevelFields = new Set([
+  'format',
+  'thought',
+  'emotion',
+  'reply',
+  'performance',
+  'memoryUsage',
+])
+const providerPerformanceFields = new Set([
+  'baseEmotion',
+  'facialCue',
+  'actionCue',
+  'delivery',
+  'emphasis',
+])
+const providerMemoryUsageFields = new Set([
+  'workingMemoryVersion',
+  'longTermEvidenceIds',
 ])
 
 const legacyThoughtControlMarkers = ['obligation=', 'truth=', 'focus=', 'move=', 'tone='] as const
@@ -949,6 +822,129 @@ function thoughtHasMindSpine(thought: string) {
   return !thoughtContainsLegacyControlLine(normalized)
 }
 
+function recordHasExactFields(
+  record: Record<string, unknown>,
+  expectedFields: ReadonlySet<string>,
+) {
+  const fields = Object.keys(record)
+  return fields.length === expectedFields.size
+    && fields.every(field => expectedFields.has(field))
+}
+
+function isValidNullableString(value: unknown, maxLength: number) {
+  return value === null
+    || (typeof value === 'string' && value.length <= maxLength)
+}
+
+function validateProviderPayloadContract(
+  payload: Record<string, unknown> | null,
+  parsePath: StructuredParsePath,
+): StructuredValidationIssue[] {
+  if (parsePath !== 'json' || !payload) {
+    return [{
+      code: 'json-contract-missing',
+      message: 'Provider response was not a strict JSON object.',
+    }]
+  }
+
+  const issues: StructuredValidationIssue[] = []
+  if (!recordHasExactFields(payload, providerTopLevelFields)) {
+    issues.push({
+      code: 'json-contract-extra-properties',
+      message: 'Provider response fields did not exactly match the native JSON schema.',
+    })
+  }
+
+  if (payload.format !== 'mind-turn-v1') {
+    issues.push({
+      code: 'format-invalid',
+      message: 'Provider response format must be "mind-turn-v1".',
+    })
+  }
+
+  if (typeof payload.thought !== 'string' || payload.thought.length > 2_000) {
+    issues.push({
+      code: 'thought-missing',
+      message: 'Provider response must contain a string thought within the schema limit.',
+    })
+  }
+  else if (payload.thought.trim() && !thoughtHasMindSpine(payload.thought)) {
+    issues.push({
+      code: 'thought-missing-mind-spine',
+      message: 'Provider response thought contains a legacy control protocol.',
+    })
+  }
+
+  const rawEmotion = payload.emotion
+  const emotionValid = typeof rawEmotion === 'string'
+    && structuredEmotionWhitelist.has(rawEmotion)
+  if (!emotionValid) {
+    issues.push({
+      code: 'emotion-not-whitelisted',
+      message: 'Provider response emotion is missing or outside the Alicization whitelist.',
+    })
+  }
+
+  if (
+    typeof payload.reply !== 'string'
+    || !payload.reply.trim()
+    || payload.reply.length > 12_000
+  ) {
+    issues.push({
+      code: 'reply-missing',
+      message: 'Provider response must contain a non-empty reply within the schema limit.',
+    })
+  }
+
+  const performance = toObjectRecord(payload.performance)
+  const performanceValid = Boolean(
+    performance
+    && recordHasExactFields(performance, providerPerformanceFields)
+    && typeof performance.baseEmotion === 'string'
+    && structuredEmotionWhitelist.has(performance.baseEmotion)
+    && isValidNullableString(performance.facialCue, 80)
+    && isValidNullableString(performance.actionCue, 80)
+    && typeof performance.delivery === 'string'
+    && structuredPerformanceDeliveryWhitelist.has(performance.delivery)
+    && Number.isInteger(performance.emphasis)
+    && (performance.emphasis === 0 || performance.emphasis === 1 || performance.emphasis === 2),
+  )
+  if (!performanceValid) {
+    issues.push({
+      code: 'performance-invalid',
+      message: 'Provider response performance did not satisfy the native JSON schema.',
+    })
+  }
+  else if (emotionValid && performance?.baseEmotion !== rawEmotion) {
+    issues.push({
+      code: 'performance-emotion-mismatch',
+      message: 'Provider performance baseEmotion must match the top-level emotion.',
+    })
+  }
+
+  const memoryUsage = toObjectRecord(payload.memoryUsage)
+  const longTermEvidenceIds = memoryUsage?.longTermEvidenceIds
+  const memoryUsageValid = Boolean(
+    memoryUsage
+    && recordHasExactFields(memoryUsage, providerMemoryUsageFields)
+    && isValidNullableString(memoryUsage.workingMemoryVersion, 120)
+    && Array.isArray(longTermEvidenceIds)
+    && longTermEvidenceIds.length <= 16
+    && longTermEvidenceIds.every(id =>
+      typeof id === 'string'
+      && id.length >= 1
+      && id.length <= 160),
+  )
+  if (!memoryUsageValid) {
+    issues.push({
+      code: 'memory-usage-invalid',
+      message: 'Provider response memoryUsage did not satisfy the native JSON schema.',
+    })
+  }
+
+  return issues
+}
+
 export function sanitizeStructuredReplySurface(reply: string) {
   const trimmed = reply.trim()
   if (!trimmed)
@@ -961,37 +957,44 @@ export function sanitizeStructuredReplySurface(reply: string) {
     : trimmed
 }
 
-function normalizeVisibleReplySurface(rawReply: string) {
-  const trimmed = rawReply.trim()
-  const sanitized = sanitizeStructuredReplySurface(trimmed)
-  if (sanitized)
-    return sanitized
-  return trimmed && sanitized === trimmed ? trimmed : ''
-}
-
 export function validateStructuredContract(
-  structured: Pick<StructuredOutputResult, 'thought' | 'emotion' | 'reply'>,
+  structured: StructuredOutputResult,
   _personalityState?: unknown,
   _context?: unknown,
 ): StructuredValidationIssue[] {
-  const issues: StructuredValidationIssue[] = []
+  const issues: StructuredValidationIssue[] = [...(structured.providerContractIssues ?? [])]
   const emotion = structured.emotion.trim().toLowerCase()
 
-  if (!structuredEmotionWhitelist.has(emotion)) {
+  if (
+    !structuredEmotionWhitelist.has(emotion)
+    && !issues.some(issue => issue.code === 'emotion-not-whitelisted')
+  ) {
     issues.push({
       code: 'emotion-not-whitelisted',
       message: `Emotion "${structured.emotion}" is outside the Alicization emotion whitelist.`,
     })
   }
 
-  if (structured.thought.trim() && !thoughtHasMindSpine(structured.thought)) {
+  if (
+    structured.thought.trim()
+    && !thoughtHasMindSpine(structured.thought)
+    && !issues.some(issue => issue.code === 'thought-missing-mind-spine')
+  ) {
     issues.push({
       code: 'thought-missing-mind-spine',
       message: 'Thought contains a legacy control protocol.',
     })
   }
 
-  if (sanitizeStructuredReplySurface(structured.reply) !== structured.reply.trim()) {
+  if (!structured.reply.trim()) {
+    if (!issues.some(issue => issue.code === 'reply-missing')) {
+      issues.push({
+        code: 'reply-missing',
+        message: 'Provider response did not contain a visible reply.',
+      })
+    }
+  }
+  else if (sanitizeStructuredReplySurface(structured.reply) !== structured.reply.trim()) {
     issues.push({
       code: 'reply-surface-roleplay-residue',
       message: 'Reply contains blocked template or roleplay residue.',
@@ -1002,37 +1005,28 @@ export function validateStructuredContract(
 }
 
 export function normalizeStructuredOutput(input: StructuredOutputInput): StructuredOutputResult {
-  const parsedFromFullText = parseStructuredPayloadFromText(input.fullText)
-  const parsed = parsedFromFullText.payload || parsedFromFullText.repairTimedOut
-    ? parsedFromFullText
-    : parseStructuredPayloadFromText(input.reply)
+  const parsed = parseStructuredPayloadFromText(input.fullText)
   const payload = parsed.payload
-  const actPayload = parseLastActPayload(input.fullText)
+  const providerContractIssues = validateProviderPayloadContract(payload, parsed.parsePath)
 
-  const thought = naturalizeStructuredThoughtSurface(
-    getString(payload, ['thought'])
-    || input.thought.trim(),
-  )
-  const rawReply = getString(payload, ['reply'])
-    || input.reply.trim()
-    || input.fullText.trim()
-  const reply = normalizeVisibleReplySurface(rawReply)
+  const thought = parsed.parsePath === 'json'
+    ? (typeof payload?.thought === 'string' ? payload.thought : '')
+    : naturalizeStructuredThoughtSurface(input.thought.trim())
+  const reply = typeof payload?.reply === 'string'
+    ? payload.reply
+    : ''
   const inferredEmotion = inferEmotionFromReply({
     reply,
     previousEmotion: input.previousEmotion,
   })
   const rawEmotion = parsePayloadEmotion(payload)
-    || parsePayloadEmotion(actPayload as Record<string, unknown> | null)
     || inferredEmotion
     || 'neutral'
   const emotion = normalizeAlicizationEmotion(rawEmotion).emotion
   const performance = parsePayloadPerformance(payload, emotion, reply)
+  const memoryUsage = parsePayloadMemoryUsage(payload)
   const digitalLife = parsePayloadDigitalLife(payload, emotion)
   const projectState = parsePayloadProjectState(payload)
-  const preDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
-    toObjectRecord(payload?.preDialogueAwareness),
-  )
-  const preDialogueClosure = parsePayloadPreDialogueClosure(payload)
   const visibleReplyBlocked = payload?.visibleReplyBlocked === true
     ? true
     : undefined
@@ -1042,7 +1036,6 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
   const emotionScore = emotionToScore(emotion)
   const lexicalScore = estimateLexicalSentiment(reply)
   const modelSentiment = getNumeric(payload, ['userSentimentScore', 'user_sentiment_score'])
-    ?? getNumeric(actPayload as Record<string, unknown> | null, ['userSentimentScore', 'user_sentiment_score'])
   const scoreInput = input.userSentimentScore ?? modelSentiment
   const userSentimentScore = clamp(
     typeof scoreInput === 'number' && Number.isFinite(scoreInput)
@@ -1054,13 +1047,6 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
 
   const rawInput = input.sentimentConfidenceRaw
     ?? getNumeric(payload, [
-      'sentimentConfidenceRaw',
-      'sentiment_confidence_raw',
-      'sentimentConfidence',
-      'sentiment_confidence',
-      'confidence',
-    ])
-    ?? getNumeric(actPayload as Record<string, unknown> | null, [
       'sentimentConfidenceRaw',
       'sentiment_confidence_raw',
       'sentimentConfidence',
@@ -1090,15 +1076,16 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
       ? clamp(rawInput, 0, 1)
       : undefined,
     sentimentConfidence: calibrated,
-    format: parsed.parsePath === 'fallback' ? 'fallback-v1' : 'mind-turn-v1',
+    format: payload?.format === 'mind-turn-v1' ? 'mind-turn-v1' : 'fallback-v1',
     parsePath: parsed.parsePath,
-    repairTimedOut: parsed.repairTimedOut,
+    memoryUsage,
+    ...(providerContractIssues.length > 0
+      ? { providerContractIssues }
+      : {}),
     visibleReplyBlocked,
     nonHumanAuthoredStatus,
     visibleReplyAuthority,
     digitalLife,
     projectState,
-    preDialogueAwareness,
-    preDialogueClosure,
   }
 }

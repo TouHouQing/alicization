@@ -2,16 +2,12 @@ import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
 import type { AlicizationVisibleReplyCriticArtifact } from './critic'
 import type { AlicizationVisibleReplyClosureArtifact } from './realization-engine'
-import type {
-  AlicizationSecondPassRetryInput,
-  AlicizationSecondPassRewriteResult,
-} from './second-pass-rewrite'
 
 import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 
 import {
   buildAlicizationVisibleReplyCriticArtifact,
-  shouldForceAlicizationVisibleReplyRepair,
+  shouldBlockAlicizationVisibleReply,
 } from './critic'
 
 export interface AlicizationVisibleReplyClosureDraft {
@@ -47,21 +43,15 @@ function buildClosureArtifact(input: {
   status: AlicizationVisibleReplyClosureArtifact['status']
   initialCritic: AlicizationVisibleReplyCriticArtifact
   finalCritic: AlicizationVisibleReplyCriticArtifact | null
-  rewriteAttempted: boolean
-  rewriteSucceeded: boolean
-  extraReasonCodes?: string[]
 }): AlicizationVisibleReplyClosureArtifact {
   return {
     version: 'visible-reply-closure-v1',
     status: input.status,
     initialCritic: input.initialCritic,
     finalCritic: input.finalCritic,
-    rewriteAttempted: input.rewriteAttempted,
-    rewriteSucceeded: input.rewriteSucceeded,
     reasonCodes: uniqueReasonCodes([
       ...input.initialCritic.reasonCodes,
       ...(input.finalCritic?.reasonCodes ?? []),
-      ...(input.extraReasonCodes ?? []),
     ]),
   }
 }
@@ -69,27 +59,20 @@ function buildClosureArtifact(input: {
 export async function closeAlicizationVisibleReply(input: {
   draft: AlicizationVisibleReplyClosureDraft
   prepared: AlicizationPreparedMainChatExecutionResult
-  forceRewrite?: boolean
-  forceReasonCodes?: string[]
   appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void> | void
-  rewriteSecondPass?: (
-    input: AlicizationSecondPassRetryInput,
-  ) => Promise<AlicizationSecondPassRewriteResult | null>
 }): Promise<AlicizationVisibleReplyClosureResult | null> {
   const initialCritic = buildAlicizationVisibleReplyCriticArtifact({
     fullText: input.draft.fullText,
     visibleReplyExecution: input.draft.visibleReplyExecution,
     prepared: input.prepared,
   })
-  const forceRewrite = input.forceRewrite === true || shouldForceAlicizationVisibleReplyRepair(initialCritic)
+  const shouldBlock = shouldBlockAlicizationVisibleReply(initialCritic)
 
-  if (!forceRewrite) {
+  if (!shouldBlock) {
     const closure = buildClosureArtifact({
       status: 'approved',
       initialCritic,
       finalCritic: initialCritic,
-      rewriteAttempted: false,
-      rewriteSucceeded: false,
     })
     return {
       ...input.draft,
@@ -102,9 +85,6 @@ export async function closeAlicizationVisibleReply(input: {
     status: 'blocked',
     initialCritic,
     finalCritic: null,
-    rewriteAttempted: false,
-    rewriteSucceeded: false,
-    extraReasonCodes: input.forceReasonCodes,
   })
   await input.appendRuntimeDebugLine?.('chat-stream.visible-reply-validation-blocked', {
     reasonCodes: closure.reasonCodes,

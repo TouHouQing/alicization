@@ -288,7 +288,7 @@ describe('alicization embodiment script', () => {
       version: 'embodiment-script-v1',
       turnId: 'turn-script-digital-life-authority',
       rendererTarget: 'live2d',
-      replyText: '我先沿着这条生命线轻一点接回来。',
+      replyText: '我先沿着这条生命线中性可见占位。',
       state: {
         baseEmotion: 'thinking',
         delivery: 'gentle',
@@ -299,7 +299,7 @@ describe('alicization embodiment script', () => {
         segments: [{
           id: 'segment-script-digital-life-authority',
           index: 0,
-          text: '我先沿着这条生命线轻一点接回来。',
+          text: '我先沿着这条生命线中性可见占位。',
           interruptPolicy: 'soft-settle',
           preRollMs: 40,
           settleMs: 320,
@@ -384,7 +384,7 @@ describe('alicization embodiment script', () => {
           index: 0,
           startOffset: 0,
           endOffset: 18,
-          text: '我先沿着这条生命线轻一点接回来。',
+          text: '我先沿着这条生命线中性可见占位。',
           mode: 'recovering',
           interruptPolicy: 'soft-interrupt',
           settleMode: 'linger',

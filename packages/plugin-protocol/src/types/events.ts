@@ -387,15 +387,6 @@ interface OutputSource {
     contexts: Record<string, ContextUpdate<Record<string, any>, string | CommonContentPart[]>[]>
     composedMessage: Array<Message>
     input?: InputEventEnvelope
-    preDialogueSendIdentity?: {
-      status: 'grounded' | 'partial' | 'drift'
-      summaryLine: string | null
-      companionHeadlineLine?: string | null
-      companionBriefingLine?: string | null
-      companionNextClosureLine?: string | null
-      awarenessLine?: string | null
-      reasonPreview: string[]
-    } | null
   }
 }
 

@@ -85,12 +85,12 @@ describe('runtime turn composition helpers', () => {
           deferReason: 'busy-host',
           whyNow: 'Stay near the unresolved compile seam without reopening visible speech.',
           executionIntentSummary: 'stay near the unresolved compile seam without reopening visible speech',
-          projectStatePreDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-          projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence through longer, noisier real-desktop runs.',
+          projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
+          projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
           projectLatestLandedProgress: 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.',
-          projectNextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence through longer, noisier real-desktop runs.',
-          projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+          projectNextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          projectStateSameHerSelfLine: 'structured continuity digest.',
+          projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
           projectStateEmotionalClosureCue: emotionalClosureCue,
         },
       },
@@ -112,7 +112,7 @@ describe('runtime turn composition helpers', () => {
     expect(seed).not.toContain('project_emotional_closure=')
     expect(seed).not.toContain(`emotional_continuity=${emotionalClosureCue}`)
     expect(seed).not.toContain('same digital life project')
-    expect(seed).not.toContain('Same Phase 1 digital life')
+    expect(seed).not.toContain('legacy phase-one template')
     expect(seed).not.toContain('same-her')
     expect(seed).not.toContain('[fixed-template-excluded]')
   })
@@ -129,8 +129,8 @@ describe('runtime turn composition helpers', () => {
           sourceThreadId: 'thread-runtime-legacy',
           executionIntentKind: 'follow-through',
           executionIntentSummary: 're-open the unresolved runtime break and see what still blocks it',
-          projectStatePreDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and the unfinished closure seam still belongs to one living her.',
-          projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
+          projectStateSameHerSelfLine: 'structured continuity digest.',
           projectLatestProgress: 'Legacy held-autonomy project carry still preserves what has already landed across older continuity metadata.',
           projectMemoryClosureSummary: 'Legacy held-autonomy continuity still needs to keep the still-open closure explicit before the remembered line widens outward.',
         },
@@ -146,7 +146,7 @@ describe('runtime turn composition helpers', () => {
     expect(seed).not.toContain('same_her=')
   })
 
-  it('preserves one same-her continuity line from held-autonomy recall seed through callback carry reopening', () => {
+  it('preserves one identity-continuity', () => {
     const recallSeed = buildSessionContinuityRecallSeed([
       {
         kind: 'proactive',

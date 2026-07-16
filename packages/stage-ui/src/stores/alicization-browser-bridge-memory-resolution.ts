@@ -141,11 +141,6 @@ export function buildBrowserRecollectionSpeechPlan(input: {
       ? 'inside-payoff'
       : 'internal-only',
     certainty: foreground.certainty,
-    internalLead: foreground.summary,
-    visibleLead: null,
-    styleNote: foreground.surfaceSummary
-      ? foreground.surfaceSummary
-      : 'Let the recollection stay inward unless the current answer truly needs it.',
     rationale: shouldSurface
       ? 'Browser fallback can let this recollection briefly contour the visible answer.'
       : 'Browser fallback should keep this recollection inward and continuity-shaped.',
@@ -279,7 +274,11 @@ export function buildBrowserMemoryStageReplay(input: {
       },
       {
         stage: 'surface-planning',
-        summary: sanitizeBriefText(input.recollectionSpeechPlan?.styleNote || 'Browser fallback shaped recollection into the visible surface.', 220),
+        summary: sanitizeBriefText([
+          `surface=${input.recollectionSpeechPlan?.surfaceMode ?? 'none'}`,
+          `placement=${input.recollectionSpeechPlan?.placement ?? 'none'}`,
+          `certainty=${input.recollectionSpeechPlan?.certainty ?? 'none'}`,
+        ].join(' | '), 220),
         latencyMs: 0,
         budgetClass: 'realtime-reply',
         outputs: [input.recollectionSpeechPlan?.surfaceMode ?? 'none'],

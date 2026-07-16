@@ -3,33 +3,34 @@ import { describe, expect, it } from 'vitest'
 import { mainChatBackgroundRunTestInternals } from './main-chat-background-run'
 
 describe('main chat background run project-state summary', () => {
-  it('keeps same-her, phase, landed, open, next before body in host-visible project-state continuity carry', () => {
+  it('keeps dynamic continuity facts in stable order without legacy key-value governance markers', () => {
     const continuitySummary = mainChatBackgroundRunTestInternals.buildProjectStateAuditContinuitySummary({
-      sameHerSummary: 'This reply still belongs to one living her.',
-      currentPhaseSummary: 'Phase 1: Local Digital Life',
-      landedProgressSummary: 'Pre-dialogue project awareness now survives into the host-visible reply.',
-      openClosureSummary: 'Embodiment and initiative still need one same-life closure line.',
-      nextClosureTargetSummary: 'Keep the project-state self-brief explicit before local reply detail takes over.',
-      emotionalClosureSummary: 'Keep the same living line low-pressure and do not widen outward too early.',
-      embodimentClosureSummary: 'Visible continuity still relies mainly on voice and motion.',
+      sameHerSummary: 'The reply references a saved preference from the current conversation',
+      currentPhaseSummary: 'The active workspace remains available',
+      landedProgressSummary: 'The provider result was settled and stored',
+      openClosureSummary: 'A follow-up task remains unresolved',
+      nextClosureTargetSummary: 'The next turn can revisit that task',
+      emotionalClosureSummary: 'The current emotional state is steady',
+      embodimentClosureSummary: 'Voice and motion state are available',
     })
 
     expect(continuitySummary).toBe(
-      'same-her=This reply still belongs to one living her.'
-      + ' | phase=Phase 1: Local Digital Life'
-      + ' | landed=Pre-dialogue project awareness now survives into the host-visible reply.'
-      + ' | open=Embodiment and initiative still need one same-life closure line.'
-      + ' | next=Keep the project-state self-brief explicit before local reply detail takes over.'
-      + ' | closure=Keep the same living line low-pressure and do not widen outward too early.'
-      + ' | body=Visible continuity still relies mainly on voice and motion.',
+      'Continuity anchor: The reply references a saved preference from the current conversation.'
+      + ' Phase: The active workspace remains available.'
+      + ' Landed progress: The provider result was settled and stored.'
+      + ' Open focus: A follow-up task remains unresolved.'
+      + ' Next focus: The next turn can revisit that task.'
+      + ' Emotional closure: The current emotional state is steady.'
+      + ' Embodiment closure: Voice and motion state are available.',
     )
+    expect(continuitySummary).not.toMatch(/(?:same-her|project_anchor|phase|landed|open|next|closure|body)=/iu)
   })
 
-  it('keeps host-corrected same-person continuity authority over generic progress recap pressure in project-state audit text preference', () => {
+  it('keeps a rest-protective host correction over a generic progress recap', () => {
     const correctedSamePersonAuthority
-      = 'Keep the host-corrected same-person continuity authoritative before any progress-style continuation or status recap.'
+      = 'The host correction uses a rest-protective return before reopening the topic.'
     const genericProgressRecapPressure
-      = 'Keep the project moving with a concise progress recap and status continuation before widening back out.'
+      = 'A concise progress recap can continue before the topic widens again.'
 
     expect(mainChatBackgroundRunTestInternals.preferRicherProjectStateAuditText({
       current: correctedSamePersonAuthority,

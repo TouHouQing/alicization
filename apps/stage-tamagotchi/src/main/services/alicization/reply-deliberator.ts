@@ -519,7 +519,7 @@ function canonicalSameHerProjectStateClosureReason(frame?: AlicizationCurrentCon
       : null
   const explicitDriftRiskPressure = sameHerDriftRisk || 'detached_project_shell_or_generic_guidance'
   const explicitProactiveGapPressure = proactiveSameHerGap
-    ? `initiative_gap=${summarizeProjectStatusFacet('open', proactiveSameHerGap)}`
+    ? `Initiative gap: ${summarizeProjectStatusFacet('open', proactiveSameHerGap)}.`
     : null
   const explicitCorrectedSamePersonCue
     = projectContinuityCue
@@ -528,22 +528,22 @@ function canonicalSameHerProjectStateClosureReason(frame?: AlicizationCurrentCon
       : null
 
   const composedReason = uniqueList([
-    'project_closure_context=structured_continuity',
-    rawLiveAwareness ? `awareness=${summarizeProjectStatusFacet('open', rawLiveAwareness)}` : null,
-    !rawLiveAwareness && fallbackAwareness ? `awareness=${summarizeProjectStatusFacet('open', fallbackAwareness)}` : null,
-    sameHerSelfLine ? `project_anchor=${summarizeProjectStatusFacet('open', sameHerSelfLine)}` : null,
-    explicitCorrectedSamePersonAuthority ? `corrected_authority=${summarizeProjectStatusFacet('open', explicitCorrectedSamePersonAuthority)}` : null,
-    latestProgress ? `landed=${summarizeProjectStatusFacet('landed', latestProgress)}` : null,
-    primaryOpenLoop ? `open=${summarizeProjectStatusFacet('open', primaryOpenLoop)}` : null,
-    nextClosureTarget ? `next=${summarizeProjectStatusFacet('next', nextClosureTarget)}` : 'next=keep_open_before_widening',
-    `drift_risk=${summarizeProjectStatusFacet('open', explicitDriftRiskPressure)}`,
+    'Project closure context uses structured continuity as background.',
+    rawLiveAwareness ? `Awareness: ${summarizeProjectStatusFacet('open', rawLiveAwareness)}.` : null,
+    !rawLiveAwareness && fallbackAwareness ? `Awareness: ${summarizeProjectStatusFacet('open', fallbackAwareness)}.` : null,
+    sameHerSelfLine ? `Continuity anchor: ${summarizeProjectStatusFacet('open', sameHerSelfLine)}.` : null,
+    explicitCorrectedSamePersonAuthority ? `Corrected authority: ${summarizeProjectStatusFacet('open', explicitCorrectedSamePersonAuthority)}.` : null,
+    latestProgress ? `Landed progress: ${summarizeProjectStatusFacet('landed', latestProgress)}.` : null,
+    primaryOpenLoop ? `Open focus: ${summarizeProjectStatusFacet('open', primaryOpenLoop)}.` : null,
+    nextClosureTarget ? `Next closure target: ${summarizeProjectStatusFacet('next', nextClosureTarget)}.` : 'Keep the next step open before widening.',
+    `Drift risk: ${summarizeProjectStatusFacet('open', explicitDriftRiskPressure)}.`,
     explicitProactiveGapPressure,
-    crossModalSameHerClosureCue ? 'closure_mode=cross_modal_continuity' : null,
-    explicitCorrectedSamePersonCue ? `corrected_cue=${summarizeProjectStatusFacet('open', explicitCorrectedSamePersonCue)}` : null,
+    crossModalSameHerClosureCue ? 'Closure mode: cross-modal continuity.' : null,
+    explicitCorrectedSamePersonCue ? `Corrected cue: ${summarizeProjectStatusFacet('open', explicitCorrectedSamePersonCue)}.` : null,
   ], 10).join('; ')
 
   return composedReason
-    || 'project_closure_context=structured_continuity; open=requires_visible_closure_before_widening'
+    || 'Project closure context uses structured continuity; visible closure is needed before widening.'
 }
 
 function looksLikeSameHerProjectFollowThroughTurn(input: {
@@ -730,7 +730,7 @@ function repairBeforeClosenessSameThreadReason(frame?: AlicizationCurrentConscio
     sanitizeDialogueSurfaceText((frame?.projectState as { nextClosureTarget?: unknown } | null)?.nextClosureTarget, 220),
     frame?.speakingIntention,
     frame?.consciousNeed,
-    'why_now=repair_before_closeness_same_thread; repair_settle_first=true; closeness_widening=deferred',
+    'Repair should settle in the same thread before closeness widens.',
   )
 }
 
@@ -744,53 +744,53 @@ function openingBeat(input: {
   const arcCue = continuityArcCue(input.currentConsciousFrame)
   const timingCue = continuityPreferredTimingCue(input.currentConsciousFrame)
   if (callbackDoctrineCue === 'lower-pressure')
-    return 'opening_policy=same_thread_first; pressure=lower; host_room=preserve; widening=deferred'
+    return 'Start from the same thread with lower pressure and leave the host room.'
   if (callbackDoctrineCue === 'trust-warming')
-    return 'opening_policy=same_thread_first; trust_warming=quiet_settle; widening=deferred'
+    return 'Start from the same thread and let trust settle quietly before widening.'
   if (arcCue === 'hold-for-opening')
-    return 'opening_policy=hold_for_opening; room=preserve; widening=deferred'
+    return 'Hold for a clearer opening and preserve room.'
   if (arcCue === 'gentle-reopen')
-    return 'opening_policy=gentle_reopen; widening=deferred'
+    return 'Reopen gently without widening too early.'
   if (
     arcCue === 'same-thread-continuation'
     && timingCue === 'next-open-window'
     && hasRepairBeforeClosenessSameThreadCarry(input.currentConsciousFrame)
   ) {
-    return 'opening_policy=current_reply_context; repair_settle_first=true; room=preserve; closeness_widening=deferred'
+    return 'Stay in the current reply context; let repair settle before closeness widens.'
   }
   if (
     arcCue === 'same-thread-continuation'
     && timingCue === 'next-open-window'
     && hasExplicitProjectPreDialogueAwareness(input.currentConsciousFrame)
   ) {
-    return 'opening_policy=project_awareness_first; reply_context=current; widening=deferred'
+    return 'Use the current project awareness only as context and answer the present reply first.'
   }
   if (arcCue === 'same-thread-continuation' && timingCue === 'next-open-window')
-    return 'opening_policy=same_thread_continuation; timing=next_open_window; widening=deferred'
+    return 'Continue the same thread at the next clear opening.'
   if (arcCue === 'same-thread-continuation' && timingCue === 'after-payoff')
-    return 'opening_policy=same_thread_continuation; timing=after_payoff; widen_if_room=true'
+    return 'Continue the same thread after the answer payoff, widening only if there is room.'
   if (arcCue === 'same-thread-continuation')
-    return 'opening_policy=same_thread_continuation; branching=deferred'
+    return 'Continue the same thread and defer branching.'
   switch (input.selectedMotive) {
     case 'repair':
-      return 'opening_policy=repair_first; stale_read=correct'
+      return 'Correct stale reads before continuing.'
     case 'guide':
       if (hasHeldAutonomyCallbackContinuity(input))
-        return 'opening_policy=same_thread_first; host_room=preserve; widening=deferred'
+        return 'Start from the same held callback thread and preserve room.'
       if (hasHeldAutonomyContinuity(input))
-        return 'opening_policy=held_line_gentle_reentry; payoff_before_widening=true'
-      return 'opening_policy=concrete_issue_first'
+        return 'Re-enter the held line gently and give payoff before widening.'
+      return 'Start with the concrete issue.'
     case 'care':
-      return 'opening_policy=host_state_direct; turn_scope=current'
+      return 'Respond directly to the host state in this turn.'
     case 'attune':
-      return 'opening_policy=alicization_question_direct'
+      return 'Answer the Alicization question directly.'
     case 'witness':
-      return 'opening_policy=visible_now_first'
+      return 'Start from what is visible now.'
     case 'defer':
-      return 'opening_policy=brief_low_pressure'
+      return 'Keep it brief and low-pressure.'
     default: {
       const directive = sanitizeDialogueSurfaceText(input.answerCompiler.openingDirective, 180)
-      return directive || 'opening_policy=current_turn_first'
+      return directive || 'Start from the current turn.'
     }
   }
 }
@@ -809,14 +809,14 @@ function whyThisReplyNow(input: {
     return pickDialogueSurfaceText(
       input.currentConsciousFrame?.consciousNeed,
       input.currentConsciousFrame?.speakingIntention,
-      'why_now=callback_return; continuity_thread=true; host_crowding=false; payoff_landed=true',
+      'This is a callback return; preserve continuity, avoid crowding the host, and keep the payoff landed.',
     )
   }
   if (callbackDoctrineCue === 'trust-warming') {
     return pickDialogueSurfaceText(
       input.currentConsciousFrame?.consciousNeed,
       input.currentConsciousFrame?.speakingIntention,
-      'why_now=callback_return; trust=quiet; closeness_widening=moment_bounded',
+      'This is a callback return; keep trust quiet and bound any closeness widening to the moment.',
     )
   }
   const repairBeforeClosenessReason = repairBeforeClosenessSameThreadReason(input.currentConsciousFrame)
@@ -1058,7 +1058,7 @@ export function buildReplyDeliberation(input: {
     }),
     makeMotive({
       kind: 'defer',
-      summary: 'reply_pressure=light; overwhelm_turn=blocked',
+      summary: 'Keep reply pressure light and do not overwhelm this turn.',
       weight: answerCompiler.recommendedAct === 'defer' || privateThought?.shouldSpeak === false
         ? 0.58
         : 0.08
@@ -1162,31 +1162,31 @@ export function buildReplyDeliberation(input: {
   const mustAvoid = uniqueList([
     answerCompiler.mustNotDo[0],
     dialogueFirstTurn && primaryTurnAnchor
-      ? 'current_turn_anchor_priority=above_control_directives'
+      ? 'Current turn anchor outranks control directives.'
       : null,
     conversationState.memoryMode === 'dialogue-carry'
-      ? 'dialogue_first_turn=true; live_screen_repair_hijack=blocked'
+      ? 'Dialogue-first turn: do not let live screen repair hijack the answer.'
       : null,
     conversationState.memoryMode === 'scene-anchored'
-      ? 'live_scene_priority=above_old_memory'
+      ? 'Live scene priority outranks old memory.'
       : null,
     conversationState.memoryMode === 'task-thread'
-      ? 'decorative_association_before_knot_answered=blocked'
+      ? 'Do not use decorative association before the knot is answered.'
       : null,
     shouldWithholdSpecificity
-      ? 'coarse_visual_cues_to_specific_technical_certainty=blocked'
+      ? 'Do not turn coarse visual cues into specific technical certainty.'
       : null,
     claimEvidenceLedger?.forbidUnsupportedSpecificity
-      ? 'specific_technical_artifact_names=require_host_or_current_evidence'
+      ? 'Specific technical artifact names require host evidence or current evidence.'
       : null,
     shouldSelfRevise
-      ? 'previous_read_preservation=truth_dependent; coherent_sound_not_sufficient=true'
+      ? 'Preserve previous reads only when truth supports them; sounding coherent is not enough.'
       : null,
     executionCallbackDoctrineCue(currentConsciousFrame) === 'lower-pressure'
-      ? 'callback_payoff_to_renewed_closeness=blocked_until_host_room'
+      ? 'Do not turn callback payoff into renewed closeness until there is host room.'
       : null,
     executionCallbackDoctrineCue(currentConsciousFrame) === 'trust-warming'
-      ? 'warmed_trust_to_immediate_intimacy=blocked; landing=quiet_first'
+      ? 'Do not turn warmed trust into immediate intimacy; land quietly first.'
       : null,
   ], 5)
 
@@ -1245,17 +1245,17 @@ export function buildReplyDeliberationSystemBlock(state: AlicizationReplyDeliber
   }
 
   return [
-    '[ALICIZATION_REPLY_DELIBERATION]',
-    'block_role=reply_deliberation; owner=dialogue; wording_authority=false',
-    `selected_motive=${providerLine(state.selectedMotive)}`,
-    `speaking_from=${providerLine(state.speakingFrom)}`,
-    `memory_mode=${providerLine(state.memoryMode)}`,
-    `should_speak=${state.shouldSpeak ? 'true' : 'false'}`,
-    `opening_beat=${providerLine(state.openingBeat)}`,
-    `why_this_reply_now=${providerLine(state.whyThisReplyNow)}`,
-    `withheld_impulses=${providerList(state.withheldImpulses).join(' | ')}`,
-    `other_candidate_motives=${providerList(state.whyNotOtherCandidates).join(' | ')}`,
-    `required_signals=${providerList(state.mustInclude).join(' | ')}`,
-    `avoid_signals=${providerList(state.mustAvoid).join(' | ')}`,
+    'Reply deliberation context.',
+    'Dialogue owns this deliberation; the provider still writes the visible wording.',
+    `Selected motive: ${providerLine(state.selectedMotive)}.`,
+    `Speaking from: ${providerLine(state.speakingFrom)}.`,
+    `Memory mode: ${providerLine(state.memoryMode)}.`,
+    `Should speak: ${state.shouldSpeak ? 'yes' : 'no'}.`,
+    `Opening beat: ${providerLine(state.openingBeat)}.`,
+    `Reply timing rationale: ${providerLine(state.whyThisReplyNow)}.`,
+    `Withheld impulses: ${providerList(state.withheldImpulses).join('; ')}.`,
+    `Other candidate motives: ${providerList(state.whyNotOtherCandidates).join('; ')}.`,
+    `Required signals: ${providerList(state.mustInclude).join('; ')}.`,
+    `Avoid signals: ${providerList(state.mustAvoid).join('; ')}.`,
   ].join('\n')
 }

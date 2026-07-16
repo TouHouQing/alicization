@@ -23,17 +23,17 @@ const alicizationDirectProviderImportAuditRegistry = [
   {
     relativePath: 'main-chat-one-shot.ts',
     mode: 'one-shot-provider-entry',
-    responsibility: 'Compact one-shot provider entry must fail closed on canonical same-her project-state context before any direct non-streaming generation leaves the desktop runtime.',
+    responsibility: 'Compact one-shot Provider entry accepts only prepared task prompts, user instructions, and typed facts before direct non-streaming generation.',
   },
   {
     relativePath: 'main-chat-stream-runner.ts',
     mode: 'stream-provider-entry',
-    responsibility: 'Streaming provider entry must fail closed on canonical same-her project-state context before any direct outward stream begins.',
+    responsibility: 'Streaming Provider entry consumes the prepared dialogue mainline and surfaces Provider, tool, and timeout failures without replacement dialogue.',
   },
   {
     relativePath: 'runtime-main-gateway-one-shot.ts',
     mode: 'main-gateway-provider-wrapper',
-    responsibility: 'Unified main-gateway one-shot wrapper must keep audited source-tagged project-state carry and canonical fail-close checks explicit before provider execution.',
+    responsibility: 'Unified one-shot wrapper requires a registered source tag and filters auxiliary system context to typed JSON facts before Provider execution.',
   },
 ] as const satisfies readonly AlicizationDirectProviderImportAuditEntry[]
 

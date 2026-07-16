@@ -266,7 +266,7 @@ function buildProjectBriefingNarrative(
       ? `Recent landed progress to preserve during execution planning: ${latestLandedProgress}`
       : '',
     primaryOpenLoop && nextClosureTarget
-      ? `Execution planning should respect project_context=runtime_personhood, open_loop="${primaryOpenLoop}", and next_closure_target="${nextClosureTarget}".`
+      ? `Execution planning should respect open_loop="${primaryOpenLoop}" and next_closure_target="${nextClosureTarget}".`
       : primaryOpenLoop
         ? `Execution planning should respect the current open loop: ${primaryOpenLoop}`
         : nextClosureTarget

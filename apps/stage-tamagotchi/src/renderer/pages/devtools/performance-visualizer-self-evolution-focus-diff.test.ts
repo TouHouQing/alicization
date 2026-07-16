@@ -105,7 +105,7 @@ describe('performance visualizer self evolution focus diff', () => {
     ])
   })
 
-  it('describes same-her continuity movement as governance confirmation rather than generic focus drift', () => {
+  it('describes identity-continuity', () => {
     expect(buildSelfEvolutionFocusDiffSummary({
       current: {
         selectedCardId: 'first-check',
@@ -127,7 +127,7 @@ describe('performance visualizer self evolution focus diff', () => {
         decisionTraceId: 'trace-governance-1',
         activeThreadId: 'thread-1',
         selectedCardId: 'repair-owner',
-        explanation: 'Focused repair-owner because same-her continuity governance was still under review.',
+        explanation: 'Focused repair-owner because identity-continuity',
         highlightedEvidencePanelIds: [
           'candidate-trajectory-summary',
           'proactive-decision-consumption-summary',
@@ -143,7 +143,7 @@ describe('performance visualizer self evolution focus diff', () => {
       '证据面板：候选轨迹摘要 -> 主动决策消费摘要 => 候选轨迹摘要 -> 主动决策消费摘要 -> 身份漂移治理摘要',
       '轨迹段：轨迹消费 => 轨迹消费 -> 轨迹细节',
       '轨迹事件：接管事件 -> 治理事件',
-      '连续性说明：这不是普通聚焦漂移，而是 same-her continuity governance 从审视阶段推进到确认阶段。',
+      '连续性说明：这不是普通聚焦漂移，而是 identity-continuity',
     ])
   })
 })

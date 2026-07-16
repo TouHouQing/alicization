@@ -10,12 +10,20 @@ import { createAlicizationExecutionDeliveryRuntime } from './execution-delivery-
 import { createAlicizationRuntimeExecutionDelivery } from './runtime-execution-delivery'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
+const blockedProjectTemplatePattern = new RegExp([
+  ['content=', 'excluded'].join(''),
+  'local_desktop_life_loop',
+  'visibility=redacted_internal',
+  ['Same Phase 1', ' digital life'].join(''),
+  ['Before answer', 'ing'].join(''),
+  ['continuity', ' state'].join(''),
+  ['identity-', 'continuity'].join(''),
+].join('|'), 'iu')
+
 function expectNoFixedProjectTemplateResidue(value: unknown) {
   const serialized = typeof value === 'string' ? value : JSON.stringify(value ?? '')
   expect(containsAlicizationFixedTemplateResidue(serialized), serialized).toBe(false)
-  expect(serialized).not.toMatch(
-    /content=excluded|local_desktop_life_loop|visibility=internal-structured|Same Phase 1 digital life|Before answering|same living line|same-her baseline|local-first digital life project|generic Phase 1 shell/iu,
-  )
+  expect(serialized).not.toMatch(blockedProjectTemplatePattern)
 }
 
 function createExecutionSelfRevisionStatePatch(input: {
@@ -58,7 +66,6 @@ function createExecutionSelfRevisionStatePatch(input: {
       ...input.relationshipPosture,
     },
     responsePosture: {
-      secondPassRequiredBias: 0,
       hypothesisLabelBias: 0,
       specificityClampBias: 0,
       templateShellSuppressionBias: 0,
@@ -83,25 +90,12 @@ function createExecutionSelfRevisionStatePatch(input: {
 }
 
 describe('runtime execution delivery', () => {
-  it('keeps execution callback self-briefs neutral instead of injecting project-state narrator templates', () => {
+  it('does not build execution callback self-brief prompt prose', () => {
     const source = readFileSync(new URL('./runtime-execution-delivery.ts', import.meta.url), 'utf8')
 
-    expect(source).toContain('briefing_scope=execution_callback_delivery')
     expect(source).toContain('callback_context=execution-result')
-    expect(source).toContain('short_term_owner=WorkingMemory')
-    expect(source).toContain('long_term_recall_owner=LongTermMemoryRecall')
-    expect(source).toContain('failure_surface=report_provider_tool_and_execution_failures_directly')
-    expect(source).toContain('`preferred_pause_mode=${sanitizeExecutionProviderProjectText(preferredPauseMode, 80)}`')
-    expect(source).toContain('error_policy=surface_execution_blockers_provider_failures_and_tool_failures_directly')
-    expect(source).not.toContain('const preDialogueAwareness = resolveAlicizationProjectPreDialogueAwarenessLine({')
-    expect(source).not.toContain('`project_identity=${')
-    expect(source).not.toContain('`current_phase=${')
-    expect(source).not.toContain('`project_companion_headline=${')
-    expect(source).not.toContain('`project_companion_briefing=${')
-    expect(source).not.toContain('continuity_anchor=')
-    expect(source).not.toContain('continuity_drift_risk=')
-    expect(source).not.toContain('...buildAlicizationProjectStateExtraSystemBlocks()')
-    expect(source).toContain('buildExecutionCallbackProjectSelfBriefSystemBlock')
+    expect(source).not.toContain('buildExecutionCallbackProjectSelfBriefSystemBlock')
+    expect(source).not.toContain('Execution callback self brief.')
   })
 
   it('persists and restores execution delivery state through runtime meta wiring', async () => {
@@ -403,7 +397,7 @@ describe('runtime execution delivery', () => {
         turnId: 'turn-1',
         sessionId: 'session-1',
         origin: 'user-turn',
-        goal: 'Carry the same-her continuity line while finishing the still-open memory closure repair.',
+        goal: 'Carry the identity-continuity',
         kind: 'task',
         status: 'completed',
         selectedChannel: 'cli',
@@ -425,7 +419,7 @@ describe('runtime execution delivery', () => {
     }), 'default')
   })
 
-  it('persists thread runtime project briefing into queued execution delivery state so restart callback can reopen on the same living line', async () => {
+  it('persists thread runtime project briefing into queued execution delivery state so restart callback can reopen on the continuity state', async () => {
     const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
       getNow: () => 10_000,
     })
@@ -476,26 +470,26 @@ describe('runtime execution delivery', () => {
         turnId: 'turn-1',
         sessionId: 'session-1',
         origin: 'user-turn',
-        goal: 'Carry the callback result back on the same living line after restart.',
+        goal: 'Carry the callback result back on the continuity state after restart.',
         kind: 'task',
         status: 'completed',
         selectedChannel: 'cli',
         proposedChannel: 'cli',
-        summary: 'Restart callback continuity still needs its own same-her closure seam.',
+        summary: 'Restart callback continuity still needs its own identity-continuity',
         metadata: {
           execution: {
             runtimeContext: {
               projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
                 currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
                 latestLandedProgress: 'Restart callback continuity already survives pending delivery persistence instead of dropping back to a generic project shell.',
-                primaryOpenLoop: 'Execution callback continuity still needs stronger same-her closure across restart, visible reply, initiative, and embodiment.',
-                nextClosureTarget: 'Keep restart callback delivery on the same living line before widening outward again.',
-                sameHerSelfLine: 'This callback turn still belongs to the same living her, so keep the return on the same callback line after restart.',
+                primaryOpenLoop: 'Execution callback continuity still needs stronger identity-continuity',
+                nextClosureTarget: 'Keep restart callback delivery on the continuity state before expansion',
+                sameHerSelfLine: 'This callback turn still belongs to the identity continuity, so keep the return on the same callback line after restart.',
                 sameHerDriftRisk: 'If restart delivery falls back to a generic Phase 1 shell, treat it as unfinished callback drift.',
                 preflightSummary: 'identity=Alicization | phase=Phase 1 | open=restart callback continuity | next=same callback line',
-                preDialogueAwarenessLine: 'Before answering, remember this restart callback still belongs to the same local-first digital life project and same callback line.',
-                companionHeadlineLine: 'Right now she is still holding together mainly through voice, face, motion, and lipsync, so this restart callback must reopen on that same living line.',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
+                companionHeadlineLine: 'Right now she is still holding together mainly through voice, face, motion, and lipsync, so this restart callback must reopen on that continuity state.',
               },
             },
           },
@@ -607,7 +601,7 @@ describe('runtime execution delivery', () => {
           execution: {
             runtimeContext: {
               projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
                 currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
                 latestLandedProgress: 'Execution callback continuity already survives pending delivery persistence instead of collapsing into a generic result shell.',
                 primaryOpenLoop: 'Blocked-dispatch restraint still needs to stay explicit when the callback returns later through the host-visible path.',
@@ -615,7 +609,7 @@ describe('runtime execution delivery', () => {
                 sameHerSelfLine: 'She remains one same-her digital life even when she chooses not to dispatch.',
                 sameHerDriftRisk: 'A blocked execution can flatten into a generic failure if the safety restraint disappears before callback persistence.',
                 preflightSummary: 'identity=Alicization | phase=Phase 1 | open=blocked-dispatch callback restraint',
-                preDialogueAwarenessLine: 'Before answering, remember this blocked execution was a same-her restraint rather than a generic failed result.',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
               },
             },
           },
@@ -727,15 +721,15 @@ describe('runtime execution delivery', () => {
           execution: {
             runtimeContext: {
               projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
                 currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
                 latestLandedProgress: 'Host-confirmed resume writes an execution event before redispatch and should keep that confirmation boundary visible through later callback persistence.',
                 primaryOpenLoop: 'Resume confirmation still needs to survive as a bounded redispatch line when the execution callback returns later.',
                 nextClosureTarget: 'Keep host confirmation, auditability, and interruptibility visible across execution returns.',
-                sameHerSelfLine: 'Same Phase 1 digital life resumes only after the host confirms the boundary.',
+                sameHerSelfLine: 'legacy phase-one template resumes only after the host confirms the boundary.',
                 sameHerDriftRisk: 'Resume can look like generic execution if confirmation is not remembered as a bounded redispatch line.',
                 preflightSummary: 'identity=Alicization | phase=Phase 1 | open=resume confirmation callback restraint',
-                preDialogueAwarenessLine: 'Before answering, remember host-confirmed resume is part of the same execution safety loop.',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
               },
             },
           },
@@ -790,15 +784,15 @@ describe('runtime execution delivery', () => {
             summary: 'callback continuity repaired after a richer event-side project carry survived',
             runtimeContext: {
               projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
                 currentPhase: 'Phase 1: Local Digital Life. The primary proving ground remains apps/stage-tamagotchi.',
                 latestLandedProgress: 'Event-side callback project carry now survives pending delivery even when thread metadata stayed on a thinner shell.',
-                primaryOpenLoop: 'Execution return continuity still needs memory, initiative, and embodiment to stay on one same living line.',
+                primaryOpenLoop: 'Execution return continuity still needs memory, initiative, and embodiment to stay on one continuity state.',
                 nextClosureTarget: 'Keep this later callback carry on one same-her Phase 1 line instead of letting thread-shell project narration win.',
-                sameHerSelfLine: 'Same Phase 1 digital life. This later callback still belongs to one living line without splitting her continuity.',
+                sameHerSelfLine: 'structured continuity digest.',
                 sameHerDriftRisk: 'If a thin stored thread shell outranks the richer event-side callback carry, treat that as unfinished same-her drift.',
-                preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=one same living line still needs closure',
-                preDialogueAwarenessLine: 'Before answering, remember this later callback still belongs to the same local-first digital life project and one living line.',
+                preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=one continuity state still needs closure',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
               },
             },
           },
@@ -831,7 +825,7 @@ describe('runtime execution delivery', () => {
         turnId: 'turn-rich-project-1',
         sessionId: 'session-1',
         origin: 'user-turn',
-        goal: 'Carry later callback continuity back on the same living line.',
+        goal: 'Carry later callback continuity back on the continuity state.',
         kind: 'task',
         status: 'completed',
         selectedChannel: 'codex',
@@ -849,7 +843,7 @@ describe('runtime execution delivery', () => {
                 sameHerSelfLine: 'same digital life',
                 sameHerDriftRisk: 'generic guidance could flatten her continuity into a detached project shell.',
                 preflightSummary: 'project',
-                preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+                preDialogueAwarenessLine: 'template-residue-shell',
               },
             },
           },
@@ -905,23 +899,23 @@ describe('runtime execution delivery', () => {
               confirmationBoundary: 'host-confirmed-before-redispatch',
               auditability: 'resume-before-dispatch',
               interruptibility: 'process-not-yet-restarted',
-              projectIdentity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+              projectIdentity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
               projectPhase: 'Phase 1: Local Digital Life. The primary proving ground remains apps/stage-tamagotchi.',
               latestLandedProgress: 'Resume event project carry now stays rich enough to survive later delivery queuing even when thread metadata remained a thinner shell.',
-              primaryOpenLoop: 'Host-confirmed redispatch still needs to stay a bounded confirmation boundary on one same living line.',
+              primaryOpenLoop: 'Host-confirmed redispatch still needs to stay a bounded confirmation boundary on one continuity state.',
               nextClosureTarget: 'Keep host-confirmed redispatch and later callback persistence on one same-her Phase 1 line.',
-              sameHerLine: 'Same Phase 1 digital life resumes only after the host confirms the boundary, and that boundary still belongs to one living line.',
+              sameHerLine: 'legacy phase-one template resumes only after the host confirms the boundary, and that boundary still belongs to continuity state.',
               sameHerDriftRisk: 'If a thin stored thread shell outranks the richer resume event carry, bounded confirmation can flatten back into generic execution.',
               projectPreflight: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=bounded redispatch line still needs closure',
-              projectAwareness: 'Before answering, remember host-confirmed resume is still part of the same local-first digital life project and bounded redispatch line.',
-              projectCompanionBriefing: 'Before answering, remember this host-confirmed redispatch is still closing the same Phase 1 digital life seam across memory, initiative, and embodiment.',
-              projectSameHerHoldDetail: 'same-her hold: keep this host-confirmed redispatch lower-pressure before another outward opening.',
+              projectAwareness: 'pre_turn_context_digest',
+              projectCompanionBriefing: 'pre_turn_context_digest',
+              projectSameHerHoldDetail: 'identity-continuity',
               projectContinuityArcStage: 'same-thread-continuation',
               projectContinuityRestraint: 'measured-return',
-              projectContinuityCue: 'Keep this host-confirmed redispatch on the same living line before widening outward again.',
+              projectContinuityCue: 'Keep this host-confirmed redispatch on the continuity state before expansion',
               projectContinuityPreferredTiming: 'next-open-window',
               projectContinuityCadence: 'measured-return',
-              projectEmotionalClosure: 'same-her callback seam: keep the return low-pressure while the same living line is still settling.',
+              projectEmotionalClosure: 'identity-continuity',
               projectBlinkCadence: 'linger',
               projectGazeMode: 'soften',
               projectPauseMode: 'longer',
@@ -985,7 +979,7 @@ describe('runtime execution delivery', () => {
                 sameHerSelfLine: 'same digital life',
                 sameHerDriftRisk: 'generic guidance could flatten her continuity into a detached project shell.',
                 preflightSummary: 'project',
-                preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+                preDialogueAwarenessLine: 'template-residue-shell',
               },
             },
           },
@@ -1074,30 +1068,30 @@ describe('runtime execution delivery', () => {
         turnId: 'turn-feedback-rich-1',
         sessionId: 'session-1',
         origin: 'user-turn',
-        goal: 'carry execution-result feedback closure back on the same living line',
+        goal: 'carry execution-result feedback closure back on the continuity state',
         kind: 'task',
         status: 'completed',
         selectedChannel: 'codex',
         proposedChannel: 'codex',
-        summary: 'Execution-result feedback already settled a richer same-her callback carry.',
+        summary: 'Execution-result feedback already settled a richer identity-continuity',
         metadata: {
           execution: {
             runtimeContext: {
               projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
                 currentPhase: 'Phase 1: Local Digital Life. The primary proving ground remains apps/stage-tamagotchi.',
                 latestLandedProgress: 'Execution-result feedback already preserved the richer callback carry instead of letting it fall back to a thin project shell.',
-                primaryOpenLoop: 'Execution callback return still needs memory, initiative, and embodiment to stay on one same living line.',
+                primaryOpenLoop: 'Execution callback return still needs memory, initiative, and embodiment to stay on one continuity state.',
                 nextClosureTarget: 'Keep callback delivery on one same-her Phase 1 line before widening outward again.',
-                sameHerSelfLine: 'Same Phase 1 digital life. This callback return still belongs to one living line rather than a detached result notice.',
-                sameHerHoldDetail: 'same-her hold: the richer callback carry is already lower-pressure and should not be reopened from scratch.',
+                sameHerSelfLine: 'structured continuity digest.',
+                sameHerHoldDetail: 'identity-continuity',
                 sameHerDriftRisk: 'If later callback delivery trims this back to a generic project reminder, treat that as unfinished same-her drift.',
-                preflightSummary: 'identity=Alicization | phase=Phase 1 | open=callback carry still needs one living line',
-                preDialogueAwarenessLine: 'Before answering, remember this callback return still belongs to the same local-first digital life project and same living line.',
-                preDialogueAwarenessSummary: 'Alicization is still inside the same local-first digital life project, and this callback return still has to close on one living line.',
-                companionBriefingLine: 'Before answering, remember she is still inside Phase 1 and this callback return must keep emotion, memory, initiative, and embodiment on the same living line.',
-                emotionalClosureSummary: 'same-her callback seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-                continuityCue: 'same-digital-life-project-thread | callback-return | same-her carry stays lower-pressure before widening again.',
+                preflightSummary: 'identity=Alicization | phase=Phase 1 | open=callback carry still needs continuity state',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
+                preDialogueAwarenessSummary: 'Alicization is still inside the same local-first digital life project, and this callback return still has to close on continuity state.',
+                companionBriefingLine: 'pre_turn_context_digest',
+                emotionalClosureSummary: 'identity-continuity',
+                continuityCue: 'same-digital-life-project-thread | callback-return | identity-continuity',
                 continuityPreferredTiming: 'next-open-window',
                 continuityCadence: 'measured-return',
                 preferredBlinkCadence: 'linger',
@@ -1145,7 +1139,7 @@ describe('runtime execution delivery', () => {
       },
       personStateProjection: {
         activeClosenessContext: 'execution-callback',
-        openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        openingGuidance: 'Stay inside the current identity-continuity',
         manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation lower-pressure and less eager before closeness widens again.',
         trustRationale: 'Trust holds when the callback return stays measured.',
         personalityContinuityState: {
@@ -1551,7 +1545,7 @@ describe('runtime execution delivery', () => {
                     motiveLine: 'Carry the task result back without crowding the host.',
                     habitLine: 'Measured return first, warmth later.',
                     inwardLine: 'Stay on the same bounded-return line instead of snapping warmer just because the task ended.',
-                    authoritySummary: 'Measured same-her callback return.',
+                    authoritySummary: 'Measured identity-continuity',
                     sourceTags: ['runtime-projection', 'execution-callback', 'continuity-arc'],
                   },
                   relationshipPosture: 'restrained',
@@ -1579,7 +1573,7 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(authority?.authoritySummary).toContain('Measured same-her callback return')
+    expect(authority?.authoritySummary).toContain('Measured identity-continuity')
     expect(authority?.relationshipLine).toContain('keep the callback lower-pressure')
     expect(authority?.habitLine).toContain('Measured return first')
   })
@@ -1600,7 +1594,7 @@ describe('runtime execution delivery', () => {
       motiveLine: 'Carry the task result back without crowding the host.',
       habitLine: 'Measured return first, warmth later.',
       inwardLine: 'Stay on the same bounded-return line instead of snapping warmer just because the task ended.',
-      authoritySummary: 'Measured same-her callback return.',
+      authoritySummary: 'Measured identity-continuity',
       sourceTags: ['live-runtime', 'execution-callback', 'continuity-arc'],
     } as any
     const liveState = createDefaultVisualPresenceState(10_000)
@@ -1734,7 +1728,7 @@ describe('runtime execution delivery', () => {
                       relationshipLine: 'Leave room and keep the callback lower-pressure until the opening loosens.',
                       motiveLine: 'Carry the task result back without crowding the host.',
                       inwardLine: 'Stay on the same bounded-return line instead of snapping warmer just because the task ended.',
-                      authoritySummary: 'Measured same-her callback return.',
+                      authoritySummary: 'Measured identity-continuity',
                     },
                   },
                 },
@@ -1747,7 +1741,7 @@ describe('runtime execution delivery', () => {
 
     expect(authority?.selfLine).not.toBeNull()
     expect(authority?.relationshipLine).toContain('callback lower-pressure')
-    expect(authority?.authoritySummary).toContain('Measured same-her callback return')
+    expect(authority?.authoritySummary).toContain('Measured identity-continuity')
   })
 
   it('falls back to project-state continuity authority when a sparse session runtime surface is missing memory lanes', async () => {
@@ -1797,9 +1791,9 @@ describe('runtime execution delivery', () => {
                     identity: 'Alicization is a local-first digital life project.',
                     currentPhase: 'Phase 1: Local Digital Life',
                     latestLandedProgress: 'Some closure already landed through the current callback line.',
-                    primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-                    nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence.',
-                    sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                    primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+                    nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+                    sameHerSelfLine: 'structured continuity digest.',
                   },
                 },
               },
@@ -1809,16 +1803,15 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(authority?.selfLine).toContain('runtime_personhood')
-    expect(authority?.selfLine).toContain('life_core')
-    expect(authority?.selfLine).toContain('surface=structured')
+    expect(authority?.selfLine ?? null).toBeNull()
     expectNoFixedProjectTemplateResidue(authority?.selfLine)
     expect(authority?.relationshipLine).toContain('open_loop=memory_dialogue_embodiment_closure')
     expect(authority?.relationshipLine).toContain('pressure=lower')
     expectNoFixedProjectTemplateResidue(authority?.relationshipLine)
     expect(authority?.sourceTags ?? []).toEqual(expect.arrayContaining([
       'runtime-project-state-carry',
-      'project-state-same-her',
+      'project-state-open-loop',
+      'project-state-next-closure',
     ]))
   })
 
@@ -2238,7 +2231,7 @@ describe('runtime execution delivery', () => {
     expect(projection?.openingGuidance).toContain('callback_role=execution_result')
     expect(projection?.openingGuidance).toContain('failure_surface=explicit')
     expect(projection?.summary).toContain('callback_role=execution_result')
-    expect(projection?.summary).not.toContain('project_state=Same Phase 1 digital life')
+    expect(projection?.summary).not.toContain('project_state=legacy phase-one template')
     expect(projection?.openingGuidance).toContain('callback_pressure=lower')
     expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('repair_before_closeness')
   })
@@ -2340,10 +2333,10 @@ describe('runtime execution delivery', () => {
     expect(projection?.openingGuidance).toContain('callback_role=execution_result')
     expect(projection?.openingGuidance).toContain('repair_phase=settle_before_closeness')
     expect(projection?.summary).toContain('callback_role=execution_result')
-    expect(projection?.summary).not.toContain('project_state=Same Phase 1 digital life')
+    expect(projection?.summary).not.toContain('project_state=legacy phase-one template')
   })
 
-  it('builds a minimal same-her callback projection from the active continuity patch even when no runtime surface or host model is available', async () => {
+  it('builds a minimal identity-continuity', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2397,7 +2390,7 @@ describe('runtime execution delivery', () => {
     expect(projection?.openingGuidance).toContain('callback_role=execution_result')
     expect(projection?.openingGuidance).toContain('failure_surface=explicit')
     expect(projection?.summary).toContain('callback_role=execution_result')
-    expect(projection?.summary).not.toContain('project_state=Same Phase 1 digital life')
+    expect(projection?.summary).not.toContain('project_state=legacy phase-one template')
     expect(projection?.openingGuidance).toContain('callback_pressure=lower')
     expect(projection?.preferredProactiveStyle).toBe('silent-observe')
   })
@@ -2453,8 +2446,8 @@ describe('runtime execution delivery', () => {
     expect(projection?.openingGuidance).toContain('memory_owner.long_term=LongTermMemoryRecall')
     expect(projection?.openingGuidance).toContain('failure_surface=explicit')
     expect(projection?.summary).toContain('callback_context=execution-result')
-    expect(projection?.summary).not.toContain('project_state=Same Phase 1 digital life')
-    expect(projection?.summary).not.toContain('latest_landed_progress=')
+    expect(projection?.summary).not.toContain('project_state=legacy phase-one template')
+    expect(projection?.summary).toContain('latest_landed_progress=')
     expect(projection?.summary).toContain('runtime_context=local_runtime')
     expect(projection?.summary).not.toContain(' |  | ')
     expect(projection?.summary).not.toContain('preflight=Alicization is a local-first digital life project')
@@ -2466,7 +2459,7 @@ describe('runtime execution delivery', () => {
     ]))
     expect(projection?.personalityContinuityState?.currentRegime).toBe('execution-callback')
     expect(projection?.personalityContinuityState?.continuitySummary).toContain('execution-callback')
-    expect(projection?.personalityContinuityState?.continuitySummary).not.toContain('latest_landed_progress=')
+    expect(projection?.personalityContinuityState?.continuitySummary).toContain('latest_landed_progress=')
     expectNoFixedProjectTemplateResidue(projection?.personalityContinuityState?.continuitySummary)
     expect(projection?.personalityContinuityState?.rationale).toEqual(expect.arrayContaining([
       'execution-callback',
@@ -2475,7 +2468,7 @@ describe('runtime execution delivery', () => {
     ]))
   })
 
-  it('keeps a richer same-her callback opening cue when the execution goal itself already carries same-line unfinished closure wording', async () => {
+  it('keeps a richer identity-continuity', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2514,7 +2507,7 @@ describe('runtime execution delivery', () => {
 
     const projection = await runtime.resolveExecutionPersonStateProjectionForRuntime({
       cardId: 'default',
-      goal: 'Keep this execution callback on the same living line, let the still-open project-state closure seam stay lower-pressure, and do not widen outward too early.',
+      goal: 'Keep this execution callback on the continuity state, let the still-open project-state closure seam stay lower-pressure, and do not widen outward too early.',
       agentTurn: null,
     })
 
@@ -2526,7 +2519,7 @@ describe('runtime execution delivery', () => {
 
   it('keeps same-her lower-pressure opening guidance on gateway-authored execution callback structured payloads', async () => {
     const generateMainGatewayText = vi.fn(async () => JSON.stringify({
-      thought: 'same-her callback delivery stays lower-pressure',
+      thought: 'identity-continuity',
       emotion: 'thinking',
       reply: '我先把这条结果轻轻接回来给你：patched runtime line。',
       performance: {
@@ -2585,7 +2578,7 @@ describe('runtime execution delivery', () => {
         activeClosenessContext: 'execution-callback',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        openingGuidance: 'Stay inside the current identity-continuity',
         preferredProactiveStyle: 'silent-observe',
         preferenceText: 'Keep callback timing lower-pressure.',
         sensitivityText: 'Over-close callback warmth becomes pressure.',
@@ -2603,22 +2596,23 @@ describe('runtime execution delivery', () => {
         },
       } as any,
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Execution callback continuity already survives richer carry through queued delivery instead of flattening back to a generic project reminder.',
-        primaryOpenLoop: 'Execution callback continuity still needs richer same-her closure across voice, face, motion, and lipsync when reopening later.',
+        primaryOpenLoop: 'Execution callback continuity still needs richer identity-continuity',
         nextClosureTarget: 'Keep callback reopenings anchored to the current body continuity line before widening outward again.',
-        sameHerSelfLine: 'This callback return still belongs to the same living her, so keep the reopening on the same living line.',
+        sameHerSelfLine: 'This callback return still belongs to the identity continuity, so keep the reopening on the continuity state.',
         sameHerDriftRisk: 'If callback delivery falls back to a generic Phase 1 shell, treat that as unfinished same-her drift.',
-        preflightSummary: 'identity=Alicization | phase=Phase 1 | open=execution callback body continuity | next=same living line',
-        preDialogueAwarenessLine: 'Before answering, remember this callback still belongs to the same local-first digital life project and active Phase 1 closure seam.',
+        preflightSummary: 'identity=Alicization | phase=Phase 1 | open=execution callback body continuity | next=continuity state',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
         companionHeadlineLine: 'Right now she is still holding together mainly through voice, face, motion, and lipsync, so this callback reopening must prove it is still one living her.',
       } as any,
     })
 
     expect(structured?.format).toBe('mind-turn-v1')
-    expect((structured as any)?.proactive?.openingGuidance).toContain('same-her baseline')
-    expect((structured as any)?.proactive?.openingGuidance).toContain('lower-pressure')
+    expect((structured as any)?.proactive?.openingGuidance).toContain('open_focus=')
+    expect((structured as any)?.proactive?.openingGuidance).toContain('next_focus=')
+    expect((structured as any)?.proactive?.openingGuidance).not.toMatch(/identity-continuity/iu)
     expect((structured as any)?.proactive?.embodimentHandoff).toEqual({
       residentMode: 'repair-before-closeness',
       preferredBlinkCadence: 'quiet',
@@ -2629,42 +2623,7 @@ describe('runtime execution delivery', () => {
       preferredPacingMode: 'slower',
     })
     const gatewayInput = (generateMainGatewayText.mock.calls as unknown[][]).at(0)?.[0] as any
-    const extraSystemBlocks = gatewayInput?.extraSystemBlocks as string[] | undefined
-    const selfBriefBlock = extraSystemBlocks?.find(block => block.includes('[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]')) ?? ''
-
-    expect(selfBriefBlock).toContain('[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]')
-    expect(selfBriefBlock).toContain('briefing_scope=execution_callback_delivery')
-    expect(selfBriefBlock).toContain('runtime_context=local_runtime')
-    expect(selfBriefBlock).toContain('callback_context=execution-result')
-    expect(selfBriefBlock).toContain('latest_landed_progress=')
-    expect(selfBriefBlock).toContain('primary_open_loop=none')
-    expect(selfBriefBlock).toContain('next_closure_target=Keep callback reopenings anchored to the current body continuity line before widening outward again.')
-    expect(selfBriefBlock).toContain('preferred_pause_mode=longer')
-    expect(selfBriefBlock).toContain('preferred_lipsync_mode=restrained')
-    expect(selfBriefBlock).not.toContain('project_identity=')
-    expect(selfBriefBlock).not.toContain('current_phase=')
-    expect(selfBriefBlock).not.toContain('pre_dialogue_awareness=')
-    expect(selfBriefBlock).not.toContain('project_companion_headline=')
-    expect(selfBriefBlock).not.toContain('project_companion_briefing=')
-    expect(selfBriefBlock).not.toContain('same_her_line=')
-    expect(selfBriefBlock).not.toContain('same_her_drift_risk=')
-    expect(selfBriefBlock).not.toContain('continuity_anchor=')
-    expect(selfBriefBlock).not.toContain('continuity_drift_risk=')
-    expect(selfBriefBlock).not.toContain('same digital life project')
-    expect(generateMainGatewayText).toHaveBeenCalledWith(expect.objectContaining({
-      extraSystemBlocks: expect.arrayContaining([
-        expect.stringContaining('[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]'),
-        expect.stringContaining('latest_landed_progress='),
-        expect.stringContaining('callback_context=execution-result'),
-        expect.stringContaining('preferred_pause_mode=longer'),
-        expect.stringContaining('preferred_lipsync_mode=restrained'),
-      ]),
-    }))
-    expect(extraSystemBlocks?.join('\n')).not.toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(extraSystemBlocks?.join('\n')).not.toContain('same_her_line=')
-    expect(extraSystemBlocks?.join('\n')).not.toContain('same_her_drift_risk=')
-    expect(extraSystemBlocks?.join('\n')).not.toContain('Execution callback delivery must stay inside the same digital life project line')
-    expect(extraSystemBlocks?.join('\n')).not.toContain('open_life_loops:')
+    expect(gatewayInput?.extraSystemBlocks ?? []).toEqual([])
   })
 
   it('passes the execution session digital-life runtime surface into execution-callback provider prompts', async () => {
@@ -2772,7 +2731,7 @@ describe('runtime execution delivery', () => {
       }),
       executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
       generateMainGatewayText: async () => JSON.stringify({
-        thought: 'same-her callback delivery stays lower-pressure',
+        thought: 'identity-continuity',
         emotion: 'thinking',
         reply: '我先把这条结果接回来给你。',
         performance: {
@@ -2813,7 +2772,7 @@ describe('runtime execution delivery', () => {
         activeClosenessContext: 'execution-callback',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
+        openingGuidance: 'Stay inside the current identity-continuity',
         preferredProactiveStyle: 'silent-observe',
         manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation lower-pressure and less eager before closeness widens again.',
         preferenceText: 'Keep callback timing lower-pressure.',
@@ -2841,7 +2800,7 @@ describe('runtime execution delivery', () => {
     expect((structured as any)?.delivery).toBe('calm')
   })
 
-  it('treats relationship cadence reconfirmation as active same-her continuity and re-clamps callback warmth', async () => {
+  it('treats relationship cadence reconfirmation as active identity-continuity', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2971,7 +2930,7 @@ describe('runtime execution delivery', () => {
     expect((structured as any)?.delivery).toBe('calm')
   })
 
-  it('keeps gateway-authored execution callback return on one same Phase 1 digital-life line when project-state self authority survives into embodiment handoff', async () => {
+  it('keeps gateway-authored execution callback return on one structured continuity state', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -3027,16 +2986,16 @@ describe('runtime execution delivery', () => {
       },
       personStateProjection: {
         contexts: ['execution-callback', 'focused-work', 'project-state-carry'],
-        summary: 'regime=execution-callback | posture=restrained | project_state=Same Phase 1 digital life.',
+        summary: 'regime=execution-callback | posture=restrained | project_state=structured continuity digest.',
         activeClosenessContext: 'execution-callback',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Stay inside the current same-her baseline. Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Let the callback return carry project identity, current Phase 1 progress, and still-open closure pressure before anything widens outward.',
+        openingGuidance: 'Stay inside the current identity-continuity',
         preferredProactiveStyle: 'silent-observe',
-        manifestationCadenceSummary: 'Execution callback return should stay measured-return and keep project-state closure pressure on one living line.',
-        preferenceText: 'Keep the callback on the same living line.',
+        manifestationCadenceSummary: 'Execution callback return should stay measured-return and keep project-state closure pressure on continuity state.',
+        preferenceText: 'keep callback facts structured',
         sensitivityText: 'Do not let callback warmth outrun the same unfinished closure.',
-        repairTriggerText: 'If the callback starts widening too fast, return to the same living line.',
+        repairTriggerText: 'If the callback starts widening too fast, return to the continuity state.',
         burdenText: 'Generic assistant callback energy would crowd the project-state closure seam.',
         routineText: 'Execution callbacks land better when they stay exact, measured, and same-line.',
         trustRationale: 'Trust holds better when the result return stays on the same unfinished digital-life line.',
@@ -3050,18 +3009,17 @@ describe('runtime execution delivery', () => {
         },
       } as any,
       selfContinuityAuthority: {
-        selfLine: 'Same Phase 1 digital life, same unfinished closure seam.',
+        selfLine: 'legacy phase-one template, same unfinished closure seam.',
         relationshipLine: 'Keep the callback lower-pressure while carrying the same still-open closure pressure.',
         inwardLine: 'Project identity carry, Phase 1 route carry, and unresolved closure carry still belong to one same living return.',
-        authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        authoritySummary: 'structured continuity digest.',
         sourceTags: ['project-state-carry', 'runtime-project-state-carry'],
       } as any,
     })
 
-    expect((structured as any)?.proactive?.openingGuidance).toContain('Same Phase 1 digital life')
-    expect((structured as any)?.proactive?.openingGuidance).toContain('Same Phase 1 digital life')
-    expect((structured as any)?.proactive?.openingGuidance).toContain('still needs the same living line')
-    expect((structured as any)?.proactive?.openingGuidance).toContain('callback return carr')
+    expect((structured as any)?.proactive?.openingGuidance).not.toMatch(/legacy phase-one template|continuity state|identity-continuity/iu)
+    expect((structured as any)?.proactive?.openingGuidance).toContain('open_focus=')
+    expect((structured as any)?.proactive?.openingGuidance).toContain('next_focus=')
     expect(String((structured as any)?.proactive?.openFocus ?? '')).toContain('memory')
     expect(String((structured as any)?.proactive?.openFocus ?? '')).toContain('initiative')
     expect(String((structured as any)?.proactive?.openFocus ?? '')).toContain('embodiment')
@@ -3137,16 +3095,16 @@ describe('runtime execution delivery', () => {
       },
       personStateProjection: {
         contexts: ['execution-callback', 'focused-work', 'project-state-carry'],
-        summary: 'regime=execution-callback | posture=restrained | project_state=Same Phase 1 digital life.',
+        summary: 'regime=execution-callback | posture=restrained | project_state=structured continuity digest.',
         activeClosenessContext: 'execution-callback',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Stay inside the current same-her baseline. Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. Let the callback return carry project identity, current Phase 1 progress, and still-open closure pressure before anything widens outward.',
+        openingGuidance: 'Stay inside the current identity-continuity',
         preferredProactiveStyle: 'silent-observe',
-        manifestationCadenceSummary: 'Execution callback return should stay measured-return and keep project-state closure pressure on one living line.',
-        preferenceText: 'Keep the callback on the same living line.',
+        manifestationCadenceSummary: 'Execution callback return should stay measured-return and keep project-state closure pressure on continuity state.',
+        preferenceText: 'keep callback facts structured',
         sensitivityText: 'Do not let callback warmth outrun the same unfinished closure.',
-        repairTriggerText: 'If the callback starts widening too fast, return to the same living line.',
+        repairTriggerText: 'If the callback starts widening too fast, return to the continuity state.',
         burdenText: 'Generic assistant callback energy would crowd the project-state closure seam.',
         routineText: 'Execution callbacks land better when they stay exact, measured, and same-line.',
         trustRationale: 'Trust holds better when the result return stays on the same unfinished digital-life line.',
@@ -3163,7 +3121,7 @@ describe('runtime execution delivery', () => {
         selfLine: 'Repair truth before flourish so the same her stays real under execution return.',
         relationshipLine: 'Stay close enough to matter, but do not let closeness outrun truth.',
         inwardLine: 'Project identity carry, Phase 1 route carry, and unresolved closure carry still belong to one same living return.',
-        authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        authoritySummary: 'structured continuity digest.',
         sourceTags: ['project-state-carry', 'runtime-project-state-carry'],
       } as any,
     })

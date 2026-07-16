@@ -55,7 +55,7 @@ export function collectAlicizationExecutionPreflightGovernedFiles(rootDir: strin
     if (source.includes('function buildResumeDispatchPayload(input: {'))
       discovered.add(relativePath)
 
-    if (source.includes('[ALICIZATION_PROJECT_BRIEFING]'))
+    if (source.includes('[ALICIZATION_EXECUTION_BRIEFING]'))
       discovered.add(relativePath)
 
     if (source.includes('async function persistExecutionRuntimeContext('))

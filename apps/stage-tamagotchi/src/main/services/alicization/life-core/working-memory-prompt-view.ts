@@ -98,48 +98,50 @@ function uniqueItems<T>(items: T[], keyOf: (item: T) => string, maxItems = 8) {
   return result
 }
 
-function joinLine(values: Array<string | null | undefined>, separator = ' | ') {
-  return values.map(value => sanitizePromptText(value, 260)).filter(Boolean).join(separator) || null
+function readableWorkingMemoryLabel(label: string) {
+  return label.replace(/_/gu, ' ')
 }
 
 function renderListLine(label: string, values: string[]) {
-  return `${label}=${values.length > 0 ? values.join(' ; ') : 'none'}`
+  return `${readableWorkingMemoryLabel(label)}: ${values.length > 0 ? values.join('; ') : 'none'}.`
 }
 
 function renderThreadLine(thread: WorkingMemoryPromptView['modules']['thread']) {
   if (!thread.title)
-    return 'thread=none'
+    return 'Thread: none.'
 
-  return `thread=${joinLine([
-    thread.title,
-    thread.mode ? `mode=${thread.mode}` : null,
-    thread.shouldHold === null ? null : `hold=${thread.shouldHold ? 'yes' : 'no'}`,
-    thread.currentUserMove ? `user=${thread.currentUserMove}` : null,
-    thread.currentAliceMove ? `alice=${thread.currentAliceMove}` : null,
-    thread.primaryAnchor ? `anchor=${thread.primaryAnchor}` : null,
-    formatScore(thread.confidence) ? `confidence=${formatScore(thread.confidence)}` : null,
-  ])}`
+  return [
+    `Thread: ${thread.title}.`,
+    thread.mode ? `Mode: ${thread.mode}.` : '',
+    thread.shouldHold === null ? '' : `Hold thread: ${thread.shouldHold ? 'yes' : 'no'}.`,
+    thread.currentUserMove ? `Current user move: ${thread.currentUserMove}.` : '',
+    thread.currentAliceMove ? `Current Alice move: ${thread.currentAliceMove}.` : '',
+    thread.primaryAnchor ? `Primary anchor: ${thread.primaryAnchor}.` : '',
+    formatScore(thread.confidence) ? `Confidence: ${formatScore(thread.confidence)}.` : '',
+  ].filter(Boolean).join(' ')
 }
 
 function renderTaskLine(task: WorkingMemoryPromptView['modules']['task']) {
   if (!task.summary || !task.status)
-    return 'task=none'
+    return 'Task: none.'
 
-  return `task=${joinLine([
-    `${task.status}:${task.summary}`,
-    task.evidenceTurnIds.length > 0 ? `evidence=${task.evidenceTurnIds.join(',')}` : null,
-  ])}`
+  return [
+    `Task: ${task.status}: ${task.summary}.`,
+    task.evidenceTurnIds.length > 0 ? `Evidence turns: ${task.evidenceTurnIds.join(', ')}.` : '',
+  ].filter(Boolean).join(' ')
 }
 
 function renderCompressedTimelineLine(episodes: WorkingMemoryPromptView['modules']['compressedTimeline']) {
   if (episodes.length === 0)
-    return 'compressed_timeline=none'
+    return 'Compressed timeline: none.'
 
-  return `compressed_timeline=${episodes.map(episode => joinLine([
-    episode.summary,
-    episode.thread ? `thread=${episode.thread}` : null,
-    episode.sourceTurnIds.length > 0 ? `sources=${episode.sourceTurnIds.join(',')}` : null,
-  ])).filter(Boolean).join(' ; ')}`
+  return `Compressed timeline: ${episodes.map((episode) => {
+    return [
+      episode.summary,
+      episode.thread ? `Thread: ${episode.thread}` : '',
+      episode.sourceTurnIds.length > 0 ? `Sources: ${episode.sourceTurnIds.join(', ')}` : '',
+    ].filter(Boolean).join('. ')
+  }).filter(Boolean).join('; ')}.`
 }
 
 function renderPostureLine(
@@ -147,11 +149,8 @@ function renderPostureLine(
   posture: WorkingMemoryRelationshipPosture | WorkingMemoryEmotionalPosture | WorkingMemoryExecutionState | null,
 ) {
   if (!posture)
-    return `${label}=none`
-  return `${label}=${joinLine([
-    posture.summary,
-    `source=${posture.source}`,
-  ])}`
+    return `${readableWorkingMemoryLabel(label)}: none.`
+  return `${readableWorkingMemoryLabel(label)}: ${posture.summary}. Source: ${posture.source}.`
 }
 
 function renderCompressionLine(compression: WorkingMemoryCompressionState) {
@@ -160,14 +159,14 @@ function renderCompressionLine(compression: WorkingMemoryCompressionState) {
     && compression.sourceTurnIds.length === 0
     && compression.lastCompressedAt === null
   ) {
-    return 'compression=none'
+    return 'Compression: none.'
   }
 
-  return `compression=${joinLine([
-    compression.level,
-    compression.sourceTurnIds.length > 0 ? `sources=${compression.sourceTurnIds.join(',')}` : null,
-    compression.lastCompressedAt === null ? null : `last=${compression.lastCompressedAt}`,
-  ])}`
+  return [
+    `Compression: ${compression.level}.`,
+    compression.sourceTurnIds.length > 0 ? `Sources: ${compression.sourceTurnIds.join(', ')}.` : '',
+    compression.lastCompressedAt === null ? '' : `Last compressed at: ${compression.lastCompressedAt}.`,
+  ].filter(Boolean).join(' ')
 }
 
 function renderAuditLine(audit: WorkingMemoryAuditState) {
@@ -176,16 +175,17 @@ function renderAuditLine(audit: WorkingMemoryAuditState) {
     && audit.excludedLongTermCandidateTurnIds.length === 0
     && audit.notes.length === 0
   ) {
-    return 'audit=none'
+    return 'Audit: none.'
   }
 
-  return `audit=${joinLine([
-    audit.failureTurnIds.length > 0 ? `failures=${audit.failureTurnIds.join(',')}` : null,
+  return [
+    'Audit:',
+    audit.failureTurnIds.length > 0 ? `Failures: ${audit.failureTurnIds.join(', ')}.` : '',
     audit.excludedLongTermCandidateTurnIds.length > 0
-      ? `excluded_long_term=${audit.excludedLongTermCandidateTurnIds.join(',')}`
-      : null,
-    audit.notes.length > 0 ? `notes=${audit.notes.join(' ; ')}` : null,
-  ])}`
+      ? `Excluded long-term candidates: ${audit.excludedLongTermCandidateTurnIds.join(', ')}.`
+      : '',
+    audit.notes.length > 0 ? `Notes: ${audit.notes.join('; ')}.` : '',
+  ].filter(Boolean).join(' ')
 }
 
 function normalizeQuestions(questions: WorkingMemoryQuestion[]) {
@@ -338,7 +338,7 @@ export function buildWorkingMemoryPromptView(snapshot: WorkingMemorySnapshot): W
     },
   }
   const rangeLine = scope.turnRange.fromTurnId || scope.turnRange.toTurnId
-    ? `range=${scope.turnRange.fromTurnId ?? 'unknown'}..${scope.turnRange.toTurnId ?? 'unknown'}`
+    ? `Turn range: ${scope.turnRange.fromTurnId ?? 'unknown'}..${scope.turnRange.toTurnId ?? 'unknown'}.`
     : ''
 
   return {
@@ -347,8 +347,8 @@ export function buildWorkingMemoryPromptView(snapshot: WorkingMemorySnapshot): W
     modules,
     rendering: {
       blockLines: uniqueBlockLines([
-        '[ALICIZATION_WORKING_MEMORY]',
-        'owner=WorkingMemory; scope=short_term_dialogue; visible_surface=answer_payoff',
+        'WorkingMemory short-term memory evidence.',
+        'Owner: WorkingMemory. Scope: short-term dialogue. Use it only when it helps the current answer payoff.',
         rangeLine,
         renderThreadLine(modules.thread),
         renderTaskLine(modules.task),

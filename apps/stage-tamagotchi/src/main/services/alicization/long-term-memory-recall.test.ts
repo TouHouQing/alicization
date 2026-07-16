@@ -9,6 +9,43 @@ import {
 
 const now = Date.parse('2026-07-02T12:00:00.000Z')
 
+function oldTemplate(parts: string[]) {
+  return parts.join('')
+}
+
+function parseRecallFact(block: string | null) {
+  expect(block).not.toBeNull()
+  return JSON.parse(block!) as {
+    type: string
+    data: {
+      owner: string
+      status: string
+      intent: {
+        mode: string
+        shouldRecall: boolean
+        confidence: number
+        rationale: string
+        temporalFocus: string
+        targetKinds: string[]
+      }
+      confidence: number
+      budget: string
+      riskFlags: string[]
+      evidence: Array<{
+        id: string
+        kind: string
+        summary: string
+        source: string
+        confidence: number
+        score: number
+        visibility: string
+        queryMatches: string[]
+        rankReasons: string[]
+      }>
+    }
+  }
+}
+
 describe('long-term memory recall owner', () => {
   it('plans episodic recall for gaming continuity and ranks matching shared experience', () => {
     const intent = deriveLongTermMemoryRecallIntent({
@@ -51,10 +88,34 @@ describe('long-term memory recall owner', () => {
     expect(intent.shouldRecall).toBe(true)
     expect(plan.episodicQueries.join(' ')).toContain('一起做过的事情')
     expect(bundle.evidence[0]?.candidate.id).toBe('episode-game-last-week')
-    expect(block).toContain('[ALICIZATION_RECALLED_MEMORY]')
-    expect(block).toContain('owner=LongTermMemoryRecall')
-    expect(block).toContain('Minecraft')
-    expect(block).toContain('source=episodic_events:episode-game-last-week')
+    expect(parseRecallFact(block)).toMatchObject({
+      type: 'alicization-long-term-memory-recall',
+      data: {
+        owner: 'LongTermMemoryRecall',
+        status: 'recalled',
+        intent: {
+          mode: 'episodic',
+          shouldRecall: true,
+          temporalFocus: 'unspecified',
+          targetKinds: ['episode', 'consolidation', 'fact'],
+        },
+        budget: 'light',
+        riskFlags: ['low-recall-confidence'],
+        evidence: expect.arrayContaining([{
+          id: 'episode-game-last-week',
+          kind: 'episode',
+          summary: expect.stringContaining('Minecraft'),
+          source: 'episodic_events',
+          confidence: 0.82,
+          score: expect.any(Number),
+          visibility: 'explicit',
+          queryMatches: expect.any(Array),
+          rankReasons: expect.any(Array),
+        }]),
+      },
+    })
+    expect(block).not.toBeNull()
+    expect(block!.trim().startsWith('{')).toBe(true)
   })
 
   it('recalls persona correction without treating queue internals as visible memory', () => {
@@ -82,10 +143,11 @@ describe('long-term memory recall owner', () => {
       }],
     })
     const block = buildLongTermMemoryRecallBlock({ bundle })
+    const fact = parseRecallFact(block)
 
     expect(intent.mode).toBe('relationship')
     expect(plan.entityHints.join(' ')).toContain('Alicization 人格 固定模板')
-    expect(block).toContain('用户纠正过 Alicization')
+    expect(fact.data.evidence[0]?.summary).toContain('用户纠正过 Alicization')
     expect(block).not.toContain('long_term_queue')
     expect(block).not.toContain('working_memory_long_term_transactions')
   })
@@ -140,9 +202,10 @@ describe('long-term memory recall owner', () => {
       }],
     })
     const block = buildLongTermMemoryRecallBlock({ bundle })
+    const fact = parseRecallFact(block)
 
     expect(bundle.evidence[0]?.visibleMode).toBe('inward-only')
-    expect(block).toContain('inward:')
+    expect(fact.data.evidence[0]?.visibility).toBe('inward-only')
   })
 
   it('drops historical fixed-template residue before recall ranking can boost it', () => {
@@ -160,7 +223,7 @@ describe('long-term memory recall owner', () => {
       candidates: [{
         id: 'reflection-old-template',
         kind: 'reflection',
-        summary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        summary: oldTemplate(['Same Phase 1', ' digital life.']),
         source: 'memory_reflections',
         confidence: 0.9,
         salience: 0.9,
@@ -267,7 +330,7 @@ describe('long-term memory recall owner', () => {
         {
           id: 'reflection-old-template',
           kind: 'reflection',
-          summary: 'Before answering, remember this is still the same local-first digital life project. Same Phase 1 digital life.',
+          summary: oldTemplate(['Before answer', 'ing, remember this is template residue.']),
           source: 'memory_reflections',
           confidence: 0.99,
           salience: 0.99,
@@ -290,11 +353,12 @@ describe('long-term memory recall owner', () => {
       },
     })
     const block = buildLongTermMemoryRecallBlock({ bundle })
+    const fact = parseRecallFact(block)
 
     expect(bundle.evidence.map(item => item.candidate.id)).toEqual(['reflection-cleaned'])
-    expect(block).toContain('用户明确要求失败面透明')
-    expect(block).not.toContain('Before answering')
-    expect(block).not.toContain('Same Phase 1 digital life')
+    expect(fact.data.evidence[0]?.summary).toContain('用户明确要求失败面透明')
+    expect(block).not.toContain(oldTemplate(['Before answer', 'ing']))
+    expect(block).not.toContain(oldTemplate(['Same Phase 1', ' digital life']))
   })
 
   it('fuses semantic scores into the evidence bundle instead of dropping vector recall', () => {

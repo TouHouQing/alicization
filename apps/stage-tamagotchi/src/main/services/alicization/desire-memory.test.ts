@@ -84,7 +84,7 @@ describe('buildDesireMemory', () => {
           owner: 'alicization',
           kind: 'clarify-scene',
           status: 'blocked',
-          label: 're-ground the diff before speaking',
+          label: 're-ground the diff before outward reply',
           confidence: 0.72,
           urgency: 0.66,
           desireWeight: 0.58,
@@ -248,7 +248,7 @@ describe('buildDesireMemory', () => {
     expect(desireMemory.activeDesires.some(desire => desire.id === 'desire::stay-near::old')).toBe(true)
   })
 
-  it('stores a withheld repair desire when action ecology decides to repair before speaking', () => {
+  it('stores a withheld repair desire when action ecology decides to repair before outward reply', () => {
     const desireMemory = buildDesireMemory({
       now: 55_000,
       context: createContext(),
@@ -308,7 +308,7 @@ describe('buildDesireMemory', () => {
           owner: 'alicization',
           kind: 'clarify-scene',
           status: 'blocked',
-          label: 'repair the scene before speaking',
+          label: 'repair the scene before outward reply',
           confidence: 0.72,
           urgency: 0.64,
           desireWeight: 0.6,

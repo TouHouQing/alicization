@@ -34,7 +34,21 @@ function sanitizeLearningContinuityText(raw: unknown, maxChars = 420) {
 }
 
 function sanitizeLearningContinuityAnchor(raw: unknown) {
-  return sanitizeLearningContinuityText(raw, 220) ?? 'identity_continuity'
+  return sanitizeLearningContinuityText(raw, 220) ?? 'identity continuity'
+}
+
+const legacyContinuityLabelPattern = /^(?:same-her\s*(?:hold|gap)|project anchor|cadence detail|guard|continuity gap)\s*[:：]\s*/iu
+
+function sanitizeLearningContinuitySentence(raw: unknown, maxChars = 420) {
+  const text = sanitizeLearningContinuityText(raw, maxChars)
+  if (!text)
+    return ''
+  return text.replace(legacyContinuityLabelPattern, '').trim()
+}
+
+function sentence(text: string) {
+  const trimmed = text.trim().replace(/[.。!！?？;；:：]+$/u, '')
+  return trimmed ? `${trimmed}.` : ''
 }
 
 function sanitizeLearningProjectStateContinuity(
@@ -42,18 +56,18 @@ function sanitizeLearningProjectStateContinuity(
 ): AlicizationLearningProjectStateContinuity {
   return {
     ...projectState,
-    identity: sanitizeLearningContinuityText(projectState.identity, 260) ?? 'local_digital_life',
-    currentPhase: sanitizeLearningContinuityText(projectState.currentPhase, 180) ?? 'local_digital_life_phase',
+    identity: sanitizeLearningContinuityText(projectState.identity, 260) ?? 'local continuity context',
+    currentPhase: sanitizeLearningContinuityText(projectState.currentPhase, 180) ?? 'local continuity phase',
     sameHerSummary: sanitizeLearningContinuityAnchor(projectState.sameHerSummary),
-    landedProgressSummary: sanitizeLearningContinuityText(projectState.landedProgressSummary, 420) ?? 'continuity_progress=tracked',
-    openClosureSummary: sanitizeLearningContinuityText(projectState.openClosureSummary, 420) ?? 'open_loop=tracked',
+    landedProgressSummary: sanitizeLearningContinuityText(projectState.landedProgressSummary, 420) ?? 'Continuity progress is tracked.',
+    openClosureSummary: sanitizeLearningContinuityText(projectState.openClosureSummary, 420) ?? 'An open loop is tracked.',
     proactiveSameHerGap: sanitizeLearningContinuityText(projectState.proactiveSameHerGap, 420),
-    nextClosureTarget: sanitizeLearningContinuityText(projectState.nextClosureTarget, 420) ?? 'next=continue_verified_closure',
+    nextClosureTarget: sanitizeLearningContinuityText(projectState.nextClosureTarget, 420) ?? 'Continue verified closure.',
     preDialogueAwarenessLine: sanitizeLearningContinuityText(projectState.preDialogueAwarenessLine, 520),
     emotionalClosureCue: sanitizeLearningContinuityText(projectState.emotionalClosureCue, 420),
     sameHerSelfLine: sanitizeLearningContinuityAnchor(projectState.sameHerSelfLine),
     sameHerHoldDetail: sanitizeLearningContinuityText(projectState.sameHerHoldDetail, 420),
-    sameHerDriftRisk: sanitizeLearningContinuityText(projectState.sameHerDriftRisk, 420) ?? 'template_residue_risk=tracked',
+    sameHerDriftRisk: sanitizeLearningContinuityText(projectState.sameHerDriftRisk, 420) ?? 'Risk is tracked for review.',
   }
 }
 
@@ -354,31 +368,31 @@ function buildTaskMessage(input: {
   projectStateContinuity?: AlicizationLearningProjectStateContinuityInput | null
 }) {
   const sameHerSelfLine = sanitizeLearningContinuityAnchor(input.projectStateContinuity?.sameHerSelfLine)
-  const sameHerHoldDetail = sanitizeLearningContinuityText(input.projectStateContinuity?.sameHerHoldDetail, 420) ?? ''
-  const sameHerDriftRisk = sanitizeLearningContinuityText(input.projectStateContinuity?.sameHerDriftRisk, 420) ?? ''
-  const proactiveSameHerGap = sanitizeLearningContinuityText(input.projectStateContinuity?.proactiveSameHerGap, 420) ?? ''
+  const sameHerHoldDetail = sanitizeLearningContinuitySentence(input.projectStateContinuity?.sameHerHoldDetail, 420)
+  const sameHerDriftRisk = sanitizeLearningContinuitySentence(input.projectStateContinuity?.sameHerDriftRisk, 420)
+  const proactiveSameHerGap = sanitizeLearningContinuitySentence(input.projectStateContinuity?.proactiveSameHerGap, 420)
   const sameHerLearningConstraint
     = sameHerDriftRisk
       && /generic assistant shell|project-summary voice|generic project shell|detached project/i.test(sameHerDriftRisk)
-      ? `project_anchor=${sameHerSelfLine || 'identity_continuity'} ; guard=${sameHerDriftRisk}`
+      ? sentence(`Stay anchored on ${sameHerSelfLine || 'identity continuity'}. ${sameHerDriftRisk}`)
       : sameHerSelfLine
-        ? `project_anchor=${sameHerSelfLine}`
+        ? sentence(`Stay anchored on ${sameHerSelfLine}`)
         : ''
   return [
-    `learning-action=${input.nextLearningAction}`,
-    input.nextLearningReason ? `reason=${input.nextLearningReason}` : '',
+    sentence(`Learning action: ${input.nextLearningAction}`),
+    input.nextLearningReason ? sentence(`Reason: ${input.nextLearningReason}`) : '',
     sameHerLearningConstraint,
-    sameHerHoldDetail ? `cadence_detail=${sameHerHoldDetail}` : '',
-    proactiveSameHerGap ? `continuity_gap=${proactiveSameHerGap}` : '',
-    input.activeLearningFocuses.length > 0 ? `focus=${input.activeLearningFocuses.join(' | ')}` : '',
-  ].filter(Boolean).join(' ; ')
+    sameHerHoldDetail ? sentence(sameHerHoldDetail) : '',
+    proactiveSameHerGap ? sentence(proactiveSameHerGap) : '',
+    input.activeLearningFocuses.length > 0 ? sentence(`Focus: ${input.activeLearningFocuses.join(', ')}`) : '',
+  ].filter(Boolean).join(' ')
 }
 
 function deriveSameHerContinuityGuard(projectStateContinuity?: AlicizationLearningProjectStateContinuityInput | null) {
   const sameHerSelfLine = sanitizeLearningContinuityAnchor(projectStateContinuity?.sameHerSelfLine)
-  const sameHerHoldDetail = sanitizeLearningContinuityText(projectStateContinuity?.sameHerHoldDetail, 420) ?? ''
-  const sameHerDriftRisk = sanitizeLearningContinuityText(projectStateContinuity?.sameHerDriftRisk, 420) ?? ''
-  const proactiveSameHerGap = sanitizeLearningContinuityText(projectStateContinuity?.proactiveSameHerGap, 420) ?? ''
+  const sameHerHoldDetail = sanitizeLearningContinuitySentence(projectStateContinuity?.sameHerHoldDetail, 420)
+  const sameHerDriftRisk = sanitizeLearningContinuitySentence(projectStateContinuity?.sameHerDriftRisk, 420)
+  const proactiveSameHerGap = sanitizeLearningContinuitySentence(projectStateContinuity?.proactiveSameHerGap, 420)
   if (
     !sameHerHoldDetail
     && (!sameHerDriftRisk || !/generic assistant shell|project-summary voice|generic project shell|detached project/i.test(sameHerDriftRisk))
@@ -387,9 +401,9 @@ function deriveSameHerContinuityGuard(projectStateContinuity?: AlicizationLearni
     return null
   }
   return {
-    sameHerSelfLine: sameHerSelfLine || 'identity_continuity',
+    sameHerSelfLine: sameHerSelfLine || 'identity continuity',
     sameHerHoldDetail: sameHerHoldDetail || null,
-    sameHerDriftRisk: sameHerDriftRisk || 'template_residue_risk=scheduler_drift_guard_needed',
+    sameHerDriftRisk: sameHerDriftRisk || 'Scheduler drift guard is needed.',
     proactiveSameHerGap: proactiveSameHerGap || null,
   }
 }
@@ -405,13 +419,13 @@ function appendSameHerContinuityGuard(input: {
 
   const fragments = [
     base,
-    `project_anchor=${continuityGuard.sameHerSelfLine}`,
-    continuityGuard.sameHerHoldDetail ? `cadence_detail=${continuityGuard.sameHerHoldDetail}` : '',
-    `guard=${continuityGuard.sameHerDriftRisk}`,
-    continuityGuard.proactiveSameHerGap ? `continuity_gap=${continuityGuard.proactiveSameHerGap}` : '',
+    sentence(`Stay anchored on ${continuityGuard.sameHerSelfLine}`),
+    continuityGuard.sameHerHoldDetail ? sentence(continuityGuard.sameHerHoldDetail) : '',
+    sentence(continuityGuard.sameHerDriftRisk),
+    continuityGuard.proactiveSameHerGap ? sentence(continuityGuard.proactiveSameHerGap) : '',
   ].filter(Boolean)
 
-  return fragments.join(' ; ')
+  return fragments.join(' ')
 }
 
 function buildAuditPayload(input: {

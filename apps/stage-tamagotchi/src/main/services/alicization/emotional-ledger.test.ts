@@ -110,7 +110,7 @@ describe('buildAlicizationEmotionalTransitionLedger', () => {
       shouldPropose: true,
       domain: 'dialogue-style',
       reasonCodes: ['repair-before-closeness', 'continue-repair-first', 'writeback-repair-restraint'],
-      summary: 'Repair-first emotional carry should propose a same-her self-revision so later turns keep closeness restrained until the seam settles.',
+      summary: 'Repair-first emotional carry should propose a identity-continuity',
       projectStateContinuity: {
         sameHerSelfLine: null,
         sameHerDriftRisk: null,

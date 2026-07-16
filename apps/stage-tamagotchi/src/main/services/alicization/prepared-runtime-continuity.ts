@@ -537,13 +537,13 @@ export function deriveRuntimeProjectionRelationshipCarry(projection: {
   if (explicitLine)
     return explicitLine
   if (/repair-before-closeness|repair before closeness|repair-first/u.test(combinedLower))
-    return 'relationship_carry=repair_before_closeness; pressure=lower; wait=room_settles'
+    return 'Repair before closeness; keep pressure lower and wait for room to settle.'
   if (/same living line|quiet-companionship/u.test(combinedLower))
-    return 'relationship_carry=low_pressure; continuity=quiet_companionship; closeness=widen_later'
+    return 'Low-pressure quiet companionship; widen closeness later.'
   if (/held-autonomy|follow-through|held back|same thread|same line|leave room|lower-pressure|measured-return/u.test(combinedLower))
-    return 'relationship_carry=callback_current_thread; pressure=lower; closeness=widen_later'
+    return 'Stay on the current callback thread with lower pressure; widen closeness later.'
   if (/lower-pressure|leave room|measured-return|nearby-soft|quiet-companionship/u.test(combinedLower))
-    return 'relationship_carry=current_thread; pressure=lower; closeness=widen_later'
+    return 'Stay on the current thread with lower pressure; widen closeness later.'
   return null
 }
 

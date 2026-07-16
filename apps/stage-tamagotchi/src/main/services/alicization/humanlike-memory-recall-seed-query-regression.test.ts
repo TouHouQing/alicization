@@ -20,7 +20,7 @@ describe('humanlike memory recall seed query regression', () => {
               sessionId: 'session-query-regression',
               createdAt: 42_000,
               relationshipContext: {
-                threadAnchor: 'same-her continuity correction',
+                threadAnchor: 'identity-continuity',
                 summary: 'Host first looked like they were pushing for progress.',
               },
               emotionalResidue: {
@@ -39,10 +39,9 @@ describe('humanlike memory recall seed query regression', () => {
                 whyRemember: 'old interpretation | progress pressure',
                 confidence: 0.82,
                 correctionSurface: {
-                  userCorrectableFields: ['relationshipContext', 'naturalRecallLine'],
+                  userCorrectableFields: ['relationshipContext'],
                 },
               },
-              naturalRecallLine: '我记得你那次是在催进度，所以我先接进度线。',
             },
           },
           createdAt: 42_000,
@@ -74,9 +73,8 @@ describe('humanlike memory recall seed query regression', () => {
       [{ kind: 'person-state-updated', limit: 24 }],
       [{ kind: 'humanlike-memory-corrected', limit: 24 }],
     ])
-    expect(seed).toContain('line=recall_source=host_correction; field=relationship_context; corrected_value=你是在测试她是不是持续的人，不是催进度。; posture=relationship_context_not_status_pressure; visibility=memory_structured')
-    expect(seed).toContain('relationship=Host corrected this memory meaning: 你是在测试她是不是持续的人，不是催进度。')
-    expect(seed).toContain('why=old interpretation | progress pressure | host correction | same-person continuity was at stake')
+    expect(seed).toContain('relationship=你是在测试她是不是持续的人，不是催进度。')
+    expect(seed).not.toMatch(/\b(?:line|embodiment|self|why|reason|metabolism)=/u)
     expect(seed).not.toContain('我记得你纠正过')
   })
 
@@ -133,11 +131,18 @@ describe('humanlike memory recall seed query regression', () => {
       [{ kind: 'humanlike-memory-corrected', limit: 24 }],
     ])
     expect(seed).toContain('humanlike_memory_recall:')
-    expect(seed).toContain('line=relationship_cadence=measured_return; return_pressure=low; warmth=delayed; visibility=memory_structured')
+    expect(seed).toContain('affective_residue_kind=afterglow')
+    expect(seed).toContain('affective_cadence_mode=measured-return')
+    expect(seed).toContain('affective_distance_posture=measured-room')
+    expect(seed).toContain('affective_should_delay_warmth=true')
+    expect(seed).toContain('affective_should_protect_rest=false')
+    expect(seed).toContain('affective_afterglow_carry=0.52')
+    expect(seed).toContain('affective_fatigue_guard=0.18')
+    expect(seed).toContain('affective_overreach_risk=0.29')
     expect(seed).toContain('emotion=afterglow-carry,unfinishedness')
     expect(seed).toContain('embodiment_voice=lower-pressure')
-    expect(seed).toContain('initiative_visible_policy=memory_led_low_pressure; pressure=low; opening=natural_reopen; visibility=memory_structured')
-    expect(seed).not.toContain('我记得这条线还在')
-    expect(seed).not.toContain('我不催你')
+    expect(seed).not.toMatch(/\b(?:line|relationship|initiative|embodiment|self|why|reason|metabolism)=/u)
+    expect(seed).not.toMatch(/Return with lower pressure|Recall with lower pressure|Keep body pressure|Affective residue says/iu)
+    expect(seed).not.toContain('中性可见占位')
   })
 })

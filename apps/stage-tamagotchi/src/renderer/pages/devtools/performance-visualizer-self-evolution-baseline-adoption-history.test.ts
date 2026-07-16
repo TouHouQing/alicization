@@ -49,7 +49,7 @@ describe('performance visualizer self evolution baseline adoption history summar
     ])
   })
 
-  it('keeps same-her continuity governance visible inside adoption history summaries', () => {
+  it('keeps identity-continuity', () => {
     expect(buildSelfEvolutionBaselineAdoptionHistorySummary([
       {
         version: 'self-evolution-baseline-adoption/v1',
@@ -446,7 +446,7 @@ describe('performance visualizer self evolution baseline adoption history summar
     ])
   })
 
-  it('keeps quieter surviving-lane truth visible inside adoption history summaries when only face, lipsync, and voice still carry the same-her segment', () => {
+  it('keeps quieter surviving-lane truth visible inside adoption history summaries when only face, lipsync, and voice still carry the identity-continuity', () => {
     expect(buildSelfEvolutionBaselineAdoptionHistorySummary([
       {
         snapshotCapturedAt: 1925,
@@ -459,14 +459,14 @@ describe('performance visualizer self evolution baseline adoption history summar
         continuityGovernanceNote: null,
         relationshipCadenceGovernanceNote: null,
         projectStateContinuityGovernanceNote: null,
-        bodyContinuityGovernanceNote: '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。',
+        bodyContinuityGovernanceNote: '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       },
     ])).toEqual([
       '当前默认连续性参照：快照 1925，候选项 candidate-face-voice-only-7，轨迹 trace-face-voice-only-7。',
       '最近 1 次基线采纳均带有显式审计记录。',
       '最新采纳归属：身体连续性治理；上一轮采纳归属：n/a。',
-      '最新身体连续性阶段：显形回接失身态（表情、口型、声音 same-her continuity 仍在维持）。',
-      '最新采纳说明：显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。',
+      '最新身体连续性阶段：显形回接失身态（表情、口型、声音 identity-continuity',
+      '最新采纳说明：显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
     ])
   })
 
@@ -490,7 +490,7 @@ describe('performance visualizer self evolution baseline adoption history summar
       '当前默认连续性参照：快照 1935，候选项 candidate-face-voice-only-structured-1，轨迹 trace-face-voice-only-structured-1。',
       '最近 1 次基线采纳均带有显式审计记录。',
       '最新采纳归属：身体连续性治理；上一轮采纳归属：n/a。',
-      '最新身体连续性阶段：显形回接失身态（表情、口型、声音 same-her continuity 仍在维持）。',
+      '最新身体连续性阶段：显形回接失身态（表情、口型、声音 identity-continuity',
       '最新采纳说明：显形回接失身态已经被完整记录：显形权威已经回接，但身体线没有继续托住同一段 living segment，因此这条可见恢复只能作为审计锚点，而不能被误写成可信长期基线。',
     ])
   })

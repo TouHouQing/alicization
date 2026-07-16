@@ -131,7 +131,7 @@ describe('performance visualizer speech diagnostic summary', () => {
     const entries = buildSpeechDiagnosticSummaryEntries({
       includeSettleAuthority: false,
       speechEvidence: {
-        voiceSummary: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the same living line before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
+        voiceSummary: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the continuity state before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
         prosodyAuthoritySummary: null,
         authorityMatchSummary: null,
         topVisemeSummary: null,
@@ -148,8 +148,8 @@ describe('performance visualizer speech diagnostic summary', () => {
     expect(entries).toContainEqual({
       key: 'voice',
       label: '语音韵律',
-      value: '中文韵律，收口 0.72，咬字 0.88，companion repair-before-closeness，连续性原因 Memory deliberation still says let repair settle first on the same living line before closeness widens again，来源 韵律权威，片段 segment-memory-deliberation-repair-1',
-      technicalValue: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the same living line before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
+      value: '中文韵律，收口 0.72，咬字 0.88，companion repair-before-closeness，连续性原因 Memory deliberation still says let repair settle first on the continuity state before closeness widens again，来源 韵律权威，片段 segment-memory-deliberation-repair-1',
+      technicalValue: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the continuity state before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
     })
   })
 
@@ -177,12 +177,12 @@ describe('performance visualizer speech diagnostic summary', () => {
     ])
   })
 
-  it('keeps a thin measured-return same-her line visible in speech summaries instead of collapsing it into lane-only drift', () => {
+  it('keeps a thin measured-return identity-continuity', () => {
     const entries = buildSpeechDiagnosticSummaryEntries({
       authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
       authorityMatchSummary: 'face:no motion:no lipsync:yes',
       authorityMismatchSummary: 'face-mismatch, motion-mismatch',
-      authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+      authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
       settleAuthoritySummary: 'authority-bound | segment=segment-thin-measured-return-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
       includeSettleAuthority: true,
       speechEvidence: null,
@@ -204,7 +204,7 @@ describe('performance visualizer speech diagnostic summary', () => {
       {
         key: 'authority-mismatch',
         label: '权威漂移',
-        value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+        value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
       },
       {
         key: 'settle-authority',
@@ -215,7 +215,7 @@ describe('performance visualizer speech diagnostic summary', () => {
     ])
   })
 
-  it('keeps body lipsync and voice same-her continuity legible in speech summaries when that audible body line is the surviving lane', () => {
+  it('keeps body lipsync and voice identity-continuity', () => {
     const entries = buildSpeechDiagnosticSummaryEntries({
       authorityBindingSummary: 'target=vrm | drivers=body, lipsync | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync+voice-only | pending-rejoin=face+motion',
       authorityMatchSummary: 'body:yes face:no motion:no lipsync:yes',
@@ -256,7 +256,7 @@ describe('performance visualizer speech diagnostic summary', () => {
     ])
   })
 
-  it('surfaces embodiment closure stage in speech summaries when audible body continuity is the active same-her closure phase', () => {
+  it('surfaces embodiment closure stage in speech summaries when audible body continuity is the active identity-continuity', () => {
     const entries = buildSpeechDiagnosticSummaryEntries({
       authorityMismatchDisplay: '当前仍由身体和可听线维持同一段连续性 | closure=audible-body-carry',
       includeSettleAuthority: false,
@@ -282,7 +282,7 @@ describe('performance visualizer speech diagnostic summary', () => {
     })
   })
 
-  it('prefers normalized speech evidence closure stage over re-parsing when same-her closure state is already carried structurally', () => {
+  it('prefers normalized speech evidence closure stage over re-parsing when identity-continuity', () => {
     const entries = buildSpeechDiagnosticSummaryEntries({
       includeSettleAuthority: false,
       speechEvidence: {
@@ -308,7 +308,7 @@ describe('performance visualizer speech diagnostic summary', () => {
     })
   })
 
-  it('extracts structured same-her closure stages from authority lane summaries inside speech diagnostic summaries', () => {
+  it('extracts structured identity-continuity', () => {
     const cases = [
       {
         expected: 'body-carried-to-renderer-rejoin',

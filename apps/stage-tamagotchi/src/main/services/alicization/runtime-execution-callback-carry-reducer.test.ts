@@ -37,7 +37,7 @@ describe('runtime-execution-callback-carry-reducer', () => {
       now: 1_000,
     })
 
-    expect(resolved?.dialogue.answerCompiler?.openingClaim).toContain('same local digital life thread')
+    expect(resolved?.dialogue.answerCompiler?.openingClaim).toContain('local continuity state')
     expect(resolved?.dialogue.answerCompiler?.openingDirective).toContain('avoid flattening it into a bare utility notification')
     expect(resolved?.dialogue.answerCompiler?.supportingReality).toEqual(expect.arrayContaining([
       expect.stringContaining(`project preflight: ${projectState.preflightSummary}`),
@@ -93,7 +93,7 @@ describe('runtime-execution-callback-carry-reducer', () => {
     expect(resolved?.dialogue.conversationState?.memoryMode).toBe('dialogue-carry')
     expect(resolved?.dialogue.discourseState?.primaryTurnAnchor).toBe('the compile error thread')
     expect(resolved?.dialogue.answerCompiler?.labelCarryAsMemory).toBe(true)
-    expect(resolved?.dialogue.answerCompiler?.openingClaim).toContain('same local digital life thread')
+    expect(resolved?.dialogue.answerCompiler?.openingClaim).toContain('local continuity state')
     expect(resolved?.dialogue.answerCompiler?.openingDirective).toContain('leave room before the next follow-up')
     expect(resolved?.dialogue.answerCompiler?.supportingReality).toEqual(expect.arrayContaining([
       expect.stringContaining('The compile finished and should re-enter the same unfinished line gently.'),
@@ -115,9 +115,9 @@ describe('runtime-execution-callback-carry-reducer', () => {
         dialogue: {
           currentConsciousFrame: {
             projectState: {
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-              preflightSummary: 'same digital life | keep the closure seam explicit',
-              companionBriefingLine: 'Before answering, keep the same digital life project, Phase 1 closure pressure, and still-open life loop explicit.',
+              preDialogueAwarenessLine: 'template-residue-shell',
+              preflightSummary: 'template-residue-shell',
+              companionBriefingLine: 'pre_turn_context_digest',
             },
           },
         },
@@ -147,15 +147,15 @@ describe('runtime-execution-callback-carry-reducer', () => {
     })
 
     expect(resolved?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(
-      'Before answering, keep the same digital life project, Phase 1 closure pressure, and still-open life loop explicit.',
+      'pre_turn_context_digest',
     )
     expect(String(resolved?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine ?? '')).not.toContain(
-      'same digital life | keep the closure seam explicit',
+      'template-residue-shell',
     )
   })
 
   it('prefers a richer raw runtime-digest same-her awareness summary over a thin conscious-frame reminder shell when callback carry rebuilds project awareness', () => {
-    const richerAwarenessLine = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". She is still inside Phase 1: Local Digital Life. What has already landed is callback continuity can stay on one same-her line. The still-open closure is memory, initiative, and embodiment still needing one same-life seam before this reply widens outward.'
+    const richerAwarenessLine = 'pre_turn_context_digest'
     const resolved = applyExecutionCallbackCarryToDigitalLifeRuntimeSurface({
       surface: {
         memory: {},
@@ -172,9 +172,9 @@ describe('runtime-execution-callback-carry-reducer', () => {
         dialogue: {
           currentConsciousFrame: {
             projectState: {
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-              awarenessLine: 'same digital life | keep the closure seam explicit',
-              preflightSummary: 'same digital life | keep the closure seam explicit',
+              preDialogueAwarenessLine: 'template-residue-shell',
+              awarenessLine: 'template-residue-shell',
+              preflightSummary: 'template-residue-shell',
             },
           },
         },
@@ -204,10 +204,10 @@ describe('runtime-execution-callback-carry-reducer', () => {
     })
 
     expect(resolved?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toBe(richerAwarenessLine)
-    expect(String(resolved?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine ?? '')).toContain('Before answering, remember:')
+    expect(String(resolved?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine ?? '')).toContain('pre_turn_context_digest')
     expect(String(resolved?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine ?? '')).toContain('Phase 1: Local Digital Life')
     expect(String(resolved?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine ?? '')).not.toContain(
-      'same digital life | keep the closure seam explicit',
+      'template-residue-shell',
     )
   })
 
@@ -282,7 +282,7 @@ describe('runtime-execution-callback-carry-reducer', () => {
     expect(resolved?.raw?.runtimeDigest?.projectState?.preferredPacingMode).toBeNull()
   })
 
-  it('preserves project continuity arc stage through execution callback carry so same-her return phases stay visible before the next opening', () => {
+  it('preserves project continuity arc stage through execution callback carry so identity-continuity', () => {
     const resolved = applyExecutionCallbackCarryToDigitalLifeRuntimeSurface({
       surface: {
         memory: {},

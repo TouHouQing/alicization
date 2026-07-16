@@ -126,7 +126,7 @@ describe('memory-accessibility-runtime', () => {
           searchConversations: true,
           searchProceduralExperience: true,
           queryHints: ['gentle-reopen'],
-          rationale: 'Re-enter the same living line instead of summarizing it away.',
+          rationale: 'Re-enter the continuity state instead of summarizing it away.',
           confidence: 0.8,
         },
       } as any,
@@ -379,7 +379,6 @@ describe('memory-accessibility-runtime', () => {
           warmthReleaseBias: 0,
         },
         responsePosture: {
-          secondPassRequiredBias: 0.18,
           hypothesisLabelBias: 0.16,
           specificityClampBias: 0.22,
           templateShellSuppressionBias: 0.28,

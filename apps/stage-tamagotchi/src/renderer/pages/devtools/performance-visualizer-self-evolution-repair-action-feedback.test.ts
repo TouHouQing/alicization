@@ -508,7 +508,7 @@ describe('performance visualizer self evolution repair action feedback', () => {
       executedAction: {
         kind: 'inspect-event',
         label: 'Inspect governance-normalized',
-        detail: 'body-led same-her continuity already visible through authority-body:yes.',
+        detail: 'body-led identity-continuity',
         targetType: 'event',
         targetId: 'governance-normalized',
       },
@@ -801,7 +801,7 @@ describe('performance visualizer self evolution repair action feedback', () => {
       executedAction: {
         kind: 'inspect-event',
         label: 'Inspect takeover-audit',
-        detail: 'body-led same-her continuity already visible through authority-body:yes.',
+        detail: 'body-led identity-continuity',
         targetType: 'event',
         targetId: 'takeover-audit',
       },

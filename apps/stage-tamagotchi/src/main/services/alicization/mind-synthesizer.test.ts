@@ -279,7 +279,7 @@ describe('buildMindSynthesis', () => {
     expect(buildMindSynthesisSystemBlock(synthesis)).toContain('[ALICIZATION_MIND_SYNTHESIS]')
   })
 
-  it('keeps a fresher runtime self-line while preserving richer same-her continuity authority', () => {
+  it('keeps a fresher runtime self-line while preserving richer identity-continuity', () => {
     const synthesis = buildMindSynthesis({
       now: 20_000,
       discourseState: {
@@ -343,7 +343,7 @@ describe('buildMindSynthesis', () => {
         },
         personStateProjection: {
           selfContinuityAuthority: {
-            selfLine: 'I am still here in this exact return, picking up the same living line.',
+            selfLine: 'I am still here in this exact return, picking up the continuity state.',
             relationshipLine: null,
             inwardLine: null,
             motiveLine: null,
@@ -391,7 +391,7 @@ describe('buildMindSynthesis', () => {
         },
         selfNarrative: 'I am staying on the same line instead of becoming a fresh shell.',
         relationNarrative: 'The bond should reopen softly, not jump ahead of itself.',
-        currentPreoccupation: 'Keep the same-her return coherent.',
+        currentPreoccupation: 'Keep the identity-continuity',
         learnedAdjustments: [],
         recurringPatterns: [],
         updatedAt: 20_000,
@@ -469,7 +469,7 @@ describe('buildMindSynthesis', () => {
         },
         personStateProjection: {
           selfContinuityAuthority: {
-            selfLine: 'I am still here in this exact return, picking up the same living line.',
+            selfLine: 'I am still here in this exact return, picking up the continuity state.',
             relationshipLine: null,
             inwardLine: null,
             motiveLine: null,
@@ -517,7 +517,7 @@ describe('buildMindSynthesis', () => {
         },
         selfNarrative: 'I am staying on the same line instead of becoming a fresh shell.',
         relationNarrative: 'The bond should reopen softly, not jump ahead of itself.',
-        currentPreoccupation: 'Keep the same-her return coherent.',
+        currentPreoccupation: 'Keep the identity-continuity',
         learnedAdjustments: [],
         recurringPatterns: [],
         updatedAt: 21_000,
@@ -554,7 +554,7 @@ describe('buildMindSynthesis', () => {
     })
 
     expect(synthesis?.openingIntent).toContain('I am still here in this exact return')
-    expect(synthesis?.openingIntent).toContain('same living line')
+    expect(synthesis?.openingIntent).toContain('continuity state')
     expect(synthesis?.interiorSummary).toContain('Return softly, then let warmth breathe')
     expect(
       synthesis?.beliefs.find(belief => belief.label === 'self-continuity-authority')?.summary,
@@ -758,7 +758,7 @@ describe('buildMindSynthesis', () => {
             id: 'reflection::same-her-repair',
             summary: 'The same-her repair line is still the meaningful continuity carry.',
             expectation: 'The steadier repair line should stay active for the current inward synthesis.',
-            observedOutcome: 'The same living line still needs a measured return.',
+            observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
             revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.08,

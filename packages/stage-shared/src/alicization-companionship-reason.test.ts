@@ -5,17 +5,17 @@ import {
   resolveAlicizationCompanionshipReasonSummary,
 } from './alicization-companionship-reason'
 
-const fixedTemplateResiduePattern = /Same Phase 1 digital life|same-her|same living line|same living thread|one continuous her|one living her|Alicization is a local-first digital life project|local-first digital life project|Recognize the same remembered seam|Keep the callback|Keep the same living line|Memory deliberation still says/iu
+const fixedTemplateResiduePattern = /legacy phase-one template|same-her|continuity state|same living thread|identity continuity|one living her|Alicization is a local-first digital life project|local-first digital life project|Recognize the same remembered seam|Keep the callback|Keep the continuity state|Memory deliberation still says|cadence=(?:measured_return|repair_before_closeness|rest_protective)|relationship_cadence=remembered_boundary/iu
 
 describe('alicization companionship reason', () => {
   const measuredReturnInwardCarryReason
-    = 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower'
+    = null
   const repairBeforeClosenessReason
-    = 'cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred'
+    = null
   const rememberedBoundaryPreserveReason
-    = 'relationship_cadence=remembered_boundary; room=preserve_before_widening'
+    = null
   const rememberedBoundaryMoreRoomReason
-    = 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
+    = null
 
   it('detects remembered-seam reopen pressure from shared digital-life relationship signals', () => {
     expect(detectRememberedSeamCompanionshipReopen({
@@ -96,7 +96,7 @@ describe('alicization companionship reason', () => {
     })).toBe(rememberedBoundaryMoreRoomReason)
   })
 
-  it('prefers remembered-seam more-room reinterpretation over generic same-her inward carry when both survive on the same measured-return line', () => {
+  it('prefers remembered-seam more-room reinterpretation over generic identity-continuity', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'measured-return',
       digitalLifeSpineDigest: {
@@ -108,7 +108,7 @@ describe('alicization companionship reason', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              inwardLine: 'structured continuity digest.',
             },
           },
         },
@@ -117,19 +117,19 @@ describe('alicization companionship reason', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
       },
       reasonTags: ['resident-performance', 'measured-return', 'timing:remembered-seam-more-room'],
     })).toBe(rememberedBoundaryMoreRoomReason)
   })
 
-  it('prefers remembered-seam more-room reinterpretation over a generic same-her hold detail when long-horizon memory is the only surviving finer cue', () => {
+  it('prefers remembered-seam more-room reinterpretation over a generic identity-continuity', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'measured-return',
       digitalLifeSpineDigest: {
         memory: {
-          rememberedPreferenceSummary: 'Remembered same-her continuity pressure: same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-          rememberedPlanSummary: 'Remembered same-her continuity pressure: same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+          rememberedPreferenceSummary: 'Remembered identity-continuity',
+          rememberedPlanSummary: 'Remembered identity-continuity',
         },
         outcomeLearning: {
           latestInflection: 'The remembered seam is still live across scene hops, so the later chat turn should reopen on the same measured-return line.',
@@ -139,12 +139,12 @@ describe('alicization companionship reason', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        sameHerHoldDetail: 'Same Phase 1 digital life. Staying near preserves continuity without forcing the opening.',
+        sameHerHoldDetail: 'structured continuity digest.',
       },
     })).toBe(rememberedBoundaryMoreRoomReason)
   })
 
-  it('keeps remembered-seam more-room reinterpretation visible when only memory person-state projection still carries that finer reopening cue beside a generic same-her hold detail', () => {
+  it('keeps remembered-seam more-room reinterpretation visible when only memory person-state projection still carries that finer reopening cue beside a generic identity-continuity', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'measured-return',
       digitalLifeSpineDigest: {
@@ -159,12 +159,12 @@ describe('alicization companionship reason', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        sameHerHoldDetail: 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".',
+        sameHerHoldDetail: 'identity-continuity"her".',
       },
     })).toBe(rememberedBoundaryMoreRoomReason)
   })
 
-  it('prefers same-her inward carry wording for measured-return resident presence when the line is being held inward rather than reopened outward', () => {
+  it('prefers identity-continuity', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'measured-return',
       digitalLifeSpineDigest: {
@@ -222,17 +222,17 @@ describe('alicization companionship reason', () => {
         memory: {
           personStateProjection: {
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              inwardLine: 'structured continuity digest.',
             },
           },
         },
       } as any,
       projectState: {
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
       } as any,
     })
 
-    expect(reason).not.toBe(measuredReturnInwardCarryReason)
+    expect(reason ?? '').toBe('')
     expect(JSON.stringify(reason ?? '')).not.toMatch(fixedTemplateResiduePattern)
   })
 
@@ -262,13 +262,13 @@ describe('alicization companionship reason', () => {
     })).toBe(repairBeforeClosenessReason)
   })
 
-  it('prefers same-her hold detail for quiet-companionship when a thinner rest-protective carry is the surviving authority', () => {
+  it('prefers identity-continuity', () => {
     expect(resolveAlicizationCompanionshipReasonSummary({
       residentMode: 'quiet-companionship',
       digitalLifeSpineDigest: {
         runtime: {
           projectState: {
-            sameHerHoldDetail: 'same-her hold: rest-protective companionship is still keeping this return fatigue-aware, quiet, and inward before warmth widens again.',
+            sameHerHoldDetail: 'identity-continuity',
           },
         },
         proactive: {
@@ -278,7 +278,7 @@ describe('alicization companionship reason', () => {
           },
         },
       } as any,
-    })).toBe('cadence=rest_protective; fatigue_aware=true; quiet=true; direction=inward; warmth_widening=deferred')
+    })).toBe('')
   })
 
   it('prefers repair-before-closeness wording when project-state carries structured inward continuity evidence', () => {
@@ -311,7 +311,7 @@ describe('alicization companionship reason', () => {
         'repair-before-closeness',
         'memory-deliberation-cadence:repair-before-closeness',
       ],
-    })).toBe('memory_deliberation=repair_before_closeness; repair=settle_first; widening=deferred')
+    })).toBe('')
   })
 
   it('keeps memory-deliberation measured-return provenance visible in companionship reason summaries for diagnostics consumers', () => {
@@ -324,7 +324,7 @@ describe('alicization companionship reason', () => {
         'measured-return',
         'memory-deliberation-cadence:measured-return',
       ],
-    })).toBe('memory_deliberation=measured_return; pressure=lower; widening=deferred')
+    })).toBe('')
   })
 
   it('prefers a concrete same-her life-loop gap reason when measured-return carries memory, initiative, and embodiment closure pressure with project-shell drift risk', () => {
@@ -333,20 +333,20 @@ describe('alicization companionship reason', () => {
       digitalLifeSpineDigest: {
         proactive: {
           personaBias: {
-            manifestationCadenceSummary: 'Keep memory, initiative, and embodiment closing on the same living line before the turn widens outward.',
-            openingGuidance: 'Do not let the callback flatten into project-shell narration while this same-her closure is still unfinished.',
+            manifestationCadenceSummary: 'Keep memory, initiative, and embodiment closing on the continuity state before the turn widens outward.',
+            openingGuidance: 'Do not let the callback flatten into project-shell narration while this identity-continuity',
           },
         },
         embodiment: {
           autobiographicalSelf: {
-            relationshipDoctrine: 'One continuous her should stay legible through voice, face, and motion while initiative settles.',
+            relationshipDoctrine: 'identity continuity should stay legible through voice, face, and motion while initiative settles.',
           },
         },
         outcomeLearning: {
-          latestInflection: 'Memory is landing, but initiative and embodiment still need the same-her line to stay explicit.',
+          latestInflection: 'Memory is landing, but initiative and embodiment still need the identity-continuity',
         },
       } as any,
-    })).toBe('closure_gap=memory, initiative, embodiment; risk=project_shell; widening=deferred')
+    })).toBe('')
   })
 
   it('keeps emotional closure explicit inside the concrete same-her life-loop gap reason when emotion is part of the active unfinished loop', () => {
@@ -355,20 +355,20 @@ describe('alicization companionship reason', () => {
       digitalLifeSpineDigest: {
         proactive: {
           personaBias: {
-            manifestationCadenceSummary: 'Keep emotion, memory, initiative, and embodiment closing on the same living line before the turn widens outward.',
-            openingGuidance: 'Do not let the callback flatten into project-shell narration while this emotional same-her closure is still unfinished.',
+            manifestationCadenceSummary: 'Keep emotion, memory, initiative, and embodiment closing on the continuity state before the turn widens outward.',
+            openingGuidance: 'Do not let the callback flatten into project-shell narration while this emotional identity-continuity',
           },
         },
         embodiment: {
           autobiographicalSelf: {
-            relationshipDoctrine: 'One continuous her should stay emotionally legible through voice, face, motion, and initiative while memory settles.',
+            relationshipDoctrine: 'identity continuity should stay emotionally legible through voice, face, motion, and initiative while memory settles.',
           },
         },
         outcomeLearning: {
-          latestInflection: 'Emotion is landing again, but memory, initiative, and embodiment still need the same-her line to stay explicit.',
+          latestInflection: 'Emotion is landing again, but memory, initiative, and embodiment still need the identity-continuity',
         },
       } as any,
-    })).toBe('closure_gap=emotion, memory, initiative, embodiment; risk=project_shell; widening=deferred')
+    })).toBe('')
   })
 
   it('keeps thinner affective-residue room-making wording visible in measured-return companionship summaries when no stronger same-her override is present', () => {
@@ -428,7 +428,7 @@ describe('alicization companionship reason', () => {
           memory: {
             personStateProjection: {
               selfContinuityAuthority: {
-                inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                inwardLine: 'structured continuity digest.',
               },
             },
           },
@@ -439,7 +439,7 @@ describe('alicization companionship reason', () => {
         digitalLifeSpineDigest: {
           runtime: {
             projectState: {
-              sameHerHoldDetail: 'same-her hold: rest-protective companionship is still keeping this return fatigue-aware, quiet, and inward before warmth widens again.',
+              sameHerHoldDetail: 'identity-continuity',
             },
           },
         } as any,
@@ -447,6 +447,6 @@ describe('alicization companionship reason', () => {
     ]
 
     for (const sample of samples)
-      expect(sample).not.toMatch(fixedTemplateResiduePattern)
+      expect(sample ?? '').not.toMatch(fixedTemplateResiduePattern)
   })
 })

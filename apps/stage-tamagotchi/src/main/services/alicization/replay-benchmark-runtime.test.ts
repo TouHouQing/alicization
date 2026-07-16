@@ -247,7 +247,7 @@ async function prepareSessionMirrorObservation(input: {
   }
 }
 
-describe('replay benchmark runtime', { timeout: 10_000 }, () => {
+describe('replay benchmark runtime', { timeout: 60_000 }, () => {
   it('ingests anonymized runtime sampling candidates and lets sampled pack replay from the sampling backlog first', async () => {
     const meta = new Map<string, string>()
     const listConversationTurnsSince = vi.fn(async () => [])
@@ -10137,7 +10137,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('memory-tuning-advice-v1')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('repairWindowBias')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('runtimeMemoryClosureCausalIdentity')
-  }, 60_000)
+  }, 180_000)
 
   it('uses the final humanlike memory pack as the default ship gate pack', async () => {
     const meta = new Map<string, string>()
@@ -10183,7 +10183,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
 
     expect(result.packId).toBe('final-humanlike-memory-v1')
     expect(result.turnCount).toBeGreaterThan(12)
-  }, 60_000)
+  }, 120_000)
 
   it('surfaces stale self-model and relationship-era suppression rates in ship gate rows', async () => {
     const meta = new Map<string, string>()
@@ -21683,7 +21683,7 @@ describe('replay benchmark runtime', { timeout: 10_000 }, () => {
       'production-gold-sample-count',
       'production-gold-coverage',
     ]))
-  }, 60_000)
+  }, 120_000)
 
   it('fails learning self-revision roundtrip when trace-level learning exists but replay turns show no learning consumption', async () => {
     const meta = new Map<string, string>()

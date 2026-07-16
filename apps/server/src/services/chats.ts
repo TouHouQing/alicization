@@ -45,19 +45,6 @@ interface StreamChatMessagePayload {
   toolName?: string
 }
 
-interface StreamChatPreDialogueSendIdentityPayload {
-  status: 'grounded' | 'partial' | 'drift'
-  summaryLine: string | null
-  companionHeadlineLine?: string | null
-  companionBriefingLine?: string | null
-  companionNextClosureLine?: string | null
-  awarenessLine?: string | null
-  emotionalClosureCue?: string | null
-  projectState?: Record<string, unknown> | null
-  emotionalKernel?: Record<string, unknown> | null
-  reasonPreview: string[]
-}
-
 interface StreamChatPayload {
   cardId?: string
   turnId: string
@@ -67,7 +54,6 @@ interface StreamChatPayload {
   messages: StreamChatMessagePayload[]
   supportsTools?: boolean
   waitForTools?: boolean
-  preDialogueSendIdentity?: StreamChatPreDialogueSendIdentityPayload | null
 }
 
 type StreamChatEvent

@@ -608,14 +608,14 @@ export function resolveRecollectionPlanSearch(input: {
   const firstHopSummary = plan.searchTrace?.firstHop.summary
     ?? (
       preferredPrimaryFocus === 'procedure'
-        ? 'search_hop=first; focus=remembered_procedure'
+        ? 'First search hop focuses on remembered procedure.'
         : preferredPrimaryFocus === 'relationship-line'
-          ? 'search_hop=first; focus=relationship_meaning; exact_detail=secondary'
+          ? 'First search hop focuses on relationship meaning; exact detail is secondary.'
           : preferredPrimaryFocus === 'era'
-            ? 'search_hop=first; focus=remembered_period_or_era; fragments=secondary'
+            ? 'First search hop focuses on a remembered period or era; fragments are secondary.'
             : preferredPrimaryFocus === 'conversation-turn'
-              ? 'search_hop=first; focus=remembered_exchange; broaden_after_anchor=true'
-              : 'search_hop=first; focus=remembered_episode'
+              ? 'First search hop focuses on a remembered exchange, then broadens after the anchor.'
+              : 'First search hop focuses on a remembered episode.'
     )
   const secondHopSummary = plan.searchTrace?.secondHop.summary
     ?? (
@@ -702,12 +702,6 @@ export function applyMemoryDeliberationToSpeechPlan(input: {
             : 'inside-payoff')
       : 'internal-only',
     certainty: speechPlan?.certainty ?? 'approximate',
-    internalLead: deliberation.inwardLine || speechPlan?.internalLead || '',
-    // NOTICE: Memory OS may describe inward recollection pressure, but it must
-    // not hand a visible reply draft to the response layer. Visible wording is
-    // authored only by the provider mind or second-pass rewrite.
-    visibleLead: null,
-    styleNote: speechPlan?.styleNote || 'recollection_role=contour_answer; rigid_reply_shell=false',
     rationale: deliberation.whyNow || speechPlan?.rationale || '',
     confidence: deliberation.confidence,
   } satisfies NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']>

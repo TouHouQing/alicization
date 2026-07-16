@@ -1509,7 +1509,7 @@ describe('stage embodiment diagnostics', () => {
     ]))
   })
 
-  it('keeps audible-body same-her continuity explicit in diagnostics without overstating face and motion closure', () => {
+  it('keeps audible-body identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -1592,7 +1592,7 @@ describe('stage embodiment diagnostics', () => {
     expect(diagnostics.snapshot.value.speech.authoritySummary?.authorityMismatchReasonSummary).toContain('表情、动作 authority 漂移')
   })
 
-  it('keeps quieter body+lipsync continuity explicit without overstating it as an audible same-her lane', () => {
+  it('keeps quieter body+lipsync continuity explicit without overstating it as an audible identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -1922,12 +1922,12 @@ describe('stage embodiment diagnostics', () => {
       {
         severity: 'warn',
         code: 'cross-modal-single-lane-dominance',
-        message: 'Only the resident body lane is still aligned with the active same-her segment.',
+        message: 'Only the resident body lane is still aligned with the active identity-continuity',
       },
     ])
   })
 
-  it('does not overstate body+voice-only carry as an audible same-her lane before lipsync visibly rejoins the same segment', () => {
+  it('does not overstate body+voice-only carry as an audible identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -2415,7 +2415,7 @@ describe('stage embodiment diagnostics', () => {
     expect(diagnostics.snapshot.value.speech.driverSummary?.voice).not.toContain('timing=audible-body-carry')
   })
 
-  it('keeps authority mismatch wording explicit about the surviving lipsync+voice same-her lane when mouth and voice stay aligned together', () => {
+  it('keeps authority mismatch wording explicit about the surviving lipsync+voice identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -2499,7 +2499,7 @@ describe('stage embodiment diagnostics', () => {
     )
   })
 
-  it('keeps authority mismatch wording explicit about the surviving face+voice same-her lane when expression and voice stay aligned together', () => {
+  it('keeps authority mismatch wording explicit about the surviving face+voice identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -2584,7 +2584,7 @@ describe('stage embodiment diagnostics', () => {
     )
   })
 
-  it('keeps authority mismatch wording explicit about the surviving motion+voice same-her lane when motion and voice stay aligned together', () => {
+  it('keeps authority mismatch wording explicit about the surviving motion+voice identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -2668,7 +2668,7 @@ describe('stage embodiment diagnostics', () => {
     )
   })
 
-  it('keeps authority mismatch wording explicit about the surviving face+lipsync same-her lane when expression and mouth stay aligned together', () => {
+  it('keeps authority mismatch wording explicit about the surviving face+lipsync identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -2750,7 +2750,7 @@ describe('stage embodiment diagnostics', () => {
     )
   })
 
-  it('keeps authority mismatch wording explicit about the surviving motion+lipsync same-her lane when motion and mouth stay aligned together', () => {
+  it('keeps authority mismatch wording explicit about the surviving motion+lipsync identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -3495,7 +3495,7 @@ describe('stage embodiment diagnostics', () => {
     )
   })
 
-  it('keeps live2d visible voice execution as the current same-her lane even before structured voice summaries are available', () => {
+  it('keeps live2d visible voice execution as the current identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -3586,7 +3586,7 @@ describe('stage embodiment diagnostics', () => {
     })
   })
 
-  it('keeps vrm visible voice execution as the current same-her lane even before structured voice summaries are available', () => {
+  it('keeps vrm visible voice execution as the current identity-continuity', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({
@@ -4687,7 +4687,7 @@ describe('stage embodiment diagnostics', () => {
         },
         proactive: {
           personaBias: {
-            manifestationCadenceSummary: 'keep the same living line audible while the body rejoins',
+            manifestationCadenceSummary: 'keep the continuity state audible while the body rejoins',
             openingGuidance: 'keep more room and reopen slowly.',
           },
         },
@@ -4835,7 +4835,7 @@ describe('stage embodiment diagnostics', () => {
       {
         severity: 'warn',
         code: 'cross-modal-partial-lane-dominance',
-        message: 'Two embodiment lanes are still aligned with the active same-her segment, but full cross-modal continuity has already narrowed.',
+        message: 'Two embodiment lanes are still aligned with the active identity-continuity',
       },
     ])
     expect(diagnostics.snapshot.value.speech.alerts).not.toEqual(expect.arrayContaining([
@@ -4845,7 +4845,7 @@ describe('stage embodiment diagnostics', () => {
     ]))
   })
 
-  it('keeps body+voice-only same-her continuity on companionshipTransition when resident carry is already audible before lipsync returns', () => {
+  it('keeps body+voice-only identity-continuity', () => {
     const now = Date.now()
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
@@ -4911,7 +4911,7 @@ describe('stage embodiment diagnostics', () => {
         },
         proactive: {
           personaBias: {
-            manifestationCadenceSummary: 'keep the same living line audible while the resident body line holds first',
+            manifestationCadenceSummary: 'keep the continuity state audible while the resident body line holds first',
             openingGuidance: 'keep more room and reopen slowly.',
           },
         },
@@ -5037,7 +5037,7 @@ describe('stage embodiment diagnostics', () => {
         },
         proactive: {
           personaBias: {
-            manifestationCadenceSummary: 'keep the same living line settling through motion and voice before widening again',
+            manifestationCadenceSummary: 'keep the continuity state settling through motion and voice before widening again',
             openingGuidance: 'keep more room and reopen slowly.',
           },
         },
@@ -5121,7 +5121,7 @@ describe('stage embodiment diagnostics', () => {
     expect(diagnostics.snapshot.value.performance.runtimeDynamics.companionshipTransition.residentMode).toBe('quiet-companionship')
   })
 
-  it('carries same-her renderer-hint proof into the speech driver summary so overlay loop diagnostics can keep face motion lipsync and voice on one living line', () => {
+  it('carries same-her renderer-hint proof into the speech driver summary so overlay loop diagnostics can keep face motion lipsync and voice on continuity state', () => {
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
       playbackTelemetry: ref(createPlaybackTelemetryFixture({

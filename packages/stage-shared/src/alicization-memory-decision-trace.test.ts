@@ -326,13 +326,13 @@ describe('alicization memory decision trace', () => {
             version: 'memory-resolution-ledger-v1',
             producedAt: 110,
             dominantClusterId: 'cluster:rich',
-            dominantClusterSummary: 'same-her callback line',
+            dominantClusterSummary: 'identity-continuity',
             competingClusterId: 'cluster:wrong-thread',
             competingClusterSummary: 'nearby but wrong thread',
             candidates: [
               {
                 id: 'cluster:rich',
-                summary: 'same-her callback line',
+                summary: 'identity-continuity',
                 score: 0.9,
                 status: 'selected',
                 reason: 'The remembered line matched the current turn.',
@@ -356,7 +356,7 @@ describe('alicization memory decision trace', () => {
             visibleCarryMode: 'explicit-recall',
             conflictPressure: 'medium',
             retrievalQuality: 'high',
-            finalRationale: 'Selected the same-her callback line and suppressed the nearby wrong thread.',
+            finalRationale: 'Selected the identity-continuity',
           },
         },
         createdAt: 110,
@@ -679,7 +679,7 @@ describe('alicization memory decision trace', () => {
     }))
   })
 
-  it('keeps cross-modal embodiment lane authority so noisy desktop replay can verify voice motion lipsync and body stay on one same-her line', () => {
+  it('keeps cross-modal embodiment lane authority so noisy desktop replay can verify voice motion lipsync and body stay on one identity-continuity', () => {
     const records = buildAlicizationMemoryDecisionTraceRecords([
       {
         id: 'evt-dialogue-cross-modal-1',
@@ -708,7 +708,7 @@ describe('alicization memory decision trace', () => {
               residentMode: 'measured-return',
             },
             bodyContinuity: {
-              bodyLine: 'voice, face, motion, lipsync, and body remain lower-pressure on the same-her callback line',
+              bodyLine: 'voice, face, motion, lipsync, and body remain lower-pressure on the identity-continuity',
             },
             action: {
               actionCue: 'observe_focus',
@@ -749,7 +749,7 @@ describe('alicization memory decision trace', () => {
         residentMode: 'measured-return',
       }),
       bodyContinuity: expect.objectContaining({
-        bodyLine: expect.stringContaining('same-her callback line'),
+        bodyLine: expect.stringContaining('identity-continuity'),
       }),
     }))
     expect(records[0]?.embodimentAuthority?.embodimentScript?.state).toEqual(expect.objectContaining({

@@ -38,10 +38,10 @@ describe('alicization project-state injection policy', () => {
 
   it('treats template removal complaints as template-contamination repair rather than project-state context', () => {
     for (const latestUserText of [
-      '别再用 same-her、same living line、Phase 1: Local Digital Life 这些固定模板了。',
+      '别再用 same-her、continuity state、Phase 1: Local Digital Life 这些固定模板了。',
       '不要再把同一个她、数字生命主线这些固定话术塞进回复。',
       '去掉 local-first digital life project 这种套话，按记忆和当前对话说。',
-      'stop using same-her and one continuous her as canned slogans',
+      'stop using same-her and identity continuity as canned slogans',
     ]) {
       expect(shouldAttachAlicizationProjectStateContext({ latestUserText, origin: 'ui-user' })).toBe(false)
     }
@@ -52,7 +52,7 @@ describe('alicization project-state injection policy', () => {
       '继续沿着这条数字生命主线',
       '继续顺着这条已恢复的数字生命回线往下走',
       'same-her 这条线继续',
-      'keep the same living line going',
+      'keep the continuity state going',
       'Alicization is a local-first digital life project',
       '沿着同一个她继续聊',
       'same-her 相关固定模板清理完成了吗',

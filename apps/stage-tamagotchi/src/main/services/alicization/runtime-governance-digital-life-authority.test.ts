@@ -45,7 +45,7 @@ function buildScriptDigitalLifeOnlyTurn() {
       decisionTraceId: 'trace-runtime-governance-script-digital-life-authority',
     },
     structured: {
-      thought: 'same-thread continuation should keep the same living line gentle and measured',
+      thought: 'same-thread continuation should keep the continuity state gentle and measured',
       emotion: 'thinking',
       reply: '我先沿着这条线轻一点接住。',
       parsePath: 'json',

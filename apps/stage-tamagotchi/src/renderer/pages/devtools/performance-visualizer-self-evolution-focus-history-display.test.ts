@@ -83,7 +83,7 @@ describe('performance visualizer self evolution focus history display', () => {
     })
   })
 
-  it('maps same-her continuity guidance evidence labels into Chinese-first human-facing labels', () => {
+  it('maps identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatternGuidanceDisplay({
       governanceLayer: 'same-her-continuity',
       governanceLayerDisplay: '同一个她连续性层',
@@ -262,7 +262,6 @@ describe('performance visualizer self evolution focus history display', () => {
     expect(formatSelfEvolutionDisplayText('warmth-may-release')).toBe('温度可释放')
     expect(formatSelfEvolutionDisplayText('hypothesis-labeling-raised')).toBe('假设标注已提升')
     expect(formatSelfEvolutionDisplayText('specificity-clamp-raised')).toBe('具体性钳制已提升')
-    expect(formatSelfEvolutionDisplayText('second-pass-required')).toBe('需要二次通过')
     expect(formatSelfEvolutionDisplayText('template-shell-suppressed')).toBe('模板外壳已抑制')
     expect(formatSelfEvolutionDisplayText('hold-likely')).toBe('可能保持')
     expect(formatSelfEvolutionDisplayText('learning-proposal-raised')).toBe('学习提案已提升')
@@ -497,7 +496,6 @@ describe('performance visualizer self evolution focus history display', () => {
     expect(formatSelfEvolutionTraceListValue('trace-signal', 'traceDecisionTrace:trace-other')).toBe('轨迹决策轨迹：trace-other')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'hypothesis-labeling')).toBe('假设标注')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'specificity-clamp')).toBe('具体性钳制')
-    expect(formatSelfEvolutionTraceListValue('alignment-signal', 'second-pass')).toBe('二次通过')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'template-shell-suppression')).toBe('模板外壳抑制')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'planner:warm')).toBe('规划器：温暖')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'planner:restrained')).toBe('规划器：克制')

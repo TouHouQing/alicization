@@ -239,7 +239,7 @@ describe('runtime main chat runtime', () => {
           conversationState: null,
           currentConsciousFrame: {
             projectState: {
-              preDialogueAwarenessLine: 'Before answering, remember this is still the same Phase 1 digital life.',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
             },
           },
         },

@@ -11,10 +11,6 @@ import {
   readAffectiveResidueFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
 
-import {
-  resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
-  summarizeAlicizationPreDialogueSendIdentityForDebug,
-} from './main-chat-start-awareness'
 import { isAlicizationAutonomousDialogueFamily } from './runtime-structured-format'
 
 type AlicizationDialogueReplyFeedbackKind = NonNullable<ReturnType<typeof deriveDialogueReplyFeedbackKind>>
@@ -165,8 +161,7 @@ export function createAlicizationRuntimeDialogueFeedback(
     at: number,
     source: string,
   ) => {
-    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
-    const preDialogueAwarenessDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(normalizedPayload)
+    const normalizedPayload = payload
     const cardId = options.normalizeCardId(normalizedPayload.cardId)
     const userText = options.readLatestUserMessageText(normalizedPayload.messages)
     if (!userText)
@@ -296,7 +291,6 @@ export function createAlicizationRuntimeDialogueFeedback(
         previousTurnId: latest.turnId ?? null,
         feedback,
         userText,
-        ...preDialogueAwarenessDebug,
       },
     }, cardId)
     return feedback

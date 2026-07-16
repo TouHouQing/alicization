@@ -155,19 +155,20 @@ describe('main chat run state', () => {
       fullText: 'hello world',
       visibleReplyExecution: {
         mode: 'provider-stream',
-        expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        expectedVisibleReplyAuthority: 'llm-mind',
         actualVisibleReplyAuthority: 'llm-mind',
         providerMindExecuted: true,
         reason: 'test-finish-payload',
       },
       visibleReplyCritic: {
-        mustPreserve: ['same digital life continuity'],
-        mustAvoid: [],
-        reasons: ['semantic-judge:project-state-same-her-missing'],
+        version: 'visible-reply-critic-v1',
+        status: 'pass',
+        providerMindRequired: true,
+        reasonCodes: [],
       } as any,
       visibleReplyClosure: {
-        status: 'rewritten',
-        reasonCodes: ['project-state-same-her-continuity-required'],
+        status: 'valid',
+        reasonCodes: ['provider-settlement-valid'],
       } as any,
     })
 
@@ -179,17 +180,14 @@ describe('main chat run state', () => {
         providerMindExecuted: true,
       }),
       visibleReplyCritic: expect.objectContaining({
-        mustPreserve: expect.arrayContaining([
-          'same digital life continuity',
-        ]),
-        reasons: expect.arrayContaining([
-          'semantic-judge:project-state-same-her-missing',
-        ]),
+        status: 'pass',
+        providerMindRequired: true,
+        reasonCodes: [],
       }),
       visibleReplyClosure: expect.objectContaining({
-        status: 'rewritten',
+        status: 'valid',
         reasonCodes: expect.arrayContaining([
-          'project-state-same-her-continuity-required',
+          'provider-settlement-valid',
         ]),
       }),
     }))

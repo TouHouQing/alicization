@@ -835,7 +835,7 @@ describe('buildPrivateThoughtLoop', () => {
           kind: 'relationship-thread',
           status: 'waiting',
           title: 'callback repair line',
-          summary: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+          summary: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
           question: 'How do I keep this repair line steady without widening the closeness too fast?',
           salience: 0.82,
           confidence: 0.8,
@@ -923,9 +923,9 @@ describe('buildPrivateThoughtLoop', () => {
         updatedAt: 24_000,
       } as any,
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
-        primaryOpenLoop: 'Memory, initiative, embodiment, and dialogue still need stronger same-her closure across turns.',
+        primaryOpenLoop: 'Memory, initiative, embodiment, and dialogue still need stronger identity-continuity',
       },
     })
 
@@ -933,7 +933,7 @@ describe('buildPrivateThoughtLoop', () => {
     expect(thought.shouldSpeak).toBe(false)
     expect(thought.suggestedStyle).toBe('silent-observe')
     expect(thought.rationaleTags).toContain('repair-before-closeness')
-    expect(thought.thoughtText).toMatch(/repair-before-closeness|repair line|same living line|same line|先修复/u)
+    expect(thought.thoughtText).toMatch(/repair-before-closeness|repair line|continuity state|same line|先修复/u)
     expect(thought.thoughtText).not.toContain('Wait for a better opening.')
   })
 
@@ -1210,10 +1210,10 @@ describe('buildPrivateThoughtLoop', () => {
     expect(thought.suggestedStyle).toBe('silent-observe')
     expect(thought.rationaleTags).toContain('repair-before-closeness')
     expect(thought.rationaleTags).toContain('project-phase1-life-loop:private-thought')
-    expect(thought.thoughtText).toMatch(/repair-before-closeness|repair line|same living line|same line|先修复/u)
+    expect(thought.thoughtText).toMatch(/repair-before-closeness|repair line|continuity state|same line|先修复/u)
     expect(thought.thoughtText).not.toContain('The seam is local enough that a gentle nudge could help. Phase 1 still has open digital-life closure work')
   })
-  it('still clamps a proposal-led light-nudge into silent-observe when same-her closure remains the active project target', () => {
+  it('still clamps a proposal-led light-nudge into silent-observe when identity-continuity', () => {
     const thought = buildPrivateThoughtLoop({
       now: 24_000,
       context: createContext({
@@ -1340,7 +1340,7 @@ describe('buildPrivateThoughtLoop', () => {
         embodiedPresence: 'attentive',
         shouldSurface: true,
         shouldSpeak: true,
-        why: 'The same-her closure line is still here, but it should reopen gently.',
+        why: 'The identity-continuity',
         updatedAt: 24_000,
       } as any,
       initiative: {
@@ -1429,7 +1429,7 @@ describe('buildPrivateThoughtLoop', () => {
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'Same-her initiative and embodiment continuity still need a stronger anthropomorphic closed loop.',
-        latestLandedProgress: 'Project identity carry and same-her continuity already survive across turns, but initiative and embodiment still need stronger closure on the same living line before widening outward.',
+        latestLandedProgress: 'Project identity carry and identity-continuity',
       },
     })
 
@@ -1438,7 +1438,7 @@ describe('buildPrivateThoughtLoop', () => {
     expect(thought.suggestedStyle).toBe('silent-observe')
     expect(thought.rationaleTags).toContain('measured-return')
     expect(thought.rationaleTags).toContain('project-phase1-life-loop:private-thought')
-    expect(thought.thoughtText).toContain('same-her closure line')
+    expect(thought.thoughtText).toContain('identity-continuity')
     expect(thought.thoughtText).toContain('Phase 1 still has open digital-life closure work')
   })
 
@@ -1559,7 +1559,7 @@ describe('buildPrivateThoughtLoop', () => {
       projectState: {
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Project identity carry and same-her continuity already survive across turns, but initiative and embodiment still need stronger closure on the same living line before widening outward.',
+        latestLandedProgress: 'Project identity carry and identity-continuity',
         primaryOpenLoop: 'Natural closure rhythm is still being earned.',
       },
     } as any)
@@ -1650,7 +1650,7 @@ describe('buildPrivateThoughtLoop', () => {
             id: 'reflection::same-her-repair',
             summary: 'The same-her repair line is still the meaningful continuity carry.',
             expectation: 'The steadier repair line should stay active for the current inward turn.',
-            observedOutcome: 'The same living line still needs a measured return.',
+            observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
             revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.08,
@@ -1663,7 +1663,7 @@ describe('buildPrivateThoughtLoop', () => {
       } as any,
       executiveCycle: {
         phase: 'reflecting',
-        currentLine: 'Stay with the still-open same-her closure seam.',
+        currentLine: 'Stay with the still-open identity-continuity',
       } as any,
     } as any)
 

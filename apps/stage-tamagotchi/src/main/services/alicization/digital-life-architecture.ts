@@ -1,9 +1,6 @@
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
-import {
-  alicizationFixedTemplateReplacement,
-  sanitizeAlicizationStructuredInternalText,
-} from '@proj-alicization/stage-shared'
+import { sanitizeAlicizationStructuredInternalText } from '@proj-alicization/stage-shared'
 
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
@@ -55,16 +52,7 @@ function sanitizeText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
   const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-  const sanitized = sanitizeAlicizationStructuredInternalText(
-    normalized,
-    maxChars,
-    alicizationFixedTemplateReplacement,
-  )
-  if (!sanitized)
-    return ''
-  return sanitized === alicizationFixedTemplateReplacement
-    ? 'relationship_continuity=present; source_template=excluded'
-    : sanitized
+  return sanitizeAlicizationStructuredInternalText(normalized, maxChars)
 }
 
 function summarizeMs(raw: number | null | undefined) {
@@ -196,7 +184,7 @@ function buildPerceptionSubsystem(surface: AlicizationDigitalLifeRuntimeSurface)
     summary: [
       `watch=${surface.perception.watchMode}`,
       scene?.scenario ? `scene=${sanitizeText(scene.scenario, 48)}` : '',
-      focus ? `focus=${sanitizeText(focus, 72)}` : '',
+      focus ? `Focus: ${sanitizeText(focus, 72)}.` : '',
       capture ? `capture=${capture.permission}/${capture.health}` : 'capture=unknown',
     ].filter(Boolean).join(' | '),
     reasons: [
@@ -235,7 +223,7 @@ function buildDialogueSubsystem(surface: AlicizationDigitalLifeRuntimeSurface): 
       encounter?.act ? `act=${encounter.act}` : '',
       answerPlanner?.answerIntent ? `intent=${sanitizeText(answerPlanner.answerIntent, 48)}` : '',
       replyDeliberation ? `speak=${replyDeliberation.shouldSpeak ? 'true' : 'false'}` : '',
-      focus ? `focus=${sanitizeText(focus, 72)}` : '',
+      focus ? `Focus: ${sanitizeText(focus, 72)}.` : '',
     ].filter(Boolean).join(' | '),
     reasons: [
       encounter?.responseNeed ? `need:${encounter.responseNeed}` : 'need:none',
@@ -381,7 +369,7 @@ function buildMindSubsystem(surface: AlicizationDigitalLifeRuntimeSurface): Alic
       mindKernel?.dominantDrive ? `drive=${mindKernel.dominantDrive}` : '',
       worldModel?.epistemicState?.certainty ? `certainty=${worldModel.epistemicState.certainty}` : '',
       worldModel?.activeThread ? `thread=${sanitizeText(worldModel.activeThread.title, 64)}` : '',
-      focus ? `focus=${sanitizeText(focus, 72)}` : '',
+      focus ? `Focus: ${sanitizeText(focus, 72)}.` : '',
     ].filter(Boolean).join(' | '),
     reasons: [
       worldModel?.activeThread?.kind ? `thread:${worldModel.activeThread.kind}` : 'thread:none',
@@ -591,11 +579,11 @@ function deriveClosureAudit(surface: AlicizationDigitalLifeRuntimeSurface) {
     activeClosurePressures,
     selfAuthoritySummary,
     summary: [
-      currentPhase ? `phase=${currentPhase}` : '',
-      primaryOpenLoop ? `open-loop=${sanitizeText(primaryOpenLoop, 96)}` : '',
-      selfAuthoritySummary ? `project_anchor=${sanitizeText(selfAuthoritySummary, 96)}` : '',
-      activeClosurePressures.length > 0 ? `shaping=${activeClosurePressures.join(',')}` : '',
-    ].filter(Boolean).join(' | '),
+      currentPhase ? `Phase: ${currentPhase}.` : '',
+      primaryOpenLoop ? `Open loop: ${sanitizeText(primaryOpenLoop, 96)}.` : '',
+      selfAuthoritySummary ? `Continuity anchor: ${sanitizeText(selfAuthoritySummary, 96)}.` : '',
+      activeClosurePressures.length > 0 ? `Shaping pressures: ${activeClosurePressures.join(', ')}.` : '',
+    ].filter(Boolean).join(' '),
   }
 }
 
@@ -652,7 +640,7 @@ export function buildAlicizationDigitalLifeArchitecture(
       `dominant=${dominant.id}`,
       supportingSystems.length > 0 ? `support=${supportingSystems.join(',')}` : '',
       closureAudit.summary ? `closure=${sanitizeText(closureAudit.summary, 120)}` : '',
-      governingFocus ? `focus=${sanitizeText(governingFocus, 96)}` : '',
+      governingFocus ? `Focus: ${sanitizeText(governingFocus, 96)}.` : '',
     ].filter(Boolean).join(' | '),
     closureAudit,
     systems,
@@ -668,15 +656,15 @@ export function buildAlicizationDigitalLifeArchitectureSystemBlock(
   const ranked = rankSubsystems(architecture.systems)
   return [
     '[ALICIZATION_DIGITAL_LIFE_ARCHITECTURE]',
-    `operating_mode=${architecture.operatingMode}`,
-    `dominant_system=${architecture.dominantSystem}`,
-    `supporting_systems=${architecture.supportingSystems.join(',') || 'none'}`,
-    `governing_focus=${sanitizeText(architecture.governingFocus ?? '', 180) || 'none'}`,
+    `Operating mode: ${architecture.operatingMode}.`,
+    `Dominant system: ${architecture.dominantSystem}.`,
+    `Supporting systems: ${architecture.supportingSystems.join(',') || 'none'}.`,
+    `Governing focus: ${sanitizeText(architecture.governingFocus ?? '', 180) || 'none'}.`,
     architecture.closureAudit?.summary
-      ? `project_state_closure=${sanitizeText(architecture.closureAudit.summary, 220)}`
+      ? `Project-state closure: ${sanitizeText(architecture.closureAudit.summary, 220)}.`
       : '',
     architecture.closureAudit?.selfAuthoritySummary
-      ? `same_her_self_authority=${sanitizeText(architecture.closureAudit.selfAuthoritySummary, 220)}`
+      ? `Self-continuity authority: ${sanitizeText(architecture.closureAudit.selfAuthoritySummary, 220)}.`
       : '',
     'subsystems:',
     ...ranked.map(system => [

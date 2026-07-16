@@ -31,7 +31,7 @@ describe('performance visualizer self evolution adopted anchor replay feedback',
     })
   })
 
-  it('keeps same-her continuity governance visible in replay feedback after restoring an adopted governance anchor', () => {
+  it('keeps identity-continuity', () => {
     expect(buildSelfEvolutionAdoptedAnchorReplayFeedback({
       patternKey: 'pattern-same-her-governance',
       transitionKey: '1320:1180',
@@ -275,7 +275,7 @@ describe('performance visualizer self evolution adopted anchor replay feedback',
     })
   })
 
-  it('keeps quieter face-lipsync-voice same-her carry visible in replay feedback after restoring the adopted anchor', () => {
+  it('keeps quieter face-lipsync-voice identity-continuity', () => {
     expect(buildSelfEvolutionAdoptedAnchorReplayFeedback({
       patternKey: 'pattern-body-continuity-governance',
       transitionKey: '1905:1880',
@@ -286,7 +286,7 @@ describe('performance visualizer self evolution adopted anchor replay feedback',
         '工作流：2 次反复转移共享同一表情、口型、声音 same-her 存活线治理特征。',
         '历史转移：当前默认连续性锚点对应 1880 -> 1905 这次历史转移。',
         '事件定位：当前默认连续性锚点会自动回到事件 event-face-voice-only。',
-        '连续性前提：采纳前提仍然可追溯到当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，而不是把这次 quieter carry 误写成 body、motion 已经补回的修复完成。',
+        '连续性前提：采纳前提仍然可追溯到当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       ],
     })).toEqual({
       tone: 'progress',
@@ -296,7 +296,7 @@ describe('performance visualizer self evolution adopted anchor replay feedback',
         '工作流：2 次反复转移共享同一表情、口型、声音 same-her 存活线治理特征。',
         '历史转移：当前默认连续性锚点对应 1880 -> 1905 这次历史转移。',
         '事件定位：当前默认连续性锚点会自动回到事件 event-face-voice-only。',
-        '连续性前提：采纳前提仍然可追溯到当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，而不是把这次 quieter carry 误写成 body、motion 已经补回的修复完成。',
+        '连续性前提：采纳前提仍然可追溯到当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       ],
     })
   })

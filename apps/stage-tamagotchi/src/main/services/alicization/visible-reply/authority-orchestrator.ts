@@ -28,7 +28,7 @@ export function isAlicizationNonHumanAuthoredVisibleReply(
 
 export function buildAlicizationMindAuthoringFailureArtifact(input: {
   reason: string
-  stage: 'main-gateway-timeout' | 'visible-reply-second-pass' | 'provider-recovery'
+  stage: 'main-gateway-timeout' | 'provider-recovery'
   turnId?: string | null
   reasonCodes?: string[]
   failureKind?: AlicizationChatFailureKind
@@ -56,8 +56,7 @@ export function buildAlicizationMindAuthoringFailureArtifact(input: {
       delivery: 'calm',
       emphasis: 0,
     },
-    visibleReplyAuthority: 'llm-second-pass-rewrite',
-    visibleReplyRewriteRequest: null,
+    visibleReplyAuthority: 'non-human-authored-blocked',
     visibleReplyBlocked: true,
     nonHumanAuthoredStatus: failureSurface.nonHumanAuthoredStatus,
     reasonCodes: uniqueList([

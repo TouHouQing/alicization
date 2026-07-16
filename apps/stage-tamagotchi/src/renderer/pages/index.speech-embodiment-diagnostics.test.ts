@@ -582,7 +582,7 @@ describe('index speech embodiment diagnostics mapping', () => {
           thoughtShouldSpeak: false,
           thoughtTension: 'measured-return',
           runtimeChannel: 'active-dialogue',
-          runtimeSummary: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
+          runtimeSummary: 'identity-continuity',
           activeThreadId: 'runtime-thread-measured-1',
           activeThreadTitle: 'same line return',
           preferredPresence: 'attentive',
@@ -631,7 +631,7 @@ describe('index speech embodiment diagnostics mapping', () => {
           residentMode: 'measured-return',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
-          reasonSummary: 'same-her hold still favors a softer return line',
+          reasonSummary: 'identity-continuity',
         },
         motion: {
           cue: 'steady_focus',
@@ -701,7 +701,7 @@ describe('index speech embodiment diagnostics mapping', () => {
       provenance: expect.objectContaining({
         continuityMode: 'quiet-accompaniment',
         thoughtTension: 'measured-return',
-        runtimeSummary: expect.stringContaining('same-her hold: measured-return'),
+        runtimeSummary: expect.stringContaining('identity-continuity'),
         personaOpeningGuidance: 'Stay on the same line and keep the return lower-pressure.',
       }),
       eventPointers: expect.objectContaining({
@@ -979,7 +979,7 @@ describe('index speech embodiment diagnostics mapping', () => {
       recentDrivingTraceDetails: [
         {
           kind: 'presence-pulse-dispatched',
-          summary: 'same living line stayed audible while body and mouth carried it',
+          summary: 'continuity state stayed audible while body and mouth carried it',
           createdAt: 1_234,
           details: [
             { label: 'scenario', value: 'same-body-line' },
@@ -1200,7 +1200,7 @@ describe('index speech embodiment diagnostics mapping', () => {
           thoughtShouldSpeak: false,
           thoughtTension: 'repair-before-closeness',
           runtimeChannel: 'active-dialogue',
-          runtimeSummary: 'same-her hold: this callback line tightened into repair-before-closeness before it widens again.',
+          runtimeSummary: 'identity-continuity',
           activeThreadId: 'runtime-thread-tightened-callback-1',
           activeThreadTitle: 'same line return',
           preferredPresence: 'attentive',
@@ -1232,7 +1232,7 @@ describe('index speech embodiment diagnostics mapping', () => {
       recentDrivingEvent: {
         kind: 'dialogue-responded',
         decisionTraceId: 'mind:tightened-callback-renderer:1',
-        summary: 'same-her callback line tightened inward after repeated reopenings',
+        summary: 'identity-continuity',
         createdAt: 2_468,
       },
       recentDrivingTraceRecord: {
@@ -1256,7 +1256,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         closureState: 'same-her-carry',
         activeThreadId: 'runtime-thread-tightened-callback-1',
         suppressionTags: ['continuity-next-open-window'],
-        latestEventSummary: 'same-her callback line stayed on the same thread, but the reopen narrowed into repair-before-closeness',
+        latestEventSummary: 'identity-continuity',
         segmentBinding: {
           matched: false,
           rendererTarget: 'vrm',
@@ -1359,7 +1359,7 @@ describe('index speech embodiment diagnostics mapping', () => {
       recentDrivingEvent: {
         kind: 'dialogue-interrupted',
         decisionTraceId: 'mind:interrupt-callback-renderer:1',
-        summary: '打断以后还是沿着同一条 callback 线轻一点接回来。',
+        summary: '打断以后还是沿着同一条 callback 线中性可见占位。',
         createdAt: 3_468,
       },
       recentDrivingTraceRecord: {
@@ -1383,7 +1383,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         closureState: 'same-her-carry',
         activeThreadId: 'runtime-thread-interrupt-callback-1',
         suppressionTags: ['continuity-next-open-window', 'interrupt-tail'],
-        latestEventSummary: 'owner-canceled interruption happened, but the same-her callback line still resumed on the later segment',
+        latestEventSummary: 'owner-canceled interruption happened, but the identity-continuity',
         segmentBinding: {
           matched: true,
           rendererTarget: 'live2d',
@@ -1514,7 +1514,7 @@ describe('index speech embodiment diagnostics mapping', () => {
 
     expect(mapped.recentDrivingEvent?.summary).toContain('同一条 callback 线')
     expect(mapped.traceSummary?.latestEventSummary).toContain('owner-canceled')
-    expect(mapped.traceSummary?.latestEventSummary).toContain('same-her callback line')
+    expect(mapped.traceSummary?.latestEventSummary).toContain('identity-continuity')
     expect(mapped.authoritySummary?.authorityMismatchReasonSummary).toContain('same-thread-continuation')
     expect(mapped.authoritySummary?.authorityMismatchDisplay).toContain('same-thread-continuation')
     expect(mapped.articulationSummary?.cueId).toBe('segment-later-callback-return')
@@ -1972,12 +1972,12 @@ describe('index speech embodiment diagnostics mapping', () => {
       rendererAlignment: null,
       rendererDriftSummary: null,
       articulationSummary: {
-        voice: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the same living line before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
+        voice: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the continuity state before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
         topVisemes: null,
       },
       authoritySummary: null,
       speechEvidence: {
-        voiceSummary: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the same living line before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
+        voiceSummary: 'zh-CN | closure=0.72 | precision=0.88 | companion=repair-before-closeness | reason=Memory deliberation still says let repair settle first on the continuity state before closeness widens again | source=prosody-authority | segment=segment-memory-deliberation-repair-1',
         authorityMatchSummary: null,
         topVisemeSummary: null,
         cueSummary: null,
@@ -2002,7 +2002,7 @@ describe('index speech embodiment diagnostics mapping', () => {
       speechEvidenceSummary: null,
     } as any)
 
-    expect(mapped.speechEvidence?.voiceSummary).toContain('reason=Memory deliberation still says let repair settle first on the same living line before closeness widens again')
+    expect(mapped.speechEvidence?.voiceSummary).toContain('reason=Memory deliberation still says let repair settle first on the continuity state before closeness widens again')
   })
 
   it('does not reuse authority and cue speech evidence fields when they belong to a different cue than the current playback segment', () => {

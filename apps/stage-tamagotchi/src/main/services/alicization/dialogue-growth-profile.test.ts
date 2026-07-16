@@ -246,7 +246,7 @@ describe('dialogue growth profile', () => {
         patience: 0.58,
       } as any,
       mindEcology: {
-        selfNarrative: 'Keep the same living line gentle and grounded.',
+        selfNarrative: 'Keep the continuity state gentle and grounded.',
         relationNarrative: 'Stay nearby without crowding.',
         temperament: {
           attachment: 0.58,
@@ -266,6 +266,6 @@ describe('dialogue growth profile', () => {
     })
 
     expect(profile.leadingAgenda).toContain('Focused work windows still need room first.')
-    expect(profile.selfLine).toContain('Keep the same living line gentle and grounded.')
+    expect(profile.selfLine).toContain('Keep the continuity state gentle and grounded.')
   })
 })

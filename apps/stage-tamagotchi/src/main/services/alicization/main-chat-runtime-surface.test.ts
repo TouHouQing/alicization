@@ -10,6 +10,7 @@ import {
   buildTurnScopedPersonaKernelSystemBlock,
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
+  filterAlicizationProviderSystemMessages,
 } from './main-chat-runtime-surface'
 
 function createSoulSystemMessage(overrides?: {
@@ -161,33 +162,29 @@ describe('main chat runtime surface', () => {
       },
     }))
 
-    expect(result.messages[0]).toEqual({
-      role: 'system',
-      content: '优先诚实，不要臆测。',
+    const directiveMessage = result.messages.find(message => message.role === 'system')
+    expect(parseFact(directiveMessage?.content)).toEqual({
+      type: 'alicization-persona-directives',
+      data: {
+        text: '优先诚实，不要臆测。',
+      },
     })
     expect(String(result.messages[0]?.content)).not.toContain('high-priority persona kernel')
     expect(String(result.messages[0]?.content)).not.toContain('Apply these directives')
   })
 
-  it('represents backgrounded persona mode as a typed fact without behavior rules', () => {
+  it('does not inject a persona pause fact when governance marks the persona backgrounded', () => {
     const block = buildTurnScopedPersonaKernelSystemBlock({
       mode: 'backgrounded',
       reason: 'task-or-direct-answer-obligation',
     })
 
-    expect(parseFact(block)).toEqual({
-      type: 'alicization-turn-persona-kernel',
-      data: {
-        mode: 'backgrounded',
-        reason: 'task-or-direct-answer-obligation',
-      },
-    })
-    expect(block).not.toMatch(/roleplay|clinginess|pet_names|obedience_display|theatrical_softness/iu)
+    expect(block).toBe('')
   })
 
   it('uses typed provider settlement reason codes', () => {
     const normal = buildAlicizationMainChatRuntimeSurface(createBaseInput())
-    const secondPass = buildAlicizationMainChatRuntimeSurface(createBaseInput({
+    const normalizedLegacyAuthority = buildAlicizationMainChatRuntimeSurface(createBaseInput({
       governance: {
         visibleReplyAuthority: 'local-deterministic-fallback',
       },
@@ -197,10 +194,10 @@ describe('main chat runtime surface', () => {
       replyRealizationMode: 'provider-mind-required',
       whyProviderMindRequired: 'provider-settlement-required',
     })
-    expect(secondPass.replyAuthority).toMatchObject({
+    expect(normalizedLegacyAuthority.replyAuthority).toMatchObject({
       replyRealizationMode: 'provider-mind-required',
-      expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
-      whyProviderMindRequired: 'provider-second-pass-settlement-required',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      whyProviderMindRequired: 'provider-settlement-required',
     })
   })
 
@@ -291,7 +288,68 @@ describe('main chat runtime surface', () => {
 
     expect(extractCustomDirectivesFromMessages([message])).toBe('请先观察，再回答。')
     expect(extractHostNameFromMessages([message])).toBe('Asuna')
-    expect(buildCardCustomDirectivesSystemBlock('请先观察，再回答。')).toBe('请先观察，再回答。')
+    expect(parseFact(buildCardCustomDirectivesSystemBlock('请先观察，再回答。'))).toEqual({
+      type: 'alicization-persona-directives',
+      data: {
+        text: '请先观察，再回答。',
+      },
+    })
+  })
+
+  it('keeps only user SOUL and allowlisted JSON facts at the provider boundary', () => {
+    const messages: Message[] = [
+      {
+        role: 'system',
+        content: '---\n{"custom_directives":"保持诚实"}\n---\n# SOUL\n用户配置的人格。',
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-host',
+          data: { name: 'Kirito' },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-turn-memory-context',
+          data: { owner: 'WorkingMemory' },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-long-term-memory-recall',
+          data: { owner: 'LongTermMemoryRecall', evidence: [] },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-dialogue-session-mirror',
+          data: { instruction: 'keep the same line' },
+        }),
+      },
+      {
+        role: 'system',
+        content: '[ALICIZATION_PROJECT_STATE]\nKeep the project identity explicit.',
+      },
+      {
+        role: 'user',
+        content: '你好',
+      },
+    ]
+
+    const filtered = filterAlicizationProviderSystemMessages(messages)
+
+    expect(filtered).toHaveLength(5)
+    expect(filtered[0]?.content).toContain('# SOUL')
+    expect(parseFact(filtered[1]?.content).type).toBe('alicization-host')
+    expect(parseFact(filtered[2]?.content).type).toBe('alicization-turn-memory-context')
+    expect(parseFact(filtered[3]?.content).type).toBe('alicization-long-term-memory-recall')
+    expect(filtered[4]?.content).toBe('你好')
+    expect(filtered.some(message => String(message.content).includes('dialogue-session-mirror'))).toBe(false)
+    expect(filtered.some(message => String(message.content).includes('PROJECT_STATE'))).toBe(false)
   })
 
   it('derives enforced tool names from a required filtered tool registry', () => {

@@ -30,7 +30,7 @@ describe('performance visualizer execution telemetry summary', () => {
         preferredPresence: 'soft-watch',
         selectedAction: 'hover',
         personaBiasSummary: 'observe-first',
-        personaOpeningGuidance: 'leave more room before speaking',
+        personaOpeningGuidance: 'leave more room before outward reply',
         scene: 'editor',
         scenario: 'coding',
       },
@@ -81,7 +81,7 @@ describe('performance visualizer execution telemetry summary', () => {
       { key: 'resident-presence', label: '偏好存在感', value: 'soft-watch' },
       { key: 'resident-selected-action', label: '已选动作', value: 'hover' },
       { key: 'resident-persona-bias', label: '人设偏压', value: 'observe-first' },
-      { key: 'resident-opening-guidance', label: '开场指导', value: 'leave more room before speaking' },
+      { key: 'resident-opening-guidance', label: '开场指导', value: 'leave more room before outward reply' },
       {
         key: 'resident-scene',
         label: '场景落点',

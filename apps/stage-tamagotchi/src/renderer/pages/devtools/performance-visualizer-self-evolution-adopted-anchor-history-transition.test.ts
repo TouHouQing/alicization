@@ -71,7 +71,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
     })
   })
 
-  it('preserves same-her continuity wording when the adopted anchor came from continuity governance', () => {
+  it('preserves identity-continuity', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1320,
@@ -423,7 +423,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
     })
   })
 
-  it('preserves quieter same-her continuity wording when the adopted anchor still only keeps face, lipsync, and voice on the same living segment', () => {
+  it('preserves quieter identity-continuity', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1905,
@@ -431,7 +431,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
         activePatternKey: 'pattern-body-continuity-governance',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       },
       historyDrilldown: [
         {

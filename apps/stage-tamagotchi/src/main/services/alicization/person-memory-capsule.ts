@@ -162,7 +162,6 @@ function pickMemoryLine(context: OrganicMemoryPromptContext, memoryTurnArtifact?
   return uniqueList([
     selectedFromArtifact,
     context.memoryDeliberation?.stableCore?.[0] ?? null,
-    context.recollectionSpeechPlan?.styleNote ?? null,
     context.recollectionPlan?.opening ?? null,
     context.consolidatedMemories?.[0]?.summary ?? null,
     context.retrievedFacts[0]
@@ -310,7 +309,6 @@ export function buildAlicizationPersonMemoryCapsule(
       mustDo: uniqueList([
         memoryTurnArtifact?.deliberation.whyNow ?? null,
         context.memoryDeliberation?.whyNow ?? null,
-        context.recollectionSpeechPlan?.styleNote ?? null,
       ], 3, 180),
       mustNotDo: uniqueList([
         ...(memoryTurnArtifact?.deliberation.unsafeDetails ?? []),

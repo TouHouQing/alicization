@@ -270,11 +270,11 @@ function buildProjectAwarenessNeedLead(input: {
   const awarenessLooksDense = hasStructuredProjectStateEvidence(awarenessLine)
 
   if (identity && awarenessLooksDense)
-    return `project_context=identity:${stripTrailingPunctuation(identity)}; awareness=structured`
+    return `Project context: ${stripTrailingPunctuation(identity)}; project awareness is already structured.`
   if (awarenessLine)
-    return `project_context=awareness:${stripTrailingPunctuation(awarenessLine)}`
+    return `Project context: ${stripTrailingPunctuation(awarenessLine)}.`
   if (identity)
-    return `project_context=identity:${stripTrailingPunctuation(identity)}`
+    return `Project context: ${stripTrailingPunctuation(identity)}.`
   return null
 }
 
@@ -316,7 +316,7 @@ function normalizeProviderProjectIdentity(raw: unknown) {
   if (containsAlicizationFixedTemplateResidue(normalized))
     return null
   if (/^(?:identity\s*=\s*)?runtime_personhood$/iu.test(normalized))
-    return 'runtime_personhood'
+    return null
   return sanitizeOptionalProviderCarryText(normalized, 220)
 }
 
@@ -327,7 +327,7 @@ function normalizeProviderContinuityAnchor(raw: unknown) {
   if (containsAlicizationFixedTemplateResidue(normalized))
     return null
   if (/^(?:continuity_anchor\s*=\s*)?runtime_personhood(?:\s*;\s*owner\s*=\s*[\w-]+)?$/iu.test(normalized)) {
-    return 'runtime_personhood; owner=project_state_governance'
+    return null
   }
   return sanitizeOptionalProviderCarryText(normalized, 240)
 }
@@ -336,7 +336,7 @@ function buildFallbackProjectStateGrounding() {
   const projectState = resolveAlicizationProjectStateBrief()
   const canonicalProjectState = resolveCanonicalStructuredProjectState({
     normalizedProjectState: {
-      identity: 'runtime_personhood',
+      identity: '',
       currentPhase: projectState.currentPhase,
       latestLandedProgress:
         projectState.continuityProgressSummary
@@ -351,8 +351,8 @@ function buildFallbackProjectStateGrounding() {
     runtimePreDialogueAwarenessLine: projectState.preDialogueAwarenessLine ?? null,
   })
   return {
-    identity: normalizeProviderProjectIdentity(canonicalProjectState.identity) ?? 'runtime_personhood',
-    currentPhase: sanitizeOptionalProviderCarryText(canonicalProjectState.currentPhase, 120) ?? 'life_core',
+    identity: normalizeProviderProjectIdentity(canonicalProjectState.identity) ?? '',
+    currentPhase: sanitizeOptionalProviderCarryText(canonicalProjectState.currentPhase, 120) ?? '',
     preflightSummary: sanitizeOptionalProviderCarryText(canonicalProjectState.preflightSummary ?? '', 320) ?? null,
     preDialogueAwarenessLine: sanitizeOptionalProviderCarryText(canonicalProjectState.preDialogueAwarenessLine ?? '', projectAwarenessFieldMaxChars) ?? null,
     latestProgress: sanitizeOptionalProviderCarryText(canonicalProjectState.latestLandedProgress ?? '', 220) ?? null,
@@ -795,52 +795,52 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
       || !hasStructuredProjectStateEvidence(existingSpeakingIntention)
     const fallbackConsciousNeed = shouldBorrowRicherCallbackWording
       ? joinFallbackText([
-          sanitizeOptionalProviderCarryText(richerConsciousNeed, 420) || 'callback_return=lower_pressure; host_room=leave_before_widening',
+          sanitizeOptionalProviderCarryText(richerConsciousNeed, 420) || 'Return to the callback with lower pressure and leave host room before widening.',
           hasStructuredExistingProjectHeadline ? sanitizeOptionalProviderCarryText(existingConsciousNeed, 420) : null,
         ], 620)
       : joinFallbackText([
           preferredClosureCarry.emotionalClosureSummary
-            ? `emotional_closure=low_pressure; source=${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}`
+            ? `Keep emotional closure low-pressure: ${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}.`
             : null,
           projectAwarenessNeedLead,
           projectStateGrounding.latestProgress
-            ? `landed_progress=${stripTrailingPunctuation(projectStateGrounding.latestProgress)}`
+            ? `Latest landed progress: ${stripTrailingPunctuation(projectStateGrounding.latestProgress)}.`
             : null,
           projectStateGrounding.primaryOpenLoop
-            ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
+            ? `Primary open loop: ${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}.`
             : null,
           projectStateGrounding.identity || projectStateGrounding.currentPhase
-            ? 'project_state_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
+            ? 'Memory governance is visible through Memory Workbench; do not use fixed persona templates.'
             : null,
           restProtectiveClosureCue
-            ? 'rest_protection=first; companionship=quiet; closeness=widen_later'
+            ? 'Protect rest first; keep companionship quiet and widen closeness later.'
             : null,
           sanitizeOptionalProviderCarryText(existingConsciousNeed, 420),
         ], 620)
     const fallbackSpeakingIntention = joinFallbackText([
       shouldBorrowRicherCallbackWording
-        ? (sanitizeOptionalProviderCarryText(richerSpeakingIntention, 420) || 'wording=room_giving; continuity=current_thread; pressure=lower; callback_return=settling')
+        ? (sanitizeOptionalProviderCarryText(richerSpeakingIntention, 420) || 'Use room-giving wording, stay on the current thread, and keep callback return settling.')
         : null,
       preferredClosureCarry.emotionalClosureSummary
-        ? `emotional_closure=low_pressure; continuity=emotion_memory_initiative_embodiment; source=${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}`
+        ? `Keep emotional closure low-pressure across emotion, memory, initiative, and embodiment: ${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}.`
         : null,
       restProtectiveClosureCue
-        ? 'rest_protection=first; wording=inward; companionship=quiet; closeness=widen_later'
+        ? 'Protect rest first; keep wording inward, companionship quiet, and closeness widening later.'
         : null,
       projectStateGrounding.identity
-        ? 'continuity_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
+        ? 'Memory governance is visible through Memory Workbench; do not use fixed persona templates.'
         : null,
       projectStateGrounding.sameHerSelfLine
-        ? `project_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`
+        ? `Project anchor: ${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}.`
         : null,
       projectStateGrounding.primaryOpenLoop
-        ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
+        ? `Primary open loop: ${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}.`
         : null,
       projectStateGrounding.nextClosureTarget
-        ? `next_closure=${stripTrailingPunctuation(projectStateGrounding.nextClosureTarget)}`
+        ? `Next closure target: ${stripTrailingPunctuation(projectStateGrounding.nextClosureTarget)}.`
         : null,
       projectStateGrounding.sameHerDriftRisk
-        ? `drift_risk=${stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk)}`
+        ? `Drift risk: ${stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk)}.`
         : null,
       sanitizeOptionalProviderCarryText(existingSpeakingIntention, 420),
     ], 620)
@@ -1018,23 +1018,23 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
 
   const fallbackConsciousNeed = joinFallbackText([
     preferredClosureCarry.emotionalClosureSummary
-      ? `emotional_closure=low_pressure; source=${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}`
+      ? `Keep emotional closure low-pressure: ${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}.`
       : '',
     sanitizeOptionalProviderCarryText(governance.answerIntent, 220)
     ?? sanitizeOptionalProviderCarryText(governance.focusAnchor, 220)
     ?? '',
     projectAwarenessNeedLead ?? '',
     projectStateGrounding.latestProgress
-      ? `landed_progress=${stripTrailingPunctuation(projectStateGrounding.latestProgress)}`
+      ? `Latest landed progress: ${stripTrailingPunctuation(projectStateGrounding.latestProgress)}.`
       : '',
     projectStateGrounding.primaryOpenLoop
-      ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
+      ? `Primary open loop: ${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}.`
       : '',
     projectStateGrounding.identity || projectStateGrounding.currentPhase
-      ? 'project_state_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
+      ? 'Memory governance is visible through Memory Workbench; do not use fixed persona templates.'
       : '',
     restProtectiveClosureCue
-      ? 'rest_protection=first; companionship=quiet; closeness=widen_later'
+      ? 'Protect rest first; keep companionship quiet and widen closeness later.'
       : '',
   ], 620)
   const fallbackSpeakingIntention = joinFallbackText([
@@ -1042,25 +1042,25 @@ export function reduceRuntimeConsciousFrame(input: RuntimeConsciousFrameReducerI
     ?? sanitizeOptionalProviderCarryText(governance.answerIntent, 220)
     ?? '',
     preferredClosureCarry.emotionalClosureSummary
-      ? `emotional_closure=low_pressure; continuity=emotion_memory_initiative_embodiment; source=${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}`
+      ? `Keep emotional closure low-pressure across emotion, memory, initiative, and embodiment: ${formatProviderClosureSource(preferredClosureCarry.emotionalClosureSummary)}.`
       : '',
     restProtectiveClosureCue
-      ? 'rest_protection=first; wording=inward; companionship=quiet; closeness=widen_later'
+      ? 'Protect rest first; keep wording inward, companionship quiet, and closeness widening later.'
       : '',
     projectStateGrounding.identity
-      ? 'continuity_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
+      ? 'Memory governance is visible through Memory Workbench; do not use fixed persona templates.'
       : '',
     projectStateGrounding.sameHerSelfLine
-      ? `project_anchor=${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}`
+      ? `Project anchor: ${sanitizeAlicizationProviderFacingText(stripTrailingPunctuation(projectStateGrounding.sameHerSelfLine), 220)}.`
       : '',
     projectStateGrounding.primaryOpenLoop
-      ? `open_loop=${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}`
+      ? `Primary open loop: ${stripTrailingPunctuation(projectStateGrounding.primaryOpenLoop)}.`
       : '',
     projectStateGrounding.nextClosureTarget
-      ? `next_closure=${stripTrailingPunctuation(projectStateGrounding.nextClosureTarget)}`
+      ? `Next closure target: ${stripTrailingPunctuation(projectStateGrounding.nextClosureTarget)}.`
       : '',
     projectStateGrounding.sameHerDriftRisk
-      ? `drift_risk=${stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk)}`
+      ? `Drift risk: ${stripTrailingPunctuation(projectStateGrounding.sameHerDriftRisk)}.`
       : '',
   ], 620)
 

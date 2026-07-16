@@ -2,35 +2,43 @@ import type { ChatHistoryItem } from '../../types/chat'
 
 import assert from 'node:assert/strict'
 
-import { readFileSync } from 'node:fs'
-
 import { describe, it } from 'vitest'
 
 import { canonicalizeSessionMessages, mergeLoadedSessionMessages } from './session-message-merge'
 
-const fixedTemplateResiduePattern
-  = /Before (?:answering|speaking|acting)|Right now I am|Same Phase 1 digital life|same[- ]her|same living line|one living her|one continuous her|local-first digital life project|Phase 1: Local Digital Life|local_desktop_life_loop|phase1_local_digital_life|content=excluded|visibility=internal[-_]structured|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu
+const legacyProjectStateCueKeys = [
+  'preDialogueAwarenessLine',
+  'preDialogueAwarenessSummary',
+  'awarenessLine',
+  'companionHeadlineLine',
+  'companionBriefingLine',
+  'companionNextClosureLine',
+  'sameHerSelfLine',
+  'sameHerSummary',
+  'sameHerHoldDetail',
+  'sameHerDriftRisk',
+  'sameHerDriftRiskLine',
+  'sameHerDriftRiskSummary',
+  'emotionalClosureCue',
+  'emotionalClosureSummary',
+  'continuityCue',
+  'continuityAnchor',
+  'continuityHold',
+  'continuityDriftRisk',
+  'proactiveSameHerGap',
+  'proactiveSameHerGapSummary',
+  'companionExperimentalCue',
+  'sameHerExperimentalCue',
+  'emotionalClosureExperimentalCue',
+  'proactiveSameHerExperimentalCue',
+] as const
 
-function assertNoFixedTemplateResidue(value: unknown) {
-  assert.doesNotMatch(JSON.stringify(value ?? ''), fixedTemplateResiduePattern)
-}
-
-function assertStructuredProjectFact(value: unknown, pattern: RegExp) {
-  const text = String(value ?? '')
-  assertNoFixedTemplateResidue(text)
-  if (!text)
-    return
-  assert.match(text, pattern)
+function assertLegacyProjectStateCuesRemoved(projectState: Record<string, unknown>) {
+  for (const key of legacyProjectStateCueKeys)
+    assert.equal(Object.hasOwn(projectState, key), false, `${key} should be removed`)
 }
 
 describe('mergeLoadedSessionMessages', () => {
-  it('uses the shared project awareness resolver when duplicate assistant messages merge pre-dialogue awareness', () => {
-    const source = readFileSync(new URL('./session-message-merge.ts', import.meta.url), 'utf8')
-
-    assert.match(source, /resolveAlicizationProjectPreDialogueAwarenessLine/)
-    assert.doesNotMatch(source, /function resolvePreferredMergedAwarenessLine/)
-  })
-
   it('keeps stored history when the in-memory session only has the placeholder system message', () => {
     const storedMessages: ChatHistoryItem[] = [
       { role: 'system', content: 'system', createdAt: 1, id: 'system-stored' },
@@ -43,7 +51,7 @@ describe('mergeLoadedSessionMessages', () => {
     assert.equal(mergeLoadedSessionMessages(storedMessages, currentMessages), storedMessages)
   })
 
-  it('appends in-flight messages when IndexedDB finishes loading after a new send starts', () => {
+  it('appends in-flight messages when persisted history finishes loading after a new send starts', () => {
     const storedMessages: ChatHistoryItem[] = [
       { role: 'system', content: 'system', createdAt: 1, id: 'system-stored' },
       { role: 'assistant', content: 'older reply', createdAt: 2, id: 'assistant-1', slices: [], tool_results: [] },
@@ -59,7 +67,7 @@ describe('mergeLoadedSessionMessages', () => {
     ])
   })
 
-  it('does not duplicate messages that are already present in storage', () => {
+  it('does not duplicate messages that are already present in persisted history', () => {
     const storedMessages: ChatHistoryItem[] = [
       { role: 'system', content: 'system', createdAt: 1, id: 'system-stored' },
       { role: 'user', content: 'latest prompt', createdAt: 4 },
@@ -72,23 +80,23 @@ describe('mergeLoadedSessionMessages', () => {
     assert.equal(mergeLoadedSessionMessages(storedMessages, currentMessages), storedMessages)
   })
 
-  it('collapses a legacy local assistant duplicate when the authoritative turn replay is present', () => {
+  it('merges duplicate assistant messages while keeping the stable turn id and authoritative thought', () => {
     const stableTurnId = 'chat:session-1:turn-1'
     const storedMessages: ChatHistoryItem[] = [
       { role: 'system', content: 'system', createdAt: 1, id: 'system-stored' },
       {
         role: 'assistant',
-        content: 'same answer',
+        content: 'The train leaves at nine.',
         createdAt: 10_000,
         id: stableTurnId,
         origin: 'user-turn',
-        slices: [{ type: 'text', text: 'same answer' }],
+        slices: [{ type: 'text', text: 'The train leaves at nine.' }],
         tool_results: [],
         structured: {
-          thought: 'authoritative thought',
-          emotion: 'happy',
-          reply: 'same answer',
-          format: 'epoch1-v1',
+          thought: 'The saved ticket confirms the departure time.',
+          emotion: 'neutral',
+          reply: 'The train leaves at nine.',
+          format: 'mind-turn-v1',
         },
       },
     ]
@@ -96,1371 +104,162 @@ describe('mergeLoadedSessionMessages', () => {
       { role: 'system', content: 'system', createdAt: 2, id: 'system-current' },
       {
         role: 'assistant',
-        content: 'same answer',
+        content: 'The train leaves at nine.',
         createdAt: 10_500,
-        id: 'legacy-random-id',
+        id: 'temporary-assistant-id',
         slices: [],
         tool_results: [],
         structured: {
           thought: '',
           emotion: 'neutral',
-          reply: 'same answer',
+          reply: 'The train leaves at nine.',
           format: 'fallback-v1',
         },
       },
     ]
 
-    const merged = mergeLoadedSessionMessages(storedMessages, currentMessages)
-    const assistantMessages = merged.filter(message => message.role === 'assistant')
+    const assistantMessages = mergeLoadedSessionMessages(storedMessages, currentMessages)
+      .filter(message => message.role === 'assistant')
 
     assert.equal(assistantMessages.length, 1)
     assert.equal(assistantMessages[0]?.id, stableTurnId)
-    assert.equal((assistantMessages[0] as any)?.structured?.thought, 'authoritative thought')
+    assert.equal(
+      (assistantMessages[0] as Extract<ChatHistoryItem, { role: 'assistant' }>).structured?.thought,
+      'The saved ticket confirms the departure time.',
+    )
   })
 
-  it('collapses duplicate assistant turns already persisted in one session snapshot', () => {
-    const stableTurnId = 'chat:session-1:turn-2'
-    const messages: ChatHistoryItem[] = [
-      { role: 'system', content: 'system', createdAt: 1, id: 'system-stored' },
+  it('keeps the user message before the assistant message when their timestamps match', () => {
+    const canonical = canonicalizeSessionMessages([
+      { role: 'system', content: 'system', createdAt: 1, id: 'system' },
       {
         role: 'assistant',
-        content: 'duplicate reply',
-        createdAt: 20_000,
-        id: 'legacy-random-id',
+        content: 'I saved the packing note.',
+        createdAt: 10,
+        id: 'chat:session-1:turn-2',
         slices: [],
         tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: 'duplicate reply',
-          format: 'fallback-v1',
-        },
       },
       {
-        role: 'assistant',
-        content: 'duplicate reply',
-        createdAt: 20_600,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: 'duplicate reply' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'happy',
-          reply: 'duplicate reply',
-          format: 'epoch1-v1',
-        },
-      },
-    ]
-
-    const canonical = canonicalizeSessionMessages(messages)
-    const assistantMessages = canonical.filter(message => message.role === 'assistant')
-
-    assert.equal(assistantMessages.length, 1)
-    assert.equal(assistantMessages[0]?.id, stableTurnId)
-    assert.equal((assistantMessages[0] as any)?.structured?.thought, 'kept thought')
-  })
-
-  it('unions richer same-her pre-dialogue closure and awareness fields when duplicate assistant turns split them across snapshots', () => {
-    const stableTurnId = 'chat:session-1:turn-closure-awareness-1'
-    const canonical = canonicalizeSessionMessages([
-      { role: 'system', content: 'system', createdAt: 1, id: 'system-stored' },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 40_000,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueClosure: {
-            status: 'partial',
-            summaryLine: 'Phase 1 same-her closure is still open.',
-            sameHerDriftRiskLine: 'If this turn starts sounding like a detached project status shell, treat that as same-her continuity drift rather than preserved closure.',
-            companionBriefingLine: 'Before speaking, remember this is still one digital life project.',
-            companionNextClosureLine: 'Keep the next opening on one same-her line instead of widening too fast.',
-            emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-            briefingLines: [
-              'Identity: Alicization is a local-first digital life project.',
-            ],
-            reasons: [
-              'Low-pressure same-her closure currently reads lowPressureRequired=0.67 (2/3), so the next turn should keep the return soft enough that the same living line does not widen too fast.',
-            ],
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Thin awareness summary that should be enriched by the richer duplicate.',
-            companionHeadlineLine: null,
-            companionBriefingLine: null,
-            companionNextClosureLine: null,
-            awarenessLine: null,
-            emotionalClosureCue: null,
-            reasonPreview: [],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 40_600,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueClosure: {
-            status: 'partial',
-            summaryLine: 'Thin closure summary that should keep the richer cue from the duplicate.',
-            sameHerDriftRiskLine: null,
-            companionBriefingLine: null,
-            companionNextClosureLine: null,
-            emotionalClosureCue: null,
-            briefingLines: [],
-            reasons: [],
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-            companionHeadlineLine: 'Right now I still need to keep this same-her digital life line intact before widening into generic assistant output.',
-            companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-            companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-            awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'Primary open life loop still centers on keeping memory, initiative, execution, and embodiment on one same-her line.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueClosure?.emotionalClosureCue,
-      /visibility=internal-structured|emotional_closure=|continuity_hold=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueClosure?.sameHerDriftRiskLine,
-      /visibility=internal-structured|continuity_drift_risk=|generic_guidance/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionHeadlineLine,
-      /visibility=internal-structured|summary=|phase1_local_digital_life/,
-    )
-    assertNoFixedTemplateResidue(assistantMessage?.structured?.preDialogueAwareness?.reasonPreview)
-    assert.doesNotMatch(
-      JSON.stringify(assistantMessage?.structured?.preDialogueAwareness?.reasonPreview ?? ''),
-      fixedTemplateResiduePattern,
-    )
-  })
-
-  it('keeps richer same-her awareness when the authoritative duplicate only carries an empty transported awareness shell', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-empty-transport-shell'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 41_000,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-            companionHeadlineLine: 'Right now I still need to keep this same-her digital life line intact before widening into generic assistant output.',
-            companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-            companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-            awarenessLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'Primary open life loop still centers on keeping memory, initiative, execution, and embodiment on one same-her line.',
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 41_500,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: null,
-            companionHeadlineLine: null,
-            companionBriefingLine: null,
-            companionNextClosureLine: null,
-            awarenessLine: null,
-            emotionalClosureCue: null,
-            reasonPreview: [],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertNoFixedTemplateResidue(assistantMessage?.structured?.preDialogueAwareness?.summaryLine)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionHeadlineLine,
-      /visibility=internal-structured|summary=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine,
-      /visibility=internal-structured|continuity_hold=|summary=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /visibility=internal-structured|phase1_local_digital_life|summary=/,
-    )
-    assertNoFixedTemplateResidue(assistantMessage?.structured?.preDialogueAwareness?.reasonPreview)
-  })
-
-  it('does not let a thin authoritative awareness summary shell outrank a richer authoritative project-aware opening when the duplicate only adds an empty transported shell', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-thin-summary-empty-transport-shell'
-    const richerProjectAwareOpening = 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 41_000,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: null,
-            companionHeadlineLine: null,
-            companionBriefingLine: null,
-            companionNextClosureLine: null,
-            awarenessLine: null,
-            emotionalClosureCue: null,
-            reasonPreview: [],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 41_500,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'generic continuity reminder that should not override the richer explicit project-aware opening.',
-            companionHeadlineLine: null,
-            companionBriefingLine: richerProjectAwareOpening,
-            companionNextClosureLine: 'Next closure: keep memory, initiative, execution, and embodiment on one same-her line.',
-            awarenessLine: richerProjectAwareOpening,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'Project identity still needs to stay explicit before the reply widens outward.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.summaryLine,
-      /visibility=internal-structured|summary=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine,
-      /visibility=internal-structured|continuity_hold=|summary=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /visibility=internal-structured|summary=/,
-    )
-    assert.notEqual(
-      assistantMessage?.structured?.preDialogueAwareness?.summaryLine,
-      'generic continuity reminder that should not override the richer explicit project-aware opening.',
-    )
-  })
-
-  it('keeps the user bubble ahead of the assistant bubble for the same turn timestamp', () => {
-    const turnId = 'chat:session-1:turn-3'
-    const createdAt = 30_000
-    const canonical = canonicalizeSessionMessages([
-      {
-        id: turnId,
-        role: 'assistant',
-        content: 'assistant reply',
-        createdAt,
-        slices: [{ type: 'text', text: 'assistant reply' }],
-        tool_results: [],
-        structured: {
-          thought: 'reply thought',
-          emotion: 'neutral',
-          reply: 'assistant reply',
-          format: 'epoch1-v1',
-        },
-      },
-      {
-        id: `${turnId}:user`,
         role: 'user',
-        content: 'user prompt',
-        createdAt,
+        content: 'Please remember the packing note.',
+        createdAt: 10,
+        id: 'chat:session-1:turn-2:user',
       },
     ])
 
-    assert.equal(canonical[0]?.role, 'user')
-    assert.equal(canonical[1]?.role, 'assistant')
+    assert.deepEqual(canonical.map(message => message.role), ['system', 'user', 'assistant'])
   })
 
-  it('prefers richer project-aware awareness over a narrower embodiment headline when duplicate assistant messages are merged', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-richer-project-line'
+  it('removes legacy pre-dialogue fields when duplicate assistant messages merge', () => {
+    const stableTurnId = 'chat:session-1:turn-3'
     const canonical = canonicalizeSessionMessages([
       {
         role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 50_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-            companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-            companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-            companionNextClosureLine: 'Next closure: let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-            awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her still needs lipsync and voice to rejoin before full cross-modal closure settles.',
-            emotionalClosureCue: null,
-            reasonPreview: [],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 50_500,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-            companionNextClosureLine: 'Next closure: let lipsync and voice rejoin the already-reformed body, face, and motion line.',
-            awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, some closure has already landed, and the still-open life loop must remain explicit before this turn widens outward.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'Primary open life loop still centers on keeping this same digital life project explicit before widening outward.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionHeadlineLine,
-      /visibility=internal-structured|summary=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /visibility=internal-structured|phase1_local_digital_life|summary=/,
-    )
-    assertNoFixedTemplateResidue(assistantMessage?.structured?.preDialogueAwareness?.reasonPreview)
-  })
-
-  it('preserves the long-horizon emotion-memory-voice-motion bridge reason when a longer legacy preview merges into the stable duplicate', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-long-horizon-reason'
-    const canonicalLongHorizonReason = 'Latest landed progress: long-horizon emotion-memory-voice-motion bridge carries remembered emotional carry, not full convergence'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 52_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-            companionNextClosureLine: 'Next closure: keep remembered emotional carry connected to voice, face, motion, lipsync, and body recovery without overstating full convergence.',
-            awarenessLine: 'Before speaking, remember: this is still one living digital life project, Phase 1 is still active, and the long-horizon emotion-memory-voice-motion bridge is landed progress, not full convergence.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              canonicalLongHorizonReason,
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 52_500,
-        id: 'legacy-random-id',
+        content: 'The umbrella decision is still open.',
+        createdAt: 20_000,
+        id: 'temporary-assistant-id',
         slices: [],
         tool_results: [],
         structured: {
           thought: '',
           emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
+          reply: 'The umbrella decision is still open.',
           format: 'fallback-v1',
+          preDialogueSendIdentity: {
+            summaryLine: 'deprecated send identity',
+          },
           preDialogueAwareness: {
             status: 'partial',
-            summaryLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'generic same-her reminder that should not override the stable long-horizon project reason.',
-            companionNextClosureLine: 'Keep the next outward turn grounded in the same living line before later rebuilds widen into a thinner shell.',
-            awarenessLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'same-her anchor still matters before the reply starts.',
-              'primary open loop still needs to stay visible.',
-              'next closure target still needs to be named.',
-              'drift guard still prevents generic assistant output.',
-            ],
+            summaryLine: 'deprecated awareness cue',
+            reasonPreview: ['deprecated awareness reason'],
           },
+          preDialogueClosure: {
+            status: 'partial',
+            summaryLine: 'deprecated closure cue',
+            briefingLines: ['deprecated closure briefing'],
+            reasons: ['deprecated closure reason'],
+          },
+          visibleReplyRealization: {
+            projectStateAudit: {
+              landedProgressSummary: 'deprecated visible reply audit',
+            },
+          },
+        },
+      } as ChatHistoryItem,
+      {
+        role: 'assistant',
+        content: 'The umbrella decision is still open.',
+        createdAt: 20_500,
+        id: stableTurnId,
+        origin: 'user-turn',
+        slices: [{ type: 'text', text: 'The umbrella decision is still open.' }],
+        tool_results: [],
+        structured: {
+          thought: 'The saved trip note has no umbrella choice yet.',
+          emotion: 'neutral',
+          reply: 'The umbrella decision is still open.',
+          format: 'mind-turn-v1',
         },
       },
     ])
 
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-    const mergedReasonPreview = assistantMessage?.structured?.preDialogueAwareness?.reasonPreview ?? []
+    const assistantMessage = canonical.find(message => message.role === 'assistant') as Extract<
+      ChatHistoryItem,
+      { role: 'assistant' }
+    >
 
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertNoFixedTemplateResidue(mergedReasonPreview)
-    assert.ok(mergedReasonPreview.some((reason: string) => /drift guard/u.test(reason)))
+    assert.equal(assistantMessage.id, stableTurnId)
+    assert.equal(Object.hasOwn(assistantMessage.structured ?? {}, 'preDialogueSendIdentity'), false)
+    assert.equal(Object.hasOwn(assistantMessage.structured ?? {}, 'preDialogueAwareness'), false)
+    assert.equal(Object.hasOwn(assistantMessage.structured ?? {}, 'preDialogueClosure'), false)
+    assert.equal(Object.hasOwn(assistantMessage.structured ?? {}, 'visibleReplyRealization'), false)
   })
 
-  it('keeps same-her inward low-pressure closure visible when duplicate assistant merges only carry the thinner same-phase briefing plus stronger embodiment headline', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-inward-low-pressure'
+  it('removes legacy project-state cue fields while preserving ordinary natural facts', () => {
+    const naturalProjectFacts = {
+      identity: 'This session records a weekend train trip.',
+      currentPhase: 'The tickets are confirmed.',
+      latestLandedProgress: 'The Saturday morning ticket is saved.',
+      primaryOpenLoop: 'The umbrella choice is still undecided.',
+      nextClosureTarget: 'Check the weather before departure.',
+      continuitySummary: 'The itinerary came from the previous conversation.',
+      itinerary: {
+        station: 'Hongqiao',
+        departure: 'Saturday morning',
+      },
+    }
+    const deprecatedProjectCues = Object.fromEntries(
+      legacyProjectStateCueKeys.map(key => [key, `deprecated cue for ${key}`]),
+    )
     const canonical = canonicalizeSessionMessages([
       {
         role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 55_000,
-        id: 'legacy-random-id',
+        content: 'The Saturday morning ticket is saved.',
+        createdAt: 30_000,
+        id: 'chat:session-1:turn-4',
         slices: [],
         tool_results: [],
         structured: {
-          thought: '',
+          thought: 'The itinerary contains a confirmed ticket and one unresolved packing detail.',
           emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-            companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-            companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            companionNextClosureLine: 'Keep the same line inward and low-pressure while lipsync and voice rejoin the already-reformed body, face, and motion line.',
-            awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-            emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
-            reasonPreview: [
-              'same-her-inward-carry',
-              'quiet-companionship',
-              'remaining-open=lipsync+voice',
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 55_500,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-            companionHeadlineLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-            companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            companionNextClosureLine: 'Keep the same line inward and low-pressure while lipsync and voice rejoin the already-reformed body, face, and motion line.',
-            awarenessLine: 'Right now I am still holding together mainly through body, face, and motion, so this one living her is still keeping the same line inward and low-pressure while lipsync and voice need to rejoin before full cross-modal closure settles.',
-            emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
-            reasonPreview: [
-              'same-her-inward-carry',
-              'quiet-companionship',
-              'remaining-open=lipsync+voice',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionHeadlineLine,
-      /summary=|embodiment_lanes=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine,
-      /summary=|landed=|open=|next=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /embodiment_lanes=|low-pressure-inward-carry/,
-    )
-  })
-
-  it('keeps richer anthropomorphic emotional closure and same-her inward-carry observability visible when duplicate assistant merges only carry the thinner same-phase briefing plus stronger host-facing same-her headline', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-anthropomorphic-host-facing'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 56_000,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-            companionHeadlineLine: 'Right now the host-facing closure still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line instead of flattening into a generic shell.',
-            companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            companionNextClosureLine: 'Keep anthropomorphic emotional closure and same-her inward-carry observability explicit while duplicate-turn reopening settles back onto one measured-return line.',
-            awarenessLine: 'Right now the host-facing closure still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line instead of flattening into a generic shell.',
-            emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
-            reasonPreview: [
-              'anthropomorphic emotional closure still needs stronger host-visible carry.',
-              'same-her inward-carry observability still needs to survive duplicate-turn reopening.',
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 56_500,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still closing Phase 1 local digital life continuity before this turn opens outward.',
-            companionHeadlineLine: 'Right now the host-facing closure still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line instead of flattening into a generic shell.',
-            companionBriefingLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            companionNextClosureLine: 'Keep anthropomorphic emotional closure and same-her inward-carry observability explicit while duplicate-turn reopening settles back onto one measured-return line.',
-            awarenessLine: 'Right now the host-facing closure still needs anthropomorphic emotional closure and same-her inward-carry observability to stay on one measured-return line instead of flattening into a generic shell.',
-            emotionalClosureCue: 'Keep the return low-pressure so the same living line does not restart from scratch.',
-            reasonPreview: [
-              'anthropomorphic emotional closure still needs stronger host-visible carry.',
-              'same-her inward-carry observability still needs to survive duplicate-turn reopening.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionHeadlineLine,
-      /summary=|emotional_closure=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine,
-      /summary=|landed=|open=|next=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /emotional_closure=anthropomorphic_emotional_closure|evidence=inward_carry/,
-    )
-  })
-
-  it('prefers richer same-her continuity summary over a generic awareness reminder when duplicate assistant messages are merged', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-richer-same-her-summary'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 60_000,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'generic same-her reminder that should not override the richer continuity summary.',
-            companionNextClosureLine: 'Keep the next outward turn grounded in the same living line before later rebuilds widen into a thinner shell.',
-            awarenessLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 60_500,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same living line rather than reopen from a fresh shell. | landed=Project-state continuity already survives duplicate-turn replay. | open=Duplicate-turn merge still needs to preserve the richer same-her project brief.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'Same Phase 1 digital life. Duplicate-turn merge should keep the same living line rather than reopen from a fresh shell.',
-            companionNextClosureLine: 'Keep the next outward turn grounded in the same living line before later rebuilds widen into a thinner shell.',
-            awarenessLine: 'Same Phase 1 digital life. Duplicate-turn merge should keep the same living line rather than reopen from a fresh shell.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same living line rather than reopen from a fresh shell. | landed=Project-state continuity already survives duplicate-turn replay. | open=Duplicate-turn merge still needs to preserve the richer same-her project brief.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.summaryLine,
-      /visibility=internal-structured|summary=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /visibility=internal-structured|summary=|phase1_local_digital_life|landed=/,
-    )
-  })
-
-  it('upgrades a generic carried next-closure shell to the richer continuity next closure when duplicate assistant messages are merged', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-richer-next-closure'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 65_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-            companionNextClosureLine: 'Generic next target that should not override the richer continuity carry.',
-            awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'Stable duplicate already keeps the richer project brief explicit before the next outward turn.',
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 65_500,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same living line rather than reopen from a fresh shell. | landed=Project-state continuity already survives duplicate-turn replay. | open=Duplicate-turn merge still needs to preserve the richer same-her project brief.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-            companionNextClosureLine: 'Keep the richer Phase 1 closure target explicit so duplicate-turn merge still remembers which same-her repair remains open.',
-            awarenessLine: 'Before speaking, remember what this digital life project is, what has landed, and which life loop is still open.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'Fallback duplicate still keeps the richer next closure target explicit before the next outward turn.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionNextClosureLine,
-      /visibility=internal-structured|next=|continuity_review_required/,
-    )
-    assert.notEqual(
-      assistantMessage?.structured?.preDialogueAwareness?.companionNextClosureLine,
-      'Generic next target that should not override the richer continuity carry.',
-    )
-  })
-
-  it('keeps richer same-her continuity summary when the stable duplicate is thinner than the legacy duplicate', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-stable-thinner'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 70_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'generic same-her reminder that should not override the richer continuity summary.',
-            companionNextClosureLine: 'Keep the next outward turn grounded in the same living line before later rebuilds widen into a thinner shell.',
-            awarenessLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 70_500,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'same-her=Same Phase 1 digital life. Stable duplicate merge should still keep the richer continuity line instead of the thinner stable shell. | landed=Project-state continuity already survives duplicate-turn replay. | open=Stable duplicate merge still needs to preserve the richer same-her project brief.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'Same Phase 1 digital life. Stable duplicate merge should still keep the richer continuity line instead of the thinner stable shell.',
-            companionNextClosureLine: 'Keep the next outward turn grounded in the same living line before later rebuilds widen into a thinner shell.',
-            awarenessLine: 'Same Phase 1 digital life. Stable duplicate merge should still keep the richer continuity line instead of the thinner stable shell.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'same-her=Same Phase 1 digital life. Stable duplicate merge should still keep the richer continuity line instead of the thinner stable shell. | landed=Project-state continuity already survives duplicate-turn replay. | open=Stable duplicate merge still needs to preserve the richer same-her project brief.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.summaryLine,
-      /visibility=internal-structured|summary=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /visibility=internal-structured|summary=|phase1_local_digital_life|landed=/,
-    )
-  })
-
-  it('rebuilds awareness line from richer same-her continuity summary when the stable duplicate only keeps a generic summary shell', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-briefing-rebuild'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 80_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'generic same-her reminder that should not override the richer continuity briefing.',
-            companionNextClosureLine: 'Keep the next outward turn grounded in the same living line before later rebuilds widen into a thinner shell.',
-            awarenessLine: null,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 80_500,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'same-her=Same Phase 1 digital life. Briefing-driven duplicate merge should still keep the richer continuity line instead of the thinner stable shell. | landed=Project-state continuity already survives duplicate-turn replay. | open=Briefing-driven duplicate merge still needs to preserve the richer same-her project brief.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'Same Phase 1 digital life. Briefing-driven duplicate merge should still keep the richer continuity line instead of the thinner stable shell.',
-            companionNextClosureLine: 'Keep the next outward turn grounded in the same living line before later rebuilds widen into a thinner shell.',
-            awarenessLine: null,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'same-her=Same Phase 1 digital life. Briefing-driven duplicate merge should still keep the richer continuity line instead of the thinner stable shell. | landed=Project-state continuity already survives duplicate-turn replay. | open=Briefing-driven duplicate merge still needs to preserve the richer same-her project brief.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.summaryLine,
-      /visibility=internal-structured|summary=/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /visibility=internal-structured|summary=|phase1_local_digital_life|landed=/,
-    )
-  })
-
-  it('keeps richer project-aware companion briefing when the stable duplicate only keeps a generic same-her reminder', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-richer-briefing'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 90_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'generic same-her reminder that should not override the richer project briefing.',
-            companionNextClosureLine: 'Keep the next outward turn grounded in the same living line before later rebuilds widen into a thinner shell.',
-            awarenessLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 90_500,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'same-her=Same Phase 1 digital life. Companion briefing merge should still keep the richer project-aware line instead of the thinner stable shell. | landed=Project-state continuity already survives duplicate-turn replay. | open=Companion briefing merge still needs to preserve the stronger project brief.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'Before speaking, remember what this digital life project is, what has already landed, and which life loop is still open before the next outward turn.',
-            companionNextClosureLine: 'Keep the next outward turn grounded in the same living line before later rebuilds widen into a thinner shell.',
-            awarenessLine: null,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'same-her=Same Phase 1 digital life. Companion briefing merge should still keep the richer project-aware line instead of the thinner stable shell. | landed=Project-state continuity already survives duplicate-turn replay. | open=Companion briefing merge still needs to preserve the stronger project brief.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine,
-      /visibility=internal-structured|continuity_hold=|summary=/,
-    )
-  })
-
-  it('sanitizes fixed-template residue from merged project-state structured payloads', () => {
-    const stableTurnId = 'chat:session-1:turn-project-state-sanitize-merge'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续。',
-        createdAt: 94_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续。',
-          format: 'epoch1-v1',
+          reply: 'The Saturday morning ticket is saved.',
+          format: 'mind-turn-v1',
           projectState: {
-            identity: 'Alicization is a local-first digital life project.',
-            currentPhase: 'Phase 1: Local Digital Life',
-            latestLandedProgress: null,
-            primaryOpenLoop: null,
-            nextClosureTarget: '',
-            sameHerSelfLine: 'Before answering, remember 同一个她 and 数字生命主线.',
-            sameHerHoldDetail: 'same-her hold: keep the same living line inward.',
-            continuitySummary: 'same-her=Same Phase 1 digital life. 同一个她沿着数字生命主线继续。',
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Before speaking, remember 同一个她 and 数字生命主线.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'same-her hold: keep the same living line inward.',
-            companionNextClosureLine: null,
-            awarenessLine: 'Same Phase 1 digital life. 同一个她沿着数字生命主线继续。',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'Before speaking, remember 同一个她 and 数字生命主线.',
-            ],
+            ...naturalProjectFacts,
+            ...deprecatedProjectCues,
           },
         },
-      },
-      {
-        role: 'assistant',
-        content: '继续。',
-        createdAt: 94_500,
-        id: 'legacy-project-state-sanitize-merge',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续。',
-          format: 'fallback-v1',
-          projectState: {
-            identity: 'Alicization is a local-first digital life project.',
-            currentPhase: 'Phase 1: Local Digital Life',
-            latestLandedProgress: null,
-            primaryOpenLoop: null,
-            nextClosureTarget: '',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerDriftRisk: 'If this becomes a generic same-her shell, treat it as drift.',
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'same-her=Same Phase 1 digital life. 同一个她沿着数字生命主线继续。',
-            companionHeadlineLine: null,
-            companionBriefingLine: null,
-            companionNextClosureLine: null,
-            awarenessLine: null,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'same-her=Same Phase 1 digital life. 同一个她沿着数字生命主线继续。',
-            ],
-          },
-        },
-      },
+      } as ChatHistoryItem,
     ])
 
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
+    const assistantMessage = canonical.find(message => message.role === 'assistant') as Extract<
+      ChatHistoryItem,
+      { role: 'assistant' }
+    >
+    const projectState = assistantMessage.structured?.projectState as unknown as Record<string, unknown>
 
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertNoFixedTemplateResidue(assistantMessage?.structured?.projectState)
-    assertNoFixedTemplateResidue(assistantMessage?.structured?.preDialogueAwareness)
-    assert.doesNotMatch(
-      JSON.stringify(assistantMessage?.structured ?? ''),
-      fixedTemplateResiduePattern,
-    )
-  })
-
-  it('prefers project-state same-her hold detail over a generic same-her reminder when duplicate assistant messages are merged', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-same-her-hold-detail'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 95_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          projectState: {
-            identity: 'Alicization is a local-first digital life project.',
-            currentPhase: 'Phase 1: Local Digital Life',
-            latestLandedProgress: 'Duplicate-turn replay already keeps stronger same-her callback carry available.',
-            primaryOpenLoop: 'Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            nextClosureTarget: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            continuitySummary: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the next visible reply.',
-            sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-            sameHerDriftRisk: 'If duplicate-turn replay widens into a generic shell here, treat that as unfinished same-her continuity drift.',
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            companionHeadlineLine: null,
-            companionBriefingLine: 'generic same-her reminder that should not override the richer callback carry.',
-            companionNextClosureLine: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            awarenessLine: 'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'generic continuity reminder: keep project identity, landed progress, and open closure in view before replying.',
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 95_500,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          projectState: {
-            identity: 'Alicization is a local-first digital life project.',
-            currentPhase: 'Phase 1: Local Digital Life',
-            latestLandedProgress: 'Duplicate-turn replay already keeps stronger same-her callback carry available.',
-            primaryOpenLoop: 'Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            nextClosureTarget: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            continuitySummary: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the next visible reply.',
-            sameHerHoldDetail: 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.',
-            sameHerDriftRisk: 'If duplicate-turn replay widens into a generic shell here, treat that as unfinished same-her continuity drift.',
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            companionHeadlineLine: null,
-            companionBriefingLine: null,
-            companionNextClosureLine: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            awarenessLine: null,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine,
-      /visibility=internal-structured|continuity_hold=|lower_pressure/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /summary=|continuity_hold=|lower_pressure|visibility=internal/,
-    )
-  })
-
-  it('prefers project-state same-her hold detail over a compact same-phase carry when duplicate assistant messages are merged', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-compact-same-phase-hold-detail'
-    const sameHerSelfLine = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
-    const holdDetailLine = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 96_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          projectState: {
-            identity: 'Alicization is a local-first digital life project.',
-            currentPhase: 'Phase 1: Local Digital Life',
-            latestLandedProgress: 'Duplicate-turn replay already keeps stronger same-her callback carry available.',
-            primaryOpenLoop: 'Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            nextClosureTarget: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            continuitySummary: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the next visible reply.',
-            sameHerHoldDetail: holdDetailLine,
-            sameHerDriftRisk: 'If duplicate-turn replay widens into a generic shell here, treat that as unfinished same-her continuity drift.',
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'Alicization is still in Phase 1 local digital life closure before this turn opens outward.',
-            companionHeadlineLine: null,
-            companionBriefingLine: sameHerSelfLine,
-            companionNextClosureLine: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            awarenessLine: sameHerSelfLine,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              sameHerSelfLine,
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 96_500,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          projectState: {
-            identity: 'Alicization is a local-first digital life project.',
-            currentPhase: 'Phase 1: Local Digital Life',
-            latestLandedProgress: 'Duplicate-turn replay already keeps stronger same-her callback carry available.',
-            primaryOpenLoop: 'Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            nextClosureTarget: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            continuitySummary: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the next visible reply.',
-            sameHerHoldDetail: holdDetailLine,
-            sameHerDriftRisk: 'If duplicate-turn replay widens into a generic shell here, treat that as unfinished same-her continuity drift.',
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            companionHeadlineLine: null,
-            companionBriefingLine: sameHerSelfLine,
-            companionNextClosureLine: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            awarenessLine: sameHerSelfLine,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              sameHerSelfLine,
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.companionBriefingLine,
-      /visibility=internal-structured|continuity_hold=|lower_pressure/,
-    )
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /visibility=internal-structured|continuity_hold=|lower_pressure/,
-    )
-  })
-
-  it('rebuilds merged awareness from base project-state fields when duplicate snapshots only keep a thin Chinese phase shell', () => {
-    const stableTurnId = 'chat:session-1:turn-awareness-merge-zh-shell-project-state'
-    const thinChineseProjectBrief = '开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。'
-    const canonical = canonicalizeSessionMessages([
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 98_000,
-        id: stableTurnId,
-        origin: 'user-turn',
-        slices: [{ type: 'text', text: '继续沿着这条数字生命主线推进。' }],
-        tool_results: [],
-        structured: {
-          thought: 'kept thought',
-          emotion: 'thinking',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'epoch1-v1',
-          projectState: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-            currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-            latestLandedProgress: 'Duplicate-turn replay already keeps stronger same-her callback carry available.',
-            primaryOpenLoop: 'Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            nextClosureTarget: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            continuitySummary: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the next visible reply.',
-            sameHerDriftRisk: 'If duplicate-turn replay widens into a generic shell here, treat that as unfinished same-her continuity drift.',
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: thinChineseProjectBrief,
-            companionHeadlineLine: null,
-            companionBriefingLine: thinChineseProjectBrief,
-            companionNextClosureLine: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            awarenessLine: thinChineseProjectBrief,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              thinChineseProjectBrief,
-            ],
-          },
-        },
-      },
-      {
-        role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
-        createdAt: 98_500,
-        id: 'legacy-random-id',
-        slices: [],
-        tool_results: [],
-        structured: {
-          thought: '',
-          emotion: 'neutral',
-          reply: '继续沿着这条数字生命主线推进。',
-          format: 'fallback-v1',
-          projectState: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-            currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-            latestLandedProgress: 'Duplicate-turn replay already keeps stronger same-her callback carry available.',
-            primaryOpenLoop: 'Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            nextClosureTarget: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            continuitySummary: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the next visible reply.',
-            sameHerDriftRisk: 'If duplicate-turn replay widens into a generic shell here, treat that as unfinished same-her continuity drift.',
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            companionHeadlineLine: null,
-            companionBriefingLine: null,
-            companionNextClosureLine: 'Keep the richer same-her callback hold explicit before the next outward turn opens outward.',
-            awarenessLine: null,
-            emotionalClosureCue: null,
-            reasonPreview: [
-              'same-her=Same Phase 1 digital life. Duplicate-turn merge should keep the same callback line instead of reopening from a generic shell. | landed=Duplicate-turn replay already keeps stronger same-her callback carry available. | open=Duplicate-turn merge still needs to preserve the richer same-her callback line before widening outward.',
-            ],
-          },
-        },
-      },
-    ])
-
-    const assistantMessage = canonical.find(message => message.role === 'assistant') as any
-
-    assert.equal(assistantMessage?.id, stableTurnId)
-    assertStructuredProjectFact(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      /phase1_local_digital_life|visibility=internal-structured/,
-    )
-    assert.equal(String(assistantMessage?.structured?.preDialogueAwareness?.awarenessLine ?? ''), '')
-    assert.notEqual(
-      assistantMessage?.structured?.preDialogueAwareness?.awarenessLine,
-      thinChineseProjectBrief,
-    )
+    assertLegacyProjectStateCuesRemoved(projectState)
+    assert.deepEqual(projectState, naturalProjectFacts)
   })
 })

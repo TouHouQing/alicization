@@ -641,46 +641,46 @@ export function buildMindTurnFrameSystemBlock(frame: AlicizationMindTurnFrameSna
   const worldTruthLine = (() => {
     switch (frame.world.truthState) {
       case 'live-grounded':
-        return 'truth_state=live-grounded'
+        return 'Truth state: live grounded.'
       case 'live-observed':
-        return 'truth_state=live-observed'
+        return 'Truth state: live observed.'
       case 'remembered':
-        return 'truth_state=remembered; continuity_source=memory'
+        return 'Truth state: remembered; continuity source is memory.'
       case 'imagined':
-        return 'truth_state=imagined; direct_observation=false'
+        return 'Truth state: imagined; do not present it as direct observation.'
       default:
-        return 'truth_state=uncertain; truth_boundary_required=true'
+        return 'Truth state: uncertain; keep the truth boundary explicit.'
     }
   })()
 
   return [
     '[ALICIZATION_MIND_TURN_FRAME]',
-    'frame_scope=turn_local_convergence',
-    'frame_authority=primary',
-    'supporting_blocks_role=verify_or_sharpen',
+    'Frame scope: turn-local convergence.',
+    'Frame authority: primary.',
+    'Supporting blocks should verify or sharpen this frame.',
     worldTruthLine,
-    frame.world.visibleSurface ? `visible_surface=${formatPromptValue(frame.world.visibleSurface)}` : '',
-    frame.world.activeThread ? `active_thread=${formatPromptValue(frame.world.activeThread)}` : '',
-    frame.world.truthBoundary ? `truth_boundary=${formatPromptValue(frame.world.truthBoundary)}` : '',
-    frame.relation.subject ? `answer_subject=${formatPromptValue(frame.relation.subject, 80)}` : '',
-    frame.relation.hostMove ? `host_move=${formatPromptValue(frame.relation.hostMove)}` : '',
-    frame.relation.hostGoal ? `host_goal=${formatPromptValue(frame.relation.hostGoal, 120)}` : '',
-    frame.relation.relationNeed ? `relationship_need=${formatPromptValue(frame.relation.relationNeed, 120)}` : '',
-    frame.memory.carriedThread ? `carried_thread=${formatPromptValue(frame.memory.carriedThread)}` : '',
-    frame.memory.carriedFacts.length > 0 ? `carried_facts=${frame.memory.carriedFacts.map(fact => formatPromptValue(fact)).join('|')}` : '',
-    frame.memory.labelCarryAsMemory ? 'carry_surface_label=memory_not_present_fact' : '',
-    frame.self.stance ? `inner_stance=${formatPromptValue(frame.self.stance, 80)}` : '',
-    frame.self.embodiedPresence && frame.self.embodiedPresence !== 'none' ? `embodied_presence=${formatPromptValue(frame.self.embodiedPresence, 80)}` : '',
-    frame.self.emotionalTension ? `emotional_tension=${formatPromptValue(frame.self.emotionalTension, 80)}` : '',
-    frame.self.thought ? `inner_line=${formatPromptValue(frame.self.thought)}; surface_visibility=internal_only` : '',
-    frame.obligation.turnMode ? `turn_mode=${formatPromptValue(frame.obligation.turnMode, 80)}` : '',
-    frame.obligation.answerAct ? `answer_act=${formatPromptValue(frame.obligation.answerAct, 80)}` : '',
-    frame.obligation.answerIntent ? `answer_intent=${formatPromptValue(frame.obligation.answerIntent)}` : '',
-    frame.obligation.openingMove ? `opening_move=${formatPromptValue(frame.obligation.openingMove)}` : '',
-    frame.obligation.whyNow ? `why_now=${formatPromptValue(frame.obligation.whyNow)}` : '',
-    frame.focusAnchor ? `focus_anchor=${formatProviderFacingControl(frame.focusAnchor)}` : '',
-    frame.mustDo.length > 0 ? `required_controls=${frame.mustDo.map(item => formatProviderFacingControl(item)).join('|')}` : '',
-    frame.mustNotDo.length > 0 ? `blocked_controls=${frame.mustNotDo.map(item => formatProviderFacingControl(item)).join('|')}` : '',
+    frame.world.visibleSurface ? `Visible surface: ${formatPromptValue(frame.world.visibleSurface)}.` : '',
+    frame.world.activeThread ? `Active thread: ${formatPromptValue(frame.world.activeThread)}.` : '',
+    frame.world.truthBoundary ? `Truth boundary: ${formatPromptValue(frame.world.truthBoundary)}.` : '',
+    frame.relation.subject ? `Answer subject: ${formatPromptValue(frame.relation.subject, 80)}.` : '',
+    frame.relation.hostMove ? `Host move: ${formatPromptValue(frame.relation.hostMove)}.` : '',
+    frame.relation.hostGoal ? `Host goal: ${formatPromptValue(frame.relation.hostGoal, 120)}.` : '',
+    frame.relation.relationNeed ? `Relationship need: ${formatPromptValue(frame.relation.relationNeed, 120)}.` : '',
+    frame.memory.carriedThread ? `Carried thread: ${formatPromptValue(frame.memory.carriedThread)}.` : '',
+    frame.memory.carriedFacts.length > 0 ? `Carried facts: ${frame.memory.carriedFacts.map(fact => formatPromptValue(fact)).join(' | ')}.` : '',
+    frame.memory.labelCarryAsMemory ? 'Label carried material as memory, not present fact.' : '',
+    frame.self.stance ? `Inner stance: ${formatPromptValue(frame.self.stance, 80)}.` : '',
+    frame.self.embodiedPresence && frame.self.embodiedPresence !== 'none' ? `Embodied presence: ${formatPromptValue(frame.self.embodiedPresence, 80)}.` : '',
+    frame.self.emotionalTension ? `Emotional tension: ${formatPromptValue(frame.self.emotionalTension, 80)}.` : '',
+    frame.self.thought ? `Inner line: ${formatPromptValue(frame.self.thought)}. Keep it internal.` : '',
+    frame.obligation.turnMode ? `Turn mode: ${formatPromptValue(frame.obligation.turnMode, 80)}.` : '',
+    frame.obligation.answerAct ? `Answer act: ${formatPromptValue(frame.obligation.answerAct, 80)}.` : '',
+    frame.obligation.answerIntent ? `Answer intent: ${formatPromptValue(frame.obligation.answerIntent)}.` : '',
+    frame.obligation.openingMove ? `Opening move: ${formatPromptValue(frame.obligation.openingMove)}.` : '',
+    frame.obligation.whyNow ? `Why now: ${formatPromptValue(frame.obligation.whyNow)}.` : '',
+    frame.focusAnchor ? `Focus anchor: ${formatProviderFacingControl(frame.focusAnchor)}.` : '',
+    frame.mustDo.length > 0 ? `Required controls: ${frame.mustDo.map(item => formatProviderFacingControl(item)).join(' | ')}.` : '',
+    frame.mustNotDo.length > 0 ? `Blocked controls: ${frame.mustNotDo.map(item => formatProviderFacingControl(item)).join(' | ')}.` : '',
   ].filter(Boolean).join('\n')
 }
 

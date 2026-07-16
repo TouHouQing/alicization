@@ -341,12 +341,12 @@ function buildRuntimeSameHerSelfLine(input: {
     nextClosureTarget ? `next=${nextClosureTarget}` : '',
   ].filter(Boolean)
   return parts.length > 0
-    ? sanitizeText(`continuity_context=runtime_personhood | ${parts.join(' | ')}`, 220) || null
+    ? sanitizeText(`continuity_context=present | ${parts.join(' | ')}`, 220) || null
     : null
 }
 
 function hasLocalDesktopLifeLoopToken(text: string) {
-  return /\bruntime_personhood\b|\bphase=runtime_personhood\b|\bproject_context=runtime_personhood\b|\bcontinuity_context=runtime_personhood\b|\bdesktop_life_loop\b|\blocal desktop life loop\b/u.test(text)
+  return /\bruntime_personhood\b|\bphase=runtime_personhood\b|\bproject_context=runtime_personhood\b|\bcontinuity_context=runtime_personhood\b|\bdesktop_life_loop\b|\blocal desktop life loop\b|\bcontinuity_context=present\b|\bproject_context=continuity_evidence_present\b|\bcontinuity_scope=life_loop\b/u.test(text)
 }
 
 function hasContinuityIdentityToken(text: string) {
@@ -399,24 +399,23 @@ function buildRuntimeProjectStateSameHerSummary(input: {
   const carryLine = sanitizeText(input.carryLine, 220)
   if (canonical && containsAlicizationFixedTemplateResidue(canonical)) {
     return sanitizeText(formatAlicizationProjectStateAwarenessFields({
-      identity: canonicalIdentity || canonical,
-      currentPhase: canonical,
+      identity: canonicalIdentity || '',
+      currentPhase: '',
       primaryOpenLoop,
       nextClosureTarget,
-      sameHerSelfLine: canonical,
       maxChars: 220,
     }), 220) || null
   }
   const carryLineLooksSceneContaminated
     = /宿主正在|宿主还在沿着|host is|host is still following|runtime\.ts|index\.ts|callback result seam|foreground|scene|window|screen|工作线程|work thread|trust seam/u.test(carryLine)
   const canonicalLower = canonical.toLowerCase()
-  const genericSameHerCanonical = /same phase 1 digital life|same living line|same digital life|same-her|same her|同一个她/iu.test(canonical)
-    || hasLocalDesktopLifeLoopToken(canonicalLower)
+  const genericSameHerCanonical = hasLocalDesktopLifeLoopToken(canonicalLower)
     || hasContinuityIdentityToken(canonicalLower)
+    || /identity=runtime_personhood|owner=project_state_governance|identity_continuity=present/iu.test(canonical)
   const strongerSameHerCanonical
-    = /same phase 1 digital life|same living line|unfinished closure|without splitting her continuity|initiative and embodiment closure|one continuous her/iu.test(canonical)
-      || hasMemoryDialogueEmbodimentClosureToken(canonicalLower)
+    = hasMemoryDialogueEmbodimentClosureToken(canonicalLower)
       || hasContinuityIdentityToken(canonicalLower)
+      || /identity=runtime_personhood|phase=life_core|owner=project_state_governance|identity_continuity=present/iu.test(canonical)
   const explicitSameHerFallback = genericSameHerCanonical
     ? buildRuntimeSameHerSelfLine({
         identity: canonical,
@@ -427,8 +426,8 @@ function buildRuntimeProjectStateSameHerSummary(input: {
   if (!canonical)
     return carryLineLooksSceneContaminated ? null : carryLine || null
   if (!carryLine) {
-    if (strongerSameHerCanonical && !/continuous her|one continuous her/iu.test(canonical)) {
-      return sanitizeText(`continuity_context=runtime_personhood | ${canonical}`, 220) || canonical
+    if (strongerSameHerCanonical) {
+      return sanitizeText(`continuity_context=present | ${canonical}`, 220) || canonical
     }
     return strongerSameHerCanonical ? canonical : explicitSameHerFallback || canonical
   }
@@ -440,17 +439,16 @@ function buildRuntimeProjectStateSameHerSummary(input: {
     return carryLine
   if (
     (
-      /same phase 1 digital life|same living line|same digital life|same-her|same her|同一个她/iu.test(carryLine)
-      || hasContinuityIdentityToken(carryLine.toLowerCase())
+      hasContinuityIdentityToken(carryLine.toLowerCase())
       || hasLocalDesktopLifeLoopToken(carryLine.toLowerCase())
+      || /identity=runtime_personhood|owner=project_state_governance|identity_continuity=present/iu.test(carryLine)
     )
-    && !/continuous her|one continuous her/iu.test(carryLine)
   ) {
     if (strongerSameHerCanonical)
       return sanitizeText(`${canonical} | ${carryLine}`, 220) || canonical
     const explicitSelfLine = canonicalIdentity
       ? sanitizeText(
-          `continuity_context=runtime_personhood | identity=${canonicalIdentity} | still-open=${primaryOpenLoop || carryLine}${nextClosureTarget ? ` | next=${nextClosureTarget}` : ''}`,
+          `continuity_context=present | identity=${canonicalIdentity} | still-open=${primaryOpenLoop || carryLine}${nextClosureTarget ? ` | next=${nextClosureTarget}` : ''}`,
           220,
         )
       : null
@@ -469,17 +467,15 @@ function deriveRuntimeProjectStateClosurePressure(input: {
   const nextClosureTarget = sanitizeText(input.nextClosureTarget, 260).toLowerCase()
 
   const combined = [currentPhase, primaryOpenLoop, nextClosureTarget].filter(Boolean).join(' | ')
-  const phaseOneDigitalLife = (
-    currentPhase.includes('phase 1')
-    && currentPhase.includes('local digital life')
-  ) || hasLocalDesktopLifeLoopToken(combined)
-  const continuityStillOpen = primaryOpenLoop.includes('same digital life')
-    || primaryOpenLoop.includes('closure')
+  const phaseOneDigitalLife = currentPhase.includes('life_core')
+    || hasLocalDesktopLifeLoopToken(combined)
+    || hasMemoryDialogueEmbodimentClosureToken(combined)
+    || /\blife_loop_closure\b|\bproject_identity_route_carry\b|\bphase_route_carry\b/iu.test(combined)
+  const continuityStillOpen = primaryOpenLoop.includes('closure')
     || primaryOpenLoop.includes('continuity')
     || hasContinuityIdentityToken(primaryOpenLoop)
     || hasMemoryDialogueEmbodimentClosureToken(primaryOpenLoop)
-  const closureTargetStillInward = nextClosureTarget.includes('same-her')
-    || nextClosureTarget.includes('measured-return')
+  const closureTargetStillInward = nextClosureTarget.includes('measured-return')
     || nextClosureTarget.includes('repair-before-closeness')
     || nextClosureTarget.includes('project identity carry')
     || nextClosureTarget.includes('unresolved closure carry')
@@ -517,57 +513,33 @@ function derivesBroaderSameHerProjectStateContinuityAuthority(input: {
   const continuityPreferredTiming = sanitizeText(input.continuityPreferredTiming, 120).toLowerCase()
 
   const broaderAwarenessLine
-    = (
-      preDialogueAwarenessLine.includes('same living line')
-      && preDialogueAwarenessLine.includes('initiative and embodiment closure')
-      && preDialogueAwarenessLine.includes('without splitting her continuity')
-    )
-    || hasMemoryDialogueEmbodimentClosureToken(preDialogueAwarenessLine)
-    || (
-      hasLocalDesktopLifeLoopToken(preDialogueAwarenessLine)
-      && hasContinuityIdentityToken(preDialogueAwarenessLine)
-    )
+    = hasMemoryDialogueEmbodimentClosureToken(preDialogueAwarenessLine)
+      || (
+        hasLocalDesktopLifeLoopToken(preDialogueAwarenessLine)
+        && hasContinuityIdentityToken(preDialogueAwarenessLine)
+      )
   const sameHerClosureLine
-    = (
-      sameHerSelfLine.includes('same phase 1 digital life')
-      && sameHerSelfLine.includes('same living line')
-      && sameHerSelfLine.includes('unfinished closure')
-    )
-    || hasMemoryDialogueEmbodimentClosureToken(sameHerSelfLine)
-    || (
-      hasLocalDesktopLifeLoopToken(sameHerSelfLine)
-      && hasContinuityIdentityToken(sameHerSelfLine)
-    )
+    = hasMemoryDialogueEmbodimentClosureToken(sameHerSelfLine)
+      || (
+        hasLocalDesktopLifeLoopToken(sameHerSelfLine)
+        && hasContinuityIdentityToken(sameHerSelfLine)
+      )
   const emotionalClosureLoop
-    = (
-      emotionalClosureCue.includes('memory, initiative, and embodiment')
-      && emotionalClosureCue.includes('same living line')
-    )
-    || hasMemoryDialogueEmbodimentClosureToken(emotionalClosureCue)
-    || (
-      /memory|initiative|embodiment/u.test(emotionalClosureCue)
-      && /closure|continuity|land|coordinated/u.test(emotionalClosureCue)
-    )
+    = hasMemoryDialogueEmbodimentClosureToken(emotionalClosureCue)
+      || (
+        /memory|initiative|embodiment/u.test(emotionalClosureCue)
+        && /closure|continuity|land|coordinated/u.test(emotionalClosureCue)
+      )
   const openLoopStillUnfinished
-    = (
-      primaryOpenLoop.includes('same living line')
-      && primaryOpenLoop.includes('memory')
-      && primaryOpenLoop.includes('initiative')
-      && primaryOpenLoop.includes('embodiment')
-    )
-    || hasMemoryDialogueEmbodimentClosureToken(primaryOpenLoop)
-    || (
-      hasContinuityIdentityToken(primaryOpenLoop)
-      && /memory|initiative|embodiment|closure|unfinished|open_loop/u.test(primaryOpenLoop)
-    )
+    = hasMemoryDialogueEmbodimentClosureToken(primaryOpenLoop)
+      || (
+        hasContinuityIdentityToken(primaryOpenLoop)
+        && /memory|initiative|embodiment|closure|unfinished|open_loop/u.test(primaryOpenLoop)
+      )
   const inwardClosureTarget
-    = (
-      nextClosureTarget.includes('same living line')
-      && nextClosureTarget.includes('initiative and embodiment closure')
-    )
-    || hasMemoryDialogueEmbodimentClosureToken(nextClosureTarget)
-    || hasMeasuredReturnToken(nextClosureTarget)
-    || hasRepairBeforeClosenessToken(nextClosureTarget)
+    = hasMemoryDialogueEmbodimentClosureToken(nextClosureTarget)
+      || hasMeasuredReturnToken(nextClosureTarget)
+      || hasRepairBeforeClosenessToken(nextClosureTarget)
   const sameThreadArc = continuityArcStage === 'same-thread-continuation'
   const inwardTiming = continuityPreferredTiming === '' || continuityPreferredTiming === 'next-open-window'
   const restrainedReturn
@@ -606,7 +578,7 @@ function buildProjectThreadContinuityCue(input: {
   if (!hasProjectCarry || !sameThreadCarry || !measuredReturn || (!callbackContinuationSummary && !callbackLikeProjectCarry))
     return null
 
-  return 'same_thread_callback_carry | project_context=runtime_personhood | cadence=measured_return | route=desktop_runtime | unresolved=callback_seam'
+  return null
 }
 
 function resolveRuntimeProjectContinuityCue(input: {
@@ -639,25 +611,23 @@ function resolveRuntimeProjectContinuityCue(input: {
   const canonicalSameHerSelfLine = sanitizeText(input.canonicalSameHerSelfLine, 220)
   const canonicalSameHerSelfLineLower = canonicalSameHerSelfLine.toLowerCase()
   const canonicalPhaseOneProjectCue
-    = /local-first digital life project|phase 1: local digital life|same phase 1 digital life|continuous her explicit|one continuous her/u.test(
-      canonicalSameHerSelfLineLower,
-    )
-    || hasLocalDesktopLifeLoopToken(canonicalSameHerSelfLineLower)
-    || hasContinuityIdentityToken(canonicalSameHerSelfLineLower)
-      ? 'project_context=runtime_personhood | identity_continuity=present | route=desktop_runtime'
+    = hasLocalDesktopLifeLoopToken(canonicalSameHerSelfLineLower)
+      || hasContinuityIdentityToken(canonicalSameHerSelfLineLower)
+      || /identity=runtime_personhood|owner=project_state_governance|identity_continuity=present/iu.test(canonicalSameHerSelfLine)
+      ? 'project_context=continuity_evidence_present | identity_continuity=present | route=desktop_runtime'
       : null
   const callbackLikeContinuitySummary = /project_continuity=.*(?:callback|same-thread|same thread|same line|continuity_line|callback_carry_continuity|same_thread_continuation|同一条线|沿着刚才那条线)/u.test(projectContinuitySummary)
     || hasSameThreadContinuityToken(projectContinuitySummary)
   const callbackLikeCarryLine = /callback|same-thread|same thread|same line|continuity_line|callback_carry_continuity|same_thread_continuation|同一条线|沿着刚才那条线/u.test(projectStateCarryLine)
     || hasSameThreadContinuityToken(projectStateCarryLine)
-  const projectThreadCarryNeedsCanonicalCue = /project-carry\/phase-1\/same-line/u.test(
+  const projectThreadCarryNeedsCanonicalCue = /project-carry\/(?:runtime-personhood|identity-continuity|structured-continuity)/u.test(
     `${projectStateCarryLine} ${projectContinuitySummary}`.toLowerCase(),
   )
 
   if (callbackLikeContinuitySummary && !callbackLikeCarryLine)
     return projectContinuitySummary
   if (projectThreadCarryNeedsCanonicalCue)
-    return 'same_thread_callback_carry | project_context=runtime_personhood | unresolved=callback_seam'
+    return null
   if (projectStateCarryLine)
     return sanitizeRuntimeProjectContinuityCue(projectStateCarryLine) || null
   if (projectContinuitySummary)
@@ -671,10 +641,11 @@ function normalizeRuntimeMemoryClosureSummary(raw: unknown) {
     return null
   if (/memory_closure_context=(?:phase1_open_loop|runtime_personhood_open_loop|life_core_open_loop)/i.test(text)) {
     return text
-      .replace(/phase1_open_loop/giu, 'life_core_open_loop')
-      .replace(/runtime_personhood_open_loop/giu, 'life_core_open_loop')
+      .replace(/phase1_open_loop/giu, 'open_loop')
+      .replace(/runtime_personhood_open_loop/giu, 'open_loop')
+      .replace(/life_core_open_loop/giu, 'open_loop')
   }
-  return sanitizeText(`memory_closure_context=life_core_open_loop; summary=${text}`, 420) || text
+  return sanitizeText(`memory_closure_context=open_loop; summary=${text}`, 420) || text
 }
 
 function looksLikeSceneContaminatedProjectSameHerLine(raw: unknown) {
@@ -1299,7 +1270,7 @@ function buildDialogueChannel(spine: AlicizationDigitalLifeSpineSnapshot): Alici
           ? `speak=${/silent-observe|withhold|quietly alive|without forcing speech/u.test(String(currentConsciousFrame.speakingIntention)) ? 'false' : 'true'}`
           : '',
       encounter?.subject ? `subject=${encounter.subject}` : '',
-      focus ? `focus=${sanitizeText(focus, 72)}` : '',
+      focus ? `Focus: ${sanitizeText(focus, 72)}.` : '',
     ].filter(Boolean).join(' | '),
   }
 }
@@ -1344,7 +1315,7 @@ function buildActivePerceptionChannel(spine: AlicizationDigitalLifeSpineSnapshot
       `watch=${surface.perception?.watchMode ?? 'unknown'}`,
       scene?.scenario ? `scene=${sanitizeText(scene.scenario, 48)}` : '',
       capture ? `capture=${capture.permission}/${capture.health}` : 'capture=unknown',
-      focus ? `focus=${sanitizeText(focus, 72)}` : '',
+      focus ? `Focus: ${sanitizeText(focus, 72)}.` : '',
     ].filter(Boolean).join(' | '),
   }
 }
@@ -1383,7 +1354,7 @@ function buildActiveDialogueChannel(spine: AlicizationDigitalLifeSpineSnapshot):
       recollectionFollowUp.arcStage && recollectionFollowUp.arcStage !== 'none' ? `arc=${recollectionFollowUp.arcStage}` : '',
       recollectionFollowUp.summary ? `followup=${sanitizeText(recollectionFollowUp.summary, 72)}` : '',
       concern?.summary ? `concern=${sanitizeText(concern.summary, 72)}` : '',
-      focus ? `focus=${sanitizeText(focus, 72)}` : '',
+      focus ? `Focus: ${sanitizeText(focus, 72)}.` : '',
     ].filter(Boolean).join(' | '),
   }
 }
@@ -1439,7 +1410,7 @@ function buildActiveControlChannel(spine: AlicizationDigitalLifeSpineSnapshot): 
       actionEcology?.mode ? `ecology=${actionEcology.mode}` : '',
       runtimeThread ? `thread=${sanitizeText(runtimeThread.need, 56)}` : '',
       actionEcology ? `surface=${actionEcology.shouldSurface ? 'true' : 'false'}` : '',
-      focus ? `focus=${sanitizeText(focus, 72)}` : '',
+      focus ? `Focus: ${sanitizeText(focus, 72)}.` : '',
     ].filter(Boolean).join(' | '),
   }
 }
@@ -1502,7 +1473,7 @@ function buildActiveMindChannel(spine: AlicizationDigitalLifeSpineSnapshot): Ali
       mindKernel?.dominantMode ? `mode=${mindKernel.dominantMode}` : '',
       mindKernel?.dominantDrive ? `drive=${mindKernel.dominantDrive}` : '',
       activeThread ? `thread=${sanitizeText(activeThread.title, 64)}` : '',
-      focus ? `focus=${sanitizeText(focus, 72)}` : '',
+      focus ? `Focus: ${sanitizeText(focus, 72)}.` : '',
     ].filter(Boolean).join(' | '),
   }
 }
@@ -1600,7 +1571,7 @@ function buildAnthropomorphicMindChannel(spine: AlicizationDigitalLifeSpineSnaps
       recollectionFollowUp.arcStage && recollectionFollowUp.arcStage !== 'none' ? `arc=${recollectionFollowUp.arcStage}` : '',
       recollectionFollowUp.summary ? `followup=${sanitizeText(recollectionFollowUp.summary, 72)}` : '',
       privateThought?.embodiedPresence ? `presence=${privateThought.embodiedPresence}` : '',
-      focus ? `focus=${sanitizeText(focus, 72)}` : '',
+      focus ? `Focus: ${sanitizeText(focus, 72)}.` : '',
     ].filter(Boolean).join(' | '),
   }
 }
@@ -1804,7 +1775,7 @@ function deriveDigestOnlyRuntimeSnapshot(input: {
         runtime?.selectedAction ? `action=${runtime.selectedAction}` : '',
         proactive?.preferredStyle ? `style=${proactive.preferredStyle}` : '',
         continuityRestraint ? `restraint=${continuityRestraint}` : '',
-        proactive?.dominantConcernSummary ? `focus=${sanitizeText(proactive.dominantConcernSummary, 72)}` : '',
+        proactive?.dominantConcernSummary ? `Focus: ${sanitizeText(proactive.dominantConcernSummary, 72)}.` : '',
       ].filter(Boolean).join(' | '),
     },
     'active-control': {
@@ -3006,7 +2977,7 @@ export function buildAlicizationRuntimeSystemBlock(
   const projectMemoryClosure = sanitizeProviderRuntimeText(projectState?.memoryClosureSummary, 420)
   const projectOpenLoop = sanitizeProviderRuntimeText(projectState?.primaryOpenLoop, 360)
   const projectNextClosure = sanitizeProviderRuntimeText(projectState?.nextClosureTarget, 420)
-  const projectContinuityAnchor = sanitizeProviderRuntimeText(projectState?.sameHerSelfLine, 260)
+  const projectSameHerLine = sanitizeProviderRuntimeText(projectState?.sameHerSelfLine, 260)
   const projectDriftRisk = sanitizeProviderRuntimeText(projectState?.sameHerDriftRisk, 320)
 
   return [
@@ -3027,16 +2998,16 @@ export function buildAlicizationRuntimeSystemBlock(
     snapshot.autonomy?.executionIntentKind ? `autonomy_intent=${snapshot.autonomy.executionIntentKind}` : '',
     snapshot.autonomy?.deferReason ? `autonomy_defer=${snapshot.autonomy.deferReason}` : '',
     emotionalClosureCue ? `emotional_closure=${emotionalClosureCue}` : '',
-    snapshot.projectState ? 'memory_continuity_boundary=short_term_owner=WorkingMemory; long_term_recall_owner=LongTermMemoryRecall; project_state_visibility=governance_only' : '',
-    snapshot.projectState ? 'visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates' : '',
-    projectLandedProgress ? `project_landed_progress=${projectLandedProgress}` : '',
-    projectMemoryClosure ? `project_memory_closure=${projectMemoryClosure}` : '',
-    projectOpenLoop ? `project_open_loop=${projectOpenLoop}` : '',
-    projectNextClosure ? `project_next_closure=${projectNextClosure}` : '',
-    projectContinuityAnchor ? `project_project_anchor=${projectContinuityAnchor}` : '',
-    projectDriftRisk ? `project_drift_risk=${projectDriftRisk}` : '',
-    continuityTiming ? `continuity_timing=${continuityTiming}` : '',
-    continuityCadence ? `continuity_cadence=${continuityCadence}` : '',
+    snapshot.projectState ? 'Memory continuity boundary: WorkingMemory owns short-term memory; LongTermMemoryRecall owns long-term recall; project-state visibility is governance-only.' : '',
+    snapshot.projectState ? 'Visible governance entry: MemoryWorkbench. Template policy: no fixed persona templates.' : '',
+    projectLandedProgress ? `Project landed progress: ${projectLandedProgress}.` : '',
+    projectMemoryClosure ? `Project memory closure: ${projectMemoryClosure}.` : '',
+    projectOpenLoop ? `Project open loop: ${projectOpenLoop}.` : '',
+    projectNextClosure ? `Project next closure: ${projectNextClosure}.` : '',
+    projectSameHerLine ? `Project continuity anchor: ${projectSameHerLine}.` : '',
+    projectDriftRisk ? `Project drift risk: ${projectDriftRisk}.` : '',
+    continuityTiming ? `Continuity timing: ${continuityTiming}.` : '',
+    continuityCadence ? `Continuity cadence: ${continuityCadence}.` : '',
     (snapshot.projectState as any)?.continuityArcStage ? `continuity_arc=${sanitizeProviderRuntimeText((snapshot.projectState as any).continuityArcStage, 120)}` : '',
     (snapshot.projectState as any)?.continuityCue ? `continuity_cue=${sanitizeProviderRuntimeText((snapshot.projectState as any).continuityCue, 220)}` : '',
     `should_proactively_speak=${snapshot.shouldProactivelySpeak ? 'true' : 'false'}`,

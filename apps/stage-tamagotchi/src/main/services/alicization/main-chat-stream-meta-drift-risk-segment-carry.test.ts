@@ -4,7 +4,7 @@ import { buildAlicizationChatMetaSignature } from './main-chat-stream-meta'
 
 function buildDriftRiskOnlySegmentCarrySignature() {
   const driftRisk
-    = 'Remembered same-her drift risk: if this slips into a generic assistant shell or project-summary voice, treat that as same-her continuity drift rather than completion.'
+    = 'Remembered same-her drift risk: if this slips into a generic assistant shell or project-summary voice, treat that as identity-continuity'
 
   const signature = buildAlicizationChatMetaSignature({
     governance: {
@@ -32,7 +32,7 @@ function buildDriftRiskOnlySegmentCarrySignature() {
       decisionTraceId: 'trace-segment-level-project-state-remembered-drift-risk-1',
       turnId: 'turn-segment-level-project-state-remembered-drift-risk-1',
       rendererTarget: 'vrm',
-      replyText: '我先沿着这条还活着的线轻一点接回来。',
+      replyText: '我先沿着这条还活着的线中性可见占位。',
       state: {
         baseEmotion: 'thinking',
         delivery: 'gentle',
@@ -43,7 +43,7 @@ function buildDriftRiskOnlySegmentCarrySignature() {
         segments: [{
           id: 'segment-project-state-remembered-drift-risk',
           index: 0,
-          text: '我先沿着这条还活着的线轻一点接回来。',
+          text: '我先沿着这条还活着的线中性可见占位。',
           interruptPolicy: 'soft-settle',
           preRollMs: 20,
           settleMs: 340,
@@ -99,14 +99,14 @@ function buildDriftRiskOnlySegmentCarrySignature() {
     speechTimeline: {
       version: 'speech-timeline-v1',
       variationToken: 'turn-segment-level-project-state-remembered-drift-risk-1',
-      reply: '我先沿着这条还活着的线轻一点接回来。',
+      reply: '我先沿着这条还活着的线中性可见占位。',
       emotion: 'thinking',
       segments: [{
         id: 'segment-project-state-remembered-drift-risk',
         index: 0,
         startOffset: 0,
         endOffset: 18,
-        text: '我先沿着这条还活着的线轻一点接回来。',
+        text: '我先沿着这条还活着的线中性可见占位。',
         emotion: 'thinking',
         gestureWeight: 0.31,
         facialWeight: 0.34,
@@ -181,7 +181,7 @@ function buildDriftRiskOnlySegmentCarrySignature() {
         index: 0,
         startOffset: 0,
         endOffset: 18,
-        text: '我先沿着这条还活着的线轻一点接回来。',
+        text: '我先沿着这条还活着的线中性可见占位。',
         mode: 'thinking',
         interruptPolicy: 'soft-settle',
         settleMode: 'linger',
@@ -326,6 +326,6 @@ describe('main chat stream meta drift-risk segment carry', () => {
     expect(signature.lastSegmentLipSyncSummary).toContain(`reason=${driftRisk}`)
     expect(signature.lastSegmentBodyContinuitySummary).toContain(`reason=${driftRisk}`)
     expect(signature.lastSegmentVoiceSummary).not.toContain('reason=Alicization is a local-first digital life project')
-    expect(signature.lastSegmentVoiceSummary).not.toContain('reason=Keep the same living line inward for now')
+    expect(signature.lastSegmentVoiceSummary).not.toContain('reason=Keep the continuity state inward for now')
   })
 })

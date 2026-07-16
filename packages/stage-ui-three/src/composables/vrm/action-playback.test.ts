@@ -22,7 +22,7 @@ describe('vrm action playback helpers', () => {
       fileName: 'observe-soft-motion.vrma',
       actionKey: 'ObserveSoft',
       label: 'Observe Soft',
-      description: 'Observe with a softer same-her return motion.',
+      description: 'Observe with a softer identity-continuity',
       importedAt: 0,
       source: 'external-vrma',
     }
@@ -67,13 +67,13 @@ describe('vrm action playback helpers', () => {
     })
   })
 
-  it('builds different transient replay keys when the same binding re-enters with new same-her continuity semantics', () => {
+  it('builds different transient replay keys when the same binding re-enters with new identity-continuity', () => {
     const binding: VrmActionBinding = {
       id: 'observe-soft-motion',
       fileName: 'observe-soft-motion.vrma',
       actionKey: 'observe_soft',
       label: 'Observe Soft',
-      description: 'Observe with a softer same-her return motion.',
+      description: 'Observe with a softer identity-continuity',
       importedAt: 0,
       source: 'external-vrma',
     }
@@ -115,7 +115,7 @@ describe('vrm action playback helpers', () => {
       fileName: 'observe-soft-motion.vrma',
       actionKey: 'ObserveSoft',
       label: 'Observe Soft',
-      description: 'Observe with a softer same-her return motion.',
+      description: 'Observe with a softer identity-continuity',
       importedAt: 0,
       source: 'external-vrma',
     }

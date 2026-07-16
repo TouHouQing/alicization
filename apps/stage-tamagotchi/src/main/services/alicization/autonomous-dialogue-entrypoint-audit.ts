@@ -5,7 +5,9 @@ function toServiceRelativePath(absolutePath: string) {
   return absolutePath.split('/apps/stage-tamagotchi/src/main/services/alicization/')[1] ?? absolutePath
 }
 
-const proactivePreludeAuthorityNeedle = '[ALICIZATION_PROACTIVE_SELF_BRIEF]'
+const proactiveProviderSourceNeedle = 'source: \'proactive\''
+const proactiveMemoryFactBuilderNeedle = 'buildOrganicMemoryProviderFactBlocks(organicPromptContext)'
+const proactiveStructuredFormatNeedle = 'resolveAlicizationAutonomousDialogueStructuredFormat(\'subconscious-proactive-llm\')'
 const reminderGatewayNeedle = 'generateReminderStructuredWithGateway('
 const autonomousTurnIdBuilderNeedle = 'buildAlicizationAutonomousDialogueTurnId({'
 const reminderKindNeedle = 'kind: \'reminder\''
@@ -34,7 +36,10 @@ export function collectAlicizationAutonomousDialogueGovernedFiles(rootDir: strin
       const source = readFileSync(absolutePath, 'utf8')
       const relativePath = toServiceRelativePath(absolutePath)
 
-      const ownsProactivePreludeAuthority = source.includes(proactivePreludeAuthorityNeedle)
+      const ownsProactiveProviderAuthority
+        = source.includes(proactiveProviderSourceNeedle)
+          && source.includes(proactiveMemoryFactBuilderNeedle)
+          && source.includes(proactiveStructuredFormatNeedle)
       const ownsReminderOrCallbackAutonomousTurnEntry
         = source.includes(reminderGatewayNeedle)
           && source.includes(autonomousTurnIdBuilderNeedle)
@@ -44,7 +49,7 @@ export function collectAlicizationAutonomousDialogueGovernedFiles(rootDir: strin
         = source.includes(subconsciousKindNeedle)
           && source.includes(subconsciousStructuredFormatNeedle)
 
-      if (ownsProactivePreludeAuthority || ownsReminderOrCallbackAutonomousTurnEntry || ownsSubconsciousAutonomousTurnEntry)
+      if (ownsProactiveProviderAuthority || ownsReminderOrCallbackAutonomousTurnEntry || ownsSubconsciousAutonomousTurnEntry)
         discovered.add(relativePath)
     }
   }

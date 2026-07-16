@@ -249,7 +249,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
     })
   })
 
-  it('describes same-her continuity transitions as governance confirmation rather than generic drift', () => {
+  it('describes identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryComparison({
       history: [
         {

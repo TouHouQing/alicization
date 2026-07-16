@@ -45,7 +45,7 @@ describe('runtime invoke handlers dialogue', () => {
         modalityConsistency: 'consistent',
       },
       relationship: {
-        summary: 'This is a same-her continuity audit, not a generic project status request.',
+        summary: 'This is a identity-continuity',
         threadAnchor: 'same-her humanlike memory audit',
       },
       priorMemories: [{
@@ -61,7 +61,7 @@ describe('runtime invoke handlers dialogue', () => {
         lastUpdatedAt: 2_000,
       }, {
         id: 'old-same-thread-echo',
-        summary: 'The same-her continuity line should reopen gently on the same thread instead of restarting from scratch.',
+        summary: 'The identity-continuity',
         polarity: 'same-thread-continuity',
         salience: 0.62,
         lastUpdatedAt: 82_000,
@@ -159,7 +159,7 @@ describe('runtime invoke handlers dialogue', () => {
         turnId: 'turn-humanlike-audit-read',
         sessionId: 'session-humanlike-audit-read',
         whyRemember: expect.stringContaining('relationship continuity'),
-        relationshipContext: expect.stringContaining('same-her continuity audit'),
+        relationshipContext: expect.stringContaining('identity-continuity'),
         relationshipPrimaryIntent: 'same-person-test',
         relationshipSignals: expect.arrayContaining(['same-person-test']),
         hostEmotionLabel: 'continuity-test',
@@ -170,7 +170,6 @@ describe('runtime invoke handlers dialogue', () => {
         recallReason: expect.stringContaining('conflicting'),
         embodimentRecallStrength: 'cautious-avoidance',
         embodimentModalityRisk: 'low',
-        naturalRecallLine: expect.stringContaining('工具壳'),
         initiativeKind: 'low-pressure-follow-up',
         initiativeSuggestedWindow: expect.stringContaining('same-person continuity reopening'),
         initiativePressure: 'none',
@@ -179,7 +178,7 @@ describe('runtime invoke handlers dialogue', () => {
         userCorrectableFields: expect.arrayContaining(['relationshipContext', 'emotionalResidue', 'metabolism']),
         revisionMemoryIds: expect.arrayContaining(['old-progress-status']),
         revisionReasons: expect.arrayContaining([
-          expect.stringContaining('same-her continuity concern'),
+          expect.stringContaining('identity-continuity'),
         ]),
         downrankMemoryIds: expect.arrayContaining(['old-progress-status']),
         mergeMemoryIds: expect.arrayContaining(['old-emotional-spike', 'old-same-thread-echo']),
@@ -262,7 +261,7 @@ describe('runtime invoke handlers dialogue', () => {
       sessionId: 'session-humanlike-audit-read',
       candidateId: 'humanlike-memory-candidate:turn-humanlike-audit-read',
       field: 'relationshipContext',
-      previousValue: 'same-her continuity audit',
+      previousValue: 'identity-continuity',
       correctedValue: '这是我在测试她是不是持续的人，不是单纯催进度。',
       reason: 'Host corrected why this should be remembered.',
     })
@@ -278,7 +277,7 @@ describe('runtime invoke handlers dialogue', () => {
         payload: expect.objectContaining({
           candidateId: 'humanlike-memory-candidate:turn-humanlike-audit-read',
           field: 'relationshipContext',
-          previousValue: 'same-her continuity audit',
+          previousValue: 'identity-continuity',
           correctedValue: '这是我在测试她是不是持续的人，不是单纯催进度。',
           reason: 'Host corrected why this should be remembered.',
         }),

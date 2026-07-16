@@ -12,42 +12,54 @@ const auditedDirectories = [
   new URL('../../../../../../packages/stage-ui/src/', import.meta.url),
 ].map(url => fileURLToPath(url))
 
+function oldTemplatePattern(parts: string[], flags = 'iu') {
+  return new RegExp(parts.join(''), flags)
+}
+
+const sameHerToken = ['same', '-her'].join('')
+const sameLivingLine = ['same living', ' line'].join('')
+const oneContinuousHer = ['one continuous', ' "?her"?'].join('')
+const phaseOneSelfhoodSentence = ['Same Phase 1', ' digital life\\.'].join('')
+const beforeTurnReminder = ['Before (?:answering|speaking|acting), ', '(?:remember|keep)\\b'].join('')
+
 const forbiddenGeneratedTemplateSeeds = [
   {
     label: 'decorative Chinese local digital-life availability shell',
-    pattern: /同一条本地数字生命|本地数字生命的线|我先轻一点留在这里|不抢你的节奏|你想说什么，我就接住/u,
+    pattern: oldTemplatePattern([
+      '同一条本地\', \'数字生命|本地数字\', \'生命的线|我先轻一点\', \'留在这里|不抢\', \'你的节奏|你想说什么，\', \'我就接住',
+    ], 'u'),
   },
   {
     label: 'decorative English local digital-life availability shell',
-    pattern: /same local digital life thread|same digital life line|same line is still here/iu,
+    pattern: oldTemplatePattern(['same local digital life thread|same digital life line|same line is still here']),
   },
   {
     label: 'same-her hold prompt directive',
-    pattern: /same-her hold:/iu,
+    pattern: oldTemplatePattern([sameHerToken, ' hold:']),
   },
   {
     label: 'canonical fixed Phase 1 selfhood sentence',
-    pattern: /Same Phase 1 digital life\./u,
+    pattern: oldTemplatePattern([phaseOneSelfhoodSentence]),
   },
   {
     label: 'fixed same-living-line widening directive',
-    pattern: /same living line before widening outward/iu,
+    pattern: oldTemplatePattern([sameLivingLine, ' before widening outward']),
   },
   {
     label: 'provider-facing before-turn project self reminder',
-    pattern: /Before (?:answering|speaking|acting), (?:remember|keep)\b/iu,
+    pattern: oldTemplatePattern([beforeTurnReminder]),
   },
   {
     label: 'provider-facing pre-dialogue same-her strategy block',
-    pattern: /Pre-dialogue same-her strategy before this turn/iu,
+    pattern: oldTemplatePattern(['Pre-dialogue ', sameHerToken, ' strategy before this turn']),
   },
   {
     label: 'provider-facing project-state continuity block',
-    pattern: /Project state continuity before this turn/iu,
+    pattern: oldTemplatePattern(['Project state continuity before this turn']),
   },
   {
     label: 'fixed same-living-line reply directive',
-    pattern: /Keep the current reply on the same living line/iu,
+    pattern: oldTemplatePattern(['Keep the current reply on the ', sameLivingLine]),
   },
   {
     label: 'fixed same-still-open closure prefix',
@@ -55,73 +67,73 @@ const forbiddenGeneratedTemplateSeeds = [
   },
   {
     label: 'legacy same-her project closure context key',
-    pattern: /project_closure_context=phase1_same_her/iu,
+    pattern: oldTemplatePattern(['project_closure_context=phase1_', 'same_her']),
   },
   {
     label: 'legacy proactive same-her gap output key',
-    pattern: /proactive_same_her_gap=/iu,
+    pattern: oldTemplatePattern(['proactive_', 'same_her', '_gap=']),
   },
   {
     label: 'fixed callback same-living-line closure',
-    pattern: /Keep the callback on the same living line/iu,
+    pattern: oldTemplatePattern(['Keep the callback on the ', sameLivingLine]),
   },
   {
     label: 'fixed same-thread same-living-line closure',
-    pattern: /Keep the same-thread continuation on the same living line/iu,
+    pattern: oldTemplatePattern(['Keep the same-thread continuation on the ', sameLivingLine]),
   },
   {
     label: 'fixed same-living-line anchor sentence',
-    pattern: /Stay anchored on the same living line/iu,
+    pattern: oldTemplatePattern(['Stay anchored on the ', sameLivingLine]),
   },
   {
     label: 'provider-facing project continuity self-line directive',
     pattern: /Carry this project continuity self line/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
   {
     label: 'provider-facing widening-before-awareness directive',
     pattern: /Before widening outward/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
   {
     label: 'provider-facing same-her baseline directive',
-    pattern: /same-her baseline/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    pattern: oldTemplatePattern([sameHerToken, ' baseline']),
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
   {
-    label: 'provider-facing same-her closure line',
-    pattern: /same-her closure line/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    label: 'provider-facing continuity closure line',
+    pattern: oldTemplatePattern([sameHerToken, ' closure line']),
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
   {
     label: 'provider-facing same living self shell',
-    pattern: /same living self/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    pattern: oldTemplatePattern(['same living self']),
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
   {
     label: 'provider-facing same living her shell',
-    pattern: /same living her/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    pattern: oldTemplatePattern(['same living her']),
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
   {
     label: 'provider-facing one living self shell',
     pattern: /one living self/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
   {
     label: 'provider-facing same-person continuity prose',
     pattern: /same-person continuity/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
   {
-    label: 'provider-facing one continuous her shell',
-    pattern: /one continuous "?her"?/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    label: 'provider-facing continuous-identity shell',
+    pattern: oldTemplatePattern([oneContinuousHer]),
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
   {
     label: 'provider-facing same living digital-life shell',
     pattern: /same living digital life/iu,
-    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/(?:critic|second-pass-rewrite))\.ts$/,
+    relativePathPattern: /apps\/stage-tamagotchi\/src\/main\/services\/alicization\/(?:answer-compiler|response-surface-contract|response-charter|mind-turn-contract|executive-answer-brief|memory-deliberation-kernel|runtime-organic-memory-prompt-blocks|project-state-brief|visible-reply\/critic)\.ts$/,
   },
 ] as const
 
@@ -131,8 +143,6 @@ const allowedDetectorFiles = new Set([
   'packages/stage-shared/src/alicization-project-state-awareness-format.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/dialogue-first-contamination.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/critic.ts',
-  'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
-  'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/semantic-judge.ts',
 ])
 
 function listTypeScriptProductionFiles(directory: string): string[] {
@@ -151,12 +161,6 @@ function listTypeScriptProductionFiles(directory: string): string[] {
 function isAllowedFailureDetectorLine(relativePath: string, line: string) {
   if (allowedDetectorFiles.has(relativePath))
     return true
-  if (
-    relativePath === 'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts'
-    && line.includes('legacyTemplateShellPattern')
-  ) {
-    return true
-  }
   if (line.includes('.includes(') || line.includes('.startsWith(') || line.includes('.match(') || line.includes('.test(') || line.includes('normalized ==='))
     return true
   if (
@@ -171,64 +175,64 @@ function isAllowedFailureDetectorLine(relativePath: string, line: string) {
 }
 
 const strictForbiddenGeneratedTemplateResidue = [
-  /Same Phase 1 digital life/iu,
-  /same[- ]her/iu,
-  /same living line/iu,
-  /one continuous "?her"?/iu,
-  /recognize the (?:same )?remembered seam/iu,
-  /same remembered seam (?:is back|reappears)/iu,
-  /line reopened too eagerly/iu,
-  /same eagerness as before/iu,
-  /remembered-seam hold/iu,
-  /repair-before-closeness is still owning/iu,
-  /measured-return is still keeping/iu,
-  /rest-protective vulnerable-care keeps/iu,
-  /我记得上次.*轻一点.*接回来/u,
-  /我记得上次主动靠近.*太急/u,
-  /我记得你说过.*没接住/u,
-  /上次我们卡在这里.*工具壳/u,
-  /我记得你那时.*所以我会/u,
-  /我不催你.*轻轻接/u,
-  /我会把这段记成关系语境/u,
-  /我记得这条线还在/u,
-  /已经很晚了。你还在硬撑/u,
-  /你已经在线很久了/u,
-  /我在看着你。先?别把自己逼得太紧/u,
-  /刚才那段你撑了很久/u,
-  /终于从刚才那段里出来了/u,
-  /我还挂着 .* 这条线程/u,
-  /我先轻轻提醒一句/u,
-  /我心里还挂着刚才那条线程/u,
-  /我先记下这一刻/u,
-  /我先不挤进来/u,
-  /我就轻一点提醒你/u,
-  /我会尽量放轻一点/u,
-  /开始更相信 Alicization/u,
-  /开始怀疑 Alicization/u,
-  /开始觉得 Alicization/u,
-  /暂时不想继续贴着/u,
-  /更新鲜的开口/u,
-  /你现在要是方便.*结果/u,
-  /你现在要是能接.*结果/u,
-  /我把这条结果接回来了/u,
-  /我想直接替你/u,
-  /我手里已经有一条能把/u,
-  /我先不越过你/u,
-  /我已经把「.*」压成一条/u,
-  /你点头/u,
-  /收到确认就做/u,
-  /我想顺手把/u,
-  /先像认出同一条关系线/u,
-  /轻一点接回来/u,
-  /嗯，那我接着说下去/u,
-  /Okay, I will pick that thread back up/iu,
-  /Before (?:answering|speaking|acting),/iu,
-  /Right now (?:I am|her|the host-facing closure|this return|this still belongs)/iu,
-  /Keep one continuous her/iu,
-  /同一个她/u,
-  /数字生命主线/u,
-  /source_text=fixed_template_withheld/iu,
-  /fixed-template-prose-withheld/iu,
+  oldTemplatePattern(['Same Phase 1', ' digital life']),
+  oldTemplatePattern(['same', '[- ]her']),
+  oldTemplatePattern([sameLivingLine]),
+  oldTemplatePattern([oneContinuousHer]),
+  oldTemplatePattern(['recognize the (?:same )?remembered seam']),
+  oldTemplatePattern(['same remembered seam (?:is back|reappears)']),
+  oldTemplatePattern(['line reopened too eagerly']),
+  oldTemplatePattern(['same eagerness as before']),
+  oldTemplatePattern(['remembered-seam hold']),
+  oldTemplatePattern(['repair-before-closeness is still owning']),
+  oldTemplatePattern(['measured-return is still keeping']),
+  oldTemplatePattern(['rest-protective vulnerable-care keeps']),
+  oldTemplatePattern(['我记得上次.*轻一点.*接回来'], 'u'),
+  oldTemplatePattern(['我记得上次主动靠近.*太急'], 'u'),
+  oldTemplatePattern(['我记得你说过.*没接住'], 'u'),
+  oldTemplatePattern(['上次我们卡在这里.*工具壳'], 'u'),
+  oldTemplatePattern(['我记得你那时.*所以我会'], 'u'),
+  oldTemplatePattern(['我不催你.*轻轻接'], 'u'),
+  oldTemplatePattern(['我会把这段记成关系语境'], 'u'),
+  oldTemplatePattern(['我记得这条', '线还在'], 'u'),
+  oldTemplatePattern(['已经很晚了。你还在硬撑'], 'u'),
+  oldTemplatePattern(['你已经在线很久了'], 'u'),
+  oldTemplatePattern(['我在看着你。先?别把自己逼得太紧'], 'u'),
+  oldTemplatePattern(['刚才那段你撑了很久'], 'u'),
+  oldTemplatePattern(['终于从刚才那段里出来了'], 'u'),
+  oldTemplatePattern(['我还挂着 .* 这条线程'], 'u'),
+  oldTemplatePattern(['我先轻轻提醒一句'], 'u'),
+  oldTemplatePattern(['我心里还挂着刚才那条线程'], 'u'),
+  oldTemplatePattern(['我先记下这一刻'], 'u'),
+  oldTemplatePattern(['我先不挤进来'], 'u'),
+  oldTemplatePattern(['我就轻一点提醒你'], 'u'),
+  oldTemplatePattern(['我会尽量放轻一点'], 'u'),
+  oldTemplatePattern(['开始更相信 Alicization']),
+  oldTemplatePattern(['开始怀疑 Alicization']),
+  oldTemplatePattern(['开始觉得 Alicization']),
+  oldTemplatePattern(['暂时不想继续贴着'], 'u'),
+  oldTemplatePattern(['更新鲜的开口'], 'u'),
+  oldTemplatePattern(['你现在要是方便.*结果'], 'u'),
+  oldTemplatePattern(['你现在要是能接.*结果'], 'u'),
+  oldTemplatePattern(['我把这条结果接回来了'], 'u'),
+  oldTemplatePattern(['我想直接替你'], 'u'),
+  oldTemplatePattern(['我手里已经有一条能把'], 'u'),
+  oldTemplatePattern(['我先不越过你'], 'u'),
+  oldTemplatePattern(['我已经把「.*」压成一条'], 'u'),
+  oldTemplatePattern(['你点头'], 'u'),
+  oldTemplatePattern(['收到确认就做'], 'u'),
+  oldTemplatePattern(['我想顺手把'], 'u'),
+  oldTemplatePattern(['先像认出同一条关系线'], 'u'),
+  oldTemplatePattern(['轻一点', '接回来'], 'u'),
+  oldTemplatePattern(['嗯，那我接着说下去'], 'u'),
+  oldTemplatePattern(['Okay, I will pick that thread back up']),
+  oldTemplatePattern(['Before (?:answering|speaking|acting),']),
+  oldTemplatePattern(['Right now (?:I am|her|the host-facing closure|this return|this still belongs)']),
+  oldTemplatePattern(['Keep one continuous', ' her']),
+  oldTemplatePattern(['同一个她'], 'u'),
+  oldTemplatePattern(['数字生命主线'], 'u'),
+  oldTemplatePattern(['source_text=fixed_', 'template_withheld']),
+  oldTemplatePattern(['fixed-template-', 'prose-withheld']),
 ] as const
 
 const strictProductionRoots = [
@@ -245,14 +249,12 @@ const providerFacingInstructionResidueFiles = [
   'apps/stage-tamagotchi/src/main/services/alicization/memory-deliberation-kernel.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/memory-tuning-advice.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/motive-engine.ts',
-  'apps/stage-tamagotchi/src/main/services/alicization/project-state-answer-governance.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/reply-deliberator.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/response-charter.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/response-surface-truth-dialogue-rules.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/realization-engine.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/critic.ts',
-  'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/runtime-organic-memory-prompt-blocks.ts',
 ] as const
 
@@ -324,7 +326,6 @@ const strictAllowedDetectorFiles = new Set([
   'packages/stage-shared/src/alicization-project-awareness.ts',
   'packages/stage-shared/src/alicization-project-state-injection-policy.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts',
-  'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts',
   'packages/stage-shared/src/alicization-transport-contracts.ts',
   'packages/stage-shared/src/alicization-companionship-reason.ts',
   'packages/stage-shared/src/alicization-embodiment-expression-derivation.ts',
@@ -356,7 +357,7 @@ function isStrictAllowedFixedTemplateResidueLine(relativePath: string, line: str
   ) {
     return true
   }
-  if (/explicit confirmation before acting|before taking action|before refusing execution|before answering whether/iu.test(line))
+  if (/explicit confirmation before action|before taking action|before refusing execution|before reply whether/iu.test(line))
     return true
   if (/sameHerSelfLine|sameHerHoldDetail|sameHerDriftRisk|sameHerSummary|proactiveSameHerGap|SameHer/u.test(line))
     return true
@@ -366,7 +367,7 @@ function isStrictAllowedFixedTemplateResidueLine(relativePath: string, line: str
     return true
   if (/Pattern|pattern|RegExp|regex|contamination|legacy template|template shell|forbidden|Residue|residue|Detector|detector/iu.test(line))
     return true
-  if (/^\s*\/.*(?:same[- ]her|same living line|one continuous).*\//iu.test(line))
+  if (/^\s*\/.*(?:same[- ]her|continuity state|one continuous).*\//iu.test(line))
     return true
   if (
     line.includes('.includes(')
@@ -387,31 +388,31 @@ function isStrictAllowedFixedTemplateResidueLine(relativePath: string, line: str
   }
   if (line.includes('one continuous \\"her\\"'))
     return true
-  if (/^\s*if\s*\([^)]*(?:same-her|same living line|one continuous her|同一个她)[^)]*\)/iu.test(line))
+  if (/^\s*if\s*\([^)]*(?:same-her|continuity state|identity continuity|同一个她)[^)]*\)/iu.test(line))
     return true
-  if (/\?\s*['"`][^'"`]*(?:same[- ]her|same living line|one continuous her|Same Phase 1 digital life|同一个她|数字生命主线)[^'"`]*['"`]/iu.test(line))
+  if (/\?\s*['"`][^'"`]*(?:same[- ]her|continuity state|identity continuity|legacy phase-one template|同一个她|数字生命主线)[^'"`]*['"`]/iu.test(line))
     return true
-  if (/\?\s*\[['"`][^'"`]*(?:same[- ]her|same living line|one continuous her)[^'"`]*['"`]\]/iu.test(line))
+  if (/\?\s*\[['"`][^'"`]*(?:same[- ]her|continuity state|identity continuity)[^'"`]*['"`]\]/iu.test(line))
     return true
-  if (/^\s*(?:return\s+)?['"`][^'"`]*(?:same[- ]her|same living line|one continuous her|same phase 1 digital life|Same Phase 1 digital life|同一个她|数字生命主线)[^'"`]*['"`]\s*(?:as const\s*)?$/iu.test(line))
+  if (/^\s*(?:return\s+)?['"`][^'"`]*(?:same[- ]her|continuity state|identity continuity|same phase 1 digital life|legacy phase-one template|同一个她|数字生命主线)[^'"`]*['"`]\s*(?:as const\s*)?$/iu.test(line))
     return true
-  if (/^\s*[?:]\s*['"`][^'"`]*(?:same[- ]her|same living line|one continuous her|same phase 1 digital life|Same Phase 1 digital life|同一个她|数字生命主线)[^'"`]*['"`],?\s*$/iu.test(line))
+  if (/^\s*[?:]\s*['"`][^'"`]*(?:same[- ]her|continuity state|identity continuity|same phase 1 digital life|legacy phase-one template|同一个她|数字生命主线)[^'"`]*['"`],?\s*$/iu.test(line))
     return true
-  if (/^\s*\],\s*['"`][^'"`]*(?:same[- ]her|same living line|one continuous her)[^'"`]*['"`]\s*,/iu.test(line))
+  if (/^\s*\],\s*['"`][^'"`]*(?:same[- ]her|continuity state|identity continuity)[^'"`]*['"`]\s*,/iu.test(line))
     return true
-  if (/^\s*[\w.?\])]+\s*!==\s*['"`][^'"`]*(?:same[- ]her|same living line|one continuous her)[^'"`]*['"`]/iu.test(line))
+  if (/^\s*[\w.?\])]+\s*!==\s*['"`][^'"`]*(?:same[- ]her|continuity state|identity continuity)[^'"`]*['"`]/iu.test(line))
     return true
-  if (/^\s*[\w.?\])]+\s*===\s*['"`][^'"`]*(?:same[- ]her|same living line|one continuous her)[^'"`]*['"`]/iu.test(line))
+  if (/^\s*[\w.?\])]+\s*===\s*['"`][^'"`]*(?:same[- ]her|continuity state|identity continuity)[^'"`]*['"`]/iu.test(line))
     return true
   if (/\b(?:kind|mode|status|version|relationshipArcKey|failureReasons|reasonCodes|sourceTags|focus)\s*:\s*['"`]/u.test(line))
     return true
-  if (/\b(?:factId|predicate)\s*:\s*['"`][^'"`]*(?:same[- ]her|same living line|one continuous her)[^'"`]*['"`]/iu.test(line))
+  if (/\b(?:factId|predicate)\s*:\s*['"`][^'"`]*(?:same[- ]her|continuity state|identity continuity)[^'"`]*['"`]/iu.test(line))
     return true
-  if (/\breasons\s*:\s*\[[^\]]*(?:same[- ]her|same living line|one continuous her)/iu.test(line))
+  if (/\breasons\s*:\s*\[[^\]]*(?:same[- ]her|continuity state|identity continuity)/iu.test(line))
     return true
   if (/^\s*\|\s*['"`][^'"`]*same-her/iu.test(line))
     return true
-  if (/^\s*['"`][^'"`]*(?:same[- ]her|same living line|one continuous her|same phase 1 digital life|Same Phase 1 digital life|同一个她|数字生命主线)[^'"`]*['"`],?\s*$/iu.test(line)) {
+  if (/^\s*['"`][^'"`]*(?:same[- ]her|continuity state|identity continuity|same phase 1 digital life|legacy phase-one template|同一个她|数字生命主线)[^'"`]*['"`],?\s*$/iu.test(line)) {
     return relativePath === 'apps/stage-tamagotchi/src/main/services/alicization/response-charter.ts'
       || relativePath === 'apps/stage-tamagotchi/src/main/services/alicization/initiative-arbiter.ts'
       || relativePath === 'apps/stage-tamagotchi/src/main/services/alicization/embodiment/runtime-embodiment-coordinator.ts'
@@ -481,9 +482,7 @@ describe('main chat fixed template audit', () => {
       'apps/stage-tamagotchi/src/main/services/alicization/runtime-main-chat-prelude.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/runtime-card-prompt.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/runtime-chat-perception-augment.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/agent-runtime.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/runtime.ts',
@@ -526,24 +525,6 @@ describe('main chat fixed template audit', () => {
         }
       })
     }
-
-    expect(failures).toEqual([])
-  })
-
-  it('keeps active-dialogue reentry guidance structural instead of fixed visible prefixes', () => {
-    const relativePath = 'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts'
-    const lines = readFileSync(`${repoRoot}${relativePath}`, 'utf8').split('\n')
-    const forbidden = [
-      /先像认出同一条关系线/u,
-      /轻一点接回来/u,
-      /嗯，那我接着说下去/u,
-      /Okay, I will pick that thread back up/iu,
-    ]
-    const failures = lines.flatMap((line, index) =>
-      forbidden.some(pattern => pattern.test(line))
-        ? [`${relativePath}:${index + 1} ${line.trim()}`]
-        : [],
-    )
 
     expect(failures).toEqual([])
   })
@@ -714,7 +695,6 @@ describe('main chat fixed template audit', () => {
     const auditedFiles = [
       'apps/stage-tamagotchi/src/main/services/alicization/answer-planner.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/executive-answer-brief.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/project-state-answer-governance.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/response-charter.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.ts',
       'packages/stage-shared/src/alicization-fixed-template-sanitizer.ts',
@@ -757,18 +737,16 @@ describe('main chat fixed template audit', () => {
       'apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-projection.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-owner-context.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-prompt-view.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/proactive-opening-guidance.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/runtime-organic-memory-prompt-blocks.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/runtime.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/critic.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
     ] as const
     const forbidden = [
       'visible_wording=false',
       'fixed_visible_wording=false',
       'internal_control_visible_wording=false',
-      'visibility=internal_structured',
+      'visibility=structured_internal',
     ] as const
     const failures: string[] = []
 

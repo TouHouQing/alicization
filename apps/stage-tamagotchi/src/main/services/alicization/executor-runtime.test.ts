@@ -199,18 +199,18 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
         execution: {
           runtimeContext: {
             projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
               primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
-              nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerHoldDetail: 'same-her hold: keep execution on the same living line before widening outward.',
+              nextClosureTarget: 'Keep extending identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerHoldDetail: 'identity-continuity',
               sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
               continuityArcStage: 'same-thread-continuation',
-              continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
-              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns | next=Keep extending same-her proof',
-              preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
+              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns | next=Keep extending identity-continuity',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
             },
           },
         },
@@ -297,20 +297,20 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
         execution: {
           runtimeContext: {
             projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestLandedProgress: '   ',
               primaryOpenLoop: ' ',
               nextClosureTarget: '',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerHoldDetail: 'same-her hold: keep execution on the same living line before widening outward.',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerHoldDetail: 'identity-continuity',
               sameHerDriftRisk: ' ',
-              continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
+              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
               preflightSummary: ' ',
               preDialogueAwarenessLine: '   ',
               landedProgressSummary: 'Same-session mirror carry already survives execution preflight even after the explicit legacy slot went blank.',
               openClosureSummary: 'Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit before execution resumes.',
-              nextClosureTargetSummary: 'Keep extending cross-modal same-her proof so execution, initiative, and embodiment stay on one living line.',
+              nextClosureTargetSummary: 'Keep extending cross-modal identity-continuity',
               sameHerDriftRiskSummary: 'If blank legacy project briefing slots collapse redispatch back into a generic shell, treat that as unfinished same-her drift.',
             },
           },
@@ -333,7 +333,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
       expect(prompt).not.toContain('project_phase=')
       expect(prompt).toContain('latest_landed_progress=Same-session mirror carry already survives execution preflight even after the explicit legacy slot went blank.')
       expect(prompt).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit before execution resumes.')
-      expect(prompt).not.toContain('next_closure_target=Keep extending cross-modal same-her proof')
+      expect(prompt).not.toContain('next_closure_target=Keep extending cross-modal identity-continuity')
       expect(prompt).not.toContain('same_her_line=')
       expect(prompt).not.toContain('same_her_hold=')
       expect(prompt).not.toContain('same_her_drift_risk=')
@@ -388,7 +388,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
   })
 
-  it('prefers richer resume same-her project awareness over a thinner stored awareness shell when companion carry is already present', async () => {
+  it('prefers richer resume identity-continuity', async () => {
     let currentThread: AlicizationTaskThreadRecord = {
       ...createNeedsAffirmationThread(),
       metadata: {
@@ -396,20 +396,20 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
         execution: {
           runtimeContext: {
             projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestLandedProgress: 'Same-session mirror carry already survives longer desktop detours before execution resumes.',
-              primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam before execution can widen outward again.',
+              primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
               nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerHoldDetail: 'same-her hold: keep execution on the same living line before widening outward.',
-              sameHerDriftRisk: 'If thinner resume awareness shells outrank richer same-her project carry, treat that as unfinished closure drift.',
-              continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
-              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam | next=Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-              preDialogueAwarenessSummary: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-              companionBriefingLine: 'Before answering, remember this is still the same local-first digital life project, she is still inside Phase 1, and emotion, memory, initiative, and embodiment still need to close as one living line.',
-              emotionalClosureSummary: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerHoldDetail: 'identity-continuity',
+              sameHerDriftRisk: 'If thinner resume awareness shells outrank richer identity-continuity',
+              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
+              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
+              preDialogueAwarenessLine: 'template-residue-shell',
+              preDialogueAwarenessSummary: 'pre_turn_context_digest',
+              companionBriefingLine: 'pre_turn_context_digest',
+              emotionalClosureSummary: 'identity-continuity',
               continuityPreferredTiming: 'next-open-window',
               continuityCadence: 'measured-return',
               preferredBlinkCadence: 'linger',
@@ -445,12 +445,12 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
       expect(prompt).toContain('execution_lipsync_mode=restrained')
       expect(prompt).toContain('execution_voice_mode=lower-pressure')
       expect(prompt).toContain('execution_pacing_mode=slower')
-      expect(prompt).not.toContain('project_awareness=same digital life | keep the closure seam explicit')
-      expect(prompt).not.toContain('project_companion_briefing=same digital life | keep the closure seam explicit')
+      expect(prompt).not.toContain('project_awareness=template-residue-shell')
+      expect(prompt).not.toContain('project_companion_briefing=template-residue-shell')
 
       return {
         ok: true,
-        summary: 'Codex resumed with richer same-her project awareness.',
+        summary: 'Codex resumed with richer identity-continuity',
         thread: {
           ...currentThread,
           status: 'completed',
@@ -496,7 +496,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
   })
 
   it('prefers a richer stored companion headline over a thinner stored awareness shell when resuming a confirmed execution thread', async () => {
-    const richerCompanionHeadline = 'Before answering, remember she is still inside Phase 1, this execution return still belongs to one living her, and emotion, memory, initiative, and embodiment still need to close as one living line before execution widens outward.'
+    const richerCompanionHeadline = 'pre_turn_context_digest'
     let currentThread: AlicizationTaskThreadRecord = {
       ...createNeedsAffirmationThread(),
       metadata: {
@@ -504,17 +504,17 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
         execution: {
           runtimeContext: {
             projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestLandedProgress: 'Same-session mirror carry already survives longer desktop detours before execution resumes.',
-              primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam before execution can widen outward again.',
+              primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
               nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerHoldDetail: 'same-her hold: keep execution on the same living line before widening outward.',
-              sameHerDriftRisk: 'If thinner resume awareness shells outrank richer same-her project carry, treat that as unfinished closure drift.',
-              continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
-              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger same-her closure seam | next=Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerHoldDetail: 'identity-continuity',
+              sameHerDriftRisk: 'If thinner resume awareness shells outrank richer identity-continuity',
+              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
+              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
+              preDialogueAwarenessLine: 'template-residue-shell',
               companionHeadlineLine: richerCompanionHeadline,
             },
           },
@@ -534,7 +534,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
       const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
       expect(prompt).not.toContain(`project_awareness=${richerCompanionHeadline}`)
       expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
-      expect(prompt).not.toContain('project_awareness=same digital life | keep the closure seam explicit')
+      expect(prompt).not.toContain('project_awareness=template-residue-shell')
 
       return {
         ok: true,
@@ -591,16 +591,16 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
         execution: {
           runtimeContext: {
             projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestLandedProgress: 'Execution-side project continuity already survives into runtime context preparation before tool use starts.',
-              primaryOpenLoop: 'Memory, initiative, execution, and embodiment still need stronger same-her closure before widening outward again.',
-              nextClosureTarget: 'Keep execution openings aware of the still-open same-her seam before they widen outward.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerHoldDetail: 'same-her hold: keep execution on the same living line before widening outward.',
+              primaryOpenLoop: 'Memory, initiative, execution, and embodiment still need stronger identity-continuity',
+              nextClosureTarget: 'Keep execution openings aware of the still-open identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerHoldDetail: 'identity-continuity',
               sameHerDriftRisk: 'If a thin summary shell outranks fuller project self-knowledge here, treat that as unfinished same-her drift.',
-              continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
-              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, execution, and embodiment still need stronger same-her closure | next=Keep execution openings aware of the still-open same-her seam before they widen outward.',
+              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
+              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, execution, and embodiment still need stronger identity-continuity',
               preDialogueAwarenessSummary: 'same digital life | keep closure explicit',
             },
           },
@@ -619,7 +619,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
       const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
       expect(prompt).not.toContain('project_awareness=')
-      expect(prompt).not.toContain('Before answering, remember: Alicization is a local-first digital life project building one continuous "her"')
+      expect(prompt).not.toContain('pre_turn_context_digest')
       expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
       expect(prompt).not.toContain('project_awareness=same digital life | keep closure explicit')
 
@@ -678,16 +678,16 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
         execution: {
           runtimeContext: {
             projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestLandedProgress: 'Blocked dispatch safety gates now preserve confirmation and no-process-started evidence.',
               primaryOpenLoop: 'Execution still needs confirmed resume auditability before redispatch can be treated as closed.',
               nextClosureTarget: 'Keep confirmed execution resume, audit, and memory on one same-her Phase 1 line.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerSelfLine: 'structured continuity digest.',
               sameHerDriftRisk: 'If confirmed resume only mutates thread metadata, treat that as audit drift.',
-              sameHerHoldDetail: 'same-her hold: keep this host-confirmed execution boundary low-pressure before any redispatch reopening.',
+              sameHerHoldDetail: 'identity-continuity',
               continuityArcStage: 'same-thread-continuation',
-              continuityCue: 'Keep this host-confirmed redispatch on the same living line before widening outward again.',
+              continuityCue: 'Keep this host-confirmed redispatch on the continuity state before expansion',
               continuityPreferredTiming: 'next-open-window',
               continuityCadence: 'measured-return',
               preferredBlinkCadence: 'linger',
@@ -695,7 +695,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
               preferredPauseMode: 'longer',
               preferredLipsyncMode: 'restrained',
               continuityRestraint: 'measured-return',
-              emotionalClosureSummary: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+              emotionalClosureSummary: 'identity-continuity',
               preferredVoiceMode: 'lower-pressure',
               preferredPacingMode: 'slower',
               preflightSummary: 'Alicization execution resume still belongs to the same Phase 1 life loop.',
@@ -809,16 +809,16 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
         execution: {
           runtimeContext: {
             projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestLandedProgress: 'Blocked dispatch safety gates now preserve confirmation and no-process-started evidence.',
               primaryOpenLoop: 'Execution still needs confirmed resume auditability before redispatch can be treated as closed.',
               nextClosureTarget: 'Keep confirmed execution resume, audit, and memory on one same-her Phase 1 line.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerSelfLine: 'structured continuity digest.',
               sameHerDriftRisk: 'If confirmed resume only mutates thread metadata, treat that as audit drift.',
-              sameHerHoldDetail: 'same-her hold: keep this host-confirmed execution boundary low-pressure before any redispatch reopening.',
+              sameHerHoldDetail: 'identity-continuity',
               continuityArcStage: 'same-thread-continuation',
-              continuityCue: 'Keep this host-confirmed redispatch on the same living line before widening outward again.',
+              continuityCue: 'Keep this host-confirmed redispatch on the continuity state before expansion',
               preflightSummary: 'Alicization execution resume still belongs to the same Phase 1 life loop.',
               preDialogueAwarenessLine: 'Before resuming, remember the host confirmed this execution boundary inside the same digital life project.',
               companionHeadlineLine: '   ',
@@ -917,13 +917,13 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
             turnId: 'turn-resume-browser-1',
             decisionTraceId: 'mind:trace:resume-browser-1',
             projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestLandedProgress: 'Browser continuation routing already prefers local direct tools before broader embodied escalation.',
               primaryOpenLoop: 'Task-thread browser continuation still needs a local redispatch path instead of collapsing back into network-only embodied transport.',
               nextClosureTarget: 'Let browser task threads resume on the same local GUI line before widening outward.',
-              sameHerSelfLine: 'Same Phase 1 digital life. The browser continuation still belongs to one living local execution line.',
-              sameHerHoldDetail: 'same-her hold: keep this browser continuation on the same local GUI line before widening outward.',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerHoldDetail: 'identity-continuity',
               sameHerDriftRisk: 'If browser redispatch falls back into an OpenClaw-only shell, treat that as unfinished execution drift.',
               continuityCue: 'Keep this browser continuation on the same local GUI line before widening outward.',
               preflightSummary: 'Alicization browser continuation still belongs to the same local-first digital life project.',

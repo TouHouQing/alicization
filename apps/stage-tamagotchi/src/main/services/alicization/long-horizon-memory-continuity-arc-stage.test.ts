@@ -7,8 +7,8 @@ describe('long horizon memory continuity arc stage', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 72_000,
       facts: [],
-      projectStatePrimaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam across longer desktop returns.',
-      projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      projectStatePrimaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+      projectStateSameHerSelfLine: 'structured continuity digest.',
       projectStateContinuityArcStage: 'hold-for-opening',
     } as any)
 

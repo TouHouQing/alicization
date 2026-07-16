@@ -1304,7 +1304,7 @@ describe('performance visualizer self evolution repair next action', () => {
     })
   })
 
-  it('keeps quieter face+lipsync+voice same-her baseline guidance explicit instead of flattening it into generic renderer-rejoin-without-body closure wording', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionRepairNextAction({
       repairSession: {
         completionPercent: 100,

@@ -46,7 +46,7 @@ describe('performance visualizer self evolution adopted anchor replay', () => {
     })
   })
 
-  it('preserves same-her continuity wording when replaying an adopted governance anchor', () => {
+  it('preserves identity-continuity', () => {
     expect(buildSelfEvolutionAdoptedAnchorReplayPlan({
       traceability: {
         patternKey: 'pattern-same-her-governance',

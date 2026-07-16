@@ -2,7 +2,6 @@ import type { AlicizationPersonaKernelSnapshot } from '@proj-alicization/stage-s
 import type { Message } from '@xsai/shared-chat'
 
 import type {
-  AlicizationChatStartPayload,
   AlicizationMindTurnGovernance,
   AlicizationRuntimeDigest,
 } from '../../../shared/eventa'
@@ -30,7 +29,6 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
   digitalLifeSpine?: unknown
   governance?: AlicizationMindTurnGovernance | null
   personaKernel?: AlicizationPersonaKernelSnapshot | null
-  preDialogueSendIdentity?: AlicizationChatStartPayload['preDialogueSendIdentity'] | null
   runtimeDigest?: AlicizationRuntimeDigest | null
   sessionMirror?: AlicizationDialogueSessionMirror | null
 }) {

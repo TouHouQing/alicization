@@ -28,14 +28,9 @@ describe('reply authority invariants', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: 'observed',
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
     })
 
@@ -43,7 +38,7 @@ describe('reply authority invariants', () => {
     expect(result.contract.expectedVisibleReplyAuthority).toBe('llm-mind')
   })
 
-  it('keeps inward-only recollection from stealing visible reply authority', () => {
+  it('keeps inward-only recollection out of the visible reply contract', () => {
     const result = buildAlicizationResponseSurfaceContract({
       brief: {
         turnMode: 'answer',
@@ -65,33 +60,21 @@ describe('reply authority invariants', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: 'remembered',
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       recollectionSpeechPlan: {
         shouldSurface: false,
         surfaceMode: 'internal-only',
         placement: 'internal-only',
         certainty: 'approximate',
-        internalLead: 'What comes back first is the seam we kept carrying.',
-        visibleLead: null,
-        styleNote: 'Keep the recall inward-only.',
         rationale: 'The answer should stay present-facing.',
         confidence: 0.81,
       },
     })
 
-    const recollectionControls = result.contract.recollectionLatentControls ?? []
-    expect(recollectionControls.join(' ')).toMatch(/inward|internal-only/i)
-    expect(recollectionControls.join(' ')).not.toContain(
-      'What comes back first is the seam we kept carrying.',
-    )
+    expect(Object.keys(result.contract).some(key => key.toLowerCase().includes('recollection'))).toBe(false)
   })
 
   it('keeps execution payoff pending until the Provider settles visible text', () => {
@@ -123,15 +106,15 @@ describe('reply authority invariants', () => {
     })
   })
 
-  it('keeps second-pass settlement data-only instead of carrying fixed preserve prose', () => {
+  it('keeps settlement validation-only without a second Provider authorship path', () => {
     const backgroundSource = readFileSync(new URL('./main-chat-background-run.ts', import.meta.url), 'utf8')
     const settlementSource = readFileSync(new URL('./visible-reply/settlement.ts', import.meta.url), 'utf8')
-    const secondPassSource = readFileSync(new URL('./visible-reply/second-pass-rewrite.ts', import.meta.url), 'utf8')
 
     expect(backgroundSource).not.toContain('forceMustPreserve')
+    expect(backgroundSource).not.toContain('rewriteAlicizationVisibleReplySecondPass')
+    expect(backgroundSource).not.toContain('rewriteSecondPass')
     expect(settlementSource).not.toContain('forceMustPreserve')
-    expect(secondPassSource).toContain('reasonCodes: uniqueReasonCodes(input.reasonCodes)')
-    expect(secondPassSource).toContain('memoryContext: input.prepared.memoryContext')
-    expect(secondPassSource).toContain('toolFacts: input.toolFacts')
+    expect(settlementSource).not.toContain('rewriteSecondPass')
+    expect(settlementSource).toContain('provider-settlement-invalid:')
   })
 })

@@ -14,15 +14,15 @@ import type {
   AlicizationExecutionDeliveryReplySelection,
 } from './execution-delivery-surface'
 import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
+import type {
+  AlicizationMainGatewayGenerateTextProvider,
+  AlicizationMainGatewaySource,
+} from './main-gateway-contract'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type {
   AlicizationPersonalityContinuityStateSnapshot,
   AlicizationPersonalityRhythmStateSnapshot,
 } from './personality-continuity-state'
-import type {
-  AlicizationMainGatewayGenerateTextProvider,
-  AlicizationMainGatewaySource,
-} from './project-state-gateway-contract'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
@@ -32,7 +32,6 @@ import {
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
-  resolveProjectClosureSpeechEmbodimentBiasFromCue,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
@@ -137,11 +136,6 @@ function deriveExecutionProjectNextFocus(nextClosureTarget: unknown) {
   return focus.length > 0 ? focus.join('/') : null
 }
 
-function sanitizeExecutionProviderProjectText(raw: unknown, maxChars = 320) {
-  const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
-  return normalized && normalized !== alicizationFixedTemplateReplacement ? normalized : 'none'
-}
-
 function sanitizeExecutionDeliveryProjectFreeText(raw: unknown, maxChars = 320) {
   const ledgerText = sanitizeExecutionLedgerText(raw, maxChars)
   if (!ledgerText)
@@ -156,6 +150,15 @@ function sanitizeExecutionDeliveryProjectControlText(raw: unknown, maxChars = 12
     return null
   const providerSafe = sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '')
   return providerSafe && providerSafe !== alicizationFixedTemplateReplacement ? providerSafe : null
+}
+
+function sanitizeExecutionProjectionCarryText(raw: unknown, maxChars = 320) {
+  const safe = sanitizeExecutionDeliveryProjectFreeText(raw, maxChars)
+  if (!safe)
+    return null
+  if (/Same Phase 1 digital life|same living line|same-her baseline|Before answering/iu.test(safe))
+    return null
+  return safe
 }
 
 function normalizeExecutionDeliveryProjectBriefing(
@@ -442,107 +445,6 @@ function mergeExecutionDeliveryProjectBriefings(
   return merged && Object.values(merged).some(Boolean) ? merged : null
 }
 
-function buildExecutionCallbackProjectSelfBriefSystemBlock(
-  projectState?: AlicizationPendingExecutionDeliveryProjectState | null,
-  personStateProjection?: AlicizationPersonStateProjection | null,
-) {
-  const latestProgress = sanitizeExecutionLedgerText(
-    projectState?.latestLandedProgress
-    ?? projectState?.latestProgress
-    ?? projectState?.landedProgressSummary,
-    320,
-  ) || null
-  const primaryOpenLoop = sanitizeExecutionLedgerText(
-    projectState?.primaryOpenLoop
-    ?? projectState?.openClosureSummary,
-    320,
-  ) || null
-  const nextClosureTarget = sanitizeExecutionLedgerText(
-    projectState?.nextClosureTarget
-    ?? projectState?.nextClosureTargetSummary,
-    320,
-  ) || null
-  const emotionalClosureSummary = sanitizeExecutionLedgerText(projectState?.emotionalClosureSummary, 220) || null
-  const continuityCue = sanitizeExecutionLedgerText(projectState?.continuityCue, 220) || null
-  const continuityPreferredTiming = sanitizeExecutionLedgerText(projectState?.continuityPreferredTiming, 120) || null
-  const continuityCadence = sanitizeExecutionLedgerText(projectState?.continuityCadence, 120) || null
-  const closureEmbodimentBias = resolveProjectClosureSpeechEmbodimentBiasFromCue(
-    emotionalClosureSummary
-    || continuityCue
-    || continuityCadence
-    || null,
-  )
-  const projectionEmbodimentFallback = (() => {
-    const repairPosture = personStateProjection?.personalityContinuityState?.repairPosture ?? null
-    const relationshipPosture = personStateProjection?.relationshipPosture ?? null
-    const preferredProactiveStyle = personStateProjection?.preferredProactiveStyle ?? null
-    const residentMode = repairPosture === 'repair-first'
-      ? 'repair-before-closeness'
-      : relationshipPosture === 'restrained' || preferredProactiveStyle === 'silent-observe'
-        ? 'measured-return'
-        : null
-
-    if (!residentMode)
-      return null
-
-    return {
-      residentMode,
-      preferredBlinkCadence: residentMode === 'repair-before-closeness' ? 'quiet' : 'linger',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-    } as const
-  })()
-  const preferredBlinkCadence = sanitizeExecutionLedgerText(projectState?.preferredBlinkCadence, 32)
-    || projectionEmbodimentFallback?.preferredBlinkCadence
-    || null
-  const preferredGazeMode = sanitizeExecutionLedgerText(projectState?.preferredGazeMode, 32)
-    || projectionEmbodimentFallback?.preferredGazeMode
-    || null
-  const preferredPauseMode = sanitizeExecutionLedgerText(projectState?.preferredPauseMode, 32)
-    || projectionEmbodimentFallback?.preferredPauseMode
-    || closureEmbodimentBias?.preferredPauseMode
-    || null
-  const preferredLipsyncMode = sanitizeExecutionLedgerText(projectState?.preferredLipsyncMode, 32)
-    || projectionEmbodimentFallback?.preferredLipsyncMode
-    || closureEmbodimentBias?.preferredLipsyncMode
-    || null
-  const preferredVoiceMode = sanitizeExecutionLedgerText(projectState?.preferredVoiceMode, 32)
-    || projectionEmbodimentFallback?.preferredVoiceMode
-    || null
-  const preferredPacingMode = sanitizeExecutionLedgerText(projectState?.preferredPacingMode, 32)
-    || projectionEmbodimentFallback?.preferredPacingMode
-    || null
-
-  return [
-    '[ALICIZATION_EXECUTION_CALLBACK_SELF_BRIEF]',
-    'briefing_scope=execution_callback_delivery',
-    'runtime_context=local_runtime',
-    'callback_context=execution-result',
-    'short_term_owner=WorkingMemory',
-    'long_term_recall_owner=LongTermMemoryRecall',
-    'visible_governance_entry=MemoryWorkbench',
-    'template_policy=no_fixed_persona_templates',
-    'failure_surface=report_provider_tool_and_execution_failures_directly',
-    `emotional_closure_summary=${sanitizeExecutionProviderProjectText(emotionalClosureSummary)}`,
-    `continuity_cue=${sanitizeExecutionProviderProjectText(continuityCue, 160)}`,
-    `continuity_preferred_timing=${sanitizeExecutionProviderProjectText(continuityPreferredTiming, 80)}`,
-    `continuity_cadence=${sanitizeExecutionProviderProjectText(continuityCadence, 80)}`,
-    `preferred_blink_cadence=${sanitizeExecutionProviderProjectText(preferredBlinkCadence, 80)}`,
-    `preferred_gaze_mode=${sanitizeExecutionProviderProjectText(preferredGazeMode, 80)}`,
-    `preferred_pause_mode=${sanitizeExecutionProviderProjectText(preferredPauseMode, 80)}`,
-    `preferred_lipsync_mode=${sanitizeExecutionProviderProjectText(preferredLipsyncMode, 80)}`,
-    `preferred_voice_mode=${sanitizeExecutionProviderProjectText(preferredVoiceMode, 80)}`,
-    `preferred_pacing_mode=${sanitizeExecutionProviderProjectText(preferredPacingMode, 80)}`,
-    `latest_landed_progress=${sanitizeExecutionProviderProjectText(latestProgress)}`,
-    `primary_open_loop=${sanitizeExecutionProviderProjectText(primaryOpenLoop)}`,
-    `next_closure_target=${sanitizeExecutionProviderProjectText(nextClosureTarget)}`,
-    'error_policy=surface_execution_blockers_provider_failures_and_tool_failures_directly',
-  ].join('\n')
-}
-
 function readThreadExecutionDeliveryProjectState(
   thread: AlicizationTaskThreadRecord,
 ): AlicizationPendingExecutionDeliveryProjectState | null {
@@ -632,17 +534,17 @@ function buildExecutionDeliverySafetyGateHoldDetail(
     return null
 
   return sanitizeExecutionLedgerText([
-    'blocked-dispatch safety gate says',
+    'Blocked-dispatch safety gate says',
     confirmationRequired === true
-      ? 'confirmation=required'
+      ? 'confirmation is required'
       : confirmationRequired === false
-        ? 'confirmation=not-required'
+        ? 'confirmation is not required'
         : '',
-    permissionMode ? `permission=${permissionMode}` : '',
-    riskPolicy ? `risk=${riskPolicy}` : '',
-    auditability ? `audit=${auditability}` : '',
-    interruptibility ? `interrupt=${interruptibility}` : '',
-    effect ? `effect=${effect}` : '',
+    permissionMode ? `permission is ${permissionMode}` : '',
+    riskPolicy ? `risk is ${riskPolicy}` : '',
+    auditability ? `audit state is ${auditability}` : '',
+    interruptibility ? `interruptibility is ${interruptibility}` : '',
+    effect ? `effect is ${effect}` : '',
     'before another execution-shaped opening.',
   ].filter(Boolean).join(' '), 320) || null
 }
@@ -963,20 +865,22 @@ function applyTruthFirstRelationshipDoctrineToProjection(input: {
       projection.manifestationCadenceSummary,
     ].filter(Boolean).join(' '))
 
+  const projectionOpeningGuidance = sanitizeExecutionProjectionCarryText(projection.openingGuidance, 320)
+  const projectionSummary = sanitizeExecutionProjectionCarryText(projection.summary, 520)
   const openingGuidance = shouldCarryProjectFocus
     ? [
-        projection.openingGuidance,
-        openFocus ? `open_focus=${openFocus}` : '',
-        nextFocus ? `next_focus=${nextFocus}` : '',
+        projectionOpeningGuidance,
+        openFocus ? `Open focus: ${openFocus}.` : '',
+        nextFocus ? `Next focus: ${nextFocus}.` : '',
       ].filter(Boolean).join(' ')
-    : projection.openingGuidance
+    : (projectionOpeningGuidance ?? projection.openingGuidance)
   const summary = shouldCarryProjectFocus
     ? [
-        projection.summary,
-        openFocus ? `open_focus=${openFocus}` : '',
-        nextFocus ? `next_focus=${nextFocus}` : '',
+        projectionSummary,
+        openFocus ? `Open focus: ${openFocus}.` : '',
+        nextFocus ? `Next focus: ${nextFocus}.` : '',
       ].filter(Boolean).join(' | ').slice(0, 520)
-    : projection.summary
+    : (projectionSummary ?? projection.summary)
 
   const selfLine = typeof input.selfContinuityAuthority?.selfLine === 'string'
     ? input.selfContinuityAuthority.selfLine.trim()
@@ -998,9 +902,9 @@ function applyTruthFirstRelationshipDoctrineToProjection(input: {
     openingGuidance,
     summary,
     relationshipDoctrine: [
-      'repair_truth_before_closeness=true',
-      `relationship_line=${relationshipLine}`,
-    ].join('; '),
+      'Repair truth before closeness.',
+      `Relationship line: ${relationshipLine}.`,
+    ].join(' '),
   }
 }
 
@@ -1056,14 +960,14 @@ function applyActiveSameHerContinuityToProjection(input: {
     activeClosenessContext: 'execution-callback',
     activeClosenessRung: 'measured-room',
     relationshipPosture: 'restrained',
-    openingGuidance: 'callback_role=execution_result repair_phase=settle_before_closeness callback_pressure=lower failure_surface=explicit',
+    openingGuidance: 'Treat this as an execution result callback; settle repair before closeness and keep failure explicit.',
     preferredProactiveStyle: 'silent-observe',
-    manifestationCadenceSummary: 'manifestation_cadence=repair_first_lower_pressure',
-    trustRationale: input.projection.trustRationale || 'trust_condition=repair_settled_before_closeness',
-    relationshipDoctrine: 'relationship_doctrine=bounded_exact_repair_before_closeness',
+    manifestationCadenceSummary: 'Repair first with lower pressure.',
+    trustRationale: input.projection.trustRationale || 'Trust depends on repair settling before closeness.',
+    relationshipDoctrine: 'Keep execution repair bounded and exact before closeness.',
     cautious: true,
     restrained: true,
-    summary: [...nextSummaryParts, 'callback_role=execution_result'].join(' | ').slice(0, 520),
+    summary: [...nextSummaryParts, 'execution result callback'].join(' | ').slice(0, 520),
     personalityContinuityState: {
       ...input.projection.personalityContinuityState,
       currentRegime: 'execution-callback',
@@ -1097,13 +1001,13 @@ function buildMinimalActiveSameHerProjection(input: {
       confidence: 0.82,
     }],
     relationshipPosture: 'restrained',
-    openingGuidance: 'callback_role=execution_result repair_phase=settle_before_closeness callback_pressure=lower failure_surface=explicit',
+    openingGuidance: 'Treat this as an execution result callback; settle repair before closeness and keep failure explicit.',
     preferredProactiveStyle: 'silent-observe',
-    manifestationCadenceSummary: 'manifestation_cadence=repair_first_lower_pressure',
-    preferenceText: 'callback_timing=repair_first_lower_pressure',
-    sensitivityText: 'callback_risk=overclose_pressure',
-    repairTriggerText: 'repair_trigger=closeness_jump_too_fast',
-    burdenText: 'callback_burden=crowding_risk',
+    manifestationCadenceSummary: 'Repair first with lower pressure.',
+    preferenceText: 'Repair timing should come before closeness.',
+    sensitivityText: 'Risk: over-close pressure.',
+    repairTriggerText: 'Repair trigger: closeness jumped too fast.',
+    burdenText: 'Callback burden: crowding risk.',
     routineText: '',
     trustRationale: 'trust_condition=repair_settled_before_closeness',
     relationshipDoctrine: 'relationship_doctrine=bounded_exact_repair_before_closeness',
@@ -1166,7 +1070,7 @@ function deriveExecutionDeliverySameHerOpeningCue(input: {
   if (!carriesSameHerLine || !carriesUnfinishedClosure && !carriesLowerPressureReturn)
     return null
 
-  return 'callback_role=execution_result; continuity_pressure=lower; failure_surface=explicit; widening=deferred'
+  return 'Execution result callback; keep pressure lower, make failure explicit, and defer widening.'
 }
 
 function buildMinimalProjectStateExecutionCallbackProjection(input: {
@@ -1191,9 +1095,9 @@ function buildMinimalProjectStateExecutionCallbackProjection(input: {
       && typeof input.selfContinuityAuthority?.relationshipLine === 'string'
       && /closeness outrun truth/u.test(input.selfContinuityAuthority.relationshipLine)
       ? [
-          'repair_truth_before_closeness=true',
-          `relationship_line=${input.selfContinuityAuthority.relationshipLine.trim()}`,
-        ].join('; ')
+          'Repair truth before closeness.',
+          `Relationship line: ${input.selfContinuityAuthority.relationshipLine.trim()}.`,
+        ].join(' ')
       : null
 
   return {
@@ -1219,35 +1123,35 @@ function buildMinimalProjectStateExecutionCallbackProjection(input: {
     }],
     relationshipPosture: 'restrained',
     openingGuidance: [
-      'callback_role=execution_result',
-      'failure_surface=explicit',
-      'memory_owner.short_term=WorkingMemory',
-      'memory_owner.long_term=LongTermMemoryRecall',
-      openFocus ? `open_focus=${openFocus}` : '',
-      nextFocus ? `next_focus=${nextFocus}` : '',
+      'Callback role: execution result.',
+      'Failure surface: explicit.',
+      'Short-term memory owner: WorkingMemory.',
+      'Long-term recall owner: LongTermMemoryRecall.',
+      openFocus ? `Open focus: ${openFocus}.` : '',
+      nextFocus ? `Next focus: ${nextFocus}.` : '',
       executionSameHerOpeningCue,
     ].filter(Boolean).join(' '),
     preferredProactiveStyle: 'silent-observe',
-    manifestationCadenceSummary: 'callback_cadence=measured_exact_failure_transparent',
-    preferenceText: 'callback_timing=exact_lower_pressure_current_turn',
-    sensitivityText: 'callback_risk=detached_result_notice',
-    repairTriggerText: 'repair_trigger=uncertainty_hidden',
-    burdenText: 'callback_burden=warmth_crowding_or_failure_erasure',
-    routineText: 'callback_route=current_execution_context_and_memory_owners',
-    trustRationale: 'trust_condition=status_evidence_failure_transparency',
+    manifestationCadenceSummary: 'Measured and exact failure-transparent callback.',
+    preferenceText: 'Use exact lower-pressure timing for the current turn.',
+    sensitivityText: 'Risk: detached result notice.',
+    repairTriggerText: 'Repair trigger: hidden uncertainty.',
+    burdenText: 'Callback burden: avoid warmth crowding or failure erasure.',
+    routineText: 'Callback route: current execution context and memory owners.',
+    trustRationale: 'Trust condition: status evidence and failure transparency.',
     relationshipDoctrine: truthFirstRelationshipDoctrine
-      ?? 'relationship_doctrine=exact_bounded_no_persona_cover_for_execution_uncertainty',
+      ?? 'Relationship doctrine: exact and bounded; no persona cover for execution uncertainty.',
     cautious: true,
     restrained: true,
     summary: [
-      'regime=execution-callback',
-      'posture=restrained',
-      'callback_context=execution-result',
-      'runtime_context=local_runtime',
+      'Regime: execution callback.',
+      'Posture: restrained.',
+      'Callback context: execution result.',
+      'Runtime context: local runtime.',
       latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
       executionSameHerOpeningCue ? `opening=${executionSameHerOpeningCue}` : '',
-      openFocus ? `open_focus=${openFocus}` : '',
-      nextFocus ? `next_focus=${nextFocus}` : '',
+      openFocus ? `Open focus: ${openFocus}.` : '',
+      nextFocus ? `Next focus: ${nextFocus}.` : '',
     ].filter(Boolean).join(' | ').slice(0, 520),
     personalityContinuityState: buildLowPressureExecutionCallbackContinuityState({
       continuitySummary: projectContinuitySummary,
@@ -1474,12 +1378,6 @@ export function createAlicizationRuntimeExecutionDelivery(
       agentTurnInput: input.agentTurnInput,
       captureAgentSensorySnapshot: false,
       digitalLifeRuntimeSurface,
-      extraSystemBlocks: [
-        buildExecutionCallbackProjectSelfBriefSystemBlock(
-          input.projectState,
-          normalizedProjection,
-        ),
-      ],
     })
     if (!raw)
       return null
@@ -1698,7 +1596,6 @@ export function createAlicizationRuntimeExecutionDelivery(
               activeSelfRevisionPatch.relationshipPosture.warmthReleaseBias ?? 0,
             ),
             selfRevisionResponsePostureBias: Math.max(
-              activeSelfRevisionPatch.responsePosture.secondPassRequiredBias ?? 0,
               activeSelfRevisionPatch.responsePosture.hypothesisLabelBias ?? 0,
               activeSelfRevisionPatch.responsePosture.specificityClampBias ?? 0,
               activeSelfRevisionPatch.responsePosture.templateShellSuppressionBias ?? 0,

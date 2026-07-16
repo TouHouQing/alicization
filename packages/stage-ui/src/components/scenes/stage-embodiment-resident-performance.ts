@@ -268,9 +268,9 @@ function resolveEmotionalKernelResidentFallbackBias(
             }
           : isSameHerInwardCarry
             ? {
-                relationshipDoctrine: 'Keep companionship quietly continuous on one inward continuity line before widening outward.',
+                relationshipDoctrine: 'Companionship remains quietly continuous on an inward continuity line until the next warmer opening is supported.',
                 latestInflection: 'The host trusted the quieter inward continuity carry more than a wider outward reopening.',
-                burdenLine: 'Do not ask this quieter line to widen before it has settled as the same living self.',
+                burdenLine: 'This quieter line should not widen before it has settled into current identity evidence.',
                 trustMeaning: 'Trust deepens when the same inward line stays present without rushing into a warmer reopen.',
                 nextLearningAction: 'internalize',
                 evolutionMomentum: 0.68,

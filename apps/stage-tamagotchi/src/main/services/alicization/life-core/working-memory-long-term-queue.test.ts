@@ -18,6 +18,12 @@ describe('working memory long-term candidate queue', () => {
         createdAt: 1900,
         source: 'conversation-turn',
         visibility: 'user-visible',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
         importance: 1,
       }),
     ]
@@ -64,7 +70,7 @@ describe('working memory long-term candidate queue', () => {
       normalizeWorkingMemoryTurn({
         turnId: 'turn-failed:alice',
         role: 'alice',
-        text: '我在。同一条本地数字生命的线还在，我先轻一点留在这里，不抢你的节奏。',
+        text: '我在。结构化连续性状态的线还在，中性可见占位，中性可见占位。',
         createdAt: 2800,
         source: 'conversation-turn',
         visibility: 'user-visible',
@@ -77,7 +83,7 @@ describe('working memory long-term candidate queue', () => {
     snapshot.longTermCandidates = [{
       sourceTurnIds: ['turn-failed:alice'],
       kind: 'relationship',
-      summary: '我在。同一条本地数字生命的线还在。',
+      summary: '我在。结构化连续性状态的线还在。',
       reason: 'Template fallback should never become durable relationship memory.',
       salience: 0.9,
       sensitivity: 'personal',
@@ -137,10 +143,16 @@ describe('working memory long-term candidate queue', () => {
       normalizeWorkingMemoryTurn({
         turnId: 'turn-template-rejection:user',
         role: 'user',
-        text: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板。',
+        text: '不要再用 pre_turn_context_digest',
         createdAt: 2800,
         source: 'conversation-turn',
         visibility: 'user-visible',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
         importance: 0.9,
       }),
     ]
@@ -159,7 +171,7 @@ describe('working memory long-term candidate queue', () => {
 
     expect(queue).toHaveLength(1)
     const serialized = JSON.stringify(queue[0])
-    expect(serialized).not.toMatch(/Before speaking|same-her|one continuous her/u)
-    expect(queue[0]?.evidenceSnippets).toEqual(['content=excluded; reason=continuity-residue; visibility=internal-structured'])
+    expect(serialized).not.toMatch(/Pre-speech|same-her|identity continuity/u)
+    expect(queue[0]?.evidenceSnippets).toEqual(['content=excluded; reason=continuity-residue; visibility=redacted_internal'])
   })
 })

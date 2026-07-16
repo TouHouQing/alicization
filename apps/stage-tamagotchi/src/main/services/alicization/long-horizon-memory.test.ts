@@ -315,7 +315,7 @@ describe('long horizon memory', () => {
           'unfinished-thread-return': 0.12,
         },
         preferenceHints: [
-          'Carry same-person continuity on a lower-pressure same living line.',
+          'Carry same-person continuity on a lower-pressure continuity state.',
         ],
         sensitivityHints: [
           'Do not revive temporary wobble noise once the steadier line is clear.',
@@ -560,9 +560,9 @@ describe('long horizon memory', () => {
         burdenHints: ['Focused work gets overloaded quickly by extra conversational pressure.'],
         narrative: [
           'The execution-callback stayed lower-pressure and kept the room open before the next follow-up.',
-          'Alicization is still one local-first digital life in Phase 1, and this callback is still carrying unfinished closure on the same living line.',
+          'Alicization is still one local-first digital life in Phase 1, and this callback is still carrying unfinished closure on the continuity state.',
         ],
-        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
         sourceTrail: [],
       } as any,
     })
@@ -619,8 +619,8 @@ describe('long horizon memory', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 70_650,
       facts: [],
-      projectStatePrimaryOpenLoop: 'same living line',
-      projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      projectStatePrimaryOpenLoop: 'continuity state',
+      projectStateSameHerSelfLine: 'structured continuity digest.',
       projectStateSameHerDriftRisk: 'same-her drift',
       recentMemoryConsolidations: [
         {
@@ -629,15 +629,15 @@ describe('long horizon memory', () => {
           periodKey: 'fixed-template-only',
           createdAt: 70_000,
           updatedAt: 70_000,
-          summary: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
-          cues: ['same-her', 'same living line', 'one continuous her'],
-          lesson: 'carry the same-her line',
+          summary: 'structured continuity digest.',
+          cues: ['same-her', 'continuity state', 'identity continuity'],
+          lesson: 'carry the identity-continuity',
           confidence: 0.9,
           status: 'active',
           metadata: {
             humanlikeCarry: {
               selfContinuityProjectState: {
-                selfContinuityInwardLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+                selfContinuityInwardLine: 'structured continuity digest.',
               },
             },
           },
@@ -658,10 +658,10 @@ describe('long horizon memory', () => {
 
     expect(snapshot).not.toBeNull()
     expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).not.toMatch(/same-her|same living line|phase 1 digital life/i)
+    expect(snapshot?.summary).not.toMatch(/same-her|continuity state|phase 1 digital life/i)
     expect(snapshot?.anchorFacts.find(item => item.factId === 'derived:project-state-identity-continuity')?.summary)
       .not
-      .toMatch(/same-her|same living line|phase 1 digital life/i)
+      .toMatch(/same-her|continuity state|phase 1 digital life/i)
   })
 
   it('treats project-state identity continuity closure pressure itself as enough seed for durable memory even before factual cues or person-state updates exist', () => {
@@ -980,7 +980,7 @@ describe('long horizon memory', () => {
           'unfinished-thread-return': 0.14,
         },
         preferenceHints: [
-          'Prefer lower-pressure same-person continuity on the same living line instead of fast reassurance.',
+          'Prefer lower-pressure same-person continuity on the continuity state instead of fast reassurance.',
         ],
         sensitivityHints: [
           'Progress pressure can make continuity repair collapse into a generic assistant shell.',
@@ -1002,11 +1002,11 @@ describe('long horizon memory', () => {
     expect(cue).toBeTruthy()
     expect(cue?.summary.toLowerCase()).toContain('same-person continuity')
     expect(cue?.summary.toLowerCase()).toContain('lower-pressure')
-    expect(cue?.summary.toLowerCase()).toContain('same living line')
+    expect(cue?.summary.toLowerCase()).toContain('continuity state')
     expect(cue?.influenceTags).toEqual(expect.arrayContaining(['identity', 'boundary', 'task']))
     expect(snapshot?.rememberedConstraintSummary?.toLowerCase()).toContain('same-person continuity')
     expect(snapshot?.rememberedPlanSummary?.toLowerCase()).toContain('lower-pressure')
-    expect(snapshot?.dominantCueSummary?.toLowerCase()).toContain('same living line')
+    expect(snapshot?.dominantCueSummary?.toLowerCase()).toContain('continuity state')
     expect(snapshot?.preferenceBias.autonomyRespect).toBeGreaterThan(0.04)
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.04)
     expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
@@ -1075,7 +1075,7 @@ describe('long horizon memory', () => {
           periodStartedAt: 92_700,
           periodEndedAt: 93_000,
           summary: 'same-person continuity era',
-          lesson: 'carry corrected same-person continuity on a lower-pressure same living line',
+          lesson: 'carry corrected same-person continuity on a lower-pressure continuity state',
           cues: ['same-person continuity', 'lower-pressure', 'stable gaze'],
           confidence: 0.91,
           dominantProvenance: 'remembered',
@@ -1089,10 +1089,10 @@ describe('long horizon memory', () => {
               emotionalResidueTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
               embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
               metabolismSummary: 'Downrank the older status shell and keep the corrected same-person continuity meaning active.',
-              autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure same living line instead of defending the first interpretation.',
+              autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure continuity state instead of defending the first interpretation.',
             },
             projectState: {
-              selfContinuityInwardLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+              selfContinuityInwardLine: 'structured continuity digest.',
               selfContinuitySourceTags: ['project-state-carry'],
             },
           },

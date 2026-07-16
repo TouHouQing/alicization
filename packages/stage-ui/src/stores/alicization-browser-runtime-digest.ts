@@ -124,8 +124,8 @@ export function buildBrowserFallbackDigitalLifeSpineDigest(input: {
       supportingSystems: recollection ? ['perception', 'dialogue'] : ['memory'],
       governingFocus: sceneSummary,
       summary: recollection
-        ? `mode=remembering | dominant=memory | focus=${sceneSummary}`
-        : `mode=observing | dominant=perception | focus=${sceneSummary}`,
+        ? `Remembering mode with memory as the dominant system. Focus: ${sceneSummary}.`
+        : `Observing mode with perception as the dominant system. Focus: ${sceneSummary}.`,
     },
     continuitySignal: {
       label: 'digital-life-line',

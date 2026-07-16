@@ -1,12 +1,4 @@
-import type {
-  AlicizationChatEntryIngest,
-  AlicizationChatEntryPreDialogueSendIdentity,
-} from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
-
-import {
-  assertAlicizationChatEntryPreDialogueSendIdentity,
-  sanitizeAlicizationChatEntryPreDialogueSendIdentity,
-} from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
+import type { AlicizationChatEntryIngest } from '@proj-alicization/stage-shared/alicization-chat-entry-dispatch'
 
 export interface DesktopMouseCaptureStateInput {
   fadeOnHoverEnabled: boolean
@@ -45,18 +37,14 @@ export interface StageStartupOnboardingInput {
 
 type DesktopVoiceTurnOrigin = 'ui-user' | 'tool-output' | 'context-recall' | 'system'
 
-export interface DesktopVoiceTurnDispatchInput<
-  TPreDialogueSendIdentity = AlicizationChatEntryPreDialogueSendIdentity | null | undefined,
-  TChatProvider = unknown,
-> {
+export interface DesktopVoiceTurnDispatchInput<TChatProvider = unknown> {
   text: string
   providerId: string
   model: string
   chatProvider: TChatProvider
   providerConfig: Record<string, unknown>
-  preDialogueSendIdentity: TPreDialogueSendIdentity
   origin?: DesktopVoiceTurnOrigin
-  ingest: AlicizationChatEntryIngest<AlicizationChatEntryPreDialogueSendIdentity, TChatProvider>
+  ingest: AlicizationChatEntryIngest<TChatProvider>
 }
 
 export function resolveDesktopMouseCaptureState(input: DesktopMouseCaptureStateInput) {
@@ -105,23 +93,14 @@ export function runStageStartupOnboardingCheck(input: StageStartupOnboardingInpu
     input.openOnboarding()
 }
 
-export async function dispatchDesktopVoiceTurn<TPreDialogueSendIdentity, TChatProvider>(
-  input: DesktopVoiceTurnDispatchInput<TPreDialogueSendIdentity, TChatProvider>,
+export async function dispatchDesktopVoiceTurn<TChatProvider>(
+  input: DesktopVoiceTurnDispatchInput<TChatProvider>,
 ) {
-  assertAlicizationChatEntryPreDialogueSendIdentity(
-    input.preDialogueSendIdentity as AlicizationChatEntryPreDialogueSendIdentity | null | undefined,
-    'dispatchDesktopVoiceTurn',
-  )
-  const preDialogueSendIdentity = sanitizeAlicizationChatEntryPreDialogueSendIdentity(
-    input.preDialogueSendIdentity as AlicizationChatEntryPreDialogueSendIdentity,
-  )
-
   return input.ingest(input.text, {
     providerId: input.providerId,
     model: input.model,
     chatProvider: input.chatProvider,
     providerConfig: input.providerConfig,
-    preDialogueSendIdentity,
     origin: input.origin,
   })
 }

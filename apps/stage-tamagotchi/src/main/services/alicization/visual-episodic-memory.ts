@@ -1696,8 +1696,7 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
       && replyRealizationMode !== 'provider-mind-required'
       && replyRealizationMode !== 'fallback-locally-allowed')
     || (expectedVisibleReplyAuthority != null
-      && expectedVisibleReplyAuthority !== 'llm-mind'
-      && expectedVisibleReplyAuthority !== 'llm-second-pass-rewrite')
+      && expectedVisibleReplyAuthority !== 'llm-mind')
     || (recommendedAct !== 'answer'
       && recommendedAct !== 'guide'
       && recommendedAct !== 'ask-reground'
@@ -2628,7 +2627,7 @@ function derivePresenceOnlyResidentHoldInwardPreoccupation(input: {
   if (!hasRememberedSeamMoreRoomCarry(continuityAuthorityText) && (!hasSameLineCarry || !hasMeasuredRoomCarry))
     return fallback || null
 
-  return 'relationship_cadence=remembered_boundary; room=more; reentry=slower; warmth_widening=deferred'
+  return fallback || null
 }
 
 function derivePresenceOnlyResidentHoldContinuityRestraint(input: {

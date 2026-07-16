@@ -22,12 +22,12 @@ describe('visible reply facade project-state summary', () => {
     runtimeSurface.dialogue.runtimeDigest = {
       ...runtimeSurface.dialogue.runtimeDigest,
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Visible reply project-state continuity already survives into the runtime preparation lane.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-        nextClosureTarget: 'Keep the same-her project briefing explicit before local visible-reply detail takes over.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+        nextClosureTarget: 'Keep the identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
         sameHerHoldDetail: correctedSamePersonAuthority,
       },
     } as any
@@ -40,13 +40,13 @@ describe('visible reply facade project-state summary', () => {
       consciousNeed: 'Keep the visible reply on one same local digital life line.',
       consciousTension: 'Do not let the reply widen back into a generic project shell.',
       speakingIntention: 'Carry the same project continuity into the first visible answer beat.',
-      focusAnchor: 'visible-reply same-her continuity',
+      focusAnchor: 'visible-reply identity-continuity',
       confidence: 0.82,
       reasonTags: ['project-state', 'same-her', 'visible-reply'],
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
         currentPhase: 'Phase 1: Local Digital Life',
-        preDialogueAwarenessLine: 'Before answering, keep this visible reply on one same local-first digital life line.',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
         sameHerHoldDetail: genericProgressRecapPressure,
       },
       updatedAt: 91_000,
@@ -107,8 +107,8 @@ describe('visible reply facade project-state summary', () => {
     const projectState = surfacePlan.mindTurnContract.projectState as Record<string, unknown>
 
     expect(projectState.sameHerHoldDetail).toBe(correctedSamePersonAuthority)
-    expect(surfacePlan.systemBlocks.mindTurnContract).toContain(`continuity_hold=${correctedSamePersonAuthority}`)
-    expect(surfacePlan.systemBlocks.mindTurnContract).not.toContain(genericProgressRecapPressure)
+    expect(surfacePlan).not.toHaveProperty('systemBlocks')
+    expect(JSON.stringify(surfacePlan)).not.toContain(genericProgressRecapPressure)
   })
 
   it('does not carry fixed project-state templates from runtime surface into visible reply project state', () => {
@@ -118,14 +118,14 @@ describe('visible reply facade project-state summary', () => {
     runtimeSurface.dialogue.runtimeDigest = {
       ...runtimeSurface.dialogue.runtimeDigest,
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Visible reply project-state continuity already survives into runtime preparation.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer desktop runs.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift.',
-        preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
+        sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
       },
     } as any
 
@@ -141,10 +141,10 @@ describe('visible reply facade project-state summary', () => {
       confidence: 0.82,
       reasonTags: ['project-state'],
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
         currentPhase: 'Phase 1: Local Digital Life',
-        preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-        sameHerSelfLine: 'one continuous her on the same living line',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
+        sameHerSelfLine: 'identity continuity on the continuity state',
         sameHerDriftRisk: 'same-her drift if a generic project shell takes over',
       },
       updatedAt: 92_000,
@@ -203,9 +203,13 @@ describe('visible reply facade project-state summary', () => {
     })
 
     expectNoFixedTemplateResidue(surfacePlan.mindTurnContract.projectState)
-    expectNoFixedTemplateResidue(surfacePlan.systemBlocks.mindTurnContract)
-    expect(String(surfacePlan.mindTurnContract.projectState?.sameHerSelfLine ?? '')).toContain('local_desktop_life_loop')
-    expect(String(surfacePlan.mindTurnContract.projectState?.preDialogueAwarenessLine ?? '')).toContain('local_desktop_life_loop')
+    expect(surfacePlan).not.toHaveProperty('systemBlocks')
+    expect(JSON.stringify(surfacePlan.mindTurnContract.projectState)).not.toContain(
+      'pre_turn_context_digest',
+    )
+    expect(JSON.stringify(surfacePlan.mindTurnContract.projectState)).not.toContain(
+      'identity continuity on the continuity state',
+    )
   })
 
   it('does not promote fixed same-her slogans from answerCompiler openingClaim into visible-reply project state or provider blocks', () => {
@@ -259,16 +263,16 @@ describe('visible reply facade project-state summary', () => {
         updatedAt: 93_000,
       } as any,
       answerCompiler: {
-        openingClaim: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        openingClaim: 'structured continuity digest.',
         supportingReality: [],
         mustDo: [],
-        mustNotDo: ['If this turns into generic project shell narration, treat that as same-her closure drift rather than completion.'],
+        mustNotDo: ['If this turns into generic project shell narration, treat that as identity-continuity'],
       } as any,
     })
 
     expectNoFixedTemplateResidue(surfacePlan.mindTurnContract.projectState)
-    expectNoFixedTemplateResidue(surfacePlan.systemBlocks.mindTurnContract)
-    expect(String(surfacePlan.mindTurnContract.projectState?.sameHerSelfLine ?? '')).not.toContain('Same Phase 1 digital life')
+    expect(surfacePlan).not.toHaveProperty('systemBlocks')
+    expect(String(surfacePlan.mindTurnContract.projectState?.sameHerSelfLine ?? '')).not.toContain('legacy phase-one template')
     expect(String(surfacePlan.mindTurnContract.projectState?.sameHerDriftRisk ?? '')).not.toContain('same-her')
   })
 })

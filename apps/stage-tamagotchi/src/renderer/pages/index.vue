@@ -18,9 +18,7 @@ import { useAudioRecorder } from '@proj-alicization/stage-ui/composables/audio/a
 import { useCanvasPixelIsTransparentAtPoint } from '@proj-alicization/stage-ui/composables/canvas-alpha'
 import { useVAD } from '@proj-alicization/stage-ui/stores/ai/models/vad'
 import { getAlicizationBridge, hasAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
-import { useAlicizationSelfEvolutionInspectorStore } from '@proj-alicization/stage-ui/stores/alicization-self-evolution-inspector'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
-import { buildPreDialogueSendIdentityFromInspectorSnapshots } from '@proj-alicization/stage-ui/stores/chat/pre-dialogue-send-identity'
 import { useDisplayModelsStore } from '@proj-alicization/stage-ui/stores/display-models'
 import { useLive2d } from '@proj-alicization/stage-ui/stores/live2d'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
@@ -348,14 +346,8 @@ const {
 const { supportsStreamInput } = storeToRefs(hearingPipeline)
 const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
-const selfEvolutionInspectorStore = useAlicizationSelfEvolutionInspectorStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
 const chatStore = useChatOrchestratorStore()
-const {
-  preDialogueAwarenessSnapshot,
-  preDialogueClosureSnapshot,
-  projectStateContinuitySnapshot,
-} = storeToRefs(selfEvolutionInspectorStore)
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
 const {
@@ -374,14 +366,6 @@ const {
 })
 
 let stopOnStopRecord: (() => void) | undefined
-
-function buildVoicePreDialogueSendIdentity() {
-  return buildPreDialogueSendIdentityFromInspectorSnapshots({
-    projectStateContinuitySnapshot: projectStateContinuitySnapshot.value,
-    preDialogueClosureSnapshot: preDialogueClosureSnapshot.value,
-    preDialogueAwarenessSnapshot: preDialogueAwarenessSnapshot.value,
-  })
-}
 
 // Caption overlay broadcast channel
 type CaptionChannelEvent
@@ -455,7 +439,6 @@ async function startAudioInteraction() {
                 model: activeChatModel.value,
                 chatProvider: provider as ChatProvider,
                 providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
-                preDialogueSendIdentity: buildVoicePreDialogueSendIdentity(),
                 origin: 'ui-user',
                 ingest: chatStore.ingest,
               })
@@ -504,7 +487,6 @@ async function startAudioInteraction() {
           model: activeChatModel.value,
           chatProvider: provider as ChatProvider,
           providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
-          preDialogueSendIdentity: buildVoicePreDialogueSendIdentity(),
           origin: 'ui-user',
           ingest: chatStore.ingest,
         })

@@ -131,15 +131,15 @@ describe('performance visualizer runtime diagnostic summary', () => {
     ])
   })
 
-  it('keeps a thin measured-return same-her line visible in runtime authority summaries instead of collapsing it into lipsync-only drift', () => {
+  it('keeps a thin measured-return identity-continuity', () => {
     expect(buildRuntimeAuthoritySummaryEntries({
       rendererTarget: 'vrm',
       authoritySegmentId: 'segment-thin-measured-return-1',
       authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
       authorityMatchSummary: 'face:no motion:no lipsync:yes',
-      authorityTrustSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+      authorityTrustSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
       authorityMismatchSummary: 'face-mismatch, motion-mismatch',
-      authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+      authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
       settleAuthoritySummary: 'authority-bound | segment=segment-thin-measured-return-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
     } as any)).toEqual([
       { key: 'renderer-target', label: '渲染目标', value: 'vrm' },
@@ -156,8 +156,8 @@ describe('performance visualizer runtime diagnostic summary', () => {
         value: '表情未命中 / 动作未命中 / 口型命中',
         technicalValue: 'face:no motion:no lipsync:yes',
       },
-      { key: 'authority-trust', label: '权威可信性', value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.' },
-      { key: 'authority-mismatch', label: '权威漂移', value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.' },
+      { key: 'authority-trust', label: '权威可信性', value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity' },
+      { key: 'authority-mismatch', label: '权威漂移', value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity' },
       {
         key: 'settle-authority',
         label: '稳定段归因',
@@ -239,7 +239,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
     ])
   })
 
-  it('keeps body-backed same-her lane truth visible in runtime authority summaries when the shared segment is carried by body and voice after face motion and lipsync drift', () => {
+  it('keeps body-backed identity-continuity', () => {
     expect(buildRuntimeAuthoritySummaryEntries({
       rendererTarget: 'vrm',
       authoritySegmentId: 'segment-body-voice-runtime-1',
@@ -397,7 +397,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
     ])
   })
 
-  it('derives structured same-her closure stage entries from authority lane summaries inside runtime authority summaries', () => {
+  it('derives structured identity-continuity', () => {
     expect(buildRuntimeAuthoritySummaryEntries({
       rendererTarget: 'vrm',
       authoritySegmentId: 'segment-runtime-closure-fallback-1',
@@ -417,7 +417,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
     ]))
   })
 
-  it('derives quieter body+lipsync same-her closure stage entries from authority lane summaries inside runtime authority summaries', () => {
+  it('derives quieter body+lipsync identity-continuity', () => {
     expect(buildRuntimeAuthoritySummaryEntries({
       rendererTarget: 'vrm',
       authoritySegmentId: 'segment-runtime-body-lipsync-carry-1',
@@ -476,7 +476,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
     }
   })
 
-  it('keeps quieter face+lipsync+voice and motion+lipsync+voice same-her continuity explicit in runtime authority summaries instead of collapsing them into shorter lane-only labels', () => {
+  it('keeps quieter face+lipsync+voice and motion+lipsync+voice identity-continuity', () => {
     const cases = [
       {
         rendererTarget: 'live2d' as const,
@@ -484,7 +484,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
         authorityBindingSummary: 'target=live2d | drivers=face, lipsync | sources=prosody-authority, voice-segment | matches=body:no face:yes motion:no lipsync:yes voice:yes | lane=face+lipsync+voice-only',
         authorityMatchSummary: 'body:no face:yes motion:no lipsync:yes voice:yes',
         settleAuthoritySummary: 'authority-bound | segment=segment-runtime-face-lipsync-voice-governance-1 | target=live2d | drivers=face, lipsync | sources=prosody-authority, voice-segment | lane=face+lipsync+voice-only',
-        expectedLaneTruth: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线',
+        expectedLaneTruth: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       },
       {
         rendererTarget: 'vrm' as const,
@@ -492,7 +492,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
         authorityBindingSummary: 'target=vrm | drivers=motion, lipsync | sources=prosody-authority, voice-segment | matches=body:no face:no motion:yes lipsync:yes voice:yes | lane=motion+lipsync+voice-only',
         authorityMatchSummary: 'body:no face:no motion:yes lipsync:yes voice:yes',
         settleAuthoritySummary: 'authority-bound | segment=segment-runtime-motion-lipsync-voice-governance-1 | target=vrm | drivers=motion, lipsync | sources=prosody-authority, voice-segment | lane=motion+lipsync+voice-only',
-        expectedLaneTruth: '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线',
+        expectedLaneTruth: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
       },
     ] as const
 
@@ -607,7 +607,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
     ])
   })
 
-  it('derives structured same-her closure stage entries from authority lane summaries inside playback cue authority summaries', () => {
+  it('derives structured identity-continuity', () => {
     expect(buildPlaybackCueAuthoritySummaryEntries({
       cueId: 'segment-playback-closure-fallback-1',
       authoritySegmentId: 'segment-playback-closure-fallback-1',

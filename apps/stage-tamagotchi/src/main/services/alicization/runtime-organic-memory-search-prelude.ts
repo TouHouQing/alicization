@@ -514,6 +514,14 @@ function parseHumanlikeMemoryRecallCarry(recallSeed: string) {
 
   const knownKeys = [
     'line',
+    'affective_residue_kind',
+    'affective_cadence_mode',
+    'affective_distance_posture',
+    'affective_should_delay_warmth',
+    'affective_should_protect_rest',
+    'affective_afterglow_carry',
+    'affective_fatigue_guard',
+    'affective_overreach_risk',
     'relationship',
     'emotion',
     'host_emotion_label',
@@ -582,6 +590,14 @@ function parseHumanlikeMemoryRecallCarry(recallSeed: string) {
   }
 
   const lineValue = fields.get('line') ?? ''
+  const affectiveResidueKind = fields.get('affective_residue_kind') ?? ''
+  const affectiveCadenceMode = fields.get('affective_cadence_mode') ?? ''
+  const affectiveDistancePosture = fields.get('affective_distance_posture') ?? ''
+  const affectiveShouldDelayWarmth = fields.get('affective_should_delay_warmth') ?? ''
+  const affectiveShouldProtectRest = fields.get('affective_should_protect_rest') ?? ''
+  const affectiveAfterglowCarry = fields.get('affective_afterglow_carry') ?? ''
+  const affectiveFatigueGuard = fields.get('affective_fatigue_guard') ?? ''
+  const affectiveOverreachRisk = fields.get('affective_overreach_risk') ?? ''
   const relationship = fields.get('relationship') ?? ''
   const emotion = fields.get('emotion') ?? ''
   const hostEmotionLabel = fields.get('host_emotion_label') ?? ''
@@ -621,6 +637,14 @@ function parseHumanlikeMemoryRecallCarry(recallSeed: string) {
   const created = fields.get('created') ?? ''
   if (
     !lineValue
+    && !affectiveResidueKind
+    && !affectiveCadenceMode
+    && !affectiveDistancePosture
+    && !affectiveShouldDelayWarmth
+    && !affectiveShouldProtectRest
+    && !affectiveAfterglowCarry
+    && !affectiveFatigueGuard
+    && !affectiveOverreachRisk
     && !relationship
     && !emotion
     && !hostEmotionLabel
@@ -664,6 +688,14 @@ function parseHumanlikeMemoryRecallCarry(recallSeed: string) {
 
   return {
     lineValue,
+    affectiveResidueKind,
+    affectiveCadenceMode,
+    affectiveDistancePosture,
+    affectiveShouldDelayWarmth,
+    affectiveShouldProtectRest,
+    affectiveAfterglowCarry,
+    affectiveFatigueGuard,
+    affectiveOverreachRisk,
     relationship,
     emotion,
     hostEmotionLabel,
@@ -1284,6 +1316,14 @@ function deriveHumanlikeMemoryRecallTriggeredIntent(input: {
 
   const relationshipText = [
     continuity.lineValue,
+    continuity.affectiveResidueKind,
+    continuity.affectiveCadenceMode,
+    continuity.affectiveDistancePosture,
+    continuity.affectiveShouldDelayWarmth,
+    continuity.affectiveShouldProtectRest,
+    continuity.affectiveAfterglowCarry,
+    continuity.affectiveFatigueGuard,
+    continuity.affectiveOverreachRisk,
     continuity.relationship,
     continuity.emotion,
     continuity.hostEmotionLabel,
@@ -1319,6 +1359,7 @@ function deriveHumanlikeMemoryRecallTriggeredIntent(input: {
   ].filter(Boolean).join(' ').toLowerCase()
   const vulnerableCareTriggered = /rest-protective|vulnerable-care|care-before-analysis|lighter companionship|stay nearby gently|fragile|overloaded|轻一点|先陪|不要分析太多/u.test(relationshipText)
   const relationshipTriggered = /same-person|same person|same-her|持续的人|持续性|同一个人|人格连续|continuity|relationship|host corrected|host correction|corrected memory meaning|不是催进度|not pushing for a progress recap|纠正/u.test(relationshipText)
+    || Boolean(continuity.affectiveResidueKind || continuity.affectiveCadenceMode)
     || vulnerableCareTriggered
   if (!relationshipTriggered)
     return null

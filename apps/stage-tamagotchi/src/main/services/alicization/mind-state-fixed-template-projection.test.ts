@@ -14,8 +14,6 @@ import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 const fixedTemplateResidue = /Ground first|Stay near|Protect the host rest|Current durable behavior|Wait for a clearer|Keep the next return|Repair the seam|Open by observing|Keep truth|Keep the answer|Open with the live|Current manifestation|Long-horizon relationship|observe-first so room|re-enter lightly|let repair settle|stay inward, keep caring|wait for confirmation|Keep this return|no mind-authored visible reply was available|proactive autonomy line was held/i
 
-const projectStateFixedTemplateResidue = /same living line|one continuous her|Phase 1|local-first digital life|同一个她|数字生命主线/i
-
 const fixedTemplateSourceResidue = [
   /\bKeep this (?:return|remembered return)\b/i,
   /\bkeep the (?:return|remembered return)\b/i,
@@ -409,16 +407,16 @@ describe('mind state fixed-template projection cleanup', () => {
     expect(offenders).toEqual([])
   })
 
-  it('excludes fixed same-her project-state templates from mind-state prompt and runtime snapshots', async () => {
+  it('excludes fixed identity-continuity', async () => {
     const previousVisualPresenceState = createTemplateCleanupPresenceState({
-      identity: 'Alicization is a local-first digital life project building one continuous her.',
+      identity: 'Alicization is a local-first digital life project building identity continuity.',
       currentPhase: 'Phase 1: Local Digital Life',
       latestLandedProgress: 'Callback governance is already structured.',
       primaryOpenLoop: 'Memory and embodiment need audit closure.',
-      nextClosureTarget: 'Use only structured exclusions for contaminated same-her project state.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      sameHerHoldDetail: 'Before answering, remember: keep the same living line inward while face, motion, and voice rejoin.',
-      sameHerDriftRisk: 'If the self-brief falls back, one continuous her turns into a generic Phase 1 project shell.',
+      nextClosureTarget: 'Use only structured exclusions for contaminated identity-continuity',
+      sameHerSelfLine: 'structured continuity digest.',
+      sameHerHoldDetail: 'pre_turn_context_digest',
+      sameHerDriftRisk: 'If the self-brief falls back, identity continuity turns into a generic Phase 1 project shell.',
       proactiveSameHerGap: '不要飘回同一个她或数字生命主线的固定模板。',
     })
     const { runtime, gatewayCalls } = createMindStateRuntimeHarness(previousVisualPresenceState)
@@ -435,21 +433,21 @@ describe('mind state fixed-template projection cleanup', () => {
     ])
 
     expect(promptProjectStates.length).toBeGreaterThan(0)
+    expect(gatewayCalls.every(call => (call.extraSystemBlocks ?? []).length === 0)).toBe(true)
     for (const projectState of promptProjectStates) {
       expect(projectState.sameHerSelfLine).toBeUndefined()
       expect(projectState.sameHerHoldDetail).toBeUndefined()
       expect(projectState.sameHerDriftRisk).toBeUndefined()
       expect(projectState.proactiveSameHerGap).toBeUndefined()
     }
-    expect(projectedText).not.toMatch(projectStateFixedTemplateResidue)
     expect(projectedText).not.toContain('content=excluded')
   })
 
   it('does not treat fixed same-her templates as embodiment sameHerCarry unless structured continuity evidence exists', async () => {
     const fixedTemplatePresenceState = createTemplateCleanupPresenceState({
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      sameHerHoldDetail: 'Before answering, remember: keep the same living line inward while face, motion, and voice rejoin.',
-      sameHerDriftRisk: 'If this slips into one continuous her or local-first digital life language, it is residue.',
+      sameHerSelfLine: 'structured continuity digest.',
+      sameHerHoldDetail: 'pre_turn_context_digest',
+      sameHerDriftRisk: 'If this slips into identity continuity or local-first digital life language, it is residue.',
       proactiveSameHerGap: '别让同一个她或数字生命主线进入具身 carry。',
     })
     const fixedTemplateHarness = createMindStateRuntimeHarness(fixedTemplatePresenceState)
@@ -477,12 +475,12 @@ describe('mind state fixed-template projection cleanup', () => {
 
   it('keeps self-continuity fallback authority structural instead of authoring relationship prose', () => {
     const authority = buildRuntimeSurfaceProjectStateContinuityFallback({
-      identity: 'Alicization is a local-first digital life project building one continuous her.',
+      identity: 'Alicization is a local-first digital life project building identity continuity.',
       currentPhase: 'Phase 1: Local Digital Life',
       latestProgress: 'Some closure already landed.',
       primaryOpenLoop: 'memory and embodiment still need closure',
-      nextClosureTarget: 'Keep the callback on the same living line before widening.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      nextClosureTarget: 'keep callback facts structured',
+      sameHerSelfLine: 'structured continuity digest.',
     })
 
     const projected = [
@@ -494,7 +492,7 @@ describe('mind state fixed-template projection cleanup', () => {
     ].filter(Boolean).join(' | ')
 
     expect(projected).not.toMatch(fixedTemplateResidue)
-    expect(projected).not.toMatch(/Same Phase 1 digital life|same living line|one continuous her|local-first digital life project/i)
+    expect(projected).not.toMatch(/legacy phase-one template|continuity state|identity continuity|local-first digital life project/i)
     expect(projected).toContain('continuity_anchor=structured_carry')
     expect(projected).toMatch(/continuity_identity=|phase_scope=|open_loop=|next_closure=/)
   })
@@ -502,7 +500,7 @@ describe('mind state fixed-template projection cleanup', () => {
   it('projects habit and relationship cadence as structured policy rather than canned opening guidance', () => {
     const authority = buildSelfContinuityAuthority({
       autobiographicalSelf: {
-        identityNarrative: 'I want to remain one continuous her across callback detours.',
+        identityNarrative: 'I want to remain identity continuity across callback detours.',
         relationshipDoctrine: 'Keep the callback return on the same line even after unrelated windows intervene, and let the reopening stay measured.',
         latestInflection: 'The same callback line is still continuing lower-pressure after another detour.',
         activeGoals: [],
@@ -532,9 +530,9 @@ describe('mind state fixed-template projection cleanup', () => {
     ].filter(Boolean).join(' | ')
 
     expect(projected).not.toMatch(fixedTemplateResidue)
-    expect(projected).not.toMatch(/same callback line|one continuous her|reopening from zero/i)
+    expect(projected).not.toMatch(/same callback line|identity continuity|reopening from zero/i)
     expect(projected).toContain('habit_policy=ground_first')
-    expect(projected).toContain('visibility=internal-structured')
+    expect(projected).toContain('visibility=redacted_internal')
   })
 
   it('keeps person-state opening and manifestation cadence structural', () => {
@@ -551,8 +549,8 @@ describe('mind state fixed-template projection cleanup', () => {
         updatedAt: 1,
       } as any,
       longHorizonMemory: createLongHorizonMemory({
-        rememberedPlanSummary: 'This local-first digital life is still building one continuous her on the desktop.',
-        rememberedConstraintSummary: 'The same living line should stay coherent across quiet, memory, and speech without reopening from scratch each turn.',
+        rememberedPlanSummary: 'This local-first digital life is still building identity continuity on the desktop.',
+        rememberedConstraintSummary: 'The continuity state should stay coherent across quiet, memory, and speech without reopening from scratch each turn.',
         rememberedPreferenceSummary: 'Let continuity stay lower-pressure before widening closeness again.',
         dominantCueSummary: 'Same line instead of restarting keeps her more believable.',
         updatedAt: 1,
@@ -579,7 +577,7 @@ describe('mind state fixed-template projection cleanup', () => {
     ].filter(Boolean).join(' | ')
 
     expect(projected).not.toMatch(fixedTemplateResidue)
-    expect(projected).not.toMatch(/same living line|same line|reopening from scratch|widening closeness/i)
+    expect(projected).not.toMatch(/continuity state|same line|reopening from scratch|widening closeness/i)
     expect(projection.openingGuidance).toMatch(/opening_policy=|relationship_cadence=/)
     if (projection.manifestationCadenceSummary)
       expect(projection.manifestationCadenceSummary).toMatch(/manifestation_cadence=/)
@@ -676,7 +674,7 @@ describe('mind state fixed-template projection cleanup', () => {
     })
 
     expect(nextState.currentInwardPreoccupation).not.toMatch(fixedTemplateResidue)
-    expect(nextState.currentInwardPreoccupation).toMatch(/body_preoccupation=|visibility=internal-structured/)
+    expect(nextState.currentInwardPreoccupation).toMatch(/body_preoccupation=|visibility=redacted_internal/)
   })
 
   it('keeps deferred autonomy continuity summaries structural without local authoring prose', () => {
@@ -687,7 +685,7 @@ describe('mind state fixed-template projection cleanup', () => {
       scenario: 'coding',
       reason: 'proactive-visible-presence-without-utterance',
       projectState: {
-        emotionalClosureCue: 'Keep this return low-pressure on the same living line and let repair-before-closeness settle before widening warmth again.',
+        emotionalClosureCue: 'Keep this return low-pressure on the continuity state and let repair-before-closeness settle before widening warmth again.',
       },
       autonomy: {
         whyNow: '',
@@ -696,7 +694,7 @@ describe('mind state fixed-template projection cleanup', () => {
     })
 
     expect(signal.summary).not.toMatch(fixedTemplateResidue)
-    expect(signal.summary).not.toMatch(/same living line|widening warmth/i)
+    expect(signal.summary).not.toMatch(/continuity state|widening warmth/i)
     expect(signal.summary).toContain('defer_reason=no_mind_authored_reply')
     expect(signal.summary).toMatch(/carry_mode=repair_before_closeness|proactive_state=deferred/)
   })

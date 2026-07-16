@@ -424,7 +424,7 @@ describe('performance visualizer self evolution baseline quality', () => {
     })
   })
 
-  it('trusts a baseline when same-her continuity governance has been freshly re-confirmed without unresolved signals', () => {
+  it('trusts a baseline when identity-continuity', () => {
     expect(buildSelfEvolutionBaselineQuality({
       latestSnapshot: {
         version: 'self-evolution-focus-snapshot/v1',
@@ -475,9 +475,9 @@ describe('performance visualizer self evolution baseline quality', () => {
       ],
       repairOutcome: {
         closureChanged: true,
-        improvedSignals: ['same-her continuity governance re-confirmed by fresh validation snapshot'],
+        improvedSignals: ['identity-continuity'],
         unresolvedSignals: [],
-        summaryLine: 'Same-her continuity governance was re-confirmed.',
+        summaryLine: 'identity-continuity',
         detailLine: 'The new snapshot still holds remembered familiarity as memory-first and keeps bounded growth inside the same-her room.',
       },
       repairClosure: {
@@ -963,7 +963,7 @@ describe('performance visualizer self evolution baseline quality', () => {
     })
   })
 
-  it('keeps quieter surviving-lane baseline support explicit when only face, lipsync, and voice still carry the same-her segment', () => {
+  it('keeps quieter surviving-lane baseline support explicit when only face, lipsync, and voice still carry the identity-continuity', () => {
     expect(buildSelfEvolutionBaselineQuality({
       latestSnapshot: {
         version: 'self-evolution-focus-snapshot/v1',
@@ -1035,7 +1035,7 @@ describe('performance visualizer self evolution baseline quality', () => {
       supportingLines: [
         '最新快照时间 1915 晚于上一张锚点 1835。',
         '修复闭环已经关闭，且不存在残留的反复漂移信号。',
-        '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。',
+        '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       ],
     })
   })

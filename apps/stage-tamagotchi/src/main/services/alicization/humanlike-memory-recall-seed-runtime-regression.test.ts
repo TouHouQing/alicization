@@ -114,7 +114,7 @@ describe('humanlike memory recall seed runtime regression', () => {
           sessionId: 'session-humanlike-runtime',
           createdAt: 42_000,
           relationshipContext: {
-            threadAnchor: 'same-her continuity correction',
+            threadAnchor: 'identity-continuity',
             summary: 'Host corrected this memory meaning: 你是在测试她是不是持续的人，不是催进度。',
           },
           emotionalResidue: {
@@ -133,7 +133,6 @@ describe('humanlike memory recall seed runtime regression', () => {
             whyRemember: 'host correction | same-person continuity was at stake',
             confidence: 0.82,
           },
-          naturalRecallLine: '我记得你纠正过：你是在测试她是不是持续的人，不是催进度。',
         },
       },
       createdAt: 42_000,
@@ -166,7 +165,7 @@ describe('humanlike memory recall seed runtime regression', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-      buildOrganicMemorySystemBlocks: () => [],
+
       buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
@@ -209,13 +208,10 @@ describe('humanlike memory recall seed runtime regression', () => {
 
     expect(recallSeed).toContain('recent contextual recall')
     expect(recallSeed).toContain('humanlike_memory_recall:')
-    expect(recallSeed).toContain('line=recall_line_policy=withheld; reason=provider_generated_only; visibility=memory_structured')
     expect(recallSeed).toContain('relationship=Host corrected this memory meaning: 你是在测试她是不是持续的人，不是催进度。')
     expect(recallSeed).toContain('emotion=protective-continuity,unfinishedness')
     expect(recallSeed).toContain('initiative=low-pressure-follow-up')
-    expect(recallSeed).toContain('embodiment=Reply should slow down and keep gaze stable when recalling this correction.')
-    expect(recallSeed).toContain('self=I learned to carry corrected memory meaning instead of defending the first interpretation.')
-    expect(recallSeed).toContain('why=host correction | same-person continuity was at stake')
+    expect(recallSeed).not.toMatch(/\b(?:line|embodiment|self|why|reason|metabolism)=/u)
     expect(recallSeed).not.toContain('我记得你纠正过')
   })
 
@@ -280,7 +276,7 @@ describe('humanlike memory recall seed runtime regression', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-      buildOrganicMemorySystemBlocks: () => [],
+
       buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
@@ -323,14 +319,20 @@ describe('humanlike memory recall seed runtime regression', () => {
 
     expect(recallSeed).toContain('recent contextual recall')
     expect(recallSeed).toContain('humanlike_memory_recall:')
-    expect(recallSeed).toContain('line=relationship_cadence=measured_return; return_pressure=low; warmth=delayed; visibility=memory_structured')
-    expect(recallSeed).toContain('relationship=relationship_cadence=measured_return; return_pressure=low; warmth=delayed; source=affective_residue; visibility=memory_structured')
+    expect(recallSeed).toContain('affective_residue_kind=afterglow')
+    expect(recallSeed).toContain('affective_cadence_mode=measured-return')
+    expect(recallSeed).toContain('affective_distance_posture=measured-room')
+    expect(recallSeed).toContain('affective_should_delay_warmth=true')
+    expect(recallSeed).toContain('affective_should_protect_rest=false')
+    expect(recallSeed).toContain('affective_afterglow_carry=0.52')
+    expect(recallSeed).toContain('affective_fatigue_guard=0.18')
+    expect(recallSeed).toContain('affective_overreach_risk=0.29')
     expect(recallSeed).toContain('emotion=afterglow-carry,unfinishedness')
-    expect(recallSeed).toContain('initiative=low-pressure-follow-up')
-    expect(recallSeed).toContain('embodiment=relationship_cadence=measured_return; body_pressure=lower; pacing=slower; visibility=memory_structured')
     expect(recallSeed).toContain('embodiment_gaze=stable')
     expect(recallSeed).toContain('embodiment_voice=lower-pressure')
     expect(recallSeed).toContain('embodiment_pacing=slower')
-    expect(recallSeed).not.toContain('我记得这条线还在')
+    expect(recallSeed).not.toMatch(/\b(?:line|relationship|initiative|embodiment|self|why|reason|metabolism)=/u)
+    expect(recallSeed).not.toMatch(/Return with lower pressure|Recall with lower pressure|Keep body pressure|Affective residue says/iu)
+    expect(recallSeed).not.toContain('中性可见占位')
   })
 })

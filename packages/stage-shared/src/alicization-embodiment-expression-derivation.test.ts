@@ -152,7 +152,7 @@ describe('alicization embodiment expression derivation', () => {
     }
   })
 
-  it('keeps audible same-her rejoin softer even when residentMode is no longer explicitly restrained but the same living line is still structurally carried', () => {
+  it('keeps audible same-her rejoin softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
     const genericRendererHints = {
       residentMode: 'dialogue',
       preferredBlinkCadence: 'linger',
@@ -202,7 +202,7 @@ describe('alicization embodiment expression derivation', () => {
     expect(audibleSameHerMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
   })
 
-  it('keeps coordinator-style freeform same-her body+voice-only carry softer even when residentMode is no longer explicitly restrained but the same living line is still structurally carried', () => {
+  it('keeps coordinator-style freeform same-her body+voice-only carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
     const genericRendererHints = {
       residentMode: 'dialogue',
       preferredBlinkCadence: 'linger',
@@ -252,7 +252,7 @@ describe('alicization embodiment expression derivation', () => {
     expect(audibleSameHerMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
   })
 
-  it('keeps still-voiced face-line carry softer even when residentMode is no longer explicitly restrained but the same living line is still structurally carried', () => {
+  it('keeps still-voiced face-line carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
     const genericRendererHints = {
       residentMode: 'dialogue',
       preferredBlinkCadence: 'linger',
@@ -301,7 +301,7 @@ describe('alicization embodiment expression derivation', () => {
     expect(stillVoicedFaceMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
   })
 
-  it('keeps signature-only still-voiced motion-line carry softer even when residentMode is no longer explicitly restrained but the same living line is still structurally carried', () => {
+  it('keeps signature-only still-voiced motion-line carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
     const genericRendererHints = {
       residentMode: 'dialogue',
       preferredBlinkCadence: 'linger',
@@ -365,7 +365,7 @@ describe('alicization embodiment expression derivation', () => {
     expect(stillVoicedMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
   })
 
-  it('keeps quieter body+lipsync-only carry softer even when residentMode is no longer explicitly restrained but the same living line is still structurally carried', () => {
+  it('keeps quieter body+lipsync-only carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
     const genericRendererHints = {
       residentMode: 'dialogue',
       preferredBlinkCadence: 'linger',
@@ -414,7 +414,7 @@ describe('alicization embodiment expression derivation', () => {
     expect(bodyLipsyncMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
   })
 
-  it('keeps quieter face+lipsync-only and motion+lipsync-only carry softer even when residentMode is no longer explicitly restrained but the same living line is still structurally carried', () => {
+  it('keeps quieter face+lipsync-only and motion+lipsync-only carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
     const genericRendererHints = {
       residentMode: 'dialogue',
       preferredBlinkCadence: 'linger',

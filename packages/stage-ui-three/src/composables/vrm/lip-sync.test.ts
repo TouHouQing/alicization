@@ -111,7 +111,7 @@ describe('vrm lip sync', () => {
     }
   })
 
-  it('publishes vrm mouth execution segment proof while the same living line is active', () => {
+  it('publishes vrm mouth execution segment proof while the continuity state is active', () => {
     const speech = createSpeechRenderState()
     const lipSync = useVRMLipSync(speech)
 

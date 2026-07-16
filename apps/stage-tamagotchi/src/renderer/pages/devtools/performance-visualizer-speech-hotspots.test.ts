@@ -266,7 +266,7 @@ describe('performance visualizer speech hotspots', () => {
     ])
   })
 
-  it('keeps a thin measured-return same-her line visible in outer speech hotspots instead of collapsing it into lane-only drift', () => {
+  it('keeps a thin measured-return identity-continuity', () => {
     const hotspots = buildSpeechAuthorityHotspots(
       [
         {
@@ -302,8 +302,8 @@ describe('performance visualizer speech hotspots', () => {
           authorityMatchedDrivers: ['lipsync'],
           authorityMatchedSources: ['prosody-authority'],
           authorityMismatchSummary: 'face-mismatch, motion-mismatch',
-          authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
-          authorityMismatchDisplay: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+          authorityMismatchReasonSummary: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
+          authorityMismatchDisplay: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
           voiceSummary: 'n/a',
           topVisemeSummary: 'n/a',
           cueSummary: 'n/a',
@@ -337,7 +337,7 @@ describe('performance visualizer speech hotspots', () => {
       {
         key: 'authority-mismatch',
         label: '权威漂移',
-        value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+        value: 'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
       },
       {
         key: 'settle-authority',
@@ -478,7 +478,7 @@ describe('performance visualizer speech hotspots', () => {
     })
   })
 
-  it('preserves body-carried same-her lane truth when trace segment binding lags behind the richer speech authority summary', () => {
+  it('preserves body-carried identity-continuity', () => {
     const hotspots = buildSpeechAuthorityHotspots(
       [
         {
@@ -894,7 +894,7 @@ describe('performance visualizer speech hotspots', () => {
       [
         {
           cueId: 'segment-invited-hotspot-1',
-          cueText: '我还在，只是轻一点接回来。',
+          cueText: '我还在，只是中性可见占位。',
           surfaces: ['vrm'],
           lanes: ['expression', 'motion', 'lipsync'],
           aligned: true,
@@ -934,7 +934,7 @@ describe('performance visualizer speech hotspots', () => {
       [
         {
           cueId: 'segment-invited-hotspot-1',
-          cueText: '我还在，只是轻一点接回来。',
+          cueText: '我还在，只是中性可见占位。',
           driftStatus: 'all-aligned',
           aligned: true,
           authorityRendererTarget: 'vrm',
@@ -2740,7 +2740,7 @@ describe('performance visualizer speech hotspots', () => {
     expect(hotspots[0]?.traceSummary?.cueId).toBe('segment-current-authority')
   })
 
-  it('keeps body-backed same-her continuity visible in hotspots when the shared segment is now carried by the body line', () => {
+  it('keeps body-backed identity-continuity', () => {
     const hotspots = buildSpeechAuthorityHotspots(
       [
         {
@@ -2845,7 +2845,7 @@ describe('performance visualizer speech hotspots', () => {
     ]))
   })
 
-  it('surfaces embodiment closure stage as a top-level hotspot field when audible body continuity is the active same-her closure phase', () => {
+  it('surfaces embodiment closure stage as a top-level hotspot field when audible body continuity is the active identity-continuity', () => {
     const hotspots = buildSpeechAuthorityHotspots(
       [
         {
@@ -3539,7 +3539,7 @@ describe('performance visualizer speech hotspots', () => {
         recentDrivingEvent: {
           kind: 'dialogue-interrupted',
           decisionTraceId: 'mind:interrupt-callback-line:1',
-          summary: '打断以后还是沿着同一条 callback 线轻一点接回来。',
+          summary: '打断以后还是沿着同一条 callback 线中性可见占位。',
           createdAt: 4200,
         },
         recentDrivingTraceRecord: {
@@ -3641,7 +3641,7 @@ describe('performance visualizer speech hotspots', () => {
       decisionTraceId: 'mind:interrupt-callback-line:1',
       finalSurfacePolicy: 'same-thread-continuation',
       closureState: 'same-her-carry',
-      latestEventSummary: '打断以后还是沿着同一条 callback 线轻一点接回来。',
+      latestEventSummary: '打断以后还是沿着同一条 callback 线中性可见占位。',
       segmentBinding: expect.objectContaining({
         matched: true,
         rendererTarget: 'live2d',

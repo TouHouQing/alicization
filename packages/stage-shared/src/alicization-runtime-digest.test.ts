@@ -5,11 +5,11 @@ import { normalizeAlicizationRuntimeDigest } from './alicization-transport-contr
 const fixedTemplateResiduePattern = new RegExp([
   'Before (?:answering|speaking|acting)',
   'Right now I am',
-  'Same Phase 1 digital life',
+  'legacy phase-one template',
   'same-her',
-  'same living line',
+  'continuity state',
   'one living her',
-  'one continuous her',
+  'identity continuity',
   'host computer',
   'better chat wrapper',
   '同一个她',
@@ -56,8 +56,8 @@ describe('alicization-runtime-digest transport normalization', () => {
         summary: 'phase=integrate | handoff=active-memory | continuity-arc=hold-for-opening',
       },
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
-        sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the host-visible reply.',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
+        sameHerSelfLine: 'Keep identity continuity explicit from self-understanding into the host-visible reply.',
         continuityArcStage: 'hold-for-opening',
         continuityPreferredTiming: 'next-open-window',
       },
@@ -78,9 +78,9 @@ describe('alicization-runtime-digest transport normalization', () => {
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-memory',
       projectState: {
-        identity: 'project_state_owner=ProjectStateGovernance',
+        identity: 'project_state_scope=visible_governance',
         currentPhase: 'runtime_context=local_runtime',
-        sameHerSelfLine: 'continuity_owner=project_state_governance',
+        sameHerSelfLine: 'continuity_context=present',
         continuityRestraint: 'rest-protective',
         continuityArcStage: 'same-thread-continuation',
         continuityPreferredTiming: 'next-open-window',
@@ -93,9 +93,9 @@ describe('alicization-runtime-digest transport normalization', () => {
       summary: 'dominant=active-memory | restraint=rest-protective',
     })
 
-    expect(digest?.projectState?.identity).toBe('project_state_owner=ProjectStateGovernance')
+    expect(digest?.projectState?.identity).toBe('project_state_scope=visible_governance')
     expect(digest?.projectState?.currentPhase).toBe('runtime_context=local_runtime')
-    expect(digest?.projectState?.sameHerSelfLine).toBe('continuity_owner=project_state_governance')
+    expect(digest?.projectState?.sameHerSelfLine).toBe('continuity_context=present')
     expect(digest?.projectState?.continuityRestraint).toBe('rest-protective')
     expect(digest?.projectState?.continuityCadence).toBe('rest-protective')
     expect(digest?.projectState?.continuityCue).toBe('continuity_cue=project-state-carry')
@@ -110,20 +110,20 @@ describe('alicization-runtime-digest transport normalization', () => {
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-memory',
       projectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous her.',
+        identity: 'Alicization is a local-first digital life project building identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory, initiative, and embodiment still need stronger same-her closure',
-        preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory, initiative, and embodiment still need stronger identity-continuity',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
         latestLandedProgress: 'Project-state continuity already survives into runtime preparation before visible reply authoring.',
         memoryClosureSummary: 'Project-state continuity already survives into runtime preparation before visible reply authoring.',
         primaryOpenLoop: 'memory, initiative, and embodiment review still needs closure.',
         nextClosureTarget: 'keep closure evidence structured before the visible reply forms.',
-        sameHerSelfLine: 'Keep one continuous her explicit from self-understanding into the host-visible reply.',
+        sameHerSelfLine: 'Keep identity continuity explicit from self-understanding into the host-visible reply.',
         sameHerDriftRisk: 'If the answer collapses back into generic project narration, treat that as unfinished same-her drift.',
         continuityArcStage: 'same-thread-continuation',
         continuityPreferredTiming: 'next-open-window',
       },
-      emotionalClosureCue: 'same-her closure seam: keep the return low-pressure while the same living line is still settling.',
+      emotionalClosureCue: 'identity-continuity',
       summary: 'dominant=active-memory | project-awareness=pre-dialogue-grounded',
     })
 

@@ -256,7 +256,7 @@ export function buildDialogueFocusGovernance(input: {
       `subject:${subject}`,
       `screen:${screenReferenceMode}`,
       input.ownership ? 'ownership-ssot' : '',
-      shouldPreferProjectStateSelfContinuity ? 'project-state-same-her-continuity' : '',
+      shouldPreferProjectStateSelfContinuity ? 'project-state-continuity' : '',
       sceneBoundTurn ? 'scene-bound' : '',
       detachedTurn ? 'scene-detached' : '',
       inspectionOwnedTurn ? 'inspection-owned-turn' : '',

@@ -96,8 +96,8 @@ export const useAlicizationHumanlikeMemoryAuditStore = defineStore('alicization-
       return
     correctionDraft.value = {
       candidateId: entry.id,
-      field: entry.userCorrectableFields[0] ?? 'naturalRecallLine',
-      previousValue: entry.naturalRecallLine,
+      field: entry.userCorrectableFields[0] ?? 'relationshipContext',
+      previousValue: entry.relationshipContext,
       correctedValue: '',
       reason: '',
     }

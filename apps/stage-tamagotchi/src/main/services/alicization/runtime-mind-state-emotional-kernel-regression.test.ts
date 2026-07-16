@@ -1139,7 +1139,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
           selfContinuityAuthority: {
             selfLine: 'I should answer from the fresher current return, not from an older shell.',
             relationshipLine: 'We stay on the same quiet line by coming back lower-pressure before leaning closer again.',
-            inwardLine: 'Keep the same-her line intact before widening the answer.',
+            inwardLine: 'Keep the identity-continuity',
             motiveLine: 'Protect the same quiet continuity before closeness widens.',
           },
           openingGuidance: 'Stay on the same callback line and keep the return lower-pressure before widening.',
@@ -1361,7 +1361,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
       organicMemoryContext: {
         personStateProjection: {
           selfContinuityAuthority: {
-            selfLine: 'Stay on the same living line instead of reopening from scratch.',
+            selfLine: 'Stay on the continuity state instead of reopening from scratch.',
             relationshipLine: 'This return should stay quieter while the line is still settling.',
             inwardLine: 'Keep the same inward line steady before widening outward.',
           },

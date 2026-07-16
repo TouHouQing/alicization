@@ -457,10 +457,6 @@ describe('project awareness route authority audit', () => {
         'collectAlicizationRuntimeDialogueNormalizationFiles(',
         'resolveAlicizationRuntimeDialogueNormalizationAuditedFiles(',
       ],
-      'runtime-turn-persistence': [
-        'collectAlicizationRuntimeTurnPersistenceFiles(',
-        'resolveAlicizationRuntimeTurnPersistenceAuditedFiles(',
-      ],
     } as const
 
     const families = resolveAlicizationProjectAwarenessTopLevelCompletenessGuardFamilies()

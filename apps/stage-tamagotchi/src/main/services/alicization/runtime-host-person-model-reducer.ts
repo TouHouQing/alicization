@@ -96,11 +96,11 @@ function deriveSelfEvolutionOpeningBias(selfEvolution?: OrganicMemoryPromptConte
 
   return {
     openingGuidance: acceptedGentleContinue
-      ? 'relationship_cadence=lower_pressure; memory_led=true; silence_collapse=avoid'
-      : 'relationship_cadence=lower_pressure; closeness_widening=defer',
+      ? 'Continue gently from memory with lower pressure; do not collapse into silence.'
+      : 'Keep relationship pressure lower and defer closeness widening.',
     mustInclude: acceptedGentleContinue
-      ? 'long_horizon_relationship_timing=visible; memory_continuation=gentle; widening=defer'
-      : 'long_horizon_relationship_timing=visible; pressure=lower_before_closeness',
+      ? 'Make the long-horizon relationship timing visible as a gentle memory continuation.'
+      : 'Make the long-horizon relationship timing visible with lower pressure before closeness.',
     mustAvoid: acceptedGentleContinue
       ? 'avoid=eager_warmth_fast_widening,total_silence_after_received_opening'
       : 'avoid=eager_warmth_or_old_closeness_fast_reopen',

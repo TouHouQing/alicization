@@ -287,7 +287,7 @@ export function buildAutobiographicalEpisodesFromPreparedMirror(input: {
         emotionTags: ['afterthought', 'recollection'],
         whatChanged: 'The recollection stayed live beyond the visible reply and became carryable continuity for the next turn.',
         relationshipMeaning: projectStateBias.anthropomorphicMemoryClosureStillOpen
-          ? 'A line that keeps tugging after the reply should become lived continuity instead of being dropped, because unfinished Phase 1 closure pressure still belongs to the same living self.'
+          ? 'A line that keeps tugging after the reply should become lived continuity instead of being dropped, because unfinished local-life closure pressure still belongs to current identity evidence.'
           : 'A line that keeps tugging after the reply should become lived continuity instead of being dropped.',
         lesson: projectStateBias.anthropomorphicMemoryClosureStillOpen
           ? 'If a recollection ripens into an afterthought, carry it as autobiographical continuity into the next turn so unfinished Phase 1 closure remains part of who she is becoming.'

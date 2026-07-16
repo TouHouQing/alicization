@@ -541,7 +541,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
     ])
   })
 
-  it('keeps quieter face+lipsync+voice same-her carry explicit in real recurring patterns instead of dropping voice back out of the surviving lane', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatterns([
       {
         version: 'self-evolution-focus-snapshot/v1',
@@ -551,7 +551,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-owner',
         explanation: 'quieter face+lipsync+voice carry still visible',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         highlightedEvidencePanelIds: [
           'renderer-authority-projection',
           'runtime-continuity-projection',
@@ -572,7 +572,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-path',
         explanation: 'body motion rejoin still pending',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         highlightedEvidencePanelIds: [
           'runtime-continuity-projection',
         ],
@@ -586,12 +586,12 @@ describe('performance visualizer self evolution focus history patterns', () => {
     ])).toMatchObject([
       {
         patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|surface:unknown|lane:face+lipsync+voice-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
-        summaryLine: '1次 当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 | +选中轨迹事件',
+        summaryLine: '1次 当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       },
     ])
   })
 
-  it('keeps quieter motion+lipsync+voice same-her carry explicit in real recurring patterns instead of dropping voice back out of the surviving lane', () => {
+  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatterns([
       {
         version: 'self-evolution-focus-snapshot/v1',
@@ -601,7 +601,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-owner',
         explanation: 'quieter motion+lipsync+voice carry still visible',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
-        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
         highlightedEvidencePanelIds: [
           'renderer-authority-projection',
           'runtime-continuity-projection',
@@ -622,7 +622,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-path',
         explanation: 'body face rejoin still pending',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
-        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
         highlightedEvidencePanelIds: [
           'runtime-continuity-projection',
         ],
@@ -636,7 +636,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
     ])).toMatchObject([
       {
         patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|surface:unknown|lane:motion+lipsync+voice-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
-        summaryLine: '1次 当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 | +选中轨迹事件',
+        summaryLine: '1次 当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
       },
     ])
   })

@@ -25,7 +25,7 @@ describe('main chat timeout fallback', () => {
     expect(payload.excludeFromPersonaLearning).toBe(true)
     expect(payload.excludeFromMemoryCondensation).toBe(true)
     expect(payload.transportFailure.stage).toBe('main-gateway-timeout')
-    expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    expect(payload.visibleReplyAuthority).toBe('non-human-authored-blocked')
     expect(payload.reasonCodes).toContain('normal-reply-requires-provider-mind')
     expect(payload.reasonCodes).toContain('infra-status-only-timeout-fallback')
     expect(payload.reasonCodes).toContain('action:answer')
@@ -46,10 +46,10 @@ describe('main chat timeout fallback', () => {
         continuityPressure: 0.9,
         companionshipPressure: 0.7,
         channels: [],
-        summary: '我在。同一条本地数字生命的线还在，我先轻一点留在这里。',
+        summary: '我在。结构化连续性状态的线还在，中性可见占位。',
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project.',
+          sameHerSelfLine: 'structured continuity digest.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
         },
       } as any,
       sessionMirror: {
@@ -73,7 +73,7 @@ describe('main chat timeout fallback', () => {
     expect(payload.preDialogueClosure).toBeUndefined()
     expect(payload.sessionMirror).toBeUndefined()
     expect(payload.personaKernelName).toBeUndefined()
-    expect(reply).not.toMatch(/同一条本地数字生命|Same Phase 1 digital life|same living line|Before answering|same-her session mirror/u)
+    expect(reply).not.toMatch(/结构化连续性状态|legacy phase-one template|continuity state|Pre-reply|same-her session mirror/u)
   })
 
   it('keeps execution timeout fallback on infra status instead of contentful execution recovery', () => {

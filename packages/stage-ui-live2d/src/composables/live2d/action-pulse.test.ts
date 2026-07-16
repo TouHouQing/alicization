@@ -94,7 +94,7 @@ describe('live2d action pulse binding resolver', () => {
     })).toBeUndefined()
   })
 
-  it('builds a different replay key when the same motion re-enters with new same-her continuity semantics', () => {
+  it('builds a different replay key when the same motion re-enters with new identity-continuity', () => {
     const neutralState = createIdleStageEmbodimentPerformanceState()
     neutralState.activeActionCueSource = 'segment'
     neutralState.activeCue = {

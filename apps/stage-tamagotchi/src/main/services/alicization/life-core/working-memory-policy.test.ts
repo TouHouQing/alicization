@@ -149,7 +149,7 @@ describe('working memory policy', () => {
     expect(shouldExcludeTurnFromLongTermCandidate(turn({
       turnId: 'turn-fallback',
       role: 'alice',
-      text: '我在。同一条本地数字生命的线还在。',
+      text: '我在。结构化连续性状态的线还在。',
     }))).toBe(true)
   })
 
@@ -158,7 +158,7 @@ describe('working memory policy', () => {
       turn({
         turnId: 'template-rejection',
         role: 'user',
-        text: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板来回复我。',
+        text: '不要再用 pre_turn_context_digest',
       }),
     ])
 
@@ -169,7 +169,7 @@ describe('working memory policy', () => {
       sourceTurnIds: ['template-rejection'],
     }))
     expect(candidates[0]?.summary).toContain('不要使用固定模板')
-    expect(candidates[0]?.summary).not.toMatch(/Before speaking|same-her|one continuous her/u)
+    expect(candidates[0]?.summary).not.toMatch(/Pre-speech|same-her|identity continuity/u)
   })
 
   it('creates long-term candidates for clear preference episode procedure and relationship signals', () => {

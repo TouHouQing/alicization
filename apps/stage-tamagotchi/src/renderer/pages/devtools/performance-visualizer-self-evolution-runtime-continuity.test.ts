@@ -623,7 +623,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.reasons).toContain('Renderer authority continuity still keeps 表情命中 / 动作未命中 / 口型未知 on the same life thread, so runtime continuity can explain which embodiment lane stayed bound and which one drifted without collapsing the whole digital-life thread into a fake identity break.')
   })
 
-  it('carries a lipsync-plus-voice same-her lane from renderer authority into runtime continuity when voice is still on the active authority segment', () => {
+  it('carries a lipsync-plus-voice identity-continuity', () => {
     const projection = buildSelfEvolutionRuntimeContinuityProjection({
       rendererAuthorityProjection: {
         status: 'partial',
@@ -805,7 +805,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.reasons).toContain('Renderer authority continuity still keeps 表情未命中 / 动作未命中 / 口型命中 / 声音未命中 on the same life thread, so runtime continuity can explain which embodiment lane stayed bound and which one drifted without collapsing the whole digital-life thread into a fake identity break.')
   })
 
-  it('keeps audible body-carried same-her continuity visible in runtime continuity when body lipsync and voice still hold one living segment on VRM', () => {
+  it('keeps audible body-carried identity-continuity', () => {
     const projection = buildSelfEvolutionRuntimeContinuityProjection({
       rendererAuthorityProjection: {
         status: 'partial',
@@ -994,7 +994,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.driftingSignals).toContain('authority-lipsync:no')
   })
 
-  it('carries a body-led same-her lane from renderer authority into runtime continuity when body still holds the living segment before face and motion return', () => {
+  it('carries a body-led identity-continuity', () => {
     const projection = buildSelfEvolutionRuntimeContinuityProjection({
       rendererAuthorityProjection: {
         status: 'partial',

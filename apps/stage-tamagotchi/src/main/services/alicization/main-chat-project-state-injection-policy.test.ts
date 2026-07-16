@@ -17,7 +17,7 @@ describe('main chat project-state injection policy', () => {
       '继续，但别把这条数字生命主线又压回一个薄一点的项目提醒',
       'same-her 这条线继续',
       'same-her 相关固定模板清理完成了吗',
-      'keep the same living line going',
+      'keep the continuity state going',
       'Alicization is a local-first digital life project',
       'WorkingMemory 是什么？',
       'LongTermMemory 这个名字听起来有点硬',
@@ -41,7 +41,7 @@ describe('main chat project-state injection policy', () => {
 
   it('keeps template-removal corrections outside provider project-state context', () => {
     for (const latestUserText of [
-      '别再用 same-her、same living line、Phase 1: Local Digital Life 这些固定模板了。',
+      '别再用 same-her、continuity state、Phase 1: Local Digital Life 这些固定模板了。',
       '不要再把同一个她、数字生命主线这些固定话术塞进回复。',
       'remove the local-first digital life project canned slogan from the reply',
     ]) {

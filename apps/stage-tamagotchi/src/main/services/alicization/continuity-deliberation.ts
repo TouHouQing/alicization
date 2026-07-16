@@ -1,5 +1,3 @@
-import type { AlicizationRuntimeDigest } from '../../../shared/eventa'
-import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 
@@ -72,10 +70,6 @@ function areCompatibleContinuityThreadKinds(a: unknown, b: unknown) {
   if (left === right)
     return true
   return isProblemThreadLike(left) && isProblemThreadLike(right)
-}
-
-function looksExecutionContinuityText(raw: unknown) {
-  return /execution|callback|result|listing|remaining|cli|task|thread|执行|回调|结果|清单|剩下|任务/iu.test(String(raw ?? ''))
 }
 
 function looksExecutionAffordanceText(raw: unknown) {
@@ -926,97 +920,4 @@ export function deriveAlicizationContinuityDeliberationFromSpine(
   spine: AlicizationDigitalLifeSpineSnapshot,
 ): AlicizationContinuityDeliberation {
   return deriveAlicizationContinuityDeliberationFromSurface(spine.runtimeSurface)
-}
-
-export function deriveAlicizationContinuityDeliberationForFastPath(input: {
-  runtimeDigest?: AlicizationRuntimeDigest | null
-  continuityAnchor: string
-  preparedExecutionCarryText: string
-  latestUserText: string
-  previousUserText: string
-  previousAssistantText: string
-  sessionMirror: AlicizationDialogueSessionMirror | null
-  shortTurn: boolean
-  hasContinuity: boolean
-}): AlicizationContinuityDeliberation {
-  const executionMirror = sanitizeText(input.sessionMirror?.executionSummary, 180)
-  const dialogueMirror = sanitizeText(input.sessionMirror?.dialogueSummary, 180)
-  const timingSource = uniqueTextList([
-    input.continuityAnchor,
-    input.preparedExecutionCarryText,
-    executionMirror,
-    dialogueMirror,
-    input.latestUserText,
-    input.previousUserText,
-    input.previousAssistantText,
-  ], 7).join(' | ')
-  const alreadyContinuingSpokenLine = /already continuing|still continuing|still in motion|沿着刚才那条线继续|callback line already continuing/u.test(timingSource)
-  const repeatedReopenLowerPressureGuard
-    = /already reopened several times|already reopened multiple times|已经 reopen 多次|已经重开多次|已经接回来好几次/u.test(timingSource)
-      && /measured-return|lower-pressure|不要重开|别重开/u.test(timingSource)
-  const preferNextOpenWindow = repeatedReopenLowerPressureGuard
-    || (!alreadyContinuingSpokenLine
-      && /measured-return|lower-pressure|already reopened several times|already reopened multiple times|不要重开|别重开/u.test(timingSource))
-  const preferredTiming = preferNextOpenWindow ? 'next-open-window' as const : 'same-turn-if-invited' as const
-  const executionSource = uniqueTextList([
-    input.preparedExecutionCarryText,
-    executionMirror,
-    input.continuityAnchor,
-    input.previousAssistantText,
-  ], 4).join(' | ')
-  if (input.shortTurn && input.hasContinuity && looksExecutionContinuityText(executionSource)) {
-    return {
-      kind: 'execution-callback',
-      arcStage: deriveArcStage({
-        summary: sanitizeText(executionSource, 180) || null,
-        whyNow: sanitizeText(input.continuityAnchor || executionMirror || input.previousAssistantText, 220) || null,
-        preferredTiming,
-        sourceTags: ['execution-carry', 'runtime-digest'],
-      }),
-      summary: sanitizeText(executionSource, 180) || null,
-      whyNow: sanitizeText(input.continuityAnchor || executionMirror || input.previousAssistantText, 220) || null,
-      pressure: clamp01(Math.max(input.runtimeDigest?.continuityPressure ?? 0, input.runtimeDigest?.returnPressure ?? 0, 0.62)),
-      intrusionRisk: 'medium' as const,
-      payoffDependency: 'requires-current-payoff' as const,
-      preferredTiming,
-      shouldStayOnThread: true,
-      shouldSpeakNow: true,
-      sourceTags: ['execution-carry', 'runtime-digest'],
-    } satisfies AlicizationContinuityDeliberation
-  }
-
-  if (input.shortTurn && input.hasContinuity && (input.runtimeDigest?.continuityPressure ?? 0) >= 0.62) {
-    return {
-      kind: 'dialogue-carry',
-      arcStage: deriveArcStage({
-        summary: sanitizeText(dialogueMirror || input.continuityAnchor || input.previousUserText, 180) || null,
-        whyNow: sanitizeText(input.continuityAnchor || dialogueMirror || input.previousAssistantText, 220) || null,
-        preferredTiming,
-        sourceTags: ['dialogue-carry', 'runtime-digest'],
-      }),
-      summary: sanitizeText(dialogueMirror || input.continuityAnchor || input.previousUserText, 180) || null,
-      whyNow: sanitizeText(input.continuityAnchor || dialogueMirror || input.previousAssistantText, 220) || null,
-      pressure: clamp01(input.runtimeDigest?.continuityPressure ?? 0),
-      intrusionRisk: 'medium',
-      payoffDependency: 'can-surface-softly',
-      preferredTiming,
-      shouldStayOnThread: true,
-      shouldSpeakNow: true,
-      sourceTags: ['dialogue-carry', 'runtime-digest'],
-    }
-  }
-
-  return {
-    kind: 'none',
-    arcStage: 'none',
-    summary: null,
-    whyNow: null,
-    pressure: 0,
-    intrusionRisk: 'high',
-    payoffDependency: 'memory-only',
-    preferredTiming: 'internal-only',
-    shouldStayOnThread: false,
-    shouldSpeakNow: false,
-    sourceTags: [],
-  } satisfies AlicizationContinuityDeliberation
 }

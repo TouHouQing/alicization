@@ -213,6 +213,7 @@ import type {
   AlicizationVisibleArtifactLearningPolicy as SharedAlicizationVisibleArtifactLearningPolicy,
   AlicizationVisibleArtifactOrigin as SharedAlicizationVisibleArtifactOrigin,
   AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
+  AlicizationVisibleReplyRealizationTransportArtifact as SharedAlicizationVisibleReplyRealizationTransportArtifact,
   CharacterActionCapability as SharedCharacterActionCapability,
   CharacterFacialCapability as SharedCharacterFacialCapability,
   CharacterPerformanceCapabilitiesManifest as SharedCharacterPerformanceCapabilitiesManifest,
@@ -230,7 +231,6 @@ import type {
 } from '@proj-alicization/stage-ui-three/trace'
 
 import type { AlicizationPersonStateProjection } from '../main/services/alicization/person-state-projection'
-import type { AlicizationVisibleReplyRealizationArtifact } from '../main/services/alicization/visible-reply/realization-engine'
 
 import { defineEventa, defineInvokeEventa } from '@moeru/eventa'
 import {
@@ -1001,9 +1001,6 @@ export interface AlicizationOrganicMemorySnapshot {
     surfaceMode: 'internal-only' | 'gist-first' | 'answer-anchoring' | 'procedural-carry' | 'relationship-continuity'
     placement: 'before-payoff' | 'inside-payoff' | 'after-payoff' | 'internal-only'
     certainty: 'firm' | 'approximate' | 'fragmentary'
-    internalLead: string
-    visibleLead: string | null
-    styleNote: string
     rationale: string
     confidence: number
   } | null
@@ -3577,6 +3574,9 @@ export interface AlicizationVisibleReplyExecution {
   reason: string | null
 }
 
+export type AlicizationVisibleReplyRealizationArtifact
+  = SharedAlicizationVisibleReplyRealizationTransportArtifact
+
 export interface AlicizationChatMetaEvent {
   cardId: string
   turnId: string
@@ -3616,30 +3616,17 @@ export interface AlicizationChatMetaEvent {
 
 export interface AlicizationVisibleReplyPublicCriticSummary extends Record<string, unknown> {
   version: 'visible-reply-critic-public-summary-v1'
-  status?: string | null
-  providerMindRequired?: boolean | null
-  semanticLoopClosed?: boolean | null
+  status: 'pass' | 'blocked'
+  providerMindRequired: boolean
   reasonCodes: string[]
-  repairReasonCodes: string[]
-  mustDropCount: number
-  mustPreserveCount: number
 }
 
 export interface AlicizationVisibleReplyPublicClosureSummary extends Record<string, unknown> {
   version: 'visible-reply-closure-public-summary-v1'
-  status?: string | null
-  providerMindRequired?: boolean | null
-  semanticLoopClosed?: boolean | null
-  rewriteAttempted?: boolean | null
-  rewriteSucceeded?: boolean | null
+  status: 'approved' | 'blocked'
   reasonCodes: string[]
-  repairReasonCodes?: string[]
-  initialCriticStatus?: string | null
-  finalCriticStatus?: string | null
-  initialCriticMustPreserveCount?: number
-  initialCriticMustDropCount?: number
-  finalCriticMustPreserveCount?: number
-  finalCriticMustDropCount?: number
+  initialCriticStatus: 'pass' | 'blocked' | null
+  finalCriticStatus: 'pass' | 'blocked' | null
 }
 
 export interface AlicizationChatFinishEvent {
@@ -3650,6 +3637,7 @@ export interface AlicizationChatFinishEvent {
   learningPolicy?: SharedAlicizationVisibleArtifactLearningPolicy
   failureSurface?: SharedAlicizationChatFailureSurface | null
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
+  visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
   visibleReplyCritic?: AlicizationVisibleReplyPublicCriticSummary | null
   visibleReplyClosure?: AlicizationVisibleReplyPublicClosureSummary | null
   finishReason?: string
@@ -3677,19 +3665,6 @@ export type AlicizationChatStreamDispatchPayload
     | { eventType: 'error', body: AlicizationChatErrorEvent }
     | { eventType: 'dialogue-responded', body: AlicizationDialogueRespondedPayload }
 
-export interface AlicizationPreDialogueSendIdentity {
-  status: 'grounded' | 'partial' | 'drift'
-  summaryLine: string | null
-  companionHeadlineLine?: string | null
-  companionBriefingLine?: string | null
-  companionNextClosureLine?: string | null
-  awarenessLine?: string | null
-  emotionalClosureCue?: string | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
-  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
-  reasonPreview: string[]
-}
-
 export interface AlicizationChatStartPayload extends AlicizationCardScope {
   turnId: string
   providerId: string
@@ -3703,7 +3678,6 @@ export interface AlicizationChatStartPayload extends AlicizationCardScope {
   }>
   supportsTools?: boolean
   waitForTools?: boolean
-  preDialogueSendIdentity?: AlicizationPreDialogueSendIdentity | null
 }
 
 export type AlicizationMindTurnGovernance = SharedAlicizationMindTurnGovernance

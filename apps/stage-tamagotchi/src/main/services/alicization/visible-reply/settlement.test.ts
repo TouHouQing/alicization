@@ -1,14 +1,10 @@
-import type {
-  AlicizationSecondPassRetryInput,
-  AlicizationSecondPassRewriteResult,
-} from './second-pass-rewrite'
-
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   AlicizationVisibleReplySettlementBlockedError,
   settleAlicizationVisibleReply,
   validateAlicizationProviderMemoryUsage,
+  validateAlicizationProviderSettlementPayload,
 } from './settlement'
 
 function createPrepared() {
@@ -46,13 +42,14 @@ function createPrepared() {
   } as any
 }
 
-function createExecution() {
+function createExecution(overrides?: Partial<any>) {
   return {
     mode: 'provider-stream' as const,
     expectedVisibleReplyAuthority: 'llm-mind' as const,
     actualVisibleReplyAuthority: 'llm-mind' as const,
     providerMindExecuted: true,
     reason: 'provider-stream',
+    ...overrides,
   }
 }
 
@@ -60,6 +57,7 @@ function createProviderPayload(input?: {
   reply?: string
   workingMemoryVersion?: string
   longTermEvidenceIds?: string[]
+  extra?: Record<string, unknown>
 }) {
   return JSON.stringify({
     format: 'mind-turn-v1',
@@ -77,23 +75,8 @@ function createProviderPayload(input?: {
       workingMemoryVersion: input?.workingMemoryVersion ?? 'working-memory-owner-context-v1',
       longTermEvidenceIds: input?.longTermEvidenceIds ?? [],
     },
+    ...input?.extra,
   })
-}
-
-function createRewriteResult(fullText: string): AlicizationSecondPassRewriteResult {
-  return {
-    fullText,
-    visibleReplyExecution: {
-      mode: 'provider-one-shot',
-      expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
-      actualVisibleReplyAuthority: 'llm-second-pass-rewrite',
-      providerMindExecuted: true,
-      reason: 'visible-reply-second-pass-rewrite',
-    },
-    rewritten: true,
-    reason: 'visible-reply-second-pass-rewrite',
-    audit: null,
-  }
 }
 
 describe('visible-reply settlement', () => {
@@ -125,48 +108,114 @@ describe('visible-reply settlement', () => {
     })
   })
 
-  it('uses one typed data-only retry to repair an invalid memory claim', async () => {
+  it('fails closed on an invalid memory claim without asking another Provider response to rewrite it', async () => {
     const prepared = createPrepared()
     const invalidCandidate = createProviderPayload({
       workingMemoryVersion: 'stale-version',
       longTermEvidenceIds: ['unknown-memory'],
     })
-    const repaired = createProviderPayload({
-      reply: '修复后的答案。',
-      longTermEvidenceIds: ['memory-1'],
-    })
-    const rewriteSecondPass = vi.fn(async (
-      _input: AlicizationSecondPassRetryInput,
-    ): Promise<AlicizationSecondPassRewriteResult> => createRewriteResult(repaired))
 
-    const result = await settleAlicizationVisibleReply({
-      draft: {
-        fullText: invalidCandidate,
-        visibleReplyExecution: createExecution(),
-      },
-      prepared,
-      requireProviderMemoryUsage: true,
-      rewriteSecondPass,
-    })
+    let thrown: unknown
+    try {
+      await settleAlicizationVisibleReply({
+        draft: {
+          fullText: invalidCandidate,
+          visibleReplyExecution: createExecution(),
+        },
+        prepared,
+        requireProviderMemoryUsage: true,
+      })
+    }
+    catch (error) {
+      thrown = error
+    }
 
-    expect(result.visibleText).toBe('修复后的答案。')
-    expect(rewriteSecondPass).toHaveBeenCalledOnce()
-    expect(rewriteSecondPass.mock.calls[0]?.[0]).toEqual({
-      candidate: invalidCandidate,
-      reasonCodes: ['memory_usage_claim_invalid'],
-      prepared,
-      toolFacts: [],
+    expect(thrown).toBeInstanceOf(AlicizationVisibleReplySettlementBlockedError)
+    expect((thrown as AlicizationVisibleReplySettlementBlockedError).message).toContain(
+      'provider-memory-usage-invalid',
+    )
+    expect((thrown as AlicizationVisibleReplySettlementBlockedError).failureSurface).toMatchObject({
+      kind: 'structured-contract',
+      origin: 'failure-surface',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
     })
   })
 
-  it('keeps a valid Provider reply unchanged and does not invoke retry', async () => {
+  it.each([
+    {
+      label: 'provider mind was not executed',
+      execution: createExecution({
+        providerMindExecuted: false,
+      }),
+    },
+    {
+      label: 'local fallback authority produced the reply',
+      execution: createExecution({
+        mode: 'local-fallback',
+        actualVisibleReplyAuthority: 'local-deterministic-fallback',
+        providerMindExecuted: false,
+      }),
+    },
+  ])('fails closed when $label', async ({ execution }) => {
+    let thrown: unknown
+    try {
+      await settleAlicizationVisibleReply({
+        draft: {
+          fullText: createProviderPayload({
+            longTermEvidenceIds: ['memory-1'],
+          }),
+          visibleReplyExecution: execution,
+        },
+        prepared: createPrepared(),
+        requireProviderMemoryUsage: true,
+      })
+    }
+    catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(AlicizationVisibleReplySettlementBlockedError)
+    expect((thrown as AlicizationVisibleReplySettlementBlockedError).message).toContain(
+      'provider-visible-reply-authority-invalid',
+    )
+    expect((thrown as AlicizationVisibleReplySettlementBlockedError).failureSurface).toMatchObject({
+      origin: 'failure-surface',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+    })
+  })
+
+  it('does not synthesize performance or memory claims when the prepared owner context is missing', () => {
+    const prepared = {
+      ...createPrepared(),
+      memoryContext: null,
+    }
+    const validation = validateAlicizationProviderSettlementPayload({
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'answer directly',
+        emotion: 'neutral',
+        reply: 'Provider 原样回答。',
+      }),
+      prepared,
+    })
+
+    expect(validation.valid).toBe(false)
+    expect(validation.payload).toBeNull()
+    expect(validation.issues).toEqual(expect.arrayContaining([
+      'provider-payload-performance-invalid',
+      'provider-memory-usage-invalid',
+    ]))
+  })
+
+  it('accepts Provider-authored wording without applying a legacy template blacklist', async () => {
     const fullText = createProviderPayload({
-      reply: 'Provider 原样回答。',
+      reply: 'Same Phase 1 digital life. Some closure already landed.',
       longTermEvidenceIds: ['memory-1'],
     })
-    const rewriteSecondPass = vi.fn(async (
-      _input: AlicizationSecondPassRetryInput,
-    ): Promise<AlicizationSecondPassRewriteResult | null> => null)
 
     const result = await settleAlicizationVisibleReply({
       draft: {
@@ -175,19 +224,95 @@ describe('visible-reply settlement', () => {
       },
       prepared: createPrepared(),
       requireProviderMemoryUsage: true,
-      rewriteSecondPass,
     })
 
     expect(result.fullText).toBe(fullText)
-    expect(result.visibleText).toBe('Provider 原样回答。')
-    expect(rewriteSecondPass).not.toHaveBeenCalled()
+    expect(result.visibleText).toBe('Same Phase 1 digital life. Some closure already landed.')
   })
 
-  it('returns the structured-contract failure surface when retry cannot settle', async () => {
-    const rewriteSecondPass = vi.fn(async (
-      _input: AlicizationSecondPassRetryInput,
-    ): Promise<AlicizationSecondPassRewriteResult | null> => null)
+  it.each([
+    'parsePath',
+    'contractFailed',
+    'visibleReplyAuthority',
+    'projectState',
+    'runtimeDigest',
+    'visibleReplyRealization',
+    'visibleReplyRewriteRequest',
+  ])('rejects the extra top-level Provider field %s', (field) => {
+    const validation = validateAlicizationProviderSettlementPayload({
+      fullText: createProviderPayload({
+        longTermEvidenceIds: ['memory-1'],
+        extra: {
+          [field]: field === 'contractFailed' ? false : {},
+        },
+      }),
+      prepared: createPrepared(),
+    })
 
+    expect(validation.valid).toBe(false)
+    expect(validation.payload).toBeNull()
+    expect(validation.issues).toContain('provider-payload-fields-invalid')
+  })
+
+  it('keeps the Provider JSON byte-for-byte and exposes only an observational realization sidecar', async () => {
+    const fullText = `{
+  "memoryUsage": {
+    "longTermEvidenceIds": ["memory-1"],
+    "workingMemoryVersion": "working-memory-owner-context-v1"
+  },
+  "performance": {
+    "emphasis": 1,
+    "delivery": "firm",
+    "actionCue": null,
+    "facialCue": null,
+    "baseEmotion": "thinking"
+  },
+  "reply": "  Provider 原样回答。  ",
+  "emotion": "thinking",
+  "thought": "keep the Provider thought exactly",
+  "format": "mind-turn-v1"
+}`
+    const prepared = createPrepared()
+    prepared.mindTurnContract = {
+      emotionalClosureCue: 'rest-protective',
+      projectState: {
+        identity: 'canonical project state must stay outside Provider JSON',
+        currentPhase: 'canonical phase must stay outside Provider JSON',
+        latestLandedProgress: 'canonical landed progress',
+        primaryOpenLoop: 'canonical open loop',
+        nextClosureTarget: 'canonical next closure',
+        sameHerSelfLine: 'canonical same-her line',
+      },
+    }
+
+    const result = await settleAlicizationVisibleReply({
+      draft: {
+        fullText,
+        visibleReplyExecution: createExecution(),
+      },
+      prepared,
+      requireProviderMemoryUsage: true,
+    })
+
+    expect(result.fullText).toBe(fullText)
+    expect(JSON.parse(result.fullText)).toEqual(JSON.parse(fullText))
+    expect(result.visibleText).toBe('  Provider 原样回答。  ')
+    expect(result.realization).toMatchObject({
+      version: 'visible-reply-realization-v1',
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+      visibleText: '  Provider 原样回答。  ',
+      projectStateEvidenceStatus: 'unknown',
+      projectStateAudit: null,
+      emotionalClosureAudit: null,
+      selfAuthorityAudit: null,
+      openingEmbodimentAudit: null,
+    })
+  })
+
+  it('returns the structured-contract failure surface when validation cannot settle', async () => {
     let thrown: unknown
     try {
       await settleAlicizationVisibleReply({
@@ -196,9 +321,6 @@ describe('visible-reply settlement', () => {
           visibleReplyExecution: createExecution(),
         },
         prepared: createPrepared(),
-        forceRewrite: true,
-        forceReasonCodes: ['provider-payload-json-invalid'],
-        rewriteSecondPass,
       })
     }
     catch (error) {

@@ -327,7 +327,7 @@ export function buildDiscourseState(input: {
       `owed:${owedAction}`,
       `relation:${relationMove}`,
       `continuity:${continuityMode}`,
-      projectStateContinuityTurn ? 'project-state-same-her-continuity' : '',
+      projectStateContinuityTurn ? 'project-state-continuity' : '',
       ownership ? 'ownership-ssot' : '',
       dialogueEncounterSurface?.shouldBypassScreenRepair || dialogueFocus?.shouldBypassScreenRepair ? 'bypass-screen-repair' : '',
       unresolvedCarry ? `carry:${sanitizeDialogueSurfaceText(unresolvedCarry, 72) || sanitizeText(unresolvedCarry, 72)}` : '',

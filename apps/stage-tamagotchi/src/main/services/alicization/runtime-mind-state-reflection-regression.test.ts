@@ -35,7 +35,7 @@ describe('runtime-mind-state reflection regression', () => {
             kind: 'diff',
             confidence: 0.84,
             source: 'screen-semantic-summary',
-            summary: 'Returning to the same same-her closure seam after a temporary wobble was already revised away.',
+            summary: 'Returning to the same identity-continuity',
             matchedLabels: ['diff'],
           },
           relationship: {
@@ -105,7 +105,7 @@ describe('runtime-mind-state reflection regression', () => {
           sessionId: 'session::temporary-noise',
           sourceKind: 'maintenance',
           targetScope: 'relationship',
-          summary: 'A temporary anxious wobble about the same-her line was later superseded.',
+          summary: 'A temporary anxious wobble about the identity-continuity',
           lesson: 'Do not keep the temporary-noise reading as the current governing reflection.',
           status: 'superseded',
           confidence: 0.42,
@@ -169,7 +169,7 @@ describe('runtime-mind-state reflection regression', () => {
           kind: 'diff',
           confidence: 0.84,
           source: 'screen-semantic-summary',
-          summary: 'Returning to the same same-her closure seam after a temporary wobble was already revised away.',
+          summary: 'Returning to the same identity-continuity',
           matchedLabels: ['diff'],
         },
         relationship: {

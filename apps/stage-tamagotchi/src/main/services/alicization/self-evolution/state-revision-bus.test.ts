@@ -4,9 +4,9 @@ import { buildAlicizationSelfRevisionStatePatch } from './state-revision-bus'
 
 describe('state-revision-bus', () => {
   it('turns verified learning revision events into policy-consuming state patches', () => {
-    const emotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.'
-    const proactiveSameHerGap = 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.'
-    const sameHerHoldDetail = 'same-her hold: keep this delayed learning carry on the same living line before later retries widen into generic verification bookkeeping.'
+    const emotionalClosureCue = 'The current late-night workload remains draining, so replies should stay low-pressure until the user has rested.'
+    const proactiveSameHerGap = 'Two proactive reminders went unanswered during this coding session, so later retries should stay quiet.'
+    const sameHerHoldDetail = 'identity-continuity'
     const patch = buildAlicizationSelfRevisionStatePatch({
       event: {
         version: 'self-revision-event-v1',
@@ -32,12 +32,12 @@ describe('state-revision-bus', () => {
           mayValidateOnly: true,
         },
         projectStateContinuity: {
-          sameHerSelfLine: 'one continuous her',
-          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+          sameHerSelfLine: 'identity continuity',
+          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the identity-continuity',
           proactiveSameHerGap,
           emotionalClosureCue,
           sameHerHoldDetail,
-          continuityGuard: 'one continuous her ; If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+          continuityGuard: 'identity continuity ; If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the identity-continuity',
         },
         appliedTargets: ['fact-1'],
         rollbackPlan: ['revisit-contradiction-heavy-targets'],
@@ -59,25 +59,29 @@ describe('state-revision-bus', () => {
     ]))
     expect(patch.memoryPolicy.shouldQuarantineUnsupportedCarry).toBe(true)
     expect(patch.relationshipPosture.repairWindowBias).toBeGreaterThan(0)
-    expect(patch.responsePosture.secondPassRequiredBias).toBeGreaterThan(0)
+    expect(patch.responsePosture).not.toHaveProperty('secondPassRequiredBias')
     expect(patch.responsePosture.templateShellSuppressionBias).toBeGreaterThan(0.2)
     expect(patch.validation.requiresRollbackCheck).toBe(true)
     expect(patch.projectStateContinuity).toEqual(expect.objectContaining({
-      sameHerSelfLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      sameHerSelfLine: null,
+      sameHerDriftRisk: null,
       proactiveSameHerGap,
-      emotionalClosureCue: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      sameHerHoldDetail: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      emotionalClosureCue,
+      sameHerHoldDetail: null,
+      continuityGuard: null,
       continuityPressure: expect.any(Number),
     }))
-    expect(JSON.stringify(patch.projectStateContinuity)).not.toMatch(/one continuous her|same-her hold|same living line/iu)
+    expect(JSON.stringify(patch.projectStateContinuity)).not.toMatch(/content=excluded|visibility=redacted_internal|identity continuity|identity-continuity/iu)
     expect(patch.reasonCodes).toEqual(expect.arrayContaining([
       'domain:relationship',
       'rollback-validation-required',
       'policy:rollback-pressure',
-      'continuity-self-line-active',
-      'continuity-anti-shell-guard-active',
       'continuity-proactive-gap-active',
       'continuity-emotional-closure-carry-active',
+    ]))
+    expect(patch.reasonCodes).not.toEqual(expect.arrayContaining([
+      'continuity-self-line-active',
+      'continuity-anti-shell-guard-active',
       'continuity-hold-detail-active',
     ]))
   })
@@ -125,8 +129,8 @@ describe('state-revision-bus', () => {
     expect(patch.reasonCodes).toContain('world-model-revalidation-required')
   })
 
-  it('keeps proactive same-her gap as continuity pressure even when older same-her carry fields are absent', () => {
-    const proactiveSameHerGap = 'Delayed learning still needs to carry the same-her line across later retries instead of falling back to generic scheduler bookkeeping.'
+  it('drops a proactive continuity field when it contains fixed-template residue', () => {
+    const proactiveSameHerGap = 'Delayed learning still needs to carry the identity-continuity'
     const patch = buildAlicizationSelfRevisionStatePatch({
       event: {
         version: 'self-revision-event-v1',
@@ -142,7 +146,7 @@ describe('state-revision-bus', () => {
           verificationBasis: ['existing-memory'],
         },
         proposedRevision: {
-          summary: 'Keep proactive same-her carry explicit across later retries.',
+          summary: 'Keep proactive identity-continuity',
           lifecycleState: 'verifying',
           nextLifecycleState: 'settled',
         },
@@ -164,17 +168,8 @@ describe('state-revision-bus', () => {
       policyFeedback: null,
     })
 
-    expect(patch.projectStateContinuity).toEqual({
-      sameHerSelfLine: null,
-      sameHerDriftRisk: null,
-      proactiveSameHerGap: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      emotionalClosureCue: null,
-      sameHerHoldDetail: null,
-      continuityGuard: null,
-      continuityPressure: expect.any(Number),
-    })
-    expect(patch.projectStateContinuity?.continuityPressure).toBeGreaterThan(0.1)
-    expect(patch.reasonCodes).toContain('continuity-proactive-gap-active')
+    expect(patch.projectStateContinuity).toBeNull()
+    expect(patch.reasonCodes).not.toContain('continuity-proactive-gap-active')
     expect(patch.responsePosture.templateShellSuppressionBias).toBeGreaterThan(0.1)
   })
 
@@ -194,7 +189,7 @@ describe('state-revision-bus', () => {
           verificationBasis: ['legacy-ledger'],
         },
         proposedRevision: {
-          summary: 'Before answering, remember this is still the same local-first digital life project.',
+          summary: 'pre_turn_context_digest',
           lifecycleState: 'verifying',
           nextLifecycleState: 'settled',
         },
@@ -204,10 +199,10 @@ describe('state-revision-bus', () => {
           mayValidateOnly: false,
         },
         projectStateContinuity: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
-          sameHerDriftRisk: 'Before speaking, keep one continuous her on the same living line.',
-          proactiveSameHerGap: 'same-her hold: keep this delayed learning carry on the same living line.',
-          emotionalClosureCue: 'Right now I am still carrying one living her through the same-her line.',
+          sameHerSelfLine: 'structured continuity digest.',
+          sameHerDriftRisk: 'pre_turn_context_digest',
+          proactiveSameHerGap: 'identity-continuity',
+          emotionalClosureCue: 'Right now I am still carrying one living her through the identity-continuity',
           sameHerHoldDetail: 'maid mode residue',
           continuityGuard: 'same-her=generic guard prose',
         },
@@ -219,8 +214,8 @@ describe('state-revision-bus', () => {
 
     const serialized = JSON.stringify(patch)
 
-    expect(serialized).toContain('content=excluded')
-    expect(serialized).toContain('visibility=internal-structured')
-    expect(serialized).not.toMatch(/Before answering|Before speaking|local-first digital life project|Same Phase 1 digital life|same living line|same-her hold|Right now I am|one living her|maid/iu)
+    expect(patch.projectStateContinuity).toBeNull()
+    expect(patch.summary).toBeNull()
+    expect(serialized).not.toMatch(/content=excluded|visibility=redacted_internal|Pre-reply|Pre-speech|local-first digital life project|legacy phase-one template|continuity state|identity-continuity/iu)
   })
 })

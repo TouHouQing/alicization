@@ -67,7 +67,6 @@ import { resolveStageEmbodimentMetaAuthority, shouldDeferLive2DEmotionMotionOver
 import {
   attachEmbodimentScriptToSpeechMetadata,
   attachFallbackDialogueMetadataToSpeechMetadata,
-  attachPreDialogueSendIdentityToSpeechMetadata,
   createStageChatIntentBridge,
 } from './stage-chat-intent-bridge'
 import {
@@ -503,18 +502,10 @@ function resolveRuntimeSpeechSynthesisMetadata(input: {
   }
 }
 
-function createSpeechIntentMetadata(
-  intentSource: 'chat' | 'fallback',
-  preDialogueSendIdentity?: Parameters<typeof attachPreDialogueSendIdentityToSpeechMetadata>[1],
-): Record<string, unknown> {
+function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<string, unknown> {
   const digest = embodimentRuntime?.digitalLifeSpineDigest.value ?? null
   if (!digest) {
-    return attachPreDialogueSendIdentityToSpeechMetadata({
-      source: 'stage',
-      intentSource,
-      speechSynthesis: resolveSpeechSynthesisMetadata(),
-      runtimeDigest: runtimeDigest.value,
-    }, preDialogueSendIdentity) ?? {
+    return {
       source: 'stage',
       intentSource,
       speechSynthesis: resolveSpeechSynthesisMetadata(),
@@ -526,39 +517,7 @@ function createSpeechIntentMetadata(
   const proactive = digest.proactive
   const architecture = digest.architecture
 
-  return attachPreDialogueSendIdentityToSpeechMetadata({
-    source: 'stage',
-    intentSource,
-    generatedAt: Date.now(),
-    speechSynthesis: resolveSpeechSynthesisMetadata(),
-    digitalLifeSpine: {
-      runtime: {
-        activeThreadId: runtime.activeThreadId,
-        watchMode: runtime.watchMode,
-        dominantMode: runtime.dominantMode,
-        answerIntent: runtime.answerIntent,
-        preferredPresence: runtime.preferredPresence,
-        selectedAction: runtime.selectedAction,
-        updatedAt: runtime.updatedAt,
-      },
-      architecture: architecture
-        ? {
-            operatingMode: architecture.operatingMode,
-            dominantSystem: architecture.dominantSystem,
-          }
-        : null,
-      proactive: proactive
-        ? {
-            activeThreadId: proactive.activeThreadId,
-            selectedAction: proactive.selectedAction,
-            preferredStyle: proactive.preferredStyle,
-            confidence: proactive.confidence,
-            shouldSpeak: proactive.shouldSpeak,
-          }
-        : null,
-    },
-    runtimeDigest: runtimeDigest.value,
-  }, preDialogueSendIdentity) ?? {
+  return {
     source: 'stage',
     intentSource,
     generatedAt: Date.now(),
@@ -1527,7 +1486,7 @@ chatHookCleanups.push(onPlaybackEvent((event) => {
     playSpecialToken(event.state.item.special)
 }))
 
-chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
+chatHookCleanups.push(onBeforeMessageComposed(async (_message, _context) => {
   const prepareStartedAt = performance.now()
   speechRuntimeStore.cancelOwner(activeCardId.value, 'new-message')
   clearRuntimeEmbodimentEnvelope({ preserveTurnEnvelope: true })
@@ -1554,7 +1513,7 @@ chatHookCleanups.push(onBeforeMessageComposed(async (_message, context) => {
     ownerId: activeCardId.value,
     priority: 'normal',
     behavior: 'queue',
-    metadata: createSpeechIntentMetadata('chat', context.preDialogueSendIdentity ?? null),
+    metadata: createSpeechIntentMetadata('chat'),
   })
 }))
 

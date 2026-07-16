@@ -55,15 +55,10 @@ describe('mind-turn-contract invariants', () => {
         governingCommitment: null,
         governingInquiry: null,
         governingProject: null,
-        latestRevision: null,
-        executivePhase: null,
-        truthFrame: null,
-        mindMode: null,
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
         emotionalClosureCue: null,
-        reasons: ['The live dialogue subject governs the turn.'],
-        mustDo: ['Keep the answer current-turn governed.'],
-        mustNotDo: ['Do not expose governance labels.'],
       },
       responseSurfaceContract: {
         openingStyle: 'direct-answer',
@@ -111,7 +106,7 @@ describe('mind-turn-contract invariants', () => {
           },
         },
         governance: {
-          visibleReplyAuthority: 'governed-repair-fallback',
+          visibleReplyAuthority: 'llm-mind',
         },
       } as any,
     })

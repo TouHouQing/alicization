@@ -16,11 +16,9 @@ import { useDelayMessageQueue, useEmotionsMessageQueue } from '@proj-alicization
 import { llmInferenceEndToken } from '@proj-alicization/stage-ui/constants'
 import { EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '@proj-alicization/stage-ui/constants/emotions'
 import { playBrowserSpeechAudio } from '@proj-alicization/stage-ui/libs/speech-audio-playback'
-import { useAlicizationSelfEvolutionInspectorStore } from '@proj-alicization/stage-ui/stores/alicization-self-evolution-inspector'
 import { useAudioContext, useSpeakingStore } from '@proj-alicization/stage-ui/stores/audio'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
 import { useChatMaintenanceStore } from '@proj-alicization/stage-ui/stores/chat/maintenance'
-import { buildPreDialogueSendIdentityFromInspectorSnapshots } from '@proj-alicization/stage-ui/stores/chat/pre-dialogue-send-identity'
 import { useChatSessionStore } from '@proj-alicization/stage-ui/stores/chat/session-store'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
 import { useSpeechStore } from '@proj-alicization/stage-ui/stores/modules/speech'
@@ -61,13 +59,7 @@ const providersStore = useProvidersStore()
 const speechStore = useSpeechStore()
 const { activeSpeechProvider, activeSpeechVoice, activeSpeechModel, ssmlEnabled, pitch } = storeToRefs(speechStore)
 const consciousnessStore = useConsciousnessStore()
-const selfEvolutionInspectorStore = useAlicizationSelfEvolutionInspectorStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
-const {
-  preDialogueAwarenessSnapshot,
-  preDialogueClosureSnapshot,
-  projectStateContinuitySnapshot,
-} = storeToRefs(selfEvolutionInspectorStore)
 
 const delaysQueue = useDelayMessageQueue()
 const currentMotion = ref<{ group: string }>({ group: EmotionThinkMotionName })
@@ -138,14 +130,6 @@ const chatMessages = computed(() => {
 
 function log(line: string) {
   logLines.value = [line, ...logLines.value].slice(0, 50)
-}
-
-function buildPerformancePlaygroundPreDialogueSendIdentity() {
-  return buildPreDialogueSendIdentityFromInspectorSnapshots({
-    projectStateContinuitySnapshot: projectStateContinuitySnapshot.value,
-    preDialogueClosureSnapshot: preDialogueClosureSnapshot.value,
-    preDialogueAwarenessSnapshot: preDialogueAwarenessSnapshot.value,
-  })
 }
 
 const playbackManager = createPlaybackManager<BrowserSpeechAudioSource>({
@@ -246,7 +230,6 @@ async function sendChat() {
       model: activeChatModel.value,
       chatProvider: provider as ChatProvider,
       providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
-      preDialogueSendIdentity: buildPerformancePlaygroundPreDialogueSendIdentity(),
       ingest: chatOrchestrator.ingest,
     })
     chatInput.value = ''

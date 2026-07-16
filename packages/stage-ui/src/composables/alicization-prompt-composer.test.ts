@@ -185,8 +185,12 @@ describe('alicization prompt composer', () => {
     })
   })
 
-  it('serializes project and pre-dialogue state without reply governance prose', () => {
-    const result = composeAlicizationPromptMessages({
+  it('ignores renderer project-state and pre-dialogue governance inputs', () => {
+    const legacyInput: Parameters<typeof composeAlicizationPromptMessages>[0] & {
+      projectStateContinuitySnapshot: Record<string, unknown>
+      preDialogueAwarenessSnapshot: Record<string, unknown>
+      preDialogueClosureSnapshot: Record<string, unknown>
+    } = {
       messages: [{ role: 'user', content: '继续' }],
       soulContent: '# SOUL',
       hostName: 'Host',
@@ -213,31 +217,16 @@ describe('alicization prompt composer', () => {
         summaryLine: 'present',
         reasons: ['memory-settlement-pending'],
       },
-    })
+    }
+    const result = composeAlicizationPromptMessages(legacyInput)
 
-    expect(findFact(result.messages, 'alicization-project-state')?.data).toMatchObject({
-      identity: 'Alicization',
-      currentPhase: 'local-runtime',
-      latestLandedProgress: 'WorkingMemory now owns the current turn context.',
-      primaryOpenLoop: 'Verify long-term recall evidence.',
-      nextClosureTarget: 'Run the memory settlement test.',
-      status: 'partial',
-    })
-    expect(findFact(result.messages, 'alicization-pre-dialogue-awareness')?.data).toEqual({
-      status: 'partial',
-      summary_status: 'present',
-      reason_count: '1',
-    })
-    expect(findFact(result.messages, 'alicization-pre-dialogue-closure')?.data).toEqual({
-      status: 'partial',
-      summary_status: 'present',
-      reason_count: '1',
-    })
+    expect(findFact(result.messages, 'alicization-project-state')).toBeUndefined()
+    expect(findFact(result.messages, 'alicization-pre-dialogue-awareness')).toBeUndefined()
+    expect(findFact(result.messages, 'alicization-pre-dialogue-closure')).toBeUndefined()
+    expect(findFact(result.messages, 'alicization-pre-dialogue-continuity')).toBeUndefined()
 
     const systemText = readSystemText(result.messages)
-    expect(systemText).not.toMatch(
-      /before answering|reply posture|opening style|must-follow|same-her-first|Do not output shell openers/iu,
-    )
+    expect(systemText).not.toMatch(/WorkingMemory now owns|Verify long-term recall evidence|memory-settlement-pending/iu)
   })
 
   it('drops template-contaminated context instead of naturalizing it into a new prompt', () => {

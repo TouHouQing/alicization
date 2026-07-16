@@ -121,7 +121,7 @@ describe('runtime dialogue delivery', () => {
             residues: [{
               kind: 'afterglow',
               weight: 0.74,
-              summary: 'The proactive coding callback should reopen on the same living line.',
+              summary: 'The proactive coding callback should reopen on the continuity state.',
             }],
             dominantResidueKind: 'afterglow',
             afterglowPressure: 0.74,
@@ -138,7 +138,7 @@ describe('runtime dialogue delivery', () => {
               summary: 'Let the proactive reopen stay measured and same-line.',
             },
             sourceSignals: ['proactive-coding-window'],
-            summary: 'A measured return still belongs to the same living line.',
+            summary: 'A measured return still belongs to the continuity state.',
           },
         },
         proactive: {

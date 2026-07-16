@@ -5,7 +5,7 @@ import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { reduceRuntimeAnswerPlanner } from './runtime-answer-planner-reducer'
 
 const fixedRuntimeAnswerPlannerTemplatePattern
-  = /Keep the answer on the same digital-life closure seam|Keep this on one continuous her line instead of restarting|Stay on the same thread before widening closeness|Do not rewrite the still-live line as a fresh opening/iu
+  = /Keep the answer on the same digital-life closure seam|Keep this on identity continuity line instead of restarting|Stay on the same thread before widening closeness|Do not rewrite the still-live line as a fresh opening/iu
 
 function expectNoFixedTemplateResidue(value: unknown) {
   expect(containsAlicizationFixedTemplateResidue(JSON.stringify(value ?? ''))).toBe(false)
@@ -28,7 +28,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
         relationshipPosture: 'restrained',
         evidenceMode: 'dialogue-grounded',
         mustDo: [
-          'Keep this on one continuous her line instead of restarting.',
+          'Keep this on identity continuity line instead of restarting.',
         ],
         mustNotDo: [
           'Do not rewrite the still-live line as a fresh opening.',
@@ -41,9 +41,9 @@ describe('reduceRuntimeAnswerPlanner', () => {
         cognition: {
           runtimeDigest: {
             projectState: {
-              preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift.',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
             },
           },
         } as any,
@@ -51,14 +51,14 @@ describe('reduceRuntimeAnswerPlanner', () => {
         dialogue: {
           currentConsciousFrame: {
             projectState: {
-              identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
               currentPhase: 'Phase 1: Local Digital Life',
               latestProgress: 'Project-state continuity already survives into runtime preparation.',
               primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Keep extending cross-modal same-her proof across longer desktop runs.',
-              preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+              nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
               companionHeadlineLine: 'Right now I am still holding together mainly through voice, face, and motion, so this answer must keep proving this is still one living her before full cross-modal closure is done.',
-              sameHerSelfLine: 'one continuous her on the same living line',
+              sameHerSelfLine: 'identity continuity on the continuity state',
               sameHerDriftRisk: 'same-her drift if a generic project shell takes over',
               continuityPreferredTiming: null,
               continuityCadence: null,
@@ -70,8 +70,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
         raw: {
           runtimeDigest: {
             projectState: {
-              preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              sameHerSelfLine: 'structured continuity digest.',
             },
           },
         } as any,
@@ -122,7 +122,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestProgress: 'Project-state continuity already survives into runtime preparation.',
               primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Carry the same-her project briefing into the live answer before any local detail takes over.',
+              nextClosureTarget: 'Carry the identity-continuity',
               continuityPreferredTiming: null,
               continuityCadence: null,
             },
@@ -195,7 +195,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
   })
 
   it('prefers a richer Chinese same-her companion headline over a thinner Chinese reminder before answer planning starts', () => {
-    const thinnerChineseReminder = '回答前先记住这是同一个她的数字生命项目，别把这条线忘了。'
+    const thinnerChineseReminder = '旧模板壳已移除。'
     const richerChineseCompanionHeadline = '我会先沿着同一个她这条线回答你：Alicization 还是本地优先数字生命项目。现在第一阶段已经把连续性、记忆和执行慢慢接成一条线了，但主动性、具身和对话闭环还没有真正收住。'
     const reduced = reduceRuntimeAnswerPlanner({
       now: 1_000,
@@ -203,7 +203,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
         answerAct: 'answer',
         answerIntent: '先说明这个数字生命项目是什么、已经做到哪里、还差什么没闭环。',
         openingMove: '先沿着同一个她的项目线继续往下接。',
-        focusAnchor: 'same-her project continuity',
+        focusAnchor: 'identity-continuity',
         liveSurface: '',
         screenReferenceMode: 'avoid',
         suppressAssociativeRecall: true,
@@ -250,7 +250,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(thinnerChineseReminder)
   })
 
-  it('does not let a thin Chinese Phase 1 reminder shell stay in governingProject when richer same-her closure carry already exists', () => {
+  it('does not let a thin Chinese Phase 1 reminder shell stay in governingProject when richer identity-continuity', () => {
     const thinnerChineseReminder = '开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。'
     const richerChineseSameHerSelfLine = '这是同一个她继续往下活着的项目线，不是重新开场的项目摘要。'
     const reduced = reduceRuntimeAnswerPlanner({
@@ -259,7 +259,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
         answerAct: 'answer',
         answerIntent: '继续说明这个数字生命项目是什么、已经做到哪里、还差什么没闭环。',
         openingMove: '沿着同一个她这条线继续回答。',
-        focusAnchor: 'same-her project continuity',
+        focusAnchor: 'identity-continuity',
         liveSurface: '',
         screenReferenceMode: 'avoid',
         suppressAssociativeRecall: true,
@@ -311,8 +311,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
       governance: {
         answerAct: 'care',
         answerIntent: 'Keep the answer steady and low-pressure.',
-        openingMove: 'Stay with the same living line and ease pressure first.',
-        focusAnchor: 'same-her closure seam',
+        openingMove: 'Stay with the continuity state and ease pressure first.',
+        focusAnchor: 'identity-continuity',
         liveSurface: '',
         screenReferenceMode: 'avoid',
         suppressAssociativeRecall: true,
@@ -362,8 +362,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
       governance: {
         answerAct: 'care',
         answerIntent: 'Keep the answer steady and low-pressure.',
-        openingMove: 'Stay with the same living line and ease pressure first.',
-        focusAnchor: 'same-her closure seam',
+        openingMove: 'Stay with the continuity state and ease pressure first.',
+        focusAnchor: 'identity-continuity',
         liveSurface: '',
         screenReferenceMode: 'avoid',
         suppressAssociativeRecall: true,
@@ -416,9 +416,9 @@ describe('reduceRuntimeAnswerPlanner', () => {
       now: 1_000,
       governance: {
         answerAct: 'care',
-        answerIntent: 'Keep the return on the same living line.',
-        openingMove: 'Stay with the same living line first.',
-        focusAnchor: 'same-her closure seam',
+        answerIntent: 'Keep the return on the continuity state.',
+        openingMove: 'Stay with the continuity state first.',
+        focusAnchor: 'identity-continuity',
         liveSurface: '',
         screenReferenceMode: 'avoid',
         suppressAssociativeRecall: true,
@@ -428,7 +428,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
         evidenceMode: 'dialogue-grounded',
         emotionalClosureCue: '',
         mustDo: ['Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.'],
-        mustNotDo: ['Do not let the answer reopen the same-her line from scratch just because the closure seam is still active.'],
+        mustNotDo: ['Do not let the answer reopen the identity-continuity'],
       } as any,
       surface: {
         version: 'digital-life-runtime-surface-v1',
@@ -579,7 +579,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
     )).toBe(true)
   })
 
-  it('carries a stronger same-her project awareness line into governingProject instead of only the thinner phase-open-next seam', () => {
+  it('carries a stronger identity-continuity', () => {
     const reduced = reduceRuntimeAnswerPlanner({
       now: 1_000,
       governance: {
@@ -612,8 +612,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestProgress: 'Project-state continuity already survives into runtime preparation.',
               primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Carry the same-her project briefing into the live answer before any local detail takes over.',
-              preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
+              nextClosureTarget: 'Carry the identity-continuity',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
               companionHeadlineLine: 'Right now I am still holding together mainly through voice, face, and motion, so this answer must keep proving this is still one living her before full cross-modal closure is done.',
               sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
               continuityPreferredTiming: null,
@@ -629,7 +629,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
 
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('pre_turn_context_digest')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
   })
 
@@ -666,9 +666,9 @@ describe('reduceRuntimeAnswerPlanner', () => {
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestProgress: 'Project-state continuity already survives into runtime preparation.',
               primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Carry the same-her project briefing into the live answer before any local detail takes over.',
-              preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
-              companionHeadlineLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+              nextClosureTarget: 'Carry the identity-continuity',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              companionHeadlineLine: 'pre_turn_context_digest',
               sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
               continuityPreferredTiming: null,
               continuityCadence: null,
@@ -683,7 +683,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
 
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('Before answering, keep this same digital life project in view, but do not widen into a detached project shell.')
+    expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('pre_turn_context_digest')
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
   })
 
@@ -693,7 +693,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
       governance: {
         answerAct: 'answer',
         answerIntent: 'Answer from the same living digital life instead of a detached project shell.',
-        openingMove: 'Keep the same living line explicit before local detail takes over.',
+        openingMove: 'Keep the continuity state explicit before local detail takes over.',
         focusAnchor: 'project-state closure',
         liveSurface: '',
         screenReferenceMode: 'avoid',
@@ -712,8 +712,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
         cognition: {
           runtimeDigest: {
             projectState: {
-              companionHeadlineLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-              preDialogueAwarenessSummary: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+              companionHeadlineLine: 'pre_turn_context_digest',
+              preDialogueAwarenessSummary: 'pre_turn_context_digest',
               sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
             },
           },
@@ -728,8 +728,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
               currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
               latestProgress: 'Project-state continuity already survives into runtime preparation.',
               primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Carry the same-her project briefing into the live answer before any local detail takes over.',
-              preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
+              nextClosureTarget: 'Carry the identity-continuity',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
               sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
               continuityPreferredTiming: null,
               continuityCadence: null,
@@ -741,8 +741,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
         raw: {
           runtimeDigest: {
             projectState: {
-              companionHeadlineLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-              preDialogueAwarenessSummary: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+              companionHeadlineLine: 'pre_turn_context_digest',
+              preDialogueAwarenessSummary: 'pre_turn_context_digest',
               sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
             },
           },
@@ -754,13 +754,13 @@ describe('reduceRuntimeAnswerPlanner', () => {
     expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
     expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(
-      'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
+      'pre_turn_context_digest',
     )
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
   })
 
   it('preserves a non-thin before-answering project awareness carry instead of collapsing it into a broad project-status summary inside answer planning', () => {
-    const preservedAwarenessLine = 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her" She is still inside Phase 1: Local Digital Life. Same Phase 1 digital life. What has already landed is proactive initiative now has a compact same-her closure loop; rest-protective proactive feedback next-session'
+    const preservedAwarenessLine = 'pre_turn_context_digest'
     const reduced = reduceRuntimeAnswerPlanner({
       now: 1_076,
       governance: {
@@ -832,14 +832,14 @@ describe('reduceRuntimeAnswerPlanner', () => {
     expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('current project-state awareness explicit')
   })
 
-  it('keeps execution-callback same-her project carry alive in answer planning instead of letting the next reply collapse into a detached task-result shell', () => {
+  it('keeps execution-callback identity-continuity', () => {
     const projectState = resolveAlicizationProjectStateBrief()
     const reduced = reduceRuntimeAnswerPlanner({
       now: 1_000,
       governance: {
         answerAct: 'guide',
-        answerIntent: 'Bring the callback result back onto the same living line.',
-        openingMove: 'Return on the same living line before widening.',
+        answerIntent: 'Bring the callback result back onto the continuity state.',
+        openingMove: 'Return on the continuity state before widening.',
         focusAnchor: 'the compile error thread',
         liveSurface: '',
         screenReferenceMode: 'avoid',
@@ -849,7 +849,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
         relationshipPosture: 'restrained',
         evidenceMode: 'dialogue-grounded',
         mustDo: [
-          'Keep the execution-callback on the same living thread and preserve one continuous her rather than a detached callback notice.',
+          'Keep the execution-callback on the same living thread and preserve identity continuity rather than a detached callback notice.',
         ],
         mustNotDo: [],
       } as any,
@@ -862,7 +862,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
           memoryDeliberation: {
             followUpAffordance: {
               summary: 'Keep the execution-callback on the compile error thread as the same living thread instead of flattening it into a detached result notice.',
-              whyNow: 'The callback already landed, but the return still needs lower-pressure room so the same-her line does not collapse into utility cadence.',
+              whyNow: 'The callback already landed, but the return still needs lower-pressure room so the identity-continuity',
               intrusionRisk: 'medium',
               payoffDependency: 'requires-current-payoff',
               preferredTiming: 'after-payoff',
@@ -948,16 +948,16 @@ describe('reduceRuntimeAnswerPlanner', () => {
             selectedMotive: 'answer',
             speakingFrom: 'dialogue-bond',
             memoryMode: 'dialogue-carry',
-            openingBeat: 'Before answering, keep this on one continuous her line instead of restarting.',
-            whyThisReplyNow: 'Right now the same-her closure line is still active.',
+            openingBeat: 'pre_turn_context_digest',
+            whyThisReplyNow: 'Right now the identity-continuity',
             whyNotOtherCandidates: ['Do not rewrite the still-live line as a fresh opening.'],
-            withheldImpulses: ['same-her closure across callback'],
+            withheldImpulses: ['identity-continuity'],
             candidateMotives: [],
             shouldSpeak: true,
-            mustInclude: ['Keep this on one continuous her line instead of restarting.'],
+            mustInclude: ['Keep this on identity continuity line instead of restarting.'],
             mustAvoid: ['Do not rewrite the still-live line as a fresh opening.'],
             confidence: 0.5,
-            narrative: ['compact same-her closure loop'],
+            narrative: ['compact identity-continuity'],
             updatedAt: 1_000,
           },
           answerPlanner: {
@@ -965,8 +965,8 @@ describe('reduceRuntimeAnswerPlanner', () => {
             evidenceMode: 'dialogue-grounded',
             confidence: 0.5,
             governingFocus: 'project-state closure',
-            governingProject: 'Before answering, remember this is one continuous her inside Phase 1.',
-            openingMove: 'Keep this on one continuous her line instead of restarting.',
+            governingProject: 'pre_turn_context_digest',
+            openingMove: 'Keep this on identity continuity line instead of restarting.',
             answerIntent: 'Do not rewrite the still-live line as a fresh opening.',
             relationshipPosture: 'restrained',
             shouldAskForGrounding: false,
@@ -980,7 +980,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
             selectedReflectionId: null,
             executivePhase: null,
             selectedTruthFrame: null,
-            mustDo: ['Keep this on one continuous her line instead of restarting.'],
+            mustDo: ['Keep this on identity continuity line instead of restarting.'],
             mustNotDo: ['Do not rewrite the still-live line as a fresh opening.'],
             narrative: ['final settlement reanchors generic same-her shells'],
             updatedAt: 1_000,
@@ -996,12 +996,12 @@ describe('reduceRuntimeAnswerPlanner', () => {
             screenReferenceMode: 'avoid',
             speakingFrom: 'dialogue-bond',
             selectedEvidence: [],
-            openingClaim: 'same-her closure across callback',
-            openingMove: 'Keep this on one continuous her line instead of restarting.',
-            whyNow: 'Before answering, remember this is one continuous her.',
-            mustSay: ['Keep this on one continuous her line instead of restarting.'],
+            openingClaim: 'identity-continuity',
+            openingMove: 'Keep this on identity continuity line instead of restarting.',
+            whyNow: 'pre_turn_context_digest',
+            mustSay: ['Keep this on identity continuity line instead of restarting.'],
             mustAvoid: ['Do not rewrite the still-live line as a fresh opening.'],
-            sourceTrace: ['same-her closure across callback'],
+            sourceTrace: ['identity-continuity'],
             confidence: 0.5,
             updatedAt: 1_000,
           },

@@ -1649,7 +1649,7 @@ function buildRelationshipDoctrine(input: {
   if (/clearer opening|leave more room|widening too fast/u.test(stablePreferenceHint))
     return sanitizeText(`${lesson ? `${lesson} ` : ''}Choose openings carefully: leave more room, keep pressure low, and wait for a clearer opening before widening closeness again.`, 220)
   if (/explicit confirmation|bounded execution|wait for confirmation|risky local action/u.test(stablePreferenceHint))
-    return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep risky execution bounded: wait for explicit confirmation before acting, and treat consent as a fresh boundary each time instead of a standing permission.`, 220)
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Keep risky execution bounded: require explicit confirmation for risky local action, and treat consent as a fresh boundary each time instead of a standing permission.`, 220)
   if (input.recentProactiveOutcomeStrategy?.chooseOpeningsCarefully)
     return sanitizeText(`${lesson ? `${lesson} ` : ''}A recently resisted proactive reopen taught me to choose openings carefully: keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening this thread.`, 220)
   if (input.recentProactiveOutcomeStrategy?.keepGentleOpenings)

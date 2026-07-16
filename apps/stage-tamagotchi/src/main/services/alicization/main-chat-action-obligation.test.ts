@@ -2,7 +2,10 @@ import type { AlicizationExecutionCapabilityInquiry, AlicizationExecutionRouting
 
 import { describe, expect, it } from 'vitest'
 
-import { deriveMainChatActionObligation } from './main-chat-action-obligation'
+import {
+  buildMainChatActionObligationSystemBlock,
+  deriveMainChatActionObligation,
+} from './main-chat-action-obligation'
 
 function createCapabilityInquiry(overrides?: Partial<AlicizationExecutionCapabilityInquiry>): AlicizationExecutionCapabilityInquiry {
   return {
@@ -211,6 +214,25 @@ function createDialogueFirstRuntimeSurface() {
 }
 
 describe('main chat action obligation', () => {
+  it('serializes action authority as data without reply-writing instructions', () => {
+    const obligation: Parameters<typeof buildMainChatActionObligationSystemBlock>[0] = {
+      confidence: 0.9,
+      kind: 'execute',
+      reasonCodes: ['command-literal'],
+      routingIntent: createExplicitRoutingIntent(),
+      source: 'explicit-routing',
+      summary: 'Run the requested command.',
+    }
+
+    const block = buildMainChatActionObligationSystemBlock(obligation)
+
+    expect(JSON.parse(block)).toEqual({
+      type: 'alicization-action-obligation',
+      data: obligation,
+    })
+    expect(block).not.toMatch(/must not contradict|before speaking|This block is the turn-level action authority/iu)
+  })
+
   it('preserves explicit executor routing as execution authority', () => {
     const result = deriveMainChatActionObligation({
       userText: '帮我执行 `pnpm lint`',
@@ -644,7 +666,7 @@ describe('main chat action obligation', () => {
           dialogueEncounter: {
             ...createTaskRuntimeSurface().dialogue.dialogueEncounter,
             shouldAskClarifyingQuestion: true,
-            summary: 'Clarify the target seam before acting.',
+            summary: 'Clarify the target seam before action.',
           },
         },
       } as any,
@@ -695,7 +717,7 @@ describe('main chat action obligation', () => {
       consciousNeed: 'Keep the answer on one same-her digital-life line.',
       consciousTension: 'Do not let the turn flatten into a detached project-summary voice.',
       speakingIntention: 'Keep the answer on one same-her digital-life line instead of default helpful project-summary narration.',
-      focusAnchor: 'same-her project status',
+      focusAnchor: 'identity-continuity',
       withheldImpulse: null,
       shouldWithholdSpecificity: false,
       shouldSelfRevise: false,
@@ -763,7 +785,7 @@ describe('main chat action obligation', () => {
     expect(result.reasonCodes).toContain('affirmed-pending-execution-proposal')
   })
 
-  it('keeps richer phase-1 same-her project continuity in continue-task summaries when the host asks to continue the same thread', () => {
+  it('keeps concrete continuation facts without restoring a phase-one reply template', () => {
     const runtimeSurface = createTaskRuntimeSurface()
     runtimeSurface.dialogue.dialogueEncounter = {
       ...runtimeSurface.dialogue.dialogueEncounter,
@@ -796,7 +818,7 @@ describe('main chat action obligation', () => {
         latestProgress: 'Pre-dialogue project awareness and callback continuity are landing together more reliably.',
         primaryOpenLoop: 'Initiative and embodiment still need stronger same-life closure across longer callback turns.',
         nextClosureTarget: 'Keep project identity, landed progress, and open closure explicit before each outward reply.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
       },
       updatedAt: 24,
     } as any
@@ -808,14 +830,15 @@ describe('main chat action obligation', () => {
     })
 
     expect(result.kind).toBe('continue-task')
-    expect(result.summary).toContain('Same Phase 1 digital life')
     expect(result.summary).toContain('Initiative and embodiment still need stronger same-life closure')
+    expect(result.summary).toContain('Extend embodiment-scale validation')
     expect(result.summary).not.toContain('Continue the current task thread.')
+    expect(result.summary).not.toMatch(/legacy phase-one template|Same Phase 1 digital life|same living line/iu)
     expect(result.reasonCodes).toContain('continue-thread')
     expect(result.reasonCodes).toContain('continuation-cue')
   })
 
-  it('does not let a thin runtime project shell outrank richer canonical same-her closure in continue-task summaries', () => {
+  it('does not let a thin runtime project shell restore canonical reply wording', () => {
     const runtimeSurface = createTaskRuntimeSurface()
     runtimeSurface.dialogue.dialogueEncounter = {
       ...runtimeSurface.dialogue.dialogueEncounter,
@@ -848,7 +871,7 @@ describe('main chat action obligation', () => {
         latestProgress: 'Project continuity exists.',
         primaryOpenLoop: 'Project continuity still needs closure.',
         nextClosureTarget: 'Carry project continuity forward.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
       },
       updatedAt: 24,
     } as any
@@ -860,9 +883,10 @@ describe('main chat action obligation', () => {
     })
 
     expect(result.kind).toBe('continue-task')
-    expect(result.summary).toContain('Same Phase 1 digital life')
-    expect(result.summary).toContain('Memory still needs stronger end-to-end closure across turns, initiative')
+    expect(result.summary).toContain('Memory, dialogue, and embodiment still need end-to-end proof')
+    expect(result.summary).toContain('Extend embodiment-scale validation')
     expect(result.summary).not.toContain('Project continuity still needs closure.')
     expect(result.summary).not.toContain('Carry project continuity forward.')
+    expect(result.summary).not.toMatch(/legacy phase-one template|Same Phase 1 digital life|same living line/iu)
   })
 })

@@ -39,11 +39,8 @@ import {
   deriveCompactProjectStateNextFocusSummary,
   deriveCompactProjectStateOpenFocusSummary,
 } from '../project-state-focus'
-import { buildPrioritizedProjectStateRewritePreserveLines } from '../runtime-governance'
+import { buildPrioritizedProjectStateContinuityLines } from '../runtime-governance'
 import { parseJsonObjectFromText } from '../runtime-transport-content'
-
-const sameHerProjectFollowThroughPreserveLine
-  = 'Preserve project follow-through, continue landed progress and open closure, and do not use a fresh project report or generic companionship shell.'
 
 function containsVisibleReplyStructuredTemplateResidue(value: string | null | undefined) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
@@ -185,7 +182,7 @@ function sanitizeVisibleReplyReasonCode(raw: unknown) {
   if (typeof raw !== 'string')
     return null
   const sanitized = sanitizeAlicizationStructuredInternalText(raw, 240, '')
-  return sanitized || 'reason-code-withheld'
+  return sanitized || null
 }
 
 function sanitizeVisibleReplyReasonCodes(raw: unknown) {
@@ -194,10 +191,6 @@ function sanitizeVisibleReplyReasonCodes(raw: unknown) {
   return raw
     .map(sanitizeVisibleReplyReasonCode)
     .filter((value): value is string => Boolean(value))
-}
-
-function countPublicArrayItems(raw: unknown) {
-  return Array.isArray(raw) ? raw.length : 0
 }
 
 function buildPublicVisibleReplyCriticSummary(
@@ -210,11 +203,7 @@ function buildPublicVisibleReplyCriticSummary(
     version: 'visible-reply-critic-public-summary-v1',
     status: critic.status,
     providerMindRequired: Boolean(critic.providerMindRequired),
-    semanticLoopClosed: Boolean(critic.semanticLoopClosed),
     reasonCodes: sanitizeVisibleReplyReasonCodes(critic.reasonCodes),
-    repairReasonCodes: sanitizeVisibleReplyReasonCodes(critic.repairReasonCodes),
-    mustDropCount: countPublicArrayItems(critic.mustDrop),
-    mustPreserveCount: countPublicArrayItems(critic.mustPreserve),
   }
 }
 
@@ -227,48 +216,10 @@ function buildPublicVisibleReplyClosureSummary(
   return {
     version: 'visible-reply-closure-public-summary-v1',
     status: closure.status,
-    rewriteAttempted: Boolean(closure.rewriteAttempted),
-    rewriteSucceeded: Boolean(closure.rewriteSucceeded),
     reasonCodes: sanitizeVisibleReplyReasonCodes(closure.reasonCodes),
     initialCriticStatus: closure.initialCritic?.status ?? null,
     finalCriticStatus: closure.finalCritic?.status ?? null,
   }
-}
-
-function projectAuditSegmentValue(raw: string | null | undefined, preferredKeys: string[]) {
-  const normalized = typeof raw === 'string'
-    ? raw.trim()
-    : ''
-  if (!normalized)
-    return ''
-
-  const segments = normalized
-    .split(/\s+\|\s+/u)
-    .map(segment => segment.trim())
-    .filter(Boolean)
-  for (const key of preferredKeys) {
-    const prefix = `${key}=`
-    const matched = segments.find(segment => segment.toLowerCase().startsWith(prefix.toLowerCase()))
-    if (matched)
-      return matched.slice(prefix.length).trim()
-  }
-
-  const firstContentSegment = segments.find(segment => !/^visibility=/iu.test(segment))
-  return firstContentSegment ?? normalized
-}
-
-function projectContinuityAnchorLine(raw: string | null | undefined) {
-  const value = projectAuditSegmentValue(raw, ['continuity_anchor', 'sameHerSelfLine'])
-  return value
-}
-
-function projectContinuityCarryLine(
-  label: string,
-  raw: string | null | undefined,
-  preferredKeys: string[] = [label],
-) {
-  const value = projectAuditSegmentValue(raw, preferredKeys)
-  return value
 }
 
 function looksLikeRicherProjectClosureCarry(value: string | null | undefined) {
@@ -314,11 +265,9 @@ function looksLikeMeaningfulTimeoutRecoveryProjectCarry(value: string | null | u
 
 export interface AlicizationVisibleReplyClosureArtifact {
   version: 'visible-reply-closure-v1'
-  status: 'approved' | 'rewritten' | 'blocked'
+  status: 'approved' | 'blocked'
   initialCritic: AlicizationVisibleReplyCriticArtifact | null
   finalCritic: AlicizationVisibleReplyCriticArtifact | null
-  rewriteAttempted: boolean
-  rewriteSucceeded: boolean
   reasonCodes: string[]
 }
 
@@ -326,45 +275,52 @@ export interface AlicizationVisibleReplyPublicCriticSummary {
   version: 'visible-reply-critic-public-summary-v1'
   status: AlicizationVisibleReplyCriticArtifact['status']
   providerMindRequired: boolean
-  semanticLoopClosed: boolean
   reasonCodes: string[]
-  repairReasonCodes: string[]
-  mustDropCount: number
-  mustPreserveCount: number
 }
 
 export interface AlicizationVisibleReplyPublicClosureSummary {
   version: 'visible-reply-closure-public-summary-v1'
   status: AlicizationVisibleReplyClosureArtifact['status']
-  rewriteAttempted: boolean
-  rewriteSucceeded: boolean
   reasonCodes: string[]
   initialCriticStatus: AlicizationVisibleReplyCriticArtifact['status'] | null
   finalCriticStatus: AlicizationVisibleReplyCriticArtifact['status'] | null
 }
 
+export type AlicizationVisibleReplyValidationStatus = 'approved' | 'blocked' | 'unknown'
+export type AlicizationProjectStateEvidenceStatus = 'present' | 'missing' | 'unknown'
+
+export function normalizeAlicizationVisibleReplyValidationStatus(
+  raw: unknown,
+): AlicizationVisibleReplyValidationStatus {
+  return raw === 'approved' || raw === 'blocked' ? raw : 'unknown'
+}
+
+export function normalizeAlicizationProjectStateEvidenceStatus(
+  raw: unknown,
+): AlicizationProjectStateEvidenceStatus {
+  return raw === 'present' || raw === 'missing' ? raw : 'unknown'
+}
+
 export interface AlicizationVisibleReplyRealizationArtifact {
   version: 'visible-reply-realization-v1'
-  expectedAuthority: 'llm-mind' | 'llm-second-pass-rewrite'
+  expectedAuthority: 'llm-mind'
   actualAuthority: AlicizationVisibleReplyExecution['actualVisibleReplyAuthority'] | null
   providerMindExecuted: boolean
   mode: AlicizationVisibleReplyExecutionMode
   visibleText: string | null
+  visibleReplyValidationStatus?: AlicizationVisibleReplyValidationStatus
+  projectStateEvidenceStatus?: AlicizationProjectStateEvidenceStatus
   sameHerInwardCarry?: string | null
   nonHumanAuthoredStatus: string | null
   blockedReasons: string[]
   emotionalClosureAudit?: {
     activeCue: string | null
-    preservedIntoRewrite: boolean
-    rewriteClosureApplied: boolean
     lowPressureRequired?: boolean
     antiRestartRequired?: boolean
   } | null
   selfAuthorityAudit?: {
     authoritySummary: string | null
     closenessPosture: string | null
-    preservedIntoRewrite: boolean
-    rewriteClosureApplied: boolean
   } | null
   projectStateAudit?: {
     sameHerSummary: string | null
@@ -386,8 +342,6 @@ export interface AlicizationVisibleReplyRealizationArtifact {
     continuitySummary?: string | null
     embodimentClosureSummary?: string | null
     preDialogueAwarenessSummary?: string | null
-    preservedIntoRewrite: boolean
-    rewriteClosureApplied: boolean
   } | null
   openingGuidanceHoldDetail?: string | null
   companionshipHoldMode?: 'quiet-companionship' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | null
@@ -648,18 +602,6 @@ function looksLikeCorrectedSamePersonAuthorityHoldDetail(value: string | null | 
     )
 }
 
-function looksLikeCorrectedSamePersonContinuityCue(value: string | null | undefined) {
-  const normalized = normalizeHoldDetail(value)?.toLowerCase() ?? ''
-  if (!normalized)
-    return false
-
-  return normalized.includes('carry corrected same-person continuity forward')
-    || (
-      normalized.includes('corrected same-person continuity')
-      && normalized.includes('before any status recap')
-    )
-}
-
 function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | undefined) {
   const normalized = normalizeHoldDetail(value)?.toLowerCase() ?? ''
   if (!normalized)
@@ -673,28 +615,6 @@ function looksLikeResumeConfirmationBoundaryHoldDetail(value: string | null | un
   return hasBoundaryAnchor && hasBoundaryHold
 }
 
-function looksLikeResumeConfirmationBoundaryContinuityCue(value: string | null | undefined) {
-  const normalized = normalizeHoldDetail(value)?.toLowerCase() ?? ''
-  if (!normalized)
-    return false
-
-  const hasBoundaryAnchor
-    = /host-confirmed-before-redispatch|resume-before-dispatch|bounded confirmation boundary|host-confirmed resume|host-confirmed/u.test(normalized)
-  const hasBoundaryCue
-    = /not permanent execution permission|generic autonomous continuation|permanent execution permission|reusable autonomous continuation|one confirmed resume|callback answer/u.test(normalized)
-
-  return (hasBoundaryAnchor && hasBoundaryCue)
-    || (
-      normalized.includes('callback answer')
-      && normalized.includes('permanent execution permission')
-      && (
-        normalized.includes('reusable autonomous continuation')
-        || normalized.includes('generic autonomous continuation')
-      )
-      && normalized.includes('one confirmed resume')
-    )
-}
-
 function looksLikeCanonicalProjectStateContinuityCue(value: string | null | undefined) {
   const normalized = normalizeHoldDetail(value)?.toLowerCase() ?? ''
   if (!normalized)
@@ -703,19 +623,6 @@ function looksLikeCanonicalProjectStateContinuityCue(value: string | null | unde
   return normalized.startsWith('same living line:')
     && normalized.includes('some closure already landed')
     && normalized.includes('same phase 1 digital life before widening outward')
-}
-
-function collectProjectStatePreserveLines(input: {
-  critic?: AlicizationVisibleReplyCriticArtifact | null
-  closure?: AlicizationVisibleReplyClosureArtifact | null
-}) {
-  return [
-    ...(input.critic?.mustPreserve ?? []),
-    ...(input.closure?.initialCritic?.mustPreserve ?? []),
-    ...(input.closure?.finalCritic?.mustPreserve ?? []),
-  ]
-    .map(value => normalizeHoldDetail(value))
-    .filter((value): value is string => Boolean(value && !containsAlicizationFixedTemplateResidue(value)))
 }
 
 function shouldTreatPreDialogueAwarenessAsHoldCandidate(value: string | null | undefined) {
@@ -1659,7 +1566,6 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   projectStateEmotionalClosureSummary?: string | null
   projectStateRelationshipTruthSummary?: string | null
   projectStatePreDialogueAwarenessSummary?: string | null
-  projectStateRewriteClosureApplied?: boolean | null
   prepared?: AlicizationPreparedMainChatExecutionResult | null
   critic?: AlicizationVisibleReplyCriticArtifact | null
   closure?: AlicizationVisibleReplyClosureArtifact | null
@@ -1866,30 +1772,12 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
     ?? readParsedText(parsedProjectState?.continuityArcStage)
     ?? readParsedText(parsedRuntimeDigestProjectState?.continuityArcStage)
     ?? readParsedText(preparedRuntimeProjectStateRecord?.continuityArcStage)
-  const projectStatePreserveLines = collectProjectStatePreserveLines({
-    critic: input.critic,
-    closure: input.closure,
-  })
-  const correctedSamePersonAuthorityHoldDetail
-    = projectStatePreserveLines.find(looksLikeCorrectedSamePersonAuthorityHoldDetail)
-      ?? null
-  const correctedSamePersonContinuityCue
-    = projectStatePreserveLines.find(looksLikeCorrectedSamePersonContinuityCue)
-      ?? null
-  const resumeConfirmationBoundaryHoldDetail
-    = projectStatePreserveLines.find(looksLikeResumeConfirmationBoundaryHoldDetail)
-      ?? null
-  const resumeConfirmationBoundaryContinuityCue
-    = projectStatePreserveLines.find(looksLikeResumeConfirmationBoundaryContinuityCue)
-      ?? null
   const resolvedProjectStateContinuityCue = [
     readParsedText(input.projectStateContinuityCue),
     readParsedText(parsedProjectStateAudit?.continuityCue),
     readParsedText(parsedProjectState?.continuityCue),
     readParsedText(parsedRuntimeDigestProjectState?.continuityCue),
     readParsedText(preparedRuntimeProjectStateRecord?.continuityCue),
-    resumeConfirmationBoundaryContinuityCue,
-    correctedSamePersonContinuityCue,
   ].reduce<string | null>((preferred, candidate) => {
     if (
       preferred
@@ -2033,9 +1921,7 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
     = richerProjectClosureAwarenessReanchor ?? projectStatePreDialogueAwarenessSummary
   const resolvedProjectStateSameHerHoldDetail = resolvePreferredSameHerHoldDetail({
     current: explicitProjectStateSameHerHoldDetail ?? parsedProjectStateSameHerHoldDetail,
-    candidate: correctedSamePersonAuthorityHoldDetail
-      ?? resumeConfirmationBoundaryHoldDetail
-      ?? parsedProjectStateSameHerHoldDetail
+    candidate: parsedProjectStateSameHerHoldDetail
       ?? normalizeHoldDetail(preparedRuntimeProjectState?.sameHerHoldDetail),
     continuityCue: [
       activeCue,
@@ -2115,30 +2001,27 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
       emotionalClosureCue: auditActiveCue ?? auditProjectStateEmotionalClosureSummary ?? null,
     },
   )
-  const prioritizedProjectStateContinuityCarry = buildPrioritizedProjectStateRewritePreserveLines({
+  const prioritizedProjectStateContinuityCarry = buildPrioritizedProjectStateContinuityLines({
     projectStateContinuityAnchors: [
-      projectContinuityAnchorLine(auditProjectStateSameHerSummary),
-      projectContinuityCarryLine('hold', auditProjectStateSameHerHoldDetail, ['continuity_hold']),
-      projectContinuityCarryLine('arc', auditProjectStateContinuityArcStage, ['summary', 'arc']),
-      projectContinuityCarryLine('cue', auditProjectStateContinuityCue, ['summary', 'cue']),
-      projectContinuityCarryLine('phase', auditProjectStateCurrentPhaseSummary, ['phase', 'currentPhase']),
-      projectContinuityCarryLine('landed', auditProjectStateLandedProgressSummary, ['landed', 'latestLandedProgress']),
-      projectContinuityCarryLine('open', auditProjectStateOpenClosureSummary, ['open', 'primaryOpenLoop']),
-      projectContinuityCarryLine('next', auditProjectStateNextClosureTargetSummary, ['next', 'nextClosureTarget']),
-      projectContinuityCarryLine('initiative-gap', auditProjectStateProactiveSameHerGapSummary, ['initiative_gap', 'proactiveSameHerGap']),
-      projectContinuityCarryLine('closure-emotion', auditProjectStateEmotionalClosureSummary, ['emotional_closure', 'emotionalClosureCue']),
-      projectContinuityCarryLine('relationship-truth', auditProjectStateRelationshipTruthSummary, ['summary', 'relationshipTruth']),
-    ].filter(Boolean),
+      auditProjectStateSameHerSummary,
+      auditProjectStateSameHerHoldDetail,
+      auditProjectStateContinuityArcStage,
+      auditProjectStateContinuityCue,
+      auditProjectStateCurrentPhaseSummary,
+      auditProjectStateLandedProgressSummary,
+      auditProjectStateOpenClosureSummary,
+      auditProjectStateNextClosureTargetSummary,
+      auditProjectStateProactiveSameHerGapSummary,
+      auditProjectStateEmotionalClosureSummary,
+      auditProjectStateRelationshipTruthSummary,
+    ].filter((value): value is string => Boolean(value)),
   })
   const projectStateContinuitySummary = [
     ...prioritizedProjectStateContinuityCarry,
-    projectContinuityCarryLine('drift', auditProjectStateSameHerDriftRiskSummary, ['continuity_drift_risk', 'sameHerDriftRisk']),
-    projectContinuityCarryLine('closure', auditProjectStateClosureSummary, ['summary', 'closure']),
-    projectContinuityCarryLine('body', auditProjectStateEmbodimentClosureSummary, ['summary', 'body']),
+    auditProjectStateSameHerDriftRiskSummary,
+    auditProjectStateClosureSummary,
+    auditProjectStateEmbodimentClosureSummary,
   ].filter(Boolean).join(' | ') || null
-  const selfAuthorityClosenessCue = selfAuthorityClosenessPosture
-    ? `Shared self closeness posture: ${selfAuthorityClosenessPosture}.`
-    : null
   const auditOpeningGuidance = projectAuditField(input.prepared?.governance?.openingMove, 'summary')
     ?? projectAuditField(input.prepared?.governance?.mindTurnFrame?.obligation?.openingMove, 'summary')
     ?? projectAuditField(input.prepared?.runtimeSurface?.governance?.openingMove, 'summary')
@@ -2153,86 +2036,13 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   const blockedReasons = localDeterministicFallback
     ? ['non-human-authored-visible-fallback']
     : []
-  const projectStatePreservedIntoRewrite = Boolean(
-    (finalResolvedProjectStateSameHerSummary && projectStatePreserveLines.includes(finalResolvedProjectStateSameHerSummary))
-    || (resolvedProjectStateSameHerHoldDetail && projectStatePreserveLines.includes(resolvedProjectStateSameHerHoldDetail))
-    || (resolvedProjectStateContinuityArcStage && projectStatePreserveLines.includes(resolvedProjectStateContinuityArcStage))
-    || (resolvedProjectStateContinuityCue && projectStatePreserveLines.includes(resolvedProjectStateContinuityCue))
-    || (projectStateSameHerDriftRiskSummary && projectStatePreserveLines.includes(projectStateSameHerDriftRiskSummary))
-    || (projectStateProactiveSameHerGapSummary && projectStatePreserveLines.includes(`proactive-gap=${projectStateProactiveSameHerGapSummary}`))
-    || (projectStateCurrentPhaseSummary && projectStatePreserveLines.includes(projectStateCurrentPhaseSummary))
-    || (projectStateLandedProgressSummary && projectStatePreserveLines.includes(projectStateLandedProgressSummary))
-    || (projectStateOpenClosureSummary && projectStatePreserveLines.includes(projectStateOpenClosureSummary))
-    || (projectStateNextClosureTargetSummary && projectStatePreserveLines.includes(projectStateNextClosureTargetSummary))
-    || (projectStateEmotionalClosureSummary && projectStatePreserveLines.includes(projectStateEmotionalClosureSummary))
-    || (projectStateClosureSummary && projectStatePreserveLines.includes(projectStateClosureSummary))
-    || (projectStateEmbodimentClosureSummary && projectStatePreserveLines.includes(projectStateEmbodimentClosureSummary))
-    || (resolvedProjectStatePreDialogueAwarenessSummary && projectStatePreserveLines.includes(resolvedProjectStatePreDialogueAwarenessSummary))
-    || projectStatePreserveLines.includes(sameHerProjectFollowThroughPreserveLine)
-    || parsedProjectStateAudit?.preservedIntoRewrite === true,
-  )
-  const explicitProjectStateRewriteClosureApplied = typeof input.projectStateRewriteClosureApplied === 'boolean'
-    ? input.projectStateRewriteClosureApplied
-    : null
-  const projectStateRewriteClosureApplied = Boolean(
-    explicitProjectStateRewriteClosureApplied
-    ?? (
-      (
-        input.closure?.rewriteAttempted
-        && input.closure?.rewriteSucceeded
-        && input.visibleReplyExecution.actualVisibleReplyAuthority === 'llm-second-pass-rewrite'
-      )
-      || parsedProjectStateAudit?.rewriteClosureApplied === true
-    ),
-  )
   const visibleSelfAuthoritySummary = sanitizeVisibleReplyMetadataText(selfAuthoritySummary)
   const visibleSelfAuthorityClosenessPosture = sanitizeVisibleReplyMetadataText(selfAuthorityClosenessPosture)
   const visibleOpeningGuidanceHoldDetail = sanitizeVisibleReplyMetadataText(holdResolution.detail)
   const visibleCritic = buildPublicVisibleReplyCriticSummary(input.critic)
   const visibleClosure = buildPublicVisibleReplyClosureSummary(input.closure)
-  return {
-    version: 'visible-reply-realization-v1',
-    expectedAuthority: input.visibleReplyExecution.expectedVisibleReplyAuthority ?? 'llm-mind',
-    actualAuthority: input.visibleReplyExecution.actualVisibleReplyAuthority ?? null,
-    providerMindExecuted: input.visibleReplyExecution.providerMindExecuted,
-    mode: input.visibleReplyExecution.mode,
-    visibleText: visibleText || null,
-    nonHumanAuthoredStatus: localDeterministicFallback
-      ? input.visibleReplyExecution.reason ?? 'visible-reply-local-fallback'
-      : null,
-    blockedReasons,
-    emotionalClosureAudit: auditActiveCue
-      ? {
-          activeCue: auditActiveCue,
-          preservedIntoRewrite: Boolean(
-            (activeCue && input.critic?.mustPreserve.includes(activeCue))
-            || input.critic?.mustPreserve.includes(auditActiveCue),
-          ),
-          rewriteClosureApplied: Boolean(
-            input.closure?.rewriteAttempted
-            && input.closure?.rewriteSucceeded
-            && input.visibleReplyExecution.actualVisibleReplyAuthority === 'llm-second-pass-rewrite',
-          ),
-          lowPressureRequired: cueRequiresLowPressure(auditActiveCue),
-          antiRestartRequired: cueAvoidsRestart(auditActiveCue),
-        }
-      : null,
-    selfAuthorityAudit: visibleSelfAuthoritySummary || visibleSelfAuthorityClosenessPosture
-      ? {
-          authoritySummary: visibleSelfAuthoritySummary,
-          closenessPosture: visibleSelfAuthorityClosenessPosture,
-          preservedIntoRewrite: Boolean(
-            (visibleSelfAuthoritySummary && input.critic?.mustPreserve.includes(visibleSelfAuthoritySummary))
-            || (selfAuthorityClosenessCue && input.critic?.mustPreserve.includes(selfAuthorityClosenessCue)),
-          ),
-          rewriteClosureApplied: Boolean(
-            input.closure?.rewriteAttempted
-            && input.closure?.rewriteSucceeded
-            && input.visibleReplyExecution.actualVisibleReplyAuthority === 'llm-second-pass-rewrite',
-          ),
-        }
-      : null,
-    projectStateAudit: auditProjectStateSameHerSummary || auditProjectStateSameHerHoldDetail || auditProjectStateContinuityArcStage || auditProjectStateContinuityCue || auditProjectStateSameHerDriftRiskSummary || auditProjectStateProactiveSameHerGapSummary || auditProjectStateCurrentPhaseSummary || auditProjectStateLandedProgressSummary || auditProjectStateOpenClosureSummary || auditProjectStateNextClosureTargetSummary || auditProjectStateEmotionalClosureSummary || auditProjectStateClosureSummary || auditProjectStateRelationshipTruthSummary || auditProjectStateEmbodimentClosureSummary || auditProjectStatePreDialogueAwarenessSummary
+  const projectStateAudit: AlicizationVisibleReplyRealizationArtifact['projectStateAudit']
+    = auditProjectStateSameHerSummary || auditProjectStateSameHerHoldDetail || auditProjectStateContinuityArcStage || auditProjectStateContinuityCue || auditProjectStateSameHerDriftRiskSummary || auditProjectStateProactiveSameHerGapSummary || auditProjectStateCurrentPhaseSummary || auditProjectStateLandedProgressSummary || auditProjectStateOpenClosureSummary || auditProjectStateNextClosureTargetSummary || auditProjectStateEmotionalClosureSummary || auditProjectStateClosureSummary || auditProjectStateRelationshipTruthSummary || auditProjectStateEmbodimentClosureSummary || auditProjectStatePreDialogueAwarenessSummary
       ? {
           sameHerSummary: auditProjectStateSameHerSummary,
           ...(auditProjectStateSameHerHoldDetail
@@ -2269,10 +2079,40 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
             ? { embodimentClosureSummary: auditProjectStateEmbodimentClosureSummary }
             : {}),
           preDialogueAwarenessSummary: auditProjectStatePreDialogueAwarenessSummary,
-          preservedIntoRewrite: projectStatePreservedIntoRewrite,
-          rewriteClosureApplied: projectStateRewriteClosureApplied,
+        }
+      : null
+  const visibleReplyValidationStatus = normalizeAlicizationVisibleReplyValidationStatus(
+    input.closure?.status,
+  )
+  const projectStateEvidenceStatus: AlicizationProjectStateEvidenceStatus
+    = projectStateAudit ? 'present' : 'missing'
+  return {
+    version: 'visible-reply-realization-v1',
+    expectedAuthority: input.visibleReplyExecution.expectedVisibleReplyAuthority ?? 'llm-mind',
+    actualAuthority: input.visibleReplyExecution.actualVisibleReplyAuthority ?? null,
+    providerMindExecuted: input.visibleReplyExecution.providerMindExecuted,
+    mode: input.visibleReplyExecution.mode,
+    visibleText: visibleText || null,
+    visibleReplyValidationStatus,
+    projectStateEvidenceStatus,
+    nonHumanAuthoredStatus: localDeterministicFallback
+      ? input.visibleReplyExecution.reason ?? 'visible-reply-local-fallback'
+      : null,
+    blockedReasons,
+    emotionalClosureAudit: auditActiveCue
+      ? {
+          activeCue: auditActiveCue,
+          lowPressureRequired: cueRequiresLowPressure(auditActiveCue),
+          antiRestartRequired: cueAvoidsRestart(auditActiveCue),
         }
       : null,
+    selfAuthorityAudit: visibleSelfAuthoritySummary || visibleSelfAuthorityClosenessPosture
+      ? {
+          authoritySummary: visibleSelfAuthoritySummary,
+          closenessPosture: visibleSelfAuthorityClosenessPosture,
+        }
+      : null,
+    projectStateAudit,
     openingGuidanceHoldDetail: visibleOpeningGuidanceHoldDetail,
     companionshipHoldMode: holdResolution.mode,
     openingEmbodimentAudit: resolveOpeningEmbodimentAudit(holdResolution.mode, visibleOpeningGuidanceHoldDetail),
@@ -2355,7 +2195,6 @@ export function buildAlicizationResolvedVisibleReply(input: {
   projectStateEmotionalClosureSummary?: string | null
   projectStateRelationshipTruthSummary?: string | null
   projectStatePreDialogueAwarenessSummary?: string | null
-  projectStateRewriteClosureApplied?: boolean | null
   prepared?: AlicizationPreparedMainChatExecutionResult | null
   critic?: AlicizationVisibleReplyCriticArtifact | null
   closure?: AlicizationVisibleReplyClosureArtifact | null
@@ -2380,7 +2219,6 @@ export function buildAlicizationResolvedVisibleReply(input: {
     projectStateEmotionalClosureSummary: input.projectStateEmotionalClosureSummary ?? null,
     projectStateRelationshipTruthSummary: input.projectStateRelationshipTruthSummary ?? null,
     projectStatePreDialogueAwarenessSummary: input.projectStatePreDialogueAwarenessSummary ?? null,
-    projectStateRewriteClosureApplied: input.projectStateRewriteClosureApplied ?? null,
     prepared: input.prepared ?? null,
     critic: input.critic ?? null,
     closure: input.closure ?? null,

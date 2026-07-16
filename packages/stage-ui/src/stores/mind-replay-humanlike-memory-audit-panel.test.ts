@@ -21,7 +21,7 @@ describe('mind replay humanlike memory audit panel wiring', () => {
     expect(source).toContain('correctAuditEntry')
     expect(source).toContain('whyRemember')
     expect(source).toContain('relationshipContext')
-    expect(source).toContain('naturalRecallLine')
+    expect(source).not.toContain(['natural', 'RecallLine'].join(''))
     expect(source).toContain('emotionalResidueTags')
     expect(source).toContain('hostEmotionSummary')
     expect(source).toContain('selfEmotionSummary')

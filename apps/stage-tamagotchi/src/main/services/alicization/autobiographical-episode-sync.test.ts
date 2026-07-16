@@ -275,7 +275,7 @@ describe('autobiographical episode sync', () => {
     ]))
   })
 
-  it('prefers stronger same-her self-line continuity pressure when prepared mirror autobiographical writeback receives richer project-state carry', () => {
+  it('prefers stronger identity-continuity', () => {
     const events = buildAutobiographicalEpisodesFromPreparedMirror({
       cardId: 'default',
       decisionTraceId: 'trace-same-her-writeback',
@@ -302,17 +302,17 @@ describe('autobiographical episode sync', () => {
         executionSummary: null,
         dialogueSummary: null,
       },
-      projectStatePreDialogueAwarenessLine: 'Before answering, remember this callback return still belongs to one living her.',
-      projectStatePreflightSummary: 'Fallback summary should stay behind the stronger same-her self line.',
+      projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
+      projectStatePreflightSummary: 'Fallback summary should stay behind the stronger identity-continuity',
       projectStateEmotionalClosureCue: 'Keep the unresolved closure seam emotionally low-pressure, so the same her returns without reopening from scratch.',
-      projectStatePrimaryOpenLoop: 'Execution reopenings still need stronger same-her closure so callback returns do not flatten into generic task-shell reporting.',
-      projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
+      projectStatePrimaryOpenLoop: 'Execution reopenings still need stronger identity-continuity',
+      projectStateSameHerSelfLine: 'structured continuity digest.',
     })
 
     expect(events).toEqual(expect.arrayContaining([
       expect.objectContaining({
         sourceKind: 'maintenance',
-        relationshipMeaning: expect.stringContaining('same living self'),
+        relationshipMeaning: expect.stringContaining('identity continuity'),
         lesson: expect.stringContaining('unfinished Phase 1 closure'),
         tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
       }),
@@ -373,13 +373,13 @@ describe('autobiographical episode sync', () => {
 
     expect(callbackCarryEvent).toEqual(expect.objectContaining({
       consolidationPriority: 0.84,
-      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure still belongs to the ongoing self-continuity'),
+      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure still belongs to the identity continuity'),
       lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
       tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
     expect(afterthoughtEvent).toEqual(expect.objectContaining({
       consolidationPriority: 0.78,
-      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure pressure still belongs to the same living self'),
+      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure pressure still belongs to the identity continuity'),
       lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
       tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
@@ -391,7 +391,7 @@ describe('autobiographical episode sync', () => {
       decisionTraceId: 'trace-closure-preflight',
       turnId: 'turn-closure-preflight',
       sessionId: 'session-closure-preflight',
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
       previousMirror: {
         cardId: 'default',
         sessionId: 'session-closure-preflight',
@@ -439,13 +439,13 @@ describe('autobiographical episode sync', () => {
 
     expect(callbackCarryEvent).toEqual(expect.objectContaining({
       consolidationPriority: 0.84,
-      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure still belongs to the ongoing self-continuity'),
+      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure still belongs to the identity continuity'),
       lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
       tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
     expect(afterthoughtEvent).toEqual(expect.objectContaining({
       consolidationPriority: 0.78,
-      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure pressure still belongs to the same living self'),
+      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure pressure still belongs to the identity continuity'),
       lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
       tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
@@ -505,13 +505,13 @@ describe('autobiographical episode sync', () => {
 
     expect(callbackCarryEvent).toEqual(expect.objectContaining({
       consolidationPriority: 0.84,
-      relationshipMeaning: expect.stringContaining('ongoing self-continuity'),
+      relationshipMeaning: expect.stringContaining('identity continuity'),
       lesson: expect.stringContaining('part of who she is becoming'),
       tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
     expect(afterthoughtEvent).toEqual(expect.objectContaining({
       consolidationPriority: 0.78,
-      relationshipMeaning: expect.stringContaining('same living self'),
+      relationshipMeaning: expect.stringContaining('identity continuity'),
       lesson: expect.stringContaining('part of who she is becoming'),
       tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))

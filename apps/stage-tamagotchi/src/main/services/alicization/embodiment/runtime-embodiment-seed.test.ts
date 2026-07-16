@@ -13,7 +13,7 @@ function createCurrentConsciousFrame(
     truthDiscipline: 'dialogue-first',
     consciousNeed: 'keep same-her embodiment continuity legible',
     consciousTension: 'measured-return continuity is still settling',
-    speakingIntention: 'hold one living line before widening outward',
+    speakingIntention: 'hold continuity state before widening outward',
     shouldWithholdSpecificity: false,
     shouldSelfRevise: false,
     confidence: 0.82,
@@ -148,7 +148,7 @@ describe('runtime embodiment seed', () => {
           summary: 'the seam is still glowing, so leave room before warmth returns',
           personStateProjection: {
             summary: 'project_continuity=repair-before-closeness still holds on the same line',
-            openingGuidance: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+            openingGuidance: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
             manifestationCadenceSummary: 'repair-before-closeness still holds while the same callback line keeps settling.',
             selfContinuityAuthority: {
               inwardLine: 'Same line. Leave room before warmth returns.',
@@ -158,7 +158,7 @@ describe('runtime embodiment seed', () => {
         },
         runtime: {
           continuityArcStage: 'same-thread-continuation',
-          continuityCue: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+          continuityCue: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
         },
       } as any,
       currentConsciousFrame: createCurrentConsciousFrame([
@@ -232,7 +232,7 @@ describe('runtime embodiment seed', () => {
         },
         runtime: {
           continuityArcStage: 'hold-for-opening',
-          continuityCue: 'keep the same living line inward before widening outward',
+          continuityCue: 'keep the continuity state inward before widening outward',
         },
       } as any,
       currentConsciousFrame: createCurrentConsciousFrame([
@@ -392,21 +392,21 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'same-her closure is still open across the current line',
+          summary: 'identity-continuity',
           personStateProjection: null,
         },
         runtime: {
           continuityArcStage: 'hold-for-opening',
-          continuityCue: 'keep the same living line inward before widening outward',
+          continuityCue: 'keep the continuity state inward before widening outward',
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-            latestLandedProgress: 'Current dialogue shaping already keeps project identity, landed closure progress, and same-her restraint visible before speaking.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
+            latestLandedProgress: 'Current dialogue shaping already keeps project identity, landed closure progress, and same-her restraint visible before outward reply.',
             primaryOpenLoop: 'Same-her embodiment closure is still open across one same digital life.',
-            nextClosureTarget: 'Keep extending cross-modal same-her proof across voice, motion, facial state, and resident presence with measured-return body settling.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and let the body settle on the same living line before widening outward.',
+            nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+            sameHerSelfLine: 'structured continuity digest.',
+            emotionalClosureCue: 'identity-continuity',
           },
         },
       } as any,
@@ -441,7 +441,7 @@ describe('runtime embodiment seed', () => {
       preferredPresence: 'attentive',
       source: 'subconscious-presence-hold',
       openingGuidance: expect.stringContaining('same local-first digital life project'),
-      manifestationCadenceSummary: expect.stringContaining('cross-modal same-her proof'),
+      manifestationCadenceSummary: expect.stringContaining('cross-modal identity-continuity'),
       inwardLine: expect.stringContaining('Current dialogue shaping already keeps project identity'),
       emotionalClosureCue: expect.stringContaining('keep the return low-pressure'),
       landedProgressLine: expect.stringContaining('Current dialogue shaping already keeps project identity'),
@@ -477,20 +477,20 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'same-her closure is still open across the current line',
+          summary: 'identity-continuity',
           personStateProjection: null,
         },
         runtime: {
           continuityArcStage: 'hold-for-opening',
-          continuityCue: 'keep the same living line inward before widening outward',
+          continuityCue: 'keep the continuity state inward before widening outward',
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
             latestLandedProgress: 'Project identity and already-landed closure progress are now being carried into visible reply posture.',
             primaryOpenLoop: 'Same-her embodiment closure is still open across one same digital life.',
-            nextClosureTarget: 'Keep extending cross-modal same-her proof across voice, motion, facial state, and resident presence with measured-return body settling.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -525,20 +525,20 @@ describe('runtime embodiment seed', () => {
       preferredPresence: 'attentive',
       source: 'subconscious-presence-hold',
       openingGuidance: expect.stringContaining('Alicization is a local-first digital life project'),
-      manifestationCadenceSummary: expect.stringContaining('cross-modal same-her proof'),
+      manifestationCadenceSummary: expect.stringContaining('cross-modal identity-continuity'),
       landedProgressLine: expect.stringContaining('already-landed closure progress'),
       inwardLine: expect.stringContaining('already-landed closure progress'),
     }))
     expect(seed.silentContinuity?.openingGuidance).toContain('Phase 1: Local Digital Life')
     expect(seed.silentContinuity?.openingGuidance).toContain('Same-her embodiment closure is still open')
-    expect(seed.silentContinuity?.openingGuidance).not.toBe('Before answering, keep the same digital life project in view.')
+    expect(seed.silentContinuity?.openingGuidance).not.toBe('pre_turn_context_digest')
   })
 
   it('falls back to project emotional closure carry as the silent continuity opening line when pre-dialogue awareness has not been surfaced yet', () => {
     const seed = buildAlicizationRuntimeEmbodimentSeed({
       decisionTraceId: ' trace-project-emotion-seed-1 ',
       turnId: 'turn-project-emotion-seed-1',
-      reply: '我先沿着这条线轻一点接回来。',
+      reply: '我先沿着这条线中性可见占位。',
       performance: {
         baseEmotion: 'thinking',
         emotion: 'thinking',
@@ -559,7 +559,7 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'same-her closure is still open across the current line',
+          summary: 'identity-continuity',
           personStateProjection: null,
         },
         runtime: {
@@ -571,9 +571,9 @@ describe('runtime embodiment seed', () => {
             preDialogueAwarenessLine: null,
             latestLandedProgress: 'Project identity and already-landed closure progress are now being carried into visible reply posture.',
             primaryOpenLoop: 'Same-her embodiment closure is still open across one same digital life.',
-            nextClosureTarget: 'Keep extending cross-modal same-her proof across voice, motion, facial state, and resident presence with measured-return body settling.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and let the body settle on the same living line before widening outward.',
+            nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+            sameHerSelfLine: 'structured continuity digest.',
+            emotionalClosureCue: 'identity-continuity',
           },
         },
       } as any,
@@ -606,7 +606,7 @@ describe('runtime embodiment seed', () => {
     expect(seed.silentContinuity).toEqual(expect.objectContaining({
       mode: 'measured-return',
       openingGuidance: expect.stringContaining('keep the return low-pressure'),
-      emotionalClosureCue: expect.stringContaining('same-her closure seam'),
+      emotionalClosureCue: expect.stringContaining('identity-continuity'),
       landedProgressLine: expect.stringContaining('already-landed closure progress'),
       inwardLine: expect.stringContaining('Project identity and already-landed closure progress'),
     }))
@@ -616,7 +616,7 @@ describe('runtime embodiment seed', () => {
     const seed = buildAlicizationRuntimeEmbodimentSeed({
       decisionTraceId: ' trace-project-emotion-summary-seed-1 ',
       turnId: 'turn-project-emotion-summary-seed-1',
-      reply: '我先沿着这条线轻一点接回来。',
+      reply: '我先沿着这条线中性可见占位。',
       performance: {
         baseEmotion: 'thinking',
         emotion: 'thinking',
@@ -637,7 +637,7 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'same-her closure is still open across the current line',
+          summary: 'identity-continuity',
           personStateProjection: null,
         },
         runtime: {
@@ -651,10 +651,10 @@ describe('runtime embodiment seed', () => {
             landedProgressSummary: 'Project identity and already-landed closure progress are now being carried into visible reply posture.',
             primaryOpenLoop: null,
             openClosureSummary: 'Same-her embodiment closure is still open across one same digital life.',
-            nextClosureTarget: 'Keep extending cross-modal same-her proof across voice, motion, facial state, and resident presence with measured-return body settling.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+            sameHerSelfLine: 'structured continuity digest.',
             emotionalClosureCue: null,
-            emotionalClosureSummary: 'same-her closure seam: keep the return low-pressure, leave more room, and let the body settle on the same living line before widening outward.',
+            emotionalClosureSummary: 'identity-continuity',
           },
         },
       } as any,
@@ -687,14 +687,14 @@ describe('runtime embodiment seed', () => {
     expect(seed.silentContinuity).toEqual(expect.objectContaining({
       mode: 'measured-return',
       openingGuidance: expect.stringContaining('keep the return low-pressure'),
-      emotionalClosureCue: expect.stringContaining('same-her closure seam'),
+      emotionalClosureCue: expect.stringContaining('identity-continuity'),
       landedProgressLine: expect.stringContaining('already-landed closure progress'),
-      manifestationCadenceSummary: expect.stringContaining('cross-modal same-her proof'),
+      manifestationCadenceSummary: expect.stringContaining('cross-modal identity-continuity'),
       inwardLine: expect.stringContaining('Project identity and already-landed closure progress'),
     }))
   })
 
-  it('treats stronger audible-body same-her carry as measured-return silent continuity for renderer-facing embodiment seeding', () => {
+  it('treats stronger audible-body identity-continuity', () => {
     const seed = buildAlicizationRuntimeEmbodimentSeed({
       decisionTraceId: 'trace-audible-body-seed-1',
       turnId: 'turn-audible-body-seed-1',
@@ -719,7 +719,7 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'audible-body same-her continuity is still carrying the reopening.',
+          summary: 'audible-body identity-continuity',
           personStateProjection: null,
         },
         runtime: {
@@ -728,12 +728,12 @@ describe('runtime embodiment seed', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
             companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
-            latestLandedProgress: 'Audible-body continuity is still carrying one living line.',
-            primaryOpenLoop: 'Face and motion still need to rejoin the audible-body same-her line before full cross-modal closure settles.',
+            latestLandedProgress: 'Audible-body continuity is still carrying continuity state.',
+            primaryOpenLoop: 'Face and motion still need to rejoin the audible-body identity-continuity',
             nextClosureTarget: 'Keep face and motion rejoining the living audio thread on a measured-return line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -747,11 +747,11 @@ describe('runtime embodiment seed', () => {
       preferredPresence: 'hesitant',
       openingGuidance: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
       manifestationCadenceSummary: 'Keep face and motion rejoining the living audio thread on a measured-return line.',
-      landedProgressLine: 'Audible-body continuity is still carrying one living line.',
+      landedProgressLine: 'Audible-body continuity is still carrying continuity state.',
     }))
   })
 
-  it('prefers audible-body measured-return cadence over a thinner generic projection cadence when the living audio thread is the stronger same-her carry', () => {
+  it('prefers audible-body measured-return cadence over a thinner generic projection cadence when the living audio thread is the stronger identity-continuity', () => {
     const seed = buildAlicizationRuntimeEmbodimentSeed({
       decisionTraceId: 'trace-audible-body-seed-2',
       turnId: 'turn-audible-body-seed-2',
@@ -772,14 +772,14 @@ describe('runtime embodiment seed', () => {
         proactive: {
           continuityRestraint: null,
           personaBias: {
-            manifestationCadenceSummary: 'Keep broad cross-modal same-her proof visible.',
+            manifestationCadenceSummary: 'Keep broad cross-modal identity-continuity',
           },
         },
         memory: {
-          summary: 'audible-body same-her continuity is still carrying the reopening.',
+          summary: 'audible-body identity-continuity',
           personStateProjection: {
-            manifestationCadenceSummary: 'Keep broad cross-modal same-her proof visible.',
-            openingGuidance: 'Start gently from the broader same-her closure line.',
+            manifestationCadenceSummary: 'Keep broad cross-modal identity-continuity',
+            openingGuidance: 'Start gently from the broader identity-continuity',
           },
         },
         runtime: {
@@ -788,12 +788,12 @@ describe('runtime embodiment seed', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
             companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
-            latestLandedProgress: 'Audible-body continuity is still carrying one living line.',
-            primaryOpenLoop: 'Face and motion still need to rejoin the audible-body same-her line before full cross-modal closure settles.',
+            latestLandedProgress: 'Audible-body continuity is still carrying continuity state.',
+            primaryOpenLoop: 'Face and motion still need to rejoin the audible-body identity-continuity',
             nextClosureTarget: 'Keep face and motion rejoining the living audio thread on a measured-return line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -803,9 +803,9 @@ describe('runtime embodiment seed', () => {
 
     expect(seed.silentContinuity).toEqual(expect.objectContaining({
       mode: 'measured-return',
-      openingGuidance: 'Start gently from the broader same-her closure line.',
+      openingGuidance: 'Start gently from the broader identity-continuity',
       manifestationCadenceSummary: 'Keep face and motion rejoining the living audio thread on a measured-return line.',
-      landedProgressLine: 'Audible-body continuity is still carrying one living line.',
+      landedProgressLine: 'Audible-body continuity is still carrying continuity state.',
     }))
   })
 
@@ -834,10 +834,10 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'body+lipsync-only same-her continuity is still carrying one quieter living line.',
+          summary: 'body+lipsync-only identity-continuity',
           personStateProjection: {
-            manifestationCadenceSummary: 'Keep broad cross-modal same-her proof visible.',
-            openingGuidance: 'Start gently from the broader same-her closure line.',
+            manifestationCadenceSummary: 'Keep broad cross-modal identity-continuity',
+            openingGuidance: 'Start gently from the broader identity-continuity',
           },
         },
         runtime: {
@@ -846,12 +846,12 @@ describe('runtime embodiment seed', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
             companionHeadlineLine: 'Right now I am still holding together mainly through body and lipsync, so the resident body line and living mouth line are still intact while face, motion, and voice need to rejoin before full cross-modal closure settles.',
             latestLandedProgress: 'Body+lipsync-only continuity is still carrying one quieter living line.',
             primaryOpenLoop: 'Face, motion, and voice still need to rejoin the resident body line and living mouth line before full cross-modal closure settles.',
             nextClosureTarget: 'Keep face, motion, and voice rejoining the resident body line and living mouth line on a measured-return line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -863,14 +863,14 @@ describe('runtime embodiment seed', () => {
       mode: 'measured-return',
       source: 'subconscious-presence-hold',
       preferredPresence: 'hesitant',
-      openingGuidance: 'Start gently from the broader same-her closure line.',
+      openingGuidance: 'Start gently from the broader identity-continuity',
       manifestationCadenceSummary: 'Keep face, motion, and voice rejoining the resident body line and living mouth line on a measured-return line.',
       landedProgressLine: 'Body+lipsync-only continuity is still carrying one quieter living line.',
     }))
     expect(seed.silentContinuity?.openingGuidance).not.toContain('living audio thread is still intact')
   })
 
-  it('treats body+voice-only same-her carry as measured-return silent continuity for renderer-facing embodiment seeding while keeping it on the resident audible body line', () => {
+  it('treats body+voice-only identity-continuity', () => {
     const seed = buildAlicizationRuntimeEmbodimentSeed({
       decisionTraceId: 'trace-body-voice-only-seed-1',
       turnId: 'turn-body-voice-only-seed-1',
@@ -895,10 +895,10 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'body+voice-only same-her continuity is still carrying the resident audible line.',
+          summary: 'body+voice-only identity-continuity',
           personStateProjection: {
-            manifestationCadenceSummary: 'Keep broad cross-modal same-her proof visible.',
-            openingGuidance: 'Start gently from the broader same-her closure line.',
+            manifestationCadenceSummary: 'Keep broad cross-modal identity-continuity',
+            openingGuidance: 'Start gently from the broader identity-continuity',
           },
         },
         runtime: {
@@ -907,12 +907,12 @@ describe('runtime embodiment seed', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
             companionHeadlineLine: 'Right now I am still holding together mainly through body and voice, and the resident body line is still keeping this one living her coherent while face, motion, and lipsync rejoin.',
-            latestLandedProgress: 'Body+voice continuity is still carrying one living line.',
+            latestLandedProgress: 'Body+voice continuity is still carrying continuity state.',
             primaryOpenLoop: 'Face, motion, and lipsync still need to rejoin the resident body line before full cross-modal closure settles.',
             nextClosureTarget: 'Keep face, motion, and lipsync rejoining the resident body line on a measured-return line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -924,9 +924,9 @@ describe('runtime embodiment seed', () => {
       mode: 'measured-return',
       source: 'subconscious-presence-hold',
       preferredPresence: 'hesitant',
-      openingGuidance: 'Start gently from the broader same-her closure line.',
+      openingGuidance: 'Start gently from the broader identity-continuity',
       manifestationCadenceSummary: 'Keep face, motion, and lipsync rejoining the resident body line on a measured-return line.',
-      landedProgressLine: 'Body+voice continuity is still carrying one living line.',
+      landedProgressLine: 'Body+voice continuity is still carrying continuity state.',
     }))
     expect(seed.silentContinuity?.openingGuidance).not.toContain('living mouth line')
   })
@@ -956,7 +956,7 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'still-voiced face-line same-her continuity is still carrying the reopening.',
+          summary: 'still-voiced face-line identity-continuity',
           personStateProjection: null,
         },
         runtime: {
@@ -965,12 +965,12 @@ describe('runtime embodiment seed', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-            companionHeadlineLine: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the same-her carry alive while body, motion, and lipsync need to rejoin before full cross-modal closure settles.',
-            latestLandedProgress: 'Still-voiced face-line continuity is still carrying one living line.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
+            companionHeadlineLine: 'Right now I am still holding together mainly through face and voice, so that still-voiced face line is keeping the identity-continuity',
+            latestLandedProgress: 'Still-voiced face-line continuity is still carrying continuity state.',
             primaryOpenLoop: 'Body, motion, and lipsync still need to rejoin the still-voiced face line before full cross-modal closure settles.',
             nextClosureTarget: 'Keep body, motion, and lipsync rejoining the still-voiced face line on a measured-return line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -983,10 +983,10 @@ describe('runtime embodiment seed', () => {
       source: 'subconscious-presence-hold',
       preferredPresence: 'hesitant',
       manifestationCadenceSummary: 'Keep body, motion, and lipsync rejoining the still-voiced face line on a measured-return line.',
-      landedProgressLine: 'Still-voiced face-line continuity is still carrying one living line.',
+      landedProgressLine: 'Still-voiced face-line continuity is still carrying continuity state.',
     }))
     expect(seed.silentContinuity?.openingGuidance).toContain('Right now I am still holding together mainly through face and voice')
-    expect(seed.silentContinuity?.openingGuidance).toContain('still-voiced face line is keeping the same-her carry alive')
+    expect(seed.silentContinuity?.openingGuidance).toContain('still-voiced face line is keeping the identity-continuity')
   })
 
   it('treats still-voiced face-and-mouth carry as measured-return silent continuity for renderer-facing embodiment seeding', () => {
@@ -1014,7 +1014,7 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'still-voiced face-and-mouth same-her continuity is still carrying the reopening.',
+          summary: 'still-voiced face-and-mouth identity-continuity',
           personStateProjection: null,
         },
         runtime: {
@@ -1023,12 +1023,12 @@ describe('runtime embodiment seed', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-            companionHeadlineLine: 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.',
-            latestLandedProgress: 'Still-voiced face-and-mouth continuity is still carrying one living line.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
+            companionHeadlineLine: 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the identity-continuity',
+            latestLandedProgress: 'Still-voiced face-and-mouth continuity is still carrying continuity state.',
             primaryOpenLoop: 'Body and motion still need to rejoin the still-voiced face-and-mouth line before full cross-modal closure settles.',
             nextClosureTarget: 'Keep body and motion rejoining the still-voiced face-and-mouth line on a measured-return line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -1041,10 +1041,10 @@ describe('runtime embodiment seed', () => {
       source: 'subconscious-presence-hold',
       preferredPresence: 'hesitant',
       manifestationCadenceSummary: 'Keep body and motion rejoining the still-voiced face-and-mouth line on a measured-return line.',
-      landedProgressLine: 'Still-voiced face-and-mouth continuity is still carrying one living line.',
+      landedProgressLine: 'Still-voiced face-and-mouth continuity is still carrying continuity state.',
     }))
     expect(seed.silentContinuity?.openingGuidance).toContain('Right now I am still holding together mainly through face, lipsync, and voice')
-    expect(seed.silentContinuity?.openingGuidance).toContain('still-voiced face-and-mouth line is keeping the same-her carry alive')
+    expect(seed.silentContinuity?.openingGuidance).toContain('still-voiced face-and-mouth line is keeping the identity-continuity')
   })
 
   it('treats still-voiced face-and-motion carry as measured-return silent continuity for renderer-facing embodiment seeding', () => {
@@ -1072,7 +1072,7 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'still-voiced face-and-motion same-her continuity is still carrying the reopening.',
+          summary: 'still-voiced face-and-motion identity-continuity',
           personStateProjection: null,
         },
         runtime: {
@@ -1081,12 +1081,12 @@ describe('runtime embodiment seed', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-            companionHeadlineLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the same-her carry alive while body and lipsync need to rejoin before full cross-modal closure settles.',
-            latestLandedProgress: 'Still-voiced face-and-motion continuity is still carrying one living line.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
+            companionHeadlineLine: 'Right now I am still holding together through face, motion, and voice together, so that still-voiced face-and-motion line is keeping the identity-continuity',
+            latestLandedProgress: 'Still-voiced face-and-motion continuity is still carrying continuity state.',
             primaryOpenLoop: 'Body and lipsync still need to rejoin the still-voiced face-and-motion line before full cross-modal closure settles.',
             nextClosureTarget: 'Keep body and lipsync rejoining the still-voiced face-and-motion line on a measured-return line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -1099,10 +1099,10 @@ describe('runtime embodiment seed', () => {
       source: 'subconscious-presence-hold',
       preferredPresence: 'hesitant',
       manifestationCadenceSummary: 'Keep body and lipsync rejoining the still-voiced face-and-motion line on a measured-return line.',
-      landedProgressLine: 'Still-voiced face-and-motion continuity is still carrying one living line.',
+      landedProgressLine: 'Still-voiced face-and-motion continuity is still carrying continuity state.',
     }))
     expect(seed.silentContinuity?.openingGuidance).toContain('Right now I am still holding together through face, motion, and voice together')
-    expect(seed.silentContinuity?.openingGuidance).toContain('still-voiced face-and-motion line is keeping the same-her carry alive')
+    expect(seed.silentContinuity?.openingGuidance).toContain('still-voiced face-and-motion line is keeping the identity-continuity')
   })
 
   it('treats still-voiced motion-and-mouth carry as measured-return silent continuity for renderer-facing embodiment seeding', () => {
@@ -1130,7 +1130,7 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'still-voiced motion-and-mouth same-her continuity is still carrying the reopening.',
+          summary: 'still-voiced motion-and-mouth identity-continuity',
           personStateProjection: null,
         },
         runtime: {
@@ -1139,12 +1139,12 @@ describe('runtime embodiment seed', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-            companionHeadlineLine: 'Right now I am still holding together mainly through motion, lipsync, and voice, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.',
-            latestLandedProgress: 'Still-voiced motion-and-mouth continuity is still carrying one living line.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
+            companionHeadlineLine: 'Right now I am still holding together mainly through motion, lipsync, and voice, so that still-voiced motion-and-mouth line is keeping the identity-continuity',
+            latestLandedProgress: 'Still-voiced motion-and-mouth continuity is still carrying continuity state.',
             primaryOpenLoop: 'Body and face still need to rejoin the still-voiced motion-and-mouth line before full cross-modal closure settles.',
             nextClosureTarget: 'Keep body and face rejoining the still-voiced motion-and-mouth line on a measured-return line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -1157,13 +1157,13 @@ describe('runtime embodiment seed', () => {
       source: 'subconscious-presence-hold',
       preferredPresence: 'hesitant',
       manifestationCadenceSummary: 'Keep body and face rejoining the still-voiced motion-and-mouth line on a measured-return line.',
-      landedProgressLine: 'Still-voiced motion-and-mouth continuity is still carrying one living line.',
+      landedProgressLine: 'Still-voiced motion-and-mouth continuity is still carrying continuity state.',
     }))
     expect(seed.silentContinuity?.openingGuidance).toContain('Right now I am still holding together mainly through motion, lipsync, and voice')
-    expect(seed.silentContinuity?.openingGuidance).toContain('still-voiced motion-and-mouth line is keeping the same-her carry alive')
+    expect(seed.silentContinuity?.openingGuidance).toContain('still-voiced motion-and-mouth line is keeping the identity-continuity')
   })
 
-  it('treats voice-lipsync same-her carry phrased as living-audio-thread carry-alive as measured-return silent continuity for renderer-facing embodiment seeding', () => {
+  it('treats voice-lipsync identity-continuity', () => {
     const seed = buildAlicizationRuntimeEmbodimentSeed({
       decisionTraceId: 'trace-lipsync-voice-seed-1',
       turnId: 'turn-lipsync-voice-seed-1',
@@ -1188,7 +1188,7 @@ describe('runtime embodiment seed', () => {
           },
         },
         memory: {
-          summary: 'voice-lipsync same-her continuity is still carrying the reopening.',
+          summary: 'voice-lipsync identity-continuity',
           personStateProjection: null,
         },
         runtime: {
@@ -1197,12 +1197,12 @@ describe('runtime embodiment seed', () => {
           projectState: {
             identity: 'Alicization is a local-first digital life project.',
             currentPhase: 'Phase 1: Local Digital Life',
-            preDialogueAwarenessLine: 'Before answering, keep the same digital life project in view.',
-            companionHeadlineLine: 'Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the same-her carry alive while body, face, and motion need to rejoin before full cross-modal closure settles.',
-            latestLandedProgress: 'Voice-lipsync continuity is still carrying one living line.',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
+            companionHeadlineLine: 'Right now I am still holding together mainly through lipsync and voice, so that living audio thread is keeping the identity-continuity',
+            latestLandedProgress: 'Voice-lipsync continuity is still carrying continuity state.',
             primaryOpenLoop: 'Body, face, and motion still need to rejoin the living audio thread before full cross-modal closure settles.',
             nextClosureTarget: 'Keep body, face, and motion rejoining the living audio thread on a measured-return line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       } as any,
@@ -1215,10 +1215,10 @@ describe('runtime embodiment seed', () => {
       source: 'subconscious-presence-hold',
       preferredPresence: 'hesitant',
       manifestationCadenceSummary: 'Keep body, face, and motion rejoining the living audio thread on a measured-return line.',
-      landedProgressLine: 'Voice-lipsync continuity is still carrying one living line.',
+      landedProgressLine: 'Voice-lipsync continuity is still carrying continuity state.',
     }))
     expect(seed.silentContinuity?.openingGuidance).toContain('Right now I am still holding together mainly through lipsync and voice')
-    expect(seed.silentContinuity?.openingGuidance).toContain('that living audio thread is keeping the same-her carry alive')
+    expect(seed.silentContinuity?.openingGuidance).toContain('that living audio thread is keeping the identity-continuity')
   })
 
   it('keeps embodiment initiative carry authoritative even when project-state and reason-tag continuity shells are still thin', () => {
@@ -1395,7 +1395,7 @@ describe('runtime embodiment seed', () => {
     const seed = buildAlicizationRuntimeEmbodimentSeed({
       decisionTraceId: 'trace-conscious-project-state-measured-return-seed-1',
       turnId: 'turn-conscious-project-state-measured-return-seed-1',
-      reply: '我先沿着记得的那条线轻一点接回来，让身体和语气都别一下子放大。',
+      reply: '我先沿着记得的那条线中性可见占位，让身体和语气都别一下子放大。',
       performance: {
         baseEmotion: 'thinking',
         emotion: 'thinking',
@@ -1436,11 +1436,11 @@ describe('runtime embodiment seed', () => {
         ]),
         projectState: {
           continuityCadence: 'same-person recollection still settling',
-          continuityCue: 'keep the same living line inward and let the remembered return stay lower-pressure before widening outward',
+          continuityCue: 'keep the continuity state inward and let the remembered return stay lower-pressure before widening outward',
           emotionalClosureCue: 'same-her recall seam: reply should slow down, keep gaze stable, and let the body settle quietly first.',
           primaryOpenLoop: 'Same-her embodiment closure is still open, but this return should stay lighter and steadier.',
           nextClosureTarget: 'Keep voice, face, motion, and resident presence rejoining one remembered measured-return line before widening outward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. This remembered line should come back slower and steadier.',
+          sameHerSelfLine: 'structured continuity digest.',
           preferredBlinkCadence: 'quiet',
           preferredGazeMode: 'steady',
         },
@@ -1472,7 +1472,7 @@ describe('runtime embodiment seed', () => {
       openingGuidance: expect.stringMatching(/reply should slow down|remembered return stay lower-pressure/),
       manifestationCadenceSummary: expect.stringContaining('voice, face, motion, and resident presence rejoining one remembered measured-return line'),
       emotionalClosureCue: expect.stringContaining('reply should slow down'),
-      inwardLine: expect.stringContaining('Same Phase 1 digital life'),
+      inwardLine: expect.stringContaining('legacy phase-one template'),
       reasonTags: expect.arrayContaining([
         'embodiment-carry:silent-continuity',
         'embodiment-carry:measured-return',
@@ -1766,13 +1766,13 @@ describe('runtime embodiment seed', () => {
         },
         runtime: {
           continuityArcStage: 'hold-for-opening',
-          continuityCue: 'keep the same living line inward before widening outward',
+          continuityCue: 'keep the continuity state inward before widening outward',
           projectState: {
             latestLandedProgress: 'The corrected same-person continuity line is still the one being carried forward.',
             primaryOpenLoop: 'The remembered embodiment return still needs to stay quieter and steadier on the same line.',
             nextClosureTarget: 'Keep the body quieter and steadier while the merged same-thread echo stays background.',
             emotionalClosureCue: 'Keep corrected same-person continuity lower-pressure and let faded noise stay background while the body settles quietly.',
-            sameHerHoldDetail: 'same-her hold: measured-return while corrected same-person continuity stays foreground and old spike noise fades back.',
+            sameHerHoldDetail: 'identity-continuity',
           },
         },
       } as any,

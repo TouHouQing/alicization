@@ -1956,7 +1956,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('promotes a later-living-line preview during interruption tail without losing the same-her callback restraint line', async () => {
+  it('promotes a later-living-line preview during interruption tail without losing the identity-continuity', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
     const scope = effectScope()
@@ -3420,7 +3420,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('realigns vrm face and motion together onto the resumed same-her segment after stop-tail continuity instead of letting motion lag behind the returning face', async () => {
+  it('realigns vrm face and motion together onto the resumed identity-continuity', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
     const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
@@ -3651,7 +3651,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('realigns live2d face and motion together onto the resumed same-her segment after stop-tail continuity instead of letting motion lag behind the returning face', async () => {
+  it('realigns live2d face and motion together onto the resumed identity-continuity', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
     const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
@@ -3888,7 +3888,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('keeps vrm resumed preview action pulse from warming earlier than the inward post-utterance face recovery on the same living line', async () => {
+  it('keeps vrm resumed preview action pulse from warming earlier than the inward post-utterance face recovery on the continuity state', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
     const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
@@ -4113,7 +4113,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('keeps live2d resumed preview action pulse from warming earlier than the inward post-utterance face recovery on the same living line', async () => {
+  it('keeps live2d resumed preview action pulse from warming earlier than the inward post-utterance face recovery on the continuity state', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
     const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
@@ -4338,7 +4338,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('keeps vrm resumed reopen authority provenance stable while cue-bridged face and motion rejoin the same living line', async () => {
+  it('keeps vrm resumed reopen authority provenance stable while cue-bridged face and motion rejoin the continuity state', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
     const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
@@ -4557,7 +4557,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('keeps live2d resumed reopen authority provenance stable while cue-bridged face and motion rejoin the same same-her line', async () => {
+  it('keeps live2d resumed reopen authority provenance stable while cue-bridged face and motion rejoin the same identity-continuity', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
     const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
@@ -5402,7 +5402,7 @@ describe('stage embodiment performance runtime', () => {
       cue: {
         id: 'segment-live2d-measured-return-runtime-settle',
         endOffset: 12,
-        text: '我先沿着这条线轻一点接回来。',
+        text: '我先沿着这条线中性可见占位。',
         emotion: 'thinking',
         gestureWeight: 0.24,
         facialWeight: 0.44,
@@ -5749,7 +5749,7 @@ describe('stage embodiment performance runtime', () => {
         segmentId: 'segment-clone-active-cue-companionship-authority',
         ownerId: 'alice',
         priority: 0,
-        text: '我先轻一点接回来。',
+        text: '我先中性可见占位。',
         special: null,
         continuityHoldMs: 220,
         audio: createBufferedSpeechAudioSource({} as AudioBuffer),
@@ -5759,7 +5759,7 @@ describe('stage embodiment performance runtime', () => {
           index: 0,
           startOffset: 0,
           endOffset: 9,
-          text: '我先轻一点接回来。',
+          text: '我先中性可见占位。',
           emotion: 'thinking',
           gestureWeight: 0.24,
           facialWeight: 0.5,
@@ -6378,7 +6378,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('extends vrm settle timing for companionship-biased aliases so expression and action release stay on the same same-her line', async () => {
+  it('extends vrm settle timing for companionship-biased aliases so expression and action release stay on the same identity-continuity', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
     const scope = effectScope()
@@ -7105,7 +7105,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('preserves quieter speech timing hints on the runtime active cue when preview authority is carried by the same living line', async () => {
+  it('preserves quieter speech timing hints on the runtime active cue when preview authority is carried by the continuity state', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const upcomingSpeechSegment = ref<ReturnType<typeof createStageEmbodimentSpeechPlaybackItem> | null>(null)
     const scope = effectScope()
@@ -7196,7 +7196,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('keeps preview body behavior more inward when the same living line carries lower-pressure slower speech timing hints', async () => {
+  it('keeps preview body behavior more inward when the continuity state carries lower-pressure slower speech timing hints', async () => {
     async function createPreviewRuntimeWithSpeechTiming(input: {
       preferredVoiceMode: 'even' | 'lower-pressure'
       preferredPacingMode: 'natural' | 'slower'
@@ -7224,11 +7224,11 @@ describe('stage embodiment performance runtime', () => {
         intentId: `intent-${input.variationToken}`,
         streamId: `stream-${input.variationToken}`,
         segmentId: `segment-${input.variationToken}`,
-        text: '我先沿着这条线轻一点接回来。',
+        text: '我先沿着这条线中性可见占位。',
         special: null,
         digitalLifeFrame: createDigitalLifeFrameFixture({
           id: `segment-${input.variationToken}`,
-          text: '我先沿着这条线轻一点接回来。',
+          text: '我先沿着这条线中性可见占位。',
           mode: 'speaking',
           settleMode: 'linger',
           voice: {
@@ -7436,7 +7436,7 @@ describe('stage embodiment performance runtime', () => {
       cue: {
         id: 'segment-vrm-same-line-restrained-reopen',
         endOffset: 10,
-        text: '我先沿着这条线轻一点接回来。',
+        text: '我先沿着这条线中性可见占位。',
         emotion: 'thinking',
         gestureWeight: 0.24,
         facialWeight: 0.44,
@@ -8827,7 +8827,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('refreshes runtime authority when playback telemetry only flips voiceSegmentMatched on the same same-her segment', async () => {
+  it('refreshes runtime authority when playback telemetry only flips voiceSegmentMatched on the same identity-continuity', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
     const scope = effectScope()
@@ -9204,7 +9204,7 @@ describe('stage embodiment performance runtime', () => {
         segmentId: 'segment-derived-quieter-body-lipsync-authority',
         special: null,
         streamId: 'stream-derived-quieter-body-lipsync-authority',
-        text: '我先沿着这条还连着的线轻一点接回来。',
+        text: '我先沿着这条还连着的线中性可见占位。',
       }),
       phase: 'playing',
       revision: 1,
@@ -10742,7 +10742,7 @@ describe('stage embodiment performance runtime', () => {
       intentId: 'intent-live2d-body-voice-only-audible-carry-runtime',
       streamId: 'stream-live2d-body-voice-only-audible-carry-runtime',
       segmentId: 'segment-live2d-body-voice-only-audible-carry-runtime',
-      text: '我先沿着身体和声音还连着的这条线轻一点接回来。',
+      text: '我先沿着身体和声音还连着的这条线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -10750,7 +10750,7 @@ describe('stage embodiment performance runtime', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-body-voice-only-audible-carry-runtime',
           rendererTarget: 'live2d',
-          replyText: '我先沿着身体和声音还连着的这条线轻一点接回来。',
+          replyText: '我先沿着身体和声音还连着的这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -10761,7 +10761,7 @@ describe('stage embodiment performance runtime', () => {
             segments: [{
               id: 'segment-live2d-body-voice-only-audible-carry-runtime',
               index: 0,
-              text: '我先沿着身体和声音还连着的这条线轻一点接回来。',
+              text: '我先沿着身体和声音还连着的这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -10977,7 +10977,7 @@ describe('stage embodiment performance runtime', () => {
       intentId: 'intent-live2d-body-lipsync-voice-rejoin-runtime',
       streamId: 'stream-live2d-body-lipsync-voice-rejoin-runtime',
       segmentId: 'segment-live2d-body-lipsync-voice-rejoin-runtime',
-      text: '我先沿着嘴型和声音还连着的这条线轻一点接回来。',
+      text: '我先沿着嘴型和声音还连着的这条线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -10985,7 +10985,7 @@ describe('stage embodiment performance runtime', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-body-lipsync-voice-rejoin-runtime',
           rendererTarget: 'live2d',
-          replyText: '我先沿着嘴型和声音还连着的这条线轻一点接回来。',
+          replyText: '我先沿着嘴型和声音还连着的这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -10996,7 +10996,7 @@ describe('stage embodiment performance runtime', () => {
             segments: [{
               id: 'segment-live2d-body-lipsync-voice-rejoin-runtime',
               index: 0,
-              text: '我先沿着嘴型和声音还连着的这条线轻一点接回来。',
+              text: '我先沿着嘴型和声音还连着的这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -11212,7 +11212,7 @@ describe('stage embodiment performance runtime', () => {
       intentId: 'intent-live2d-signature-only-still-voiced-motion-line-runtime',
       streamId: 'stream-live2d-signature-only-still-voiced-motion-line-runtime',
       segmentId: 'segment-live2d-signature-only-still-voiced-motion-line-runtime',
-      text: '我先沿着这条动作和声音还活着的线轻一点接回来。',
+      text: '我先沿着这条动作和声音还活着的线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -11220,7 +11220,7 @@ describe('stage embodiment performance runtime', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-signature-only-still-voiced-motion-line-runtime',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条动作和声音还活着的线轻一点接回来。',
+          replyText: '我先沿着这条动作和声音还活着的线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -11231,7 +11231,7 @@ describe('stage embodiment performance runtime', () => {
             segments: [{
               id: 'segment-live2d-signature-only-still-voiced-motion-line-runtime',
               index: 0,
-              text: '我先沿着这条动作和声音还活着的线轻一点接回来。',
+              text: '我先沿着这条动作和声音还活着的线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -11420,7 +11420,7 @@ describe('stage embodiment performance runtime', () => {
 
   it('does not relight a live2d richer still-voiced face-and-mouth carry into a fresh action pulse before body and motion have actually rejoined the living line', async () => {
     const segmentId = 'segment-live2d-still-voiced-face-mouth-runtime'
-    const text = '我先沿着这条表情、口型和声音还活着的线轻一点接回来。'
+    const text = '我先沿着这条表情、口型和声音还活着的线中性可见占位。'
     const rendererHints = {
       residentMode: 'same-thread-continuation' as const,
       preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
@@ -11603,7 +11603,7 @@ describe('stage embodiment performance runtime', () => {
 
   it('does not relight a live2d richer still-voiced face-and-motion carry into a fresh action pulse before body has actually rejoined the living line', async () => {
     const segmentId = 'segment-live2d-still-voiced-face-motion-runtime'
-    const text = '我先沿着这条表情、动作和声音还活着的线轻一点接回来。'
+    const text = '我先沿着这条表情、动作和声音还活着的线中性可见占位。'
     const rendererHints = {
       residentMode: 'same-thread-continuation' as const,
       preferredExpressionAliases: ['CalmInspect', 'soft-gaze'],
@@ -12044,7 +12044,7 @@ describe('stage embodiment performance runtime', () => {
       intentId: 'intent-live2d-still-voiced-motion-mouth-runtime',
       streamId: 'stream-live2d-still-voiced-motion-mouth-runtime',
       segmentId: 'segment-live2d-still-voiced-motion-mouth-runtime',
-      text: '我先沿着这条动作、口型和声音还活着的线轻一点接回来。',
+      text: '我先沿着这条动作、口型和声音还活着的线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -12052,7 +12052,7 @@ describe('stage embodiment performance runtime', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-still-voiced-motion-mouth-runtime',
           rendererTarget: 'live2d',
-          replyText: '我先沿着这条动作、口型和声音还活着的线轻一点接回来。',
+          replyText: '我先沿着这条动作、口型和声音还活着的线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -12063,7 +12063,7 @@ describe('stage embodiment performance runtime', () => {
             segments: [{
               id: 'segment-live2d-still-voiced-motion-mouth-runtime',
               index: 0,
-              text: '我先沿着这条动作、口型和声音还活着的线轻一点接回来。',
+              text: '我先沿着这条动作、口型和声音还活着的线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,
@@ -12254,7 +12254,7 @@ describe('stage embodiment performance runtime', () => {
     speech.dispose()
   })
 
-  it('does not relight a live2d quieter body+lipsync carry into a fresh action pulse before motion has actually rejoined the same living line', async () => {
+  it('does not relight a live2d quieter body+lipsync carry into a fresh action pulse before motion has actually rejoined the continuity state', async () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -12281,7 +12281,7 @@ describe('stage embodiment performance runtime', () => {
       intentId: 'intent-live2d-body-lipsync-only-runtime-carry',
       streamId: 'stream-live2d-body-lipsync-only-runtime-carry',
       segmentId: 'segment-live2d-body-lipsync-only-runtime-carry',
-      text: '我先沿着身体和口型还连着的这条线轻一点接回来。',
+      text: '我先沿着身体和口型还连着的这条线中性可见占位。',
       special: null,
       continuityHoldMs: 240,
       metadata: {
@@ -12289,7 +12289,7 @@ describe('stage embodiment performance runtime', () => {
           version: 'embodiment-script-v1',
           turnId: 'turn-live2d-body-lipsync-only-runtime-carry',
           rendererTarget: 'live2d',
-          replyText: '我先沿着身体和口型还连着的这条线轻一点接回来。',
+          replyText: '我先沿着身体和口型还连着的这条线中性可见占位。',
           state: {
             baseEmotion: 'thinking',
             delivery: 'gentle',
@@ -12300,7 +12300,7 @@ describe('stage embodiment performance runtime', () => {
             segments: [{
               id: 'segment-live2d-body-lipsync-only-runtime-carry',
               index: 0,
-              text: '我先沿着身体和口型还连着的这条线轻一点接回来。',
+              text: '我先沿着身体和口型还连着的这条线中性可见占位。',
               interruptPolicy: 'soft-settle',
               preRollMs: 40,
               settleMs: 300,

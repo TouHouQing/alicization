@@ -235,16 +235,9 @@ function buildSurfaceContractFromProjection(input: {
       governingInquiry: null,
       governingProject: null,
       emotionalClosureCue: null,
-      latestRevision: null,
-      executivePhase: 'acting',
-      truthFrame: 'live',
-      mindMode: 'tracking',
       activeClosenessContext: input.projection.activeClosenessContext,
       activeClosenessRung: input.projection.activeClosenessRung,
       relationshipPosture: input.relationshipPosture ?? (input.projection.relationshipPosture ?? 'warm'),
-      reasons: [],
-      mustDo: [],
-      mustNotDo: [],
     },
     runtimeSurface,
   })
@@ -462,7 +455,7 @@ describe('person-state-authority-regression', () => {
         updatedAt: 36_000,
       },
       autobiographicalSelf: createAutobiographicalSelf({
-        identityNarrative: 'I want results to come back on the same living line that asked for them.',
+        identityNarrative: 'I want results to come back on the continuity state that asked for them.',
         relationshipDoctrine: 'Callbacks should stay exact, bounded, and thread-faithful.',
         latestInflection: 'Execution callbacks land best when proposal, action, and result stay visibly tied together.',
       }),
@@ -506,14 +499,14 @@ describe('person-state-authority-regression', () => {
         summary: 'Callbacks should stay exact, bounded, and thread-faithful.',
       }),
       autobiographicalSelf: createAutobiographicalSelf({
-        identityNarrative: 'I want results to come back on the same living line that asked for them.',
+        identityNarrative: 'I want results to come back on the continuity state that asked for them.',
         relationshipDoctrine: 'Callbacks should stay exact, bounded, and thread-faithful while still carrying the same unfinished Phase 1 closure.',
         latestInflection: 'Execution callbacks should keep what has already landed visible without dropping the still-open closure line.',
       }),
       longHorizonMemory: createLongHorizonMemory({
-        rememberedPlanSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        rememberedPlanSummary: 'structured continuity digest.',
         rememberedConstraintSummary: 'Execution callback continuity now stays on the same live runtime closure seam through a real later return.',
-        dominantCueSummary: 'Runtime-visible callback continuity still needs to stay aligned with project-state carry after persistence while keeping the host-facing line pointed at extending cross-modal same-her proof.',
+        dominantCueSummary: 'Runtime-visible callback continuity still needs to stay aligned with project-state carry after persistence while keeping the host-facing line pointed at extending cross-modal identity-continuity',
       }),
       selfContinuity: createSelfContinuity({
         relationshipTrust: 0.62,
@@ -546,7 +539,7 @@ describe('person-state-authority-regression', () => {
         latestTrustMeaning: 'Trust holds when concern is visible but the return still stays slower than impulse after noisy detours.',
         latestDominantRung: 'space-first',
         recentSummaries: ['Execution-callback afterglow is still live across noisier desktop detours, and the later chat turn should stay concerned but measured-return.'],
-        explanation: ['Same-her callback timing still favors a slower, lower-pressure reopen even when the felt tone has become concerned.'],
+        explanation: ['identity-continuity'],
         updatedAt: 36_500,
       } as any,
     })

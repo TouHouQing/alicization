@@ -60,7 +60,7 @@ describe('performance visualizer self evolution adopted anchor traceability', ()
     })
   })
 
-  it('keeps same-her continuity governance traceable when the adopted anchor comes from memory-first continuity validation', () => {
+  it('keeps identity-continuity', () => {
     expect(buildSelfEvolutionAdoptedAnchorTraceability({
       adoptedAnchor: {
         adoptedAt: 1400,
@@ -790,7 +790,7 @@ describe('performance visualizer self evolution adopted anchor traceability', ()
     })
   })
 
-  it('keeps quieter same-her continuity traceable when the adopted anchor still only keeps face, lipsync, and voice on the same living segment', () => {
+  it('keeps quieter identity-continuity', () => {
     expect(buildSelfEvolutionAdoptedAnchorTraceability({
       adoptedAnchor: {
         adoptedAt: 1960,
@@ -808,7 +808,7 @@ describe('performance visualizer self evolution adopted anchor traceability', ()
         continuityGovernanceNote: null,
         relationshipCadenceGovernanceNote: null,
         projectStateContinuityGovernanceNote: null,
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       },
       patternSummaryByKey: {
         'pattern-body-continuity-governance': '这更像身体连续性治理反复被确认，而不是 generic partial drift。',
@@ -836,8 +836,8 @@ describe('performance visualizer self evolution adopted anchor traceability', ()
       supportingLines: [
         '这张默认连续性锚点来自模式 pattern-body-continuity-governance，对应快照 1905 与轨迹 trace-face-voice-only-4。',
         '采纳归属仍然锚定在 身体连续性治理，而不是脱离原始修复归属单独漂移。',
-        '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
-        '采纳前提仍然可追溯到当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，而不是把这次 quieter carry 误写成 body、motion 已经补回的修复完成。',
+        '这张默认连续性锚点记录的不是可信身体连续性基线，而是当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
+        '采纳前提仍然可追溯到当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         '若需要复盘这张基线为什么可信，应回到它对应的重复漂移模式和修复工作流，而不是只看当前结果快照。',
       ],
     })

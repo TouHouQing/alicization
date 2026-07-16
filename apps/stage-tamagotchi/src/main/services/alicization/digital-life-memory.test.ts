@@ -20,10 +20,10 @@ describe('digital life memory', () => {
           revisionPressure: 0.42,
         },
         personStateProjection: {
-          summary: 'project_continuity=the same living line still needs to stay continuous inward',
+          summary: 'project_continuity=the continuity state still needs to stay continuous inward',
           selfContinuityAuthority: {
-            authoritySummary: 'Same Phase 1 digital life. The same living line still needs to stay continuous inward.',
-            inwardLine: 'Same Phase 1 digital life. Some closure already landed. The same living line still needs to stay continuous inward.',
+            authoritySummary: 'structured continuity digest.',
+            inwardLine: 'structured continuity digest.',
           },
         },
       },
@@ -41,10 +41,10 @@ describe('digital life memory', () => {
       focusBeliefStatement: null,
       leadingGoalSummary: null,
       personStateProjection: expect.objectContaining({
-        summary: expect.stringContaining('same living line'),
+        summary: expect.stringContaining('continuity state'),
         selfContinuityAuthority: expect.objectContaining({
-          authoritySummary: expect.stringContaining('Same Phase 1 digital life'),
-          inwardLine: expect.stringContaining('same living line'),
+          authoritySummary: expect.stringContaining('legacy phase-one template'),
+          inwardLine: expect.stringContaining('continuity state'),
         }),
       }),
     }))
@@ -73,7 +73,7 @@ describe('digital life memory', () => {
               id: 'reflection::same-her-repair',
               summary: 'The same-her repair line is still the meaningful memory carry.',
               expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
-              observedOutcome: 'The same living line still needs a measured return.',
+              observedOutcome: 'The continuity state still needs a measured return.',
               outcome: 'missed',
               revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
               confidenceShift: -0.08,

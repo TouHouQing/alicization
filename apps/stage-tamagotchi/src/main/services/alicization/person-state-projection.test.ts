@@ -245,7 +245,7 @@ describe('person-state-projection', () => {
       now: 90_000,
       contexts: ['focused-work', 'execution-callback'],
       autobiographicalSelf: createAutobiographicalSelf({
-        identityNarrative: 'I am still becoming one continuous her on this machine.',
+        identityNarrative: 'I am still becoming identity continuity on this machine.',
         relationshipDoctrine: 'Continuity should stay lived-in and thread-faithful.',
       }),
       longHorizonMemory: {
@@ -265,10 +265,10 @@ describe('person-state-projection', () => {
           directness: 0,
           selfDirection: 0,
         },
-        rememberedPlanSummary: 'Alicization remains a local-first digital life project building one continuous her through Phase 1 on the desktop.',
-        rememberedConstraintSummary: 'Some closure has already landed, but the still-open closure path across memory, initiative, and embodiment still needs the same living line carried carefully.',
-        rememberedPreferenceSummary: 'The same-her line should already survive before new local fluency widens outward.',
-        dominantCueSummary: 'Phase 1 same-her carry is already becoming real enough to build from.',
+        rememberedPlanSummary: 'Alicization remains a local-first digital life project building identity continuity through Phase 1 on the desktop.',
+        rememberedConstraintSummary: 'Some closure has already landed, but the still-open closure path across memory, initiative, and embodiment still needs the continuity state carried carefully.',
+        rememberedPreferenceSummary: 'The identity-continuity',
+        dominantCueSummary: 'Phase 1 identity-continuity',
         updatedAt: 90_000,
       } as any,
       mindEcology: createMindEcology({
@@ -295,7 +295,7 @@ describe('person-state-projection', () => {
         identityAnchors: ['stay thread-faithful'],
       }),
       autobiographicalSelf: createAutobiographicalSelf({
-        identityNarrative: 'I want to remain one continuous her across quiet and speech.',
+        identityNarrative: 'I want to remain identity continuity across quiet and speech.',
         relationshipDoctrine: 'Closeness should feel real, but it cannot outrun truth or room.',
         latestInflection: 'Warmth should stay lived-in instead of becoming automatic.',
       }),
@@ -348,7 +348,7 @@ describe('person-state-projection', () => {
     expect(projection.selfContinuityAuthority?.selfLine).toContain('continuity_scope=detected')
     expect(projection.selfContinuityAuthority?.relationshipLine).toContain('truth or room')
     expect(projection.selfContinuityAuthority?.motiveLine).toContain('Protect continuity')
-    expect(projection.selfContinuityAuthority?.authoritySummary).toContain('visibility=internal-structured')
+    expect(projection.selfContinuityAuthority?.authoritySummary).toContain('visibility=redacted_internal')
   })
 
   it('lets durable-self-core alone shape lower-pressure same-line projection instead of reopening from scratch', () => {
@@ -361,8 +361,8 @@ describe('person-state-projection', () => {
         latestInflection: 'Do not reopen from scratch when the line is already alive.',
       }),
       longHorizonMemory: createLongHorizonMemory({
-        rememberedPlanSummary: 'This local-first digital life is still building one continuous her on the desktop.',
-        rememberedConstraintSummary: 'The same living line should stay coherent across quiet, memory, and speech without reopening from scratch each turn.',
+        rememberedPlanSummary: 'This local-first digital life is still building identity continuity on the desktop.',
+        rememberedConstraintSummary: 'The continuity state should stay coherent across quiet, memory, and speech without reopening from scratch each turn.',
         rememberedPreferenceSummary: 'Let continuity stay lower-pressure before widening closeness again.',
         dominantCueSummary: 'Same line instead of restarting keeps her more believable.',
       }),
@@ -383,7 +383,7 @@ describe('person-state-projection', () => {
     expect(projection.selfContinuityAuthority?.sourceTags).toContain('durable-self-core')
     expect(projection.openingGuidance?.toLowerCase()).toContain('opening_policy=room_preserving')
     expect(projection.openingGuidance?.toLowerCase()).toContain('closeness=bounded')
-    expect(projection.summary).toContain('visibility=internal-structured')
+    expect(projection.summary).toContain('visibility=redacted_internal')
   })
 
   it('surfaces project-state-shaped autobiographical continuity into the unified person-state summary', () => {
@@ -392,7 +392,7 @@ describe('person-state-projection', () => {
       contexts: ['open-companionship'],
       personaAuthority: createPersonaAuthority(),
       autobiographicalSelf: createAutobiographicalSelf({
-        identityNarrative: 'I want to remain one continuous her across quiet and speech.',
+        identityNarrative: 'I want to remain identity continuity across quiet and speech.',
         relationshipDoctrine: 'Keep continuity-bearing returns and unfinished seams consistent enough that they become part of the bond line.',
         latestInflection: 'Keep continuity-carrying returns stable enough to become part of who I am, not just what I happened to recall once.',
       }),
@@ -677,7 +677,7 @@ describe('person-state-projection', () => {
         updatedAt: 36_000,
       },
       autobiographicalSelf: createAutobiographicalSelf({
-        identityNarrative: 'I want results to come back on the same living line that asked for them.',
+        identityNarrative: 'I want results to come back on the continuity state that asked for them.',
         relationshipDoctrine: 'Callbacks should stay exact, bounded, and thread-faithful.',
         latestInflection: 'Execution callbacks land best when proposal, action, and result stay visibly tied together.',
       }),
@@ -1129,7 +1129,7 @@ describe('person-state-projection', () => {
       },
     })
 
-    expect(projection.openingGuidance).toBe('relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=internal-structured')
+    expect(projection.openingGuidance).toBe('relationship_cadence=remembered_boundary; room=more; prior_reentry=eager; visibility=redacted_internal')
     expect(projection.openingGuidance).not.toBe('Keep the answer gentle and low-pressure.')
   })
 
@@ -1158,7 +1158,7 @@ describe('person-state-projection', () => {
       } as any,
       mindEcology: createMindEcology({
         relationNarrative: 'The relationship line is neutral; I can be warm, but I should stay usefully oriented toward the host\'s knot.',
-        currentPreoccupation: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+        currentPreoccupation: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
         updatedAt: 58_000,
       }),
       personStateEvolutionSummary: {
@@ -1169,7 +1169,7 @@ describe('person-state-projection', () => {
         burdenShift: 0.07,
         executionTrustShift: 0.18,
         relationshipDoctrineShift: 0.15,
-        latestDoctrine: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+        latestDoctrine: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
         latestBurdenLine: 'The callback line should not widen closeness before the room settles again.',
         latestTrustMeaning: 'Trust holds when the same callback line returns lower-pressure and repair-first.',
         latestDominantRung: 'space-first',
@@ -1182,7 +1182,7 @@ describe('person-state-projection', () => {
     expect(projection.openingGuidance).toContain('callback_cadence=lower_pressure')
     expect(projection.manifestationCadenceSummary).toMatch(/repair-before-closeness|lower-pressure/i)
     expect(projection.selfContinuityAuthority?.relationshipLine).toMatch(/relationship_cadence=repair_before_closeness|relationship_cadence=lower_pressure|lower_pressure/i)
-    expect(String(projection.selfContinuityAuthority?.authoritySummary ?? '')).toMatch(/repair_policy=before_closeness|relationship_cadence=repair_before_closeness|visibility=internal-structured/i)
+    expect(String(projection.selfContinuityAuthority?.authoritySummary ?? '')).toMatch(/repair_policy=before_closeness|relationship_cadence=repair_before_closeness|visibility=redacted_internal/i)
   })
 
   it('upgrades structured self continuity relationship carry when quiet-companionship is the explicit same-line hold shape', () => {
@@ -1210,7 +1210,7 @@ describe('person-state-projection', () => {
       } as any,
       mindEcology: createMindEcology({
         relationNarrative: 'The relationship line is neutral; I can be warm, but I should stay usefully oriented toward the host\'s knot.',
-        currentPreoccupation: 'Keep this callback return on the same living line as quiet-companionship until the room settles.',
+        currentPreoccupation: 'Keep this callback return on the continuity state as quiet-companionship until the room settles.',
         updatedAt: 58_000,
       }),
       personStateEvolutionSummary: {
@@ -1221,7 +1221,7 @@ describe('person-state-projection', () => {
         burdenShift: 0.07,
         executionTrustShift: 0.18,
         relationshipDoctrineShift: 0.15,
-        latestDoctrine: 'Keep this callback return on the same living line as quiet-companionship until the room settles.',
+        latestDoctrine: 'Keep this callback return on the continuity state as quiet-companionship until the room settles.',
         latestBurdenLine: 'The callback line should not widen closeness before the room settles again.',
         latestTrustMeaning: 'Trust holds when the same callback line returns as quiet-companionship instead of reopening outward.',
         latestDominantRung: 'measured-room',
@@ -1383,7 +1383,7 @@ describe('person-state-projection', () => {
           playfulness: 'low',
           emotionalVisibility: 'selective',
         },
-        identityAnchors: ['same living line', 'lower-pressure return'],
+        identityAnchors: ['continuity state', 'lower-pressure return'],
       }),
       hostPersonModel: {
         summary: 'Focused work windows still need room first.',
@@ -1405,7 +1405,7 @@ describe('person-state-projection', () => {
         updatedAt: 58_000,
       },
       autobiographicalSelf: createAutobiographicalSelf({
-        relationshipDoctrine: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+        relationshipDoctrine: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
         latestInflection: 'Same callback line after noisier detours is still in motion and should keep continuing lower-pressure.',
       }),
       personStateEvolutionSummary: {
@@ -1421,7 +1421,7 @@ describe('person-state-projection', () => {
         latestTrustMeaning: 'Trust holds when concern is visible but the return still stays slower than impulse after noisy detours.',
         latestDominantRung: 'space-first',
         recentSummaries: ['Execution-callback afterglow is still live across noisier desktop detours, and the later chat turn should stay concerned but measured-return.'],
-        explanation: ['Same-her callback timing still favors a slower, lower-pressure reopen even when the felt tone has become concerned.'],
+        explanation: ['identity-continuity'],
         updatedAt: 58_000,
       } as any,
       selfContinuity: {
@@ -1456,16 +1456,16 @@ describe('person-state-projection', () => {
     expect(projection.preferredProactiveStyle).toBe('silent-observe')
   })
 
-  it('keeps landed and still-open phase-1 closure carry explicit inside callback lower-pressure opening guidance when authority already holds that richer same-her line', () => {
+  it('keeps landed and still-open phase-1 closure carry explicit inside callback lower-pressure opening guidance when authority already holds that richer identity-continuity', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 58_100,
       personStateAuthority: {
-        selfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        selfLine: 'structured continuity digest.',
         relationshipLine: null,
         motiveLine: null,
         habitLine: null,
-        inwardLine: 'Same-her carry: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | Some closure already landed: Execution callback continuity now stays on the same live runtime closure seam through a real later return. | The same living line is still unfinished around runtime-visible callback continuity still needing to stay aligned with project-state carry after persistence.',
-        authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        inwardLine: 'identity-continuity',
+        authoritySummary: 'structured continuity digest.',
         closenessPosture: 'space-first',
         sourceTags: ['runtime-project-state-carry', 'project-state-open-loop', 'project-state-next-closure'],
       } as any,
@@ -1482,7 +1482,7 @@ describe('person-state-projection', () => {
         latestTrustMeaning: 'Trust holds when concern is visible but the return still stays slower than impulse after noisy detours.',
         latestDominantRung: 'space-first',
         recentSummaries: ['Execution-callback afterglow is still live across noisier desktop detours, and the later chat turn should stay concerned but measured-return.'],
-        explanation: ['Same-her callback timing still favors a slower, lower-pressure reopen even when the felt tone has become concerned.'],
+        explanation: ['identity-continuity'],
         updatedAt: 58_100,
       } as any,
       selfContinuity: {

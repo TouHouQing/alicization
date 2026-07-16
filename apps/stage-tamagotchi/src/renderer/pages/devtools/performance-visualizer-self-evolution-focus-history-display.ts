@@ -209,7 +209,6 @@ const traceSignalLabels: Record<string, string> = {
 const alignmentSignalLabels: Record<string, string> = {
   'hypothesis-labeling': '假设标注',
   'specificity-clamp': '具体性钳制',
-  'second-pass': '二次通过',
   'template-shell-suppression': '模板外壳抑制',
   'runtime.personaBias': '运行时人格偏置',
 }
@@ -302,7 +301,6 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'warmth-may-release': '温度可释放',
   'hypothesis-labeling-raised': '假设标注已提升',
   'specificity-clamp-raised': '具体性钳制已提升',
-  'second-pass-required': '需要二次通过',
   'template-shell-suppressed': '模板外壳已抑制',
   'hold-likely': '可能保持',
   'learning-proposal-raised': '学习提案已提升',

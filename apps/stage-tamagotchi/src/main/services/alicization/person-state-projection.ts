@@ -194,12 +194,12 @@ function buildStructuredRelationshipCarry(input: {
     && /verified_closure_progress|some closure already landed|unfinished|still unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure|open closure/u.test(combined)
     && /lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined)
   ) {
-    return 'relationship_cadence=lower_pressure; continuity_progress=verified; open_closure=preserve_before_widening'
+    return null
   }
   if (/repair-before-closeness|repair before closeness|repair-first/u.test(combined))
-    return 'relationship_cadence=repair_before_closeness; room=settle_before_widening'
+    return null
   if (/lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined))
-    return 'relationship_cadence=lower_pressure; room=preserve'
+    return null
   return null
 }
 
@@ -372,73 +372,73 @@ function deriveOpeningGuidance(input: {
       rememberedSeamSpecificCarry,
     )
   if (carriesRememberedSeamCue && carriesRememberedSeamReinterpretation)
-    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
+    return null
   if (
     /same callback line|same line|still continuing|another detour|same thread|callback return on the same line|same callback seam|after noisy detours|after noise|unrelated windows intervene|callback seam reopens/u.test(evolutionSameThreadCarry)
     && /lower-pressure|measured|less eager|slower return|reopen eagerly|should not reopen more eagerly|not widen the line into a fresh approach|stays slower than impulse/u.test(evolutionSameThreadCarry)
   ) {
     const callbackProjectClosureCarry = deriveCallbackProjectClosureCarry(input.selfContinuityAuthority)
     if (callbackProjectClosureCarry)
-      return `callback_cadence=lower_pressure; restart_policy=context_preserving; ${callbackProjectClosureCarry}`
-    return 'callback_cadence=lower_pressure; restart_policy=context_preserving'
+      return callbackProjectClosureCarry
+    return null
   }
   if (input.autobiographicalChooseOpeningsCarefully)
-    return 'opening_policy=wait_for_clearer_opening; room=more'
+    return null
   if (input.autobiographicalKeepGentleOpenings)
-    return 'opening_policy=memory_led; pressure=lower'
+    return null
   if (
     (input.repairTriggerText && input.relationshipPosture === 'restrained')
     || (input.continuity.currentRegime === 'repair-window' && input.relationshipPosture === 'restrained')
   ) {
-    return 'opening_policy=repair_before_closeness'
+    return null
   }
   if (
     input.repairBeforeCloseness
     && input.relationshipPosture === 'restrained'
     && (input.contexts.includes('focused-work') || input.contexts.includes('repair-window'))
   ) {
-    return 'opening_policy=repair_before_closeness'
+    return null
   }
   if (
     input.continuity.repairPosture === 'repair-first'
   ) {
-    return 'opening_policy=repair_first'
+    return null
   }
   if (input.durableSelfCoreSameLineContinuation)
-    return 'relationship_cadence=lower_pressure; restart_policy=context_preserving'
+    return null
   if (
     input.personaAuthority.openingGuidance
     && (!input.restrained || (input.relationshipPosture === 'warm' && input.personaAuthority.directnessBias >= 0.34))
   ) {
     return sanitizeProjectionText(input.personaAuthority.openingGuidance, 220)
-      || 'opening_policy=persona_authority'
+      || null
   }
   if (
     input.personaAuthority.preferredProactiveStyle === 'silent-observe'
     && input.relationshipPosture === 'restrained'
   ) {
-    return 'opening_policy=observe_first; pressure=lighter'
+    return 'Observe first with lighter pressure.'
   }
   if (input.truthBeforeWarmth)
-    return 'opening_policy=truth_first'
+    return 'Put truth first.'
   if (
     input.restIntervention
     || input.continuity.currentRegime === 'late-night-care'
     || (input.contexts.includes('late-night') && input.burdenText)
   ) {
-    return 'opening_policy=low_pressure; rest_window=protect'
+    return 'Keep pressure low and protect the rest window.'
   }
   if (
     input.restrained
     || input.continuity.closenessPosture === 'space-first'
     || input.continuity.autonomyPosture === 'protect-space'
   ) {
-    return 'opening_policy=answer_first; pressure=lighter'
+    return 'Answer first with lighter pressure.'
   }
   if (input.relationshipPosture === 'tender')
-    return 'opening_policy=truth_and_room_first; closeness=bounded'
+    return 'Put truth and room first; keep closeness bounded.'
   if (input.relationshipPosture === 'warm')
-    return 'opening_policy=room_preserving; closeness=bounded'
+    return 'Preserve room and keep closeness bounded.'
   return null
 }
 
@@ -505,24 +505,24 @@ function deriveManifestationCadenceSummary(input: {
   autobiographicalKeepGentleOpenings?: boolean
 }) {
   if (input.durableSelfCoreSameLineContinuation)
-    return 'manifestation_cadence=lower_pressure; restart_policy=context_preserving'
+    return 'Manifest with lower pressure and preserve context.'
   if (input.autobiographicalChooseOpeningsCarefully)
-    return 'manifestation_cadence=lower_pressure; eagerness=low; opening_required=true'
+    return 'Manifest with lower pressure and wait for a real opening.'
   if (input.autobiographicalKeepGentleOpenings)
-    return 'manifestation_cadence=memory_led; pressure=lower'
+    return 'Let memory lead gently with lower pressure.'
   if (input.lowerPressureManifestation) {
     const anchor = input.evolutionTrustMeaning || input.evolutionDoctrine || input.evolutionBurden
     return sanitizeText([
-      'manifestation_cadence=lower_pressure; eagerness=low',
-      anchor ? `anchor=${compactProjectionValue(anchor, 120)}` : '',
+      'Manifest with lower pressure and low eagerness.',
+      anchor ? `Anchor: ${compactProjectionValue(anchor, 120)}` : '',
     ].filter(Boolean).join(' '), 220)
   }
 
   if (input.preferredProactiveStyle === 'silent-observe' && input.activeClosenessRung === 'space-first')
-    return 'manifestation_cadence=observe_first; room=preserve'
+    return 'Observe first and preserve room.'
 
   if (input.preferredProactiveStyle === 'light-nudge' && input.activeClosenessRung === 'measured-room')
-    return 'manifestation_cadence=light_nudge; opening_required=true; boundary=bounded'
+    return 'Use only a light nudge when there is a bounded opening.'
 
   return null
 }

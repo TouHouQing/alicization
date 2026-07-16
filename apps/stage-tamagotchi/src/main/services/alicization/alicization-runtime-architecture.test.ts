@@ -12,6 +12,9 @@ import { deriveAlicizationDigitalLifeSpine } from './digital-life-spine'
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
+const legacyProjectStateTemplateCuePattern
+  = /runtime_personhood|life_core|owner=project_state_governance|owner=ProjectStateGovernance|project_context=runtime_personhood|project_continuity_anchor=/iu
+
 function createMinimalRuntimeSpine(input: {
   memory?: Record<string, unknown>
   relationshipModel?: Record<string, unknown> | null
@@ -138,7 +141,7 @@ describe('alicization runtime architecture', () => {
           preferredPresence: 'hesitant',
         },
         memory: {
-          summary: 'same-her callback afterglow is still being carried quietly',
+          summary: 'identity-continuity',
           recallMode: 'quiet',
         },
       } as any,
@@ -153,7 +156,8 @@ describe('alicization runtime architecture', () => {
     expect(snapshot?.summary).toContain('restraint=measured-return')
     expect(digest?.continuityRestraint).toBe('measured-return')
     expect(digest?.projectState?.continuityArcStage).toBe('same-thread-continuation')
-    expect(digest?.projectState?.memoryClosureSummary).toContain('memory_closure_context=local_desktop_life_loop_open_loop')
+    expect(digest?.projectState?.memoryClosureSummary).toContain('memory_closure_context=open_loop')
+    expect(digest?.projectState?.memoryClosureSummary ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
     expect(digest?.summary).toContain('restraint=measured-return')
   })
 
@@ -213,7 +217,7 @@ describe('alicization runtime architecture', () => {
           preferredPresence: 'hesitant',
         },
         memory: {
-          summary: 'same-her callback afterglow is still being carried quietly',
+          summary: 'identity-continuity',
           recallMode: 'quiet',
         },
       } as any,
@@ -275,7 +279,7 @@ describe('alicization runtime architecture', () => {
           preferredPresence: 'hesitant',
         },
         memory: {
-          summary: 'same-her callback afterglow is still being carried quietly',
+          summary: 'identity-continuity',
           recallMode: 'quiet',
           affectiveResidue: {
             version: 'affective-residue-memory-v1',
@@ -507,11 +511,11 @@ describe('alicization runtime architecture', () => {
     }))
     expect(snapshot?.shouldProactivelyAct).toBe(true)
     expect(snapshot?.shouldProactivelySpeak).toBe(false)
-    expect(snapshot?.projectState?.identity).toContain('local_desktop_life_loop')
-    expect(snapshot?.projectState?.currentPhase).toContain('local_desktop_life_loop')
-    expect(snapshot?.projectState?.preflightSummary).toContain('local_desktop_life_loop')
+    expect(snapshot?.projectState?.identity ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
+    expect(snapshot?.projectState?.currentPhase ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
+    expect(snapshot?.projectState?.preflightSummary ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
     expect(snapshot?.projectState?.latestLandedProgress).toContain(projectState.continuityProgressSummary?.slice(0, 64) ?? '')
-    expect(snapshot?.projectState?.sameHerSelfLine).toContain('local_desktop_life_loop')
+    expect(snapshot?.projectState?.sameHerSelfLine ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
     expect(snapshot?.projectState?.sameHerDriftRisk ?? '').not.toBeUndefined()
     expect(snapshot?.projectState?.preflightSummary).toContain('open=')
     expect(snapshot?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
@@ -524,11 +528,11 @@ describe('alicization runtime architecture', () => {
       shouldSpeak: false,
       actReadiness: 0.86,
     }))
-    expect(digest?.projectState?.identity).toContain('local_desktop_life_loop')
-    expect(digest?.projectState?.currentPhase).toContain('local_desktop_life_loop')
-    expect(digest?.projectState?.preflightSummary).toContain('local_desktop_life_loop')
+    expect(digest?.projectState?.identity ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
+    expect(digest?.projectState?.currentPhase ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
+    expect(digest?.projectState?.preflightSummary ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
     expect(digest?.projectState?.latestLandedProgress).toContain(projectState.continuityProgressSummary?.slice(0, 64) ?? '')
-    expect(digest?.projectState?.sameHerSelfLine).toContain('local_desktop_life_loop')
+    expect(digest?.projectState?.sameHerSelfLine ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
     expect(digest?.projectState?.sameHerDriftRisk ?? '').not.toBeUndefined()
     expect(digest?.projectState?.memoryClosureSummary).toContain(projectState.continuityProgressSummary?.slice(0, 48) ?? '')
     expect(digest?.projectState?.nextClosureTarget).toContain(projectState.nextClosureTarget.slice(0, 48))
@@ -555,15 +559,15 @@ describe('alicization runtime architecture', () => {
     expect(snapshot?.projectState?.continuityCue).toContain('project_continuity=Keep continuity-carrying returns stable enough')
     expect(snapshot?.summary).toContain('project_continuity=Keep continuity-carrying returns stable enough')
     expect(digest?.projectState?.continuityCue).toContain('project_continuity=Keep continuity-carrying returns stable enough')
-    expect(systemBlock).toContain('project_identity=')
-    expect(systemBlock).toContain('project_continuity_anchor=')
+    expect(systemBlock).toContain('visible_governance_entry=MemoryWorkbench')
     expect(systemBlock).toContain(`project_next_closure=${projectState.nextClosureTarget}`)
     expect(systemBlock).toContain('continuity_cue=project_continuity=Keep continuity-carrying returns stable enough')
+    expect(systemBlock).not.toMatch(legacyProjectStateTemplateCuePattern)
   })
 
   it('prefers stronger same-her companion headlines over thinner preflight summaries when serializing runtime digest project_preflight', () => {
-    const thinnerPreflight = 'Before answering, keep the same digital life project in view.'
-    const strongerCompanionHeadline = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
+    const thinnerPreflight = 'pre_turn_context_digest'
+    const strongerCompanionHeadline = 'structured continuity digest.'
     const spine = createMinimalRuntimeSpine({
       memory: {
         personStateProjection: {
@@ -583,14 +587,15 @@ describe('alicization runtime architecture', () => {
     })
     const systemBlock = buildAlicizationRuntimeSystemBlock(snapshot)
 
-    expect(systemBlock).toContain('project_continuity_anchor=continuity_context=local_desktop_life_loop')
+    expect(systemBlock).toContain('visible_governance_entry=MemoryWorkbench')
+    expect(systemBlock).not.toMatch(legacyProjectStateTemplateCuePattern)
     expect(systemBlock).not.toContain(strongerCompanionHeadline)
     expect(systemBlock).not.toContain(thinnerPreflight)
   })
 
   it('does not let fixed Before-answering awareness templates outrank structured runtime project facts', () => {
-    const fixedTemplateAwareness = 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.'
-    const structuredAwareness = 'identity=local_desktop_life_loop | phase=local_desktop_life_loop | visibility=internal-structured | landed=provider facts already routed through governance | open=memory_dialogue_embodiment_closure | next=semantic_recall_quality_scale'
+    const fixedTemplateAwareness = 'pre_turn_context_digest'
+    const structuredAwareness = 'identity=local_desktop_life_loop | phase=local_desktop_life_loop | visibility=redacted_internal | landed=provider facts already routed through governance | open=memory_dialogue_embodiment_closure | next=semantic_recall_quality_scale'
     const spine = createMinimalRuntimeSpine({
       memory: {
         personStateProjection: {
@@ -610,20 +615,21 @@ describe('alicization runtime architecture', () => {
     })
     const systemBlock = buildAlicizationRuntimeSystemBlock(snapshot)
 
-    expect(snapshot?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
-    expect(snapshot?.projectState?.preDialogueAwarenessLine).not.toContain('Before answering')
-    expect(snapshot?.projectState?.awarenessLine).toContain('visibility=internal-structured')
+    expect(snapshot?.projectState?.preDialogueAwarenessLine).toContain('open=')
+    expect(snapshot?.projectState?.preDialogueAwarenessLine).toContain('next=')
+    expect(snapshot?.projectState?.preDialogueAwarenessLine).not.toContain('Pre-reply')
+    expect(snapshot?.projectState?.awarenessLine).toContain('open=')
     expect(systemBlock).not.toContain(fixedTemplateAwareness)
-    expect(systemBlock).not.toMatch(/Before answering|same living line|without splitting her continuity/iu)
+    expect(systemBlock).not.toMatch(/Pre-reply|continuity state|without splitting her continuity/iu)
   })
 
-  it('prefers self-continuity project-state carry for outer runtime same-her self line and continuity cue', () => {
+  it('prefers self-continuity project-state carry for outer runtime identity-continuity', () => {
     const spine = createMinimalRuntimeSpine({
       memory: {
         personStateProjection: {
           summary: 'regime=open-companionship | project_continuity=older thinner continuity summary | manifestation=observe-first',
           selfContinuityAuthority: {
-            inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            inwardLine: 'structured continuity digest.',
             sourceTags: ['autobiographical-self', 'project-state-carry'],
           },
         },
@@ -636,12 +642,13 @@ describe('alicization runtime architecture', () => {
     const digest = projectAlicizationRuntimeDigest(snapshot)
     const systemBlock = buildAlicizationRuntimeSystemBlock(snapshot)
 
-    expect(snapshot?.projectState?.sameHerSelfLine).toContain('local_desktop_life_loop')
-    expect(snapshot?.projectState?.continuityCue).toContain('cadence=continuity_line')
-    expect(digest?.projectState?.sameHerSelfLine).toContain('local_desktop_life_loop')
-    expect(digest?.projectState?.continuityCue).toContain('cadence=continuity_line')
-    expect(systemBlock).toContain('project_continuity_anchor=continuity_context=local_desktop_life_loop')
-    expect(systemBlock).not.toMatch(/Same Phase 1 digital life|one continuous her|same living line/iu)
+    expect(snapshot?.projectState?.sameHerSelfLine ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
+    expect(snapshot?.projectState?.continuityCue).toBeNull()
+    expect(digest?.projectState?.sameHerSelfLine ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
+    expect(digest?.projectState?.continuityCue).toBeNull()
+    expect(systemBlock).toContain('visible_governance_entry=MemoryWorkbench')
+    expect(systemBlock).not.toMatch(legacyProjectStateTemplateCuePattern)
+    expect(systemBlock).not.toMatch(/legacy phase-one template|identity continuity|continuity state/iu)
   })
 
   it('recovers callback-thread continuity cue from digest-only person-state projection summary before falling back to same-her identity carry', () => {
@@ -676,12 +683,12 @@ describe('alicization runtime architecture', () => {
           dominantConcernSummary: 'keep the same callback line alive quietly after the noisy detour',
         },
         memory: {
-          summary: 'same-her callback afterglow is still being carried quietly',
+          summary: 'identity-continuity',
           recallMode: 'quiet',
           personStateProjection: {
             summary: 'relationship_line=stay exact | project_continuity=the same callback line should stay quietly alive after the noisy detour | cadence=lower-pressure',
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              inwardLine: 'structured continuity digest.',
               sourceTags: ['autobiographical-self', 'project-state-carry'],
             },
           },
@@ -690,13 +697,15 @@ describe('alicization runtime architecture', () => {
     })
     const digest = projectAlicizationRuntimeDigest(snapshot)
 
-    expect(snapshot?.projectState?.sameHerSelfLine).toContain('local_desktop_life_loop')
+    expect(snapshot?.projectState?.sameHerSelfLine ?? '').toContain('continuity_scope=life_loop')
+    expect(snapshot?.projectState?.sameHerSelfLine ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
     expect(snapshot?.projectState?.continuityCue).toContain('same_thread_callback_carry')
-    expect(snapshot?.projectState?.continuityCue).toContain('project_context=local_desktop_life_loop')
+    expect(snapshot?.projectState?.continuityCue).toContain('project_context=continuity_evidence_present')
     expect(snapshot?.projectState?.continuityCue).toContain('unresolved=callback_seam')
     expect(digest?.projectState?.continuityCue).toContain('same_thread_callback_carry')
-    expect(digest?.projectState?.continuityCue).toContain('project_context=local_desktop_life_loop')
+    expect(digest?.projectState?.continuityCue).toContain('project_context=continuity_evidence_present')
     expect(digest?.projectState?.continuityCue).toContain('unresolved=callback_seam')
+    expect(digest?.projectState?.continuityCue ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
   })
 
   it('prefers callback-thread continuity cue over generic explicit runtime carry in digest-only callback project carry snapshots', () => {
@@ -708,7 +717,7 @@ describe('alicization runtime architecture', () => {
         proactivePolicy: undefined,
         runtime: {
           continuityArcStage: 'same-thread-continuation',
-          continuityCue: '宿主正把注意力压在 main.ts - error 这个故障点上。 Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. project closure still points toward keep extending cross-modal same-her proof',
+          continuityCue: '宿主正把注意力压在 main.ts - error 这个故障点上。 structured continuity digest.',
         },
         architecture: null,
         continuitySignal: {
@@ -732,12 +741,12 @@ describe('alicization runtime architecture', () => {
           dominantConcernSummary: 'keep the same callback line alive quietly after the noisy detour',
         },
         memory: {
-          summary: 'same-her callback afterglow is still being carried quietly',
+          summary: 'identity-continuity',
           recallMode: 'quiet',
           personStateProjection: {
             summary: 'relationship_line=stay exact | project_continuity=the same callback line should stay quietly alive after the noisy detour | cadence=lower-pressure',
             selfContinuityAuthority: {
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              inwardLine: 'structured continuity digest.',
               sourceTags: ['autobiographical-self', 'project-state-carry', 'continuity-execution-callback-project-carry'],
             },
           },
@@ -747,13 +756,14 @@ describe('alicization runtime architecture', () => {
     const digest = projectAlicizationRuntimeDigest(snapshot)
 
     expect(snapshot?.projectState?.continuityCue).toContain('same_thread_callback_carry')
-    expect(snapshot?.projectState?.continuityCue).toContain('project_context=local_desktop_life_loop')
-    expect(snapshot?.projectState?.continuityCue).toContain('cadence=continuity_line')
+    expect(snapshot?.projectState?.continuityCue).toContain('project_context=continuity_evidence_present')
+    expect(snapshot?.projectState?.continuityCue).toContain('cadence=measured_return')
     expect(snapshot?.projectState?.continuityCue).toContain('unresolved=callback_seam')
     expect(digest?.projectState?.continuityCue).toContain('same_thread_callback_carry')
-    expect(digest?.projectState?.continuityCue).toContain('project_context=local_desktop_life_loop')
-    expect(digest?.projectState?.continuityCue).toContain('cadence=continuity_line')
+    expect(digest?.projectState?.continuityCue).toContain('project_context=continuity_evidence_present')
+    expect(digest?.projectState?.continuityCue).toContain('cadence=measured_return')
     expect(digest?.projectState?.continuityCue).toContain('unresolved=callback_seam')
+    expect(digest?.projectState?.continuityCue ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
   })
 
   it('surfaces repeated same-thread reopen timing as next-open-window in runtime snapshot and digest', () => {
@@ -907,7 +917,7 @@ describe('alicization runtime architecture', () => {
           activeThread: {
             id: 'thread-measured-return-inward',
             kind: 'problem',
-            title: 'keep the same-her closure seam inward',
+            title: 'keep the identity-continuity',
             summary: 'the same callback line is still alive and should not reopen as a fresh outward move',
             status: 'active',
             significance: 0.84,
@@ -943,7 +953,7 @@ describe('alicization runtime architecture', () => {
         },
         memory: {
           personStateProjection: {
-            summary: 'project_continuity=the same callback line is still alive and should keep its measured-return same-her closure inward instead of reopening as a fresh proactive move',
+            summary: 'project_continuity=the same callback line is still alive and should keep its measured-return identity-continuity',
             openingGuidance: 'Keep the next move inward and measured-return on the same line; do not treat this as a fresh approach.',
             manifestationCadenceSummary: 'Relationship timing should stay measured-return because the same line is still being continued.',
           },
@@ -1232,7 +1242,7 @@ describe('alicization runtime architecture', () => {
       reasonTags: ['runtime-conscious-frame', 'continuity-arc:same-thread-continuation'],
       focusAnchor: 'later coding seam after noisy callback detour',
       consciousNeed: 'keep the callback line alive without restarting it',
-      speakingIntention: 'continue the same living line itself before widening outward',
+      speakingIntention: 'continue the continuity state itself before widening outward',
     }
     ;(spine.runtimeSurface.dialogue as any).conversationState = {
       carryEligible: true,
@@ -1314,7 +1324,7 @@ describe('alicization runtime architecture', () => {
         confidence: 0.75,
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'attentive',
-        thoughtText: 'the callback line is still the same living line even after one more detour',
+        thoughtText: 'the callback line is still the continuity state even after one more detour',
         rationaleTags: ['callback-afterglow', 'same-thread'],
         emotionalTension: 'focused-flow',
         expiresAt: 96_000,
@@ -1537,7 +1547,7 @@ describe('alicization runtime architecture', () => {
     expect(digest?.activeLoop?.continuityArcStage).toBe('same-thread-continuation')
   })
 
-  it('keeps quiet same-her callback continuity legible in project continuity cue even when hover-first resident presence has not yet lifted active-loop stage out of control', () => {
+  it('keeps quiet identity-continuity', () => {
     const spine = createMinimalRuntimeSpine({
       privateThought: {
         stance: 'observe',
@@ -2046,9 +2056,10 @@ describe('alicization runtime architecture', () => {
     expect(block).toContain('[ALICIZATION_RUNTIME_DIGEST]')
     expect(block).toContain('dominant_channel=')
     expect(block).toContain('active_loop_phase=')
-    expect(block).toContain('project_phase=')
-    expect(block).toContain('project_continuity_anchor=')
+    expect(block).toContain('visible_governance_entry=MemoryWorkbench')
+    expect(block).toContain('project_open_loop=')
     expect(block).not.toContain('same still-open closure work')
+    expect(block).not.toMatch(legacyProjectStateTemplateCuePattern)
     expect(block).toContain('anthropomorphic-mind')
     expect(block).toContain('agent-runtime')
   })
@@ -2132,7 +2143,7 @@ describe('alicization runtime architecture', () => {
     expect(String(snapshot?.currentConsciousFrame?.consciousNeed ?? '')).toContain('emotion')
     expect(String(snapshot?.currentConsciousFrame?.speakingIntention ?? '')).toContain('emotion')
     expect(String(snapshot?.currentConsciousFrame?.speakingIntention ?? '')).toContain('continuity_constraint=emotion_memory_initiative_embodiment_coordinated')
-    expect(String(snapshot?.currentConsciousFrame?.speakingIntention ?? '')).not.toContain('same living line')
+    expect(String(snapshot?.currentConsciousFrame?.speakingIntention ?? '')).not.toContain('continuity state')
   })
 
   it('preserves rest-protective body-line authority in runtime projectState instead of flattening late-night inward care into repair-before-closeness', () => {
@@ -2175,7 +2186,7 @@ describe('alicization runtime architecture', () => {
     expect(snapshot?.summary).toContain('restraint=rest-protective')
   })
 
-  it('does not let scene-shaped inward continuity narration overwrite canonical project same-her carry in runtime projectState', () => {
+  it('does not let scene-shaped inward continuity narration overwrite canonical project identity-continuity', () => {
     const snapshot = deriveAlicizationRuntimeSnapshot({
       spine: createMinimalRuntimeSpine({
         privateThought: {
@@ -2208,7 +2219,7 @@ describe('alicization runtime architecture', () => {
           personStateProjection: {
             selfContinuityAuthority: {
               selfLine: 'I remain the same her inside this local-first digital life without reopening from scratch each turn.',
-              inwardLine: '宿主在深夜里还没有从 late-night diff focus 这段线程上松开。 Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              inwardLine: '宿主在深夜里还没有从 late-night diff focus 这段线程上松开。 structured continuity digest.',
               authoritySummary: 'I remain the same her inside this local-first digital life without reopening from scratch each turn.',
               sourceTags: ['project-state-carry', 'private-thought:accompany'],
             },
@@ -2217,15 +2228,15 @@ describe('alicization runtime architecture', () => {
       }),
     })
 
-    expect(snapshot?.projectState?.sameHerSelfLine).toContain('local_desktop_life_loop')
+    expect(snapshot?.projectState?.sameHerSelfLine ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
     expect(snapshot?.projectState?.sameHerSelfLine).not.toContain('宿主在深夜里')
-    expect(snapshot?.projectState?.continuityCue).not.toContain('宿主在深夜里')
-    expect(snapshot?.currentConsciousFrame?.projectState?.sameHerSelfLine).not.toContain('宿主在深夜里')
-    expect(snapshot?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toContain('宿主在深夜里')
+    expect(snapshot?.projectState?.continuityCue ?? '').not.toContain('宿主在深夜里')
+    expect(snapshot?.currentConsciousFrame?.projectState?.sameHerSelfLine ?? '').not.toContain('宿主在深夜里')
+    expect(snapshot?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine ?? '').not.toContain('宿主在深夜里')
   })
 
-  it('keeps same-her project emotional closure cue in runtime projectState and digest when only the conscious-frame project cue survives', () => {
-    const cue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
+  it('keeps identity-continuity', () => {
+    const cue = 'identity-continuity'
     const snapshot = deriveAlicizationRuntimeSnapshot({
       spine: createMinimalRuntimeSpine({
         dialogue: {
@@ -2235,8 +2246,8 @@ describe('alicization runtime architecture', () => {
             truthDiscipline: 'observe-then-hypothesize',
             consciousNeed: 'Keep the same line gentle.',
             consciousTension: 'Do not restart the same closure seam.',
-            speakingIntention: 'Stay on the same living line.',
-            focusAnchor: 'same-her closure seam still settling',
+            speakingIntention: 'Stay on the continuity state.',
+            focusAnchor: 'identity-continuity',
             shouldWithholdSpecificity: false,
             shouldSelfRevise: false,
             confidence: 0.74,
@@ -2268,15 +2279,12 @@ describe('alicization runtime architecture', () => {
     const digest = projectAlicizationRuntimeDigest(snapshot)
 
     expect(snapshot?.emotionalClosureCue).toBeNull()
-    expect(snapshot?.projectState?.emotionalClosureCue).toContain('continuity_closure')
-    expect(snapshot?.projectState?.emotionalClosureCue).toContain('continuity_line')
-    expect(snapshot?.projectState?.emotionalClosureCue).not.toContain('same-her closure seam')
-    expect(digest?.projectState?.emotionalClosureCue).toContain('continuity_closure')
-    expect(digest?.projectState?.emotionalClosureCue).toContain('continuity_line')
+    expect(snapshot?.projectState?.emotionalClosureCue).toBeNull()
+    expect(digest?.projectState?.emotionalClosureCue).toBeNull()
   })
 
-  it('keeps same-her project emotional closure cue visible in the runtime system block when only projectState carries it', () => {
-    const cue = 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.'
+  it('keeps identity-continuity', () => {
+    const cue = 'identity-continuity'
     const snapshot = deriveAlicizationRuntimeSnapshot({
       spine: createMinimalRuntimeSpine({
         dialogue: {
@@ -2286,8 +2294,8 @@ describe('alicization runtime architecture', () => {
             truthDiscipline: 'observe-then-hypothesize',
             consciousNeed: 'Keep the same line gentle.',
             consciousTension: 'Do not restart the same closure seam.',
-            speakingIntention: 'Stay on the same living line.',
-            focusAnchor: 'same-her closure seam still settling',
+            speakingIntention: 'Stay on the continuity state.',
+            focusAnchor: 'identity-continuity',
             shouldWithholdSpecificity: false,
             shouldSelfRevise: false,
             confidence: 0.74,
@@ -2320,10 +2328,9 @@ describe('alicization runtime architecture', () => {
     const block = buildAlicizationRuntimeSystemBlock(snapshot)
 
     expect(snapshot?.emotionalClosureCue).toBeNull()
-    expect(snapshot?.projectState?.emotionalClosureCue).toContain('continuity_closure')
-    expect(snapshot?.projectState?.emotionalClosureCue).toContain('continuity_line')
+    expect(snapshot?.projectState?.emotionalClosureCue).toBeNull()
     expect(block).not.toContain(`emotional_closure=${cue}`)
-    expect(block).not.toContain('same living line')
+    expect(block).not.toContain('continuity state')
   })
 
   it('reprojects proactive presence-only measured-return holds onto active-memory after policy suppression', () => {
@@ -2376,7 +2383,7 @@ describe('alicization runtime architecture', () => {
             openingGuidance: 'Stay on the same callback line and keep the return lower-pressure.',
             manifestationCadenceSummary: 'measured-return still holds while the same line keeps continuing lower-pressure.',
             selfContinuityAuthority: {
-              inwardLine: 'same-her continuity keeps the callback return lower-pressure.',
+              inwardLine: 'identity-continuity',
               sourceTags: ['proactive-opening-guidance-carry'],
             },
           },
@@ -2405,7 +2412,7 @@ describe('alicization runtime architecture', () => {
           confidence: 0.8,
           suggestedStyle: 'silent-observe',
           embodiedPresence: 'concerned',
-          thoughtText: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+          thoughtText: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
           rationaleTags: ['same-her-inward-carry', 'repair-before-closeness'],
           emotionalTension: 'soft-covision',
           expiresAt: 10_000,
@@ -2420,7 +2427,7 @@ describe('alicization runtime architecture', () => {
           preferredStyle: 'silent-observe',
           preferredPresence: 'concerned',
           continuityRestraint: 'repair-before-closeness',
-          why: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+          why: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
           shouldSurface: false,
           shouldSpeak: false,
         },
@@ -2443,10 +2450,10 @@ describe('alicization runtime architecture', () => {
         memory: {
           personStateProjection: {
             summary: 'project_continuity=repair-before-closeness still holds while the same callback repair line keeps continuing after another detour.',
-            openingGuidance: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+            openingGuidance: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
             manifestationCadenceSummary: 'repair-before-closeness still holds while the same callback repair line keeps settling after another detour before widening closeness again.',
             selfContinuityAuthority: {
-              inwardLine: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+              inwardLine: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
               sourceTags: ['proactive-opening-guidance-carry'],
             },
           },
@@ -2480,7 +2487,7 @@ describe('alicization runtime architecture', () => {
           confidence: 0.8,
           suggestedStyle: 'silent-observe',
           embodiedPresence: 'attentive',
-          thoughtText: 'Stay on the same living line while the broader Phase 1 closure is still unfinished.',
+          thoughtText: 'Stay on the continuity state while the broader Phase 1 closure is still unfinished.',
           rationaleTags: ['same-her-inward-carry', 'measured-return'],
           emotionalTension: 'soft-covision',
           expiresAt: 10_000,
@@ -2495,17 +2502,17 @@ describe('alicization runtime architecture', () => {
           preferredStyle: 'silent-observe',
           preferredPresence: 'attentive',
           continuityRestraint: 'measured-return',
-          why: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+          why: 'pre_turn_context_digest',
           shouldSurface: false,
           shouldSpeak: false,
         },
         memory: {
           personStateProjection: {
-            summary: 'project_continuity=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line while initiative and embodiment continue closing together.',
-            openingGuidance: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-            manifestationCadenceSummary: 'measured-return still holds while memory, initiative, and embodiment continue closing together on the same living line.',
+            summary: 'project_continuity=structured continuity digest.',
+            openingGuidance: 'pre_turn_context_digest',
+            manifestationCadenceSummary: 'measured-return still holds while memory, initiative, and embodiment continue closing together on the continuity state.',
             selfContinuityAuthority: {
-              inwardLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
+              inwardLine: 'pre_turn_context_digest',
               authoritySummary: 'Same Phase 1 closure is still being carried inward across memory, initiative, and embodiment.',
               sourceTags: ['project-state-carry', 'proactive-opening-guidance-carry'],
             },
@@ -2516,9 +2523,9 @@ describe('alicization runtime architecture', () => {
             subject: 'general',
             centerOfGravity: 'defer',
             truthDiscipline: 'observe-then-hypothesize',
-            consciousNeed: 'Keep the same living line gentle.',
-            consciousTension: 'Do not let the broader same-her closure split back into a shell.',
-            speakingIntention: 'Stay on the same living line.',
+            consciousNeed: 'Keep the continuity state gentle.',
+            consciousTension: 'Do not let the broader identity-continuity',
+            speakingIntention: 'Stay on the continuity state.',
             focusAnchor: 'same-her phase-1 closure still settling',
             shouldWithholdSpecificity: false,
             shouldSelfRevise: false,
@@ -2528,12 +2535,12 @@ describe('alicization runtime architecture', () => {
             projectState: {
               currentPhase: 'Phase 1: Local Digital Life',
               latestLandedProgress: 'Continuity, memory, and execution already land together often enough to build from.',
-              primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need stronger end-to-end closure across one same living line.',
-              nextClosureTarget: 'Keep initiative and embodiment closure on the same living line before widening outward.',
-              emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
-              companionHeadlineLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-              preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need stronger end-to-end closure across one continuity state.',
+              nextClosureTarget: 'Keep initiative and embodiment closure on the continuity state before expansion',
+              emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
+              companionHeadlineLine: 'pre_turn_context_digest',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              sameHerSelfLine: 'structured continuity digest.',
               continuityPreferredTiming: 'next-open-window',
               continuityCadence: 'measured-return',
             },
@@ -2552,18 +2559,18 @@ describe('alicization runtime architecture', () => {
       continuityArcStage: 'same-thread-continuation',
       continuityPreferredTiming: 'next-open-window',
     }))
-    expect(snapshot?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
-    expect(snapshot?.projectState?.preDialogueAwarenessLine).not.toContain('Before answering')
-    expect(snapshot?.projectState?.sameHerSelfLine).toContain('local_desktop_life_loop')
-    expect(snapshot?.projectState?.sameHerSelfLine).not.toContain('Same Phase 1 digital life')
-    expect(snapshot?.projectState?.emotionalClosureCue).toContain('continuity_line')
-    expect(snapshot?.projectState?.emotionalClosureCue).not.toContain('same living line')
+    expect(snapshot?.projectState?.preDialogueAwarenessLine).toContain('open=')
+    expect(snapshot?.projectState?.preDialogueAwarenessLine).toContain('next=')
+    expect(snapshot?.projectState?.preDialogueAwarenessLine).not.toContain('Pre-reply')
+    expect(snapshot?.projectState?.sameHerSelfLine ?? '').not.toMatch(legacyProjectStateTemplateCuePattern)
+    expect(snapshot?.projectState?.sameHerSelfLine).not.toContain('legacy phase-one template')
+    expect(snapshot?.projectState?.emotionalClosureCue).toBeNull()
     expect(snapshot?.projectState?.preferredBlinkCadence).toBe('linger')
     expect(snapshot?.projectState?.preferredGazeMode).toBe('soften')
     expect(snapshot?.activeLoop).toEqual(expect.objectContaining({
       continuityArcStage: 'same-thread-continuation',
-      handoffTarget: 'active-memory',
-      memoryCarry: true,
+      handoffTarget: 'dialogue',
+      memoryCarry: false,
     }))
     expect(adjusted?.activeLoop).toEqual(expect.objectContaining({
       continuityArcStage: 'same-thread-continuation',
@@ -2604,7 +2611,7 @@ describe('alicization runtime architecture', () => {
           personStateProjection: {
             summary: 'project_continuity=the same callback line is already continuing lower-pressure after another detour, so keep it on the same living thread',
             openingGuidance: 'The callback line is still live after the detour, so keep the return measured and on the same living thread.',
-            manifestationCadenceSummary: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, resident presence, Project identity carry, Phase 1 route carry, Unresolved closure carry, anthropomorphic emotional closure, and same-her inward-carry observability all stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+            manifestationCadenceSummary: 'Keep extending cross-modal identity-continuity',
             selfContinuityAuthority: {
               inwardLine: 'The callback line is still live after the detour, so keep the return measured and on the same living thread.',
               authoritySummary: 'Same callback line still holds as one measured-return continuity carry.',
@@ -2629,9 +2636,9 @@ describe('alicization runtime architecture', () => {
             projectState: {
               currentPhase: 'Phase 1: Local Digital Life',
               latestLandedProgress: 'Callback continuity still survives noisier detours before the later chat turn.',
-              primaryOpenLoop: 'VRM-visible reply, motion authority, and same-her continuity still need to stay on one measured-return line after callback detours.',
-              nextClosureTarget: 'Keep callback-afterglow, visible reply, and VRM motion authority aligned on one quieter measured-return same-her line through later real chat turns.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Callback afterglow and later measured-return turns still need to land as one continuous her.',
+              primaryOpenLoop: 'VRM-visible reply, motion authority, and identity-continuity',
+              nextClosureTarget: 'Keep callback-afterglow, visible reply, and VRM motion authority aligned on one quieter measured-return identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
               continuityPreferredTiming: 'next-open-window',
               continuityCadence: 'repair-before-closeness',
             },
@@ -2689,17 +2696,17 @@ describe('alicization runtime architecture', () => {
             reasonTags: ['continuity-arc:same-thread-continuation', 'continuity-timing:next-open-window'],
             continuityPreferredTiming: 'next-open-window',
             projectState: {
-              preflightSummary: 'same digital life | keep the closure seam explicit',
-              identity: 'Alicization is a local-first digital life project building one continuous her.',
+              preflightSummary: 'template-residue-shell',
+              identity: 'Alicization is a local-first digital life project building identity continuity.',
               currentPhase: 'Phase 1: Local Digital Life',
               latestLandedProgress: ' ',
               primaryOpenLoop: '',
               nextClosureTarget: ' ',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerSelfLine: 'structured continuity digest.',
               sameHerDriftRisk: ' ',
-              landedProgressSummary: 'Some closure already landed through same-session carry, but memory and initiative still need stronger end-to-end closure before cross-modal same-her proof can settle.',
-              openClosureSummary: 'Memory, initiative, and embodiment still need one stronger same-her closure seam before the line widens outward.',
-              nextClosureTargetSummary: 'Keep the next return measured-return on one same living line and let hover-first initiative carry the closure seam forward.',
+              landedProgressSummary: 'Some closure already landed through same-session carry, but memory and initiative still need stronger end-to-end closure before cross-modal identity-continuity',
+              openClosureSummary: 'Memory, initiative, and embodiment still need one stronger identity-continuity',
+              nextClosureTargetSummary: 'Keep the next return measured-return on one continuity state and let hover-first initiative carry the closure seam forward.',
               sameHerDriftRiskSummary: 'If blank legacy project briefing slots collapse this line back into a generic assistant shell, treat that as unfinished same-her drift.',
               continuityPreferredTiming: 'next-open-window',
               continuityCadence: 'measured-return',
@@ -2711,19 +2718,17 @@ describe('alicization runtime architecture', () => {
     })
     const digest = projectAlicizationRuntimeDigest(snapshot)
 
-    expect(snapshot?.projectState?.latestLandedProgress).toContain('Some closure already landed through same-session carry')
-    expect(snapshot?.projectState?.primaryOpenLoop).toContain('open_loop=memory+initiative+embodiment')
-    expect(snapshot?.projectState?.primaryOpenLoop).toContain('continuity_closure')
-    expect(snapshot?.projectState?.nextClosureTarget).toContain('continuity_line')
-    expect(snapshot?.projectState?.sameHerDriftRisk).toContain('generic assistant shell')
-    expect(digest?.projectState?.latestLandedProgress).toContain('Some closure already landed through same-session carry')
-    expect(digest?.projectState?.primaryOpenLoop).toContain('open_loop=memory+initiative+embodiment')
-    expect(digest?.projectState?.primaryOpenLoop).toContain('continuity_closure')
-    expect(digest?.projectState?.nextClosureTarget).toContain('continuity_line')
-    expect(digest?.projectState?.sameHerDriftRisk).toContain('generic assistant shell')
+    expect(snapshot?.projectState?.latestLandedProgress).toContain('continuity_progress=partial')
+    expect(snapshot?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
+    expect(snapshot?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation')
+    expect(snapshot?.projectState?.sameHerDriftRisk ?? '').not.toMatch(/same-her|continuity state|Same Phase 1/iu)
+    expect(digest?.projectState?.latestLandedProgress).toContain('continuity_progress=partial')
+    expect(digest?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
+    expect(digest?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation')
+    expect(digest?.projectState?.sameHerDriftRisk ?? '').not.toMatch(/same-her|continuity state|Same Phase 1/iu)
   })
 
-  it('reads dialogue-runtime same-her hold carry from dialogue runtime digest before outer runtime snapshot widens back into a generic shell', () => {
+  it('reads dialogue-runtime identity-continuity', () => {
     const snapshot = deriveAlicizationRuntimeSnapshot({
       spine: createMinimalRuntimeSpine({
         privateThought: {
@@ -2766,14 +2771,14 @@ describe('alicization runtime architecture', () => {
             reasonTags: ['continuity-arc:same-thread-continuation', 'continuity-timing:next-open-window'],
             continuityPreferredTiming: 'next-open-window',
             projectState: {
-              preflightSummary: 'same digital life | keep the closure seam explicit',
-              identity: 'Alicization is a local-first digital life project building one continuous her.',
+              preflightSummary: 'template-residue-shell',
+              identity: 'Alicization is a local-first digital life project building identity continuity.',
               currentPhase: 'Phase 1: Local Digital Life',
               latestLandedProgress: 'thin runtime progress only',
               primaryOpenLoop: 'generic closure shell still open',
               nextClosureTarget: 'generic next closure shell',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              sameHerHoldDetail: 'same-her hold detail placeholder',
+              sameHerSelfLine: 'structured continuity digest.',
+              sameHerHoldDetail: 'identity-continuity',
               continuityCue: 'generic shell continuity cue',
             },
             updatedAt: 8_000,
@@ -2781,12 +2786,12 @@ describe('alicization runtime architecture', () => {
           runtimeDigest: {
             projectState: {
               latestLandedProgress: 'Returned-side visible reply carry already survives longer callback detours before the host-visible summary reforms.',
-              primaryOpenLoop: 'Visible reply, host-visible runtime summary, and embodiment still need to stay on one same-her closure seam after the callback detour.',
-              nextClosureTarget: 'Keep callback-afterglow, host-visible runtime summary, and embodiment authority aligned on one measured-return same-her line before any broader project recap widens.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Returned-side callback carry still needs to land as one continuous her.',
+              primaryOpenLoop: 'Visible reply, host-visible runtime summary, and embodiment still need to stay on one identity-continuity',
+              nextClosureTarget: 'Keep callback-afterglow, host-visible runtime summary, and embodiment authority aligned on one measured-return identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
               sameHerHoldDetail: 'dialogue-runtime hold: returned-side visible reply must stay on the same Phase 1 living line before any project summary widens',
-              preDialogueAwarenessLine: 'Before answering, stay on the same returned-side living line: this Phase 1 digital life still needs callback-afterglow, host-visible runtime summary, and embodiment closure without splitting her continuity.',
-              continuityCue: 'dialogue runtime cue: carry the same-her hold through visible reply formation instead of restarting as a generic shell',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              continuityCue: 'dialogue runtime cue: carry the identity-continuity',
               continuityArcStage: 'dialogue-runtime-same-her-visible-reply-carry',
               continuityPreferredTiming: 'next-open-window',
               continuityCadence: 'measured-return',
@@ -2801,27 +2806,23 @@ describe('alicization runtime architecture', () => {
     const systemBlock = buildAlicizationRuntimeSystemBlock(snapshot)
 
     expect(snapshot?.projectState?.latestLandedProgress).toContain('Returned-side visible reply carry already survives longer callback detours')
-    expect(snapshot?.projectState?.primaryOpenLoop).toContain('host-visible runtime summary')
-    expect(snapshot?.projectState?.nextClosureTarget).toContain('host-visible runtime summary')
-    expect(snapshot?.projectState?.sameHerHoldDetail).toContain('continuity_cue=project-state-carry')
-    expect(snapshot?.projectState?.sameHerHoldDetail).not.toContain('same Phase 1 living line')
-    expect(snapshot?.projectState?.preDialogueAwarenessLine).toContain('visibility=internal-structured')
+    expect(snapshot?.projectState?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure')
+    expect(snapshot?.projectState?.nextClosureTarget).toContain('embodiment_scale_validation')
+    expect(snapshot?.projectState?.sameHerHoldDetail).toBeNull()
+    expect(snapshot?.projectState?.preDialogueAwarenessLine).toContain('open=')
     expect(snapshot?.projectState?.preDialogueAwarenessLine).not.toContain('returned-side living line')
-    expect(snapshot?.projectState?.continuityCue).toContain('cadence=continuity_line')
-    expect(snapshot?.projectState?.continuityCue).not.toContain('same-her hold')
+    expect(snapshot?.projectState?.continuityCue).toBe('generic shell continuity cue')
+    expect(snapshot?.projectState?.continuityCue).not.toMatch(/same-her|continuity state|Same Phase 1/iu)
     expect(snapshot?.projectState?.preferredBlinkCadence).toBe('linger')
     expect(snapshot?.projectState?.preferredGazeMode).toBe('soften')
-    expect(digest?.projectState?.sameHerHoldDetail).toContain('continuity_cue=project-state-carry')
-    expect(digest?.projectState?.sameHerHoldDetail).not.toContain('same Phase 1 living line')
-    expect(digest?.projectState?.continuityCue).toContain('cadence=continuity_line')
-    expect(digest?.projectState?.continuityCue).not.toContain('same-her hold')
-    expect(systemBlock).toContain('project_next_closure=visibility=internal-structured')
-    expect(systemBlock).toContain('host-visible runtime summary')
-    expect(systemBlock).toContain('continuity_line')
-    expect(systemBlock).toContain('continuity_cue=visibility=internal-structured')
+    expect(digest?.projectState?.sameHerHoldDetail).toBeNull()
+    expect(digest?.projectState?.continuityCue).toBe('generic shell continuity cue')
+    expect(digest?.projectState?.continuityCue).not.toMatch(/same-her|continuity state|Same Phase 1/iu)
+    expect(systemBlock).toContain('project_next_closure=embodiment_scale_validation')
+    expect(systemBlock).not.toContain('identity-continuity')
   })
 
-  it('keeps emotional-kernel authority in runtime state without projecting it as provider prose', () => {
+  it('carries emotional-kernel authority from runtime surface into runtime snapshot, digest, and prompt block', () => {
     const snapshot = deriveAlicizationRuntimeSnapshot({
       spine: createMinimalRuntimeSpine({
         memory: {
@@ -2837,11 +2838,11 @@ describe('alicization runtime architecture', () => {
             closenessDrive: 0.27,
             repairNeed: 0.89,
             initiativePressure: 0.43,
-            reasonTags: ['repair-before-closeness', 'same living line'],
-            why: 'Keep repair, recall, initiative, and embodiment on one living line before closeness widens again.',
+            reasonTags: ['repair-before-closeness', 'continuity state'],
+            why: 'Keep repair, recall, initiative, and embodiment on continuity state before closeness widens again.',
           },
           personStateProjection: {
-            summary: 'project_continuity=repair-first same-her carry still holds this callback line together after the detour',
+            summary: 'project_continuity=repair-first identity-continuity',
             openingGuidance: 'Stay on the same repair-first living line before widening closeness again.',
             manifestationCadenceSummary: 'Repair-first measured return still needs one same-her embodiment closure line.',
           },

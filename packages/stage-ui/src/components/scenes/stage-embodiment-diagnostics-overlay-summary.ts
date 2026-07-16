@@ -359,11 +359,11 @@ function formatRendererLaneFocusSurface(input: {
   pending: string | null
 }) {
   const parts = [
-    input.active ? `focus=${input.active}` : null,
-    input.pending ? `pending=${input.pending}` : null,
+    input.active ? `Focus: ${input.active}.` : null,
+    input.pending ? `Pending: ${input.pending}.` : null,
   ].filter((value): value is string => Boolean(value))
 
-  return parts.length > 0 ? parts.join(' | ') : null
+  return parts.length > 0 ? parts.join(' ') : null
 }
 
 function resolveRendererLaneFocusSurface(input: StageEmbodimentRendererAlignmentSurfaceInput) {

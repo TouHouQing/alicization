@@ -2,34 +2,38 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
-describe('chat core pre-dialogue identity authority', () => {
-  it('delegates chat-core pre-dialogue identity construction to the shared helper', () => {
+describe('chat core memory authority', () => {
+  it('does not build, upgrade, or consume renderer pre-dialogue identity', () => {
     const source = readFileSync(new URL('./chat.ts', import.meta.url), 'utf8')
-    const builderStart = source.indexOf('function buildPreDialogueSendIdentityFromSnapshots(')
-    const resolverStart = source.indexOf('function resolvePreDialogueSendIdentityForTurn(')
-    const builderSource = source.slice(builderStart, resolverStart)
+    const performSendStart = source.indexOf('async function performSend(')
+    const performSendEnd = source.indexOf('async function ingest(', performSendStart)
+    const performSendSource = source.slice(performSendStart, performSendEnd)
 
-    expect(source.includes('from \'./chat/pre-dialogue-send-identity\'')).toBe(true)
-    expect(builderSource.includes('buildSharedPreDialogueSendIdentityFromSnapshots(')).toBe(true)
-    expect(builderSource.includes('const lines = [')).toBe(false)
-    expect(builderSource.includes('const awarenessSummaryLine =')).toBe(false)
+    expect(source).not.toContain('from \'./chat/pre-dialogue-send-identity\'')
+    expect(source).not.toContain('from \'./chat/pre-dialogue-project-state-intent\'')
+    expect(source).not.toContain('function buildPreDialogueSendIdentityFromSnapshots(')
+    expect(source).not.toContain('function resolvePreDialogueSendIdentityForTurn(')
+    expect(source).not.toContain('function needsPreDialogueSendIdentityUpgrade(')
+    expect(source).not.toContain('function upgradeExplicitPreDialogueSendIdentity(')
+    expect(source).not.toContain('function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(')
+    expect(performSendSource).not.toContain('options.preDialogueSendIdentity')
+    expect(performSendSource).not.toContain('streamingMessageContext.preDialogueSendIdentity')
+    expect(performSendSource).not.toContain('event.preDialogueAwareness')
+    expect(performSendSource).not.toContain('turnPreDialogueAwareness')
+    expect(source).not.toContain('normalizeStructuredPreDialogueAwarenessPayload(')
+    expect(source).not.toContain('preDialogueClosure: input.preDialogueClosure')
+    expect(source).not.toContain('preDialogueAwareness: normalizedInputPreDialogueAwareness')
   })
 
-  it('anchors the shared helper to current thin-shell repair proof so explicit send-entry authority does not stop at delegation', () => {
-    const sharedBuilderTestSource = readFileSync(new URL('./chat/pre-dialogue-send-identity.test.ts', import.meta.url), 'utf8')
-    const textComposerSource = readFileSync(new URL('./chat/text-composer-store.test.ts', import.meta.url), 'utf8')
+  it('keeps renderer prompt composition limited to SOUL and real context facts', () => {
+    const source = readFileSync(new URL('../composables/alicization-prompt-composer.ts', import.meta.url), 'utf8')
 
-    expect(sharedBuilderTestSource).toContain(
-      'upgrades thin carried awareness to the richer same-her project brief before building send identity',
-    )
-    expect(sharedBuilderTestSource).toContain(
-      'generic continuity reminder that should not override the richer same-her project brief.',
-    )
-    expect(sharedBuilderTestSource).toContain(
-      'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-    )
-    expect(textComposerSource).toContain(
-      'prefers project-state continuity embedded pre-dialogue awareness over generic continuity fallback when the standalone awareness snapshot is missing',
-    )
+    expect(source).not.toContain('projectStateContinuitySnapshot')
+    expect(source).not.toContain('preDialogueAwarenessSnapshot')
+    expect(source).not.toContain('preDialogueClosureSnapshot')
+    expect(source).not.toContain('alicization-project-state')
+    expect(source).not.toContain('alicization-pre-dialogue-awareness')
+    expect(source).not.toContain('alicization-pre-dialogue-closure')
+    expect(source).not.toContain('alicization-pre-dialogue-continuity')
   })
 })

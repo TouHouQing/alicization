@@ -67,7 +67,7 @@ describe('performance visualizer self evolution triage trace event', () => {
     )).toBeNull()
   })
 
-  it('prefers takeover-audit for project-state continuity checks so same-her carry drift lands on the continuity audit first', () => {
+  it('prefers takeover-audit for project-state continuity checks so identity-continuity', () => {
     expect(recommendSelfEvolutionTraceEventId(
       {
         id: 'first-check',

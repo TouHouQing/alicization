@@ -640,12 +640,12 @@ describe('buildActionEcology', () => {
         silenceDrive: 0.22,
       }),
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Initiative, embodiment, and dialogue still need a more natural closed loop. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Initiative, embodiment, and dialogue still need a more natural closed loop. | next=Keep extending cross-modal identity-continuity',
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'Initiative, embodiment, and dialogue still need a more natural closed loop.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
       },
     })
 
@@ -667,7 +667,7 @@ describe('buildActionEcology', () => {
         epistemicState: {
           certainty: 'grounded',
           freshness: 'recent',
-          seenNow: ['same-her closure seam still visible'],
+          seenNow: ['identity-continuity'],
           inferredNow: [],
           openQuestions: [],
           staleRisks: [],
@@ -753,14 +753,14 @@ describe('buildActionEcology', () => {
         silenceDrive: 0.22,
       }),
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need a stronger same-her closure line.',
-        identity: 'A local-first digital life companion with one continuous her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need a stronger identity-continuity',
+        identity: 'A local-first digital life companion with identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         nextClosureTarget: '',
         landedProgressSummary: 'Same-session mirror carry already holds often enough to build from.',
-        openClosureSummary: 'Memory, initiative, and embodiment still need stronger end-to-end closure on the same living line.',
-        nextClosureTargetSummary: 'Keep the next return low-pressure and let it stay on the same living line before widening outward again.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        openClosureSummary: 'Memory, initiative, and embodiment still need stronger end-to-end closure on the continuity state.',
+        nextClosureTargetSummary: 'Keep the next return low-pressure and let it stay on the continuity state before expansion',
+        sameHerSelfLine: 'structured continuity digest.',
       } as any,
     })
 
@@ -769,8 +769,8 @@ describe('buildActionEcology', () => {
     expect(ecology.shouldSurface).toBe(true)
     expect(ecology.suggestedStyle).toBe('silent-observe')
     expect(ecology.why).toContain('Phase 1 still has open digital-life closure work')
-    expect(ecology.why).toContain('same living line')
-    expect(ecology.why).not.toContain('cross-modal same-her proof')
+    expect(ecology.why).toContain('continuity state')
+    expect(ecology.why).not.toContain('cross-modal identity-continuity')
   })
 
   it('falls back to the canonical project-state brief when an explicit projectState is present but still too thin to carry the Phase 1 digital-life closure line', () => {
@@ -886,7 +886,7 @@ describe('buildActionEcology', () => {
     expect(ecology.why).toContain('Phase 1 still has open digital-life closure work')
   })
 
-  it('keeps a ripe same-her closure return in quiet measured companionship when the next closure target still says reopen gently', () => {
+  it('keeps a ripe identity-continuity', () => {
     const ecology = buildActionEcology({
       now: 62_000,
       context: createContext(),
@@ -945,8 +945,8 @@ describe('buildActionEcology', () => {
           id: 'thread-same-her',
           kind: 'localize-problem',
           status: 'ripe',
-          summary: 'The same-her closure line is still here, but it should reopen gently.',
-          desiredOutcome: 'keep the same-her closure line visible without widening too early',
+          summary: 'The identity-continuity',
+          desiredOutcome: 'keep the identity-continuity',
           focusBeliefId: 'belief-same-her',
           focusInquiryId: 'inquiry-same-her',
           concernId: null,
@@ -983,12 +983,12 @@ describe('buildActionEcology', () => {
         silenceDrive: 0.2,
       }),
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Project identity carry, initiative, and embodiment still need the same-her line to stay intact. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
-        identity: 'A local-first digital life companion with one continuous her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Project identity carry, initiative, and embodiment still need the identity-continuity',
+        identity: 'A local-first digital life companion with identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
-        primaryOpenLoop: 'Project identity carry, initiative, and embodiment still need the same-her line to stay intact.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        primaryOpenLoop: 'Project identity carry, initiative, and embodiment still need the identity-continuity',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
       },
     })
 
@@ -997,9 +997,9 @@ describe('buildActionEcology', () => {
     expect(ecology.shouldSurface).toBe(true)
     expect(ecology.suggestedStyle).toBe('silent-observe')
     expect(ecology.embodiedPresence).toBe('attentive')
-    expect(ecology.why).toContain('same-her closure line')
+    expect(ecology.why).toContain('identity-continuity')
     expect(ecology.why).toContain('Phase 1 still has open digital-life closure work')
-    expect(ecology.why).toContain('cross-modal same-her proof')
+    expect(ecology.why).toContain('cross-modal identity-continuity')
   })
 
   it('still keeps outward action lower-pressure when the explicit open-loop wording is thinner but same-her unfinished closure is already carried on the living line', () => {
@@ -1061,8 +1061,8 @@ describe('buildActionEcology', () => {
           id: 'thread-thin-open-loop',
           kind: 'localize-problem',
           status: 'ripe',
-          summary: 'The same-her closure line is still here, but it should reopen gently.',
-          desiredOutcome: 'keep the same-her closure line visible without widening too early',
+          summary: 'The identity-continuity',
+          desiredOutcome: 'keep the identity-continuity',
           focusBeliefId: 'belief-thin-open-loop',
           focusInquiryId: 'inquiry-thin-open-loop',
           concernId: null,
@@ -1100,13 +1100,13 @@ describe('buildActionEcology', () => {
       }),
       projectState: {
         preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-        identity: 'A local-first digital life companion with one continuous her.',
+        identity: 'A local-first digital life companion with identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'Project continuity still needs another closure pass.',
         nextClosureTarget: 'Carry project continuity into the next dialogue preparation step.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line before widening outward.',
-        openClosureSummary: 'Same-her continuity is still settling on the same living line before widening outward.',
-        emotionalClosureSummary: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        sameHerSelfLine: 'structured continuity digest.',
+        openClosureSummary: 'identity-continuity',
+        emotionalClosureSummary: 'identity-continuity',
       },
     })
 
@@ -1175,8 +1175,8 @@ describe('buildActionEcology', () => {
           id: 'thread-landed-progress-carry',
           kind: 'localize-problem',
           status: 'ripe',
-          summary: 'The same-her closure line is still here, but it should reopen gently.',
-          desiredOutcome: 'keep the same-her closure line visible without widening too early',
+          summary: 'The identity-continuity',
+          desiredOutcome: 'keep the identity-continuity',
           focusBeliefId: 'belief-landed-progress-carry',
           focusInquiryId: 'inquiry-landed-progress-carry',
           concernId: null,
@@ -1214,12 +1214,12 @@ describe('buildActionEcology', () => {
       }),
       projectState: {
         preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-        identity: 'A local-first digital life companion with one continuous her.',
+        identity: 'A local-first digital life companion with identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Project identity carry and same-her continuity already survive across turns, but initiative and embodiment still need stronger closure on the same living line before widening outward.',
+        latestLandedProgress: 'Project identity carry and identity-continuity',
         primaryOpenLoop: 'Natural closure rhythm is still being earned.',
         nextClosureTarget: 'Carry project continuity into the next dialogue preparation step.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
       },
     })
 
@@ -1288,8 +1288,8 @@ describe('buildActionEcology', () => {
           id: 'thread-same-her-sparse',
           kind: 'localize-problem',
           status: 'ripe',
-          summary: 'The same-her closure line is still here, but it should reopen gently.',
-          desiredOutcome: 'keep the same-her closure line visible without widening too early',
+          summary: 'The identity-continuity',
+          desiredOutcome: 'keep the identity-continuity',
           focusBeliefId: 'belief-same-her-sparse',
           focusInquiryId: 'inquiry-same-her-sparse',
           concernId: null,
@@ -1350,12 +1350,12 @@ describe('buildActionEcology', () => {
         selectedOptionId: 'option-same-her-sparse',
       } as any,
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Project identity carry, initiative, and embodiment still need the same-her line to stay intact. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
-        identity: 'A local-first digital life companion with one continuous her.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Project identity carry, initiative, and embodiment still need the identity-continuity',
+        identity: 'A local-first digital life companion with identity continuity.',
         currentPhase: 'Phase 1: Local Digital Life',
-        primaryOpenLoop: 'Project identity carry, initiative, and embodiment still need the same-her line to stay intact.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        primaryOpenLoop: 'Project identity carry, initiative, and embodiment still need the identity-continuity',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
       },
     })
 
@@ -1364,9 +1364,9 @@ describe('buildActionEcology', () => {
     expect(ecology.shouldSurface).toBe(true)
     expect(ecology.suggestedStyle).toBe('silent-observe')
     expect(ecology.embodiedPresence).toBe('attentive')
-    expect(ecology.why).toContain('same-her closure line')
+    expect(ecology.why).toContain('identity-continuity')
     expect(ecology.why).toContain('Phase 1 still has open digital-life closure work')
-    expect(ecology.why).toContain('cross-modal same-her proof')
+    expect(ecology.why).toContain('cross-modal identity-continuity')
   })
 
   it('keeps the stronger same-living-line closure direction visible when richer landed and open summaries already carry the Phase 1 project seam', () => {
@@ -1466,18 +1466,18 @@ describe('buildActionEcology', () => {
         silenceDrive: 0.22,
       }),
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter same-her closure seam before visible initiative can widen naturally across longer desktop turns. | next=Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line so visible reply, voice behavior, facial state, motion, and resident presence do not split apart.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, and embodiment still need one tighter identity-continuity',
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam before visible initiative can widen naturally across longer desktop turns.',
-        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line so visible reply, voice behavior, facial state, motion, and resident presence do not split apart.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return continuity state so visible reply, voice behavior, facial state, motion, and resident presence do not split apart.',
+        sameHerSelfLine: 'structured continuity digest.',
       },
     })
 
     expect(ecology.mode).toBe('quiet-accompany')
     expect(ecology.shouldSpeak).toBe(false)
-    expect(ecology.why).toContain('same living line')
+    expect(ecology.why).toContain('continuity state')
   })
 })

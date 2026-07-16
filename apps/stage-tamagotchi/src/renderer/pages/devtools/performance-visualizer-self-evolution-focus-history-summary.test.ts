@@ -433,7 +433,7 @@ describe('performance visualizer self evolution focus history summary', () => {
     ])).toContain('身体连续性：speech 显形权威投影虽然已经回接，但身体线没有继续托住同一段 living segment，这更像显形回接失身而不是修复完成。')
   })
 
-  it('keeps quieter face+lipsync+voice same-her carry explicit in history summary instead of flattening it into generic body-loss wording', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistorySummary([
       {
         version: 'self-evolution-focus-snapshot/v1',
@@ -444,7 +444,7 @@ describe('performance visualizer self evolution focus history summary', () => {
         explanation: 'quieter face+lipsync+voice carry still visible',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         highlightedEvidencePanelIds: [
           'renderer-authority-projection',
           'runtime-continuity-projection',
@@ -465,7 +465,7 @@ describe('performance visualizer self evolution focus history summary', () => {
         explanation: 'body motion rejoin still pending',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         highlightedEvidencePanelIds: [
           'runtime-continuity-projection',
         ],
@@ -476,7 +476,7 @@ describe('performance visualizer self evolution focus history summary', () => {
         recommendedTraceEventId: 'event-person-state',
         capturedAt: 100,
       },
-    ])).toContain('身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。')
+    ])).toContain('身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity')
   })
 
   it('prefers structured surviving visible lane metadata in history summary even when the stored body continuity note falls back to generic renderer-rejoin-without-body wording', () => {
@@ -487,7 +487,7 @@ describe('performance visualizer self evolution focus history summary', () => {
         decisionTraceId: 'trace-face-lipsync-voice-structured-summary-2',
         activeThreadId: 'thread-face-lipsync-voice-structured-summary',
         selectedCardId: 'repair-owner',
-        explanation: 'renderer rejoined without body carry, but quieter same-her lane is still structured in history',
+        explanation: 'renderer rejoined without body carry, but quieter identity-continuity',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
         survivingVisibleLane: 'face+lipsync+voice-only',
@@ -524,7 +524,7 @@ describe('performance visualizer self evolution focus history summary', () => {
         recommendedTraceEventId: 'event-person-state',
         capturedAt: 100,
       },
-    ])).toContain('身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。')
+    ])).toContain('身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity')
   })
 
   it('keeps project-state continuity carry explicit in history summary when first-check snapshots keep re-auditing project identity Phase 1 route and unresolved closure carry', () => {

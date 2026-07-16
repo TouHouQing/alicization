@@ -85,7 +85,7 @@ function createRuntime(overrides: Partial<AlicizationRuntimeSnapshot> = {}): Ali
     activeLoop: null,
     projectState: {
       currentPhase: 'Phase 1: Local Digital Life',
-      memoryClosureSummary: 'held-autonomy continuity stays on one living line',
+      memoryClosureSummary: 'held-autonomy continuity stays on continuity state',
       primaryOpenLoop: 'Memory still needs stronger end-to-end closure',
       nextClosureTarget: 'Compress mirror carry into one explicit runtime arc',
       continuityArcStage: 'gentle-reopen',
@@ -285,7 +285,7 @@ describe('runtime active loop', () => {
     const runtime = createRuntime({
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: 'same-her callback continuity is still being carried across later reopening pressure',
+        memoryClosureSummary: 'identity-continuity',
         primaryOpenLoop: 'Memory still needs stronger end-to-end closure',
         nextClosureTarget: 'Keep same-her proactive continuity stable across noisier desktop detours',
         continuityArcStage: 'same-thread-continuation',
@@ -345,9 +345,9 @@ describe('runtime active loop', () => {
       dominantChannel: 'active-control',
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: 'same-her callback continuity is still being carried through noisier desktop detours',
+        memoryClosureSummary: 'identity-continuity',
         primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-        nextClosureTarget: 'Keep measured-return, repair-before-closeness, or rest-protective quiet-companionship callback carry on one same-her line during noisier real-desktop re-entry.',
+        nextClosureTarget: 'Keep measured-return, repair-before-closeness, or rest-protective quiet-companionship callback carry on one identity-continuity',
         continuityArcStage: 'same-thread-continuation',
         continuityCue: 'callback afterglow still wants a measured-return return on the same line',
       },
@@ -377,7 +377,7 @@ describe('runtime active loop', () => {
           state: 'hot',
           readiness: 1,
           focus: 're-ground the current knot',
-          summary: 'control is regrounding the seam before speaking',
+          summary: 'control is regrounding the seam before outward reply',
         },
         'active-mind': {
           id: 'active-mind',
@@ -434,8 +434,8 @@ describe('runtime active loop', () => {
       dominantChannel: 'active-memory',
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: 'execution-callback afterglow is still being held on one same-her line',
-        primaryOpenLoop: 'Execution-callback same-her continuity still needs stronger initiative-pressure closure.',
+        memoryClosureSummary: 'execution-callback afterglow is still being held on one identity-continuity',
+        primaryOpenLoop: 'Execution-callback identity-continuity',
         nextClosureTarget: 'Keep callback afterglow inward until the opening genuinely loosens.',
         continuityArcStage: 'hold-for-opening',
         continuityCue: 'callback afterglow is still on the same line, so reopening should hover first',
@@ -465,7 +465,7 @@ describe('runtime active loop', () => {
           state: 'hot',
           readiness: 0.94,
           focus: 'callback afterglow carry',
-          summary: 'active memory is carrying the callback afterglow on one same-her line',
+          summary: 'active memory is carrying the callback afterglow on one identity-continuity',
         },
       },
     })
@@ -491,7 +491,7 @@ describe('runtime active loop', () => {
       dominantChannel: 'active-dialogue',
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: 'the callback line already reopened once and still needs to keep its later continuation on one same-her seam',
+        memoryClosureSummary: 'the callback line already reopened once and still needs to keep its later continuation on one identity-continuity',
         primaryOpenLoop: 'Later same-thread callback continuation still needs stronger closure after the first reopen already spoke.',
         nextClosureTarget: 'Keep the next same-thread callback continuation measured-return and inward even after the reopened line warms back up.',
         continuityArcStage: 'same-thread-continuation',
@@ -536,7 +536,7 @@ describe('runtime active loop', () => {
           id: 'active-mind',
           state: 'hot',
           readiness: 0.82,
-          focus: 'keep the same-her line continuous',
+          focus: 'keep the identity-continuity',
           summary: 'mind is still holding the later same-thread continuation together',
         },
         'anthropomorphic-mind': {
@@ -583,7 +583,7 @@ describe('runtime active loop', () => {
         primaryOpenLoop: 'Later noisy-detour callback carry still risks hardening into outward regrounding on the extra re-entry beat.',
         nextClosureTarget: 'Keep the seventh measured-return re-entry beat on memory carry instead of letting control reclaim it as a fresh reopen.',
         continuityArcStage: 'same-thread-continuation',
-        continuityCue: 'the callback seam is still the same living line, so one more re-entry beat should stay inward before any wider move',
+        continuityCue: 'the callback seam is still the continuity state, so one more re-entry beat should stay inward before any wider move',
       },
       shouldProactivelySpeak: false,
       shouldProactivelyAct: false,
@@ -624,7 +624,7 @@ describe('runtime active loop', () => {
           id: 'active-mind',
           state: 'warm',
           readiness: 0.7,
-          focus: 'hold the same-her line together',
+          focus: 'hold the identity-continuity',
           summary: 'mind is still stabilizing the same callback line',
         },
         'anthropomorphic-mind': {
@@ -703,7 +703,7 @@ describe('runtime active loop', () => {
           id: 'active-mind',
           state: 'warm',
           readiness: 0.72,
-          focus: 'hold the same-her line together',
+          focus: 'hold the identity-continuity',
           summary: 'mind is still protecting the same-thread line',
         },
         'anthropomorphic-mind': {
@@ -808,7 +808,7 @@ describe('runtime active loop', () => {
     expect(loop?.handoffTarget).toBe('active-memory')
   })
 
-  it('holds initiative budget one step lower when the Phase 1 same-her closure itself is still the active project target', () => {
+  it('holds initiative budget one step lower when the Phase 1 identity-continuity', () => {
     const baseline = deriveAlicizationActiveLoopSnapshot({
       architecture: createArchitecture({
         governingFocus: 'keep the next closure step anchored',
@@ -870,13 +870,13 @@ describe('runtime active loop', () => {
 
     const sameHerBound = deriveAlicizationActiveLoopSnapshot({
       architecture: createArchitecture({
-        governingFocus: 'keep the same-her closure target inward and measured-return',
+        governingFocus: 'keep the identity-continuity',
         summary: 'project-state continuity is still explicitly same-her and measured-return bound',
       }),
       runtime: createRuntime({
         projectState: {
           currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: 'same-her closure is already carried before dialogue turns',
+          memoryClosureSummary: 'identity-continuity',
           primaryOpenLoop: 'Same-her initiative and embodiment continuity still need a stronger anthropomorphic closed loop.',
           nextClosureTarget: 'Keep the same-her measured-return, repair-before-closeness, or rest-protective quiet-companionship closure alive across cross-modal voice, motion, facial state, and resident presence.',
           continuityArcStage: 'gentle-reopen',
@@ -892,14 +892,14 @@ describe('runtime active loop', () => {
             id: 'dialogue',
             state: 'hot',
             readiness: 0.89,
-            focus: 'same-her project-state carry',
+            focus: 'identity-continuity',
             summary: 'dialogue is ready',
           },
           'active-dialogue': {
             id: 'active-dialogue',
             state: 'hot',
             readiness: 0.84,
-            focus: 'same-her project-state carry',
+            focus: 'identity-continuity',
             summary: 'active dialogue is ready',
           },
           'active-control': {
@@ -913,7 +913,7 @@ describe('runtime active loop', () => {
             id: 'active-memory',
             state: 'hot',
             readiness: 0.78,
-            focus: 'same-her project-state carry',
+            focus: 'identity-continuity',
             summary: 'memory is carrying the closure line',
           },
           'anthropomorphic-mind': {
@@ -954,16 +954,16 @@ describe('runtime active loop', () => {
 
     const sameHerCarried = deriveAlicizationActiveLoopSnapshot({
       architecture: createArchitecture({
-        governingFocus: 'hold the same living line inward before widening the next reopen',
-        summary: 'same-her closure is still carried across the active project line',
+        governingFocus: 'hold the continuity state inward before widening the next reopen',
+        summary: 'identity-continuity',
       }),
       runtime: createRuntime({
         projectState: {
           currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: 'Same-her unfinished closure is already carried before dialogue turns on one same living line.',
+          memoryClosureSummary: 'Same-her unfinished closure is already carried before dialogue turns on one continuity state.',
           primaryOpenLoop: 'Project continuity still needs another closure pass.',
           nextClosureTarget: 'Carry project continuity into the next dialogue preparation step.',
-          continuityCue: 'the active closure target is still same-her, unfinished, and should stay on the same living line before widening outward',
+          continuityCue: 'the active closure target is still same-her, unfinished, and should stay on the continuity state before expansion',
         },
         continuityPressure: 0.84,
         companionshipPressure: 0.82,
@@ -998,13 +998,13 @@ describe('runtime active loop', () => {
 
     const sameHerLandedProgressBound = deriveAlicizationActiveLoopSnapshot({
       architecture: createArchitecture({
-        governingFocus: 'hold the same living line inward before widening the next reopen',
-        summary: 'same-her closure already landed enough to keep initiative quieter',
+        governingFocus: 'hold the continuity state inward before widening the next reopen',
+        summary: 'identity-continuity',
       }),
       runtime: createRuntime({
         projectState: {
           currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: 'Project identity carry and same-her continuity already survive across turns, but initiative and embodiment still need stronger closure on the same living line before widening outward.',
+          memoryClosureSummary: 'Project identity carry and identity-continuity',
           primaryOpenLoop: 'Project continuity still needs another closure pass.',
           nextClosureTarget: 'Carry project continuity into the next dialogue preparation step.',
           continuityCue: 'the open loop is still alive, but not explicitly same-her measured-return constrained',
@@ -1087,7 +1087,7 @@ describe('runtime active loop', () => {
           nextClosureTarget: 'Keep the same-her measured-return, repair-before-closeness, or rest-protective quiet-companionship closure alive across cross-modal voice, motion, facial state, and resident presence.',
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'the same thread is still live and should stay measured-return on the same living line before widening outward',
+          continuityCue: 'the same thread is still live and should stay measured-return on the continuity state before expansion',
         },
         continuityRestraint: null,
         shouldProactivelySpeak: true,
@@ -1100,7 +1100,7 @@ describe('runtime active loop', () => {
             id: 'dialogue',
             state: 'hot',
             readiness: 0.88,
-            focus: 'same-her callback carry',
+            focus: 'identity-continuity',
             summary: 'dialogue is ready',
           },
           'active-dialogue': {
@@ -1145,18 +1145,18 @@ describe('runtime active loop', () => {
     const baseline = deriveAlicizationActiveLoopSnapshot({
       architecture: createArchitecture({
         dominantSystem: 'control',
-        governingFocus: 'keep the project carry inward until the same living line closes a little further',
-        summary: 'project carry is still part of the same digital life line and should not widen outward yet',
+        governingFocus: 'keep the project carry inward until the continuity state closes a little further',
+        summary: 'project carry is still part of the local continuity state and should not widen outward yet',
       }),
       runtime: createRuntime({
         projectState: {
           currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: 'project carry is still holding one same living line across the return.',
+          memoryClosureSummary: 'project carry is still holding one continuity state across the return.',
           primaryOpenLoop: 'Project carry still needs tighter initiative and embodiment closure before a wider reopen.',
           nextClosureTarget: 'Keep project carry measured-return, repair-before-closeness, or rest-protective quiet-companionship across visible reply, resident presence, and later proactive beats.',
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'project carry is still the same living line and should stay inward before widening outward',
+          continuityCue: 'project carry is still the continuity state and should stay inward before widening outward',
         },
         continuityRestraint: null,
         shouldProactivelySpeak: true,
@@ -1207,18 +1207,18 @@ describe('runtime active loop', () => {
     const loop = deriveAlicizationActiveLoopSnapshot({
       architecture: createArchitecture({
         dominantSystem: 'control',
-        governingFocus: 'keep the callback project-carry inward until the same living line closes a little further',
-        summary: 'execution callback project-carry is still part of the same digital life line and should not widen outward yet',
+        governingFocus: 'keep the callback project-carry inward until the continuity state closes a little further',
+        summary: 'execution callback project-carry is still part of the local continuity state and should not widen outward yet',
       }),
       runtime: createRuntime({
         projectState: {
           currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: 'continuity-execution-callback-project-carry is still holding one same living line across the return.',
+          memoryClosureSummary: 'continuity-execution-callback-project-carry is still holding one continuity state across the return.',
           primaryOpenLoop: 'Execution-callback project-carry still needs tighter initiative and embodiment closure before a wider reopen.',
           nextClosureTarget: 'Keep callback project-carry measured-return, repair-before-closeness, or rest-protective quiet-companionship across visible reply, resident presence, and later proactive beats.',
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'execution-callback project-carry is still the same living line and should stay inward before widening outward',
+          continuityCue: 'execution-callback project-carry is still the continuity state and should stay inward before widening outward',
         },
         continuityRestraint: null,
         shouldProactivelySpeak: true,
@@ -1276,8 +1276,8 @@ describe('runtime active loop', () => {
   it('treats canonical one-continuous-her runtime carry plus broader closure cues as active-memory continuity authority', () => {
     const loop = deriveAlicizationActiveLoopSnapshot({
       architecture: createArchitecture({
-        governingFocus: 'keep the same living line inward while broader closure is still landing',
-        summary: 'same living line still needs inward continuity carry',
+        governingFocus: 'keep the continuity state inward while broader closure is still landing',
+        summary: 'continuity state still needs inward continuity carry',
       }),
       runtime: createRuntime({
         dominantChannel: 'dialogue',
@@ -1289,14 +1289,14 @@ describe('runtime active loop', () => {
         projectState: {
           currentPhase: 'Phase 1: Local Digital Life',
           memoryClosureSummary: 'continuity, memory, and execution already land together often enough to build from.',
-          primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need stronger end-to-end closure across one same living line.',
-          nextClosureTarget: 'Keep initiative and embodiment closure on the same living line before widening outward.',
-          preDialogueAwarenessLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-          sameHerSelfLine: 'Keep one continuous her explicit: identity=Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper. | still-open=Memory still needs stronger',
-          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
+          primaryOpenLoop: 'Memory, initiative, dialogue, and embodiment still need stronger end-to-end closure across one continuity state.',
+          nextClosureTarget: 'Keep initiative and embodiment closure on the continuity state before expansion',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          sameHerSelfLine: 'Keep identity continuity explicit: identity=Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper. | still-open=Memory still needs stronger',
+          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'measured-return same living line still holds inward before widening outward',
+          continuityCue: 'measured-return continuity state still holds inward before widening outward',
         } as any,
         channels: {
           ...createRuntime().channels,
@@ -1304,28 +1304,28 @@ describe('runtime active loop', () => {
             id: 'dialogue',
             state: 'hot',
             readiness: 0.9,
-            focus: 'same living line reply surface',
+            focus: 'continuity state reply surface',
             summary: 'dialogue is warm',
           },
           'active-dialogue': {
             id: 'active-dialogue',
             state: 'warm',
             readiness: 0.62,
-            focus: 'same living line carry',
+            focus: 'continuity state carry',
             summary: 'active dialogue is available',
           },
           'active-memory': {
             id: 'active-memory',
             state: 'warm',
             readiness: 0.31,
-            focus: 'same living line continuity carry',
+            focus: 'continuity state continuity carry',
             summary: 'memory heat is low unless project continuity promotes it',
           },
           'active-mind': {
             id: 'active-mind',
             state: 'warm',
             readiness: 0.29,
-            focus: 'same living line inward hold',
+            focus: 'continuity state inward hold',
             summary: 'mind is steady but not dominant',
           },
           'anthropomorphic-mind': {

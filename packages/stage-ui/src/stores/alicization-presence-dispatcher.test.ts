@@ -278,9 +278,6 @@ describe('alicization presence dispatcher', () => {
           surfaceMode: 'internal-only',
           placement: 'after-payoff',
           certainty: 'approximate',
-          internalLead: 'Let recollection contour the answer inwardly.',
-          visibleLead: null,
-          styleNote: 'Keep recollection inward until the host has room.',
           rationale: 'Room-first, repair-first continuity should stay inward until payoff lands.',
           confidence: 0.78,
         },
@@ -325,7 +322,7 @@ describe('alicization presence dispatcher', () => {
     }))
   })
 
-  it('keeps explicit same-her inward carry visible in silent presence pulses while preserving quiet accompaniment authority', async () => {
+  it('keeps explicit identity-continuity', async () => {
     const store = useAlicizationPresenceDispatcherStore()
     const applyPresencePulse = vi.fn()
 
@@ -339,7 +336,7 @@ describe('alicization presence dispatcher', () => {
       turnId: 'turn-same-her-inward-carry-presence',
       origin: 'subconscious-proactive',
       structured: {
-        thought: 'Keep the same living self line inward and nearby-soft while the host stays with the current knot.',
+        thought: 'Keep the identity continuity line inward and nearby-soft while the host stays with the current knot.',
         emotion: 'thinking',
         reply: '',
         proactive: {
@@ -358,9 +355,6 @@ describe('alicization presence dispatcher', () => {
           surfaceMode: 'internal-only',
           placement: 'after-payoff',
           certainty: 'approximate',
-          internalLead: 'Let self-continuity stay inwardly nearby.',
-          visibleLead: null,
-          styleNote: 'Hold the same living line inward before widening outwardly.',
           rationale: 'Self-continuity stays inward and nearby-soft while the reopen is held back.',
           confidence: 0.8,
         },
@@ -385,7 +379,7 @@ describe('alicization presence dispatcher', () => {
           visibleCarryMode: 'withhold',
           conflictPressure: 'low',
           retrievalQuality: 'medium',
-          finalRationale: 'Keep the same living line inward and nearby-soft for now.',
+          finalRationale: 'Keep the continuity state inward and nearby-soft for now.',
         },
       } as any,
     }))
@@ -789,7 +783,7 @@ describe('alicization presence dispatcher', () => {
       version: 'embodiment-script-v1',
       turnId: 'turn-runtime-vrm-renderer-authority',
       rendererTarget: 'vrm',
-      replyText: '我先沿着这条还活着的表情和声音线轻一点接回来，然后再继续看这一处。',
+      replyText: '我先沿着这条还活着的表情和声音线中性可见占位，然后再继续看这一处。',
       state: {
         baseEmotion: 'thinking',
         delivery: 'gentle',
@@ -818,7 +812,7 @@ describe('alicization presence dispatcher', () => {
       structured: {
         thought: 'focus',
         emotion: 'thinking',
-        reply: '我先沿着这条还活着的表情和声音线轻一点接回来，然后再继续看这一处。',
+        reply: '我先沿着这条还活着的表情和声音线中性可见占位，然后再继续看这一处。',
         embodiment: {
           emotion: 'thinking',
           postureHint: 'attentive',
@@ -877,7 +871,7 @@ describe('alicization presence dispatcher', () => {
       version: 'embodiment-script-v1',
       turnId: 'turn-script-digital-life-fallback',
       rendererTarget: 'live2d',
-      replyText: '我先沿着这条还活着的生命线轻一点接回来。',
+      replyText: '我先沿着这条还活着的生命线中性可见占位。',
       state: {
         baseEmotion: 'thinking',
         delivery: 'gentle',
@@ -888,7 +882,7 @@ describe('alicization presence dispatcher', () => {
         segments: [{
           id: 'segment-script-digital-life-fallback',
           index: 0,
-          text: '我先沿着这条还活着的生命线轻一点接回来。',
+          text: '我先沿着这条还活着的生命线中性可见占位。',
           interruptPolicy: 'soft-settle',
           preRollMs: 40,
           settleMs: 320,
@@ -966,7 +960,7 @@ describe('alicization presence dispatcher', () => {
           index: 0,
           startOffset: 0,
           endOffset: 20,
-          text: '我先沿着这条还活着的生命线轻一点接回来。',
+          text: '我先沿着这条还活着的生命线中性可见占位。',
           mode: 'recovering',
           interruptPolicy: 'soft-interrupt',
           settleMode: 'linger',
@@ -1016,7 +1010,7 @@ describe('alicization presence dispatcher', () => {
       structured: {
         thought: 'focus',
         emotion: 'thinking',
-        reply: '我先沿着这条还活着的生命线轻一点接回来。',
+        reply: '我先沿着这条还活着的生命线中性可见占位。',
         embodimentScript: runtimeScript,
         performance: {
           baseEmotion: 'thinking',

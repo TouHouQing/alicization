@@ -1,4 +1,4 @@
-import { array, boolean, literal, nullable, number, object, optional, record, string, union, unknown } from 'valibot'
+import { array, boolean, literal, number, object, optional, record, string, union, unknown } from 'valibot'
 
 const ChatTypeSchema = union([
   literal('private'),
@@ -56,26 +56,6 @@ export const ChatStreamMessageSchema = object({
   toolName: optional(string()),
 })
 
-const NullableStringSchema = nullable(string())
-const NullableUnknownRecordSchema = nullable(record(string(), unknown()))
-
-const ChatStreamPreDialogueSendIdentitySchema = object({
-  status: union([
-    literal('grounded'),
-    literal('partial'),
-    literal('drift'),
-  ]),
-  summaryLine: NullableStringSchema,
-  companionHeadlineLine: optional(NullableStringSchema),
-  companionBriefingLine: optional(NullableStringSchema),
-  companionNextClosureLine: optional(NullableStringSchema),
-  awarenessLine: optional(NullableStringSchema),
-  emotionalClosureCue: optional(NullableStringSchema),
-  projectState: optional(NullableUnknownRecordSchema),
-  emotionalKernel: optional(NullableUnknownRecordSchema),
-  reasonPreview: array(string()),
-})
-
 export const ChatStreamSchema = object({
   cardId: optional(string()),
   turnId: string(),
@@ -85,5 +65,4 @@ export const ChatStreamSchema = object({
   messages: array(ChatStreamMessageSchema),
   supportsTools: optional(boolean()),
   waitForTools: optional(boolean()),
-  preDialogueSendIdentity: optional(nullable(ChatStreamPreDialogueSendIdentitySchema)),
 })

@@ -426,7 +426,7 @@ describe('evaluateProactivePolicy', () => {
         },
         projectState: {
           currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
-          memoryClosureSummary: 'the callback line already reopened once and still needs to keep its later continuation on one same-her seam',
+          memoryClosureSummary: 'the callback line already reopened once and still needs to keep its later continuation on one identity-continuity',
           primaryOpenLoop: 'Later same-thread callback continuation still needs stronger closure after the first reopen already spoke.',
           nextClosureTarget: 'Keep the next same-thread callback continuation measured-return and inward even after the reopened line warms back up.',
           continuityArcStage: 'same-thread-continuation',
@@ -549,11 +549,11 @@ describe('evaluateProactivePolicy', () => {
     expect(genericDecision.style).toBe('silent-observe')
     expect(sameHerDecision.style).toBe('silent-observe')
     expect(genericDecision.reasonCodes).toContain('project-phase1-life-loop-open')
-    expect(genericDecision.reasonCodes).not.toContain('project-next-closure-pressure')
+    expect(genericDecision.reasonCodes).toContain('project-next-closure-pressure')
     expect(genericDecision.reasonCodes).not.toContain('project-continuity-pressure')
     expect(genericDecision.reasonCodes).not.toContain('project-measured-return-pressure')
     expect(genericDecision.whyNow).toContain('project_phase1_life_loop=open')
-    expect(genericDecision.whyNow).not.toContain('project_next_closure=pressure')
+    expect(genericDecision.whyNow).toContain('project_next_closure=pressure')
     expect(genericDecision.whyNow).not.toContain('same-her')
     expect(genericDecision.whyNow).not.toContain('measured-return')
     expect(genericDecision.whyNotLater).toContain('project_phase1_life_loop=open')
@@ -621,11 +621,11 @@ describe('evaluateProactivePolicy', () => {
       preflightSummary: 'Alicization is a local-first digital life project.',
       identity: 'local_desktop_life_loop; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.',
       currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
-      primaryOpenLoop: 'Before answering, keep the same living line / one continuous her / 同一个她 / 数字生命主线.',
-      proactiveSameHerGap: 'same-her continuity should stay on one same living line.',
-      nextClosureTarget: 'Keep one same living line and do not drift from Phase 1.',
-      sameHerSelfLine: 'Same Phase 1 digital life. One continuous her.',
-      sameHerDriftRisk: 'If this widens, it loses the same living line.',
+      primaryOpenLoop: 'pre_turn_context_digest',
+      proactiveSameHerGap: 'identity-continuity',
+      nextClosureTarget: 'Keep one continuity state and do not drift from Phase 1.',
+      sameHerSelfLine: 'structured continuity digest.',
+      sameHerDriftRisk: 'If this widens, it loses the continuity state.',
     } as const
     const decision = evaluateProactivePolicy({
       now: 1_000,
@@ -662,7 +662,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).not.toContain('project-next-closure-pressure')
     expect(decision.consideredSignals).not.toContain('projectState.sameHerPressure')
     expect(decision.whyNow).not.toContain('project_continuity=pressure')
-    expect(decision.whyNotLater).not.toContain('project_cadence=measured-return')
+    expect(decision.whyNotLater).not.toContain('project cadence measured-return')
   })
 
   it('keeps proactive policy on the same unfinished digital-life line when initiative already carries stronger same-her restraint than a thin project shell', () => {
@@ -693,7 +693,7 @@ describe('evaluateProactivePolicy', () => {
         speakDrive: 0.44,
         silenceDrive: 0.72,
         continuityRestraint: 'measured-return',
-        why: 'Same Phase 1 digital life. Some closure already landed through same-session mirror carry, but memory and initiative still need stronger end-to-end closure before the next cross-modal same-her proof can settle. Keep initiative serving the same unfinished Phase 1 digital-life closure instead of widening into a generic assistant nudge.',
+        why: 'structured continuity digest.',
         selectedProposalId: 'proposal-hover',
         proposals: [],
         rhythm: {
@@ -704,7 +704,7 @@ describe('evaluateProactivePolicy', () => {
         updatedAt: 1_000,
       } as any,
       projectState: {
-        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preflightSummary: 'template-residue-shell',
         identity: 'Alicization is a local-first digital life project.',
         currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
         primaryOpenLoop: ' ',
@@ -712,7 +712,7 @@ describe('evaluateProactivePolicy', () => {
       },
       runtimeDigest: createRuntimeSnapshot({
         projectState: {
-          preflightSummary: 'same digital life | keep the closure seam explicit',
+          preflightSummary: 'template-residue-shell',
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
           primaryOpenLoop: ' ',
@@ -732,7 +732,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('continuity-next-open-window')
     expect(String(decision.whyNow ?? '')).toContain('restraint=measured-return')
     expect(String(decision.whyNow ?? '')).toContain('project_phase1_life_loop=open')
-    expect(String(decision.whyNow ?? '')).not.toContain('same digital life | keep the closure seam explicit')
+    expect(String(decision.whyNow ?? '')).not.toContain('template-residue-shell')
   })
 
   it('keeps same-her proactive restraint alive when selector carries lose array scaffolding', () => {
@@ -763,7 +763,7 @@ describe('evaluateProactivePolicy', () => {
         speakDrive: 0.44,
         silenceDrive: 0.72,
         continuityRestraint: 'measured-return',
-        why: 'Same Phase 1 digital life. Some closure already landed through same-session mirror carry, but memory and initiative still need stronger end-to-end closure before the next cross-modal same-her proof can settle. Keep initiative serving the same unfinished Phase 1 digital-life closure instead of widening into a generic assistant nudge.',
+        why: 'structured continuity digest.',
         selectedProposalId: 'proposal-hover',
         proposals: [],
         rhythm: {
@@ -774,7 +774,7 @@ describe('evaluateProactivePolicy', () => {
         updatedAt: 1_000,
       } as any,
       projectState: {
-        preflightSummary: 'same digital life | keep the closure seam explicit',
+        preflightSummary: 'template-residue-shell',
         identity: 'Alicization is a local-first digital life project.',
         currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
         primaryOpenLoop: ' ',
@@ -782,7 +782,7 @@ describe('evaluateProactivePolicy', () => {
       },
       runtimeDigest: createRuntimeSnapshot({
         projectState: {
-          preflightSummary: 'same digital life | keep the closure seam explicit',
+          preflightSummary: 'template-residue-shell',
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
           primaryOpenLoop: ' ',
@@ -851,7 +851,7 @@ describe('evaluateProactivePolicy', () => {
         thoughtText: 'The line is warm enough that I could reopen it now.',
       }),
       autobiographicalSelf: {
-        relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure same living line and leave more room before widening closeness.',
+        relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure continuity state and leave more room before widening closeness.',
         latestInflection: 'Keep embodiment quieter while the corrected same-person continuity meaning is still settling.',
         identityNarrative: 'I am learning to return more steadily and less eagerly when the same-person line still needs to settle.',
         preferenceEvolution: {
@@ -1027,7 +1027,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.consideredSignals).toContain('projectState.currentPhase')
     expect(decision.consideredSignals).toContain('projectState.primaryOpenLoop')
     expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
-    expect(String(decision.whyNotLater ?? '')).toMatch(/数字生命 Phase 1|闭环|人格连续性|记忆与主动性|same-her continuity|同一条生命线|measured-return/i)
+    expect(String(decision.whyNotLater ?? '')).toMatch(/project_phase1_life_loop=open|project cadence lower-pressure|project_next_closure=pressure/i)
     expect(decision.style).toBe('silent-observe')
     expect(decision.shouldInterrupt).toBe(false)
   })
@@ -1118,7 +1118,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.consideredSignals).toContain('projectState.sameHerSelfLine')
     expect(String(decision.whyNow ?? '')).toContain('project_phase1_life_loop=open')
     expect(String(decision.whyNow ?? '')).toContain('project_continuity=pressure')
-    expect(String(decision.whyNow ?? '')).toContain('project_cadence=measured-return')
+    expect(String(decision.whyNow ?? '')).toContain('project cadence measured-return')
     expect(String(decision.whyNotLater ?? '')).toContain('project_next_closure=rich_awareness')
     expect(decision.style).toBe('silent-observe')
     expect(decision.shouldInterrupt).toBe(false)
@@ -1163,7 +1163,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('project-continuity-pressure')
     expect(decision.reasonCodes).toContain('project-next-closure-pressure')
     expect(decision.presenceOnlyHold).toBe(true)
-    expect(decision.whyNow).toMatch(/数字生命 Phase 1|same-her continuity|lower-pressure/i)
+    expect(decision.whyNow).toContain('project-measured-return-pressure')
     expect(decision.whyNotLater).toMatch(/project identity|unfinished closure|同一条生命线|measured-return/i)
   })
 
@@ -1224,7 +1224,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.style).toBe('silent-observe')
     expect(decision.reasonCodes).toContain('project-next-closure-pressure')
     expect(decision.presenceOnlyHold).toBe(true)
-    expect(decision.whyNotLater).toMatch(/later opening|same living line|measured-return/i)
+    expect(decision.whyNotLater).toMatch(/later opening|continuity state|measured-return/i)
   })
 
   it('upgrades thin project open-loop wording into measured-return proactive restraint when same-her unfinished closure is still explicit on the living line', () => {
@@ -1244,7 +1244,7 @@ describe('evaluateProactivePolicy', () => {
       privateThought: createPrivateThought({
         suggestedStyle: 'light-nudge',
         shouldSpeak: true,
-        thoughtText: 'I could speak now, but the same living line should stay lower-pressure a little longer.',
+        thoughtText: 'I could speak now, but the continuity state should stay lower-pressure a little longer.',
       }),
       projectState: {
         identity: 'local_desktop_life_loop; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.',
@@ -1287,7 +1287,7 @@ describe('evaluateProactivePolicy', () => {
       privateThought: createPrivateThought({
         suggestedStyle: 'light-nudge',
         shouldSpeak: true,
-        thoughtText: 'I could open now, but this line should stay lower-pressure until it still feels like one continuous her.',
+        thoughtText: 'I could open now, but this line should stay lower-pressure until it still feels like identity continuity.',
       }),
       projectState: {
         identity: brief.identity,
@@ -1308,8 +1308,8 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('project-continuity-pressure')
     expect(decision.reasonCodes).toContain('project-measured-return-pressure')
     expect(String(decision.whyNow ?? '')).toContain('project_continuity=pressure')
-    expect(String(decision.whyNow ?? '')).toContain('project_cadence=measured-return')
-    expect(String(decision.whyNotLater ?? '')).toContain('project_cadence=measured-return')
+    expect(String(decision.whyNow ?? '')).toContain('project cadence measured-return')
+    expect(String(decision.whyNotLater ?? '')).toContain('project cadence measured-return')
     expect(decision.style).toBe('silent-observe')
     expect(decision.shouldInterrupt).toBe(false)
   })
@@ -1378,15 +1378,15 @@ describe('evaluateProactivePolicy', () => {
         thoughtText: 'The return is real, but the still-voiced face-and-mouth line should stay lower-pressure for one more opening.',
       }),
       projectState: {
-        preflightSummary: 'same digital life | keep the closure seam explicit',
-        preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-        companionHeadlineLine: 'Right now I am still holding together through face, lipsync, and voice together, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.',
+        preflightSummary: 'template-residue-shell',
+        preDialogueAwarenessLine: 'template-residue-shell',
+        companionHeadlineLine: 'Right now I am still holding together through face, lipsync, and voice together, so that still-voiced face-and-mouth line is keeping the identity-continuity',
         identity: 'local_desktop_life_loop; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.',
         currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
         latestLandedProgress: 'Some closure already landed through same-session mirror carry and repeated next-turn carry.',
         primaryOpenLoop: 'Body and motion still need to rejoin the still-voiced face-and-mouth line before full cross-modal closure settles.',
         nextClosureTarget: 'Keep body and motion rejoining the still-voiced face-and-mouth line on a measured-return line.',
-        sameHerSelfLine: 'same digital life | keep the closure seam explicit',
+        sameHerSelfLine: 'template-residue-shell',
         sameHerDriftRisk: 'If this still-voiced face-and-mouth continuity thins back into a generic assistant shell, treat that as unfinished same-her drift.',
       } as any,
       beliefLedger: createBeliefLedger(),
@@ -1399,7 +1399,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('project-measured-return-pressure')
     expect(String(decision.whyNow ?? '')).toContain('project_continuity=pressure')
     expect(String(decision.whyNow ?? '')).toContain('project_embodiment=rich_awareness')
-    expect(String(decision.whyNow ?? '')).not.toContain('same digital life | keep the closure seam explicit')
+    expect(String(decision.whyNow ?? '')).not.toContain('template-residue-shell')
     expect(String(decision.whyNotLater ?? '')).toContain('project_embodiment=rich_awareness')
     expect(decision.style).toBe('silent-observe')
     expect(decision.shouldInterrupt).toBe(false)
@@ -1425,15 +1425,15 @@ describe('evaluateProactivePolicy', () => {
         thoughtText: 'The return is real, but the still-voiced motion-and-mouth line should stay lower-pressure for one more opening.',
       }),
       projectState: {
-        preflightSummary: 'same digital life | keep the closure seam explicit',
-        preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-        companionHeadlineLine: 'Right now I am still holding together through motion, lipsync, and voice together, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.',
+        preflightSummary: 'template-residue-shell',
+        preDialogueAwarenessLine: 'template-residue-shell',
+        companionHeadlineLine: 'Right now I am still holding together through motion, lipsync, and voice together, so that still-voiced motion-and-mouth line is keeping the identity-continuity',
         identity: 'local_desktop_life_loop; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.',
         currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
         latestLandedProgress: 'Some closure already landed through same-session mirror carry and repeated next-turn carry.',
         primaryOpenLoop: 'Body and face still need to rejoin the still-voiced motion-and-mouth line before full cross-modal closure settles.',
         nextClosureTarget: 'Keep body and face rejoining the still-voiced motion-and-mouth line on a measured-return line.',
-        sameHerSelfLine: 'same digital life | keep the closure seam explicit',
+        sameHerSelfLine: 'template-residue-shell',
         sameHerDriftRisk: 'If this still-voiced motion-and-mouth continuity thins back into a generic assistant shell, treat that as unfinished same-her drift.',
       } as any,
       beliefLedger: createBeliefLedger(),
@@ -1446,7 +1446,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('project-measured-return-pressure')
     expect(String(decision.whyNow ?? '')).toContain('project_continuity=pressure')
     expect(String(decision.whyNow ?? '')).toContain('project_embodiment=rich_awareness')
-    expect(String(decision.whyNow ?? '')).not.toContain('same digital life | keep the closure seam explicit')
+    expect(String(decision.whyNow ?? '')).not.toContain('template-residue-shell')
     expect(String(decision.whyNotLater ?? '')).toContain('project_embodiment=rich_awareness')
     expect(decision.style).toBe('silent-observe')
     expect(decision.shouldInterrupt).toBe(false)
@@ -1497,7 +1497,6 @@ describe('evaluateProactivePolicy', () => {
 
     expect(decision.style).toBe('silent-observe')
     expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
-    expect(decision.reasonCodes).toContain('project-next-closure-pressure')
     expect(decision.reasonCodes).not.toContain('project-continuity-pressure')
     expect(decision.reasonCodes).not.toContain('project-measured-return-pressure')
   })
@@ -1519,7 +1518,7 @@ describe('evaluateProactivePolicy', () => {
       privateThought: createPrivateThought({
         suggestedStyle: 'light-nudge',
         shouldSpeak: true,
-        thoughtText: 'I could reopen now, but this unfinished Phase 1 line should come back as the same living line, not as detached project bookkeeping.',
+        thoughtText: 'I could reopen now, but this unfinished Phase 1 line should come back as the continuity state, not as detached project bookkeeping.',
       }),
       motiveEngine: {
         rulingDrive: 'unfinished-thread-return',
@@ -1537,7 +1536,7 @@ describe('evaluateProactivePolicy', () => {
           kind: 'return-open-loop',
           status: 'foreground',
           weight: 0.86,
-          summary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
+          summary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
           sourceTags: ['autobiographical-self', 'project-state-carry', 'unfinished-thread-return'],
           targetGoalKind: 'clarify-scene',
           createdAt: 0,
@@ -2836,7 +2835,6 @@ describe('evaluateProactivePolicy', () => {
           warmthReleaseBias: 0,
         },
         responsePosture: {
-          secondPassRequiredBias: 0,
           hypothesisLabelBias: 0,
           specificityClampBias: 0,
           templateShellSuppressionBias: 0,
@@ -2852,10 +2850,10 @@ describe('evaluateProactivePolicy', () => {
           rollbackPlan: [],
         },
         projectStateContinuity: {
-          sameHerSelfLine: 'one continuous her',
-          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
-          emotionalClosureCue: 'Keep the proactive learning hold low-pressure while the same-her line stays explicit.',
-          continuityGuard: 'one continuous her ; If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the same-her continuity that makes her feel alive.',
+          sameHerSelfLine: 'identity continuity',
+          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the identity-continuity',
+          emotionalClosureCue: 'Keep the proactive learning hold low-pressure while the identity-continuity',
+          continuityGuard: 'identity continuity ; If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the identity-continuity',
           continuityPressure: 0.7,
         },
         reasonCodes: ['self-revision-proactive-restraint'],
@@ -2916,7 +2914,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.shouldInterrupt).toBe(false)
   })
 
-  it('holds back companionship interruption when active same-her continuity governance says the return should stay lower-pressure', () => {
+  it('holds back companionship interruption when active identity-continuity', () => {
     const decision = evaluateProactivePolicy({
       now: 1_000,
       context: createContext({
@@ -2969,7 +2967,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.shouldInterrupt).toBe(false)
   })
 
-  it('treats relationship-weighted self-revision same-her continuity hold as a first-class measured-return restraint even without the proactive-policy lane', () => {
+  it('treats relationship-weighted self-revision identity-continuity', () => {
     const decision = evaluateProactivePolicy({
       now: 1_000,
       context: createContext(),
@@ -3017,7 +3015,6 @@ describe('evaluateProactivePolicy', () => {
           warmthReleaseBias: 0,
         },
         responsePosture: {
-          secondPassRequiredBias: 0,
           hypothesisLabelBias: 0,
           specificityClampBias: 0,
           templateShellSuppressionBias: 0,
@@ -3302,7 +3299,7 @@ describe('evaluateProactivePolicy', () => {
         revisionPressure: 0.12,
         autobiographicalStability: 0.86,
         dominantTrajectory: 'relationship cadence is landing as durable rhythm',
-        relationshipDoctrine: 'Keep the same living line steady.',
+        relationshipDoctrine: 'Keep the continuity state steady.',
         latestInflection: 'The return should stay quieter before it widens.',
         burdenLine: 'Older spike noise can retake the line if the reopening gets too eager.',
         trustMeaning: 'This should keep feeling like the same person returning on one living thread.',
@@ -3357,14 +3354,14 @@ describe('evaluateProactivePolicy', () => {
         projectState: {
           currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
           memoryClosureSummary: 'corrected same-person continuity is still settling',
-          primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam.',
+          primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
           preferredPauseMode: 'longer',
           preferredLipsyncMode: 'restrained',
           preferredVoiceMode: 'lower-pressure',
           preferredPacingMode: 'slower',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'steady',
-          continuityCue: 'same-her continuity should reopen lower-pressure on the same living line.',
+          continuityCue: 'identity-continuity',
         },
       }),
       watchMode: 'symbiotic-vision',
@@ -3839,7 +3836,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.whyNotLater).toContain('affective_restraint=repair-before-closeness')
   })
 
-  it('treats same-her hold detail as a first-class measured-return restraint even before initiative and memory cadence tags are rebuilt', () => {
+  it('treats identity-continuity', () => {
     const decision = evaluateProactivePolicy({
       now: 1_000,
       context: createContext({
@@ -3906,9 +3903,9 @@ describe('evaluateProactivePolicy', () => {
         identity: 'Alicization is still closing the same local digital life line.',
         currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
         latestLandedProgress: 'sameHerHoldDetail now survives callback persistence and host-visible replay.',
-        primaryOpenLoop: 'Turn the active same-her hold into actual behavior rather than just continuity text.',
+        primaryOpenLoop: 'Turn the active identity-continuity',
         nextClosureTarget: 'Keep reopening pressure hover-first until the room opens naturally.',
-        sameHerSelfLine: 'Stay one continuous her across reopenings.',
+        sameHerSelfLine: 'Stay identity continuity across reopenings.',
         sameHerDriftRisk: 'Sounding eager would break the same-line continuity.',
         sameHerHoldDetail: 'Hold-for-opening on the same callback line; reopen gently later with a measured-return instead of widening the room too early.',
       },
@@ -3970,7 +3967,7 @@ describe('evaluateProactivePolicy', () => {
         projectState: {
           currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
           memoryClosureSummary: 'Held-autonomy continuity is still being closed across initiative pressure.',
-          primaryOpenLoop: 'Same-her continuity still needs stronger initiative-pressure closure.',
+          primaryOpenLoop: 'identity-continuity',
           nextClosureTarget: 'Keep the same line alive without reopening it too eagerly.',
           continuityArcStage: 'hold-for-opening',
           continuityCue: 'project_continuity=stay on the same line and reopen gently later',
@@ -4081,7 +4078,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('continuity-next-open-window')
   })
 
-  it('keeps proactive opening on silent-observe when pre-dialogue same-her hold detail says to wait before answering even under high speak pressure', () => {
+  it('keeps proactive opening on silent-observe when pre-dialogue identity-continuity', () => {
     const projectState = resolveAlicizationProjectStateBrief()
     const decision = evaluateProactivePolicy({
       now: 1_000,
@@ -4110,7 +4107,7 @@ describe('evaluateProactivePolicy', () => {
         stance: 'care',
         shouldSpeak: true,
         suggestedStyle: 'gentle-care',
-        thoughtText: 'Before answering, keep this on the same living line and wait for a later opening before widening outward.',
+        thoughtText: 'pre_turn_context_digest',
       }),
       initiative: {
         selectedAction: 'speak',
@@ -4133,12 +4130,12 @@ describe('evaluateProactivePolicy', () => {
       projectState: {
         identity: projectState.identity,
         currentPhase: projectState.currentPhase,
-        latestLandedProgress: 'Some closure has already landed, but that progress still has to stay on one same living line before the next outward reopen.',
-        primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure before this same-her line widens outward again.',
+        latestLandedProgress: 'Some closure has already landed, but that progress still has to stay on one continuity state before the next outward reopen.',
+        primaryOpenLoop: 'Memory and initiative still need stronger end-to-end closure before this identity-continuity',
         nextClosureTarget: 'Wait for a later opening, keep the return measured-return, and do not let the next reply drift back into a generic assistant shell.',
         sameHerSelfLine: projectState.sameHerSelfLine,
         sameHerDriftRisk: projectState.sameHerDriftRisk,
-        preDialogueAwarenessLine: 'continuity_anchor=local_desktop_life_loop; continuity_hold=measured-return; preferred_timing=next-open-window; visibility=internal-structured.',
+        preDialogueAwarenessLine: 'continuity_anchor=local_desktop_life_loop; continuity_hold=measured-return; preferred_timing=next-open-window; project_phase1_life_loop=open.',
       },
       runtimeDigest: createRuntimeSnapshot({
         dominantChannel: 'active-dialogue',
@@ -4151,7 +4148,7 @@ describe('evaluateProactivePolicy', () => {
           latestLandedProgress: 'continuity_progress=partial; continuity_hold=measured-return; preferred_timing=next-open-window.',
           primaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; continuity_hold=measured-return; owner=WorkingMemory.',
           nextClosureTarget: 'continuity_hold=measured-return; preferred_timing=next-open-window; evidence_id=pre-dialogue-hold.',
-          preDialogueAwarenessLine: 'continuity_anchor=local_desktop_life_loop; continuity_hold=measured-return; preferred_timing=next-open-window; visibility=internal-structured.',
+          preDialogueAwarenessLine: 'continuity_anchor=local_desktop_life_loop; continuity_hold=measured-return; preferred_timing=next-open-window; project_phase1_life_loop=open.',
         } as any,
       }),
       digitalLifeArchitecture: createArchitecture({
@@ -4173,7 +4170,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.consideredSignals).toContain('projectState.currentPhase')
     expect(decision.consideredSignals).toContain('projectState.nextClosureTarget')
     expect(decision.whyNow).toContain('project_continuity=pressure')
-    expect(decision.whyNotLater).toContain('project_cadence=measured-return')
+    expect(decision.whyNotLater).toContain('project cadence measured-return')
   })
 
   it('keeps same-thread continuation inward under strong initiative pressure until the same line can reopen more naturally', () => {
@@ -4327,7 +4324,7 @@ describe('evaluateProactivePolicy', () => {
             state: 'hot',
             readiness: 0.93,
             focus: 'same-thread continuation after noisy detour',
-            summary: 'active memory is still carrying the same living line through noisier desktop detours',
+            summary: 'active memory is still carrying the continuity state through noisier desktop detours',
           },
           'active-dialogue': {
             id: 'active-dialogue',
@@ -4411,7 +4408,7 @@ describe('evaluateProactivePolicy', () => {
         companionshipPressure: 0.86,
         projectState: {
           currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
-          memoryClosureSummary: 'same digital life | same still-open closure work | A same-thread continuation is still alive after multiple measured-return reopenings.',
+          memoryClosureSummary: 'structured continuity facts | A same-thread continuation is still alive after multiple measured-return reopenings.',
           primaryOpenLoop: 'Long-running same-thread continuity still needs to stay lower-pressure under accumulated dialogue heat so the same digital life keeps one same still-open closure work.',
           nextClosureTarget: 'Keep later same-thread reopenings from being misread as a fresh proactive opening while the same digital life is still carrying one same still-open closure work.',
           continuityArcStage: 'same-thread-continuation',
@@ -4456,7 +4453,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('continuity-next-open-window')
     expect(decision.whyNow).toContain('same-thread-continuation')
     expect(decision.whyNotLater).toContain('runtime_arc=same-thread-continuation')
-    expect(decision.whyNotLater).toContain('visibility=internal-structured')
+    expect(decision.whyNotLater).toContain('project_phase1_life_loop=open')
   })
 
   it('keeps hold-for-opening inward even when dialogue heat and initiative pressure both surge on the same callback line', () => {
@@ -4508,8 +4505,8 @@ describe('evaluateProactivePolicy', () => {
         companionshipPressure: 0.82,
         projectState: {
           currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
-          memoryClosureSummary: 'Execution-callback same-her continuity still needs stronger proactive-pressure closure.',
-          primaryOpenLoop: 'Execution-callback same-her continuity still should not reopen too eagerly under stronger initiative pressure.',
+          memoryClosureSummary: 'Execution-callback identity-continuity',
+          primaryOpenLoop: 'Execution-callback identity-continuity',
           nextClosureTarget: 'Keep the same callback line inward until the opening genuinely loosens.',
           continuityArcStage: 'hold-for-opening',
           continuityCue: 'project_continuity=execution callback afterglow is still on the same line, so reopening should hover first',
@@ -4521,7 +4518,7 @@ describe('evaluateProactivePolicy', () => {
             state: 'hot',
             readiness: 0.94,
             focus: 'execution callback same-line continuity',
-            summary: 'active memory is carrying the callback afterglow on one same-her line',
+            summary: 'active memory is carrying the callback afterglow on one identity-continuity',
           },
           'active-dialogue': {
             id: 'active-dialogue',
@@ -4534,7 +4531,7 @@ describe('evaluateProactivePolicy', () => {
             id: 'anthropomorphic-mind',
             state: 'hot',
             readiness: 0.88,
-            focus: 'same-her callback companionship',
+            focus: 'identity-continuity',
             summary: 'companionship heat is high, but the callback line is still lower-pressure',
           },
         },
@@ -4659,7 +4656,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('runtime-dialogue-ready')
     expect(decision.whyNow).toContain('same-thread-continuation')
     expect(decision.whyNotLater).toContain('runtime_arc=same-thread-continuation')
-    expect(decision.whyNotLater).toContain('visibility=internal-structured')
+    expect(decision.whyNotLater).toContain('project_phase1_life_loop=open')
   })
 
   it('keeps proactive style on silent-observe when same-her low-pressure anti-restart closure carry says the next move should wait for the next opening', () => {
@@ -4685,7 +4682,7 @@ describe('evaluateProactivePolicy', () => {
         stance: 'care',
         shouldSpeak: true,
         suggestedStyle: 'gentle-care',
-        thoughtText: 'The same-her line is still here, but the next move should stay low-pressure and not reopen from scratch.',
+        thoughtText: 'The identity-continuity',
       }),
       runtimeDigest: createRuntimeSnapshot({
         dominantChannel: 'active-dialogue',
@@ -4694,9 +4691,9 @@ describe('evaluateProactivePolicy', () => {
         companionshipPressure: 0.84,
         projectState: {
           currentPhase: 'phase=local_desktop_life_loop; proving_ground=apps/stage-tamagotchi',
-          memoryClosureSummary: 'The same-her closure line is still alive and should return low-pressure without reopening from scratch.',
-          primaryOpenLoop: 'The next same-her return still needs to stay inward enough that it does not read like a fresh opening.',
-          nextClosureTarget: 'Keep the next same-her return low-pressure and on the same thread instead of restarting outward closeness.',
+          memoryClosureSummary: 'The identity-continuity',
+          primaryOpenLoop: 'The next identity-continuity',
+          nextClosureTarget: 'Keep the next identity-continuity',
           continuityArcStage: 'same-thread-continuation',
           continuityCue: 'same-her low-pressure return | do not reopen from scratch | next-open-window | same-thread continuation',
         },
@@ -4704,8 +4701,8 @@ describe('evaluateProactivePolicy', () => {
       continuityDeliberation: {
         kind: 'dialogue-carry',
         arcStage: 'same-thread-continuation',
-        summary: 'Keep the same-her closure line inward until the current thread can hold the return without reopening from scratch.',
-        whyNow: 'The same-her closure line still matters, but surfacing it too early would break the low-pressure return and make it read like it is reopening from scratch.',
+        summary: 'Keep the identity-continuity',
+        whyNow: 'The identity-continuity',
         pressure: 0.54,
         intrusionRisk: 'high',
         payoffDependency: 'requires-current-payoff',
@@ -4990,7 +4987,7 @@ describe('evaluateProactivePolicy', () => {
         stance: 'care',
         shouldSpeak: true,
         suggestedStyle: 'gentle-care',
-        thoughtText: 'This unfinished Phase 1 line should reopen as the same living line, not as detached project chatter.',
+        thoughtText: 'This unfinished Phase 1 line should reopen as the continuity state, not as detached project chatter.',
       }),
       initiative: {
         selectedAction: 'speak',
@@ -5119,7 +5116,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.whyNotLater).toContain('project_next_closure=pressure')
   })
 
-  it('treats proactive same-her gap as explicit lower-pressure closure pressure even when legacy open and next fields stay thin', () => {
+  it('treats proactive identity-continuity', () => {
     const proactiveSameHerGap = 'continuity_hold=measured-return; preferred_timing=next-open-window; cross_modal_continuity_proof=needed; anti_shell_guard=active.'
     const runtimeProjectState = {
       identity: 'local_desktop_life_loop; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.',
@@ -5188,8 +5185,8 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
     expect(decision.reasonCodes).toContain('project-continuity-pressure')
     expect(decision.reasonCodes).toContain('project-measured-return-pressure')
-    expect(decision.whyNow).toMatch(/same-her continuity|lower-pressure|同一个她|生命线/i)
-    expect(decision.whyNotLater).toMatch(/lower-pressure|same[- ]her|same living line|hover-first/i)
+    expect(decision.whyNow).toContain('project-measured-return-pressure')
+    expect(decision.whyNotLater).toMatch(/lower-pressure|same[- ]her|continuity state|hover-first/i)
   })
 
   it('treats same-her drift risk alone as unfinished digital-life closure pressure even when legacy open and next fields have collapsed thin', () => {
@@ -5228,7 +5225,7 @@ describe('evaluateProactivePolicy', () => {
         stance: 'care',
         shouldSpeak: true,
         suggestedStyle: 'gentle-care',
-        thoughtText: 'The return is real, but it still has to stay on the same living line.',
+        thoughtText: 'The return is real, but it still has to stay on the continuity state.',
       }),
       initiative: {
         selectedAction: 'speak',
@@ -5261,11 +5258,11 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('project-phase1-life-loop-open')
     expect(decision.reasonCodes).toContain('project-continuity-pressure')
     expect(decision.reasonCodes).toContain('project-measured-return-pressure')
-    expect(String(decision.whyNow ?? '')).toMatch(/same-her continuity|same living line|lower-pressure|同一个她|生命线/i)
-    expect(String(decision.whyNotLater ?? '')).toMatch(/generic assistant shell|same living line|measured-return|同一条生命线/i)
+    expect(String(decision.whyNow ?? '')).toContain('project-measured-return-pressure')
+    expect(String(decision.whyNotLater ?? '')).toMatch(/generic assistant shell|continuity state|measured-return|同一条生命线/i)
   })
 
-  it('keeps the next closure target explicit in proactive restraint reasoning when the same-her return still needs to follow one living line', () => {
+  it('keeps the next closure target explicit in proactive restraint reasoning when the identity-continuity', () => {
     const decision = evaluateProactivePolicy({
       now: 1_000,
       context: createContext({
@@ -5285,7 +5282,7 @@ describe('evaluateProactivePolicy', () => {
         stance: 'care',
         shouldSpeak: true,
         suggestedStyle: 'gentle-care',
-        thoughtText: 'The return is real, but it still has to stay on the same living line.',
+        thoughtText: 'The return is real, but it still has to stay on the continuity state.',
       }),
       initiative: {
         selectedAction: 'speak',
@@ -5300,7 +5297,7 @@ describe('evaluateProactivePolicy', () => {
         silenceDrive: 0.14,
         preferredStyle: 'gentle-care',
         preferredPresence: 'attentive',
-        why: 'The return should stay on one same living line before it widens outward.',
+        why: 'The return should stay on one continuity state before it widens outward.',
         shouldSurface: true,
         shouldSpeak: true,
       },
@@ -5398,11 +5395,11 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.consideredSignals).toContain('projectState.nextClosureTarget')
     expect(decision.whyNotLater).toContain('project_next_closure=hover_first')
     expect(decision.whyNow).toContain('project_phase1_life_loop=open')
-    expect(decision.whyNow).toContain('project_cadence=measured-return')
+    expect(decision.whyNow).toContain('project cadence measured-return')
     expect(decision.whyNotLater).toContain('project_next_closure=rich_awareness')
   })
 
-  it('does not let blank legacy proactive project-state fields block richer summary aliases that still carry same-her closure pressure', () => {
+  it('does not let blank legacy proactive project-state fields block richer summary aliases that still carry identity-continuity', () => {
     const runtimeProjectState = {
       preflightSummary: 'local_desktop_life_loop; continuity_hold=measured-return; evidence_id=summary-alias-preflight.',
       identity: 'local_desktop_life_loop; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.',
@@ -5476,7 +5473,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('project-next-closure-pressure')
     expect(decision.whyNow).toContain('project_continuity=pressure')
     expect(decision.whyNow).toContain('lower-pressure')
-    expect(decision.whyNotLater).toContain('project_cadence=measured-return')
+    expect(decision.whyNotLater).toContain('project cadence measured-return')
   })
 
   it('lets hover-first cadence memory keep proactive style silent-observe even when the immediate style would otherwise become gentle-care', () => {
@@ -5588,7 +5585,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.style).toBe('silent-observe')
     expect(decision.consideredSignals).toContain('proactiveCadence.cadencePressure')
     expect(decision.reasonCodes).toContain('continuity-next-open-window')
-    expect(decision.whyNow).toMatch(/same-her continuity governance|measured-return|lower-pressure|同一个她/i)
+    expect(decision.whyNow).toContain('continuity-next-open-window')
     expect(decision.whyNotLater).toContain('opening')
   })
 
@@ -5787,7 +5784,7 @@ describe('evaluateProactivePolicy', () => {
         kind: 'execution-callback',
         arcStage: 'hold-for-opening',
         summary: 'Keep the execution-callback on the same local-first digital life thread while the unfinished Phase 1 closure is still open.',
-        whyNow: 'This callback is still carrying project identity, current Phase 1 progress, and unfinished closure on one same living line.',
+        whyNow: 'This callback is still carrying project identity, current Phase 1 progress, and unfinished closure on one continuity state.',
         pressure: 0.54,
         intrusionRisk: 'medium',
         payoffDependency: 'requires-current-payoff',

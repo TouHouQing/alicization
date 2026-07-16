@@ -325,10 +325,6 @@ const surfaceControlRows = computed(() => compactRows([
     value: asStringList(replyMemoryCoherence.value?.matchedCueKinds, 8, 120).join(', '),
   },
   {
-    label: tTrace('surface.visible_lead', 'Visible Lead'),
-    value: asString(replyMemoryCoherence.value?.visibleLead, 220),
-  },
-  {
     label: tTrace('surface.reply_excerpt', 'Reply Excerpt'),
     value: asString(replyMemoryCoherence.value?.replyExcerpt, 240),
   },

@@ -602,9 +602,6 @@ export interface AlicizationOrganicMemorySnapshot {
     surfaceMode: 'internal-only' | 'gist-first' | 'answer-anchoring' | 'procedural-carry' | 'relationship-continuity'
     placement: 'before-payoff' | 'inside-payoff' | 'after-payoff' | 'internal-only'
     certainty: 'firm' | 'approximate' | 'fragmentary'
-    internalLead: string
-    visibleLead: string | null
-    styleNote: string
     rationale: string
     confidence: number
   } | null
@@ -650,30 +647,17 @@ export interface AlicizationCoreIncarnationReforgePayload {
 
 export interface AlicizationVisibleReplyPublicCriticSummary extends Record<string, unknown> {
   version: 'visible-reply-critic-public-summary-v1'
-  status?: string | null
-  providerMindRequired?: boolean | null
-  semanticLoopClosed?: boolean | null
+  status: 'pass' | 'blocked'
+  providerMindRequired: boolean
   reasonCodes: string[]
-  repairReasonCodes: string[]
-  mustDropCount: number
-  mustPreserveCount: number
 }
 
 export interface AlicizationVisibleReplyPublicClosureSummary extends Record<string, unknown> {
   version: 'visible-reply-closure-public-summary-v1'
-  status?: string | null
-  providerMindRequired?: boolean | null
-  semanticLoopClosed?: boolean | null
-  rewriteAttempted?: boolean | null
-  rewriteSucceeded?: boolean | null
+  status: 'approved' | 'blocked'
   reasonCodes: string[]
-  repairReasonCodes?: string[]
-  initialCriticStatus?: string | null
-  finalCriticStatus?: string | null
-  initialCriticMustPreserveCount?: number
-  initialCriticMustDropCount?: number
-  finalCriticMustPreserveCount?: number
-  finalCriticMustDropCount?: number
+  initialCriticStatus: 'pass' | 'blocked' | null
+  finalCriticStatus: 'pass' | 'blocked' | null
 }
 
 export interface AlicizationConversationTurnInput {
@@ -2322,19 +2306,6 @@ export interface AlicizationLlmConfigPayload {
   providerCredentials: Record<string, Record<string, unknown>>
 }
 
-export interface AlicizationPreDialogueSendIdentity {
-  status: 'grounded' | 'partial' | 'drift'
-  summaryLine: string | null
-  companionHeadlineLine?: string | null
-  companionBriefingLine?: string | null
-  companionNextClosureLine?: string | null
-  awarenessLine?: string | null
-  emotionalClosureCue?: string | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
-  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
-  reasonPreview: string[]
-}
-
 export interface AlicizationChatStartPayload extends AlicizationCardScope {
   turnId: string
   providerId: string
@@ -2348,7 +2319,6 @@ export interface AlicizationChatStartPayload extends AlicizationCardScope {
   }>
   supportsTools?: boolean
   waitForTools?: boolean
-  preDialogueSendIdentity?: AlicizationPreDialogueSendIdentity | null
 }
 
 export type AlicizationMindTurnGovernance = SharedAlicizationMindTurnGovernance

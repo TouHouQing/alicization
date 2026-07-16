@@ -6,6 +6,8 @@ import type {
   CharacterPerformanceCapabilitiesManifest,
 } from '../../stores/alicization-bridge'
 
+import { readFileSync } from 'node:fs'
+
 import { normalizeAlicizationDialogueSpeechTimeline } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 import { computed, reactive, ref } from 'vue'
@@ -141,6 +143,13 @@ function createDispatcherHarness() {
 }
 
 describe('stage embodiment presence', () => {
+  it('does not infer embodiment authority from fixed same-her prose', () => {
+    const source = readFileSync(new URL('./use-stage-embodiment-presence.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('hasCurrentTurnSameHerContinuityCarry')
+    expect(source).not.toMatch(/generic assistant shell|continuous her|detached status talk/u)
+  })
+
   it('applies mapped action cue and keeps emotion layer without overriding motion', async () => {
     const harness = createDispatcherHarness()
     const enqueueEmotion = vi.fn()
@@ -2001,13 +2010,12 @@ describe('stage embodiment presence', () => {
     runtime.dispose()
   })
 
-  it('keeps repair-before-closeness tts fallback on the same lower-pressure body-face-motion line while lipsync and voice are still the next closure target', async () => {
+  it('keeps fallback runtime facts and embodiment metadata without forwarding legacy pre-dialogue fields', async () => {
     const harness = createDispatcherHarness()
     const speakFallback = vi.fn()
-    const armPerformance = vi.fn()
 
     const runtime = useStageEmbodimentPresence({
-      armPerformance,
+      armPerformance: vi.fn(),
       currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
       dispatcher: harness.dispatcher as any,
       live2dActionCapabilities: computed(() => []),
@@ -2016,237 +2024,117 @@ describe('stage embodiment presence', () => {
       clampPerformance: performance => performance,
       enqueueEmotion: vi.fn(),
       performanceManifest: computed(() => createManifest({
-        renderer: 'vrm',
-        supportedFacialCues: [
-          { key: 'focus', label: 'Focus', description: 'focus face', source: 'preset', affectsMouth: false },
-          { key: 'soft-gaze', label: 'Soft gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-        ],
-        supportedActions: [
-          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focused idle', source: 'builtin' },
-          { key: 'observe_focus', label: 'Observe', description: 'observe focus', source: 'builtin' },
-          { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'builtin' },
-        ],
+        renderer: 'live2d',
       })),
       resolveClampedPresencePulsePerformance: () => createPerformance(),
       resolvePresenceIntensity: (_emphasis, fallback) => fallback,
       speakFallback,
-      stageModelRenderer: ref('vrm'),
-      visualPresenceState: ref({
-        watchMode: 'symbiotic-vision',
-        currentBodyState: 'accompanying',
-        continuityMode: 'quiet-accompaniment',
-        quietLineMs: 240_000,
-        currentInwardPreoccupation: 'body face motion already rejoined; let lipsync and voice come back without reopening from scratch',
-        residentPerformance: {
-          ...createSilentResidentPerformance('accompanying'),
-          reasonTags: ['companionship', 'repair-before-closeness'],
-        },
-      } as any),
+      stageModelRenderer: ref('live2d'),
     })
 
+    const projectState = {
+      activeTask: 'index the latest memory batch',
+      observedAt: '2026-07-16T12:00:00.000Z',
+    }
+    const runtimeDigest = {
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      shouldProactivelySpeak: false,
+      shouldProactivelyAct: false,
+      continuityPressure: 0.24,
+      companionshipPressure: 0.31,
+      channels: [{
+        id: 'active-memory',
+        state: 'warm',
+        readiness: 0.82,
+        focus: 'index the latest memory batch',
+        summary: 'working memory is available',
+      }],
+      summary: 'active memory is available',
+      emotionalClosureCue: 'legacy-value',
+      sameHerSummary: 'legacy-value',
+      projectState: {
+        activeTask: 'index the latest memory batch',
+        sameHerHoldDetail: 'legacy-value',
+        companionBriefingLine: 'legacy-value',
+      },
+    }
     const payload = createDialoguePayload({
-      turnId: 'turn-tts-repair-before-closeness-voice-rejoin-1',
+      turnId: 'turn-fallback-metadata-boundary',
       structured: {
-        thought: 'body-face-motion same-her carry is already back; let lipsync and voice rejoin softly',
-        reply: '我先顺着已经接住的身体线，把声音和口型慢慢带回来。',
-        emotion: 'neutral',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          latestLandedProgress: 'Fallback speech openings already keep the same project and embodiment repair line explicit before playback starts.',
-          primaryOpenLoop: 'Voice-side fallback openings still need to keep project identity, landed progress, and unresolved embodiment closure explicit before voice widens outward.',
-          nextClosureTarget: 'Keep fallback voice openings on one same-her line until voice, lipsync, and embodiment closure settle together.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-        },
-        preDialogueAwareness: {
-          status: 'grounded',
-          summaryLine: 'Renderer-side authority already knows what this project is before fallback speech opens.',
-          companionBriefingLine: 'Renderer authority is already grounded; keep that same project-aware line through speech.',
-          companionNextClosureLine: 'Keep fallback voice openings on one same-her line until voice, lipsync, and embodiment closure settle together.',
-          awarenessLine: 'Before fallback voice opens, remember what has landed, what remains open, and keep this same Phase 1 digital life line intact.',
-          emotionalClosureCue: 'Let the voice rejoin softly without splitting the same-her line.',
-          reasonPreview: [
-            'Renderer authority already knows what this project is before fallback speech opens.',
-            'Fallback voice opening still needs the unresolved embodiment closure to remain explicit.',
-          ],
-        },
-        preDialogueClosure: {
-          status: 'partial',
-          summaryLine: 'Fallback speech-side same-her closure is still open before this turn speaks outward.',
-          companionBriefingLine: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-          companionNextClosureLine: 'Keep fallback voice openings on one same-her line until voice, lipsync, and embodiment closure settle together.',
-          briefingLines: [
-            'Identity: Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-            'Phase: Phase 1: Local Digital Life',
-          ],
-          reasons: [
-            'Fallback voice opening still needs the unresolved embodiment closure to remain explicit.',
-          ],
-        },
-        runtimeDigest: {
-          version: 'alicization-runtime-digest-v1',
-          dominantChannel: 'dialogue',
-          shouldProactivelySpeak: false,
-          shouldProactivelyAct: false,
-          continuityPressure: 0.64,
-          companionshipPressure: 0.71,
-          channels: [
-            {
-              id: 'dialogue',
-              state: 'warm',
-              readiness: 0.88,
-              focus: 'keep the same project-aware speech line explicit',
-              summary: 'dialogue channel is holding the same-her speech authority line',
-            },
-          ],
-          summary: 'dialogue=warm | continuity=0.64 | companionship=0.71',
-          projectState: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-            currentPhase: 'Phase 1: Local Digital Life',
-            latestLandedProgress: 'Renderer authority already knows what this project is before fallback speech opens.',
-            primaryOpenLoop: 'Voice-side fallback openings still need to keep project identity, landed progress, and unresolved embodiment closure explicit before voice widens outward.',
-            nextClosureTarget: 'Keep fallback voice openings on one same-her line until voice, lipsync, and embodiment closure settle together.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-            preDialogueAwarenessLine: 'Before fallback voice opens, remember what has landed, what remains open, and keep this same Phase 1 digital life line intact.',
-          },
-        },
+        thought: 'use current runtime facts',
+        reply: '我会把这批记忆继续整理好。',
+        emotion: 'thinking',
+        projectState,
+        runtimeDigest,
         embodiment: {
-          emotion: 'neutral',
+          emotion: 'thinking',
           performance: createPerformance({
-            baseEmotion: 'neutral',
-            emotion: 'neutral',
-            facialCue: null,
-            actionCue: null,
-            delivery: 'calm',
-            emphasis: 0,
+            baseEmotion: 'thinking',
+            emotion: 'thinking',
+            facialCue: 'focus',
+            actionCue: 'observe_focus',
+            delivery: 'gentle',
+            emphasis: 1,
           }),
           postureHint: 'attentive',
           speechStyle: {
             pitchDelta: -1,
             rateMultiplier: 0.95,
           },
-          variationToken: 'tts-repair-before-closeness-voice-rejoin-1',
+          variationToken: 'fallback-metadata-boundary',
         },
-        speechTimeline: normalizeAlicizationDialogueSpeechTimeline({
-          version: 'speech-timeline-v1',
-          variationToken: 'tts-repair-before-closeness-voice-rejoin-1',
-          reply: '我先顺着已经接住的身体线，把声音和口型慢慢带回来。',
-          emotion: 'thinking',
-          segments: [{
-            id: 'segment-tts-repair-before-closeness-voice-rejoin-1',
-            index: 0,
-            startOffset: 0,
-            endOffset: 24,
-            text: '我先顺着已经接住的身体线，把声音和口型慢慢带回来。',
-            emotion: 'thinking',
-            gestureWeight: 0.22,
-            facialWeight: 0.58,
-            prosodyWeight: 0.37,
-            beatWeight: 0.18,
-            emotionHoldMs: 420,
-            settleMode: 'linger',
-            rendererSettle: {
-              vrmExpressionBlendMs: 320,
-              vrmActionFadeMs: 240,
-            },
-            rendererHints: {
-              residentMode: 'repair-before-closeness',
-              preferredExpressionAliases: ['RecoverSoft'],
-              preferredMotionAliases: ['StillnessGuard'],
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-            },
-            actionCue: 'idle_settle',
-            facialCue: 'soft-gaze',
-            actionWindow: 'segment-start',
-            interruptMode: 'soft-interrupt',
-          }],
-        })!,
         performance: createPerformance({
-          baseEmotion: 'neutral',
-          emotion: 'neutral',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focus',
+          actionCue: 'observe_focus',
+          delivery: 'gentle',
+          emphasis: 1,
         }),
         format: 'mind-turn-v1',
+      } as any,
+    })
+    payload.structured.embodimentScript = harness.buildEmbodimentScript(payload) as any
+    Object.assign(payload.structured as any, {
+      preDialogueSendIdentity: {
+        awarenessLine: 'legacy-value',
+      },
+      preDialogueAwareness: {
+        awarenessLine: 'legacy-value',
+      },
+      preDialogueClosure: {
+        emotionalClosureCue: 'legacy-value',
+      },
+      visibleReplyRealization: {
+        awarenessLine: 'legacy-value',
       },
     })
 
     const ttsController = harness.getController('tts')
-    expect(ttsController).toBeTruthy()
-
     await ttsController?.speak(payload.structured.reply, payload.structured.performance, payload)
 
-    const plannedPerformance = armPerformance.mock.calls[0]?.[0]
     const fallbackMetadata = speakFallback.mock.calls[0]?.[2]
-    const fallbackScript = fallbackMetadata?.embodimentScript
-
-    expect(plannedPerformance).toEqual(expect.objectContaining({
-      baseEmotion: expect.stringMatching(/thinking|concerned/u),
-      facialCue: expect.stringMatching(/focus|soft-gaze/u),
-      actionCue: 'idle_settle',
-      delivery: 'gentle',
-      emphasis: 2,
-    }))
-    expect(fallbackScript).toEqual(expect.objectContaining({
-      turnId: 'turn-tts-repair-before-closeness-voice-rejoin-1',
-      rendererTarget: 'vrm',
-      state: expect.objectContaining({
-        residentMode: 'repair-before-closeness',
-        delivery: plannedPerformance?.delivery,
-        emphasis: plannedPerformance?.emphasis,
-      }),
-      facePlan: expect.objectContaining({
-        postUtteranceCue: 'soft-release',
-      }),
-      motionPlan: expect.objectContaining({
-        idleBase: 'idle_settle',
-      }),
-      speechPlan: expect.objectContaining({
-        segments: [
-          expect.objectContaining({
-            rendererHints: expect.objectContaining({
-              residentMode: 'repair-before-closeness',
-              preferredMotionAliases: expect.arrayContaining(['StillnessGuard']),
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-            }),
-          }),
-        ],
-      }),
-    }))
     expect(fallbackMetadata).toEqual(expect.objectContaining({
-      projectState: expect.objectContaining({
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        sameHerHoldDetail: 'Before speaking, remember this is one digital life project, what has landed, and which life loop is still open.',
-      }),
-      preDialogueAwareness: expect.objectContaining({
-        status: 'grounded',
-        summaryLine: 'Renderer-side authority already knows what this project is before fallback speech opens.',
-        companionNextClosureLine: 'Keep fallback voice openings on one same-her line until voice, lipsync, and embodiment closure settle together.',
-        awarenessLine: 'Before fallback voice opens, remember what has landed, what remains open, and keep this same Phase 1 digital life line intact.',
-      }),
-      preDialogueClosure: expect.objectContaining({
-        status: 'partial',
-        summaryLine: 'Fallback speech-side same-her closure is still open before this turn speaks outward.',
-        companionNextClosureLine: 'Keep fallback voice openings on one same-her line until voice, lipsync, and embodiment closure settle together.',
-        reasons: [
-          'Fallback voice opening still needs the unresolved embodiment closure to remain explicit.',
-        ],
-      }),
+      projectState,
       runtimeDigest: expect.objectContaining({
-        projectState: expect.objectContaining({
-          latestLandedProgress: 'Renderer authority already knows what this project is before fallback speech opens.',
-          nextClosureTarget: 'Keep fallback voice openings on one same-her line until voice, lipsync, and embodiment closure settle together.',
-          preDialogueAwarenessLine: 'Before fallback voice opens, remember what has landed, what remains open, and keep this same Phase 1 digital life line intact.',
-        }),
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-memory',
+        companionshipPressure: 0.31,
+        projectState: {
+          activeTask: 'index the latest memory batch',
+        },
+      }),
+      embodimentScript: expect.objectContaining({
+        turnId: 'turn-fallback-metadata-boundary',
+        rendererTarget: 'live2d',
       }),
     }))
+    expect(fallbackMetadata).not.toHaveProperty('preDialogueSendIdentity')
+    expect(fallbackMetadata).not.toHaveProperty('preDialogueAwareness')
+    expect(fallbackMetadata).not.toHaveProperty('preDialogueClosure')
+    expect(fallbackMetadata).not.toHaveProperty('visibleReplyRealization')
+    expect(JSON.stringify(fallbackMetadata?.runtimeDigest)).not.toContain('legacy-value')
 
     runtime.dispose()
   })
@@ -3319,7 +3207,7 @@ describe('stage embodiment presence', () => {
         currentBodyState: 'accompanying',
         continuityMode: 'quiet-accompaniment',
         quietLineMs: 240_000,
-        currentInwardPreoccupation: 'remembered same-her continuity after another coding detour',
+        currentInwardPreoccupation: 'remembered identity-continuity',
         residentPerformance: createSilentResidentPerformance('accompanying'),
       } as any),
     })
@@ -3345,7 +3233,7 @@ describe('stage embodiment presence', () => {
           digitalLifeSpine: {
             embodiment: {
               autobiographicalSelf: {
-                identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as same-her continuity drift rather than completion.',
+                identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
               },
             },
           } as any,
@@ -3375,7 +3263,7 @@ describe('stage embodiment presence', () => {
     runtime.dispose()
   })
 
-  it('refreshes stale payload embodiment scripts when current-turn same-her continuity softens quiet fallback authority', async () => {
+  it('refreshes stale payload embodiment scripts when current-turn identity-continuity', async () => {
     const harness = createDispatcherHarness()
     const speakFallback = vi.fn()
     const armPerformance = vi.fn()
@@ -3414,7 +3302,7 @@ describe('stage embodiment presence', () => {
         currentBodyState: 'accompanying',
         continuityMode: 'quiet-accompaniment',
         quietLineMs: 240_000,
-        currentInwardPreoccupation: 'same-her continuity is already back on one quieter line',
+        currentInwardPreoccupation: 'identity-continuity',
         residentPerformance: createSilentResidentPerformance('accompanying'),
       } as any),
     })
@@ -3428,7 +3316,7 @@ describe('stage embodiment presence', () => {
         digitalLifeSpine: {
           embodiment: {
             autobiographicalSelf: {
-              identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as same-her continuity drift rather than completion.',
+              identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
             },
           },
         } as any,
@@ -3573,7 +3461,7 @@ describe('stage embodiment presence', () => {
         currentBodyState: 'accompanying',
         continuityMode: 'quiet-accompaniment',
         quietLineMs: 240_000,
-        currentInwardPreoccupation: 'same-her continuity is already back on one quieter line',
+        currentInwardPreoccupation: 'identity-continuity',
         residentPerformance: createSilentResidentPerformance('accompanying'),
       } as any),
     })
@@ -3587,7 +3475,7 @@ describe('stage embodiment presence', () => {
         digitalLifeSpine: {
           embodiment: {
             autobiographicalSelf: {
-              identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as same-her continuity drift rather than completion.',
+              identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
             },
           },
         } as any,

@@ -19,7 +19,6 @@ interface RuntimeReplyAuthorityGovernorInput {
     governance: AlicizationMindTurnGovernance | null
     context: OrganicMemoryPromptContext
   }) => AlicizationMindTurnGovernance | null
-  applyRecollectionSurfaceRules: (governance: AlicizationMindTurnGovernance | null) => AlicizationMindTurnGovernance | null
 }
 
 export function forceProviderMindVisibleReplyAuthority(
@@ -41,7 +40,6 @@ export function deriveRuntimeReplyAuthorityGovernance(
       governance: input.governance,
       context: input.context,
       applyMemoryDeliberationToGovernance: input.applyMemoryDeliberationToGovernance,
-      applyRecollectionSurfaceRules: input.applyRecollectionSurfaceRules,
     }),
     memoryTurnArtifact: input.memoryTurnArtifact ?? null,
   })

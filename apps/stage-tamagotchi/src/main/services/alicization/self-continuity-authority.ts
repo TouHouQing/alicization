@@ -68,7 +68,7 @@ function normalizeProjectIdentityField(raw: unknown) {
     return ''
   const lower = text.toLowerCase()
   if (/local-first digital life|local digital life|phase\s*1|one continuous her|same living line|same-her|same her/u.test(lower))
-    return /phase\s*1/u.test(lower) ? 'life_core' : 'runtime_personhood'
+    return ''
   return compactStructuredValue(text, 120)
 }
 
@@ -90,7 +90,7 @@ function structuredContinuityProjectionLine(raw: unknown, role: string) {
     `${role}=structured_carry`,
     carriesContinuityTemplate ? 'continuity_scope=detected' : '',
     /callback/u.test(lower) ? 'callback_carry=true' : '',
-    /phase\s*1|local-first digital life|local digital life/u.test(lower) ? 'phase_scope=life_core' : '',
+    /phase\s*1|local-first digital life|local digital life/u.test(lower) ? 'continuity_scope=life_loop' : '',
     /unfinished|open loop|still needs|not closed/u.test(lower) ? 'open_loop=present' : '',
     /already landed|some closure|verified_closure_progress|has landed/u.test(lower) ? 'landed_closure=partial' : '',
     /lower-pressure|low-pressure|measured-return|leave room/u.test(lower) ? 'pressure=lower' : '',
@@ -299,7 +299,7 @@ function buildDurableSelfCoreLine(input: {
   return sanitizeText([
     'self_continuity=durable',
     carriesSameHer ? 'identity_scope=continuity_evidence' : '',
-    carriesDigitalLifeIdentity ? 'phase_scope=life_core' : '',
+    carriesDigitalLifeIdentity ? 'continuity_scope=life_loop' : '',
     carriesContinuityAcrossSurfaces ? 'surface_scope=memory_speech_reply' : '',
     carriesLivingSelfRestraint ? 'restart_policy=context_preserving' : '',
   ].filter(Boolean).join('; '), 220) || null
@@ -606,7 +606,7 @@ export function buildRuntimeSurfaceProjectStateContinuityFallback(
       currentPhase ? 'project-state-phase' : '',
       primaryOpenLoop ? 'project-state-open-loop' : '',
       nextClosureTarget ? 'project-state-next-closure' : '',
-      sameHerSelfLine ? 'project-state-same-her' : '',
+      sameHerSelfLine ? 'project-state-continuity' : '',
       embodimentCarryLine ? 'project-state-companion-headline' : '',
     ], 8),
   } satisfies AlicizationSelfContinuityAuthority

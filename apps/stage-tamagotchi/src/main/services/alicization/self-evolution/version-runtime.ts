@@ -210,7 +210,7 @@ export function applyAlicizationSelfEvolutionReplayValidation(input: {
           ...(candidate.validation.projectStateContinuityReasons ?? []),
           projectStateContinuityDrift ? 'self-evolution:project-state-continuity-drift' : null,
           identityCarryWeak ? 'self-evolution:project-state-identity-carry-weak' : null,
-          sameHerCarryWeak ? 'self-evolution:project-state-same-her-carry-weak' : null,
+          sameHerCarryWeak ? 'self-evolution:project-state-continuity-carry-weak' : null,
           phaseCarryWeak ? 'self-evolution:project-state-phase-carry-weak' : null,
           openLoopCarryWeak ? 'self-evolution:project-state-open-loop-carry-weak' : null,
           proactiveGapCarryWeak ? 'self-evolution:project-state-proactive-gap-carry-weak' : null,

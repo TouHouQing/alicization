@@ -65,7 +65,7 @@ describe('working memory compressor', () => {
       normalizeWorkingMemoryTurn({
         turnId: 'turn-2',
         role: 'alice',
-        text: 'Right now I am still holding together mainly through face and motion, so my full cross-modal same-her line is not closed yet.',
+        text: 'Right now I am still holding together mainly through face and motion, so my full cross-modal identity-continuity',
         createdAt: 1002,
         source: 'conversation-turn',
         visibility: 'user-visible',

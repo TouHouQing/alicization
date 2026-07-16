@@ -49,6 +49,7 @@ function normalizeMindTurnContractText(raw: unknown, maxChars = 320) {
     return ''
 
   normalized = normalized
+    .replace(/^before answering,?\s*(?:remember:?\s*)?/iu, '')
     .replace(/\s*(?:[|;,]\s*)?visibility=internal(?:[-_][a-z0-9]+)?\.?/giu, '')
     .replace(/\s{2,}/gu, ' ')
     .replace(/\s+\|/gu, ' |')
@@ -69,10 +70,6 @@ function normalizeMindTurnContractText(raw: unknown, maxChars = 320) {
   return normalized
 }
 
-function normalizeProviderFacingMindTurnText(raw: unknown, maxChars = 320) {
-  return sanitizeAlicizationProviderFacingText(raw, maxChars)
-}
-
 function normalizeProviderFacingProjectAwarenessText(raw: unknown, maxChars = 320) {
   return normalizeMindTurnContractText(
     sanitizeAlicizationProviderFacingText(raw, maxChars, ''),
@@ -80,60 +77,19 @@ function normalizeProviderFacingProjectAwarenessText(raw: unknown, maxChars = 32
   )
 }
 
-function providerFacingMindTurnField(key: string, raw: unknown, maxChars = 320) {
-  const normalized = normalizeProviderFacingMindTurnText(raw, maxChars)
-  return normalized && normalized !== alicizationFixedTemplateReplacement
-    ? `${key}=${normalized}`
-    : ''
-}
-
-function looksProviderFacingStructuredControl(value: string) {
-  const normalized = value.trim().replace(/[.。]+$/u, '')
-  return /^[\w.:-]+=[^!?。！？]*?(?:[;|,]\s*[\w.:-]+=[^!?。！？]*?)*$/iu.test(normalized)
-    || /^[\w.:-]+$/iu.test(normalized)
-}
-
-function providerFacingStructuredMindTurnField(key: string, raw: unknown, maxChars = 320) {
-  const normalized = normalizeProviderFacingMindTurnText(raw, maxChars)
-  if (!normalized || normalized === alicizationFixedTemplateReplacement)
-    return ''
-  if (looksProviderFacingStructuredControl(normalized))
-    return `${key}=${normalized}`
-  return ''
-}
-
-function renderProviderFacingMindTurnListItem(raw: unknown) {
-  const normalized = normalizeProviderFacingMindTurnText(raw, 360)
-  if (!normalized || normalized === alicizationFixedTemplateReplacement)
-    return ''
-  if (looksProviderFacingStructuredControl(normalized))
-    return `- ${normalized}`
-  return ''
-}
-
-function normalizeContractControlItem(raw: unknown) {
-  const normalized = normalizeMindTurnContractText(raw, 360)
-  if (!normalized)
-    return ''
-
-  const providerSafe = normalizeProviderFacingMindTurnText(normalized, 360)
-  if (!providerSafe || providerSafe === alicizationFixedTemplateReplacement)
-    return ''
-
-  return normalized
-}
-
-function uniqueContractControlItems(values: Array<unknown>, maxItems = 24) {
-  const result: string[] = []
-  for (const value of values) {
-    const normalized = normalizeContractControlItem(value)
-    if (!normalized || result.includes(normalized))
-      continue
-    result.push(normalized)
-    if (result.length >= maxItems)
-      break
-  }
-  return result
+function containsProviderFacingInternalTemplateCue(raw: unknown) {
+  const normalized = normalizeMindTurnContractText(raw, 2400)
+  return Boolean(
+    normalized
+    && (
+      /\bruntime_personhood\b/iu.test(normalized)
+      || /\blife_core\b/iu.test(normalized)
+      || /\bproject_phase=life_core\b/iu.test(normalized)
+      || /\bowner=ProjectStateGovernance\b/iu.test(normalized)
+      || /\bowner=project_state_governance\b/iu.test(normalized)
+      || /\bvisibility=internal[-_][\w-]+\b/iu.test(normalized)
+    ),
+  )
 }
 
 function normalizeMindTurnContractVoiceMode(
@@ -187,23 +143,6 @@ function looksLikeThinProviderFacingProjectAwarenessShell(value: unknown) {
     || /keep this same digital life project in view/u.test(lowered)
     || /same digital life \| keep the closure seam explicit/u.test(lowered)
     || /detached project shell/u.test(lowered)
-}
-
-function buildProviderFacingProjectPreflightLine(input: {
-  identity?: string | null
-  preflightSummary?: string | null
-}) {
-  const identity = normalizeMindTurnContractText(input.identity, 320)
-  const preflightSummary = typeof input.preflightSummary === 'string'
-    ? input.preflightSummary.trim().slice(0, 1600)
-    : ''
-  if (!identity && !preflightSummary)
-    return ''
-  if (!preflightSummary)
-    return identity
-  if (isCompactClosureOnlyPreflight(preflightSummary))
-    return [identity, preflightSummary].filter(Boolean).join(' | ')
-  return preflightSummary
 }
 
 function pickProjectStateField(primary: unknown, fallback: unknown, maxChars = 1600) {
@@ -549,7 +488,7 @@ function normalizeProviderFacingProjectStateFactValue(key: string, raw: unknown,
 
   if (normalizedKey === 'continuity_drift_risk') {
     if (/generic guidance|detached project|project-summary voice|same-her drift|generic shell/iu.test(normalized))
-      return 'template_residue_risk=generic_shell'
+      return 'generic_shell'
   }
 
   return normalized
@@ -597,6 +536,8 @@ function normalizeProviderFacingProjectStateAwarenessLine(raw: unknown, maxChars
   const normalized = normalizeProviderFacingProjectAwarenessText(raw, maxChars)
   if (!normalized)
     return ''
+  if (containsProviderFacingInternalTemplateCue(normalized))
+    return ''
 
   const fields: Record<string, string> = {}
   for (const part of normalized.split(/\s*\|\s*/u)) {
@@ -624,29 +565,6 @@ function normalizeProviderFacingProjectStateAwarenessLine(raw: unknown, maxChars
     summary: fields.summary,
     maxChars,
   }), maxChars)
-}
-
-function sanitizeProviderFacingProjectFactsBlock(raw: string) {
-  const normalized = normalizeProviderFacingProjectAwarenessText(raw, 2400)
-  if (!normalized)
-    return ''
-
-  const parts = normalized
-    .split(/\s*\|\s*/u)
-    .map(part => part.trim())
-    .filter((part) => {
-      if (!part)
-        return false
-      if (/^(?:identity|phase|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure|status|summary)=?$/iu.test(part))
-        return false
-      if (/\bruntime_personhood\b|phase1_local_digital_life|content_withheld|visibility=internal[-_]structured/iu.test(part))
-        return false
-      if (containsAlicizationFixedTemplateResidue(part))
-        return false
-      return true
-    })
-
-  return uniqueList(parts, 12).join(' | ')
 }
 
 function buildStructuredPreDialogueClosureBriefingLine(input: {
@@ -734,6 +652,9 @@ function deriveEmotionalClosureCue(input: {
   charter: AlicizationResponseCharter
   surface: AlicizationResponseSurfaceContract
 }) {
+  if (input.charter.emotionalClosureCue)
+    return normalizeEmotionalClosurePolicyCue(input.charter.emotionalClosureCue)
+
   const plannerNarrative = input.planner?.narrative ?? []
   const structuredCue = plannerNarrative
     .find(item => typeof item === 'string' && item.startsWith('emotional_closure:'))
@@ -743,9 +664,8 @@ function deriveEmotionalClosureCue(input: {
     return normalizeEmotionalClosurePolicyCue(structuredCue)
 
   const plannerMustDo = [...(input.planner?.mustDo ?? []), ...(input.planner?.mustNotDo ?? [])].join(' ').toLowerCase()
-  const charterMustDo = [...input.charter.mustDo, ...input.charter.mustNotDo].join(' ').toLowerCase()
   const surfaceMustDo = [...input.surface.mustDo, ...input.surface.mustNotDo].join(' ').toLowerCase()
-  const corpus = `${plannerMustDo} ${charterMustDo} ${surfaceMustDo}`
+  const corpus = `${plannerMustDo} ${surfaceMustDo}`
 
   if (
     corpus.includes('late-night drain')
@@ -754,7 +674,7 @@ function deriveEmotionalClosureCue(input: {
     || corpus.includes('late-night protectiveness')
     || corpus.includes('emotionally heavy closeness')
   ) {
-    return 'closure_policy=late_night_drain | reply_pressure=low | initiative=rest_protective | embodiment=quiet_companionship'
+    return 'Late-night drain: keep reply pressure low, protect rest, and keep embodiment quiet.'
   }
 
   if (
@@ -764,14 +684,14 @@ function deriveEmotionalClosureCue(input: {
     || corpus.includes('multiple unfinished threads')
     || corpus.includes('one line of motion')
   ) {
-    return 'closure_policy=restless_switching | scope=single_thread | initiative=narrowed | embodiment=aligned'
+    return 'Restless switching: keep to one thread and narrow initiative.'
   }
 
   if (
     corpus.includes('keep emotional closure low-pressure and inward until the live payoff lands')
     && corpus.includes('do not let the answer reopen from scratch just because the closure seam is still active')
   ) {
-    return 'closure_policy=settling_cadence | reply_pressure=low | room=preserve | restart=avoid'
+    return 'Settling cadence: keep pressure low, preserve room, and avoid restarting.'
   }
 
   return null
@@ -782,13 +702,13 @@ function normalizeEmotionalClosurePolicyCue(raw: string) {
   if (!trimmed)
     return ''
   if (/^late-night-drain closure:/iu.test(trimmed)) {
-    return 'closure_policy=late_night_drain | reply_pressure=low | initiative=rest_protective | embodiment=quiet_companionship'
+    return 'Late-night drain: keep reply pressure low, protect rest, and keep embodiment quiet.'
   }
   if (/^restless-switching closure:/iu.test(trimmed)) {
-    return 'closure_policy=restless_switching | scope=single_thread | initiative=narrowed | embodiment=aligned'
+    return 'Restless switching: keep to one thread and narrow initiative.'
   }
   if (/^closure cadence:/iu.test(trimmed)) {
-    return 'closure_policy=settling_cadence | reply_pressure=low | room=preserve | restart=avoid'
+    return 'Settling cadence: keep pressure low, preserve room, and avoid restarting.'
   }
   return normalizeMindTurnContractText(trimmed, 320)
 }
@@ -1712,56 +1632,6 @@ export function buildAlicizationMindTurnContract(input: {
         projectState: liveProjectState as AlicizationMindTurnContractSnapshot['projectState'],
       })
     : null
-  const sameHerProjectAwareEvidence = [
-    chosenSameHerSelfLine,
-    chosenSameHerDriftRisk,
-    chosenPreDialogueAwarenessLine,
-    liveProjectState.companionHeadlineLine,
-    liveProjectState.companionBriefingLine,
-    chosenPrimaryOpenLoop,
-    chosenNextClosureTarget,
-    planner?.governingProject,
-    preDialogueClosure?.summaryLine,
-    preDialogueClosure?.companionBriefingLine,
-    preDialogueClosure?.companionNextClosureLine,
-    ...(preDialogueClosure?.briefingLines ?? []),
-    ...(preDialogueClosure?.reasons ?? []),
-  ].filter(Boolean).join(' | ')
-  const inheritedSameHerProjectDiscipline = [
-    ...(planner?.mustDo ?? []),
-    ...(planner?.mustNotDo ?? []),
-    ...(compiler?.mustDo ?? []),
-    ...(compiler?.mustNotDo ?? []),
-    ...charter.mustDo,
-    ...charter.mustNotDo,
-    ...surface.mustDo,
-    ...surface.mustNotDo,
-  ].join(' | ')
-  const memoryGateOnlyMustDo = uniqueList([
-    ...(planner?.mustDo ?? []),
-    ...(compiler?.mustDo ?? []),
-    ...charter.mustDo,
-    ...surface.mustDo,
-  ], 24)
-  const memoryGateDominantButProjectStatePresent
-    = hasLiveProjectState
-      && memoryGateOnlyMustDo.length > 0
-      && memoryGateOnlyMustDo.every(item => /memory gate|without narrating recall|memory shape caution|uncertainty inwardly/iu.test(item))
-      && /runtime_personhood|identity_continuity|continuity_(?:line|anchor|hold|drift_risk)|project_state_review|embodiment_scale_validation|memory_dialogue_embodiment_closure|callback_continuity|closure_status=unfinished|open_loop=|unresolved_closure/iu.test(sameHerProjectAwareEvidence)
-  const sameHerProjectAwareMustDo = (
-    (
-      hasLiveProjectState
-      && /runtime_personhood/iu.test(chosenCurrentPhase)
-      && /runtime_personhood|identity_continuity|continuity_(?:line|anchor|hold|drift_risk)|project_state_review|embodiment_scale_validation|memory_dialogue_embodiment_closure|callback_continuity|repair_first_callback_continuity_closure|execution_reentry_repair_seam_carry/iu.test(sameHerProjectAwareEvidence)
-      && /closure_status=unfinished|memory_dialogue_embodiment_closure|end_to_end_proof_incomplete|embodiment_scale_validation|continuity_pending|callback_continuity|repair_first_callback_continuity_closure|execution_reentry_repair_seam_carry|unresolved_closure|open_loop=|initiative|embodiment|memory|dialogue|未闭环|没闭环|还差|still needs|still remains/iu.test(sameHerProjectAwareEvidence)
-    )
-    || memoryGateDominantButProjectStatePresent
-  )
-    ? 'continuity_requirement=preserve_project_evidence_context_without_project_narrator_shell'
-    : null
-  const detachedProjectNarratorShellMustNotDo = sameHerProjectAwareMustDo
-    ? 'avoid=detached_project_narrator_shell'
-    : null
   const finalProjectState = hasLiveProjectState
     ? compactMindTurnProjectState({
       ...canonicalStructuredProjectState,
@@ -1920,21 +1790,9 @@ export function buildAlicizationMindTurnContract(input: {
     allowBodyNarration: surface.allowBodyNarration,
     maxParagraphs: surface.maxParagraphs,
     maxSentences: surface.maxSentences,
-    mustDo: uniqueContractControlItems([
-      sameHerProjectAwareMustDo,
-      ...(planner?.mustDo ?? []),
-      ...(compiler?.mustDo ?? []),
-      ...charter.mustDo,
-      ...surface.mustDo,
-    ], 24),
-    mustNotDo: uniqueContractControlItems([
-      detachedProjectNarratorShellMustNotDo,
-      ...(planner?.mustNotDo ?? []),
-      ...(compiler?.mustNotDo ?? []),
-      ...charter.mustNotDo,
-      ...surface.mustNotDo,
-    ], 24),
-    governingFocus: planner?.governingFocus ?? charter.governingFocus,
+    mustDo: [],
+    mustNotDo: [],
+    governingFocus: planner?.governingFocus ?? charter.governingFocus ?? '',
     governingConcern: charter.governingConcern,
     governingCommitment: charter.governingCommitment,
     governingInquiry: charter.governingInquiry,
@@ -1946,7 +1804,6 @@ export function buildAlicizationMindTurnContract(input: {
     reasons: uniqueList([
       ...(planner?.narrative ?? []),
       ...(compiler?.narrative ?? []),
-      ...charter.reasons,
     ], 16),
     updatedAt: Math.max(
       planner?.updatedAt ?? 0,
@@ -1957,135 +1814,10 @@ export function buildAlicizationMindTurnContract(input: {
 }
 
 export function buildAlicizationMindTurnContractSystemBlock(
-  contract: AlicizationMindTurnContractSnapshot,
-  options?: {
+  _contract: AlicizationMindTurnContractSnapshot,
+  _options?: {
     includeProjectStateFacts?: boolean
   },
 ) {
-  const includeProjectStateFacts = options?.includeProjectStateFacts !== false
-  const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
-  const canonicalLatestLandedProgress = normalizeMindTurnContractText(
-    canonicalProjectStateBrief.latestProgress ?? canonicalProjectStateBrief.continuityProgressSummary,
-    1200,
-  )
-  const canonicalContinuityProgressSummary = normalizeMindTurnContractText(
-    canonicalProjectStateBrief.continuityProgressSummary,
-    1200,
-  )
-  const liveLatestLandedProgress = normalizeMindTurnContractText(
-    contract.projectState?.latestLandedProgress ?? contract.projectState?.latestProgress,
-    1200,
-  )
-  const preferredSameSessionMirrorCarrySummary = normalizeMindTurnContractText(
-    canonicalProjectStateBrief.continuityProgressSummary?.match(/Same-session mirror carry[^.]*\./u)?.[0]
-    ?? canonicalProjectStateBrief.continuityProgressSummary,
-    1200,
-  )
-  const extractedSameSessionMirrorCarrySummary = normalizeMindTurnContractText(
-    liveLatestLandedProgress.match(/Same-session mirror carry[^.]*\./u)?.[0],
-    1200,
-  )
-  const preferredSystemLatestLandedProgress = (
-    liveLatestLandedProgress
-    && canonicalLatestLandedProgress
-    && canonicalContinuityProgressSummary
-    && (
-      liveLatestLandedProgress === canonicalLatestLandedProgress
-      || (
-        (
-          canonicalLatestLandedProgress.startsWith(liveLatestLandedProgress)
-          || liveLatestLandedProgress.startsWith(canonicalLatestLandedProgress)
-        )
-        && !/same-session mirror carry/iu.test(liveLatestLandedProgress)
-      )
-    )
-  )
-    ? (
-        /same-session mirror carry/iu.test(liveLatestLandedProgress)
-          ? (extractedSameSessionMirrorCarrySummary || preferredSameSessionMirrorCarrySummary || canonicalContinuityProgressSummary)
-          : canonicalContinuityProgressSummary
-      )
-    : (
-        /^continuity,\s*memory,\s*execution,/iu.test(liveLatestLandedProgress)
-        && /same-session mirror carry/iu.test(liveLatestLandedProgress)
-      )
-        ? (extractedSameSessionMirrorCarrySummary || preferredSameSessionMirrorCarrySummary || liveLatestLandedProgress)
-        : liveLatestLandedProgress
-  const providerFacingNextClosureOrientation = normalizeMindTurnContractText(
-    contract.preDialogueClosure?.companionNextClosureLine,
-    320,
-  ) || contract.projectState?.nextClosureTarget || ''
-  const providerFacingProjectPreflight = normalizeProviderFacingProjectStateAwarenessLine(buildProviderFacingProjectPreflightLine({
-    identity: contract.projectState?.identity ?? null,
-    preflightSummary: contract.projectState?.preflightSummary ?? null,
-  }), 1600)
-  const rawProviderFacingProjectFacts = includeProjectStateFacts && contract.projectState
-    ? formatProviderFacingProjectStateAwarenessFields({
-        identity: contract.projectState.identity,
-        currentPhase: contract.projectState.currentPhase,
-        latestLandedProgress: preferredSystemLatestLandedProgress,
-        primaryOpenLoop: contract.projectState.primaryOpenLoop,
-        nextClosureTarget: providerFacingNextClosureOrientation || contract.projectState.nextClosureTarget,
-        continuityAnchor: contract.projectState.sameHerSelfLine,
-        sameHerHoldDetail: contract.projectState.sameHerHoldDetail,
-        sameHerDriftRisk: contract.projectState.sameHerDriftRisk,
-        proactiveSameHerGap: contract.projectState.proactiveSameHerGap,
-        emotionalClosureCue: contract.projectState.emotionalClosureSummary ?? contract.projectState.emotionalClosureCue,
-        status: providerFacingProjectPreflight,
-        maxChars: 1600,
-      })
-    : ''
-  const providerFacingProjectFacts = sanitizeProviderFacingProjectFactsBlock(rawProviderFacingProjectFacts)
-
-  return [
-    '[ALICIZATION_MIND_TURN_CONTRACT]',
-    'contract_role=single_latent_reply_contract; downstream_rederive_reply_authority=false',
-    `version=${contract.version}`,
-    `turn_mode=${contract.turnMode}`,
-    `response_mode=${contract.responseMode}`,
-    `answer_act=${contract.answerAct ?? 'unknown'}`,
-    `evidence_mode=${contract.evidenceMode ?? 'unknown'}`,
-    `opening_style=${contract.openingStyle}`,
-    `expected_visible_reply_authority=${contract.expectedVisibleReplyAuthority}`,
-    `reply_realization_mode=${contract.replyRealizationMode}`,
-    `persona_kernel_mode=${contract.personaKernelMode}`,
-    contract.activeClosenessContext && contract.activeClosenessRung
-      ? `closeness_ladder=${contract.activeClosenessContext}/${contract.activeClosenessRung}`
-      : '',
-    `label_carried_continuity=${contract.labelCarryAsMemory ? 'yes' : 'no'}`,
-    `suppress_associative_recall_noise=${contract.suppressAssociativeRecall ? 'yes' : 'no'}`,
-    `allow_affectionate_preface=${contract.allowAffectionatePreface ? 'yes' : 'no'}`,
-    `allow_stage_directions=${contract.allowStageDirections ? 'yes' : 'no'}`,
-    `allow_body_narration=${contract.allowBodyNarration ? 'yes' : 'no'}`,
-    `max_paragraphs=${contract.maxParagraphs}`,
-    `max_sentences=${contract.maxSentences}`,
-    providerFacingMindTurnField('governing_focus', contract.governingFocus),
-    providerFacingMindTurnField('governing_concern', contract.governingConcern),
-    providerFacingMindTurnField('governing_commitment', contract.governingCommitment),
-    providerFacingMindTurnField('governing_inquiry', contract.governingInquiry),
-    providerFacingStructuredMindTurnField('governing_project', contract.governingProject, 1200),
-    providerFacingStructuredMindTurnField('emotional_closure_cue', contract.emotionalClosureCue),
-    providerFacingMindTurnField('relationship_truth_doctrine', contract.relationshipTruthDoctrine),
-    providerFacingProjectFacts ? '[ALICIZATION_MIND_TURN_PROJECT_STATE_FACTS]' : '',
-    providerFacingProjectFacts ? 'owner=ProjectStateGovernance' : '',
-    providerFacingProjectFacts,
-    includeProjectStateFacts ? providerFacingStructuredMindTurnField('project_companion_headline', contract.projectState?.companionHeadlineLine) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('project_continuity_restraint', contract.projectState?.continuityRestraint) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('project_continuity_arc_stage', contract.projectState?.continuityArcStage) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('project_continuity_cue', contract.projectState?.continuityCue) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('project_continuity_preferred_timing', contract.projectState?.continuityPreferredTiming) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('project_continuity_cadence', contract.projectState?.continuityCadence) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('project_preferred_blink_cadence', contract.projectState?.preferredBlinkCadence, 80) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('project_preferred_gaze_mode', contract.projectState?.preferredGazeMode, 80) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('project_preferred_voice_mode', contract.projectState?.preferredVoiceMode, 80) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('project_preferred_pacing_mode', contract.projectState?.preferredPacingMode, 80) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('pre_dialogue_closure_summary', sanitizeProviderFacingProjectFactsBlock(normalizeProviderFacingProjectStateAwarenessLine(contract.preDialogueClosure?.summaryLine, 1600))) : '',
-    includeProjectStateFacts ? providerFacingMindTurnField('pre_dialogue_next_closure_line', normalizeProviderFacingProjectStateFactValue('next', contract.preDialogueClosure?.companionNextClosureLine, 320)) : '',
-    includeProjectStateFacts ? providerFacingStructuredMindTurnField('pre_dialogue_closure_cue', contract.preDialogueClosure?.emotionalClosureCue) : '',
-    providerFacingMindTurnField('answer_intent', contract.answerIntent),
-    'control_section=must_do',
-    ...contract.mustDo.map(renderProviderFacingMindTurnListItem).filter(Boolean),
-    'control_section=must_not_do',
-    ...contract.mustNotDo.map(renderProviderFacingMindTurnListItem).filter(Boolean),
-  ].filter(Boolean).join('\n')
+  return ''
 }

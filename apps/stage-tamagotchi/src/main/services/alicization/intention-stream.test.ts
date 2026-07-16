@@ -115,7 +115,7 @@ describe('buildIntentionStream', () => {
           kind: 'reground-scene',
           status: 'tracking',
           priority: 'high',
-          question: 'Look again before speaking about live screen details.',
+          question: 'Look again before outward reply about live screen details.',
           askForGrounding: true,
           suggestedProbeMs: 1_000,
           evidenceWanted: ['fresh-scene'],

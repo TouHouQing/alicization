@@ -13,7 +13,7 @@ const legacyFixedTemplateQuickReplyClosureLine
   = ''
 
 const internalQuickReplyClosureFieldPattern
-  = /identity-continuity|phase1_local_digital_life|visibility=(?:internal-structured|renderer-internal)|content_withheld|owner=|source=|surface=structured|project_anchor=|continuity_anchor=|continuity=|embodiment_lanes=|missing_lanes=|signature=|lane=|focus=|pending(?:[_-]rejoin)?=|recovery@|^next=|^next,\s*help me close:|^下一步(?:还要继续收住|状态：|：)/iu
+  = /identity-continuity|phase1_local_digital_life|visibility=(?:internal-structured|renderer-internal)|content_withheld|owner=|source=|surface=structured|project_anchor=|continuity_anchor=|continuity=|embodiment_lanes=|missing_lanes=|signature=|lane=|focus=|pending(?:[_-]rejoin)?=|recovery@|active embodiment lanes:|pending lanes:|^next=|^next,\s*help me close:|^下一步(?:还要继续收住|状态：|：)/iu
 
 function isInternalFixedTemplateExclusionLine(line: string | null | undefined) {
   const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
@@ -306,7 +306,7 @@ function resolveTopLevelSameHerContinuitySummaryReason(reason: string) {
     return {
       closureStage: 'audible-body-carry',
       laneText: 'body, lipsync, and voice',
-      headline: rendererInternalLaneContinuityHeadlines.bodyLipsyncVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('body, lipsync, and voice'),
     }
   }
 
@@ -314,7 +314,7 @@ function resolveTopLevelSameHerContinuitySummaryReason(reason: string) {
     return {
       closureStage: 'voice-lipsync-carry',
       laneText: 'lipsync and voice',
-      headline: rendererInternalLaneContinuityHeadlines.lipsyncAndVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('lipsync and voice'),
     }
   }
 
@@ -322,7 +322,7 @@ function resolveTopLevelSameHerContinuitySummaryReason(reason: string) {
     return {
       closureStage: 'renderer-rejoin-without-body',
       laneText: 'face, motion, lipsync, and voice',
-      headline: rendererInternalLaneContinuityHeadlines.faceMotionLipsyncVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('face, motion, lipsync, and voice'),
     }
   }
 
@@ -330,7 +330,7 @@ function resolveTopLevelSameHerContinuitySummaryReason(reason: string) {
     return {
       closureStage: 'body-carried-to-renderer-rejoin',
       laneText: 'body, face, and motion',
-      headline: rendererInternalLaneContinuityHeadlines.bodyFaceMotion,
+      headline: describeRendererInternalLaneContinuityHeadline('body, face, and motion'),
     }
   }
 
@@ -356,84 +356,84 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     if (focusLaneText === 'body, face, and motion') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.bodyFaceMotion,
+        headline: describeRendererInternalLaneContinuityHeadline('body, face, and motion'),
       }
     }
 
     if (focusLaneText === 'body, lipsync, and voice') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.bodyLipsyncVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('body, lipsync, and voice'),
       }
     }
 
     if (focusLaneText === 'body and lipsync') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.bodyAndLipsync,
+        headline: describeRendererInternalLaneContinuityHeadline('body and lipsync'),
       }
     }
 
     if (focusLaneText === 'body and voice') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.bodyAndVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('body and voice'),
       }
     }
 
     if (focusLaneText === 'body') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.body,
+        headline: describeRendererInternalLaneContinuityHeadline('body'),
       }
     }
 
     if (focusLaneText === 'face, motion, lipsync, and voice') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.faceMotionLipsyncVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('face, motion, lipsync, and voice'),
       }
     }
 
     if (focusLaneText === 'lipsync and voice') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.lipsyncAndVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('lipsync and voice'),
       }
     }
 
     if (focusLaneText === 'face and voice') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.faceAndVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('face and voice'),
       }
     }
 
     if (focusLaneText === 'face, lipsync, and voice') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.faceLipsyncVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('face, lipsync, and voice'),
       }
     }
 
     if (focusLaneText === 'face, motion, and voice') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.faceMotionVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('face, motion, and voice'),
       }
     }
 
     if (focusLaneText === 'motion and voice') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.motionAndVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('motion and voice'),
       }
     }
 
     if (focusLaneText === 'motion, lipsync, and voice') {
       return {
         laneText: focusLaneText,
-        headline: rendererInternalLaneContinuityHeadlines.motionLipsyncVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('motion, lipsync, and voice'),
       }
     }
 
@@ -466,77 +466,77 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     if (laneText === 'body, face, and motion') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.bodyFaceMotion,
+        headline: describeRendererInternalLaneContinuityHeadline('body, face, and motion'),
       }
     }
 
     if (laneText === 'body, lipsync, and voice') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.bodyLipsyncVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('body, lipsync, and voice'),
       }
     }
 
     if (laneText === 'body and lipsync') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.bodyAndLipsync,
+        headline: describeRendererInternalLaneContinuityHeadline('body and lipsync'),
       }
     }
 
     if (laneText === 'body and voice') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.bodyAndVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('body and voice'),
       }
     }
 
     if (laneText === 'body') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.body,
+        headline: describeRendererInternalLaneContinuityHeadline('body'),
       }
     }
 
     if (laneText === 'face, motion, lipsync, and voice') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.faceMotionLipsyncVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('face, motion, lipsync, and voice'),
       }
     }
 
     if (laneText === 'face and voice') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.faceAndVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('face and voice'),
       }
     }
 
     if (laneText === 'face, lipsync, and voice') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.faceLipsyncVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('face, lipsync, and voice'),
       }
     }
 
     if (laneText === 'face, motion, and voice') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.faceMotionVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('face, motion, and voice'),
       }
     }
 
     if (laneText === 'motion and voice') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.motionAndVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('motion and voice'),
       }
     }
 
     if (laneText === 'motion, lipsync, and voice') {
       return {
         laneText,
-        headline: rendererInternalLaneContinuityHeadlines.motionLipsyncVoice,
+        headline: describeRendererInternalLaneContinuityHeadline('motion, lipsync, and voice'),
       }
     }
 
@@ -551,7 +551,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedFaceMouthContinuityMatch) {
     return {
       laneText: 'face, lipsync, and voice',
-      headline: rendererInternalLaneContinuityHeadlines.faceLipsyncVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('face, lipsync, and voice'),
     }
   }
 
@@ -564,7 +564,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedFaceMotionContinuityMatch) {
     return {
       laneText: 'face, motion, and voice',
-      headline: rendererInternalLaneContinuityHeadlines.faceMotionVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('face, motion, and voice'),
     }
   }
 
@@ -576,7 +576,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (visibleRendererRejoinWithoutBodyMatch) {
     return {
       laneText: 'face, motion, lipsync, and voice',
-      headline: rendererInternalLaneContinuityHeadlines.faceMotionLipsyncVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('face, motion, lipsync, and voice'),
     }
   }
 
@@ -585,7 +585,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedFaceContinuityMatch) {
     return {
       laneText: 'face and voice',
-      headline: rendererInternalLaneContinuityHeadlines.faceAndVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('face and voice'),
     }
   }
 
@@ -594,7 +594,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedMotionMouthContinuityMatch) {
     return {
       laneText: 'motion, lipsync, and voice',
-      headline: rendererInternalLaneContinuityHeadlines.motionLipsyncVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('motion, lipsync, and voice'),
     }
   }
 
@@ -603,7 +603,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (stillVoicedMotionContinuityMatch) {
     return {
       laneText: 'motion and voice',
-      headline: rendererInternalLaneContinuityHeadlines.motionAndVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('motion and voice'),
     }
   }
 
@@ -612,7 +612,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   if (quieterVoiceLipsyncContinuityMatch) {
     return {
       laneText: 'lipsync and voice',
-      headline: rendererInternalLaneContinuityHeadlines.lipsyncAndVoice,
+      headline: describeRendererInternalLaneContinuityHeadline('lipsync and voice'),
     }
   }
 
@@ -625,7 +625,7 @@ function resolveSameHerLaneContinuityReason(reason: string) {
     return {
       laneText,
       headline: laneText === 'body'
-        ? rendererInternalLaneContinuityHeadlines.body
+        ? describeRendererInternalLaneContinuityHeadline('body')
         : describeRendererInternalLaneContinuityHeadline(laneText),
     }
   }
@@ -699,17 +699,17 @@ function resolveSameHerLaneContinuityReason(reason: string) {
   return {
     laneText,
     headline: laneText === 'body, face, and motion'
-      ? rendererInternalLaneContinuityHeadlines.bodyFaceMotion
+      ? describeRendererInternalLaneContinuityHeadline('body, face, and motion')
       : laneText === 'body and voice'
-        ? rendererInternalLaneContinuityHeadlines.bodyAndVoice
+        ? describeRendererInternalLaneContinuityHeadline('body and voice')
         : laneText === 'body' && (residentBodyLaneMatch || residentBodyLaneDiagnosticMatch || bodyOnlyRecoveryMatch)
-          ? rendererInternalLaneContinuityHeadlines.body
+          ? describeRendererInternalLaneContinuityHeadline('body')
           : laneText === 'body'
-            ? rendererInternalLaneContinuityHeadlines.body
+            ? describeRendererInternalLaneContinuityHeadline('body')
             : laneText === 'body, lipsync, and voice'
-              ? rendererInternalLaneContinuityHeadlines.bodyLipsyncVoice
+              ? describeRendererInternalLaneContinuityHeadline('body, lipsync, and voice')
               : laneText === 'body and lipsync'
-                ? rendererInternalLaneContinuityHeadlines.bodyAndLipsync
+                ? describeRendererInternalLaneContinuityHeadline('body and lipsync')
                 : describeRendererInternalLaneContinuityHeadline(laneText),
   }
 }
@@ -722,11 +722,8 @@ function resolveHumanReadableProjectStateRepair(reasons: string[]) {
   const normalizedReasons = reasons.map(reason => reason.trim()).filter(Boolean)
   const diagnostics: string[] = []
 
-  if (normalizedReasons.some(reason => reason.includes('project-state-identity-continuity-continuity-required') || reason.includes('project-state-same-her-continuity-required')))
+  if (normalizedReasons.some(reason => reason.includes('project-state-identity-continuity-continuity-required') || reason.includes('project-state-continuity-required')))
     diagnostics.push('项目状态待同步')
-
-  if (normalizedReasons.some(reason => reason.includes('semantic-judge:project-state-identity-continuity-missing') || reason.includes('semantic-judge:project-state-same-her-missing')))
-    diagnostics.push('记忆依据待补齐')
 
   return diagnostics.length > 0
     ? diagnostics.join('，')
@@ -867,21 +864,6 @@ function describeRendererInternalFullCrossModalLockHeadline(
 
   return null
 }
-
-const rendererInternalLaneContinuityHeadlines = {
-  body: describeRendererInternalLaneContinuityHeadline('body'),
-  bodyAndLipsync: describeRendererInternalLaneContinuityHeadline('body and lipsync'),
-  bodyAndVoice: describeRendererInternalLaneContinuityHeadline('body and voice'),
-  bodyFaceMotion: describeRendererInternalLaneContinuityHeadline('body, face, and motion'),
-  bodyLipsyncVoice: describeRendererInternalLaneContinuityHeadline('body, lipsync, and voice'),
-  faceAndVoice: describeRendererInternalLaneContinuityHeadline('face and voice'),
-  faceLipsyncVoice: describeRendererInternalLaneContinuityHeadline('face, lipsync, and voice'),
-  faceMotionLipsyncVoice: describeRendererInternalLaneContinuityHeadline('face, motion, lipsync, and voice'),
-  faceMotionVoice: describeRendererInternalLaneContinuityHeadline('face, motion, and voice'),
-  lipsyncAndVoice: describeRendererInternalLaneContinuityHeadline('lipsync and voice'),
-  motionAndVoice: describeRendererInternalLaneContinuityHeadline('motion and voice'),
-  motionLipsyncVoice: describeRendererInternalLaneContinuityHeadline('motion, lipsync, and voice'),
-} as const
 
 function resolveLaneContinuityHeadline(reason: string) {
   const normalized = reason.trim()
@@ -1338,14 +1320,11 @@ function sanitizeQuickReplyClosureVisibleLine(line: string | null | undefined) {
   const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
   if (!normalized)
     return null
-  const structuredNextMatch = /^next=(.*?)\s*(?:\|\s*surface=structured)?$/iu.exec(normalized)
-  if (structuredNextMatch?.[1]?.trim())
+  if (/^next=/iu.test(normalized))
     return null
-  const nextHelpMatch = /^Next,\s*help me close:\s*(.*)$/i.exec(normalized)
-  if (nextHelpMatch?.[1]?.trim())
+  if (/^next,\s*help me close:/iu.test(normalized))
     return null
-  const chineseNextMatch = /^下一步(?:还要继续收住|状态：|：)\s*(.*)$/u.exec(normalized)
-  if (chineseNextMatch?.[1]?.trim())
+  if (/^下一步(?:还要继续收住|状态：|：)/u.test(normalized))
     return null
   if (/surface=structured/iu.test(normalized))
     return null

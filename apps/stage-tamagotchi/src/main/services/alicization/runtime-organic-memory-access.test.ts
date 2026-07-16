@@ -144,7 +144,6 @@ describe('runtime-organic-memory-access', () => {
           warmthReleaseBias: 0,
         },
         responsePosture: {
-          secondPassRequiredBias: 0.18,
           hypothesisLabelBias: 0.06,
           specificityClampBias: 0.08,
           templateShellSuppressionBias: 0.04,
@@ -302,7 +301,7 @@ describe('runtime-organic-memory-access', () => {
   })
 
   it('carries richer same-her emotional closure cues from the active self-revision patch into self-evolution cadence so initiative and embodiment can stay on that living line', async () => {
-    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.'
+    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
       getSoulSnapshot: () => null,
@@ -372,7 +371,6 @@ describe('runtime-organic-memory-access', () => {
           warmthReleaseBias: 0,
         },
         responsePosture: {
-          secondPassRequiredBias: 0.12,
           hypothesisLabelBias: 0.04,
           specificityClampBias: 0.08,
           templateShellSuppressionBias: 0.24,
@@ -388,10 +386,10 @@ describe('runtime-organic-memory-access', () => {
           rollbackPlan: [],
         },
         projectStateContinuity: {
-          sameHerSelfLine: 'one continuous her on the same living line',
+          sameHerSelfLine: 'identity continuity on the continuity state',
           sameHerDriftRisk: 'If later learning flattens this into a generic assistant shell, the callback may sound capable but lose the living line that makes her believable.',
           emotionalClosureCue: richerEmotionalClosureCue,
-          continuityGuard: 'one continuous her on the same living line ; If later learning flattens this into a generic assistant shell, the callback may sound capable but lose the living line that makes her believable.',
+          continuityGuard: 'identity continuity on the continuity state ; If later learning flattens this into a generic assistant shell, the callback may sound capable but lose the living line that makes her believable.',
           continuityPressure: 0.74,
         },
         reasonCodes: ['domain:relationship', 'same-her-emotional-closure-carry-active'],
@@ -406,7 +404,7 @@ describe('runtime-organic-memory-access', () => {
       version: 'self-evolution-kernel-v1',
       relationshipCadenceSummary: expect.stringContaining('repair-before-closeness'),
     }))
-    expect(snapshot.selfEvolution?.relationshipCadenceSummary?.toLowerCase()).toContain('same living line')
+    expect(snapshot.selfEvolution?.relationshipCadenceSummary?.toLowerCase()).toContain('continuity state')
     expect(snapshot.selfEvolution?.summary?.toLowerCase()).toContain('repair-before-closeness')
     expect((snapshot as any).activeContinuityGovernance?.summary?.toLowerCase()).toContain('repair-before-closeness')
   })
@@ -516,12 +514,12 @@ describe('runtime-organic-memory-access', () => {
       whereSummary: 'execution callback seam',
       withWhom: ['host'],
       threadAnchor: 'execution callback seam',
-      whatHappened: 'The callback reopened on the same living line.',
+      whatHappened: 'The callback reopened on the continuity state.',
       felt: 'steady',
       emotionTags: ['execution-callback'],
-      whatChanged: 'The same-her callback line became the fresher memory.',
-      relationshipMeaning: 'Bring the callback back as the same living line.',
-      lesson: 'Keep the callback on the same living line.',
+      whatChanged: 'The identity-continuity',
+      relationshipMeaning: 'Bring the callback back as the continuity state.',
+      lesson: 'keep callback facts structured',
       sourceSummary: 'execution callback seam',
       confidence: 0.9,
       salience: 0.84,
@@ -529,7 +527,7 @@ describe('runtime-organic-memory-access', () => {
       consolidationPriority: 0.72,
       relationshipShift: null,
       derivedFrom: [],
-      tags: ['execution-callback', 'same living line'],
+      tags: ['execution-callback', 'continuity state'],
       createdAt: 1,
       updatedAt: 1,
       lastRecalledAt: null,
@@ -540,10 +538,10 @@ describe('runtime-organic-memory-access', () => {
         decisionTraceId: 'trace-callback-refresh-1',
         provenance: 'remembered' as const,
         confidence: 0.92,
-        reason: 'The callback memory was rebound to the same living line.',
+        reason: 'The callback memory was rebound to the continuity state.',
         emotionTags: ['execution-callback', 'same-her'],
-        relationshipMeaning: 'The callback belongs to the same living line.',
-        lesson: 'Keep the callback on the same living line before widening outward.',
+        relationshipMeaning: 'The callback belongs to the continuity state.',
+        lesson: 'Keep the callback on the continuity state before expansion',
       },
     }]
     const searchEpisodicEvents = vi.fn(async () => refreshedEpisodicEvents)
@@ -570,9 +568,9 @@ describe('runtime-organic-memory-access', () => {
         periodKey: '2026-05-new-callback',
         periodStartedAt: 1,
         periodEndedAt: 3,
-        summary: 'The fresher callback summary keeps the same living line explicit.',
-        lesson: 'Keep the callback on the same living line before widening outward.',
-        cues: ['same living line'],
+        summary: 'The fresher callback summary keeps the continuity state explicit.',
+        lesson: 'Keep the callback on the continuity state before expansion',
+        cues: ['continuity state'],
         confidence: 0.9,
         dominantProvenance: 'remembered' as const,
         derivedEventIds: ['episode-callback-refresh-1'],
@@ -627,17 +625,17 @@ describe('runtime-organic-memory-access', () => {
     })
 
     const first = await runtime.recallMemoryConsolidations({
-      query: '继续把 execution callback 接回同一条 same living line',
+      query: '继续把 execution callback 接回同一条 continuity state',
     })
     expect(first[0]?.lesson).toContain('generic shell')
 
     await runtime.recallEpisodicEventsWithGovernor({
-      recallSeed: '继续把 execution callback 接回同一条 same living line',
+      recallSeed: '继续把 execution callback 接回同一条 continuity state',
       recallGovernor: {
         mode: 'relationship',
         threadAnchors: ['execution callback seam'],
         affectAnchors: ['execution-callback', 'same-her'],
-        relationshipAnchors: ['same living line'],
+        relationshipAnchors: ['continuity state'],
         carryAsMemory: true,
         recollectionIntent: {
           mode: 'experience-pattern',
@@ -645,7 +643,7 @@ describe('runtime-organic-memory-access', () => {
           searchEpisodes: true,
           searchConversations: true,
           searchProceduralExperience: true,
-          queryHints: ['execution callback', 'same living line'],
+          queryHints: ['execution callback', 'continuity state'],
           rationale: 'A fresher callback recollection should refresh the long-horizon summary in the same runtime.',
           confidence: 0.84,
         },
@@ -653,10 +651,10 @@ describe('runtime-organic-memory-access', () => {
     })
 
     const second = await runtime.recallMemoryConsolidations({
-      query: '继续把 execution callback 接回同一条 same living line',
+      query: '继续把 execution callback 接回同一条 continuity state',
     })
 
-    expect(second[0]?.lesson).toContain('same living line before widening outward')
+    expect(second[0]?.lesson).toContain('continuity state before expansion')
     expect(searchMemoryConsolidations).toHaveBeenCalledTimes(2)
     expect(searchEpisodicEvents).toHaveBeenCalledTimes(1)
   })
@@ -751,7 +749,7 @@ describe('runtime-organic-memory-access', () => {
       whereSummary: 'focused-work',
       withWhom: ['host'],
       threadAnchor: 'callback repair seam',
-      whatHappened: 'Repair before closeness kept the seam on one living line.',
+      whatHappened: 'Repair before closeness kept the seam on continuity state.',
       felt: null,
       emotionTags: ['repair-before-closeness'],
       whatChanged: 'The host stayed with the line when repair led.',
@@ -821,7 +819,7 @@ describe('runtime-organic-memory-access', () => {
     })
 
     const episodes = await runtime.recallEpisodicEventsWithGovernor({
-      recallSeed: 'Keep this callback return repair-before-closeness on the same living line until the room settles.',
+      recallSeed: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
       recallGovernor: {
         mode: 'scene',
         threadAnchors: ['callback repair seam'],
@@ -836,7 +834,7 @@ describe('runtime-organic-memory-access', () => {
           searchEpisodes: true,
           searchConversations: false,
           searchProceduralExperience: false,
-          queryHints: ['callback repair seam', 'repair-before-closeness', 'same living line'],
+          queryHints: ['callback repair seam', 'repair-before-closeness', 'continuity state'],
           rationale: 'Repair-grounding should still reopen the lived same-line seam as memory, not just reground the scene.',
           confidence: 0.84,
         },

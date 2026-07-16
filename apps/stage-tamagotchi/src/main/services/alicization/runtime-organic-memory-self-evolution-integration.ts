@@ -123,7 +123,6 @@ export function buildOrganicMemoryEvolutionState(input: {
             activeSelfRevisionPatch.relationshipPosture.warmthReleaseBias ?? 0,
           ),
           selfRevisionResponsePostureBias: Math.max(
-            activeSelfRevisionPatch.responsePosture.secondPassRequiredBias ?? 0,
             activeSelfRevisionPatch.responsePosture.hypothesisLabelBias ?? 0,
             activeSelfRevisionPatch.responsePosture.specificityClampBias ?? 0,
             activeSelfRevisionPatch.responsePosture.templateShellSuppressionBias ?? 0,

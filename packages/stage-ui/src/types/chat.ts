@@ -1,4 +1,5 @@
 import type { ContextUpdate, MetadataEventSource, WebSocketEventInputs } from '@proj-alicization/server-sdk'
+import type { AlicizationProviderMemoryUsage } from '@proj-alicization/stage-shared'
 import type { AssistantMessage, CommonContentPart, CompletionToolCall, Message, SystemMessage, ToolMessage, UserMessage } from '@xsai/shared-chat'
 
 import type {
@@ -8,10 +9,8 @@ import type {
   AlicizationDialogueStructuredFormat,
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
-  AlicizationEmotionalKernelSnapshot,
   AlicizationMindTurnGovernance,
   AlicizationProactiveMetadata,
-  AlicizationRuntimeProjectStateDigest,
 } from '../stores/alicization-bridge'
 
 export interface ChatSlicesText {
@@ -49,8 +48,8 @@ export interface ChatAssistantStructuredPayload {
   sentimentConfidenceRaw?: number
   sentimentConfidence?: number
   format: AlicizationDialogueStructuredFormat
-  parsePath?: 'json' | 'repair-json' | 'act' | 'fallback'
-  repairTimedOut?: boolean
+  parsePath?: 'json' | 'fallback'
+  memoryUsage?: AlicizationProviderMemoryUsage
   contractFailed?: boolean
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
@@ -148,18 +147,6 @@ export interface ChatStreamEventContext {
   contexts: Record<string, ContextMessage[]>
   composedMessage: Array<Message>
   input?: WebSocketEventInputs
-  preDialogueSendIdentity?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    awarenessLine?: string | null
-    emotionalClosureCue?: string | null
-    projectState?: AlicizationRuntimeProjectStateDigest | null
-    emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
-    reasonPreview: string[]
-  } | null
 }
 
 export type ChatStreamEvent

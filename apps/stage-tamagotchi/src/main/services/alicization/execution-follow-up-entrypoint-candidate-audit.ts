@@ -24,9 +24,9 @@ function collectServiceRelativePaths(rootDir: string, args: string[]) {
 
 const callbackRuntimeCandidatePattern = String.raw`export function createAlicizationExecutionCallbackRuntime\(`
 const callbackDoctrineCandidatePattern = String.raw`executionCallbackDoctrineCue \? \`execution-callback-doctrine:\$\{executionCallbackDoctrineCue\}\` : null`
-const callbackDeliveryCandidatePattern = String.raw`Execution callback delivery must stay inside the current Alicization project context`
+const callbackDeliveryCandidatePattern = String.raw`callback_context=execution-result; runtime_context=local_runtime; failure_surface=transparent`
 const callbackPayoffCandidatePattern = String.raw`export function buildAlicizationExecutionPayoffPrompt\(`
-const callbackCapabilityProjectBriefingCandidatePattern = String.raw`briefing_scope=execution_capability \| visibility=internal-structured \| facts_follow=true`
+const callbackCapabilityProjectBriefingCandidatePattern = String.raw`briefing_scope=execution_capability-structured \| owner=execution-runtime-context`
 const followUpObligationCandidatePattern = String.raw`export function deriveMainChatExecutionReplyObligation\(`
 const followUpResponseContractCandidatePattern = String.raw`executionReplyObligation: input\.executionReplyObligation \?\? null`
 const followUpSystemBlockCandidatePattern = String.raw`buildMainChatExecutionReplyObligationSystemBlock\(`

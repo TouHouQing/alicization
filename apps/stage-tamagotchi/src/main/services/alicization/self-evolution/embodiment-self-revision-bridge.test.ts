@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { buildAlicizationEmbodimentSelfRevisionStatePatch } from './embodiment-self-revision-bridge'
 
 describe('embodiment-self-revision-bridge', () => {
-  it('turns dropped and pending embodiment lanes into a same-her self-revision patch', () => {
+  it('turns dropped and pending embodiment lanes into a identity-continuity', () => {
     const ledger: AlicizationEmbodimentContinuityLedger = {
       version: 'embodiment-continuity-ledger-v1',
       createdAt: 42_000,
@@ -42,9 +42,9 @@ describe('embodiment-self-revision-bridge', () => {
       ledger,
       decisionTraceId: 'mind:embodiment:patch',
       projectStateContinuity: {
-        sameHerSelfLine: 'Same Phase 1 digital life stays one her across voice, face, motion, lipsync, and body.',
+        sameHerSelfLine: 'legacy phase-one template stays one her across voice, face, motion, lipsync, and body.',
         sameHerDriftRisk: 'If expression lanes disappear, the reply can sound like a generic assistant shell.',
-        sameHerHoldDetail: 'Keep visible reply and body expression on the same living line.',
+        sameHerHoldDetail: 'Keep visible reply and body expression on the continuity state.',
       },
     })
 

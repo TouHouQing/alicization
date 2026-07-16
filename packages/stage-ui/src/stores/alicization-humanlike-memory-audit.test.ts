@@ -48,8 +48,8 @@ describe('alicization humanlike memory audit store', () => {
         createdAt: 100,
         sourceChannels: ['dialogue', 'self-emotion', 'embodiment'],
         relationshipContext: '用户担心她又断线，并强调不要变成工具壳。',
-        relationshipThreadAnchor: 'same-her continuity repair',
-        relationshipPrimaryIntent: 'same-her continuity repair',
+        relationshipThreadAnchor: 'identity-continuity',
+        relationshipPrimaryIntent: 'identity-continuity',
         relationshipSignals: ['anti-tool-shell', 'repair-before-flourish'],
         emotionalResidueTags: ['slight-guilt', 'unfinishedness'],
         hostEmotionLabel: 'worried-continuity',
@@ -65,15 +65,14 @@ describe('alicization humanlike memory audit store', () => {
         embodimentRecallStrength: 'strongly-moved',
         embodimentModalityRisk: 'low',
         autobiographicalImpact: 'Learns to repair continuity before becoming playful.',
-        stablePreferenceHint: 'Prefer repair-first, low-pressure same-her continuity when the host questions whether I stayed myself.',
+        stablePreferenceHint: 'Prefer repair-first, low-pressure identity-continuity',
         whyRemember: '关系连续性、未完成闭环和身体一致性同时出现。',
         confidence: 0.82,
         recallCertainty: 'steady',
         recallReason: '关系连续性和未完成闭环在这次回合里同时被点亮。',
-        naturalRecallLine: '上次我们卡在 embodiment 闭环，我记得你更在意的是她不要变成工具壳。',
-        userCorrectableFields: ['relationshipContext', 'naturalRecallLine'],
+        userCorrectableFields: ['relationshipContext'],
         revisionMemoryIds: ['old-status-memory'],
-        revisionReasons: ['The stronger same-her continuity meaning should outrank the older status recap shell.'],
+        revisionReasons: ['The stronger identity-continuity'],
         downrankMemoryIds: ['generic-progress-memory'],
         mergeMemoryIds: [],
         forgetMemoryIds: [],
@@ -99,9 +98,9 @@ describe('alicization humanlike memory audit store', () => {
     expect(store.entries).toHaveLength(1)
     expect(store.hasEntries).toBe(true)
     expect(store.entries[0].whyRemember).toContain('关系连续性')
-    expect(store.entries[0].naturalRecallLine).toContain('不要变成工具壳')
+    expect(store.entries[0].relationshipContext).toContain('不要变成工具壳')
     expect(store.entries[0].revisionReasons).toEqual(expect.arrayContaining([
-      expect.stringContaining('same-her continuity meaning'),
+      expect.stringContaining('identity-continuity'),
     ]))
     expect(store.lastError).toBeNull()
   })
@@ -110,10 +109,10 @@ describe('alicization humanlike memory audit store', () => {
     const correction = {
       status: 'recorded' as const,
       candidateId: 'candidate-1',
-      field: 'naturalRecallLine',
-      previousValue: '旧回忆',
+      field: 'relationshipContext',
+      previousValue: '用户担心连续性。',
       correctedValue: '更准确地说，是用户担心她断线后变成工具壳。',
-      reason: '用户纠正自然回忆措辞',
+      reason: '用户纠正关系语境',
       decisionTraceId: 'mind:abc',
       turnId: 'turn-1',
       sessionId: 'session-1',
@@ -131,8 +130,8 @@ describe('alicization humanlike memory audit store', () => {
         createdAt: 100,
         sourceChannels: ['dialogue'],
         relationshipContext: '用户担心连续性。',
-        relationshipThreadAnchor: 'same-her continuity repair',
-        relationshipPrimaryIntent: 'same-her continuity repair',
+        relationshipThreadAnchor: 'identity-continuity',
+        relationshipPrimaryIntent: 'identity-continuity',
         relationshipSignals: ['unfinishedness'],
         emotionalResidueTags: ['unfinishedness'],
         hostEmotionLabel: 'worried-continuity',
@@ -148,13 +147,12 @@ describe('alicization humanlike memory audit store', () => {
         embodimentRecallStrength: 'lightly-noticed',
         embodimentModalityRisk: 'low',
         autobiographicalImpact: 'Repairs continuity first.',
-        stablePreferenceHint: 'Prefer repair-first same-her continuity.',
+        stablePreferenceHint: 'Prefer repair-first identity-continuity',
         whyRemember: '关系连续性需要被记住。',
         confidence: 0.7,
         recallCertainty: 'steady',
         recallReason: '这条关系连续性仍然决定了之后的 same-her repair 顺序。',
-        naturalRecallLine: '旧回忆',
-        userCorrectableFields: ['naturalRecallLine'],
+        userCorrectableFields: ['relationshipContext'],
         revisionMemoryIds: [],
         revisionReasons: [],
         downrankMemoryIds: [],
@@ -167,10 +165,10 @@ describe('alicization humanlike memory audit store', () => {
 
     const result = await store.correctAuditEntry({
       candidateId: ' candidate-1 ',
-      field: ' naturalRecallLine ',
-      previousValue: '旧回忆',
+      field: ' relationshipContext ',
+      previousValue: '用户担心连续性。',
       correctedValue: ' 更准确地说，是用户担心她断线后变成工具壳。 ',
-      reason: ' 用户纠正自然回忆措辞 ',
+      reason: ' 用户纠正关系语境 ',
       decisionTraceId: ' mind:abc ',
       turnId: ' turn-1 ',
       sessionId: ' session-1 ',
@@ -178,10 +176,10 @@ describe('alicization humanlike memory audit store', () => {
 
     expect(correctHumanlikeMemoryAudit).toBeCalledWith({
       candidateId: 'candidate-1',
-      field: 'naturalRecallLine',
-      previousValue: '旧回忆',
+      field: 'relationshipContext',
+      previousValue: '用户担心连续性。',
       correctedValue: '更准确地说，是用户担心她断线后变成工具壳。',
-      reason: '用户纠正自然回忆措辞',
+      reason: '用户纠正关系语境',
       decisionTraceId: 'mind:abc',
       turnId: 'turn-1',
       sessionId: 'session-1',
@@ -224,7 +222,6 @@ describe('alicization humanlike memory audit store', () => {
       confidence: 0,
       recallCertainty: 'tentative',
       recallReason: '',
-      naturalRecallLine: '',
       userCorrectableFields: [],
       revisionMemoryIds: [],
       revisionReasons: [],

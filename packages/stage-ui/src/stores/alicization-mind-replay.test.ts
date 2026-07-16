@@ -308,7 +308,6 @@ describe('alicization mind replay store', () => {
             warmthReleaseBias: 0,
           },
           responsePosture: {
-            secondPassRequiredBias: 0.2,
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.3,
             templateShellSuppressionBias: 0.25,

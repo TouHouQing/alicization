@@ -72,7 +72,7 @@ describe('performance visualizer self evolution repair followup navigation', () 
     })
   })
 
-  it('relands project-identity carry on candidate-trajectory evidence so same-her project-state repair does not fall back to generic runtime continuity', () => {
+  it('relands project-identity carry on candidate-trajectory evidence so identity-continuity', () => {
     expect(buildSelfEvolutionRepairFollowupNavigation({
       executedRoute: {
         surfaceKey: 'evidence:runtime-continuity-projection',

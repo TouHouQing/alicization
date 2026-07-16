@@ -35,6 +35,8 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
   const withoutDuplicatedKey = keyPrefixPattern.test(normalized)
     ? normalized.replace(keyPrefixPattern, '').split('|')[0]?.trim() ?? ''
     : normalized
+  if (/\b[a-z][\w-]+\s*=/iu.test(withoutDuplicatedKey))
+    return ''
 
   const lower = withoutDuplicatedKey.toLowerCase()
   const carriesRawFixedTemplateResidue = containsAlicizationFixedTemplateResidue(withoutDuplicatedKey)
@@ -42,27 +44,27 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
     return ''
 
   const factSafe = withoutDuplicatedKey
-    .replace(/\bone same-her line\b/giu, 'one continuity_line')
-    .replace(/\bsame-her line\b/giu, 'continuity_line')
-    .replace(/\bsame living Phase\s*1 line\b/giu, 'continuity_line')
-    .replace(/\bsame Phase\s*1 living line\b/giu, 'continuity_line')
-    .replace(/\bsame living line\b/giu, 'continuity_line')
-    .replace(/\bproject-aware living line\b/giu, 'continuity_line')
-    .replace(/\bliving line\b/giu, 'continuity_line')
-    .replace(/\bsame digital life line\b/giu, 'continuity_line')
-    .replace(/同一个\s*her/giu, 'continuity_identity')
-    .replace(/同一个她/gu, 'continuity_identity')
-    .replace(/数字生命主线/gu, 'local_desktop_continuity')
-    .replace(/数字生命项目/gu, 'local_desktop_continuity')
-    .replace(/\bone-continuous-her\b/giu, 'project_state_continuity')
-    .replace(/\bcross-modal same-her proof\b/giu, 'cross_modal_continuity_proof')
-    .replace(/\bsame-her proof\b/giu, 'continuity_proof')
-    .replace(/\bsame-her closure seam\b/giu, 'continuity_closure')
-    .replace(/\bsame-her closure\b/giu, 'continuity_closure')
-    .replace(/\bsame-her\b/giu, 'continuity_identity')
-    .replace(/\bsame her\b/giu, 'continuity_identity')
-    .replace(/^Keep extending\s+/iu, 'extend_')
-  const carriesNeutralizedTemplateResidue = /\b(?:continuity_identity|continuity_line|local_desktop_life_loop|project_state_continuity)\b/iu.test(factSafe)
+    .replace(/\bone same-her line\b/giu, 'one continuity line')
+    .replace(/\bsame-her line\b/giu, 'continuity line')
+    .replace(/\bsame living Phase\s*1 line\b/giu, 'continuity line')
+    .replace(/\bsame Phase\s*1 living line\b/giu, 'continuity line')
+    .replace(/\bsame living line\b/giu, 'continuity line')
+    .replace(/\bproject-aware living line\b/giu, 'continuity line')
+    .replace(/\bliving line\b/giu, 'continuity line')
+    .replace(/\bsame digital life line\b/giu, 'continuity line')
+    .replace(/同一个\s*her/giu, 'continuity identity')
+    .replace(/同一个她/gu, 'continuity identity')
+    .replace(/数字生命主线/gu, 'local desktop continuity')
+    .replace(/数字生命项目/gu, 'local desktop continuity')
+    .replace(/\bone-continuous-her\b/giu, 'project state continuity')
+    .replace(/\bcross-modal same-her proof\b/giu, 'cross-modal continuity proof')
+    .replace(/\bsame-her proof\b/giu, 'continuity proof')
+    .replace(/\bsame-her closure seam\b/giu, 'continuity closure')
+    .replace(/\bsame-her closure\b/giu, 'continuity closure')
+    .replace(/\bsame-her\b/giu, 'continuity identity')
+    .replace(/\bsame her\b/giu, 'continuity identity')
+    .replace(/^Keep extending\s+/iu, 'extend ')
+  const carriesNeutralizedTemplateResidue = /\b(?:continuity_identity|continuity_line|local_desktop_life_loop|project_state_continuity|continuity identity|continuity line|local desktop continuity|project state continuity)\b/iu.test(factSafe)
     && /\b(?:should|needs?|must|keep|rather than|before|after|reopen|widen|follow-through|drift|preserved closure)\b/iu.test(factSafe)
   if (carriesNeutralizedTemplateResidue)
     return ''
@@ -93,60 +95,15 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
   if (!['open', 'next', 'continuity_drift_risk', 'continuity_hold', 'emotional_closure'].includes(key)) {
     const structuredEmbodimentFact = extractStructuredEmbodimentFact(lower)
     if (structuredEmbodimentFact && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe)))
-      return structuredEmbodimentFact
+      return ''
   }
 
   if (key === 'open' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe) || carriesNeutralizedTemplateResidue)) {
-    if (/project identity|landed progress|unresolved closure|项目身份|已落|未闭环|未闭合/u.test(lower)
-      || /project identity|landed progress|unresolved closure|项目身份|已落|未闭环|未闭合/u.test(factSafe)) {
-      return 'open_loop=project_identity+landed_progress+unresolved_closure; status=unfinished'
-    }
-    if (/repair[-_ ]first callback continuity|repair_first_callback|repair-before-closeness.*callback|callback.*repair/u.test(lower)
-      || /repair[-_ ]first callback continuity|repair_first_callback|repair-before-closeness.*callback|callback.*repair/u.test(factSafe)) {
-      return 'repair_first_callback_continuity_closure'
-    }
-    if (/callback|reopened|回调|重开/u.test(lower) || /callback|reopened|回调|重开/u.test(factSafe))
-      return 'open_loop=callback_continuity; status=unfinished'
-    const lanes = [
-      /memory|记忆/u.test(lower) || /memory|记忆/u.test(factSafe) ? 'memory' : '',
-      /initiative|主动性/u.test(lower) || /initiative|主动性/u.test(factSafe) ? 'initiative' : '',
-      /dialogue|对话/u.test(lower) || /dialogue|对话/u.test(factSafe) ? 'dialogue' : '',
-      /execution|执行/u.test(lower) || /execution|执行/u.test(factSafe) ? 'execution' : '',
-      /embodiment|具身|body|face|motion|lipsync|voice|声音|表情|动作|唇型/u.test(lower)
-      || /embodiment|具身|body|face|motion|lipsync|voice|声音|表情|动作|唇型/u.test(factSafe)
-        ? 'embodiment'
-        : '',
-    ].filter(Boolean)
-    if (lanes.length)
-      return `open_loop=${lanes.join('+')}; status=unfinished`
-    return `open_loop=${lanes.length ? lanes.join('+') : 'continuity'}; status=unfinished`
+    return ''
   }
 
   if (key === 'next' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe) || carriesNeutralizedTemplateResidue)) {
-    if (/runtime-authoritative|runtime authoritative/u.test(lower) || /runtime-authoritative|runtime authoritative/u.test(factSafe))
-      return 'runtime_send_alignment=needs_validation'
-    if (/project identity|landed progress|unresolved closure|项目身份|已落|未闭环|未闭合|下一步/u.test(lower)
-      || /project identity|landed progress|unresolved closure|项目身份|已落|未闭环|未闭合|下一步/u.test(factSafe)) {
-      return 'project_state_review=identity+landed+open+next'
-    }
-    if (/cross[-_ ]modal|body|face|motion|lipsync|voice|声音|表情|动作|唇型/u.test(lower)
-      || /cross[-_ ]modal|body|face|motion|lipsync|voice|声音|表情|动作|唇型/u.test(factSafe)) {
-      return 'embodiment_scale_validation=needed'
-    }
-    if (/memory|initiative|dialogue|execution|embodiment|记忆|主动性|对话|执行|具身/u.test(lower)
-      || /memory|initiative|dialogue|execution|embodiment|记忆|主动性|对话|执行|具身/u.test(factSafe)) {
-      const lanes = [
-        /memory|记忆/u.test(lower) || /memory|记忆/u.test(factSafe) ? 'memory' : '',
-        /initiative|主动性/u.test(lower) || /initiative|主动性/u.test(factSafe) ? 'initiative' : '',
-        /dialogue|对话/u.test(lower) || /dialogue|对话/u.test(factSafe) ? 'dialogue' : '',
-        /execution|执行/u.test(lower) || /execution|执行/u.test(factSafe) ? 'execution' : '',
-        /embodiment|具身/u.test(lower) || /embodiment|具身/u.test(factSafe) ? 'embodiment' : '',
-      ].filter(Boolean)
-      return `runtime_loop_validation=${lanes.length ? lanes.join('+') : 'local_desktop'}`
-    }
-    if (/callback|reopened|回调|重开/u.test(lower) || /callback|reopened|回调|重开/u.test(factSafe))
-      return 'callback_review=preserve_context; widening=deferred'
-    return 'continuity_review_required'
+    return ''
   }
 
   if (key === 'continuity_anchor') {
@@ -162,56 +119,34 @@ function normalizeProjectStateAwarenessValue(key: string, raw: unknown, maxChars
     if (
       (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe) || carriesNeutralizedTemplateResidue)
       && (/phase\s*1|local[- ]first|digital life|数字生命/u.test(lower)
-        || /local_desktop_life_loop|project_state_continuity|continuity_identity|continuity_line/u.test(factSafe))
+        || /local_desktop_life_loop|project_state_continuity|continuity_identity|continuity_line|project state continuity|continuity identity|continuity line/u.test(factSafe))
     ) {
       return ''
     }
   }
 
   if (key === 'continuity_hold' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe))) {
-    if (/repair-before-closeness|repair before closeness|repair settles|repair settle/u.test(lower))
-      return 'repair_before_closeness; timing=before_closeness_widens; until=repair_settles'
-    if (/rest-protective|rest protective|fatigue-aware|fatigue aware/u.test(lower))
-      return 'rest_protective; timing=fatigue_aware'
-    if (/remembered seam|remembered relationship seam|relationship seam|same remembered seam|记住的关系缝/u.test(lower))
-      return 'remembered_seam; room=more; reopen_from_scratch=false'
-    if (/lower-pressure|low-pressure|measured-return|measured return|leave more room|more room|do not reopen|from scratch/u.test(lower))
-      return 'lower_pressure; room=more; reopen_from_scratch=false'
-    if (
-      /same[- ]her|same living|one continuous|phase\s*1|digital life/u.test(lower)
-      || /continuity_identity|continuity_line/iu.test(factSafe)
-    ) {
-      return 'continuity_line; widening=deferred'
-    }
     return ''
   }
 
   if (key === 'continuity_drift_risk' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe) || carriesNeutralizedTemplateResidue)) {
     if (/detached project-status shell|detached project status shell|project-status shell|project status shell/u.test(lower)
       || /detached project-status shell|detached project status shell|project-status shell|project status shell/u.test(factSafe)) {
-      return 'detached_project_status_shell'
+      return 'detached project-status shell risk'
     }
     if (/generic assistant|generic project|generic guidance|generic shell|generic task shell|generic status narration|status narration|status recap|project-summary voice|project summary voice/u.test(lower)
       || /generic assistant|generic project|generic guidance|generic shell|generic task shell|generic status narration|status narration|status recap|project-summary voice|project summary voice/u.test(factSafe)) {
-      return 'generic_shell'
+      return 'generic shell risk'
     }
-    return 'continuity_residue'
+    return 'continuity residue risk'
   }
 
   if (key === 'initiative_gap' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe) || carriesNeutralizedTemplateResidue)) {
-    if (/proactive|initiative|subconscious|next-session|follow-through/u.test(lower)
-      || /proactive|initiative|subconscious|next-session|follow-through/u.test(factSafe)) {
-      return 'proactive_follow_through; status=unfinished'
-    }
-    return 'continuity_review_required'
+    return ''
   }
 
   if (key === 'emotional_closure' && (carriesRawFixedTemplateResidue || containsAlicizationFixedTemplateResidue(factSafe))) {
-    if (/lower-pressure|low-pressure|leave more room|more room|do not reopen|from scratch/u.test(lower))
-      return 'lower_pressure; room=more; reopen_from_scratch=false'
-    if (/repair-before-closeness|repair before closeness/u.test(lower))
-      return 'repair_before_closeness'
-    return 'continuity_residue'
+    return ''
   }
 
   if (
@@ -256,19 +191,45 @@ function extractStructuredEmbodimentFact(lower: string) {
   const status = /already locked|already rejoined|already.*together|已经.*接/u.test(lower)
     ? 'rejoined'
     : pendingLanes.length
-      ? 'pending_rejoin'
+      ? 'pending rejoin'
       : 'partial'
 
+  const activeLaneLabel = (activeLanes.length ? activeLanes : mentionedLanes).join(' + ')
+  const pendingLaneLabel = pendingLanes.length ? pendingLanes.join(' + ') : ''
   return [
-    `embodiment_lanes=${(activeLanes.length ? activeLanes : mentionedLanes).join('+')}`,
-    pendingLanes.length ? `pending_lanes=${pendingLanes.join('+')}` : '',
-    `status=${status}`,
-  ].filter(Boolean).join('; ')
+    `Embodiment lanes: ${activeLaneLabel}.`,
+    pendingLaneLabel ? `Pending lanes: ${pendingLaneLabel}.` : '',
+    `Status: ${status}.`,
+  ].filter(Boolean).join(' ')
+}
+
+function projectStateAwarenessLabel(key: string) {
+  switch (key) {
+    case 'identity':
+      return 'Identity'
+    case 'currentPhase':
+      return 'Current phase'
+    case 'landed':
+      return 'Latest landed progress'
+    case 'open':
+      return 'Primary open loop'
+    case 'next':
+      return 'Next closure target'
+    case 'continuityAnchor':
+      return 'Continuity anchor'
+    case 'status':
+      return 'Status'
+    case 'summary':
+      return 'Summary'
+    default:
+      return key.replace(/_/gu, ' ')
+  }
 }
 
 function projectStateAwarenessField(key: string, value: unknown, maxChars: number) {
   const normalized = normalizeProjectStateAwarenessValue(key, value, maxChars)
-  return normalized ? `${key}=${normalized}` : ''
+  const text = normalized.replace(/[.。!！?？]+$/u, '')
+  return text ? `${projectStateAwarenessLabel(key)}: ${text}.` : ''
 }
 
 export function formatAlicizationProjectStateAwarenessFields(
@@ -282,12 +243,15 @@ export function formatAlicizationProjectStateAwarenessFields(
   const nextClosureTarget = input.nextClosureTarget ?? input.next
 
   return [
+    projectStateAwarenessField('identity', input.identity, maxChars),
+    projectStateAwarenessField('currentPhase', input.currentPhase, maxChars),
     projectStateAwarenessField('landed', latestLandedProgress, maxChars),
     projectStateAwarenessField('open', primaryOpenLoop, maxChars),
     projectStateAwarenessField('next', nextClosureTarget, maxChars),
+    projectStateAwarenessField('continuityAnchor', input.continuityAnchor, maxChars),
     projectStateAwarenessField('status', input.status, maxChars),
     projectStateAwarenessField('summary', input.summary, maxChars),
-  ].filter(Boolean).join(' | ')
+  ].filter(Boolean).join(' ')
 }
 
 export function renderAlicizationProjectStateStructuredBlock(
@@ -298,8 +262,7 @@ export function renderAlicizationProjectStateStructuredBlock(
     return ''
 
   return [
-    '[ALICIZATION_PROJECT_STATE_FACTS]',
-    'owner=ProjectStateGovernance',
+    'Relevant continuity context:',
     facts,
   ].join('\n')
 }

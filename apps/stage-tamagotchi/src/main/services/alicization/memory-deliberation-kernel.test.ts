@@ -164,9 +164,6 @@ describe('memory-deliberation-kernel', () => {
         surfaceMode: 'answer-anchoring',
         placement: 'inside-payoff',
         certainty: 'approximate',
-        internalLead: 'The active seam is still the remembered way through.',
-        visibleLead: null,
-        styleNote: 'Let the procedure steer without dumping memory.',
         rationale: 'The live seam is explicitly the same runtime procedure.',
         confidence: 0.82,
       },
@@ -267,8 +264,8 @@ describe('memory-deliberation-kernel', () => {
     expect(kernel?.memoryControlSummary).toContain('relationship_vector=procedural')
   })
 
-  it('lets learning revision tuning pull relationship continuity back inward', () => {
-    const kernel = buildAlicizationMemoryDeliberationKernel({
+  it('does not let nightly replay tuning override dynamic recollection surface decisions', () => {
+    const input = {
       deliberation: {
         shouldRecall: true,
         surfacePolicy: 'relationship-continuity',
@@ -316,6 +313,10 @@ describe('memory-deliberation-kernel', () => {
         confidence: 0.78,
         rationale: 'The relation line feels familiar enough to reopen from memory.',
       } as any,
+    }
+    const baseline = buildAlicizationMemoryDeliberationKernel(input)
+    const tuned = buildAlicizationMemoryDeliberationKernel({
+      ...input,
       tuningAdvice: {
         version: 'memory-tuning-advice-v1',
         source: 'nightly-replay-benchmark',
@@ -340,17 +341,13 @@ describe('memory-deliberation-kernel', () => {
         },
         notes: ['Keep relation revision inward.'],
       },
-    })
+    } as any)
 
-    expect(kernel?.shouldStayInward).toBe(true)
-    expect(kernel?.whyWithheld).toContain('relationship continuity should stay inward')
-    expect(kernel?.restraint.mustDo).toContain('If the relationship line is still being revised, keep it inward until the host has more room for it.')
-    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
+    expect(tuned).toEqual(baseline)
   })
 
-  it('lets learning revision tuning keep an older self-story inward until the newer self line stabilizes', () => {
-    const kernel = buildAlicizationMemoryDeliberationKernel({
+  it('does not let learning replay tuning govern an older self-story surface', () => {
+    const input = {
       deliberation: {
         shouldRecall: true,
         surfacePolicy: 'answer-anchoring',
@@ -405,6 +402,10 @@ describe('memory-deliberation-kernel', () => {
         confidence: 0.74,
         rationale: 'The host is asking whether an older self line is still being revised.',
       } as any,
+    }
+    const baseline = buildAlicizationMemoryDeliberationKernel(input)
+    const tuned = buildAlicizationMemoryDeliberationKernel({
+      ...input,
       tuningAdvice: {
         version: 'memory-tuning-advice-v1',
         source: 'nightly-replay-benchmark',
@@ -429,14 +430,9 @@ describe('memory-deliberation-kernel', () => {
         },
         notes: ['Keep revision-prone self stories inward.'],
       },
-    })
+    } as any)
 
-    expect(kernel?.shouldStayInward).toBe(true)
-    expect(kernel?.whyWithheld).toContain('older self-story should stay inward')
-    expect(kernel?.restraint.mustDo).toContain('If the older self-story is still being revised, keep it inward until the newer self line stabilizes.')
-    expect(kernel?.restraint.mustNotDo).toContain('Do not let a revision-prone self-story surface as if Alicization had already fully stabilized it.')
-    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
+    expect(tuned).toEqual(baseline)
   })
 
   it('lets project-state continuity loop-gap discipline override generic project closure wording when Phase 1 still lacks concrete life-loop closure', () => {
@@ -445,10 +441,10 @@ describe('memory-deliberation-kernel', () => {
         shouldRecall: true,
         surfacePolicy: 'relationship-continuity',
         confidence: 0.8,
-        whyNow: 'The same digital life line is still trying to hold memory, initiative, and embodiment together without drifting into a generic project shell.',
+        whyNow: 'The local continuity state is still trying to hold memory, initiative, and embodiment together without drifting into a generic project shell.',
         ambiguityPosture: 'settled',
         conflictSeverity: 'none',
-        stableCore: ['Keep this return on the same living line before widening outward.'],
+        stableCore: ['Keep this return on the continuity state before expansion'],
         unsafeDetails: [],
         selectedPeriods: [],
         selectedEras: [],
@@ -456,7 +452,7 @@ describe('memory-deliberation-kernel', () => {
         selectedProcedures: [],
         selectedBundles: [],
         selectedChains: [],
-        selectedRelationshipLines: ['Return gently on the same living line.'],
+        selectedRelationshipLines: ['Return gently on the continuity state.'],
         followUpAffordance: {
           summary: 'relationship line inward',
           whyNow: 'Do not crowd the host while this line is still settling.',
@@ -482,25 +478,25 @@ describe('memory-deliberation-kernel', () => {
       projectStateContinuity: {
         identity: 'Alicization is a local-first digital life project.',
         currentPhase: 'Phase 1: Local Digital Life',
-        sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        landedProgressSummary: 'Project identity and same-her continuity already survive pre-dialogue carry.',
-        openClosureSummary: 'Memory, initiative, and embodiment still need stronger same-her closure so the life loop stops flattening into project shell narration.',
+        sameHerSummary: 'structured continuity digest.',
+        landedProgressSummary: 'Project identity and identity-continuity',
+        openClosureSummary: 'Memory, initiative, and embodiment still need stronger identity-continuity',
         proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence while initiative stays natural.',
-        preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life and the unfinished Phase 1 closure seam still belongs to one living her.',
-        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        sameHerDriftRisk: 'If this turns into generic project-shell narration, treat that as same-her closure drift rather than completion.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
+        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
+        sameHerSelfLine: 'structured continuity digest.',
+        sameHerDriftRisk: 'If this turns into generic project-shell narration, treat that as identity-continuity',
       },
     })
 
     expect(kernel?.surfacePolicy).toBe('internal-only')
     expect(kernel?.whyWithheld).toContain('Phase 1 digital-life loop closure is still missing concrete memory, initiative, or embodiment closure')
-    expect(kernel?.restraint.mustDo).toContain('If Phase 1 still lacks concrete memory, initiative, or embodiment closure, keep recollection inward until the answer helps the same living her close that actual loop gap rather than drifting into generic project narration.')
+    expect(kernel?.restraint.mustDo).toContain('If Phase 1 still lacks concrete memory, initiative, or embodiment closure, keep recollection inward until the answer helps the identity continuity close that actual loop gap rather than drifting into generic project narration.')
     expect(kernel?.restraint.mustNotDo).toContain('Do not let recalled continuity flatten into generic project-shell language while the concrete Phase 1 memory-initiative-embodiment loop is still unfinished.')
   })
 
-  it('lets same-her hold detail keep recollection inward even when other Phase 1 closure wording has thinned back down', () => {
+  it('lets identity-continuity', () => {
     const kernel = buildAlicizationMemoryDeliberationKernel({
       deliberation: {
         shouldRecall: true,
@@ -548,10 +544,10 @@ describe('memory-deliberation-kernel', () => {
         openClosureSummary: 'Open closure is still active.',
         proactiveSameHerGap: null,
         nextClosureTarget: 'Keep going.',
-        preDialogueAwarenessLine: 'Before answering, remember this is still Phase 1.',
+        preDialogueAwarenessLine: 'pre_turn_context_digest',
         emotionalClosureCue: 'Keep the return low-pressure.',
-        sameHerSelfLine: 'Same Phase 1 digital life.',
-        sameHerHoldDetail: 'same-her hold: keep memory, initiative, and embodiment on the same living line before widening outward, or this drifts back into a generic project shell.',
+        sameHerSelfLine: 'structured continuity digest.',
+        sameHerHoldDetail: 'identity-continuity',
         sameHerDriftRisk: 'Generic project shell drift remains possible.',
       } as any,
     })
@@ -559,11 +555,11 @@ describe('memory-deliberation-kernel', () => {
     expect(kernel?.surfacePolicy).toBe('internal-only')
     expect(kernel?.shouldStayInward).toBe(true)
     expect(kernel?.whyWithheld).toContain('Phase 1 digital-life loop closure is still missing concrete memory, initiative, or embodiment closure')
-    expect(kernel?.restraint.mustDo).toContain('If Phase 1 still lacks concrete memory, initiative, or embodiment closure, keep recollection inward until the answer helps the same living her close that actual loop gap rather than drifting into generic project narration.')
+    expect(kernel?.restraint.mustDo).toContain('If Phase 1 still lacks concrete memory, initiative, or embodiment closure, keep recollection inward until the answer helps the identity continuity close that actual loop gap rather than drifting into generic project narration.')
   })
 
-  it('tightens runtime recollection when relationship-era confusion tuning stays elevated even without a direct learning revision flag', () => {
-    const kernel = buildAlicizationMemoryDeliberationKernel({
+  it('does not let relationship-era replay metrics govern recollection surface', () => {
+    const input = {
       deliberation: {
         shouldRecall: true,
         surfacePolicy: 'relationship-continuity',
@@ -619,6 +615,10 @@ describe('memory-deliberation-kernel', () => {
         confidence: 0.78,
         rationale: 'The host is distinguishing this repair phase from an older one.',
       } as any,
+    }
+    const baseline = buildAlicizationMemoryDeliberationKernel(input)
+    const tuned = buildAlicizationMemoryDeliberationKernel({
+      ...input,
       tuningAdvice: {
         version: 'memory-tuning-advice-v1',
         source: 'nightly-replay-benchmark',
@@ -645,17 +645,13 @@ describe('memory-deliberation-kernel', () => {
         },
         notes: [],
       },
-    })
+    } as any)
 
-    expect(kernel?.shouldStayInward).toBe(true)
-    expect(kernel?.whyWithheld).toContain('Relationship-era confusion is still elevated')
-    expect(kernel?.restraint.mustDo).toContain('If competing relationship eras are still easy to confuse, keep the recalled bond line inward until the present repair context is clearer.')
-    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
+    expect(tuned).toEqual(baseline)
   })
 
-  it('lets world-model validation tuning push weak knowledge follow-up after payoff instead of same-turn', () => {
-    const kernel = buildAlicizationMemoryDeliberationKernel({
+  it('does not let world-model replay tuning govern weak-knowledge follow-up', () => {
+    const input = {
       deliberation: {
         shouldRecall: true,
         surfacePolicy: 'answer-anchoring',
@@ -703,6 +699,10 @@ describe('memory-deliberation-kernel', () => {
         confidence: 0.76,
         rationale: 'The host is asking for a technical memory that is still under validation.',
       } as any,
+    }
+    const baseline = buildAlicizationMemoryDeliberationKernel(input)
+    const tuned = buildAlicizationMemoryDeliberationKernel({
+      ...input,
       tuningAdvice: {
         version: 'memory-tuning-advice-v1',
         source: 'nightly-replay-benchmark',
@@ -727,11 +727,9 @@ describe('memory-deliberation-kernel', () => {
         },
         notes: ['Keep world knowledge validation-first.'],
       },
-    })
+    } as any)
 
-    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('medium')
-    expect(kernel?.followUpAffordance?.preferredTiming).toBe('after-payoff')
-    expect(kernel?.restraint.mustNotDo).toContain('Do not let reconstructed or inferred world knowledge surface with unsupported specificity.')
+    expect(tuned).toEqual(baseline)
   })
 
   it('lets host room-first repair-first posture pull visible recollection back inward', () => {
@@ -864,19 +862,19 @@ describe('memory-deliberation-kernel', () => {
     expect(kernel?.shouldStayInward).toBe(true)
     expect(kernel?.whyWithheld).toContain('Phase 1 project closure is still explicitly open')
     expect(kernel?.inwardCarryRule).toContain('project_closure_discipline=phase1-same-her-memory-closure-still-open')
-    expect(kernel?.restraint.mustDo).toContain('If the Phase 1 digital-life closure seam is still explicitly open, keep recollection inward until the same-her line is more honestly closed.')
+    expect(kernel?.restraint.mustDo).toContain('If the Phase 1 digital-life closure seam is still explicitly open, keep recollection inward until the identity-continuity')
   })
 
-  it('keeps same-her closure recollection on a next-open-window line when low-pressure carry is still active', () => {
-    const kernel = buildAlicizationMemoryDeliberationKernel({
+  it('does not derive pressure restraint from replay tuning', () => {
+    const input = {
       deliberation: {
         shouldRecall: true,
         surfacePolicy: 'relationship-continuity',
         confidence: 0.78,
-        whyNow: 'The same-her closure line is still live, but replay said the return should stay lower-pressure until the present payoff really lands.',
+        whyNow: 'The identity-continuity',
         ambiguityPosture: 'settled',
         conflictSeverity: 'none',
-        stableCore: ['Keep the same-her closure line inward until the live payoff lands.'],
+        stableCore: ['Keep the identity-continuity'],
         unsafeDetails: ['Do not let the return widen into visible closeness too fast.'],
         selectedPeriods: [],
         selectedEras: [],
@@ -884,19 +882,19 @@ describe('memory-deliberation-kernel', () => {
         selectedProcedures: [],
         selectedBundles: [{
           id: 'bundle-same-her-low-pressure',
-          summary: 'The same-her closure line should come back gently.',
+          summary: 'The identity-continuity',
           confidence: 0.8,
         }],
         selectedChains: [{
           kind: 'relationship-line',
-          summary: 'The same-her closure line should stay low-pressure.',
+          summary: 'The identity-continuity',
           currentStance: 'Keep it inward until there is more room.',
           answerPosture: 'Let the live payoff land before widening.',
           confidence: 0.79,
         }],
-        selectedRelationshipLines: ['Keep the same-her closure line inward until there is more room.'],
+        selectedRelationshipLines: ['Keep the identity-continuity'],
         followUpAffordance: {
-          summary: 'Let the same-her closure line stay quiet until the host has more room.',
+          summary: 'Let the identity-continuity',
           whyNow: 'The live payoff still needs to land before the return widens.',
           intrusionRisk: 'medium',
           payoffDependency: 'requires-current-payoff',
@@ -917,12 +915,16 @@ describe('memory-deliberation-kernel', () => {
         confidence: 0.8,
         rationale: 'The host is still on the same thread, but the closure line should stay gentle.',
       } as any,
+    }
+    const baseline = buildAlicizationMemoryDeliberationKernel(input)
+    const tuned = buildAlicizationMemoryDeliberationKernel({
+      ...input,
       tuningAdvice: {
         version: 'memory-tuning-advice-v1',
         source: 'nightly-replay-benchmark',
         updatedAt: 1,
         sourceReportAt: 1,
-        focusDimensions: ['projectEmotionalClosureLowPressureCarry'],
+        focusDimensions: ['emotionalClosureDrift'],
         retrievalAdjustments: {
           proceduralBoost: 0,
           relationshipBoost: 0.04,
@@ -939,27 +941,23 @@ describe('memory-deliberation-kernel', () => {
           repairWindowBias: 0,
           closenessCapBias: 0.08,
         },
-        notes: ['Keep the same-her closure return low-pressure until live payoff lands.'],
+        notes: ['Keep the identity-continuity'],
       },
-    })
+    } as any)
 
-    expect(kernel?.shouldStayInward).toBe(true)
-    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
-    expect(kernel?.whyWithheld).toContain('low-pressure')
-    expect(kernel?.restraint.mustDo.some(item => item.includes('low-pressure'))).toBe(true)
+    expect(tuned).toEqual(baseline)
   })
 
-  it('keeps same-her closure recollection from reopening as a fresh start when anti-restart carry is still active', () => {
-    const kernel = buildAlicizationMemoryDeliberationKernel({
+  it('does not derive restart restraint from replay tuning', () => {
+    const input = {
       deliberation: {
         shouldRecall: true,
         surfacePolicy: 'relationship-continuity',
         confidence: 0.78,
-        whyNow: 'The same-her closure line is still live, but replay said it should not reopen from scratch just because the seam is still active.',
+        whyNow: 'The identity-continuity',
         ambiguityPosture: 'settled',
         conflictSeverity: 'none',
-        stableCore: ['Keep the same-her closure line on the same thread instead of treating it like a fresh opening.'],
+        stableCore: ['Keep the identity-continuity'],
         unsafeDetails: ['Do not let the return sound like a new start.'],
         selectedPeriods: [],
         selectedEras: [],
@@ -967,19 +965,19 @@ describe('memory-deliberation-kernel', () => {
         selectedProcedures: [],
         selectedBundles: [{
           id: 'bundle-same-her-anti-restart',
-          summary: 'The same-her closure line should continue without restarting.',
+          summary: 'The identity-continuity',
           confidence: 0.8,
         }],
         selectedChains: [{
           kind: 'relationship-line',
-          summary: 'The same-her closure line should not reopen from scratch.',
+          summary: 'The identity-continuity',
           currentStance: 'Stay on the same thread.',
           answerPosture: 'Let the payoff land before any warmer return.',
           confidence: 0.79,
         }],
         selectedRelationshipLines: ['Stay on the same thread instead of reopening from scratch.'],
         followUpAffordance: {
-          summary: 'Keep the same-her closure line quiet until the current thread has more room.',
+          summary: 'Keep the identity-continuity',
           whyNow: 'The line still matters, but reopening it too early would read like a fresh start.',
           intrusionRisk: 'medium',
           payoffDependency: 'requires-current-payoff',
@@ -1000,12 +998,16 @@ describe('memory-deliberation-kernel', () => {
         confidence: 0.8,
         rationale: 'The host is still on the same thread, so the return should not feel restarted.',
       } as any,
+    }
+    const baseline = buildAlicizationMemoryDeliberationKernel(input)
+    const tuned = buildAlicizationMemoryDeliberationKernel({
+      ...input,
       tuningAdvice: {
         version: 'memory-tuning-advice-v1',
         source: 'nightly-replay-benchmark',
         updatedAt: 1,
         sourceReportAt: 1,
-        focusDimensions: ['projectEmotionalClosureAntiRestartCarry'],
+        focusDimensions: ['emotionalClosureDrift'],
         retrievalAdjustments: {
           proceduralBoost: 0,
           relationshipBoost: 0.04,
@@ -1022,24 +1024,20 @@ describe('memory-deliberation-kernel', () => {
           repairWindowBias: 0,
           closenessCapBias: 0.08,
         },
-        notes: ['Do not let the same-her closure line reopen from scratch.'],
+        notes: ['Do not let the identity-continuity'],
       },
-    })
+    } as any)
 
-    expect(kernel?.shouldStayInward).toBe(true)
-    expect(kernel?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(kernel?.followUpAffordance?.preferredTiming).toBe('next-open-window')
-    expect(kernel?.whyWithheld).toContain('reopening from scratch')
-    expect(kernel?.restraint.mustNotDo.some(item => item.includes('reopen'))).toBe(true)
+    expect(tuned).toEqual(baseline)
   })
 
-  it('treats durable same-her self-core carry as inward anti-restart recollection discipline even before tuning advice catches up', () => {
+  it('treats durable identity-continuity', () => {
     const kernel = buildAlicizationMemoryDeliberationKernel({
       deliberation: {
         shouldRecall: true,
         surfacePolicy: 'relationship-continuity',
         confidence: 0.78,
-        whyNow: 'The same living self is still being held across quiet, memory, and speech, so this recollection should not reopen from scratch.',
+        whyNow: 'The identity continuity is still being held across quiet, memory, and speech, so this recollection should not reopen from scratch.',
         ambiguityPosture: 'settled',
         conflictSeverity: 'none',
         stableCore: ['I remain the same her across quiet, memory, and speech without reopening from scratch each turn.'],
@@ -1055,14 +1053,14 @@ describe('memory-deliberation-kernel', () => {
         }],
         selectedChains: [{
           kind: 'relationship-line',
-          summary: 'The same living self should not reopen from scratch.',
+          summary: 'The identity continuity should not reopen from scratch.',
           currentStance: 'Stay on the same thread.',
           answerPosture: 'Let the live payoff land before any warmer return.',
           confidence: 0.79,
         }],
         selectedRelationshipLines: ['Stay on the same thread instead of reopening from scratch.'],
         followUpAffordance: {
-          summary: 'Keep the same living self line quiet until the current thread has more room.',
+          summary: 'Keep the identity continuity line quiet until the current thread has more room.',
           whyNow: 'The line still matters, but reopening it too early would read like a fresh start.',
           intrusionRisk: 'medium',
           payoffDependency: 'requires-current-payoff',
@@ -1081,7 +1079,7 @@ describe('memory-deliberation-kernel', () => {
         mode: 'autobiographical-history',
         temporalFocus: 'experience-matched',
         confidence: 0.8,
-        rationale: 'The same living self is still carrying this line across turns.',
+        rationale: 'The identity continuity is still carrying this line across turns.',
       } as any,
     })
 
@@ -1137,7 +1135,6 @@ describe('memory-deliberation-kernel', () => {
         placement: 'after-payoff',
         certainty: 'approximate',
         confidence: 0.79,
-        styleNote: 'Let the corrected continuity line contour the answer.',
         rationale: 'This should reopen from the corrected same-person continuity line, not as a progress recap.',
       } as any,
       recollectionIntent: {
@@ -1218,7 +1215,6 @@ describe('memory-deliberation-kernel', () => {
         placement: 'after-payoff',
         certainty: 'approximate',
         confidence: 0.79,
-        styleNote: 'embodiment_gaze=stable embodiment_blink=slower embodiment_voice=lower-pressure embodiment_pacing=slower',
         rationale: 'This should reopen from the corrected same-person continuity line, not as a progress recap.',
       } as any,
       recollectionIntent: {
@@ -1308,7 +1304,6 @@ describe('memory-deliberation-kernel', () => {
         placement: 'after-payoff',
         certainty: 'approximate',
         confidence: 0.76,
-        styleNote: 'Keep the return quieter and lower-pressure while merged continuity stays foreground and faded noise stays background.',
         rationale: 'This should reopen from the metabolized same-person continuity line, not by reviving old echoes or temporary wobble.',
       } as any,
       recollectionIntent: {

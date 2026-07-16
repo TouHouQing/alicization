@@ -106,9 +106,9 @@ function createResidentOnlyProjectClosureSpineDigest(
     runtime: {
       watchMode: 'symbiotic-vision',
       sceneScenario: 'coding',
-      sceneSummary: 'same-her closure is still settling before anything reopens outward.',
+      sceneSummary: 'identity-continuity',
       activeThreadId: 'thread-runtime-project-closure',
-      activeThreadTitle: 'same-her closure',
+      activeThreadTitle: 'identity-continuity',
       dominantMode: 'tracking',
       dominantDrive: 'stabilize',
       answerIntent: 'hold',
@@ -118,16 +118,16 @@ function createResidentOnlyProjectClosureSpineDigest(
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
-        primaryOpenLoop: 'voice and lipsync still need to rejoin the same living line before closeness widens again.',
-        emotionalClosureCue: 'same-her repair seam: keep this return repair-before-closeness on the same living line before closeness widens again.',
+        primaryOpenLoop: 'voice and lipsync still need to rejoin the continuity state before closeness widens again.',
+        emotionalClosureCue: 'same-her repair seam: keep this return repair-before-closeness on the continuity state before closeness widens again.',
       },
     },
     architecture: {
       operatingMode: 'observing',
       dominantSystem: 'memory',
       supportingSystems: ['dialogue'],
-      governingFocus: 'keep the same living line steady',
-      summary: 'same-her closure should stay inward before widening outward again.',
+      governingFocus: 'keep the continuity state steady',
+      summary: 'identity-continuity',
     },
     continuitySignal: null,
     proactive: {
@@ -136,7 +136,7 @@ function createResidentOnlyProjectClosureSpineDigest(
       confidence: 0.72,
       shouldSpeak: false,
       activeThreadId: 'thread-runtime-project-closure',
-      activeThreadTitle: 'same-her closure',
+      activeThreadTitle: 'identity-continuity',
       dominantConcernKind: null,
       dominantConcernSummary: null,
       leadingGoalId: null,
@@ -145,8 +145,8 @@ function createResidentOnlyProjectClosureSpineDigest(
     },
     embodiment: null,
     memory: {
-      summary: 'same-her closure is still open and should stay quieter before it widens again.',
-      recentEpisodeSummary: 'same-her closure',
+      summary: 'identity-continuity',
+      recentEpisodeSummary: 'identity-continuity',
       recentEpisodeCount: 1,
       focusBeliefStatement: null,
       focusBeliefConfidence: null,
@@ -156,7 +156,7 @@ function createResidentOnlyProjectClosureSpineDigest(
       reflectionPressure: null,
       recallMode: 'working-memory',
       recallSeed: null,
-      thoughtThreadSummary: 'same-her closure',
+      thoughtThreadSummary: 'identity-continuity',
     },
   }
 }
@@ -1432,7 +1432,7 @@ describe('useStageEmbodimentRuntime', () => {
     scope.stop()
   })
 
-  it('keeps vrm audible same-her carry cues on the softer rejoin line when continuity survives through metadata recovery', async () => {
+  it('keeps vrm audible identity-continuity', async () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({

@@ -460,7 +460,7 @@ describe('performance visualizer self evolution focus history drilldown', () => 
     ])
   })
 
-  it('keeps quieter motion+lipsync+voice same-her carry explicit in drilldown lead lines instead of flattening it into generic body-loss wording', () => {
+  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionFocusHistoryDrilldown([
       {
         version: 'self-evolution-focus-snapshot/v1',
@@ -471,7 +471,7 @@ describe('performance visualizer self evolution focus history drilldown', () => 
         explanation: 'quieter motion+lipsync+voice carry still visible',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
-        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
         highlightedEvidencePanelIds: [
           'renderer-authority-projection',
           'runtime-continuity-projection',
@@ -493,7 +493,7 @@ describe('performance visualizer self evolution focus history drilldown', () => 
         explanation: 'body face rejoin still pending',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
-        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线。',
+        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
         highlightedEvidencePanelIds: [
           'runtime-continuity-projection',
         ],
@@ -515,7 +515,7 @@ describe('performance visualizer self evolution focus history drilldown', () => 
         changedTraceTargets: true,
         changedTraceEvent: true,
         lines: [
-          '身体连续性：当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线，不应把这次 quieter carry 误写成同一条身体线上的可信补回。',
+          '身体连续性：当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
           '聚焦卡片：修复路径 -> 修复归属',
           '证据面板：运行时连续性投影 => 显形权威投影 -> 运行时连续性投影',
           '轨迹段：轨迹消费 -> 轨迹时间线 => 轨迹消费 -> 轨迹时间线 -> 选中轨迹事件',
@@ -582,7 +582,7 @@ describe('performance visualizer self evolution focus history drilldown', () => 
         changedTraceTargets: true,
         changedTraceEvent: true,
         lines: [
-          '身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，不应把这次 quieter carry 误写成同一条身体线上的可信补回。',
+          '身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
           '聚焦卡片：修复路径 -> 修复归属',
           '证据面板：运行时连续性投影 => 显形权威投影 -> 运行时连续性投影',
           '轨迹段：轨迹消费 -> 轨迹时间线 => 轨迹消费 -> 轨迹时间线 -> 选中轨迹事件',

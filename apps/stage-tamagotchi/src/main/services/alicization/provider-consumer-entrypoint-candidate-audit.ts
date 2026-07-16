@@ -24,7 +24,7 @@ function collectServiceRelativePaths(rootDir: string, args: string[]) {
 }
 
 const providerWrapperImportPattern = String.raw`from '@xsai/generate-text'`
-const providerWrapperAuditFamilyPattern = String.raw`resolveAlicizationProjectStateAuditFamilyForMainGatewaySource|isAlicizationProjectStateAuditedMainGatewaySource`
+const providerWrapperAuditFamilyPattern = String.raw`resolveAlicizationMainGatewayAuditFamilyForSource|isAlicizationRegisteredMainGatewaySource`
 const providerDispatchOwnerCandidatePattern = String.raw`mainGatewayTextProvider\(`
 const typedProviderConsumerCandidatePattern = String.raw`generateMainGatewayText:\s*Alicization(MainGatewayGenerateTextProvider|MemoryGatewayTextProvider)`
 const directProviderSinkCandidatePattern = String.raw`invokeGenerateText\(|generateText\(|invokeStreamText\(|streamText\(`

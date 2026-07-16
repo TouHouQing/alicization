@@ -100,7 +100,6 @@ describe('answer planner corrected same-person regression', () => {
       certainty: 'approximate',
       confidence: 0.81,
       rationale: 'This should reopen from the corrected same-person continuity line, not as a progress recap.',
-      visibleLead: 'I should reopen this from the corrected same-person line, not as a progress recap.',
     } as any
     runtimeSurface.memory.memoryDeliberation = {
       shouldRecall: true,
@@ -159,7 +158,6 @@ describe('answer planner corrected same-person regression', () => {
       certainty: 'approximate',
       confidence: 0.78,
       rationale: 'Merged same-thread continuity foreground. Faded noise background. The corrected same-person line is still settling, so this return should stay tentative and lower-pressure.',
-      visibleLead: 'Carry the corrected same-person line forward, but keep it tentative while it settles.',
     } as any
     runtimeSurface.memory.memoryDeliberation = {
       shouldRecall: true,

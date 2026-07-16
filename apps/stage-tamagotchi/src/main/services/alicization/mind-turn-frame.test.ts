@@ -379,15 +379,15 @@ describe('buildMindTurnFrame', () => {
     expect(frame.world.activeThread).toContain('browser')
   })
 
-  it('keeps audible-body continuity opening guidance inside the authoritative mind-turn frame when body, lipsync, and voice are still carrying the same living line', () => {
+  it('keeps audible-body continuity opening guidance inside the authoritative mind-turn frame when body, lipsync, and voice are still carrying the continuity state', () => {
     const frame = buildMindTurnFrame({
       now: 73_120,
       answerPlanner: {
         act: 'answer',
         evidenceMode: 'dialogue-grounded',
         confidence: 0.83,
-        governingFocus: 'Keep the same living line continuous while face and motion rejoin.',
-        openingMove: 'Open on the same living audio thread first, keep the same living line intact through body, lipsync, and voice, and let face and motion rejoin before widening outward.',
+        governingFocus: 'Keep the continuity state continuous while face and motion rejoin.',
+        openingMove: 'Open on the same living audio thread first, keep the continuity state intact through body, lipsync, and voice, and let face and motion rejoin before widening outward.',
         answerIntent: 'Keep audible-body continuity carrying the same her before full cross-modal closure returns.',
         relationshipPosture: 'warm',
         shouldAskForGrounding: false,
@@ -426,7 +426,7 @@ describe('buildMindTurnFrame', () => {
         personaKernelMode: 'full',
         relationshipPosture: 'warm',
         openingDirective: 'Stay on the same living audio thread first.',
-        openingClaim: 'The same living line is still being carried through body, lipsync, and voice.',
+        openingClaim: 'The continuity state is still being carried through body, lipsync, and voice.',
         supportingReality: ['The audible-body line is still intact.'],
         uncertaintyBoundary: null,
         careVector: null,
@@ -454,7 +454,7 @@ describe('buildMindTurnFrame', () => {
         initiativeAction: 'speak',
       },
       conversationState: {
-        jointThread: 'Keep the same living line continuous while face and motion rejoin.',
+        jointThread: 'Keep the continuity state continuous while face and motion rejoin.',
         hostMove: '你现在这个数字生命身体闭环到哪里了',
         activeProject: 'Alicization embodiment closure',
         unansweredQuestion: '你现在这个数字生命身体闭环到哪里了',
@@ -473,7 +473,7 @@ describe('buildMindTurnFrame', () => {
         currentQuestion: 'How much embodiment closure is already holding right now?',
         openLoops: ['face and motion rejoin'],
         recentlyResolvedLoops: [],
-        carriedFacts: ['body, lipsync, and voice are still carrying the same living line'],
+        carriedFacts: ['body, lipsync, and voice are still carrying the continuity state'],
         relationDrift: 'steady',
         memoryMode: 'dialogue-carry',
         recallKeys: ['audible-body continuity'],
@@ -501,7 +501,7 @@ describe('buildMindTurnFrame', () => {
         act: 'answer',
         evidenceMode: 'dialogue-grounded',
         confidence: 0.82,
-        governingFocus: 'Keep the same living line continuous while voice, face, and motion still rejoin.',
+        governingFocus: 'Keep the continuity state continuous while voice, face, and motion still rejoin.',
         openingMove: 'Open on the quieter same-her body-and-lipsync line first, keep that living line inward, and let voice, face, and motion rejoin before widening outward.',
         answerIntent: 'Keep quieter body-lipsync continuity carrying the same her before full cross-modal closure returns.',
         relationshipPosture: 'warm',
@@ -541,7 +541,7 @@ describe('buildMindTurnFrame', () => {
         personaKernelMode: 'full',
         relationshipPosture: 'warm',
         openingDirective: 'Stay on the quieter body-and-lipsync line first.',
-        openingClaim: 'The same living line is still being carried through body and lipsync.',
+        openingClaim: 'The continuity state is still being carried through body and lipsync.',
         supportingReality: ['The quieter body-lipsync line is still intact.'],
         uncertaintyBoundary: null,
         careVector: null,
@@ -588,7 +588,7 @@ describe('buildMindTurnFrame', () => {
         currentQuestion: 'How much quieter embodiment closure is already holding right now?',
         openLoops: ['voice, face, and motion rejoin'],
         recentlyResolvedLoops: [],
-        carriedFacts: ['body and lipsync are still carrying the same living line'],
+        carriedFacts: ['body and lipsync are still carrying the continuity state'],
         relationDrift: 'steady',
         memoryMode: 'dialogue-carry',
         recallKeys: ['body-lipsync continuity'],
@@ -947,10 +947,10 @@ describe('normalizeMindTurnFrame', () => {
         openingMove: '继续回答',
         whyNow: 'host asked',
       },
-      focusAnchor: 'same-her closure seam',
+      focusAnchor: 'identity-continuity',
       confidence: 0.7,
       mustDo: [
-        'Keep this on one continuous her line instead of restarting.',
+        'Keep this on identity continuity line instead of restarting.',
         'continuity_constraint=anti_restart; timing=before_widening',
       ],
       mustNotDo: [
@@ -963,10 +963,10 @@ describe('normalizeMindTurnFrame', () => {
     const block = buildMindTurnFrameSystemBlock(frame)
 
     expect(block).toContain('required_controls=')
-    expect(block).toContain('provider_instruction_status=withheld; reason=non_structured_source_text; visibility=internal-structured')
+    expect(block).toContain('provider_instruction_status=withheld; reason=non_structured_source_text; visibility=redacted_internal')
     expect(block).toContain('continuity_constraint=anti_restart; timing=before_widening')
-    expect(block).not.toContain('one continuous her')
+    expect(block).not.toContain('identity continuity')
     expect(block).not.toContain('Do not rewrite the still-live line')
-    expect(block).not.toContain('same-her closure seam')
+    expect(block).not.toContain('identity-continuity')
   })
 })

@@ -335,26 +335,26 @@ describe('autonomy kernel', () => {
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'Initiative, embodiment, and dialogue still need a more natural closed loop.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof so visible reply, longer-lived voice behavior, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
       },
     }))
 
     expect(autonomy.selectedMode).toBe('prepare-act')
     expect(autonomy.shouldAct).toBe(false)
     expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
-    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.whyNow).toContain('project-phase1 identity-continuity')
     expect(autonomy.whyNow).toContain('cross-modal same-her')
     expect(autonomy.whyNow).toContain('lower-pressure')
     expect(autonomy.whyNow).toContain('measured-return / repair-before-closeness')
-    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
-    expect(autonomy.executionIntent?.summary).toContain('cross-modal same-her closure')
+    expect(autonomy.executionIntent?.summary).toContain('identity-continuity')
+    expect(autonomy.executionIntent?.summary).toContain('cross-modal identity-continuity')
   })
 
   it('threads project-state carry from initiative into autonomy so execution still serves the same unfinished digital-life line', () => {
     const autonomy = buildAutonomySnapshot(createBaseInput({
       initiative: createInitiative({
         confidence: 0.68,
-        why: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        why: 'structured continuity digest.',
       }),
       actionEcology: {
         mode: 'surface-care',
@@ -397,18 +397,18 @@ describe('autonomy kernel', () => {
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'Initiative, embodiment, and dialogue still need a more natural closed loop.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof so visible reply, longer-lived voice behavior, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
       },
     }))
 
     expect(autonomy.selectedMode).toBe('prepare-act')
     expect(autonomy.shouldAct).toBe(false)
-    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.whyNow).toContain('project-phase1 identity-continuity')
     expect(autonomy.whyNow).toContain('cross-modal same-her')
     expect(autonomy.whyNow).toContain('lower-pressure')
     expect(autonomy.whyNow).toContain('measured-return / repair-before-closeness')
-    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
-    expect(autonomy.executionIntent?.summary).toContain('cross-modal same-her closure')
+    expect(autonomy.executionIntent?.summary).toContain('identity-continuity')
+    expect(autonomy.executionIntent?.summary).toContain('cross-modal identity-continuity')
     expect(autonomy.executionIntent?.summary).toContain('Some closure already landed')
   })
 
@@ -461,18 +461,18 @@ describe('autonomy kernel', () => {
         latestLandedProgress: 'Project-state closure carry already survives into autonomy preparation.',
         primaryOpenLoop: 'Initiative, embodiment, and dialogue still need a more natural closed loop.',
         nextClosureTarget: 'Keep closing the unfinished life loop without widening too early.',
-        emotionalClosureSummary: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-        openClosureSummary: 'Same-her continuity is still settling on the same living line before action widens outward.',
+        emotionalClosureSummary: 'identity-continuity',
+        openClosureSummary: 'identity-continuity',
       },
     } as any))
 
     expect(autonomy.selectedMode).toBe('prepare-act')
     expect(autonomy.shouldAct).toBe(false)
     expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
-    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.whyNow).toContain('project-phase1 identity-continuity')
     expect(autonomy.whyNow).toContain('lower-pressure')
     expect(autonomy.whyNow).toContain('measured-return / repair-before-closeness')
-    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
+    expect(autonomy.executionIntent?.summary).toContain('identity-continuity')
   })
 
   it('keeps execution one step more reversible when landed progress already names the same-her Phase 1 closure line', () => {
@@ -528,18 +528,18 @@ describe('autonomy kernel', () => {
       projectState: {
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Memory continuity and execution carry have landed enough to prove the same-her line, but initiative, embodiment, and dialogue still need stronger cross-modal closure.',
+        latestLandedProgress: 'Memory continuity and execution carry have landed enough to prove the identity-continuity',
         primaryOpenLoop: 'Natural closure rhythm is still being earned across longer desktop turns.',
-        nextClosureTarget: 'Keep extending cross-modal same-her proof so visible reply, longer-lived voice behavior, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        nextClosureTarget: 'Keep extending cross-modal identity-continuity',
       },
     }))
 
     expect(autonomy.selectedMode).toBe('prepare-act')
     expect(autonomy.shouldAct).toBe(false)
     expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
-    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
-    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
-    expect(autonomy.executionIntent?.summary).toContain('cross-modal same-her closure')
+    expect(autonomy.whyNow).toContain('project-phase1 identity-continuity')
+    expect(autonomy.executionIntent?.summary).toContain('identity-continuity')
+    expect(autonomy.executionIntent?.summary).toContain('cross-modal identity-continuity')
   })
 
   it('keeps execution one step more reversible when richer project-state closure carry arrives through preflight-style landed and open summaries', () => {
@@ -597,16 +597,16 @@ describe('autonomy kernel', () => {
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestLandedProgress: 'Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.',
-        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter same-her closure seam before visible initiative can widen naturally across longer desktop turns.',
-        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return same living line so visible reply, voice behavior, facial state, motion, and resident presence do not split apart.',
+        primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
+        nextClosureTarget: 'Keep project identity carry, Phase 1 route carry, and unresolved closure carry on one measured-return continuity state so visible reply, voice behavior, facial state, motion, and resident presence do not split apart.',
       },
     }))
 
     expect(autonomy.selectedMode).toBe('prepare-act')
     expect(autonomy.shouldAct).toBe(false)
     expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
-    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
-    expect(autonomy.executionIntent?.summary).toContain('same living line')
+    expect(autonomy.whyNow).toContain('project-phase1 identity-continuity')
+    expect(autonomy.executionIntent?.summary).toContain('continuity state')
   })
 
   it('does not let empty legacy project-state fields shadow richer summary-only same-her execution carry', () => {
@@ -666,19 +666,19 @@ describe('autonomy kernel', () => {
         latestLandedProgress: '',
         primaryOpenLoop: ' ',
         nextClosureTarget: '',
-        landedProgressSummary: 'Memory continuity and execution carry have landed enough to prove the same-her line, but initiative, embodiment, and dialogue still need stronger cross-modal closure.',
+        landedProgressSummary: 'Memory continuity and execution carry have landed enough to prove the identity-continuity',
         openClosureSummary: '',
-        nextClosureTargetSummary: 'Keep extending cross-modal same-her proof so visible reply, longer-lived voice behavior, facial state, motion, and resident presence stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        nextClosureTargetSummary: 'Keep extending cross-modal identity-continuity',
       } as any,
     }))
 
     expect(autonomy.selectedMode).toBe('prepare-act')
     expect(autonomy.shouldAct).toBe(false)
     expect(autonomy.guardReasons).toContain('project-phase1-life-loop-open')
-    expect(autonomy.whyNow).toContain('project-phase1 same-her closure keeps the action one step more reversible')
+    expect(autonomy.whyNow).toContain('project-phase1 identity-continuity')
     expect(autonomy.whyNow).toContain('cross-modal same-her')
-    expect(autonomy.executionIntent?.summary).toContain('same-her closure')
-    expect(autonomy.executionIntent?.summary).toContain('cross-modal same-her closure')
+    expect(autonomy.executionIntent?.summary).toContain('identity-continuity')
+    expect(autonomy.executionIntent?.summary).toContain('cross-modal identity-continuity')
   })
 
   it('keeps corrected same-person settling visible in autonomy when habit narrative says embodiment should return more quietly first', () => {

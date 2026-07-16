@@ -492,7 +492,7 @@ describe('personality-continuity-state', () => {
         },
         activeGoals: [],
         behaviorSignatures: [],
-        identityNarrative: 'I want results to come back on the same living line that asked for them.',
+        identityNarrative: 'I want results to come back on the continuity state that asked for them.',
         relationshipDoctrine: 'Callbacks should stay exact, bounded, and thread-faithful.',
         latestInflection: 'Execution callbacks land best when proposal, action, and result stay visibly tied together.',
         stability: 0.74,

@@ -38,13 +38,13 @@ describe('alicization motion summary', () => {
     })).toBe('motion=steady_focus')
   })
 
-  it('can carry same-her inward carry wording so quieter measured-return motion still reads like one inward living line', () => {
+  it('can carry identity-continuity', () => {
     expect(buildAlicizationMotionSummary({
       actionCue: 'observe_focus',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonSummary: 'Keep the same living line inward for now, and leave room before widening outward again',
+      reasonSummary: 'Keep the continuity state inward for now, and leave room before widening outward again',
     })).toBe(
       'motion=observe_focus | tail=measured-return | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower',
     )
@@ -58,7 +58,7 @@ describe('alicization motion summary', () => {
       continuityTiming: 'audible-body-carry',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonSummary: 'Keep the same living line audible while face and motion rejoin',
+      reasonSummary: 'Keep the continuity state audible while face and motion rejoin',
       holdMs: 300,
       source: 'timeline-projection',
       confidence: 0.88,

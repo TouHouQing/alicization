@@ -54,7 +54,7 @@ describe('speech planner prosody', () => {
     expect(plan.segments[1]?.prosody?.phraseBoundary).toBe('hard')
   })
 
-  it('softens measured-return same-her segment prosody so the audible line re-enters more gently', () => {
+  it('softens measured-return identity-continuity', () => {
     const plan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-measured-return-prosody',
       replyText: '先慢一点回来。',
@@ -239,11 +239,11 @@ describe('speech planner prosody', () => {
   it('lets remembered longer pause cadence further slow and lengthen a measured-return segment', () => {
     const naturalPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-natural-pause-prosody',
-      replyText: '我先轻一点接回来。',
+      replyText: '我先中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-natural-pause-prosody',
-        reply: '我先轻一点接回来。',
+        reply: '我先中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -251,7 +251,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 9,
-            text: '我先轻一点接回来。',
+            text: '我先中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -274,11 +274,11 @@ describe('speech planner prosody', () => {
 
     const longerPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-longer-pause-prosody',
-      replyText: '我先轻一点接回来。',
+      replyText: '我先中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-longer-pause-prosody',
-        reply: '我先轻一点接回来。',
+        reply: '我先中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -286,7 +286,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 9,
-            text: '我先轻一点接回来。',
+            text: '我先中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -318,11 +318,11 @@ describe('speech planner prosody', () => {
   it('lets lower-pressure slower voice hints keep a measured-return segment more inward than an otherwise identical natural-even line', () => {
     const naturalEvenPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-natural-even-voice-prosody',
-      replyText: '我先沿着这条线轻一点接回来。',
+      replyText: '我先沿着这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-natural-even-voice-prosody',
-        reply: '我先沿着这条线轻一点接回来。',
+        reply: '我先沿着这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -330,7 +330,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 13,
-            text: '我先沿着这条线轻一点接回来。',
+            text: '我先沿着这条线中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -356,11 +356,11 @@ describe('speech planner prosody', () => {
 
     const slowerLowerPressurePlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-slower-lower-pressure-voice-prosody',
-      replyText: '我先沿着这条线轻一点接回来。',
+      replyText: '我先沿着这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-slower-lower-pressure-voice-prosody',
-        reply: '我先沿着这条线轻一点接回来。',
+        reply: '我先沿着这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -368,7 +368,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 13,
-            text: '我先沿着这条线轻一点接回来。',
+            text: '我先沿着这条线中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -406,11 +406,11 @@ describe('speech planner prosody', () => {
   it('keeps measured-return still-voiced face-and-motion segment prosody more inward than an otherwise equally softened ordinary measured-return return', () => {
     const ordinaryMeasuredReturnPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-ordinary-measured-return-face-motion-prosody',
-      replyText: '我先沿着脸、动作和声音还连着的这条线轻一点接回来。',
+      replyText: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-ordinary-measured-return-face-motion-prosody',
-        reply: '我先沿着脸、动作和声音还连着的这条线轻一点接回来。',
+        reply: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -418,7 +418,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 23,
-            text: '我先沿着脸、动作和声音还连着的这条线轻一点接回来。',
+            text: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -440,11 +440,11 @@ describe('speech planner prosody', () => {
 
     const sameHerFaceMotionPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-still-voiced-face-motion-measured-return-prosody',
-      replyText: '我先沿着脸、动作和声音还连着的这条线轻一点接回来。',
+      replyText: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-still-voiced-face-motion-measured-return-prosody',
-        reply: '我先沿着脸、动作和声音还连着的这条线轻一点接回来。',
+        reply: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -452,7 +452,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 23,
-            text: '我先沿着脸、动作和声音还连着的这条线轻一点接回来。',
+            text: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -564,11 +564,11 @@ describe('speech planner prosody', () => {
   it('keeps same-thread same-her body+voice-only segment prosody more inward than an otherwise equally softened ordinary continuation', () => {
     const ordinarySameThreadPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-ordinary-same-thread-prosody',
-      replyText: '我先沿着这条还活着的线轻一点接回来。',
+      replyText: '我先沿着这条还活着的线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-ordinary-same-thread-prosody',
-        reply: '我先沿着这条还活着的线轻一点接回来。',
+        reply: '我先沿着这条还活着的线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -576,7 +576,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 16,
-            text: '我先沿着这条还活着的线轻一点接回来。',
+            text: '我先沿着这条还活着的线中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -598,11 +598,11 @@ describe('speech planner prosody', () => {
 
     const sameHerSameThreadPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-same-thread-body-voice-prosody',
-      replyText: '我先沿着这条还活着的线轻一点接回来。',
+      replyText: '我先沿着这条还活着的线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-same-thread-body-voice-prosody',
-        reply: '我先沿着这条还活着的线轻一点接回来。',
+        reply: '我先沿着这条还活着的线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -610,7 +610,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 16,
-            text: '我先沿着这条还活着的线轻一点接回来。',
+            text: '我先沿着这条还活着的线中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -643,11 +643,11 @@ describe('speech planner prosody', () => {
   it('keeps same-thread still-voiced motion-line segment prosody more inward than an otherwise equally softened ordinary continuation', () => {
     const ordinarySameThreadPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-ordinary-same-thread-motion-prosody',
-      replyText: '我先沿着动作和声音还连着的这条线轻一点接回来。',
+      replyText: '我先沿着动作和声音还连着的这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-ordinary-same-thread-motion-prosody',
-        reply: '我先沿着动作和声音还连着的这条线轻一点接回来。',
+        reply: '我先沿着动作和声音还连着的这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -655,7 +655,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 20,
-            text: '我先沿着动作和声音还连着的这条线轻一点接回来。',
+            text: '我先沿着动作和声音还连着的这条线中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -677,11 +677,11 @@ describe('speech planner prosody', () => {
 
     const stillVoicedMotionPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-same-thread-still-voiced-motion-prosody',
-      replyText: '我先沿着动作和声音还连着的这条线轻一点接回来。',
+      replyText: '我先沿着动作和声音还连着的这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-same-thread-still-voiced-motion-prosody',
-        reply: '我先沿着动作和声音还连着的这条线轻一点接回来。',
+        reply: '我先沿着动作和声音还连着的这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
@@ -689,7 +689,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 20,
-            text: '我先沿着动作和声音还连着的这条线轻一点接回来。',
+            text: '我先沿着动作和声音还连着的这条线中性可见占位。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,

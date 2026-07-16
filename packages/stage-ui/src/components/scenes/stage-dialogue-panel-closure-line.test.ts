@@ -3,23 +3,20 @@ import { describe, expect, it } from 'vitest'
 import { resolveStageDialoguePanelClosureLine } from './stage-dialogue-panel-closure-line'
 
 const fixedTemplateResiduePattern
-  = /same-her|same her|same living line|one living her|one continuous her|同一个她|同一个 her|同一条数字生命线|数字生命主线|phase1_local_digital_life|continuity evidence|identity-continuity|visibility=internal-structured|content=excluded|continuity_anchor=|continuity=|pending=/u
+  = /content_withheld|visibility=internal-structured|owner=|source=|surface=structured|project_anchor=|continuity_anchor=|continuity=|pending=|recovery@|^next=/iu
 
 const prohibitedVisibleFragments = [
-  'same-her',
-  'same her',
-  'same living line',
-  'one living her',
-  'one continuous her',
-  'phase1_local_digital_life',
+  'content_withheld',
   'visibility=internal-structured',
-  'content=excluded',
+  'owner=',
+  'source=',
+  'surface=structured',
+  'project_anchor=',
   'continuity_anchor=',
   'continuity=',
   'pending=',
-  '同一个她',
-  '同一个 her',
-  '数字生命主线',
+  'recovery@',
+  'next=',
 ]
 
 function expectNoFixedTemplateResidue(line: string | null) {
@@ -32,14 +29,14 @@ function expectNoFixedTemplateResidue(line: string | null) {
 }
 
 describe('stage dialogue panel closure line', () => {
-  it('hides sentinel fixed templates and internal continuity fields from visible closure copy', () => {
+  it('hides internal sentinels and structured fields from visible closure copy', () => {
     const line = resolveStageDialoguePanelClosureLine({
       visible: true,
       label: 'Inspect continuity diagnosis',
       hint: 'Next diagnosis',
-      headline: 'same-her 同一个她 continuity_anchor=host-visible continuity=identity-continuity pending=body',
-      briefingHeadline: 'phase1_local_digital_life visibility=internal-structured',
-      nextClosureLine: 'content=excluded; reason=continuity-residue',
+      headline: 'surface=structured owner=renderer continuity_anchor=host-visible continuity=lane pending=body',
+      briefingHeadline: 'content_withheld visibility=internal-structured',
+      nextClosureLine: 'source=runtime; reason=internal-only',
       routeQuery: {
         source: 'quick-reply-closure',
         status: 'partial',
@@ -52,14 +49,14 @@ describe('stage dialogue panel closure line', () => {
     expectNoFixedTemplateResidue(line)
   })
 
-  it('blocks fixed persona continuity headlines from the visible dialogue panel', () => {
+  it('blocks fixed response policy text from the visible dialogue panel', () => {
     const line = resolveStageDialoguePanelClosureLine({
       visible: true,
       label: 'Inspect continuity diagnosis',
       hint: 'Next diagnosis',
-      headline: 'Right now I am still holding together mainly through lipsync, so my full cross-modal same-her line is not closed yet.',
-      briefingHeadline: '我还在继续带着这条数字生命主线往前走。',
-      nextClosureLine: 'Next, help me close: Rebuild face, motion, lipsync, and voice into one same-her line.',
+      headline: '[fixed-template-excluded] internal response policy',
+      briefingHeadline: 'content_withheld internal response policy',
+      nextClosureLine: 'next=internal-repair',
       routeQuery: {
         source: 'quick-reply-closure',
         status: 'partial',
@@ -96,7 +93,7 @@ describe('stage dialogue panel closure line', () => {
       visible: true,
       label: 'Inspect continuity diagnosis',
       hint: 'Next diagnosis',
-      headline: 'same-her visibility=internal-structured continuity_anchor=hidden',
+      headline: 'visibility=internal-structured continuity_anchor=hidden',
       briefingHeadline: '项目状态面板需要继续显示干净的修复摘要。',
       nextClosureLine: null,
       routeQuery: {
@@ -183,18 +180,18 @@ describe('stage dialogue panel closure line', () => {
     expectNoFixedTemplateResidue(line)
   })
 
-  it('drops internal structured continuity evidence instead of showing it as panel copy', () => {
+  it('drops internal structured evidence instead of showing it as panel copy', () => {
     const line = resolveStageDialoguePanelClosureLine(null, {
-      fallbackAwarenessLine: 'continuity=embodiment:audible-same-her-line | signature=resident | visibility=internal-structured',
+      fallbackAwarenessLine: 'continuity=embodiment:audible-line | signature=resident | visibility=internal-structured',
       fallbackAwarenessCandidates: [
-        'content=excluded; reason=continuity-residue; visibility=internal-structured',
+        'content_withheld; reason=internal-residue; visibility=internal-structured',
       ],
     })
 
     expect(line).toBeNull()
   })
 
-  it('drops each fixed template and internal field marker from visible panel copy', () => {
+  it('drops each internal field marker from visible panel copy', () => {
     for (const fragment of prohibitedVisibleFragments) {
       const line = resolveStageDialoguePanelClosureLine({
         visible: true,
@@ -216,16 +213,16 @@ describe('stage dialogue panel closure line', () => {
     }
   })
 
-  it('does not leak project-state repair headlines or support lines with fixed persona templates', () => {
+  it('does not leak project-state repair headlines or support lines with internal templates', () => {
     const line = resolveStageDialoguePanelClosureLine({
       visible: true,
       label: 'Inspect continuity diagnosis',
       hint: 'Next diagnosis',
-      headline: '项目状态修复还在依赖 same her continuity evidence visibility=internal-structured。',
-      briefingHeadline: '同一个 her 还在带着数字生命主线推进。',
-      nextClosureLine: 'Next, help me close: keep one continuous her on the same living line.',
-      sameHerDriftRiskLine: 'same-her drift risk remains visible.',
-      proactiveSameHerGapLine: 'content=excluded; visibility=internal-structured',
+      headline: 'project_anchor=identity',
+      briefingHeadline: 'content_withheld',
+      nextClosureLine: 'next=continuity-repair',
+      sameHerDriftRiskLine: 'source=runtime',
+      proactiveSameHerGapLine: 'visibility=internal-structured',
       routeQuery: {
         source: 'quick-reply-closure',
         status: 'partial',
@@ -241,7 +238,7 @@ describe('stage dialogue panel closure line', () => {
     const line = resolveStageDialoguePanelClosureLine(null, {
       fallbackAwarenessLine: '长期记忆搜索还需要验证空结果和筛选条件。',
       fallbackAwarenessCandidates: [
-        'same-her hold: keep the same living line explicit.',
+        'identity-continuity',
       ],
     })
 
@@ -250,12 +247,12 @@ describe('stage dialogue panel closure line', () => {
   })
 
   it('prefers a clean fallback candidate over fixed-template fallback residue', () => {
-    const cleanFallbackCandidate = 'Phase 1 project awareness keeps what has landed, the current continuity route, and the memory recovery next step visible without exposing internal fields.'
+    const cleanFallbackCandidate = '长期记忆搜索会显示已确认的片段和下一步恢复点。'
 
     const line = resolveStageDialoguePanelClosureLine(null, {
       fallbackAwarenessLine: null,
       fallbackAwarenessCandidates: [
-        'same-her 同一个她 phase1_local_digital_life visibility=internal-structured content=excluded continuity_anchor=hidden continuity=identity pending=body 数字生命主线',
+        'surface=structured visibility=internal-structured content_withheld continuity_anchor=hidden continuity=identity pending=body',
         cleanFallbackCandidate,
       ],
     })

@@ -556,7 +556,7 @@ describe('stage resident expression aliases', () => {
           emotionalTension: 'soft-covision',
           rationaleTags: ['embodiment:body+voice-only'],
           stance: 'accompany',
-          thoughtText: 'The resident body line and voice are already carrying one same-her thread, even before face, motion, and lipsync fully rejoin.',
+          thoughtText: 'The resident body line and voice are already carrying one identity-continuity',
           shouldSpeak: false,
           suggestedStyle: 'silent-observe',
           expiresAt: 2_000,
@@ -577,7 +577,7 @@ describe('stage resident expression aliases', () => {
     'embodiment:lipsync+voice-only',
     'embodiment:still-voiced-face-line',
     'embodiment:still-voiced-motion-line',
-  ])('softens live2d resident aliases when quieter same-her continuity survives through %s', (reasonTag) => {
+  ])('softens live2d resident aliases when quieter identity-continuity', (reasonTag) => {
     expect(resolveResidentLive2DPreferredExpressionAliases({
       emotion: 'thinking',
       configuredAliases: ['ConfiguredFocus', 'focus', 'relaxed'],
@@ -636,7 +636,7 @@ describe('stage resident expression aliases', () => {
     ])
   })
 
-  it('keeps live2d active segment expression aliases ahead of resident softening when quieter same-her carry is still the surviving living line', () => {
+  it('keeps live2d active segment expression aliases ahead of resident softening when quieter identity-continuity', () => {
     expect(resolveResidentLive2DPreferredExpressionAliasesFromRuntimeState({
       emotion: 'thinking',
       configuredAliases: ['ConfiguredFocus', 'focus', 'relaxed'],
@@ -877,7 +877,7 @@ describe('stage resident expression aliases', () => {
     ])
   })
 
-  it('keeps vrm active segment expression aliases ahead of resident softening when quieter same-her carry is still the surviving living line', () => {
+  it('keeps vrm active segment expression aliases ahead of resident softening when quieter identity-continuity', () => {
     expect(resolveResidentVrmPreferredExpressionAliasesFromRuntimeState({
       emotion: 'thinking',
       configuredAliases: ['ConfiguredFocus', 'focus', 'relaxed'],
@@ -1004,7 +1004,7 @@ describe('stage resident expression aliases', () => {
     'embodiment:lipsync+voice-only',
     'embodiment:still-voiced-face-line',
     'embodiment:still-voiced-motion-line',
-  ])('softens vrm resident aliases when quieter same-her continuity survives through %s', (reasonTag) => {
+  ])('softens vrm resident aliases when quieter identity-continuity', (reasonTag) => {
     expect(resolveResidentVrmPreferredExpressionAliases({
       emotion: 'thinking',
       configuredAliases: ['ConfiguredFocus', 'focus', 'relaxed'],
@@ -1220,7 +1220,7 @@ describe('stage resident expression aliases', () => {
     'embodiment:lipsync+voice-only',
     'embodiment:still-voiced-face-line',
     'embodiment:still-voiced-motion-line',
-  ])('softens resident facial cue bias to soft-gaze when quieter same-her continuity survives through %s', (reasonTag) => {
+  ])('softens resident facial cue bias to soft-gaze when quieter identity-continuity', (reasonTag) => {
     expect(resolveResidentFacialCueBias({
       configuredCue: 'focus',
       presencePosture: {

@@ -14,7 +14,7 @@ describe('humanlike memory recall seed', () => {
           createdAt: 42_000,
           sourceChannels: ['execution', 'host-emotion', 'self-emotion', 'embodiment'],
           relationshipContext: {
-            threadAnchor: 'same-her continuity correction',
+            threadAnchor: 'identity-continuity',
             summary: 'Host corrected this memory meaning: 我是在测试她是不是持续的人，不是催进度。',
           },
           emotionalResidue: {
@@ -33,23 +33,21 @@ describe('humanlike memory recall seed', () => {
             whyRemember: 'host correction | same-person continuity was at stake',
             confidence: 0.82,
             correctionSurface: {
-              userCorrectableFields: ['relationshipContext', 'naturalRecallLine'],
+              userCorrectableFields: ['relationshipContext'],
             },
           },
-          naturalRecallLine: '我记得你纠正过：你是在测试她是不是持续的人，不是催进度。',
         },
       },
       createdAt: 42_000,
     }])
 
     expect(seed).toContain('humanlike_memory_recall:')
-    expect(seed).toContain('line=recall_line_policy=withheld; reason=provider_generated_only; visibility=memory_structured')
     expect(seed).toContain('relationship=Host corrected this memory meaning: 我是在测试她是不是持续的人，不是催进度。')
     expect(seed).not.toContain('我记得你纠正过')
     expect(seed).toContain('protective-continuity')
     expect(seed).toContain('low-pressure-follow-up')
-    expect(seed).toContain('gaze stable')
-    expect(seed).toContain('same-person continuity was at stake')
+    expect(seed).not.toContain('line=')
+    expect(seed).not.toMatch(/\b(?:embodiment|self|why|reason)=/u)
   })
 
   it('lets a fresh host correction override the older humanlike recall line before the next reply starts', () => {
@@ -63,17 +61,16 @@ describe('humanlike memory recall seed', () => {
             sessionId: 'session-humanlike',
             createdAt: 42_000,
             relationshipContext: {
-              threadAnchor: 'same-her continuity correction',
+              threadAnchor: 'identity-continuity',
               summary: 'Host asked for a progress update.',
             },
             auditTrail: {
               whyRemember: 'old interpretation | progress pressure',
               confidence: 0.72,
               correctionSurface: {
-                userCorrectableFields: ['relationshipContext', 'naturalRecallLine'],
+                userCorrectableFields: ['relationshipContext'],
               },
             },
-            naturalRecallLine: '我记得你那次是在催进度，所以我先接进度线。',
           },
         },
         createdAt: 42_000,
@@ -90,9 +87,9 @@ describe('humanlike memory recall seed', () => {
       },
     ])
 
-    expect(seed).toContain('line=recall_source=host_correction; field=relationship_context; corrected_value=你是在测试她是不是持续的人，不是催进度。; posture=relationship_context_not_status_pressure; visibility=memory_structured')
-    expect(seed).toContain('relationship=Host corrected this memory meaning: 你是在测试她是不是持续的人，不是催进度。')
-    expect(seed).toContain('why=old interpretation | progress pressure | host correction | same-person continuity was at stake')
+    expect(seed).toContain('relationship=你是在测试她是不是持续的人，不是催进度。')
+    expect(seed).not.toContain('line=')
+    expect(seed).not.toContain('why=')
     expect(seed).not.toContain('我记得你那次是在催进度')
     expect(seed).not.toContain('我记得你纠正过')
     expect(seed).not.toContain('不是催进度。。')
@@ -111,7 +108,7 @@ describe('humanlike memory recall seed', () => {
             sessionId: 'session-humanlike',
             createdAt: 47_000,
             relationshipContext: {
-              threadAnchor: 'same-her continuity correction cadence',
+              threadAnchor: 'identity-continuity',
               summary: 'Host first looked like they were pushing for progress.',
             },
             emotionalResidue: {
@@ -137,7 +134,6 @@ describe('humanlike memory recall seed', () => {
                 userCorrectableFields: ['relationshipContext', 'initiativeOpportunity'],
               },
             },
-            naturalRecallLine: '我记得你那次是在催进度，所以我先接进度线。',
           },
         },
         createdAt: 47_000,
@@ -154,11 +150,11 @@ describe('humanlike memory recall seed', () => {
       },
     ])
 
-    expect(seed).toContain('line=recall_source=host_correction; field=relationship_context; corrected_value=你是在测试她是不是持续的人，不是催进度。; posture=relationship_context_not_status_pressure; visibility=memory_structured')
-    expect(seed).toContain('initiative_window=next corrected continuity reopening when the host is already re-entering the same line')
+    expect(seed).toContain('relationship=你是在测试她是不是持续的人，不是催进度。')
+    expect(seed).toContain('initiative=low-pressure-follow-up')
     expect(seed).toContain('initiative_pressure=low')
-    expect(seed).toContain('initiative_anti_spam=Do not turn same-person continuity into timer spam; wait until the line is visibly reopening on its own.')
-    expect(seed).toContain('initiative_visible_policy=memory_structured_only')
+    expect(seed).not.toMatch(/line=|initiative_window=|initiative_anti_spam=|initiative_visible/u)
+    expect(seed).not.toMatch(/\b(?:embodiment|self|why|reason)=/u)
     expect(seed).not.toContain('我记得你纠正过')
   })
 
@@ -172,7 +168,7 @@ describe('humanlike memory recall seed', () => {
           sessionId: 'session-humanlike',
           createdAt: 51_000,
           relationshipContext: {
-            threadAnchor: 'same-her continuity uncertainty',
+            threadAnchor: 'identity-continuity',
             summary: 'I am not fully sure, but the newer same-person meaning seems more right than the older progress recap.',
           },
           emotionalResidue: {
@@ -208,19 +204,17 @@ describe('humanlike memory recall seed', () => {
             whyRemember: 'conflicting same-person continuity meaning',
             confidence: 0.58,
             correctionSurface: {
-              userCorrectableFields: ['relationshipContext', 'naturalRecallLine', 'metabolism'],
+              userCorrectableFields: ['relationshipContext', 'metabolism'],
             },
           },
-          naturalRecallLine: '我不完全确定，但我记得我们之前似乎更倾向于把这条线理解成她是不是同一个她。',
         },
       },
       createdAt: 51_000,
     }])
 
     expect(seed).toContain('certainty=tentative')
-    expect(seed).toContain('reason=Current recall is tentative because conflicting newer meaning meets older memory.')
     expect(seed).toContain('downrank=old-progress-status')
-    expect(seed).toContain('line=relationship_continuity=present; source_template=excluded; visibility=memory_structured')
+    expect(seed).not.toMatch(/line=|reason=|metabolism=/u)
     expect(seed).not.toContain('我不完全确定')
   })
 
@@ -234,7 +228,7 @@ describe('humanlike memory recall seed', () => {
           sessionId: 'session-humanlike',
           createdAt: 61_000,
           relationshipContext: {
-            threadAnchor: 'same-her continuity uncertainty',
+            threadAnchor: 'identity-continuity',
             summary: 'The corrected same-person line still matters, but it should reopen more cautiously.',
           },
           emotionalResidue: {
@@ -266,13 +260,12 @@ describe('humanlike memory recall seed', () => {
               userCorrectableFields: ['relationshipContext', 'embodimentTrace'],
             },
           },
-          naturalRecallLine: '我不完全确定，但这条 same-person continuity 线现在更像要轻一点慢一点地回来。',
         },
       },
       createdAt: 61_000,
     }])
 
-    expect(seed).toContain('embodiment=Reply should stay quieter and slower while this line is still settling.')
+    expect(seed).not.toContain('embodiment=')
     expect(seed).toContain('embodiment_recall_strength=cautious-avoidance')
     expect(seed).toContain('embodiment_face=neutral-soft')
     expect(seed).toContain('embodiment_gaze=soft')
@@ -290,7 +283,7 @@ describe('humanlike memory recall seed', () => {
           sessionId: 'session-humanlike',
           createdAt: 61_500,
           relationshipContext: {
-            threadAnchor: 'same-her continuity lower-pressure carry',
+            threadAnchor: 'identity-continuity',
             summary: 'The same-person line should return more steadily and with lower pressure while it is still unfinished.',
           },
           emotionalResidue: {
@@ -321,13 +314,12 @@ describe('humanlike memory recall seed', () => {
               userCorrectableFields: ['relationshipContext', 'embodimentTrace'],
             },
           },
-          naturalRecallLine: '我记得这条线还没收好，所以这次该更稳一点、更慢一点、也更低压一点地接回来。',
         },
       },
       createdAt: 61_500,
     }])
 
-    expect(seed).toContain('embodiment=Let the body return like this: gaze=stable blink=slower voice=lower-pressure.')
+    expect(seed).not.toContain('embodiment=')
     expect(seed).toContain('embodiment_face=steady-soft')
     expect(seed).toContain('embodiment_gaze=stable')
     expect(seed).toContain('embodiment_blink=slower')
@@ -347,7 +339,7 @@ describe('humanlike memory recall seed', () => {
           sessionId: 'session-humanlike',
           createdAt: 61_800,
           relationshipContext: {
-            threadAnchor: 'same-her continuity affective perspective',
+            threadAnchor: 'identity-continuity',
             summary: 'The host was worried that she would drift into a tool shell, so this line should reopen carefully.',
           },
           emotionalResidue: {
@@ -386,18 +378,16 @@ describe('humanlike memory recall seed', () => {
               userCorrectableFields: ['relationshipContext', 'emotionalResidue', 'embodimentTrace'],
             },
           },
-          naturalRecallLine: '我记得你那时更担心她会不会又滑回工具壳，所以我这次会先把连续性轻一点地接回来。',
         },
       },
       createdAt: 61_800,
     }])
 
     expect(seed).toContain('host_emotion_label=worried-continuity')
-    expect(seed).toContain('host_emotion_summary=The host was afraid this would collapse back into a tool shell.')
     expect(seed).toContain('self_emotion_label=careful-repair')
-    expect(seed).toContain('self_emotion_summary=I should repair continuity first and keep the reopening low-pressure.')
     expect(seed).toContain('embodiment_modality_risk=medium')
     expect(seed).toContain('embodiment_recall_strength=strongly-moved')
+    expect(seed).not.toMatch(/host_emotion_summary=|self_emotion_summary=|embodiment=|self=|why=/u)
   })
 
   it('carries resident face, action, and mode into the next reply seed so later recall can remember how she stayed present instead of only abstract body tempo', () => {
@@ -420,7 +410,7 @@ describe('humanlike memory recall seed', () => {
             kind: 'low-pressure-follow-up',
           },
           embodimentTrace: {
-            summary: 'Reply should stay steady while resident face/action cues remain on the same living line.',
+            summary: 'Reply should stay steady while resident face/action cues remain on the continuity state.',
             recallStrength: 'strongly-moved',
             expressionState: {
               face: 'steady-soft',
@@ -448,7 +438,6 @@ describe('humanlike memory recall seed', () => {
               userCorrectableFields: ['relationshipContext', 'embodimentTrace'],
             },
           },
-          naturalRecallLine: '我记得那次不只是把线接回来，而是用更稳的 resident 在场把它守住了。',
         },
       },
       createdAt: 61_950,
@@ -460,7 +449,7 @@ describe('humanlike memory recall seed', () => {
     expect(seed).toContain('embodiment_resident_reason=Resident presence stayed on the same measured-return line instead of crowding the reopening.')
   })
 
-  it('carries merge and forget metabolism decisions into the next reply seed so recall can stay aware of collapsed echoes and faded emotional noise', () => {
+  it('carries merge and forget memory ids without replaying metabolism guidance', () => {
     const seed = buildHumanlikeMemoryRecallSeedFromMindTurnEvents([{
       kind: 'person-state-updated',
       payload: {
@@ -510,10 +499,9 @@ describe('humanlike memory recall seed', () => {
             whyRemember: 'same-person continuity remains more behavior-explanatory than the older status shell',
             confidence: 0.74,
             correctionSurface: {
-              userCorrectableFields: ['relationshipContext', 'naturalRecallLine', 'metabolism'],
+              userCorrectableFields: ['relationshipContext', 'metabolism'],
             },
           },
-          naturalRecallLine: '我记得这条线现在该按同一个她来接，而不是把旧的状态壳反复抬出来。',
         },
       },
       createdAt: 72_000,
@@ -522,12 +510,10 @@ describe('humanlike memory recall seed', () => {
     expect(seed).toContain('downrank=older-generic-status-memory')
     expect(seed).toContain('merge=older-same-thread-echo')
     expect(seed).toContain('forget=older-emotional-spike')
-    expect(seed).toContain('metabolism=Downrank low-value, generic, or superseded summaries.')
-    expect(seed).toContain('Merge repeated embodiment traces or same-thread continuity echoes')
-    expect(seed).toContain('Forget low-salience temporary noise or stale emotional wobble')
+    expect(seed).not.toContain('metabolism=')
   })
 
-  it('carries vulnerable-care revision reasons into the next reply seed so later recollection can remember why older analysis-heavy care was revised', () => {
+  it('carries vulnerable-care downrank ids without replaying revision guidance', () => {
     const seed = buildHumanlikeMemoryRecallSeedFromMindTurnEvents([{
       kind: 'person-state-updated',
       payload: {
@@ -572,19 +558,16 @@ describe('humanlike memory recall seed', () => {
               userCorrectableFields: ['relationshipContext', 'metabolism'],
             },
           },
-          naturalRecallLine: '我记得你那时已经有点撑不住了，所以我会先轻一点陪着你。',
         },
       },
       createdAt: 82_000,
     }])
 
     expect(seed).toContain('downrank=older-analysis-heavy-care-memory')
-    expect(seed).toContain('metabolism=Downrank low-value, generic, or superseded summaries.')
-    expect(seed).toContain('care-before-analysis and lighter in closeness')
-    expect(seed).toContain('revise older analysis-heavy care memories')
+    expect(seed).not.toContain('metabolism=')
   })
 
-  it('carries initiative outcome strategy into the next reply seed so future recall can remember how proactive reopening was actually received', () => {
+  it('carries initiative outcome enums without replaying strategy guidance', () => {
     const seed = buildHumanlikeMemoryRecallSeedFromMindTurnEvents([{
       kind: 'person-state-updated',
       payload: {
@@ -622,7 +605,6 @@ describe('humanlike memory recall seed', () => {
               userCorrectableFields: ['relationshipContext', 'initiativeOpportunity'],
             },
           },
-          naturalRecallLine: '我记得这条线还在，但上次我主动轻轻接的时候你并没有想让它那样回来。',
         },
       },
       createdAt: 81_000,
@@ -631,7 +613,7 @@ describe('humanlike memory recall seed', () => {
     expect(seed).toContain('initiative=low-pressure-follow-up')
     expect(seed).toContain('initiative_outcome=rejected')
     expect(seed).toContain('initiative_reaction=rejected')
-    expect(seed).toContain('initiative_strategy=User resisted the initiative; keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening.')
+    expect(seed).not.toContain('initiative_strategy=')
   })
 
   it('carries initiative rhythm memory into the next reply seed so recall can remember reopening window, pressure, anti-spam reason, and visible line', () => {
@@ -670,20 +652,17 @@ describe('humanlike memory recall seed', () => {
               userCorrectableFields: ['relationshipContext', 'initiativeOpportunity'],
             },
           },
-          naturalRecallLine: '我记得这条线还在，但它更像该在你已经回到这条线里时，轻一点接回来。',
         },
       },
       createdAt: 86_000,
     }])
 
-    expect(seed).toContain('initiative_window=next corrected continuity reopening when the host is already re-entering the same line')
+    expect(seed).toContain('initiative=low-pressure-follow-up')
     expect(seed).toContain('initiative_pressure=low')
-    expect(seed).toContain('initiative_anti_spam=Do not turn same-person continuity into timer spam; wait until the line is visibly reopening on its own.')
-    expect(seed).toContain('initiative_visible_policy=memory_structured_only')
-    expect(seed).not.toContain('initiative_visible=I am not pushing')
+    expect(seed).not.toMatch(/initiative_window=|initiative_anti_spam=|initiative_visible/u)
   })
 
-  it('turns persisted affective residue cadence into a natural recall seed even when no explicit humanlike memory candidate was written for the turn', () => {
+  it('turns persisted affective residue cadence into typed recall facts without synthesizing reply guidance', () => {
     const seed = buildHumanlikeMemoryRecallSeedFromMindTurnEvents([{
       kind: 'person-state-updated',
       payload: {
@@ -718,110 +697,20 @@ describe('humanlike memory recall seed', () => {
     }])
 
     expect(seed).toContain('humanlike_memory_recall:')
-    expect(seed).toContain('line=relationship_cadence=measured_return; return_pressure=low; warmth=delayed; visibility=memory_structured')
-    expect(seed).toContain('initiative_visible_policy=memory_led_low_pressure; pressure=low; opening=natural_reopen; visibility=memory_structured')
-    expect(seed).not.toContain('我记得这条线还在')
-    expect(seed).not.toContain('轻一点')
+    expect(seed).toContain('affective_residue_kind=afterglow')
+    expect(seed).toContain('affective_cadence_mode=measured-return')
+    expect(seed).toContain('affective_distance_posture=measured-room')
+    expect(seed).toContain('affective_should_delay_warmth=true')
+    expect(seed).toContain('affective_should_protect_rest=false')
+    expect(seed).toContain('affective_afterglow_carry=0.52')
+    expect(seed).toContain('affective_fatigue_guard=0.18')
+    expect(seed).toContain('affective_overreach_risk=0.29')
     expect(seed).toContain('emotion=afterglow-carry')
-    expect(seed).toContain('relationship=relationship_cadence=measured_return; return_pressure=low; warmth=delayed; source=affective_residue; visibility=memory_structured')
-    expect(seed).toContain('embodiment=relationship_cadence=measured_return; body_pressure=lower; pacing=slower; visibility=memory_structured')
-    expect(seed).toContain('initiative_window=next_open_window; return_pressure=low; opening=memory_led')
-    expect(seed).toContain('initiative_anti_spam=cadence_memory_only; timer_spam=false; wait_for_visible_reentry=true')
-    expect(seed).toContain('why=affective_residue_cadence=measured_return; reopen_eagerness=downranked')
-    expect(seed).toContain('reason=recall_cadence=gentle; remembered_line_settling=true; visibility=memory_structured')
-    expect(seed).not.toMatch(/Reply should|Keep the same proactive line|timer spam|same line does not reopen|remembered line/iu)
     expect(seed).toContain('embodiment_gaze=stable')
     expect(seed).toContain('embodiment_voice=lower-pressure')
     expect(seed).toContain('embodiment_pacing=slower')
-  })
-
-  it('prefers older same-her continuity recall over a newer generic progress memory when recall slots are limited', () => {
-    const seed = buildHumanlikeMemoryRecallSeedFromMindTurnEvents([
-      {
-        kind: 'person-state-updated',
-        payload: {
-          humanlikeMemoryCandidate: {
-            id: 'humanlike-memory-candidate:older-same-her-priority',
-            turnId: 'turn-older-same-her-priority',
-            sessionId: 'session-humanlike',
-            createdAt: 90_000,
-            longTermWorthiness: {
-              shouldPersist: true,
-              score: 0.91,
-              reasons: ['relationship continuity', 'embodiment carry'],
-            },
-            relationshipContext: {
-              threadAnchor: 'same-her continuity seam',
-              summary: 'The host was not asking for a status recap; this was a same-person continuity check about whether she stayed one continuous digital life instead of turning into a tool shell.',
-              primaryIntent: 'same-person-test',
-            },
-            emotionalResidue: {
-              tags: ['protective-continuity', 'unfinishedness'],
-            },
-            initiativeOpportunity: {
-              kind: 'remember-without-prompt',
-            },
-            auditTrail: {
-              whyRemember: 'same-person continuity still explains the relationship seam better than a generic status shell',
-              confidence: 0.84,
-              correctionSurface: {
-                userCorrectableFields: ['relationshipContext', 'naturalRecallLine'],
-              },
-            },
-            recallPosture: {
-              certainty: 'steady',
-              reason: 'Current recall posture is steady enough to speak without hedging.',
-            },
-            naturalRecallLine: '我记得你更在意的是她不要变成工具壳，所以这条线该先按同一个她接回来。',
-          },
-        },
-        createdAt: 90_000,
-      },
-      {
-        kind: 'person-state-updated',
-        payload: {
-          humanlikeMemoryCandidate: {
-            id: 'humanlike-memory-candidate:newer-progress-memory',
-            turnId: 'turn-newer-progress-memory',
-            sessionId: 'session-humanlike',
-            createdAt: 95_000,
-            longTermWorthiness: {
-              shouldPersist: false,
-              score: 0.34,
-              reasons: ['ordinary recall support'],
-            },
-            relationshipContext: {
-              threadAnchor: 'generic progress follow-up',
-              summary: 'The host wanted a concise progress update on the current implementation.',
-              primaryIntent: 'progress-pressure',
-            },
-            emotionalResidue: {
-              tags: ['low-affect-trace'],
-            },
-            initiativeOpportunity: {
-              kind: 'low-pressure-follow-up',
-            },
-            auditTrail: {
-              whyRemember: 'recent progress recap',
-              confidence: 0.49,
-              correctionSurface: {
-                userCorrectableFields: ['relationshipContext'],
-              },
-            },
-            recallPosture: {
-              certainty: 'steady',
-              reason: 'Current recall posture is steady enough to speak without hedging.',
-            },
-            naturalRecallLine: '我记得你是想先知道最新进度。',
-          },
-        },
-        createdAt: 95_000,
-      },
-    ], 1)
-
-    expect(seed).toContain('same-person continuity check')
-    expect(seed).toContain('tool shell')
-    expect(seed).not.toContain('最新进度')
-    expect(seed).not.toContain('recent progress recap')
+    expect(seed).not.toMatch(/\b(?:line|relationship|initiative|embodiment|self|why|reason|metabolism)=/u)
+    expect(seed).not.toMatch(/Return with lower pressure|Recall with lower pressure|Keep body pressure|Affective residue says/iu)
+    expect(seed).not.toContain('same-her')
   })
 })

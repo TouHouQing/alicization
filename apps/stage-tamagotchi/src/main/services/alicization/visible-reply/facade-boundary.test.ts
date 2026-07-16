@@ -8,7 +8,6 @@ const allowedDirectImporters = new Set([
   'visible-reply/closure-orchestrator.ts',
   'visible-reply/facade.ts',
   'visible-reply/facade-boundary.test.ts',
-  'visible-reply/second-pass-rewrite.ts',
 ])
 
 function listTsFiles(dir: string): string[] {
@@ -34,7 +33,7 @@ describe('visible reply facade boundary', () => {
   })
 
   it('keeps production runtime imports behind visible-reply/facade', () => {
-    const forbidden = /from ['"](?:\.\.?\/)*visible-reply\/(?:authority-orchestrator|closure-orchestrator|critic|realization-engine|runtime-surface-authority|second-pass-rewrite|semantic-judge)['"]/u
+    const forbidden = /from ['"](?:\.\.?\/)*visible-reply\/(?:authority-orchestrator|closure-orchestrator|critic|realization-engine|runtime-surface-authority|semantic-judge)['"]/u
     const offenders = listTsFiles(root)
       .filter(file => !file.endsWith('.test.ts'))
       .map(file => ({

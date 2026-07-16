@@ -9,6 +9,7 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 
 import {
   analyzeAlicizationExecutionTurnAuthority,
+  buildAlicizationProviderFactBlock,
   hasExplicitAlicizationExecutionDemand,
 } from '@proj-alicization/stage-shared'
 
@@ -693,19 +694,5 @@ export function deriveMainChatActionObligation(input: {
 }
 
 export function buildMainChatActionObligationSystemBlock(obligation: AlicizationMainChatActionObligation) {
-  return [
-    '[ALICIZATION_ACTION_OBLIGATION]',
-    'This block is the turn-level action authority derived from dialogue governance, not a generic tool hint.',
-    `Primary action obligation: ${obligation.kind}.`,
-    `Summary: ${obligation.summary}.`,
-    `Source: ${obligation.source}.`,
-    `Routing required: ${obligation.routingIntent ? 'yes' : 'no'}.`,
-    obligation.routingIntent
-      ? `Allowed executor tools for this turn: ${obligation.routingIntent.requiredToolNames.join(', ')}.`
-      : 'No executor routing is required before speaking in this turn.',
-    obligation.reasonCodes.length > 0
-      ? `Reason codes: ${obligation.reasonCodes.join(', ')}.`
-      : '',
-    'Downstream execution routing may narrow tool choice, but it must not contradict this obligation.',
-  ].filter(Boolean).join('\n')
+  return buildAlicizationProviderFactBlock('alicization-action-obligation', obligation)
 }

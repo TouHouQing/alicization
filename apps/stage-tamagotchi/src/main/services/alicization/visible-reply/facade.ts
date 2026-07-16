@@ -15,10 +15,9 @@ import {
   sanitizeAlicizationStructuredInternalText,
 } from '@proj-alicization/stage-shared'
 
-import { buildAlicizationAnswerPlannerSystemBlock } from '../answer-planner'
 import { preferStrongerContinuityClosureAuthority } from '../continuity-closure-authority'
 import { buildAlicizationExecutiveAnswerBrief } from '../executive-answer-brief'
-import { buildAlicizationMindTurnContract, buildAlicizationMindTurnContractSystemBlock } from '../mind-turn-contract'
+import { buildAlicizationMindTurnContract } from '../mind-turn-contract'
 import {
   buildAlicizationProjectPreDialogueAwarenessLine,
   isAlicizationThinProjectAwarenessLine,
@@ -26,12 +25,8 @@ import {
 } from '../project-state-brief'
 import {
   buildAlicizationResponseCharter,
-  buildAlicizationResponseCharterSystemBlock,
 } from '../response-charter'
-import {
-  buildAlicizationResponseSurfaceContract,
-  buildRecollectionSpeechVisibleSurfaceRules,
-} from '../response-surface-contract'
+import { buildAlicizationResponseSurfaceContract } from '../response-surface-contract'
 
 export {
   buildAlicizationMindAuthoringFailureArtifact,
@@ -54,13 +49,15 @@ export type {
 
 export {
   buildAlicizationVisibleReplyCriticArtifact,
-  shouldForceAlicizationVisibleReplyRepair,
+  shouldBlockAlicizationVisibleReply,
 } from './critic'
 
 export type {
+  AlicizationProjectStateEvidenceStatus,
   AlicizationResolvedVisibleReply,
   AlicizationVisibleReplyClosureArtifact,
   AlicizationVisibleReplyRealizationArtifact,
+  AlicizationVisibleReplyValidationStatus,
 } from './realization-engine'
 
 export {
@@ -68,6 +65,8 @@ export {
   buildAlicizationVisibleReplyRealizationArtifact,
   createAlicizationVisibleReplyExecution,
   deriveAlicizationVisibleReplyText,
+  normalizeAlicizationProjectStateEvidenceStatus,
+  normalizeAlicizationVisibleReplyValidationStatus,
   resolveAlicizationPreparedVisibleReplyExecution,
   resolveAlicizationTimeoutRecoveredVisibleReply,
 } from './realization-engine'
@@ -83,28 +82,6 @@ export {
 } from './runtime-surface-authority'
 
 export type {
-  AlicizationSecondPassReasonCode,
-  AlicizationSecondPassRetryInput,
-  AlicizationSecondPassRewriteResult,
-} from './second-pass-rewrite'
-
-export {
-  AlicizationSecondPassStructuredContractError,
-  mapAlicizationSecondPassReasonCodes,
-  readAlicizationSecondPassToolFacts,
-  rewriteAlicizationVisibleReplySecondPass,
-} from './second-pass-rewrite'
-
-export type {
-  AlicizationVisibleReplySemanticJudgeArtifact,
-  AlicizationVisibleReplySemanticJudgeStructuredInput,
-} from './semantic-judge'
-
-export {
-  buildAlicizationVisibleReplySemanticJudgeArtifact,
-} from './semantic-judge'
-
-export type {
   AlicizationVisibleReplySettlementDraft,
   AlicizationVisibleReplySettlementResult,
 } from './settlement'
@@ -114,21 +91,12 @@ export {
   settleAlicizationVisibleReply,
 } from './settlement'
 
-export { buildRecollectionSpeechVisibleSurfaceRules }
-
 export interface AlicizationVisibleReplySurfacePlan {
   version: 'visible-reply-surface-plan-v1'
   responseCharter: AlicizationResponseCharter
   executiveAnswerBrief: ReturnType<typeof buildAlicizationExecutiveAnswerBrief>
   responseSurfaceContract: ReturnType<typeof buildAlicizationResponseSurfaceContract>
   mindTurnContract: AlicizationMindTurnContractSnapshot
-  systemBlocks: {
-    executiveAnswerBrief: string
-    answerPlanner: string
-    responseSurfaceContract: string
-    mindTurnContract: string
-    responseCharter: string
-  }
 }
 
 function sanitizeProjectStateText(value: unknown, maxChars = 220) {
@@ -482,16 +450,5 @@ export function buildAlicizationVisibleReplySurfacePlan(input: {
     executiveAnswerBrief,
     responseSurfaceContract,
     mindTurnContract,
-    systemBlocks: {
-      executiveAnswerBrief: executiveAnswerBrief.systemBlock,
-      answerPlanner: input.runtimeSurface.dialogue.answerPlanner
-        ? buildAlicizationAnswerPlannerSystemBlock(input.runtimeSurface.dialogue.answerPlanner)
-        : '',
-      responseSurfaceContract: responseSurfaceContract.systemBlock,
-      mindTurnContract: buildAlicizationMindTurnContractSystemBlock(mindTurnContract, {
-        includeProjectStateFacts: input.includeProjectStateFacts,
-      }),
-      responseCharter: buildAlicizationResponseCharterSystemBlock(responseCharter),
-    },
   } satisfies AlicizationVisibleReplySurfacePlan
 }

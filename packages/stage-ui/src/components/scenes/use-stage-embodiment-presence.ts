@@ -37,6 +37,66 @@ interface Live2DActionCapability {
   motionIndex: number
 }
 
+const legacyDialogueProjectStateCueKeys = new Set([
+  'preDialogueAwarenessLine',
+  'preDialogueAwarenessSummary',
+  'awarenessLine',
+  'companionHeadlineLine',
+  'companionBriefingLine',
+  'companionNextClosureLine',
+  'sameHerSelfLine',
+  'sameHerSummary',
+  'sameHerHoldDetail',
+  'sameHerDriftRisk',
+  'sameHerDriftRiskLine',
+  'sameHerDriftRiskSummary',
+  'emotionalClosureCue',
+  'emotionalClosureSummary',
+  'continuityCue',
+  'continuityAnchor',
+  'continuityHold',
+  'continuityDriftRisk',
+  'proactiveSameHerGap',
+  'proactiveSameHerGapSummary',
+])
+
+function isLegacyDialogueProjectStateCueKey(key: string) {
+  return legacyDialogueProjectStateCueKeys.has(key)
+}
+
+function sanitizeLegacyDialogueGovernanceFields<T>(value: T): T {
+  if (Array.isArray(value))
+    return value.map(item => sanitizeLegacyDialogueGovernanceFields(item)) as T
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => !isLegacyDialogueProjectStateCueKey(key))
+        .map(([key, item]) => [key, sanitizeLegacyDialogueGovernanceFields(item)]),
+    ) as T
+  }
+
+  return value
+}
+
+function sanitizeFallbackProjectState(
+  projectState: AlicizationDialogueRespondedPayload['structured']['projectState'] | null | undefined,
+) {
+  if (!projectState || typeof projectState !== 'object' || Array.isArray(projectState))
+    return null
+
+  return sanitizeLegacyDialogueGovernanceFields(projectState)
+}
+
+function sanitizeFallbackRuntimeDigest(
+  runtimeDigest: AlicizationDialogueRespondedPayload['structured']['runtimeDigest'] | null | undefined,
+) {
+  if (!runtimeDigest || typeof runtimeDigest !== 'object' || Array.isArray(runtimeDigest))
+    return null
+
+  return sanitizeLegacyDialogueGovernanceFields(runtimeDigest)
+}
+
 export interface UseStageEmbodimentPresenceOptions {
   applyAttentionPerformance?: (performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
   applyAttentionPresencePulse?: (payload: AlicizationPresencePulsePayload) => Promise<void> | void
@@ -67,8 +127,6 @@ export interface UseStageEmbodimentPresenceOptions {
     metadata?: {
       embodimentScript?: AlicizationEmbodimentScriptV1 | null
       projectState?: AlicizationDialogueRespondedPayload['structured']['projectState'] | null
-      preDialogueAwareness?: AlicizationDialogueRespondedPayload['structured']['preDialogueAwareness'] | null
-      preDialogueClosure?: AlicizationDialogueRespondedPayload['structured']['preDialogueClosure'] | null
       runtimeDigest?: AlicizationDialogueRespondedPayload['structured']['runtimeDigest'] | null
     } | null,
   ) => Promise<void> | void
@@ -226,26 +284,6 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       && (!normalized.actionCue || !normalized.facialCue)
   }
 
-  function hasCurrentTurnSameHerContinuityCarry(payload: AlicizationDialogueRespondedPayload) {
-    const cueText = [
-      payload.structured.digitalLifeSpine?.embodiment?.autobiographicalSelf?.identityNarrative,
-      payload.structured.digitalLifeSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine,
-    ]
-      .filter((segment): segment is string => typeof segment === 'string' && segment.trim().length > 0)
-      .join(' ')
-      .toLowerCase()
-
-    return cueText.includes('continuity drift risk')
-      || cueText.includes('generic assistant shell')
-      || cueText.includes('project-summary voice')
-      || cueText.includes('detached status talk')
-      || cueText.includes('continuity drift')
-      || cueText.includes('drift rather than completion')
-      || cueText.includes('continuity line')
-      || cueText.includes('continuous identity')
-      || cueText.includes('continuous her')
-  }
-
   function shouldBiasQuietAccompanimentDialogueFallback(
     performance: AlicizationDialoguePerformancePayload,
     residentPerformance: AlicizationDialoguePerformancePayload | null | undefined,
@@ -290,9 +328,6 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       return false
 
     if (!options.visualPresenceState?.value)
-      return false
-
-    if (!hasCurrentTurnSameHerContinuityCarry(payload))
       return false
 
     if (!isNeutralQuietFallbackPerformanceCandidate(payload.structured.performance))
@@ -791,11 +826,11 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       })
 
       const embodimentScript = resolveEmbodimentScriptMetadata(payload, plannedPerformance)
+      const projectState = sanitizeFallbackProjectState(payload.structured.projectState)
+      const runtimeDigest = sanitizeFallbackRuntimeDigest(payload.structured.runtimeDigest)
       await options.speakFallback(reply, plannedPerformance, {
-        ...(payload.structured.projectState ? { projectState: payload.structured.projectState } : {}),
-        ...(payload.structured.preDialogueAwareness ? { preDialogueAwareness: payload.structured.preDialogueAwareness } : {}),
-        ...(payload.structured.preDialogueClosure ? { preDialogueClosure: payload.structured.preDialogueClosure } : {}),
-        ...(payload.structured.runtimeDigest ? { runtimeDigest: payload.structured.runtimeDigest } : {}),
+        ...(projectState ? { projectState } : {}),
+        ...(runtimeDigest ? { runtimeDigest } : {}),
         ...(embodimentScript ? { embodimentScript } : {}),
       })
     },

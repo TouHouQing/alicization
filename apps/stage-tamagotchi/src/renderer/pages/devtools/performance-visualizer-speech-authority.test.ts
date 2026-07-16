@@ -1329,7 +1329,7 @@ describe('performance visualizer speech authority', () => {
     })
   })
 
-  it('surfaces embodiment closure stage as a top-level speech authority row field when audible body continuity is the active same-her closure phase', () => {
+  it('surfaces embodiment closure stage as a top-level speech authority row field when audible body continuity is the active identity-continuity', () => {
     const rows = buildSpeechAuthoritySegmentRows(
       [
         {
@@ -1410,7 +1410,7 @@ describe('performance visualizer speech authority', () => {
     }))
   })
 
-  it('keeps structured same-her closure stage synchronized onto nested speech evidence snapshots when the top-level row derives it from settle authority summaries', () => {
+  it('keeps structured identity-continuity', () => {
     const cueId = 'segment-speech-authority-structured-stage-1'
     const rows = buildSpeechAuthoritySegmentRows(
       [
@@ -1529,7 +1529,7 @@ describe('performance visualizer speech authority', () => {
         [
           {
             cueId: testCase.cueId,
-            cueText: `same-her closure stage ${testCase.expected}`,
+            cueText: `identity-continuity`,
             driftStatus: 'partial-drift',
             aligned: false,
             entries: [
@@ -1609,7 +1609,7 @@ describe('performance visualizer speech authority', () => {
     }
   })
 
-  it('does not leak stale Live2D same-her summary-only evidence into another speech authority row when explicit same-her segment ids are absent', () => {
+  it('does not leak stale Live2D same-her summary-only evidence into another speech authority row when explicit identity-continuity', () => {
     const cueId = 'segment-speech-authority-summary-only-current'
     const rows = buildSpeechAuthoritySegmentRows(
       [
@@ -3441,7 +3441,7 @@ describe('performance visualizer speech authority', () => {
       [
         {
           cueId: 'segment-invited-speech-authority',
-          cueText: '我还在，只是轻一点接回来。',
+          cueText: '我还在，只是中性可见占位。',
           surfaces: ['vrm'],
           lanes: ['expression', 'motion', 'lipsync'],
           aligned: true,

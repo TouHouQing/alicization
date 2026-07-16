@@ -61,6 +61,11 @@ import type {
   ScreenSemanticCacheState,
   SubconsciousCardState,
 } from './runtime-soul'
+import type {
+  AlicizationProjectStateEvidenceStatus,
+  AlicizationVisibleReplyRealizationArtifact,
+  AlicizationVisibleReplyValidationStatus,
+} from './visible-reply/facade'
 
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -179,10 +184,6 @@ import {
   createAlicizationMainChatSessionRuntime,
 } from './main-chat-session-runtime'
 import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
-import {
-  resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
-  summarizeAlicizationPreDialogueSendIdentityForDebug,
-} from './main-chat-start-awareness'
 import { resolveAlicizationMainChatStartResult } from './main-chat-start-result'
 import { createAbortError } from './main-chat-stream-primitives'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
@@ -235,12 +236,6 @@ import {
   rankScreenSemanticCaptureCandidates,
 } from './proactive-screen-semantic'
 import {
-  alicizationProjectStatePersistenceLandedReminder,
-  alicizationProjectStatePersistenceNextClosureReminder,
-} from './project-state-answer-governance'
-import {
-  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
-  buildAlicizationProviderFacingProjectStateSystemBlock,
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
@@ -286,6 +281,7 @@ import { createAlicizationMainGatewayOneShotRuntime } from './runtime-main-gatew
 import { createAlicizationRuntimeMemoryRuntime } from './runtime-memory-runtime'
 import { createAlicizationRuntimeMemorySupportingComposition } from './runtime-memory-supporting-composition'
 import { createAlicizationMindStateRuntime } from './runtime-mind-state'
+import { buildOrganicMemoryProviderFactBlocks } from './runtime-organic-memory-prompt-blocks'
 import {
   normalizeOrganicRecallText,
   selectPromptActiveThoughts,
@@ -406,6 +402,9 @@ import { assessAlicizationTaskRouting } from './task-routing-assessor'
 import { createTaskThreadOrchestrator } from './task-thread-orchestrator'
 import { registerDialogueWorldThreadAssistantTurn } from './turn-outcome-reducer'
 import {
+  normalizeAlicizationProjectStateEvidenceStatus,
+} from './visible-reply/facade'
+import {
   buildVisualRecallSeed,
   buildVisualSedimentFragment,
   createDefaultVisualPresenceState,
@@ -470,7 +469,7 @@ function inferRuntimeProjectCarrySourceTags(input: {
         : []
     ),
     ...(carriesNextClosureAuthority ? ['project-state-next-closure'] : []),
-    ...(carriesSameHerProjectAuthority ? ['project-state-same-her'] : []),
+    ...(carriesSameHerProjectAuthority ? ['project-state-continuity'] : []),
     ...(carriesCompanionHeadlineAuthority ? ['project-state-companion-headline'] : []),
   ]
 }
@@ -726,21 +725,21 @@ function buildProjectStateAuditContinuitySummary(input: {
   embodimentClosureSummary: string | null | undefined
 }) {
   return [
-    input.sameHerSummary ? `project_anchor=${input.sameHerSummary}` : '',
-    input.sameHerHoldDetail ? `hold=${input.sameHerHoldDetail}` : '',
-    input.sameHerDriftRiskSummary ? `drift=${input.sameHerDriftRiskSummary}` : '',
-    input.proactiveSameHerGapSummary ? `proactive-gap=${input.proactiveSameHerGapSummary}` : '',
-    input.currentPhaseSummary ? `phase=${input.currentPhaseSummary}` : '',
-    input.landedProgressSummary ? `landed=${input.landedProgressSummary}` : '',
-    input.openClosureSummary ? `open=${input.openClosureSummary}` : '',
-    input.openFocusSummary ? `open-focus=${input.openFocusSummary}` : '',
-    input.nextFocusSummary ? `next-focus=${input.nextFocusSummary}` : '',
-    input.nextClosureTargetSummary ? `next=${input.nextClosureTargetSummary}` : '',
-    input.memoryClosureSummary ? `memory=${input.memoryClosureSummary}` : '',
-    input.recallWhySummary ? `recall=${input.recallWhySummary}` : '',
-    input.emotionalClosureSummary ? `closure=${input.emotionalClosureSummary}` : '',
-    input.embodimentClosureSummary ? `body=${input.embodimentClosureSummary}` : '',
-  ].filter(Boolean).join(' | ') || null
+    input.sameHerSummary ? `Continuity anchor: ${input.sameHerSummary}.` : '',
+    input.sameHerHoldDetail ? `Hold detail: ${input.sameHerHoldDetail}.` : '',
+    input.sameHerDriftRiskSummary ? `Drift risk: ${input.sameHerDriftRiskSummary}.` : '',
+    input.proactiveSameHerGapSummary ? `Proactive gap: ${input.proactiveSameHerGapSummary}.` : '',
+    input.currentPhaseSummary ? `Phase: ${input.currentPhaseSummary}.` : '',
+    input.landedProgressSummary ? `Landed progress: ${input.landedProgressSummary}.` : '',
+    input.openClosureSummary ? `Open focus: ${input.openClosureSummary}.` : '',
+    input.openFocusSummary ? `Open focus summary: ${input.openFocusSummary}.` : '',
+    input.nextFocusSummary ? `Next focus summary: ${input.nextFocusSummary}.` : '',
+    input.nextClosureTargetSummary ? `Next focus: ${input.nextClosureTargetSummary}.` : '',
+    input.memoryClosureSummary ? `Memory closure: ${input.memoryClosureSummary}.` : '',
+    input.recallWhySummary ? `Recall reason: ${input.recallWhySummary}.` : '',
+    input.emotionalClosureSummary ? `Emotional closure: ${input.emotionalClosureSummary}.` : '',
+    input.embodimentClosureSummary ? `Embodiment closure: ${input.embodimentClosureSummary}.` : '',
+  ].filter(Boolean).join(' ') || null
 }
 
 function preferRicherProjectStateAuditText(input: {
@@ -879,71 +878,76 @@ function preferProjectStateAuditPhaseSummary(...values: Array<unknown>) {
   }, normalizedValues[0]!)
 }
 
-function mergeVisibleReplyProjectStateAudit(input: {
-  primary?: {
-    sameHerSummary?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRiskSummary?: string | null
-    proactiveSameHerGapSummary?: string | null
-    currentPhaseSummary?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    openFocusSummary?: string | null
-    nextFocusSummary?: string | null
-    nextClosureTargetSummary?: string | null
-    memoryClosureSummary?: string | null
-    recallWhySummary?: string | null
-    emotionalClosureSummary?: string | null
-    emotionalClosureCue?: string | null
-    preDialogueAwarenessSummary?: string | null
-    continuitySummary?: string | null
-    embodimentClosureSummary?: string | null
-    preservedIntoRewrite?: boolean
-    rewriteClosureApplied?: boolean
-  } | null
-  payload?: {
-    sameHerSummary?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRiskSummary?: string | null
-    proactiveSameHerGapSummary?: string | null
-    currentPhaseSummary?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    openFocusSummary?: string | null
-    nextFocusSummary?: string | null
-    nextClosureTargetSummary?: string | null
-    memoryClosureSummary?: string | null
-    recallWhySummary?: string | null
-    emotionalClosureSummary?: string | null
-    emotionalClosureCue?: string | null
-    preDialogueAwarenessSummary?: string | null
-    continuitySummary?: string | null
-    embodimentClosureSummary?: string | null
-    preservedIntoRewrite?: boolean
-    rewriteClosureApplied?: boolean
-  } | null
-  structured?: {
-    sameHerSummary?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRiskSummary?: string | null
-    proactiveSameHerGapSummary?: string | null
-    currentPhaseSummary?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    openFocusSummary?: string | null
-    nextFocusSummary?: string | null
-    nextClosureTargetSummary?: string | null
-    memoryClosureSummary?: string | null
-    recallWhySummary?: string | null
-    emotionalClosureSummary?: string | null
-    emotionalClosureCue?: string | null
-    preDialogueAwarenessSummary?: string | null
-    continuitySummary?: string | null
-    embodimentClosureSummary?: string | null
-    preservedIntoRewrite?: boolean
-    rewriteClosureApplied?: boolean
-  } | null
-}) {
+type VisibleReplyProjectStateAuditEvidence
+  = NonNullable<AlicizationVisibleReplyRealizationArtifact['projectStateAudit']>
+type VisibleReplyProjectStateAuditInput = Partial<VisibleReplyProjectStateAuditEvidence>
+type VisibleReplyPublicCriticSummary
+  = NonNullable<AlicizationVisibleReplyRealizationArtifact['critic']>
+type VisibleReplyOpeningEmbodimentAudit
+  = NonNullable<AlicizationVisibleReplyRealizationArtifact['openingEmbodimentAudit']>
+
+interface PendingVisibleReplyRealizationTelemetry {
+  version: 'visible-reply-realization-v1'
+  expectedAuthority: 'llm-mind' | null
+  actualAuthority: 'llm-mind' | 'local-deterministic-fallback' | 'non-human-authored-blocked' | null
+  providerMindExecuted: boolean | null
+  mode: string | null
+  visibleText: string | null
+  visibleReplyValidationStatus: AlicizationVisibleReplyValidationStatus
+  projectStateEvidenceStatus: AlicizationProjectStateEvidenceStatus
+  sameHerInwardCarry: string | null
+  nonHumanAuthoredStatus: string | null
+  blockedReasons: string[]
+  emotionalClosureAudit: AlicizationVisibleReplyRealizationArtifact['emotionalClosureAudit']
+  selfAuthorityAudit: AlicizationVisibleReplyRealizationArtifact['selfAuthorityAudit']
+  projectStateAudit: AlicizationVisibleReplyRealizationArtifact['projectStateAudit']
+  openingGuidanceHoldDetail: string | null
+  companionshipHoldMode: AlicizationVisibleReplyRealizationArtifact['companionshipHoldMode']
+  openingEmbodimentAudit: AlicizationVisibleReplyRealizationArtifact['openingEmbodimentAudit']
+  reason: string | null
+  critic: AlicizationVisibleReplyRealizationArtifact['critic']
+  closure: AlicizationVisibleReplyRealizationArtifact['closure']
+}
+
+const visibleReplyProjectStateEvidenceKeys = [
+  'sameHerSummary',
+  'sameHerHoldDetail',
+  'continuityArcStage',
+  'continuityCue',
+  'sameHerDriftRiskSummary',
+  'proactiveSameHerGapSummary',
+  'currentPhaseSummary',
+  'landedProgressSummary',
+  'openClosureSummary',
+  'openFocusSummary',
+  'nextFocusSummary',
+  'nextClosureTargetSummary',
+  'memoryClosureSummary',
+  'recallWhySummary',
+  'emotionalClosureSummary',
+  'emotionalClosureCue',
+  'continuitySummary',
+  'embodimentClosureSummary',
+  'preDialogueAwarenessSummary',
+] as const satisfies ReadonlyArray<keyof VisibleReplyProjectStateAuditEvidence>
+
+function hasVisibleReplyProjectStateEvidence(
+  audit: VisibleReplyProjectStateAuditInput | null | undefined,
+) {
+  return Boolean(
+    audit
+    && visibleReplyProjectStateEvidenceKeys.some((key) => {
+      const value = audit[key]
+      return typeof value === 'string' && value.trim().length > 0
+    }),
+  )
+}
+
+function mergeVisibleReplyProjectStateAudit<TInput extends {
+  primary?: VisibleReplyProjectStateAuditInput | null
+  payload?: VisibleReplyProjectStateAuditInput | null
+  structured?: VisibleReplyProjectStateAuditInput | null
+}>(input: TInput) {
   if (!input.primary && !input.payload && !input.structured)
     return null
 
@@ -961,6 +965,20 @@ function mergeVisibleReplyProjectStateAudit(input: {
       }),
     })
     ?? null
+  const mergedContinuityArcStage = preferRicherProjectStateAuditText({
+    current: preferRicherProjectStateAuditText({
+      current: input.primary?.continuityArcStage,
+      candidate: input.payload?.continuityArcStage,
+    }),
+    candidate: input.structured?.continuityArcStage,
+  })
+  const mergedContinuityCue = preferRicherProjectStateAuditText({
+    current: preferRicherProjectStateAuditText({
+      current: input.primary?.continuityCue,
+      candidate: input.payload?.continuityCue,
+    }),
+    candidate: input.structured?.continuityCue,
+  })
   const mergedSameHerDriftRiskSummary = preferRicherProjectStateAuditText({
     current: preferRicherProjectStateAuditText({
       current: input.primary?.sameHerDriftRiskSummary,
@@ -1057,9 +1075,11 @@ function mergeVisibleReplyProjectStateAudit(input: {
     input.payload?.embodimentClosureSummary,
   )
 
-  return {
+  const mergedAudit = {
     sameHerSummary: mergedSameHerSummary,
     sameHerHoldDetail: mergedSameHerHoldDetail,
+    continuityArcStage: mergedContinuityArcStage,
+    continuityCue: mergedContinuityCue,
     sameHerDriftRiskSummary: mergedSameHerDriftRiskSummary,
     proactiveSameHerGapSummary: mergedProactiveSameHerGapSummary,
     currentPhaseSummary: mergedCurrentPhaseSummary,
@@ -1122,343 +1142,22 @@ function mergeVisibleReplyProjectStateAudit(input: {
       embodimentClosureSummary: mergedEmbodimentClosureSummary,
     }),
     embodimentClosureSummary: mergedEmbodimentClosureSummary,
-    preservedIntoRewrite:
-      input.primary?.preservedIntoRewrite
-      ?? input.payload?.preservedIntoRewrite
-      ?? input.structured?.preservedIntoRewrite
-      ?? false,
-    rewriteClosureApplied:
-      input.primary?.rewriteClosureApplied
-      ?? input.payload?.rewriteClosureApplied
-      ?? input.structured?.rewriteClosureApplied
-      ?? false,
-  }
-}
-
-function readProjectStateSummarySegments(summaryLine: string | null | undefined) {
-  return (typeof summaryLine === 'string' ? summaryLine : '')
-    .split('|')
-    .map(segment => sanitizeText(segment, '') || null)
-    .filter((segment): segment is string => Boolean(segment))
-}
-
-function readPrefixedProjectStateSummarySegment(input: {
-  segments: string[]
-  prefix: string
-}) {
-  const lowerPrefix = input.prefix.toLowerCase()
-  const match = input.segments.find(segment => segment.toLowerCase().startsWith(lowerPrefix))
-  if (!match)
-    return null
-
-  return sanitizeText(match.slice(input.prefix.length), '') || null
-}
-
-function readPhaseProjectStateSummarySegment(segments: string[]) {
-  return segments.find(segment => /phase\s*\d+|phase\s*i\b/u.test(segment.toLowerCase())) ?? null
-}
-
-function readSameHerSelfAnchorReasonPreviewPayload(reasons: string[] | null | undefined) {
-  const match = (Array.isArray(reasons) ? reasons : [])
-    .map(reason => sanitizeText(reason, '') || null)
-    .find(reason => Boolean(reason) && /^same-her self anchor:\s*/iu.test(reason!))
-
-  if (!match)
-    return null
-
-  return sanitizeText(match.replace(/^same-her self anchor:\s*/iu, ''), '') || null
-}
-
-function readSameHerDriftRiskReasonPreviewPayload(reasons: string[] | null | undefined) {
-  const match = (Array.isArray(reasons) ? reasons : [])
-    .map(reason => sanitizeText(reason, '') || null)
-    .find(reason => Boolean(reason) && /^do not let this opening drift into\s*/iu.test(reason!))
-
-  if (!match)
-    return null
-
-  return sanitizeText(match.replace(/^do not let this opening drift into\s*/iu, ''), '') || null
-}
-
-function readProactiveSameHerGapReasonPreviewPayload(reasons: string[] | null | undefined) {
-  const match = (Array.isArray(reasons) ? reasons : [])
-    .map(reason => sanitizeText(reason, '') || null)
-    .find(reason => Boolean(reason) && /^proactive same-her gap:\s*/iu.test(reason!))
-
-  if (!match)
-    return null
-
-  return sanitizeText(match.replace(/^proactive same-her gap:\s*/iu, ''), '') || null
-}
-
-function readOpenClosureReasonPreviewPayload(reasons: string[] | null | undefined) {
-  return (Array.isArray(reasons) ? reasons : [])
-    .map(reason => sanitizeText(reason, '') || null)
-    .find((reason) => {
-      if (!reason)
-        return false
-      return !/^same-her self anchor:\s*/iu.test(reason)
-        && !/^proactive same-her gap:\s*/iu.test(reason)
-        && !/^do not let this opening drift into\s*/iu.test(reason)
-        && !/^next closure target is still\s*/iu.test(reason)
-    }) ?? null
-}
-
-function readNextClosureReasonPreviewPayload(reasons: string[] | null | undefined) {
-  const match = (Array.isArray(reasons) ? reasons : [])
-    .map(reason => sanitizeText(reason, '') || null)
-    .find(reason => Boolean(reason) && /^next closure target is still\s*/iu.test(reason!))
-
-  if (!match)
-    return null
-
-  return sanitizeText(match.replace(/^next closure target is still\s*/iu, ''), '') || null
-}
-
-function buildProjectStateAuditFromPreDialogueAwarenessDebug(
-  debug: {
-    preDialogueAwarenessStatus: 'drift' | 'grounded' | 'partial'
-    preDialogueAwarenessSummaryLine: string | null
-    preDialogueAwarenessLine: string | null
-    preDialogueCompanionBriefingLine: string | null
-    preDialogueNextClosureLine: string | null
-    preDialogueEmotionalClosureCue: string | null
-    preDialogueSameHerSelfLine?: string | null
-    preDialogueProjectStateAwarenessLine?: string | null
-    preDialogueProjectStateAwarenessSummary?: string | null
-    preDialogueProjectStateCompanionBriefingLine?: string | null
-    preDialogueProjectStateEmotionalClosureSummary?: string | null
-    preDialogueProjectStateSameHerHoldDetail?: string | null
-    preDialogueProjectStateContinuityCue?: string | null
-    preDialogueProjectStateContinuityPreferredTiming?: string | null
-    preDialogueProjectStateContinuityCadence?: string | null
-    preDialogueProjectStatePreferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-    preDialogueProjectStatePreferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-    preDialogueReasonPreview: string[]
-    preDialogueReasonCount: number
-  } | null | undefined,
-) {
-  if (!debug)
-    return null
-
-  const summarySegments = readProjectStateSummarySegments(
-    sanitizeText(debug.preDialogueAwarenessSummaryLine, '') || null,
-  )
-  const sameHerSummary
-    = sanitizeText((debug as { preDialogueSameHerSelfLine?: unknown }).preDialogueSameHerSelfLine, '')
-      || readSameHerSelfAnchorReasonPreviewPayload(debug.preDialogueReasonPreview ?? null)
-      || null
-  const sameHerDriftRiskSummary
-    = readSameHerDriftRiskReasonPreviewPayload(debug.preDialogueReasonPreview ?? null)
-      || null
-  const proactiveSameHerGapSummary
-    = readPrefixedProjectStateSummarySegment({
-      segments: summarySegments,
-      prefix: 'continuity_gap=',
-    })
-    || readPrefixedProjectStateSummarySegment({
-      segments: summarySegments,
-      prefix: 'proactive-gap=',
-    })
-    || readProactiveSameHerGapReasonPreviewPayload(debug.preDialogueReasonPreview ?? null)
-    || null
-  const currentPhaseSummary = readPhaseProjectStateSummarySegment(summarySegments)
-  const landedProgressSummary = readPrefixedProjectStateSummarySegment({
-    segments: summarySegments,
-    prefix: 'landed=',
-  })
-  const openClosureSummary
-    = readPrefixedProjectStateSummarySegment({
-      segments: summarySegments,
-      prefix: 'open=',
-    })
-    || readOpenClosureReasonPreviewPayload(debug.preDialogueReasonPreview ?? null)
-    || null
-  const nextClosureTargetSummary
-    = sanitizeText(debug.preDialogueNextClosureLine, '')
-      || readPrefixedProjectStateSummarySegment({
-        segments: summarySegments,
-        prefix: 'next=',
-      })
-      || readNextClosureReasonPreviewPayload(debug.preDialogueReasonPreview ?? null)
-      || null
-  const emotionalClosureSummary = sanitizeText(debug.preDialogueEmotionalClosureCue, '') || null
-  const preDialogueAwarenessSummary = resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: {
-      preDialogueAwarenessLine: sanitizeText(debug.preDialogueAwarenessLine, '') || null,
-      preDialogueAwarenessSummary: sanitizeText(debug.preDialogueAwarenessLine, '') || null,
-      companionHeadlineLine: sameHerSummary,
-      companionBriefingLine: sanitizeText(debug.preDialogueCompanionBriefingLine, '') || null,
-      proactiveSameHerGap: proactiveSameHerGapSummary,
-      currentPhase: currentPhaseSummary,
-      landedProgressSummary,
-      openClosureSummary,
-      nextClosureTargetSummary,
-      emotionalClosureSummary,
-      sameHerDriftRiskSummary,
-    },
-    fallbackProjectState: {
-      preDialogueAwarenessLine: sanitizeText(debug.preDialogueAwarenessSummaryLine, '') || null,
-      preDialogueAwarenessSummary: sanitizeText(debug.preDialogueAwarenessSummaryLine, '') || null,
-      companionHeadlineLine: sameHerSummary,
-      companionBriefingLine: sanitizeText(debug.preDialogueCompanionBriefingLine, '') || null,
-      proactiveSameHerGap: proactiveSameHerGapSummary,
-      currentPhase: currentPhaseSummary,
-      landedProgressSummary,
-      openClosureSummary,
-      nextClosureTargetSummary,
-      emotionalClosureSummary,
-      sameHerDriftRiskSummary,
-    },
-  })
-  || sanitizeText(debug.preDialogueAwarenessLine, '')
-  || sanitizeText(debug.preDialogueAwarenessSummaryLine, '')
-  || null
-
-  if (
-    !sameHerSummary
-    && !sameHerDriftRiskSummary
-    && !proactiveSameHerGapSummary
-    && !currentPhaseSummary
-    && !landedProgressSummary
-    && !openClosureSummary
-    && !nextClosureTargetSummary
-    && !emotionalClosureSummary
-    && !preDialogueAwarenessSummary
-  ) {
-    return null
   }
 
-  return {
-    sameHerSummary,
-    sameHerHoldDetail: null,
-    sameHerDriftRiskSummary,
-    proactiveSameHerGapSummary,
-    currentPhaseSummary,
-    landedProgressSummary,
-    openClosureSummary,
-    openFocusSummary: null,
-    nextFocusSummary: null,
-    nextClosureTargetSummary,
-    emotionalClosureSummary,
-    emotionalClosureCue: emotionalClosureSummary,
-    preDialogueAwarenessSummary,
-    continuitySummary: buildProjectStateAuditContinuitySummary({
-      sameHerSummary,
-      sameHerDriftRiskSummary,
-      proactiveSameHerGapSummary,
-      currentPhaseSummary,
-      landedProgressSummary,
-      openClosureSummary,
-      nextClosureTargetSummary,
-      emotionalClosureSummary,
-      embodimentClosureSummary: null,
-    }),
-    embodimentClosureSummary: null,
-    preservedIntoRewrite: false,
-    rewriteClosureApplied: false,
-  }
-}
-
-function mergeVisibleReplyProjectStateAuditWithPending(input: {
-  pendingProjectStateAudit?: {
-    sameHerSummary?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRiskSummary?: string | null
-    currentPhaseSummary?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    openFocusSummary?: string | null
-    nextFocusSummary?: string | null
-    nextClosureTargetSummary?: string | null
-    memoryClosureSummary?: string | null
-    recallWhySummary?: string | null
-    emotionalClosureSummary?: string | null
-    emotionalClosureCue?: string | null
-    preDialogueAwarenessSummary?: string | null
-    continuitySummary?: string | null
-    embodimentClosureSummary?: string | null
-    preservedIntoRewrite?: boolean
-    rewriteClosureApplied?: boolean
-  } | null
-  primary?: {
-    sameHerSummary?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRiskSummary?: string | null
-    currentPhaseSummary?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    openFocusSummary?: string | null
-    nextFocusSummary?: string | null
-    nextClosureTargetSummary?: string | null
-    memoryClosureSummary?: string | null
-    recallWhySummary?: string | null
-    emotionalClosureSummary?: string | null
-    emotionalClosureCue?: string | null
-    preDialogueAwarenessSummary?: string | null
-    continuitySummary?: string | null
-    embodimentClosureSummary?: string | null
-    preservedIntoRewrite?: boolean
-    rewriteClosureApplied?: boolean
-  } | null
-  payload?: {
-    sameHerSummary?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRiskSummary?: string | null
-    currentPhaseSummary?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    openFocusSummary?: string | null
-    nextFocusSummary?: string | null
-    nextClosureTargetSummary?: string | null
-    memoryClosureSummary?: string | null
-    recallWhySummary?: string | null
-    emotionalClosureSummary?: string | null
-    emotionalClosureCue?: string | null
-    preDialogueAwarenessSummary?: string | null
-    continuitySummary?: string | null
-    embodimentClosureSummary?: string | null
-    preservedIntoRewrite?: boolean
-    rewriteClosureApplied?: boolean
-  } | null
-  structured?: {
-    sameHerSummary?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRiskSummary?: string | null
-    currentPhaseSummary?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    openFocusSummary?: string | null
-    nextFocusSummary?: string | null
-    nextClosureTargetSummary?: string | null
-    memoryClosureSummary?: string | null
-    recallWhySummary?: string | null
-    emotionalClosureSummary?: string | null
-    emotionalClosureCue?: string | null
-    preDialogueAwarenessSummary?: string | null
-    continuitySummary?: string | null
-    embodimentClosureSummary?: string | null
-    preservedIntoRewrite?: boolean
-    rewriteClosureApplied?: boolean
-  } | null
-}) {
-  return mergeVisibleReplyProjectStateAudit({
-    primary: mergeVisibleReplyProjectStateAudit({
-      primary: input.pendingProjectStateAudit ?? null,
-      structured: input.primary ?? null,
-    }),
-    payload: input.payload ?? null,
-    structured: input.structured ?? null,
-  })
+  return hasVisibleReplyProjectStateEvidence(mergedAudit)
+    ? mergedAudit
+    : null
 }
 
 function normalizeVisibleReplyProjectStateAudit(raw: unknown) {
-  if (!raw || typeof raw !== 'object')
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
 
-  return {
+  const normalizedAudit = {
     sameHerSummary: sanitizeText((raw as any).sameHerSummary, '') || null,
     sameHerHoldDetail: sanitizeText((raw as any).sameHerHoldDetail, '') || null,
+    continuityArcStage: sanitizeText((raw as any).continuityArcStage, '') || null,
+    continuityCue: sanitizeText((raw as any).continuityCue, '') || null,
     sameHerDriftRiskSummary: sanitizeText((raw as any).sameHerDriftRiskSummary, '') || null,
     proactiveSameHerGapSummary: sanitizeText((raw as any).proactiveSameHerGapSummary, '') || null,
     currentPhaseSummary: sanitizeText((raw as any).currentPhaseSummary, '') || null,
@@ -1474,16 +1173,321 @@ function normalizeVisibleReplyProjectStateAudit(raw: unknown) {
     preDialogueAwarenessSummary: sanitizeText((raw as any).preDialogueAwarenessSummary, '') || null,
     continuitySummary: sanitizeText((raw as any).continuitySummary, '') || null,
     embodimentClosureSummary: sanitizeText((raw as any).embodimentClosureSummary, '') || null,
-    preservedIntoRewrite: (raw as any).preservedIntoRewrite === true,
-    rewriteClosureApplied: (raw as any).rewriteClosureApplied === true,
+  }
+
+  return hasVisibleReplyProjectStateEvidence(normalizedAudit)
+    ? normalizedAudit
+    : null
+}
+
+function normalizeVisibleReplyReasonCodes(raw: unknown, limit = 12) {
+  return Array.isArray(raw)
+    ? raw
+        .map(item => sanitizeText(item, ''))
+        .filter(Boolean)
+        .slice(0, limit)
+    : []
+}
+
+function normalizeVisibleReplyCriticStatus(raw: unknown): VisibleReplyPublicCriticSummary['status'] | null {
+  return raw === 'pass' || raw === 'blocked'
+    ? raw
+    : null
+}
+
+function normalizeVisibleReplyPublicCriticSummary(raw: unknown): AlicizationVisibleReplyRealizationArtifact['critic'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const status = normalizeVisibleReplyCriticStatus((raw as any).status)
+  if (!status)
+    return null
+
+  return {
+    version: 'visible-reply-critic-public-summary-v1',
+    status,
+    providerMindRequired: (raw as any).providerMindRequired === true,
+    reasonCodes: normalizeVisibleReplyReasonCodes((raw as any).reasonCodes),
+  }
+}
+
+function normalizeVisibleReplyPublicClosureSummary(raw: unknown): AlicizationVisibleReplyRealizationArtifact['closure'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const status = (raw as any).status
+  if (status !== 'approved' && status !== 'blocked')
+    return null
+
+  return {
+    version: 'visible-reply-closure-public-summary-v1',
+    status,
+    reasonCodes: normalizeVisibleReplyReasonCodes((raw as any).reasonCodes),
+    initialCriticStatus: normalizeVisibleReplyCriticStatus((raw as any).initialCriticStatus),
+    finalCriticStatus: normalizeVisibleReplyCriticStatus((raw as any).finalCriticStatus),
+  }
+}
+
+interface VisibleReplyRealizationFactSource {
+  visibleReplyValidationStatus?: unknown
+  projectStateEvidenceStatus?: unknown
+  closure?: unknown
+}
+
+function resolveVisibleReplyRealizationFacts(input: {
+  sources: Array<VisibleReplyRealizationFactSource | null | undefined>
+  projectStateAudit: AlicizationVisibleReplyRealizationArtifact['projectStateAudit']
+}) {
+  const normalizedClosures = input.sources
+    .map(source => normalizeVisibleReplyPublicClosureSummary(source?.closure))
+    .filter((closure): closure is NonNullable<AlicizationVisibleReplyRealizationArtifact['closure']> => Boolean(closure))
+  const closure = normalizedClosures.find(candidate => candidate.status === 'blocked')
+    ?? normalizedClosures.find(candidate => candidate.status === 'approved')
+    ?? null
+  const visibleReplyValidationStatus: AlicizationVisibleReplyValidationStatus
+    = closure?.status ?? 'unknown'
+  const evidenceWasComputed = input.sources.some(source =>
+    normalizeAlicizationProjectStateEvidenceStatus(source?.projectStateEvidenceStatus) !== 'unknown',
+  )
+  const projectStateEvidenceStatus: AlicizationProjectStateEvidenceStatus = evidenceWasComputed
+    ? hasVisibleReplyProjectStateEvidence(input.projectStateAudit)
+      ? 'present'
+      : 'missing'
+    : 'unknown'
+
+  return {
+    visibleReplyValidationStatus,
+    projectStateEvidenceStatus,
+    closure,
+  }
+}
+
+function normalizeVisibleReplyOpeningEmbodimentAudit(
+  raw: unknown,
+): AlicizationVisibleReplyRealizationArtifact['openingEmbodimentAudit'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const firstBeatPosture = (raw as any).firstBeatPosture
+  const facialCue = (raw as any).facialCue
+  const actionCue = (raw as any).actionCue
+  const derivedFrom = sanitizeText((raw as any).derivedFrom, '')
+  if (
+    firstBeatPosture !== 'quiet-companionship'
+    && firstBeatPosture !== 'measured-return'
+    && firstBeatPosture !== 'repair-before-closeness'
+    && firstBeatPosture !== 'rest-protective'
+  ) {
+    return null
+  }
+  if (facialCue !== 'soften' && facialCue !== 'settle-repair' && facialCue !== 'quiet' && facialCue !== 'rest-soften')
+    return null
+  if (actionCue !== 'stillness' && actionCue !== 'leave-room' && actionCue !== 'repair-settle' && actionCue !== 'rest-settle')
+    return null
+  if ((raw as any).delivery !== 'calm' || !derivedFrom)
+    return null
+
+  return {
+    firstBeatPosture: firstBeatPosture as VisibleReplyOpeningEmbodimentAudit['firstBeatPosture'],
+    delivery: 'calm',
+    facialCue: facialCue as VisibleReplyOpeningEmbodimentAudit['facialCue'],
+    actionCue: actionCue as VisibleReplyOpeningEmbodimentAudit['actionCue'],
+    derivedFrom,
+  }
+}
+
+function normalizeVisibleReplyRealizationTelemetry(raw: unknown): PendingVisibleReplyRealizationTelemetry | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const expectedAuthority = sanitizeText((raw as any).expectedAuthority, '') === 'llm-mind'
+    ? 'llm-mind'
+    : null
+  const rawActualAuthority = sanitizeText((raw as any).actualAuthority, '')
+  const actualAuthority = rawActualAuthority === 'llm-mind'
+    || rawActualAuthority === 'local-deterministic-fallback'
+    || rawActualAuthority === 'non-human-authored-blocked'
+    ? rawActualAuthority
+    : null
+  const rawEmotionalClosureAudit = (raw as any).emotionalClosureAudit
+  const emotionalClosureAudit = rawEmotionalClosureAudit
+    && typeof rawEmotionalClosureAudit === 'object'
+    && !Array.isArray(rawEmotionalClosureAudit)
+    ? {
+        activeCue: sanitizeText(rawEmotionalClosureAudit.activeCue, '') || null,
+        lowPressureRequired: rawEmotionalClosureAudit.lowPressureRequired === true,
+        antiRestartRequired: rawEmotionalClosureAudit.antiRestartRequired === true,
+      }
+    : null
+  const rawSelfAuthorityAudit = (raw as any).selfAuthorityAudit
+  const selfAuthorityAudit = rawSelfAuthorityAudit
+    && typeof rawSelfAuthorityAudit === 'object'
+    && !Array.isArray(rawSelfAuthorityAudit)
+    ? {
+        authoritySummary: sanitizeText(rawSelfAuthorityAudit.authoritySummary, '') || null,
+        closenessPosture: sanitizeText(rawSelfAuthorityAudit.closenessPosture, '') || null,
+      }
+    : null
+  const rawCompanionshipHoldMode = (raw as any).companionshipHoldMode
+  const companionshipHoldMode = rawCompanionshipHoldMode === 'quiet-companionship'
+    || rawCompanionshipHoldMode === 'measured-return'
+    || rawCompanionshipHoldMode === 'repair-before-closeness'
+    || rawCompanionshipHoldMode === 'rest-protective'
+    ? rawCompanionshipHoldMode
+    : null
+  const projectStateAudit = normalizeVisibleReplyProjectStateAudit((raw as any).projectStateAudit)
+  const closure = normalizeVisibleReplyPublicClosureSummary((raw as any).closure)
+  const realizationFacts = resolveVisibleReplyRealizationFacts({
+    sources: [{
+      visibleReplyValidationStatus: (raw as any).visibleReplyValidationStatus,
+      projectStateEvidenceStatus: (raw as any).projectStateEvidenceStatus,
+      closure,
+    }],
+    projectStateAudit,
+  })
+
+  return {
+    version: 'visible-reply-realization-v1',
+    expectedAuthority,
+    actualAuthority,
+    providerMindExecuted: typeof (raw as any).providerMindExecuted === 'boolean'
+      ? (raw as any).providerMindExecuted
+      : null,
+    mode: sanitizeText((raw as any).mode, '') || null,
+    visibleText: sanitizeText((raw as any).visibleText, '') || null,
+    visibleReplyValidationStatus: realizationFacts.visibleReplyValidationStatus,
+    projectStateEvidenceStatus: realizationFacts.projectStateEvidenceStatus,
+    sameHerInwardCarry: sanitizeText((raw as any).sameHerInwardCarry, '') || null,
+    nonHumanAuthoredStatus: sanitizeText((raw as any).nonHumanAuthoredStatus, '') || null,
+    blockedReasons: normalizeVisibleReplyReasonCodes((raw as any).blockedReasons),
+    emotionalClosureAudit,
+    selfAuthorityAudit,
+    projectStateAudit,
+    openingGuidanceHoldDetail: sanitizeText((raw as any).openingGuidanceHoldDetail, '') || null,
+    companionshipHoldMode,
+    openingEmbodimentAudit: normalizeVisibleReplyOpeningEmbodimentAudit((raw as any).openingEmbodimentAudit),
+    reason: sanitizeText((raw as any).reason, '') || null,
+    critic: normalizeVisibleReplyPublicCriticSummary((raw as any).critic),
+    closure: realizationFacts.closure,
+  }
+}
+
+function mergeVisibleReplyRealizationTelemetry(input: {
+  primary?: unknown
+  payload?: unknown
+  structured?: unknown
+  pending?: unknown
+}): PendingVisibleReplyRealizationTelemetry | null {
+  const primary = normalizeVisibleReplyRealizationTelemetry(input.primary)
+  const payload = normalizeVisibleReplyRealizationTelemetry(input.payload)
+  const structured = normalizeVisibleReplyRealizationTelemetry(input.structured)
+  const pending = normalizeVisibleReplyRealizationTelemetry(input.pending)
+  const sources = [primary, payload, structured, pending]
+    .filter((source): source is PendingVisibleReplyRealizationTelemetry => Boolean(source))
+  if (sources.length === 0)
+    return null
+
+  const base = primary ?? payload ?? structured ?? pending!
+  const projectStateAudit = mergeVisibleReplyProjectStateAudit({
+    primary: mergeVisibleReplyProjectStateAudit({
+      primary: pending?.projectStateAudit ?? null,
+      structured: primary?.projectStateAudit ?? null,
+    }),
+    payload: payload?.projectStateAudit ?? null,
+    structured: structured?.projectStateAudit ?? null,
+  })
+  const realizationFacts = resolveVisibleReplyRealizationFacts({
+    sources,
+    projectStateAudit,
+  })
+  const blockedReasons = sources.find(source => source.blockedReasons.length > 0)?.blockedReasons ?? []
+
+  return {
+    ...base,
+    expectedAuthority:
+      primary?.expectedAuthority
+      ?? payload?.expectedAuthority
+      ?? structured?.expectedAuthority
+      ?? pending?.expectedAuthority
+      ?? null,
+    actualAuthority:
+      primary?.actualAuthority
+      ?? payload?.actualAuthority
+      ?? structured?.actualAuthority
+      ?? pending?.actualAuthority
+      ?? null,
+    providerMindExecuted:
+      primary?.providerMindExecuted
+      ?? payload?.providerMindExecuted
+      ?? structured?.providerMindExecuted
+      ?? pending?.providerMindExecuted
+      ?? null,
+    mode: primary?.mode ?? payload?.mode ?? structured?.mode ?? pending?.mode ?? null,
+    visibleText:
+      primary?.visibleText
+      ?? payload?.visibleText
+      ?? structured?.visibleText
+      ?? pending?.visibleText
+      ?? null,
+    visibleReplyValidationStatus: realizationFacts.visibleReplyValidationStatus,
+    projectStateEvidenceStatus: realizationFacts.projectStateEvidenceStatus,
+    sameHerInwardCarry:
+      primary?.sameHerInwardCarry
+      ?? payload?.sameHerInwardCarry
+      ?? structured?.sameHerInwardCarry
+      ?? pending?.sameHerInwardCarry
+      ?? null,
+    nonHumanAuthoredStatus:
+      primary?.nonHumanAuthoredStatus
+      ?? payload?.nonHumanAuthoredStatus
+      ?? structured?.nonHumanAuthoredStatus
+      ?? pending?.nonHumanAuthoredStatus
+      ?? null,
+    blockedReasons: [...blockedReasons],
+    emotionalClosureAudit:
+      primary?.emotionalClosureAudit
+      ?? payload?.emotionalClosureAudit
+      ?? structured?.emotionalClosureAudit
+      ?? pending?.emotionalClosureAudit
+      ?? null,
+    selfAuthorityAudit:
+      primary?.selfAuthorityAudit
+      ?? payload?.selfAuthorityAudit
+      ?? structured?.selfAuthorityAudit
+      ?? pending?.selfAuthorityAudit
+      ?? null,
+    projectStateAudit,
+    openingGuidanceHoldDetail:
+      primary?.openingGuidanceHoldDetail
+      ?? payload?.openingGuidanceHoldDetail
+      ?? structured?.openingGuidanceHoldDetail
+      ?? pending?.openingGuidanceHoldDetail
+      ?? null,
+    companionshipHoldMode:
+      primary?.companionshipHoldMode
+      ?? payload?.companionshipHoldMode
+      ?? structured?.companionshipHoldMode
+      ?? pending?.companionshipHoldMode
+      ?? null,
+    openingEmbodimentAudit:
+      primary?.openingEmbodimentAudit
+      ?? payload?.openingEmbodimentAudit
+      ?? structured?.openingEmbodimentAudit
+      ?? pending?.openingEmbodimentAudit
+      ?? null,
+    reason: primary?.reason ?? payload?.reason ?? structured?.reason ?? pending?.reason ?? null,
+    critic: primary?.critic ?? payload?.critic ?? structured?.critic ?? pending?.critic ?? null,
+    closure: realizationFacts.closure,
   }
 }
 
 export const runtimeTestInternals = {
   buildProjectStateAuditContinuitySummary,
-  buildProjectStateAuditFromPreDialogueAwarenessDebug,
   mergeVisibleReplyProjectStateAudit,
+  mergeVisibleReplyRealizationTelemetry,
+  normalizeVisibleReplyRealizationTelemetry,
   normalizePersistedProjectStateForConversationTurn,
+  resolveVisibleReplyRealizationFacts,
   buildPreparedProjectStateClosureSnapshot: mainChatBackgroundRunTestInternals.buildPreparedProjectStateClosureSnapshot,
   getProactiveLoopStateCache: (cache: unknown, cardId: string) => {
     if (!(cache instanceof Map))
@@ -1521,7 +1525,18 @@ function normalizePersistedProjectStateForConversationTurn(input: {
   const structured = input.structured && typeof input.structured === 'object'
     ? { ...input.structured }
     : null
-  if (!structured || !assistantText)
+  if (!structured)
+    return structured
+  const hasVisibleReplyRealization = Object.prototype.hasOwnProperty.call(
+    structured,
+    'visibleReplyRealization',
+  )
+  const currentVisibleReplyRealization = normalizeVisibleReplyRealizationTelemetry(
+    structured.visibleReplyRealization,
+  )
+  if (hasVisibleReplyRealization)
+    structured.visibleReplyRealization = currentVisibleReplyRealization
+  if (!assistantText)
     return structured
 
   const currentProjectState = structured.projectState && typeof structured.projectState === 'object'
@@ -1769,7 +1784,7 @@ function normalizePersistedProjectStateForConversationTurn(input: {
       ?? input.projectStatePersistence.currentPhase
       ?? null,
     landedProgressSummary: preferredLatestLandedProgress
-      ?? alicizationProjectStatePersistenceLandedReminder,
+      ?? null,
     openClosureSummary: preferredPrimaryOpenLoop
       ?? preferredNextClosureTarget,
     openFocusSummary: deriveCompactProjectStateOpenFocusSummary(
@@ -1786,7 +1801,8 @@ function normalizePersistedProjectStateForConversationTurn(input: {
     ),
     nextFocusSummary: deriveCompactProjectStateNextFocusSummary(
       preferredNextClosureTarget
-      ?? alicizationProjectStatePersistenceNextClosureReminder,
+      ?? canonicalProjectState.nextClosureTarget
+      ?? null,
       {
         emotionalClosureCue:
           explicitCurrentEmotionalClosureCue
@@ -1821,10 +1837,10 @@ function normalizePersistedProjectStateForConversationTurn(input: {
       currentPhaseSummary:
         canonicalProjectState.currentPhase
         ?? input.projectStatePersistence.currentPhase
-        ?? 'runtime_personhood',
+        ?? null,
       landedProgressSummary:
         preferredLatestLandedProgress
-        ?? alicizationProjectStatePersistenceLandedReminder,
+        ?? null,
       openClosureSummary:
         preferredPrimaryOpenLoop
         ?? preferredNextClosureTarget
@@ -1843,7 +1859,8 @@ function normalizePersistedProjectStateForConversationTurn(input: {
       ),
       nextFocusSummary: deriveCompactProjectStateNextFocusSummary(
         preferredNextClosureTarget
-        ?? alicizationProjectStatePersistenceNextClosureReminder,
+        ?? canonicalProjectState.nextClosureTarget
+        ?? null,
         {
           emotionalClosureCue:
             explicitCurrentEmotionalClosureCue
@@ -1854,7 +1871,8 @@ function normalizePersistedProjectStateForConversationTurn(input: {
       ),
       nextClosureTargetSummary:
         preferredNextClosureTarget
-        ?? alicizationProjectStatePersistenceNextClosureReminder,
+        ?? canonicalProjectState.nextClosureTarget
+        ?? null,
       memoryClosureSummary: explicitCurrentMemoryClosureSummary,
       emotionalClosureSummary:
         explicitCurrentEmotionalClosureCue
@@ -1863,47 +1881,27 @@ function normalizePersistedProjectStateForConversationTurn(input: {
         || null,
       embodimentClosureSummary: null,
     }),
-    preservedIntoRewrite: false,
-    rewriteClosureApplied: false,
   }
 
-  const currentVisibleReplyRealization = structured.visibleReplyRealization && typeof structured.visibleReplyRealization === 'object'
-    ? { ...(structured.visibleReplyRealization as Record<string, unknown>) }
-    : null
-  const currentStructuredProjectStateAudit = currentVisibleReplyRealization?.projectStateAudit
-    && typeof currentVisibleReplyRealization.projectStateAudit === 'object'
-    ? currentVisibleReplyRealization.projectStateAudit as {
-      sameHerSummary?: string | null
-      sameHerHoldDetail?: string | null
-      sameHerDriftRiskSummary?: string | null
-      proactiveSameHerGapSummary?: string | null
-      currentPhaseSummary?: string | null
-      landedProgressSummary?: string | null
-      openClosureSummary?: string | null
-      openFocusSummary?: string | null
-      nextFocusSummary?: string | null
-      nextClosureTargetSummary?: string | null
-      memoryClosureSummary?: string | null
-      recallWhySummary?: string | null
-      emotionalClosureSummary?: string | null
-      emotionalClosureCue?: string | null
-      preDialogueAwarenessSummary?: string | null
-      continuitySummary?: string | null
-      embodimentClosureSummary?: string | null
-      preservedIntoRewrite?: boolean
-      rewriteClosureApplied?: boolean
-    }
-    : null
+  const currentStructuredProjectStateAudit = currentVisibleReplyRealization?.projectStateAudit ?? null
 
   const mergedStructuredProjectStateAudit = mergeVisibleReplyProjectStateAudit({
     primary: currentStructuredProjectStateAudit,
     structured: canonicalProjectStateAudit,
   })
+  const realizationFacts = resolveVisibleReplyRealizationFacts({
+    sources: [currentVisibleReplyRealization],
+    projectStateAudit: mergedStructuredProjectStateAudit,
+  })
 
   if (currentVisibleReplyRealization || mergedStructuredProjectStateAudit) {
     structured.visibleReplyRealization = {
       ...currentVisibleReplyRealization,
+      version: 'visible-reply-realization-v1',
+      visibleReplyValidationStatus: realizationFacts.visibleReplyValidationStatus,
+      projectStateEvidenceStatus: realizationFacts.projectStateEvidenceStatus,
       projectStateAudit: mergedStructuredProjectStateAudit,
+      closure: realizationFacts.closure,
     }
   }
 
@@ -2156,51 +2154,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   })
   const pendingMindTraceTelemetryByTurnId = new Map<string, {
     memoryTrace: AlicizationMindTraceMemorySnapshot | null
-    visibleReplyRealization?: {
-      expectedAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | null
-      actualAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | 'local-deterministic-fallback' | null
-      providerMindExecuted: boolean | null
-      mode: string | null
-      visibleText: string | null
-      nonHumanAuthoredStatus: string | null
-      blockedReasons: string[]
-      emotionalClosureAudit?: {
-        activeCue: string | null
-        preservedIntoRewrite: boolean
-        rewriteClosureApplied: boolean
-        lowPressureRequired?: boolean
-        antiRestartRequired?: boolean
-      } | null
-      selfAuthorityAudit?: {
-        authoritySummary: string | null
-        closenessPosture: string | null
-        preservedIntoRewrite: boolean
-        rewriteClosureApplied: boolean
-      } | null
-      projectStateAudit?: {
-        sameHerSummary: string | null
-        sameHerHoldDetail?: string | null
-        sameHerDriftRiskSummary?: string | null
-        currentPhaseSummary?: string | null
-        landedProgressSummary?: string | null
-        openClosureSummary?: string | null
-        openFocusSummary?: string | null
-        nextFocusSummary?: string | null
-        nextClosureTargetSummary?: string | null
-        emotionalClosureSummary?: string | null
-        emotionalClosureCue?: string | null
-        preDialogueAwarenessSummary?: string | null
-        continuitySummary?: string | null
-        embodimentClosureSummary?: string | null
-        preservedIntoRewrite: boolean
-        rewriteClosureApplied: boolean
-      } | null
-      reason: string | null
-    } | null
+    visibleReplyRealization?: PendingVisibleReplyRealizationTelemetry | null
   }>()
-  type PendingVisibleReplyRealizationTelemetry = NonNullable<
-    NonNullable<(typeof pendingMindTraceTelemetryByTurnId extends Map<any, infer TValue> ? TValue : never)['visibleReplyRealization']>
-  >
 
   function buildMindTraceMemorySnapshotFromPrepared(
     prepared: AlicizationPreparedMainChatExecutionResult,
@@ -2344,7 +2299,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   function rememberPreparedMindTrace(input: {
     payload: AlicizationChatStartPayload
     prepared: AlicizationPreparedMainChatExecutionResult
-    preDialogueAwarenessDebug?: ReturnType<typeof summarizeAlicizationPreDialogueSendIdentityForDebug>
   }) {
     const turnId = sanitizeText(input.payload.turnId, '')
     if (!turnId)
@@ -2352,58 +2306,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const memoryTrace = buildMindTraceMemorySnapshotFromPrepared(input.prepared)
     const surface = input.prepared.turnGraph?.surface ?? null
-    const preDialogueProjectStateAudit = buildProjectStateAuditFromPreDialogueAwarenessDebug(
-      input.preDialogueAwarenessDebug ?? null,
-    )
-    const normalizedSurfaceProjectStateAudit = normalizeVisibleReplyProjectStateAudit(surface?.projectStateAudit ?? null)
-    const visibleReplyRealization: PendingVisibleReplyRealizationTelemetry | null = surface || preDialogueProjectStateAudit
+    const normalizedSurfaceRealization = normalizeVisibleReplyRealizationTelemetry(surface)
+    const realizationFacts = resolveVisibleReplyRealizationFacts({
+      sources: [normalizedSurfaceRealization],
+      projectStateAudit: normalizedSurfaceRealization?.projectStateAudit ?? null,
+    })
+    const visibleReplyRealization: PendingVisibleReplyRealizationTelemetry | null = surface
       ? {
-          expectedAuthority: (() => {
-            const authority = sanitizeText(surface?.expectedAuthority, '')
-            return authority === 'llm-mind' || authority === 'llm-second-pass-rewrite'
-              ? authority
-              : null
-          })(),
-          actualAuthority: (() => {
-            const authority = sanitizeText(surface?.actualAuthority, '')
-            return authority === 'llm-mind'
-              || authority === 'llm-second-pass-rewrite'
-              || authority === 'local-deterministic-fallback'
-              ? authority
-              : null
-          })(),
-          providerMindExecuted: typeof surface?.providerMindExecuted === 'boolean'
-            ? surface.providerMindExecuted
-            : null,
-          mode: sanitizeText(surface?.mode, '') || null,
-          visibleText: sanitizeText(surface?.visibleText, '') || null,
-          nonHumanAuthoredStatus: sanitizeText(surface?.nonHumanAuthoredStatus, '') || null,
-          blockedReasons: [...(surface?.blockedReasons ?? [])]
-            .map(item => sanitizeText(item, ''))
-            .filter(Boolean)
-            .slice(0, 12),
-          emotionalClosureAudit: surface?.emotionalClosureAudit
-            ? {
-                activeCue: sanitizeText(surface.emotionalClosureAudit.activeCue, '') || null,
-                preservedIntoRewrite: surface.emotionalClosureAudit.preservedIntoRewrite === true,
-                rewriteClosureApplied: surface.emotionalClosureAudit.rewriteClosureApplied === true,
-                lowPressureRequired: surface.emotionalClosureAudit.lowPressureRequired === true,
-                antiRestartRequired: surface.emotionalClosureAudit.antiRestartRequired === true,
-              }
-            : null,
-          selfAuthorityAudit: surface?.selfAuthorityAudit
-            ? {
-                authoritySummary: sanitizeText(surface.selfAuthorityAudit.authoritySummary, '') || null,
-                closenessPosture: sanitizeText(surface.selfAuthorityAudit.closenessPosture, '') || null,
-                preservedIntoRewrite: surface.selfAuthorityAudit.preservedIntoRewrite === true,
-                rewriteClosureApplied: surface.selfAuthorityAudit.rewriteClosureApplied === true,
-              }
-            : null,
-          projectStateAudit: mergeVisibleReplyProjectStateAudit({
-            primary: preDialogueProjectStateAudit,
-            structured: normalizedSurfaceProjectStateAudit,
-          }),
-          reason: sanitizeText(surface?.reason, '') || (preDialogueProjectStateAudit ? 'pre-dialogue-awareness-debug' : null),
+          ...(
+            normalizedSurfaceRealization
+            ?? normalizeVisibleReplyRealizationTelemetry({})!
+          ),
+          visibleReplyValidationStatus: realizationFacts.visibleReplyValidationStatus,
+          projectStateEvidenceStatus: realizationFacts.projectStateEvidenceStatus,
+          projectStateAudit: normalizedSurfaceRealization?.projectStateAudit ?? null,
+          reason: normalizedSurfaceRealization?.reason ?? null,
+          closure: realizationFacts.closure,
         }
       : null
 
@@ -2424,46 +2342,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  function normalizeVisibleReplyRealizationTelemetry(raw: unknown): PendingVisibleReplyRealizationTelemetry | null {
-    if (!raw || typeof raw !== 'object')
-      return null
-
-    return {
-      expectedAuthority: sanitizeText((raw as any).expectedAuthority, '') as PendingVisibleReplyRealizationTelemetry['expectedAuthority'],
-      actualAuthority: sanitizeText((raw as any).actualAuthority, '') as PendingVisibleReplyRealizationTelemetry['actualAuthority'],
-      providerMindExecuted: typeof (raw as any).providerMindExecuted === 'boolean'
-        ? (raw as any).providerMindExecuted
-        : null,
-      mode: sanitizeText((raw as any).mode, '') || null,
-      visibleText: sanitizeText((raw as any).visibleText, '') || null,
-      nonHumanAuthoredStatus: sanitizeText((raw as any).nonHumanAuthoredStatus, '') || null,
-      blockedReasons: Array.isArray((raw as any).blockedReasons)
-        ? ((raw as any).blockedReasons as unknown[])
-            .map(item => sanitizeText(item, ''))
-            .filter(Boolean)
-            .slice(0, 12)
-        : [],
-      emotionalClosureAudit: (raw as any).emotionalClosureAudit
-        ? {
-            activeCue: sanitizeText((raw as any).emotionalClosureAudit.activeCue, '') || null,
-            preservedIntoRewrite: (raw as any).emotionalClosureAudit.preservedIntoRewrite === true,
-            rewriteClosureApplied: (raw as any).emotionalClosureAudit.rewriteClosureApplied === true,
-            lowPressureRequired: (raw as any).emotionalClosureAudit.lowPressureRequired === true,
-            antiRestartRequired: (raw as any).emotionalClosureAudit.antiRestartRequired === true,
-          }
-        : null,
-      selfAuthorityAudit: (raw as any).selfAuthorityAudit
-        ? {
-            authoritySummary: sanitizeText((raw as any).selfAuthorityAudit.authoritySummary, '') || null,
-            closenessPosture: sanitizeText((raw as any).selfAuthorityAudit.closenessPosture, '') || null,
-            preservedIntoRewrite: (raw as any).selfAuthorityAudit.preservedIntoRewrite === true,
-            rewriteClosureApplied: (raw as any).selfAuthorityAudit.rewriteClosureApplied === true,
-          }
-        : null,
-      projectStateAudit: normalizeVisibleReplyProjectStateAudit((raw as any).projectStateAudit),
-      reason: sanitizeText((raw as any).reason, '') || null,
-    }
-  }
   const {
     memoryLedgerRuntime,
     executionCallbackRuntime,
@@ -2600,12 +2478,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildHostPersonModel,
     resolveRecentContextualTurns,
     buildProactiveRecallSeed,
-    buildOrganicMemorySystemBlocks,
     tuneOrganicMemoryPromptContextForExecutiveTurn,
     buildPerformanceManifestSystemBlocks,
     resolveOrganicMemoryPromptContext: resolveBaseOrganicMemoryPromptContext,
   } = memoryRuntime
-  const projectStateSystemBlock = buildAlicizationProviderFacingProjectStateSystemBlock()
   const projectStateBrief = resolveAlicizationProjectStateBrief()
   const resolveOrganicMemoryPromptContext: typeof resolveBaseOrganicMemoryPromptContext = async (input) => {
     return await resolveBaseOrganicMemoryPromptContext({
@@ -3363,7 +3239,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const mainChatSessionRuntime = createAlicizationMainChatSessionRuntime({
     workingMemoryStore,
     buildMainRuntimeCorePromptBlocks,
-    buildOrganicMemorySystemBlocks,
     buildPerformanceManifestSystemBlocks,
     dialogueSessionManager,
     persistAutobiographicalEpisodesFromPreparedMirror: persistPreparedMirrorAutobiographicalEpisodes,
@@ -5185,7 +5060,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const performanceManifest = await getPerformanceManifest()
     const governedTurn = coerceConversationTurnToMindGovernedPayload(normalizedPayload, performanceManifest, {
-      visibleReplyOverrideMode: 'rewrite-request-only',
       currentConsciousFrame: visualPresenceStateByCard.get(activeCardId)?.currentConsciousFrame ?? null,
     })
     normalizedPayload = {
@@ -5313,27 +5187,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         })
       }
       return events
-    }
-
-    const shouldSkipDispatchOnlyPersistence = normalizedPayload.origin === 'user-turn'
-      && sanitizeText(normalizedPayload.assistantText).length === 0
-      && sanitizeText(readStringValue((normalizedPayload.structured as Record<string, unknown> | undefined)?.reply)).length === 0
-      && governedTurn.audit?.execution_dispatch_hidden === true
-    if (shouldSkipDispatchOnlyPersistence) {
-      await appendMindTurnTraceEvents(null)
-      await appendAuditLog({
-        level: 'notice',
-        category: 'alicization.dialogue',
-        action: 'mind-governance-dispatch-hidden',
-        message: 'Skipped visible dialogue persistence for an execution-first dispatch-only turn; result surface will be delivered by execution flow.',
-        payload: {
-          turnId: normalizedPayload.turnId,
-          sessionId: normalizedPayload.sessionId,
-          decisionTraceId: governedTurn.governance?.decisionTraceId ?? null,
-          reasons: governedTurn.reasons,
-        },
-      })
-      return false
     }
 
     try {
@@ -5592,23 +5445,23 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                 ? {
                     continuitySummary: previousSummary.includes('project_continuity=')
                       ? previousSummary
-                      : `project_continuity=${carrySummary || carryNarrative || 'continuation_state=active; cadence=lower_pressure; restart_policy=context_preserving'}`,
+                      : (carrySummary || carryNarrative || 'Continue the active thread with lower pressure and preserve context.'),
                     openingGuidance: previousOpeningGuidance
-                      || 'proactive_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving',
+                      || 'Continue proactively with lower pressure and preserve context.',
                     manifestationCadenceSummary: previousCadenceSummary
-                      || 'manifestation_cadence=quiet_continuation; continuation_state=active',
+                      || 'Quiet continuation on the active thread.',
                   }
                 : null
               const continuitySummary = previousSummary.includes('project_continuity=')
                 ? previousSummary
                 : proactiveSameLineCopy?.continuitySummary
-                  ?? `project_continuity=${carrySummary || carryNarrative || 'continuation_state=active; cadence=lower_pressure; restart_policy=context_preserving'}`
+                  ?? (carrySummary || carryNarrative || 'Continue the active thread with lower pressure and preserve context.')
               const openingGuidance = previousOpeningGuidance
                 || proactiveSameLineCopy?.openingGuidance
-                || 'callback_cadence=lower_pressure; continuation_state=active; restart_policy=context_preserving'
+                || 'Return to the callback with lower pressure and preserve context.'
               const manifestationCadenceSummary = previousCadenceSummary
                 || proactiveSameLineCopy?.manifestationCadenceSummary
-                || 'manifestation_cadence=quiet_continuation; continuation_state=active'
+                || 'Quiet continuation on the active thread.'
               const previousInwardLine = sanitizeBriefText(
                 visualPresenceState.personStateProjection?.selfContinuityAuthority?.inwardLine ?? '',
                 220,
@@ -5928,40 +5781,37 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             ...projectStatePersistence,
           }
         }
-        if (payloadVisibleReplyRealization && enrichedDialoguePayload.visibleReplyRealization) {
-          const structuredVisibleReplyProjectStateAudit
-            = enrichedDialoguePayload.structured.visibleReplyRealization
-              && typeof enrichedDialoguePayload.structured.visibleReplyRealization === 'object'
-              && (enrichedDialoguePayload.structured.visibleReplyRealization as { projectStateAudit?: unknown }).projectStateAudit
-              && typeof (enrichedDialoguePayload.structured.visibleReplyRealization as { projectStateAudit?: unknown }).projectStateAudit === 'object'
-              ? (enrichedDialoguePayload.structured.visibleReplyRealization as {
-                  projectStateAudit: Record<string, unknown>
-                }).projectStateAudit
-              : null
-          const mergedVisibleReplyProjectStateAudit = mergeVisibleReplyProjectStateAudit({
-            primary: mergeVisibleReplyProjectStateAudit({
-              primary: pendingMindTraceTelemetry?.visibleReplyRealization?.projectStateAudit ?? null,
-              structured: enrichedDialoguePayload.visibleReplyRealization.projectStateAudit ?? null,
-            }),
-            payload: payloadVisibleReplyRealization.projectStateAudit ?? null,
-            structured: structuredVisibleReplyProjectStateAudit,
-          })
+        const mergedVisibleReplyRealization = mergeVisibleReplyRealizationTelemetry({
+          primary: enrichedDialoguePayload.visibleReplyRealization,
+          payload: payloadVisibleReplyRealization,
+          structured: enrichedDialoguePayload.structured.visibleReplyRealization,
+          pending: pendingMindTraceTelemetry?.visibleReplyRealization,
+        })
+        if (mergedVisibleReplyRealization) {
           enrichedDialoguePayload.visibleReplyRealization = {
-            ...enrichedDialoguePayload.visibleReplyRealization,
-            expectedAuthority: enrichedDialoguePayload.visibleReplyRealization.expectedAuthority ?? payloadVisibleReplyRealization.expectedAuthority,
-            actualAuthority: enrichedDialoguePayload.visibleReplyRealization.actualAuthority ?? payloadVisibleReplyRealization.actualAuthority,
-            providerMindExecuted: enrichedDialoguePayload.visibleReplyRealization.providerMindExecuted ?? payloadVisibleReplyRealization.providerMindExecuted,
-            mode: enrichedDialoguePayload.visibleReplyRealization.mode ?? payloadVisibleReplyRealization.mode,
-            visibleText: enrichedDialoguePayload.visibleReplyRealization.visibleText ?? payloadVisibleReplyRealization.visibleText,
-            nonHumanAuthoredStatus: enrichedDialoguePayload.visibleReplyRealization.nonHumanAuthoredStatus ?? payloadVisibleReplyRealization.nonHumanAuthoredStatus,
-            blockedReasons: enrichedDialoguePayload.visibleReplyRealization.blockedReasons?.length
-              ? enrichedDialoguePayload.visibleReplyRealization.blockedReasons
-              : payloadVisibleReplyRealization.blockedReasons,
-            emotionalClosureAudit: enrichedDialoguePayload.visibleReplyRealization.emotionalClosureAudit ?? payloadVisibleReplyRealization.emotionalClosureAudit,
-            selfAuthorityAudit: enrichedDialoguePayload.visibleReplyRealization.selfAuthorityAudit ?? payloadVisibleReplyRealization.selfAuthorityAudit,
-            projectStateAudit: mergedVisibleReplyProjectStateAudit,
-            reason: enrichedDialoguePayload.visibleReplyRealization.reason ?? payloadVisibleReplyRealization.reason,
+            version: 'visible-reply-realization-v1',
+            expectedAuthority: mergedVisibleReplyRealization.expectedAuthority ?? 'llm-mind',
+            actualAuthority: mergedVisibleReplyRealization.actualAuthority,
+            providerMindExecuted: mergedVisibleReplyRealization.providerMindExecuted ?? false,
+            mode: (mergedVisibleReplyRealization.mode as any) ?? 'provider-stream',
+            visibleText: mergedVisibleReplyRealization.visibleText,
+            visibleReplyValidationStatus: mergedVisibleReplyRealization.visibleReplyValidationStatus,
+            projectStateEvidenceStatus: mergedVisibleReplyRealization.projectStateEvidenceStatus,
+            sameHerInwardCarry: mergedVisibleReplyRealization.sameHerInwardCarry,
+            nonHumanAuthoredStatus: mergedVisibleReplyRealization.nonHumanAuthoredStatus,
+            blockedReasons: [...mergedVisibleReplyRealization.blockedReasons],
+            emotionalClosureAudit: mergedVisibleReplyRealization.emotionalClosureAudit,
+            selfAuthorityAudit: mergedVisibleReplyRealization.selfAuthorityAudit,
+            projectStateAudit: mergedVisibleReplyRealization.projectStateAudit,
+            openingGuidanceHoldDetail: mergedVisibleReplyRealization.openingGuidanceHoldDetail,
+            companionshipHoldMode: mergedVisibleReplyRealization.companionshipHoldMode,
+            openingEmbodimentAudit: mergedVisibleReplyRealization.openingEmbodimentAudit,
+            reason: mergedVisibleReplyRealization.reason,
+            critic: mergedVisibleReplyRealization.critic,
+            closure: mergedVisibleReplyRealization.closure,
           }
+          enrichedDialoguePayload.structured.visibleReplyRealization
+            = enrichedDialoguePayload.visibleReplyRealization
         }
         if (isAlicizationAutonomousDialogueOrigin(enrichedDialoguePayload.origin) && enrichedDialoguePayload.structured.proactive) {
           const proactiveReasonCodes = enrichedDialoguePayload.structured.proactive.reasonCodes
@@ -6056,6 +5906,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         const structuredVisibleReplyRealization = normalizeVisibleReplyRealizationTelemetry(
           (normalizedPayload.structured as Record<string, unknown> | undefined)?.visibleReplyRealization,
         )
+        const mergedRuntimeSamplingProjectStateAudit = mergeVisibleReplyProjectStateAudit({
+          primary: pendingMindTraceTelemetry?.visibleReplyRealization?.projectStateAudit ?? null,
+          payload: payloadVisibleReplyRealization?.projectStateAudit ?? null,
+          structured: structuredVisibleReplyRealization?.projectStateAudit ?? null,
+        })
+        const runtimeSamplingRealizationFacts = resolveVisibleReplyRealizationFacts({
+          sources: [
+            pendingMindTraceTelemetry?.visibleReplyRealization,
+            payloadVisibleReplyRealization,
+            structuredVisibleReplyRealization,
+          ],
+          projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
+        })
         await replayBenchmarkRuntime.ingestRuntimeSamplingConversationTurn({
           row: {
             turnId: normalizedPayload.turnId ?? null,
@@ -6074,13 +5937,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                 providerMindExecuted: pendingMindTraceTelemetry.visibleReplyRealization.providerMindExecuted ?? false,
                 mode: (pendingMindTraceTelemetry.visibleReplyRealization.mode as any) ?? 'provider-stream',
                 visibleText: pendingMindTraceTelemetry.visibleReplyRealization.visibleText,
+                visibleReplyValidationStatus: runtimeSamplingRealizationFacts.visibleReplyValidationStatus,
+                projectStateEvidenceStatus: runtimeSamplingRealizationFacts.projectStateEvidenceStatus,
+                sameHerInwardCarry: pendingMindTraceTelemetry.visibleReplyRealization.sameHerInwardCarry,
                 nonHumanAuthoredStatus: pendingMindTraceTelemetry.visibleReplyRealization.nonHumanAuthoredStatus,
                 blockedReasons: [...pendingMindTraceTelemetry.visibleReplyRealization.blockedReasons],
                 emotionalClosureAudit: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit
                   ? {
                       activeCue: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit.activeCue,
-                      preservedIntoRewrite: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit.preservedIntoRewrite,
-                      rewriteClosureApplied: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit.rewriteClosureApplied,
                       lowPressureRequired: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit.lowPressureRequired,
                       antiRestartRequired: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit.antiRestartRequired,
                     }
@@ -6089,19 +5953,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                   ? {
                       authoritySummary: pendingMindTraceTelemetry.visibleReplyRealization.selfAuthorityAudit.authoritySummary,
                       closenessPosture: pendingMindTraceTelemetry.visibleReplyRealization.selfAuthorityAudit.closenessPosture,
-                      preservedIntoRewrite: pendingMindTraceTelemetry.visibleReplyRealization.selfAuthorityAudit.preservedIntoRewrite,
-                      rewriteClosureApplied: pendingMindTraceTelemetry.visibleReplyRealization.selfAuthorityAudit.rewriteClosureApplied,
                     }
                   : null,
-                projectStateAudit: mergeVisibleReplyProjectStateAuditWithPending({
-                  pendingProjectStateAudit: pendingMindTraceTelemetry.visibleReplyRealization.projectStateAudit ?? null,
-                  primary: pendingMindTraceTelemetry.visibleReplyRealization.projectStateAudit ?? null,
-                  payload: payloadVisibleReplyRealization?.projectStateAudit ?? null,
-                  structured: structuredVisibleReplyRealization?.projectStateAudit ?? null,
-                }),
+                projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
+                openingGuidanceHoldDetail: pendingMindTraceTelemetry.visibleReplyRealization.openingGuidanceHoldDetail,
+                companionshipHoldMode: pendingMindTraceTelemetry.visibleReplyRealization.companionshipHoldMode,
+                openingEmbodimentAudit: pendingMindTraceTelemetry.visibleReplyRealization.openingEmbodimentAudit,
                 reason: pendingMindTraceTelemetry.visibleReplyRealization.reason,
-                critic: null,
-                closure: null,
+                critic: pendingMindTraceTelemetry.visibleReplyRealization.critic,
+                closure: runtimeSamplingRealizationFacts.closure,
               }
             : payloadVisibleReplyRealization?.expectedAuthority
               && payloadVisibleReplyRealization.actualAuthority
@@ -6112,13 +5972,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                   providerMindExecuted: payloadVisibleReplyRealization.providerMindExecuted ?? false,
                   mode: (payloadVisibleReplyRealization.mode as any) ?? 'provider-stream',
                   visibleText: payloadVisibleReplyRealization.visibleText,
+                  visibleReplyValidationStatus: runtimeSamplingRealizationFacts.visibleReplyValidationStatus,
+                  projectStateEvidenceStatus: runtimeSamplingRealizationFacts.projectStateEvidenceStatus,
+                  sameHerInwardCarry: payloadVisibleReplyRealization.sameHerInwardCarry,
                   nonHumanAuthoredStatus: payloadVisibleReplyRealization.nonHumanAuthoredStatus,
                   blockedReasons: [...payloadVisibleReplyRealization.blockedReasons],
                   emotionalClosureAudit: payloadVisibleReplyRealization.emotionalClosureAudit
                     ? {
                         activeCue: payloadVisibleReplyRealization.emotionalClosureAudit.activeCue,
-                        preservedIntoRewrite: payloadVisibleReplyRealization.emotionalClosureAudit.preservedIntoRewrite,
-                        rewriteClosureApplied: payloadVisibleReplyRealization.emotionalClosureAudit.rewriteClosureApplied,
                         lowPressureRequired: payloadVisibleReplyRealization.emotionalClosureAudit.lowPressureRequired,
                         antiRestartRequired: payloadVisibleReplyRealization.emotionalClosureAudit.antiRestartRequired,
                       }
@@ -6127,19 +5988,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                     ? {
                         authoritySummary: payloadVisibleReplyRealization.selfAuthorityAudit.authoritySummary,
                         closenessPosture: payloadVisibleReplyRealization.selfAuthorityAudit.closenessPosture,
-                        preservedIntoRewrite: payloadVisibleReplyRealization.selfAuthorityAudit.preservedIntoRewrite,
-                        rewriteClosureApplied: payloadVisibleReplyRealization.selfAuthorityAudit.rewriteClosureApplied,
                       }
                     : null,
-                  projectStateAudit: mergeVisibleReplyProjectStateAuditWithPending({
-                    pendingProjectStateAudit: pendingMindTraceTelemetry?.visibleReplyRealization?.projectStateAudit ?? null,
-                    primary: payloadVisibleReplyRealization.projectStateAudit ?? null,
-                    payload: payloadVisibleReplyRealization.projectStateAudit ?? null,
-                    structured: structuredVisibleReplyRealization?.projectStateAudit ?? null,
-                  }),
+                  projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
+                  openingGuidanceHoldDetail: payloadVisibleReplyRealization.openingGuidanceHoldDetail,
+                  companionshipHoldMode: payloadVisibleReplyRealization.companionshipHoldMode,
+                  openingEmbodimentAudit: payloadVisibleReplyRealization.openingEmbodimentAudit,
                   reason: payloadVisibleReplyRealization.reason,
-                  critic: null,
-                  closure: null,
+                  critic: payloadVisibleReplyRealization.critic,
+                  closure: runtimeSamplingRealizationFacts.closure,
                 }
               : structuredVisibleReplyRealization?.expectedAuthority
                 && structuredVisibleReplyRealization.actualAuthority
@@ -6150,13 +6007,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                     providerMindExecuted: structuredVisibleReplyRealization.providerMindExecuted ?? false,
                     mode: (structuredVisibleReplyRealization.mode as any) ?? 'provider-stream',
                     visibleText: structuredVisibleReplyRealization.visibleText,
+                    visibleReplyValidationStatus: runtimeSamplingRealizationFacts.visibleReplyValidationStatus,
+                    projectStateEvidenceStatus: runtimeSamplingRealizationFacts.projectStateEvidenceStatus,
+                    sameHerInwardCarry: structuredVisibleReplyRealization.sameHerInwardCarry,
                     nonHumanAuthoredStatus: structuredVisibleReplyRealization.nonHumanAuthoredStatus,
                     blockedReasons: [...structuredVisibleReplyRealization.blockedReasons],
                     emotionalClosureAudit: structuredVisibleReplyRealization.emotionalClosureAudit
                       ? {
                           activeCue: structuredVisibleReplyRealization.emotionalClosureAudit.activeCue,
-                          preservedIntoRewrite: structuredVisibleReplyRealization.emotionalClosureAudit.preservedIntoRewrite,
-                          rewriteClosureApplied: structuredVisibleReplyRealization.emotionalClosureAudit.rewriteClosureApplied,
                           lowPressureRequired: structuredVisibleReplyRealization.emotionalClosureAudit.lowPressureRequired,
                           antiRestartRequired: structuredVisibleReplyRealization.emotionalClosureAudit.antiRestartRequired,
                         }
@@ -6165,19 +6023,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                       ? {
                           authoritySummary: structuredVisibleReplyRealization.selfAuthorityAudit.authoritySummary,
                           closenessPosture: structuredVisibleReplyRealization.selfAuthorityAudit.closenessPosture,
-                          preservedIntoRewrite: structuredVisibleReplyRealization.selfAuthorityAudit.preservedIntoRewrite,
-                          rewriteClosureApplied: structuredVisibleReplyRealization.selfAuthorityAudit.rewriteClosureApplied,
                         }
                       : null,
-                    projectStateAudit: mergeVisibleReplyProjectStateAuditWithPending({
-                      pendingProjectStateAudit: pendingMindTraceTelemetry?.visibleReplyRealization?.projectStateAudit ?? null,
-                      primary: structuredVisibleReplyRealization.projectStateAudit ?? null,
-                      payload: payloadVisibleReplyRealization?.projectStateAudit ?? null,
-                      structured: structuredVisibleReplyRealization.projectStateAudit ?? null,
-                    }),
+                    projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
+                    openingGuidanceHoldDetail: structuredVisibleReplyRealization.openingGuidanceHoldDetail,
+                    companionshipHoldMode: structuredVisibleReplyRealization.companionshipHoldMode,
+                    openingEmbodimentAudit: structuredVisibleReplyRealization.openingEmbodimentAudit,
                     reason: structuredVisibleReplyRealization.reason,
-                    critic: null,
-                    closure: null,
+                    critic: structuredVisibleReplyRealization.critic,
+                    closure: runtimeSamplingRealizationFacts.closure,
                   }
                 : payloadVisibleReplyExecution?.expectedVisibleReplyAuthority
                   && payloadVisibleReplyExecution.actualVisibleReplyAuthority
@@ -6188,20 +6042,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                       providerMindExecuted: payloadVisibleReplyExecution.providerMindExecuted,
                       mode: payloadVisibleReplyExecution.mode,
                       visibleText: sanitizeText(normalizedPayload.assistantText, '') || null,
+                      visibleReplyValidationStatus: runtimeSamplingRealizationFacts.visibleReplyValidationStatus,
+                      projectStateEvidenceStatus: runtimeSamplingRealizationFacts.projectStateEvidenceStatus,
                       nonHumanAuthoredStatus: payloadVisibleReplyExecution.providerMindExecuted
                         ? null
                         : payloadVisibleReplyExecution.reason ?? 'visible-reply-local-fallback',
                       blockedReasons: payloadVisibleReplyExecution.providerMindExecuted
                         ? []
                         : ['non-human-authored-visible-fallback'],
-                      projectStateAudit: mergeVisibleReplyProjectStateAuditWithPending({
-                        pendingProjectStateAudit: pendingMindTraceTelemetry?.visibleReplyRealization?.projectStateAudit ?? null,
-                        payload: payloadVisibleReplyRealization?.projectStateAudit ?? null,
-                        structured: structuredVisibleReplyRealization?.projectStateAudit ?? null,
-                      }),
+                      projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
                       reason: payloadVisibleReplyExecution.reason,
                       critic: null,
-                      closure: null,
+                      closure: runtimeSamplingRealizationFacts.closure,
                     }
                   : undefined,
           traceRecords: buildAlicizationMemoryDecisionTraceRecords(
@@ -6545,9 +6397,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       agentTurnInput: input.agentTurnInput,
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
-      extraSystemBlocks: buildAlicizationProviderFacingProjectStateExtraSystemBlocks().concat(
-        buildMemoryConsolidationProjectSelfBriefSystemBlock(),
-      ),
     }).catch(() => null)
 
     if (!raw)
@@ -6609,9 +6458,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       agentTurnInput: input.agentTurnInput,
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
-      extraSystemBlocks: buildAlicizationProviderFacingProjectStateExtraSystemBlocks().concat(
-        buildDreamProjectSelfBriefSystemBlock(),
-      ),
     }).catch(() => null)
 
     if (!raw)
@@ -6761,8 +6607,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       '[SYSTEM OVERRIDE: 内部动机触发]',
       '策略层已经完成是否打断的判断。你不能重新决定该不该打断，只能负责把既定策略措辞成一句自然对白。',
       ...truthContract.lines,
-      `Current subconscious tensions: boredom=${state.boredom.toFixed(1)}/100, loneliness=${state.loneliness.toFixed(1)}/100, fatigue=${state.fatigue.toFixed(1)}/100.`,
-      `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
+      `Current subconscious tensions: boredom ${state.boredom.toFixed(1)}/100, loneliness ${state.loneliness.toFixed(1)}/100, fatigue ${state.fatigue.toFixed(1)}/100.`,
+      `Personality parameters: obedience ${personality.obedience.toFixed(2)}, liveliness ${personality.liveliness.toFixed(2)}, sensibility ${personality.sensibility.toFixed(2)}.`,
       `Layered context JSON: ${JSON.stringify(layeredContext)}`,
       `Digital life architecture JSON: ${JSON.stringify(digitalLifeArchitecture)}`,
       `Visual presence JSON: ${JSON.stringify(digitalLifeRuntimeSurface)}`,
@@ -6833,7 +6679,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `style_constraint=${styleInstruction.instruction}`,
       `reply_max_chars=${styleInstruction.maxReplyChars}`,
       'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
-      'enum.emotion=neutral,happy,sad,angry,concerned,tired,apologetic,surprised,thinking',
+      'Emotion values: neutral, happy, sad, angry, concerned, tired, apologetic, surprised, thinking.',
       'emotion must exactly mirror performance.baseEmotion.',
       'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
       'reply_policy=concise,context_relevant,non_generic',
@@ -6860,9 +6706,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       agentTurn,
       agentTurnInput,
       extraSystemBlocks: [
-        projectStateSystemBlock,
-        buildProactiveProjectSelfBriefSystemBlock(),
-        ...buildOrganicMemorySystemBlocks(organicPromptContext),
+        ...buildOrganicMemoryProviderFactBlocks(organicPromptContext),
         buildProactivePerceptionSystemBlock({
           now: Date.now(),
           state: perceptionState,
@@ -6926,7 +6770,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       '[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]',
       '你的任务是阅读今天的对话记录，并结合已注入的当前有机记忆状态，产出下一轮记忆代谢结果。',
       `【语言一致性】输出语言应与主要交流语言一致（${primaryLanguage}）。`,
-      `【人格参数】obedience=${input.personality.obedience.toFixed(2)}, liveliness=${input.personality.liveliness.toFixed(2)}, sensibility=${input.personality.sensibility.toFixed(2)}.`,
+      `【人格参数】obedience ${input.personality.obedience.toFixed(2)}，liveliness ${input.personality.liveliness.toFixed(2)}，sensibility ${input.personality.sensibility.toFixed(2)}。`,
       '【拒绝流水账】不要记录工具调用、MCP、JSON、系统报错、执行日志或一次性事务。',
       '【活跃思绪】next_active_thoughts 只保留未来几天仍值得持续关注的 1-5 条短句。',
       '【显式下沉】explicit_demoted_thoughts 只能填写当前活跃思绪里你明确决定沉入潜层的旧条目。',
@@ -6954,7 +6798,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       cardId: activeCardId,
       agentTurn: input.agentTurn,
       agentTurnInput: input.agentTurnInput,
-      extraSystemBlocks: buildOrganicMemorySystemBlocks({
+      extraSystemBlocks: buildOrganicMemoryProviderFactBlocks({
         hostAttitude: input.hostAttitude,
         coreIncarnation: input.coreIncarnation,
         activeThoughts: input.activeThoughts,
@@ -6962,8 +6806,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         recalledFragments: [],
       }).concat(
         input.continuitySystemBlocks?.filter(Boolean) ?? [],
-        projectStateSystemBlock,
-        buildDreamProjectSelfBriefSystemBlock(),
       ),
     })
     if (!raw)
@@ -7019,9 +6861,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const dominantConcern = proactiveSelection.dominantConcern
     const initiative = digitalLifeRuntimeSurface.agency.initiative
     const activeThread = proactiveSelection.activeThread
+    const activeThreadSummary = sanitizeBriefText(activeThread?.summary ?? '', 40)
     const leadingGoal = proactiveSelection.leadingGoal
     const leadingGoalSummary = sanitizeBriefText(leadingGoal?.label ?? '', 48)
     const resurfacingDesire = proactiveSelection.resurfacingDesire
+    const resurfacingDesireReason = sanitizeBriefText(resurfacingDesire?.reason ?? '', 44)
     const livingWorldObject = proactiveSelection.livingWorldObject
     const governorIntention = proactiveSelection.governorIntention
     const governorSummary = sanitizeBriefText(governorIntention?.summary ?? '', 52)
@@ -7058,48 +6902,48 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     const doctrineAdjustedStyle = personStateProjection.preferredProactiveStyle ?? policyDecision.style
     const styleInstruction = buildProactiveStyleInstruction(doctrineAdjustedStyle)
-    const providerUnavailableReply = 'provider_mind_unavailable; visible_reply=held'
+    const providerUnavailableReply = 'Provider mind unavailable; visible reply held.'
 
     const thought = [
-      `boredom=${state.boredom.toFixed(1)}`,
-      `loneliness=${state.loneliness.toFixed(1)}`,
-      `fatigue=${state.fatigue.toFixed(1)}`,
-      `obedience=${personality.obedience.toFixed(2)}`,
-      `liveliness=${personality.liveliness.toFixed(2)}`,
-      `sensibility=${personality.sensibility.toFixed(2)}`,
-      `personaTone=${personaTone}`,
-      hostAttitude ? `hostAttitude=${hostAttitude}` : 'hostAttitude=none',
-      personStateProjection.preferenceText ? `hostPreference=${personStateProjection.preferenceText}` : 'hostPreference=none',
-      personStateProjection.sensitivityText ? `hostSensitivity=${personStateProjection.sensitivityText}` : 'hostSensitivity=none',
-      personStateProjection.repairTriggerText ? `hostRepairTrigger=${personStateProjection.repairTriggerText}` : 'hostRepairTrigger=none',
-      personStateProjection.relationshipDoctrine ? `relationshipDoctrine=${personStateProjection.relationshipDoctrine}` : 'relationshipDoctrine=none',
-      personStateProjection.summary ? `personState=${personStateProjection.summary}` : 'personState=none',
-      coreIncarnation ? `coreIncarnation=${coreIncarnation}` : 'coreIncarnation=none',
+      `Boredom ${state.boredom.toFixed(1)}.`,
+      `Loneliness ${state.loneliness.toFixed(1)}.`,
+      `Fatigue ${state.fatigue.toFixed(1)}.`,
+      `Obedience ${personality.obedience.toFixed(2)}.`,
+      `Liveliness ${personality.liveliness.toFixed(2)}.`,
+      `Sensibility ${personality.sensibility.toFixed(2)}.`,
+      `Persona tone: ${personaTone}.`,
+      hostAttitude ? `Host attitude: ${hostAttitude}.` : 'Host attitude: none.',
+      personStateProjection.preferenceText ? `Host preference: ${personStateProjection.preferenceText}.` : 'Host preference: none.',
+      personStateProjection.sensitivityText ? `Host sensitivity: ${personStateProjection.sensitivityText}.` : 'Host sensitivity: none.',
+      personStateProjection.repairTriggerText ? `Host repair trigger: ${personStateProjection.repairTriggerText}.` : 'Host repair trigger: none.',
+      personStateProjection.relationshipDoctrine ? `Relationship doctrine: ${personStateProjection.relationshipDoctrine}.` : 'Relationship doctrine: none.',
+      personStateProjection.summary ? `Person state: ${personStateProjection.summary}.` : 'Person state: none.',
+      coreIncarnation ? `Core incarnation: ${coreIncarnation}.` : 'Core incarnation: none.',
       lowObedience ? 'low-obedience bias active' : 'default bias',
-      `scenario=${policyDecision.scenario}`,
-      `style=${doctrineAdjustedStyle}`,
-      `truthState=${truthContract.truthState}`,
-      digitalLifeArchitecture ? `architecture=${digitalLifeArchitecture.summary}` : 'architecture=none',
-      runtimeDigest ? `runtimeDigest=${runtimeDigest.summary}` : 'runtimeDigest=none',
-      runtimeDigest ? `anthropomorphicMind=${runtimeDigest.channels['anthropomorphic-mind'].summary}` : 'anthropomorphicMind=none',
-      `content=${layeredContext.content.kind}`,
-      attentionAnchor ? `attentionAnchor=${sanitizeBriefText(describePerceptionTarget(attentionAnchor), 72)}` : 'attentionAnchor=none',
-      digitalLifeRuntimeSurface.cognition.appraisal ? `hostGoal=${digitalLifeRuntimeSurface.cognition.appraisal.inferredHostGoal}` : 'hostGoal=unknown',
-      activeThread ? `worldThread=${activeThread.kind}/${sanitizeBriefText(activeThread.title, 48)}` : 'worldThread=none',
-      leadingGoal ? `mindGoal=${leadingGoal.kind}/${leadingGoalSummary || 'none'}` : 'mindGoal=none',
-      dominantConcern ? `concern=${sanitizeBriefText(dominantConcern.summary, 72)}` : 'concern=none',
-      focusBelief ? `belief=${focusBelief.scope}/${focusBelief.status}/${focusBeliefStatement || 'none'}` : 'belief=none',
-      primaryInquiry ? `inquiry=${primaryInquiry.kind}/${primaryInquiry.priority}/${primaryInquiryQuestion || 'none'}` : 'inquiry=none',
-      relationshipModel ? `relationship=${relationshipModel.climate}/${relationshipModel.approachVector}` : 'relationship=none',
-      resurfacingDesire ? `desire=${resurfacingDesire.kind}/${resurfacingDesireReason || 'none'}` : 'desire=none',
-      digitalLifeRuntimeSurface.memory.selfContinuity ? `selfContinuity=${digitalLifeRuntimeSurface.memory.selfContinuity.attachmentMode}/${digitalLifeRuntimeSurface.memory.selfContinuity.initiativeTemperament}` : 'selfContinuity=none',
-      digitalLifeRuntimeSurface.agency.selfState ? `selfState=${digitalLifeRuntimeSurface.agency.selfState.stance}/${digitalLifeRuntimeSurface.agency.selfState.moodLabel ?? 'none'}` : 'selfState=none',
-      livingWorldObject ? `livingWorld=${livingWorldObject.kind}/${sanitizeBriefText(livingWorldObject.label, 48)}` : 'livingWorld=none',
-      governorIntention ? `governor=${governorIntention.kind}/${sanitizeBriefText(governorSummary, 48) || 'none'}` : 'governor=none',
-      thoughtThread ? `thoughtThread=${thoughtThread.kind}/${thoughtThread.status}/${sanitizeBriefText(thoughtThreadSummary || thoughtThreadQuestion, 48) || 'none'}` : 'thoughtThread=none',
-      initiative ? `initiative=${initiative.selectedAction}` : 'initiative=none',
-      privateThought ? `privateThought=${sanitizeBriefText(privateThought.thoughtText, 72)}` : 'privateThought=none',
-      privateThought ? `embodiedPresence=${privateThought.embodiedPresence}` : 'embodiedPresence=none',
+      `Scenario: ${policyDecision.scenario}.`,
+      `Style: ${doctrineAdjustedStyle}.`,
+      `Truth state: ${truthContract.truthState}.`,
+      digitalLifeArchitecture ? `Architecture: ${digitalLifeArchitecture.summary}.` : 'Architecture: none.',
+      runtimeDigest ? `Runtime digest: ${runtimeDigest.summary}.` : 'Runtime digest: none.',
+      runtimeDigest ? `Anthropomorphic mind: ${runtimeDigest.channels['anthropomorphic-mind'].summary}.` : 'Anthropomorphic mind: none.',
+      `Content kind: ${layeredContext.content.kind}.`,
+      attentionAnchor ? `Attention anchor: ${sanitizeBriefText(describePerceptionTarget(attentionAnchor), 72)}.` : 'Attention anchor: none.',
+      digitalLifeRuntimeSurface.cognition.appraisal ? `Host goal: ${digitalLifeRuntimeSurface.cognition.appraisal.inferredHostGoal}.` : 'Host goal: unknown.',
+      activeThread ? `World thread: ${activeThread.kind}/${sanitizeBriefText(activeThread.title, 48)}.` : 'World thread: none.',
+      leadingGoal ? `Mind goal: ${leadingGoal.kind}/${leadingGoalSummary || 'none'}.` : 'Mind goal: none.',
+      dominantConcern ? `Concern: ${sanitizeBriefText(dominantConcern.summary, 72)}.` : 'Concern: none.',
+      focusBelief ? `Belief: ${focusBelief.scope}/${focusBelief.status}/${focusBeliefStatement || 'none'}.` : 'Belief: none.',
+      primaryInquiry ? `Inquiry: ${primaryInquiry.kind}/${primaryInquiry.priority}/${primaryInquiryQuestion || 'none'}.` : 'Inquiry: none.',
+      relationshipModel ? `Relationship: ${relationshipModel.climate}/${relationshipModel.approachVector}.` : 'Relationship: none.',
+      resurfacingDesire ? `Desire: ${resurfacingDesire.kind}/${resurfacingDesireReason || 'none'}.` : 'Desire: none.',
+      digitalLifeRuntimeSurface.memory.selfContinuity ? `Self continuity: ${digitalLifeRuntimeSurface.memory.selfContinuity.attachmentMode}/${digitalLifeRuntimeSurface.memory.selfContinuity.initiativeTemperament}.` : 'Self continuity: none.',
+      digitalLifeRuntimeSurface.agency.selfState ? `Self state: ${digitalLifeRuntimeSurface.agency.selfState.stance}/${digitalLifeRuntimeSurface.agency.selfState.moodLabel ?? 'none'}.` : 'Self state: none.',
+      livingWorldObject ? `Living world: ${livingWorldObject.kind}/${sanitizeBriefText(livingWorldObject.label, 48)}.` : 'Living world: none.',
+      governorIntention ? `Governor: ${governorIntention.kind}/${sanitizeBriefText(governorSummary, 48) || 'none'}.` : 'Governor: none.',
+      thoughtThread ? `Thought thread: ${thoughtThread.kind}/${thoughtThread.status}/${sanitizeBriefText(thoughtThreadSummary || thoughtThreadQuestion, 48) || 'none'}.` : 'Thought thread: none.',
+      initiative ? `Initiative: ${initiative.selectedAction}.` : 'Initiative: none.',
+      privateThought ? `Private thought: ${sanitizeBriefText(privateThought.thoughtText, 72)}.` : 'Private thought: none.',
+      privateThought ? `Embodied presence: ${privateThought.embodiedPresence}.` : 'Embodied presence: none.',
     ].join('; ')
 
     return {
@@ -7153,16 +6997,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       cardId: activeCardId,
       agentTurn: input.agentTurn,
       agentTurnInput: input.agentTurnInput,
-      extraSystemBlocks: buildOrganicMemorySystemBlocks({
+      extraSystemBlocks: buildOrganicMemoryProviderFactBlocks({
         hostAttitude: input.hostAttitude,
         coreIncarnation: input.coreIncarnation,
         activeThoughts: [],
         retrievedFacts: [],
         recalledFragments: [],
-      }).concat(
-        projectStateSystemBlock,
-        buildCoreIncarnationReforgeProjectSelfBriefSystemBlock(),
-      ),
+      }),
     })
     if (!raw)
       return null
@@ -7191,126 +7032,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const resolveExecutionPersonStateProjectionForRuntime
     = runtimeExecutionDelivery.resolveExecutionPersonStateProjectionForRuntime
 
-  function sanitizeRuntimeProviderProjectText(raw: unknown, maxChars = 320) {
-    return sanitizeAlicizationProviderFacingText(raw, maxChars, '') || 'none'
-  }
-
-  function buildRuntimeProjectSelfBriefFacts() {
-    const brief = resolveAlicizationProjectStateBrief()
-    return {
-      shortTermOwner: 'WorkingMemory',
-      longTermRecallOwner: 'LongTermMemoryRecall',
-      visibleGovernanceEntry: 'MemoryWorkbench',
-      failureSurface: 'transparent_errors_only',
-      templatePolicy: 'no_fixed_persona_templates',
-      memoryContinuity: 'local_runtime',
-      latestLandedProgress: sanitizeRuntimeProviderProjectText(brief.latestProgress),
-      primaryOpenLoop: sanitizeRuntimeProviderProjectText(brief.openLoops[0]),
-      nextClosureTarget: sanitizeRuntimeProviderProjectText(brief.nextClosureTarget),
-      continuityDriftRisk: sanitizeRuntimeProviderProjectText(brief.sameHerDriftRisk),
-    }
-  }
-
-  function buildCoreIncarnationReforgeProjectSelfBriefSystemBlock() {
-    const facts = buildRuntimeProjectSelfBriefFacts()
-
-    return [
-      '[ALICIZATION_CORE_INCARNATION_REFORGE_SELF_BRIEF]',
-      'context_role=core_incarnation_reforge',
-      `short_term_owner=${facts.shortTermOwner}`,
-      `long_term_recall_owner=${facts.longTermRecallOwner}`,
-      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
-      `failure_surface=${facts.failureSurface}`,
-      `template_policy=${facts.templatePolicy}`,
-      `memory_continuity=${facts.memoryContinuity}`,
-      `latest_landed_progress=${facts.latestLandedProgress}`,
-      `primary_open_loop=${facts.primaryOpenLoop}`,
-      `next_closure_target=${facts.nextClosureTarget}`,
-      `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=governance_only',
-    ].join('\n')
-  }
-
-  function buildReminderProjectSelfBriefSystemBlock() {
-    const facts = buildRuntimeProjectSelfBriefFacts()
-
-    return [
-      '[ALICIZATION_REMINDER_SELF_BRIEF]',
-      'context_role=scheduled_memory_delivery',
-      `short_term_owner=${facts.shortTermOwner}`,
-      `long_term_recall_owner=${facts.longTermRecallOwner}`,
-      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
-      `failure_surface=${facts.failureSurface}`,
-      `template_policy=${facts.templatePolicy}`,
-      `memory_continuity=${facts.memoryContinuity}`,
-      `latest_landed_progress=${facts.latestLandedProgress}`,
-      `primary_open_loop=${facts.primaryOpenLoop}`,
-      `next_closure_target=${facts.nextClosureTarget}`,
-      `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=governance_only',
-    ].join('\n')
-  }
-
-  function buildProactiveProjectSelfBriefSystemBlock() {
-    const facts = buildRuntimeProjectSelfBriefFacts()
-
-    return [
-      '[ALICIZATION_PROACTIVE_SELF_BRIEF]',
-      'context_role=initiative_arbitration',
-      `short_term_owner=${facts.shortTermOwner}`,
-      `long_term_recall_owner=${facts.longTermRecallOwner}`,
-      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
-      `failure_surface=${facts.failureSurface}`,
-      `template_policy=${facts.templatePolicy}`,
-      `memory_continuity=${facts.memoryContinuity}`,
-      `latest_landed_progress=${facts.latestLandedProgress}`,
-      `primary_open_loop=${facts.primaryOpenLoop}`,
-      `next_closure_target=${facts.nextClosureTarget}`,
-      `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=governance_only',
-    ].join('\n')
-  }
-
-  function buildDreamProjectSelfBriefSystemBlock() {
-    const facts = buildRuntimeProjectSelfBriefFacts()
-
-    return [
-      '[ALICIZATION_DREAM_SELF_BRIEF]',
-      'context_role=memory_metabolism',
-      `short_term_owner=${facts.shortTermOwner}`,
-      `long_term_recall_owner=${facts.longTermRecallOwner}`,
-      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
-      `failure_surface=${facts.failureSurface}`,
-      `template_policy=${facts.templatePolicy}`,
-      `memory_continuity=${facts.memoryContinuity}`,
-      `latest_landed_progress=${facts.latestLandedProgress}`,
-      `primary_open_loop=${facts.primaryOpenLoop}`,
-      `next_closure_target=${facts.nextClosureTarget}`,
-      `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=governance_only',
-    ].join('\n')
-  }
-
-  function buildMemoryConsolidationProjectSelfBriefSystemBlock() {
-    const facts = buildRuntimeProjectSelfBriefFacts()
-
-    return [
-      '[ALICIZATION_MEMORY_CONSOLIDATION_SELF_BRIEF]',
-      'context_role=reflection_refinement',
-      `short_term_owner=${facts.shortTermOwner}`,
-      `long_term_recall_owner=${facts.longTermRecallOwner}`,
-      `visible_governance_entry=${facts.visibleGovernanceEntry}`,
-      `failure_surface=${facts.failureSurface}`,
-      `template_policy=${facts.templatePolicy}`,
-      `memory_continuity=${facts.memoryContinuity}`,
-      `latest_landed_progress=${facts.latestLandedProgress}`,
-      `primary_open_loop=${facts.primaryOpenLoop}`,
-      `next_closure_target=${facts.nextClosureTarget}`,
-      `template_residue_risk=${facts.continuityDriftRisk}`,
-      'visibility=governance_only',
-    ].join('\n')
-  }
-
   async function generateReminderStructuredWithGateway(
     personality: AlicizationPersonalityState,
     reminder: { minutes: number, message: string, tier: 'mild' | 'severe' },
@@ -7328,7 +7049,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         ? 'Delay tier: severe. Mention this reminder is late because the system was offline/suspended, then still deliver the reminder immediately.'
         : 'Delay tier: mild. Mention a short delay/catch-up and deliver the reminder immediately.',
       `Reminder content: "${reminder.message}".`,
-      `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
+      `Personality parameters: obedience ${personality.obedience.toFixed(2)}, liveliness ${personality.liveliness.toFixed(2)}, sensibility ${personality.sensibility.toFixed(2)}.`,
       'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
       'enum.emotion=neutral,happy,sad,angry,concerned,tired,apologetic,surprised,thinking',
       'emotion must exactly mirror performance.baseEmotion.',
@@ -7346,10 +7067,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       cardId: activeCardId,
       agentTurn,
       agentTurnInput,
-      extraSystemBlocks: [
-        ...buildAlicizationProviderFacingProjectStateExtraSystemBlocks(),
-        buildReminderProjectSelfBriefSystemBlock(),
-      ],
     })
     if (!raw)
       return null
@@ -7944,8 +7661,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     payload: AlicizationChatStartPayload,
     invokeOptions?: { raw?: { ipcMainEvent?: IpcMainEvent, event?: unknown } },
   ): Promise<AlicizationChatStartResult> {
-    const normalizedPayload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(payload)
-    const preDialogueAwarenessDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(normalizedPayload)
+    const normalizedPayload = payload
     await appendRuntimeDebugLine('chat-start.entered', {
       cardId: normalizedPayload.cardId,
       turnId: normalizedPayload.turnId,
@@ -7953,7 +7669,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       model: sanitizeText(normalizedPayload.model),
       activeCardId,
       hasInvokeSender: Boolean(invokeOptions?.raw?.ipcMainEvent?.sender),
-      ...preDialogueAwarenessDebug,
     })
     const rawInvokeOptions = invokeOptions?.raw && typeof invokeOptions.raw === 'object'
       ? invokeOptions.raw as { ipcMainEvent?: IpcMainEvent, event?: unknown }
@@ -8022,8 +7737,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordMainGatewayGenerationTimeout,
       appendRuntimeDebugLine,
       queueScopedAuditLog,
-      recordPreparedMindTrace: async ({ payload, prepared, preDialogueAwarenessDebug }) => {
-        rememberPreparedMindTrace({ payload, prepared, preDialogueAwarenessDebug })
+      recordPreparedMindTrace: async ({ payload, prepared }) => {
+        rememberPreparedMindTrace({ payload, prepared })
       },
       suppressInlineExecutionDeliveries: async ({ cardId, entries }) => {
         let suppressedCount = 0

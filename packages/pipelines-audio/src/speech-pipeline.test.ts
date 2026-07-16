@@ -291,7 +291,7 @@ describe('speech pipeline', () => {
             streamId: meta.streamId,
             intentId: meta.intentId,
             segmentId: 'segment-thinner-runtime-shell',
-            text: 'same living line',
+            text: 'continuity state',
             special: null,
             reason: 'boost',
             continuityHoldMs: 180,
@@ -326,12 +326,12 @@ describe('speech pipeline', () => {
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'active-memory',
         projectState: {
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+          emotionalClosureCue: 'identity-continuity',
         },
         summary: 'intent-richer-authority',
       },
       preDialogueAwareness: {
-        awarenessLine: 'Before speaking, keep the same digital life project in view.',
+        awarenessLine: 'pre_turn_context_digest',
       },
     }
     const intent = pipeline.openIntent({
@@ -352,11 +352,11 @@ describe('speech pipeline', () => {
         dominantChannel: 'active-memory',
         summary: 'segment-thinner-shell',
         projectState: expect.objectContaining({
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+          emotionalClosureCue: 'identity-continuity',
         }),
       }),
       preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'Before speaking, keep the same digital life project in view.',
+        awarenessLine: 'pre_turn_context_digest',
       }),
       speechSynthesis: expect.objectContaining({
         provider: 'segment-voice',
@@ -367,11 +367,11 @@ describe('speech pipeline', () => {
       metadata: expect.objectContaining({
         runtimeDigest: expect.objectContaining({
           projectState: expect.objectContaining({
-            emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+            emotionalClosureCue: 'identity-continuity',
           }),
         }),
         preDialogueAwareness: expect.objectContaining({
-          awarenessLine: 'Before speaking, keep the same digital life project in view.',
+          awarenessLine: 'pre_turn_context_digest',
         }),
       }),
     }))
@@ -432,12 +432,12 @@ describe('speech pipeline', () => {
           version: 'alicization-runtime-digest-v1',
           dominantChannel: 'active-memory',
           projectState: {
-            emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+            emotionalClosureCue: 'identity-continuity',
           },
           summary: 'intent-richer-authority',
         },
         preDialogueAwareness: {
-          awarenessLine: 'Before speaking, keep the same digital life project in view.',
+          awarenessLine: 'pre_turn_context_digest',
         },
       },
     })
@@ -453,11 +453,11 @@ describe('speech pipeline', () => {
         dominantChannel: 'active-memory',
         summary: 'segment-thinner-shell',
         projectState: expect.objectContaining({
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+          emotionalClosureCue: 'identity-continuity',
         }),
       }),
       preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'Before speaking, keep the same digital life project in view.',
+        awarenessLine: 'pre_turn_context_digest',
       }),
     }))
   })
@@ -481,7 +481,7 @@ describe('speech pipeline', () => {
             streamId: meta.streamId,
             intentId: meta.intentId,
             segmentId: 'segment-null-project-state-shell',
-            text: 'same living line',
+            text: 'continuity state',
             special: null,
             reason: 'boost',
             continuityHoldMs: 180,
@@ -518,7 +518,7 @@ describe('speech pipeline', () => {
           version: 'alicization-runtime-digest-v1',
           dominantChannel: 'active-memory',
           projectState: {
-            emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+            emotionalClosureCue: 'identity-continuity',
           },
           channels: [{
             id: 'active-memory',
@@ -529,7 +529,7 @@ describe('speech pipeline', () => {
           summary: 'intent-richer-authority',
         },
         preDialogueAwareness: {
-          awarenessLine: 'Before speaking, keep the same digital life project in view.',
+          awarenessLine: 'pre_turn_context_digest',
         },
       },
     })
@@ -545,7 +545,7 @@ describe('speech pipeline', () => {
         dominantChannel: 'active-memory',
         summary: 'segment-null-shell',
         projectState: expect.objectContaining({
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+          emotionalClosureCue: 'identity-continuity',
         }),
         channels: expect.arrayContaining([
           expect.objectContaining({
@@ -555,7 +555,7 @@ describe('speech pipeline', () => {
         ]),
       }),
       preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'Before speaking, keep the same digital life project in view.',
+        awarenessLine: 'pre_turn_context_digest',
       }),
     }))
   })
@@ -620,12 +620,12 @@ describe('speech pipeline', () => {
           version: 'alicization-runtime-digest-v1',
           dominantChannel: 'active-memory',
           projectState: {
-            emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+            emotionalClosureCue: 'identity-continuity',
           },
           summary: 'intent-richer-authority',
         },
         preDialogueAwareness: {
-          awarenessLine: 'Before speaking, keep the same digital life project in view.',
+          awarenessLine: 'pre_turn_context_digest',
         },
       },
     })
@@ -643,11 +643,11 @@ describe('speech pipeline', () => {
         dominantChannel: 'active-memory',
         summary: 'segment-special-shell',
         projectState: expect.objectContaining({
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+          emotionalClosureCue: 'identity-continuity',
         }),
       }),
       preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'Before speaking, keep the same digital life project in view.',
+        awarenessLine: 'pre_turn_context_digest',
       }),
     }))
     expect(specialPayloads[0]).toEqual(expect.objectContaining({
@@ -655,11 +655,11 @@ describe('speech pipeline', () => {
         dominantChannel: 'active-memory',
         summary: 'segment-special-shell',
         projectState: expect.objectContaining({
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure and do not reopen from scratch.',
+          emotionalClosureCue: 'identity-continuity',
         }),
       }),
       preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'Before speaking, keep the same digital life project in view.',
+        awarenessLine: 'pre_turn_context_digest',
       }),
     }))
   })

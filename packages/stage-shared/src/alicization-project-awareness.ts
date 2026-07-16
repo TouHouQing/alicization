@@ -529,22 +529,12 @@ function resolveContinuityBehaviorMode(input: {
 }
 
 function deriveSameHerHoldDetailFromContinuityBehavior(mode: string | null) {
-  if (mode === 'repair-before-closeness')
-    return 'cadence=repair_before_closeness; timing=before_closeness_widens'
-  if (mode === 'rest-protective')
-    return 'cadence=rest_protective; timing=fatigue_aware'
-  if (mode === 'measured-return')
-    return 'cadence=measured_return; pressure=lower'
+  void mode
   return ''
 }
 
 function deriveContinuityCueFromBehavior(mode: string | null) {
-  if (mode === 'repair-before-closeness')
-    return 'continuity_cue=repair_before_closeness; until=repair_settles'
-  if (mode === 'rest-protective')
-    return 'continuity_cue=rest_protective; direction=inward'
-  if (mode === 'measured-return')
-    return 'continuity_cue=measured_return; direction=measured'
+  void mode
   return ''
 }
 
@@ -563,11 +553,10 @@ function deriveCadenceAwareSameHerHoldDetail(input: {
   const preferredVoiceMode = sanitizeProjectAwarenessText(input.preferredVoiceMode, 32).toLowerCase()
   const preferredPacingMode = sanitizeProjectAwarenessText(input.preferredPacingMode, 32).toLowerCase()
 
-  if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'cadence=measured_return; pressure=lower; pacing=slower'
-
-  if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'cadence=measured_return; pause=longer; lipsync=restrained'
+  void preferredPauseMode
+  void preferredLipsyncMode
+  void preferredVoiceMode
+  void preferredPacingMode
 
   return ''
 }
@@ -587,11 +576,10 @@ function deriveCadenceAwareContinuityCue(input: {
   const preferredVoiceMode = sanitizeProjectAwarenessText(input.preferredVoiceMode, 32).toLowerCase()
   const preferredPacingMode = sanitizeProjectAwarenessText(input.preferredPacingMode, 32).toLowerCase()
 
-  if (preferredVoiceMode === 'lower-pressure' && preferredPacingMode === 'slower')
-    return 'continuity_cue=measured_return; pressure=lower; pacing=slower'
-
-  if (preferredPauseMode === 'longer' && preferredLipsyncMode === 'restrained')
-    return 'continuity_cue=measured_return; pause=longer; lipsync=restrained'
+  void preferredPauseMode
+  void preferredLipsyncMode
+  void preferredVoiceMode
+  void preferredPacingMode
 
   return ''
 }

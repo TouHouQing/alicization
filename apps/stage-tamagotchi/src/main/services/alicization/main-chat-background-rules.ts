@@ -1,31 +1,6 @@
 import type { Message } from '@xsai/shared-chat'
 
-import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
-
 import { sanitizeText } from './runtime-soul'
-
-export const alicizationExecutorToolNames = new Set([
-  'executor_run_cli',
-  'executor_run_codex',
-  'executor_run_claude_code',
-  'executor_run_local_visual',
-  'executor_run_openclaw',
-  'browser_open_url',
-  'browser_search_web',
-  'browser_read_page',
-  'browser_click_element',
-  'browser_type_text',
-  'browser_navigate',
-  'browser_scroll',
-  'browser_wait',
-  'desktop_inspect_scene',
-  'desktop_list_interactables',
-  'desktop_click_element',
-  'desktop_type_text',
-  'desktop_press_keys',
-  'desktop_open_application',
-  'desktop_wait',
-])
 
 const terminalExecutionThreadStatuses = new Set([
   'completed',
@@ -34,12 +9,21 @@ const terminalExecutionThreadStatuses = new Set([
   'cancelled',
 ])
 
-const alicizationMinimalRecoveryRequiredSystemMarkers = [
+const alicizationLegacyRecoverySystemMarkers = [
   '[ALICIZATION_PROJECT_STATE]',
   '[ALICIZATION_MIND_TURN_CONTRACT]',
   '[ALICIZATION_LIVING_SELF]',
   '[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]',
 ] as const
+
+function isLegacyRecoveryGovernanceMessage(message: Message) {
+  if (message.role !== 'system')
+    return false
+  const content = message.content
+  if (typeof content !== 'string')
+    return false
+  return alicizationLegacyRecoverySystemMarkers.some(marker => content.includes(marker))
+}
 
 export interface AlicizationInlineExecutionReceipt {
   completedAt: number
@@ -55,15 +39,39 @@ export interface AlicizationInlineExecutionSurfaceInput {
   outcome: string
 }
 
+export function buildAlicizationRequiredToolFactsSystemMessage(input: {
+  toolName: string
+  toolInput: unknown
+  toolResult: unknown
+  executionFact: unknown
+}): Message {
+  return {
+    role: 'system',
+    content: JSON.stringify({
+      type: 'alicization-required-tool-facts',
+      data: {
+        toolName: input.toolName,
+        toolInput: input.toolInput,
+        toolResult: input.toolResult,
+        executionFact: input.executionFact,
+      },
+    }),
+  } as Message
+}
+
 export function buildAlicizationMinimalContextRecoveryMessages(messages: Message[]) {
-  if (!Array.isArray(messages) || messages.length <= 6)
-    return messages
+  if (!Array.isArray(messages))
+    return []
+
+  const eligibleMessages = messages.filter(message => !isLegacyRecoveryGovernanceMessage(message))
+  if (eligibleMessages.length <= 6)
+    return eligibleMessages
 
   const keepIndexes = new Set<number>()
   let preservedSystemCount = 0
 
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index]
+  for (let index = 0; index < eligibleMessages.length; index += 1) {
+    const message = eligibleMessages[index]
     if (message?.role !== 'system')
       continue
     if (preservedSystemCount < 3) {
@@ -72,26 +80,17 @@ export function buildAlicizationMinimalContextRecoveryMessages(messages: Message
     }
   }
 
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
+  for (let index = eligibleMessages.length - 1; index >= 0; index -= 1) {
+    const message = eligibleMessages[index]
     if (message?.role === 'system') {
       keepIndexes.add(index)
       break
     }
   }
 
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index]
-    if (message?.role !== 'system')
-      continue
-    const text = typeof message.content === 'string' ? message.content : ''
-    if (alicizationMinimalRecoveryRequiredSystemMarkers.some(marker => text.includes(marker)))
-      keepIndexes.add(index)
-  }
-
   let preservedTailCount = 0
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index]?.role === 'system')
+  for (let index = eligibleMessages.length - 1; index >= 0; index -= 1) {
+    if (eligibleMessages[index]?.role === 'system')
       continue
     keepIndexes.add(index)
     preservedTailCount += 1
@@ -99,10 +98,10 @@ export function buildAlicizationMinimalContextRecoveryMessages(messages: Message
       break
   }
 
-  const compactMessages = messages.filter((_, index) => keepIndexes.has(index))
+  const compactMessages = eligibleMessages.filter((_, index) => keepIndexes.has(index))
   return compactMessages.length > 0
     ? compactMessages
-    : messages.slice(-6)
+    : eligibleMessages.slice(-6)
 }
 
 export function readAlicizationInlineExecutionReceipt(result: unknown): AlicizationInlineExecutionReceipt | null {
@@ -208,22 +207,4 @@ export function asAlicizationInlineExecutionSurfaceInput(
     summary,
     outcome,
   }
-}
-
-export function shouldUseAlicizationExecutionFirstFastPath(input: {
-  enforcedExecutionTools: string[]
-  prepared: AlicizationPreparedMainChatExecutionResult
-}) {
-  if (!input.prepared.waitForTools)
-    return false
-  if (input.enforcedExecutionTools.length !== 1)
-    return false
-  if (!input.enforcedExecutionTools.every(toolName => alicizationExecutorToolNames.has(toolName)))
-    return false
-
-  const actionKind = input.prepared.runtimeSurface.action?.kind
-  if (actionKind !== 'execute' && actionKind !== 'continue-task')
-    return false
-
-  return input.prepared.runtimeSurface.tooling.routingRequired === true
 }

@@ -94,7 +94,7 @@ describe('runtime card prompt persona kernel', () => {
     expect(blocks.map(block => JSON.parse(block)).some(block => block.type === 'alicization-project-state')).toBe(false)
   })
 
-  it('injects project-state facts when project-state context is explicitly requested', async () => {
+  it('keeps project-state governance out of the Provider prompt even when a legacy caller requests it', async () => {
     const runtime = createAlicizationCardPromptRuntime({
       getActiveCardId: () => 'default',
       getSoulSnapshot: () => null,
@@ -113,9 +113,6 @@ describe('runtime card prompt persona kernel', () => {
     })
 
     const facts = blocks.map(block => JSON.parse(block))
-    expect(facts.some(block => block.type === 'alicization-project-state')).toBe(true)
-    expect(JSON.stringify(facts)).not.toMatch(
-      /Action policy|Template policy|Remaining focus|before answering|reply posture/iu,
-    )
+    expect(facts.some(block => block.type === 'alicization-project-state')).toBe(false)
   })
 })

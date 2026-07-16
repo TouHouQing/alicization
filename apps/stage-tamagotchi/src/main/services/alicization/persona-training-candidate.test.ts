@@ -41,7 +41,7 @@ describe('persona training candidate bridge', () => {
     expect(candidates[0]?.behaviorLesson).toContain('直接说明问题')
     expect(candidates[0]?.positiveExample).not.toContain('用户喜欢某个私人事实')
     expect(candidates[0]?.positiveExample).toContain('behavior_policy=')
-    expect(candidates[0]?.positiveExample).toContain('visibility=internal-structured')
+    expect(candidates[0]?.positiveExample).toContain('visibility=redacted_internal')
     expect(candidates[0]?.positiveExample).not.toMatch(/我会|你说得对|先.*接住/u)
     expect(candidates[0]?.negativeExample).toContain('avoidance_policy=')
   })
@@ -136,8 +136,8 @@ describe('persona training candidate bridge', () => {
       reflections: [
         {
           id: 'reflection-fixed-template',
-          summary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          lesson: 'Before answering, remember this is still the same local-first digital life project.',
+          summary: 'structured continuity digest.',
+          lesson: 'pre_turn_context_digest',
           confidence: 0.99,
           sensitivity: 'personal',
           status: 'confirmed',
@@ -154,8 +154,8 @@ describe('persona training candidate bridge', () => {
       reinforcements: [
         {
           id: 'reinforcement-fixed-template',
-          dimension: 'same-her closure',
-          summary: 'same-her closure: keep one continuous her on the same living line.',
+          dimension: 'identity-continuity',
+          summary: 'identity-continuity',
           valence: 'reinforce',
           delta: 0.4,
         },
@@ -177,11 +177,11 @@ describe('persona training candidate bridge', () => {
       id: 'persona-candidate:reflection-cleaned',
       sourceMemoryIds: ['reflection-cleaned', 'reinforcement-cleaned'],
     }))
-    expect(JSON.stringify(candidates)).not.toContain('Same Phase 1 digital life')
-    expect(JSON.stringify(candidates)).not.toContain('Before answering')
-    expect(JSON.stringify(candidates)).not.toContain('same-her closure')
-    expect(JSON.stringify(candidates)).not.toContain('same living line')
-    expect(JSON.stringify(candidates)).not.toContain('one continuous her')
+    expect(JSON.stringify(candidates)).not.toContain('legacy phase-one template')
+    expect(JSON.stringify(candidates)).not.toContain('Pre-reply')
+    expect(JSON.stringify(candidates)).not.toContain('identity-continuity')
+    expect(JSON.stringify(candidates)).not.toContain('continuity state')
+    expect(JSON.stringify(candidates)).not.toContain('identity continuity')
   })
 
   it('keeps candidates rollbackable through explicit status updates', () => {

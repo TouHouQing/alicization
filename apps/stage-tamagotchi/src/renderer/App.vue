@@ -341,17 +341,6 @@ function compactAlicizationStringList(value: unknown, limit = 16) {
   return result
 }
 
-function countAlicizationArray(value: unknown) {
-  return Array.isArray(value) ? value.length : 0
-}
-
-function readAlicizationCount(raw: Record<string, unknown>, key: string, fallback: number) {
-  const value = raw[key]
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-    ? value
-    : fallback
-}
-
 function summarizeAlicizationVisibleReplyCriticForRenderer(
   raw: AlicizationChatFinishEvent['visibleReplyCritic'] | AlicizationBridgeChatFinishEvent['visibleReplyCritic'] | null | undefined,
 ): AlicizationBridgeChatFinishEvent['visibleReplyCritic'] | null {
@@ -362,31 +351,14 @@ function summarizeAlicizationVisibleReplyCriticForRenderer(
   const summary: Record<string, unknown> = {
     version: 'visible-reply-critic-public-summary-v1',
     reasonCodes: rawReasonCodes.length > 0 ? rawReasonCodes : compactAlicizationStringList(raw.reasons),
-    repairReasonCodes: compactAlicizationStringList(raw.repairReasonCodes),
-    mustPreserveCount: readAlicizationCount(raw, 'mustPreserveCount', countAlicizationArray(raw.mustPreserve)),
-    mustDropCount: readAlicizationCount(raw, 'mustDropCount', countAlicizationArray(raw.mustDrop)),
   }
 
   if (typeof raw.providerMindRequired === 'boolean')
     summary.providerMindRequired = raw.providerMindRequired
-  if (typeof raw.semanticLoopClosed === 'boolean')
-    summary.semanticLoopClosed = raw.semanticLoopClosed
   if (typeof raw.status === 'string' && raw.status.trim())
     summary.status = raw.status.trim()
 
   return summary
-}
-
-function readAlicizationCriticPreserveCount(raw: unknown) {
-  return isAlicizationRecordPayload(raw)
-    ? readAlicizationCount(raw, 'mustPreserveCount', countAlicizationArray(raw.mustPreserve))
-    : 0
-}
-
-function readAlicizationCriticDropCount(raw: unknown) {
-  return isAlicizationRecordPayload(raw)
-    ? readAlicizationCount(raw, 'mustDropCount', countAlicizationArray(raw.mustDrop))
-    : 0
 }
 
 function summarizeAlicizationVisibleReplyClosureForRenderer(
@@ -395,24 +367,19 @@ function summarizeAlicizationVisibleReplyClosureForRenderer(
   if (!isAlicizationRecordPayload(raw))
     return null
 
-  const initialCritic = isAlicizationRecordPayload(raw.initialCritic) ? raw.initialCritic : null
-  const finalCritic = isAlicizationRecordPayload(raw.finalCritic) ? raw.finalCritic : null
   const summary: Record<string, unknown> = {
     version: 'visible-reply-closure-public-summary-v1',
     reasonCodes: compactAlicizationStringList(raw.reasonCodes),
-    repairReasonCodes: compactAlicizationStringList(raw.repairReasonCodes),
-    initialCriticMustPreserveCount: readAlicizationCount(raw, 'initialCriticMustPreserveCount', readAlicizationCriticPreserveCount(initialCritic)),
-    initialCriticMustDropCount: readAlicizationCount(raw, 'initialCriticMustDropCount', readAlicizationCriticDropCount(initialCritic)),
-    finalCriticMustPreserveCount: readAlicizationCount(raw, 'finalCriticMustPreserveCount', readAlicizationCriticPreserveCount(finalCritic)),
-    finalCriticMustDropCount: readAlicizationCount(raw, 'finalCriticMustDropCount', readAlicizationCriticDropCount(finalCritic)),
   }
 
   if (typeof raw.status === 'string' && raw.status.trim())
     summary.status = raw.status.trim()
   if (typeof raw.providerMindRequired === 'boolean')
     summary.providerMindRequired = raw.providerMindRequired
-  if (typeof raw.semanticLoopClosed === 'boolean')
-    summary.semanticLoopClosed = raw.semanticLoopClosed
+  if (typeof raw.initialCriticStatus === 'string' && raw.initialCriticStatus.trim())
+    summary.initialCriticStatus = raw.initialCriticStatus.trim()
+  if (typeof raw.finalCriticStatus === 'string' && raw.finalCriticStatus.trim())
+    summary.finalCriticStatus = raw.finalCriticStatus.trim()
 
   return summary
 }
@@ -836,6 +803,22 @@ async function invokeAlicizationChatStartTransport(payload: AlicizationChatStart
   return await alicizationChatStart(payload)
 }
 
+function sanitizeRendererAlicizationChatStartPayload(
+  cardId: string,
+  payload: Omit<AlicizationChatStartPayload, 'cardId'>,
+) {
+  return sanitizeAlicizationChatStartPayloadForTransport({
+    cardId,
+    turnId: payload.turnId,
+    providerId: payload.providerId,
+    model: payload.model,
+    providerConfig: payload.providerConfig,
+    messages: payload.messages,
+    ...(payload.supportsTools !== undefined ? { supportsTools: payload.supportsTools } : {}),
+    ...(payload.waitForTools !== undefined ? { waitForTools: payload.waitForTools } : {}),
+  })
+}
+
 async function invokeAlicizationChatAbortTransport(payload: AlicizationChatAbortPayload): Promise<AlicizationChatAbortResult> {
   const invoke = window.electron?.ipcRenderer?.invoke
   if (typeof invoke === 'function')
@@ -1152,7 +1135,9 @@ setAlicizationBridge({
   forceDreaming: async payload => await alicizationForceDreaming({ ...resolveAlicizationScope(), ...payload }),
   syncLlmConfig: async payload => await alicizationSyncLlmConfig(payload),
   getLlmConfig: async () => await alicizationGetLlmConfig(),
-  chatStart: async payload => await invokeAlicizationChatStartTransport({ ...resolveAlicizationScope(), ...payload }),
+  chatStart: async payload => await invokeAlicizationChatStartTransport(
+    sanitizeRendererAlicizationChatStartPayload(resolveAlicizationScope().cardId, payload).value,
+  ),
   chatAbort: async payload => await invokeAlicizationChatAbortTransport({ ...resolveAlicizationScope(), ...payload }),
   reminderSchedule: async payload => await alicizationReminderSchedule({ ...resolveAlicizationScope(), ...payload }),
   streamChat: async (payload, options) => await new Promise<void>((resolve, reject) => {
@@ -1220,10 +1205,7 @@ setAlicizationBridge({
 
       options.abortSignal?.addEventListener('abort', abortHandler, { once: true })
 
-      const transportPayloadResult = sanitizeAlicizationChatStartPayloadForTransport({
-        ...scope,
-        ...payload,
-      })
+      const transportPayloadResult = sanitizeRendererAlicizationChatStartPayload(scope.cardId, payload)
       const transportPayload = transportPayloadResult.value
       const transportPayloadSummary = summarizeAlicizationChatStartPayloadForTransport(transportPayload)
 

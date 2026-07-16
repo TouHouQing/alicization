@@ -118,7 +118,7 @@ describe('performance visualizer self evolution baseline adoption record', () =>
     })
   })
 
-  it('captures a same-her continuity governance note when the adopted baseline was trusted for memory-first continuity reasons', () => {
+  it('captures a identity-continuity', () => {
     expect(buildSelfEvolutionBaselineAdoptionRecord({
       baselineAdoption: {
         mode: 'adopt-now',
@@ -738,7 +738,7 @@ describe('performance visualizer self evolution baseline adoption record', () =>
     })
   })
 
-  it('captures a quieter surviving-lane governance note so face, lipsync, and voice same-her carry remains traceable through baseline records', () => {
+  it('captures a quieter surviving-lane governance note so face, lipsync, and voice identity-continuity', () => {
     expect(buildSelfEvolutionBaselineAdoptionRecord({
       baselineAdoption: {
         mode: 'adopt-now',
@@ -746,7 +746,7 @@ describe('performance visualizer self evolution baseline adoption record', () =>
         detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
         supportingLines: [
           '最新快照已经通过 trusted 判断。',
-          '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。',
+          '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         ],
       },
       latestSnapshot: {
@@ -785,7 +785,7 @@ describe('performance visualizer self evolution baseline adoption record', () =>
       continuityGovernanceNote: null,
       relationshipCadenceGovernanceNote: null,
       projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线，因此这条 quieter carry 只能作为审计锚点，而不能被误写成可信长期基线。',
+      bodyContinuityGovernanceNote: '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
     })
   })
 

@@ -74,7 +74,7 @@ describe('buildDiscourseState', () => {
       },
       dialogueObligation: {
         kind: 'repair',
-        summary: 'Repair the current scene grounding before answering.',
+        summary: 'Repair the current scene grounding before reply.',
         confidence: 0.9,
         mustRepairFirst: true,
         mustAnswerDirectly: true,
@@ -165,7 +165,7 @@ describe('buildDiscourseState', () => {
     }))
   })
 
-  it('marks project-state continuity turns as one continuous her carrying the project line', () => {
+  it('marks project-state continuity turns as identity continuity carrying the project line', () => {
     const state = buildDiscourseState({
       now: 13_500,
       userText: '这个项目现在到底做到哪了，还差什么没闭环',
@@ -179,7 +179,7 @@ describe('buildDiscourseState', () => {
         sharedAttentionDemand: 0.42,
         personaSuppression: 0.36,
         confidence: 0.91,
-        summary: 'The host is asking Alicization to carry the project line as one continuous her.',
+        summary: 'The host is asking Alicization to carry the project line as identity continuity.',
         source: 'hybrid',
         reasonTags: ['project-state-continuity-question', 'dialogue-first-turn', 'scene-detached-turn'],
       },
@@ -199,7 +199,7 @@ describe('buildDiscourseState', () => {
         screenReferenceMode: 'avoid',
         shouldBypassScreenRepair: true,
         weakLiveScene: true,
-        focusSummary: 'The host wants Alicization to explain the project line from one continuous her.',
+        focusSummary: 'The host wants Alicization to explain the project line from identity continuity.',
         confidence: 0.9,
         reasonTags: ['project-state-same-her-continuity'],
       },
@@ -208,7 +208,7 @@ describe('buildDiscourseState', () => {
     expect(state).not.toBeNull()
     const resolvedState = state!
     expect(resolvedState.currentTurnSubject).toBe('alicization-self')
-    expect(resolvedState.currentTurnSummary).toContain('one continuous her')
+    expect(resolvedState.currentTurnSummary).toContain('identity continuity')
     expect(resolvedState.narrative).toContain('project-state-same-her-continuity')
   })
 
@@ -475,24 +475,24 @@ describe('buildDiscourseState', () => {
   it('does not let a released temporary-noise reflection become the ruptureRepair carry for the current turn', () => {
     const state = buildDiscourseState({
       now: 17_000,
-      userText: '这条 runtime same-her closure seam 现在到底哪里还没对齐？',
+      userText: '这条 runtime identity-continuity',
       dialogueSemantics: {
         act: 'ask-help',
         responseNeed: 'repair',
         truthExpectation: 'strict',
         affectiveTone: 'neutral',
         subjectPreference: 'task-knot',
-        taskAnchor: 'runtime same-her closure seam',
+        taskAnchor: 'runtime identity-continuity',
         sharedAttentionDemand: 0.84,
         personaSuppression: 0.72,
         confidence: 0.86,
-        summary: 'The host is asking where the runtime same-her closure seam is still misaligned.',
+        summary: 'The host is asking where the runtime identity-continuity',
         source: 'hybrid',
         reasonTags: ['scene-bound-turn'],
       },
       dialogueObligation: {
         kind: 'repair',
-        summary: 'Repair the runtime same-her closure seam before answering.',
+        summary: 'Repair the runtime identity-continuity',
         confidence: 0.88,
         mustRepairFirst: true,
         mustAnswerDirectly: true,
@@ -506,7 +506,7 @@ describe('buildDiscourseState', () => {
         screenReferenceMode: 'helpful',
         shouldBypassScreenRepair: false,
         weakLiveScene: false,
-        focusSummary: 'Stay on the runtime same-her closure seam.',
+        focusSummary: 'Stay on the runtime identity-continuity',
         confidence: 0.88,
         reasonTags: [],
       },
@@ -527,7 +527,7 @@ describe('buildDiscourseState', () => {
             id: 'reflection::same-her-repair',
             summary: 'The same-her repair line is still the meaningful continuity carry.',
             expectation: 'The steadier repair line should stay active for the current turn.',
-            observedOutcome: 'The same living line still needs a measured return.',
+            observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
             revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.08,

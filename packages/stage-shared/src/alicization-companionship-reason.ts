@@ -6,16 +6,19 @@ import type {
 import { sanitizeAlicizationStructuredInternalText } from './alicization-fixed-template-sanitizer'
 
 const measuredReturnInwardCarryReason
-  = 'cadence=measured_return; direction=inward; widening=deferred; pressure=lower'
+  = ''
 
 const repairBeforeClosenessReason
-  = 'cadence=repair_before_closeness; target=callback; repair=settle_first; widening=deferred'
+  = ''
 
 const rememberedBoundaryPreserveReason
-  = 'relationship_cadence=remembered_boundary; room=preserve_before_widening'
+  = ''
 
 const rememberedBoundaryMoreRoomReason
-  = 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
+  = ''
+
+const fixedCompanionshipReasonCuePattern
+  = /(?:^|[\s|;])(?:cadence=(?:measured_return|repair_before_closeness|rest_protective|quiet_companionship|inward)|relationship_cadence=remembered_boundary|continuity_hold=(?:measured_return|repair_before_closeness)|continuity_anchor=local_desktop_life_loop|life_loop_continuity|project_state_continuity|local_desktop_life_loop)(?:[\s|;]|$)/iu
 
 function normalizeSummaryString(raw: unknown) {
   if (typeof raw !== 'string')
@@ -40,6 +43,9 @@ function finalizeCompanionshipReason(value: string | null | undefined) {
   const normalized = normalizeCompanionshipReasonText(value)
   if (!normalized)
     return null
+
+  if (fixedCompanionshipReasonCuePattern.test(normalized))
+    return ''
 
   const neutralized = normalized
     .replace(/\bcontinuity_hold=/giu, 'cadence=')
@@ -442,7 +448,7 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
       ?? openingGuidance
       ?? latestInflection
       ?? manifestationCadenceSummary
-      ?? 'cadence=repair_before_closeness; repair=settle_first; widening=deferred',
+      ?? '',
     )
   }
 
@@ -499,7 +505,7 @@ export function resolveAlicizationCompanionshipReasonSummary(input: {
       ?? openingGuidance
       ?? latestInflection
       ?? relationshipDoctrine
-      ?? 'cadence=measured_return; pressure=lower; room=preserve',
+      ?? '',
     )
   }
 

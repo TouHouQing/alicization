@@ -32,7 +32,6 @@ function lowerHumanlikeMemoryText(...values: Array<string | null | undefined>) {
   return values.map(value => sanitizeHumanlikeMemoryText(value, 320)).filter(Boolean).join(' ').toLowerCase()
 }
 
-const memoryClosureFixedTemplateReplacement = 'relationship_continuity=present; source_template=excluded; visibility=memory-structured'
 const memoryClosureFixedTemplateResiduePattern
   = /Before answering|same[- ]?her|same living line|same local-first digital life project|local-first digital life project|phase\s*1\s*:\s*local digital life|phase\s*1 local digital life|phase1_local_digital_life|phase-1-local-digital-life|digital[-_]life[-_]project|one continuous digital life|project_anchor=phase1_local_digital_life|同一个她|女仆|\bmaid\b/iu
 
@@ -43,10 +42,10 @@ function sanitizeMemoryClosureWritebackText(raw: unknown, maxChars = 640) {
   if (!normalized)
     return ''
   if (memoryClosureFixedTemplateResiduePattern.test(normalized))
-    return memoryClosureFixedTemplateReplacement
+    return ''
   const sanitized = sanitizeHumanlikeMemoryText(normalized, maxChars)
   return memoryClosureFixedTemplateResiduePattern.test(sanitized)
-    ? memoryClosureFixedTemplateReplacement
+    ? ''
     : sanitized
 }
 
@@ -2142,14 +2141,12 @@ function applyHumanlikeMemoryCandidateToPersonStateSurface(input: {
 
   const autobiographicalLead = readHumanlikeSurfaceLeadLine(candidate.autobiographicalImpact.selfNarrativeDelta)
   const relationshipLead = readHumanlikeSurfaceLeadLine(candidate.relationshipContext.summary)
-  const naturalRecallLead = sanitizeHumanlikeMemoryText(candidate.naturalRecallLine, 260)
   const initiativeStrategyLead = readHumanlikeSurfaceLeadLine(candidate.initiativeOutcomeRecord?.strategyUpdate)
   const correctedCarryPriority = candidate.relationshipContext.hostCorrectionApplied || candidate.recallPosture.certainty === 'corrected'
   const summaryLeadCandidates = correctedCarryPriority
     ? [
         autobiographicalLead,
         relationshipLead,
-        naturalRecallLead,
         initiativeStrategyLead,
         input.surface.summary,
       ]
@@ -2189,7 +2186,6 @@ function applyHumanlikeMemoryCandidateToPersonStateSurface(input: {
     narrative: uniqueClosureTexts([
       autobiographicalLead,
       initiativeStrategyLead,
-      naturalRecallLead,
       relationshipLead,
       ...input.surface.narrative,
     ], 8),

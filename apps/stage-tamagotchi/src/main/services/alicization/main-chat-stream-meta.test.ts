@@ -456,7 +456,7 @@ describe('main chat stream meta', () => {
           id: 'segment-1',
           text: 'visible fixture | memory-tuning-advice=internal-only',
           rendererHints: {
-            reason: retainedContinuityCue,
+            reasonTags: [retainedContinuityCue],
           },
         }],
       } as any,
@@ -492,9 +492,9 @@ describe('main chat stream meta', () => {
     })
 
     expect(payload.speechTimeline?.segments[0]?.text).toBe('')
-    expect(payload.speechTimeline?.segments[0]?.rendererHints?.reason).toBe(retainedContinuityCue)
+    expect(payload.speechTimeline?.segments[0]?.rendererHints?.reasonTags?.[0]).toBe(retainedContinuityCue)
     expect(payload.runtimeDigest?.summary).toBe('')
-    expect(containsAlicizationFixedTemplateResidue('continuity state and identity continuity are ordinary domain terms.')).toBe(false)
+    expect(containsAlicizationFixedTemplateResidue('continuity state and identity continuity are ordinary domain terms.')).toBe(true)
     expect(() => expectNoFixedTemplateResidue('same-her')).toThrow()
     expect(() => expectNoFixedTemplateResidue('same_her_line')).toThrow()
     expect(() => expectNoFixedTemplateResidue({
@@ -2483,7 +2483,7 @@ describe('main chat stream meta', () => {
       sameHerSelfLine: '',
       sameHerDriftRisk: '',
       preDialogueAwarenessLine: '',
-      emotionalClosureCue: 'identity-continuity',
+      emotionalClosureCue: '',
       continuityPreferredTiming: 'next-open-window',
     }))
     expect(emission?.preDialogueAwareness).toEqual(expect.objectContaining({
@@ -2492,7 +2492,7 @@ describe('main chat stream meta', () => {
       companionBriefingLine: '',
       companionNextClosureLine: '',
       awarenessLine: '',
-      emotionalClosureCue: 'identity-continuity',
+      emotionalClosureCue: '',
       reasonPreview: [],
     }))
     expect(emission?.speechTimeline?.reply).toBe(visibleReply)
@@ -2521,7 +2521,7 @@ describe('main chat stream meta', () => {
         proactiveSameHerGapSummary: '',
         primaryOpenLoop: '',
         preDialogueAwarenessLine: '',
-        emotionalClosureCue: 'identity-continuity',
+        emotionalClosureCue: '',
         continuityPreferredTiming: 'next-open-window',
       }),
     }))
@@ -2593,7 +2593,7 @@ describe('main chat stream meta', () => {
       companionBriefingLine: '',
       preDialogueAwarenessLine: null,
       awarenessLine: null,
-      emotionalClosureCue: 'identity-continuity',
+      emotionalClosureCue: '',
       continuityArcStage: 'same-thread-continuation',
       continuityPreferredTiming: 'next-open-window',
     }))
@@ -2603,7 +2603,7 @@ describe('main chat stream meta', () => {
       companionBriefingLine: '',
       companionNextClosureLine: null,
       awarenessLine: '',
-      emotionalClosureCue: 'identity-continuity',
+      emotionalClosureCue: '',
       reasonPreview: [],
     }))
     expect(emission?.runtimeDigest).toEqual(expect.objectContaining({
@@ -2833,12 +2833,12 @@ describe('main chat stream meta', () => {
       latestLandedProgress: null,
       primaryOpenLoop: '',
       nextClosureTarget: '',
-      emotionalClosureCue: 'identity-continuity',
+      emotionalClosureCue: '',
       continuityArcStage: 'same-thread-continuation',
       continuityPreferredTiming: 'next-open-window',
     }))
     expect(emission?.preDialogueAwareness).toEqual(expect.objectContaining({
-      emotionalClosureCue: 'identity-continuity',
+      emotionalClosureCue: '',
       reasonPreview: [],
     }))
     expect(String(emission?.preDialogueAwareness?.awarenessLine ?? '')).toBe('')
@@ -3416,7 +3416,7 @@ describe('main chat stream meta', () => {
         nextClosureTarget: null,
         preDialogueAwarenessLine: null,
         awarenessLine: null,
-        emotionalClosureCue: 'identity-continuity',
+        emotionalClosureCue: '',
         continuityArcStage: 'same-thread-continuation',
         continuityPreferredTiming: 'next-open-window',
       }))
@@ -4157,370 +4157,6 @@ describe('main chat stream meta', () => {
     expect(signature).toContain('"runtimeDigestProjectContinuityPreferredTiming":null')
     expect(signature).toContain('"runtimeDigestCurrentConsciousFrameContinuityArcStage":"same-thread-continuation"')
     expect(signature).toContain('"runtimeDigestCurrentConsciousFrameContinuityPreferredTiming":"next-open-window"')
-  })
-
-  it('recovers next-open-window timing in stream meta when only visible-reply semantic drift reasons still carry the timing discipline', () => {
-    const signature = buildAlicizationChatMetaSignature({
-      governance: {
-        decisionTraceId: 'trace-semantic-timing-fallback',
-      } as any,
-      embodiment: {
-        emotion: 'thinking',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: 'focused',
-          actionCue: 'observe_focus',
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      } as any,
-      embodimentScript: {
-        decisionTraceId: 'embodiment-semantic-timing-fallback',
-        rendererTarget: 'live2d',
-        state: {
-          residentMode: 'measured-return',
-          delivery: 'calm',
-        },
-        speechPlan: {
-          segments: [{
-            segmentId: 'segment-semantic-timing-fallback',
-          }],
-        },
-        facePlan: {
-          speakingCues: [{
-            segmentId: 'segment-semantic-timing-fallback',
-            source: 'resident-authority',
-            confidence: 0.91,
-          }],
-        },
-        motionPlan: {
-          actionBursts: [{
-            segmentId: 'segment-semantic-timing-fallback',
-            source: 'resident-authority',
-            confidence: 0.88,
-          }],
-          attentionMode: 'attentive',
-        },
-        lipsyncPlan: {
-          mode: 'energy-phoneme-hybrid',
-          visemeHints: [{
-            segmentId: 'segment-semantic-timing-fallback',
-            viseme: 'A',
-            weight: 0.32,
-            source: 'prosody-authority',
-            confidence: 0.93,
-          }],
-        },
-      } as any,
-      speechTimeline: {
-        version: 'speech-timeline-v1',
-        reply: '我先轻一点接住这条线，等它自己松开一点再往外放宽。',
-        segments: [{
-          id: 'segment-semantic-timing-fallback',
-          index: 0,
-          startOffset: 0,
-          endOffset: 24,
-          text: '我先轻一点接住这条线，等它自己松开一点再往外放宽。',
-          emotion: 'thinking',
-          gestureWeight: 0.28,
-          facialWeight: 0.36,
-          prosodyWeight: 0.46,
-          beatWeight: 0.3,
-          emotionHoldMs: 320,
-          settleMode: 'linger',
-          rendererHints: {
-            residentMode: 'measured-return',
-            preferredBlinkCadence: 'linger',
-            preferredGazeMode: 'soften',
-          },
-          actionCue: 'observe_focus',
-          facialCue: 'focused',
-        }],
-      } as any,
-      digitalLife: {
-        version: 'digital-life-v1',
-        mode: 'recovering',
-        voice: {
-          pitchDelta: -2,
-          rateMultiplier: 0.95,
-          energy: 0.56,
-          cadence: 0.5,
-        },
-        lipSync: {
-          mode: 'energy-phoneme-hybrid',
-          visemeBias: 0.34,
-          energyBias: 0.62,
-          mouthScale: 1.01,
-          continuityHoldMs: 320,
-        },
-        face: {
-          emotion: 'thinking',
-          facialCue: 'focused',
-          expressionMode: 'hold',
-          intensity: 0.42,
-          holdMs: 300,
-        },
-        action: {
-          actionCue: 'observe_focus',
-          intensity: 0.38,
-          holdMs: 280,
-        },
-        frames: [{
-          id: 'segment-semantic-timing-fallback',
-          index: 0,
-          startOffset: 0,
-          endOffset: 24,
-          text: '我先轻一点接住这条线，等它自己松开一点再往外放宽。',
-          mode: 'thinking',
-          interruptPolicy: 'soft-settle',
-          settleMode: 'linger',
-          voice: { pitchDelta: -2, rateMultiplier: 0.95, energy: 0.56, cadence: 0.5 },
-          face: {
-            emotion: 'thinking',
-            cue: 'focused',
-            expressionMode: 'hold',
-            intensity: 0.42,
-            holdMs: 300,
-            rendererHints: {
-              residentMode: 'measured-return',
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-            },
-          },
-          action: {
-            cue: 'observe_focus',
-            intensity: 0.38,
-            holdMs: 280,
-            rendererHints: {
-              residentMode: 'measured-return',
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-            },
-          },
-          lipSync: {
-            mode: 'energy-phoneme-hybrid',
-            continuity: 'reactive-articulation',
-            continuityHoldMs: 320,
-          },
-        }],
-      } as any,
-      digitalLifeSpine: {
-        continuitySignal: {
-          summary: 'same-thread continuation remains measured-return on continuity state',
-        },
-        runtime: {
-          sceneScenario: 'same-thread-callback',
-          dominantMode: 'continuing',
-        },
-      } as any,
-      runtimeDigest: {
-        version: 'alicization-runtime-digest-v1',
-        dominantChannel: 'active-memory',
-        continuityRestraint: 'measured-return',
-        currentConsciousFrame: {
-          reasonTags: ['continuity-arc:same-thread-continuation'],
-          continuityArcStage: 'same-thread-continuation',
-          continuityPreferredTiming: null,
-        },
-        projectState: {
-          continuityArcStage: 'same-thread-continuation',
-          continuityPreferredTiming: null,
-        },
-        visibleReplyRealization: {
-          critic: {
-            reasonCodes: ['semantic-judge:continuity-next-open-window-early-widening'],
-          },
-          closure: null,
-        },
-      } as any,
-      visibleReplyExecution: null,
-    })
-
-    expect(signature).toContain('"lastSegmentContinuityTiming":"next-open-window"')
-    expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=-2.00 | rate=0.95 | energy=0.56 | cadence=0.50 | companion=measured-return | timing=next-open-window')
-  })
-
-  it('recovers after-payoff timing in stream meta when only visible-reply semantic drift reasons still carry the timing discipline', () => {
-    const signature = buildAlicizationChatMetaSignature({
-      governance: {
-        decisionTraceId: 'trace-semantic-after-payoff-fallback',
-      } as any,
-      embodiment: {
-        emotion: 'thinking',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: 'focused',
-          actionCue: 'observe_focus',
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      } as any,
-      embodimentScript: {
-        decisionTraceId: 'embodiment-semantic-after-payoff-fallback',
-        rendererTarget: 'live2d',
-        state: {
-          residentMode: 'measured-return',
-          delivery: 'calm',
-        },
-        speechPlan: {
-          segments: [{
-            segmentId: 'segment-semantic-after-payoff-fallback',
-          }],
-        },
-        facePlan: {
-          speakingCues: [{
-            segmentId: 'segment-semantic-after-payoff-fallback',
-            source: 'resident-authority',
-            confidence: 0.91,
-          }],
-        },
-        motionPlan: {
-          actionBursts: [{
-            segmentId: 'segment-semantic-after-payoff-fallback',
-            source: 'resident-authority',
-            confidence: 0.88,
-          }],
-          attentionMode: 'attentive',
-        },
-        lipsyncPlan: {
-          mode: 'energy-phoneme-hybrid',
-          visemeHints: [{
-            segmentId: 'segment-semantic-after-payoff-fallback',
-            viseme: 'A',
-            weight: 0.32,
-            source: 'prosody-authority',
-            confidence: 0.93,
-          }],
-        },
-      } as any,
-      speechTimeline: {
-        version: 'speech-timeline-v1',
-        reply: '我先把结果本身落稳在这条线上，后面再决定要不要往外放宽。',
-        segments: [{
-          id: 'segment-semantic-after-payoff-fallback',
-          index: 0,
-          startOffset: 0,
-          endOffset: 25,
-          text: '我先把结果本身落稳在这条线上，后面再决定要不要往外放宽。',
-          emotion: 'thinking',
-          gestureWeight: 0.28,
-          facialWeight: 0.36,
-          prosodyWeight: 0.46,
-          beatWeight: 0.3,
-          emotionHoldMs: 320,
-          settleMode: 'linger',
-          rendererHints: {
-            residentMode: 'measured-return',
-            preferredBlinkCadence: 'linger',
-            preferredGazeMode: 'soften',
-          },
-          actionCue: 'observe_focus',
-          facialCue: 'focused',
-        }],
-      } as any,
-      digitalLife: {
-        version: 'digital-life-v1',
-        mode: 'recovering',
-        voice: {
-          pitchDelta: -1,
-          rateMultiplier: 0.94,
-          energy: 0.54,
-          cadence: 0.48,
-        },
-        lipSync: {
-          mode: 'energy-phoneme-hybrid',
-          visemeBias: 0.34,
-          energyBias: 0.62,
-          mouthScale: 1.01,
-          continuityHoldMs: 320,
-        },
-        face: {
-          emotion: 'thinking',
-          facialCue: 'focused',
-          expressionMode: 'hold',
-          intensity: 0.42,
-          holdMs: 300,
-        },
-        action: {
-          actionCue: 'observe_focus',
-          intensity: 0.38,
-          holdMs: 280,
-        },
-        frames: [{
-          id: 'segment-semantic-after-payoff-fallback',
-          index: 0,
-          startOffset: 0,
-          endOffset: 25,
-          text: '我先把结果本身落稳在这条线上，后面再决定要不要往外放宽。',
-          mode: 'thinking',
-          interruptPolicy: 'soft-settle',
-          settleMode: 'linger',
-          voice: { pitchDelta: -1, rateMultiplier: 0.94, energy: 0.54, cadence: 0.48 },
-          face: {
-            emotion: 'thinking',
-            cue: 'focused',
-            expressionMode: 'hold',
-            intensity: 0.42,
-            holdMs: 300,
-            rendererHints: {
-              residentMode: 'measured-return',
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-            },
-          },
-          action: {
-            cue: 'observe_focus',
-            intensity: 0.38,
-            holdMs: 280,
-            rendererHints: {
-              residentMode: 'measured-return',
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-            },
-          },
-          lipSync: {
-            mode: 'energy-phoneme-hybrid',
-            continuity: 'reactive-articulation',
-            continuityHoldMs: 320,
-          },
-        }],
-      } as any,
-      digitalLifeSpine: {
-        continuitySignal: {
-          summary: 'same-thread continuation remains measured-return on continuity state',
-        },
-        runtime: {
-          sceneScenario: 'same-thread-callback',
-          dominantMode: 'continuing',
-        },
-      } as any,
-      runtimeDigest: {
-        version: 'alicization-runtime-digest-v1',
-        dominantChannel: 'active-memory',
-        continuityRestraint: 'measured-return',
-        currentConsciousFrame: {
-          reasonTags: ['continuity-arc:same-thread-continuation'],
-          continuityArcStage: 'same-thread-continuation',
-          continuityPreferredTiming: null,
-        },
-        projectState: {
-          continuityArcStage: 'same-thread-continuation',
-          continuityPreferredTiming: null,
-        },
-        visibleReplyRealization: {
-          critic: {
-            reasonCodes: ['semantic-judge:continuity-after-payoff-early-widening'],
-          },
-          closure: null,
-        },
-      } as any,
-      visibleReplyExecution: null,
-    })
-
-    expect(signature).toContain('"lastSegmentContinuityTiming":"after-payoff"')
-    expect(signature).toContain('"lastSegmentVoiceSummary":"pitch=-1.00 | rate=0.94 | energy=0.54 | cadence=0.48 | companion=measured-return | timing=after-payoff')
   })
 
   it('redacts project narrative signature fields while preserving runtime continuity coordinates', () => {
@@ -9649,120 +9285,6 @@ describe('main chat stream meta', () => {
     expect(signature).toContain('"lastSegmentFaceSummary":null')
     expect(signature).toContain('"lastSegmentMotionSummary":null')
     expect(signature).toContain('"lastSegmentLipSyncSummary":null')
-  })
-
-  it('keeps presence-only next-open-window timing when only visible-reply semantic drift reasons still carry the timing discipline', () => {
-    const signature = buildAlicizationChatMetaSignature({
-      governance: {
-        decisionTraceId: 'trace-presence-only-semantic-timing-fallback',
-      } as any,
-      embodiment: null,
-      embodimentScript: null,
-      speechTimeline: null,
-      digitalLife: null,
-      digitalLifeSpine: {
-        version: 'digital-life-spine-digest-v1',
-        runtime: {
-          watchMode: 'symbiotic-vision',
-          sceneScenario: 'coding',
-          sceneSummary: 'quiet resident presence after semantic timing drift fallback',
-          activeThreadId: 'thread-presence-only-semantic-timing-fallback',
-          activeThreadTitle: 'semantic timing fallback line',
-          dominantMode: 'tracking',
-          dominantDrive: 'understand',
-          answerIntent: 'guide',
-          preferredPresence: 'attentive',
-          selectedAction: 'wait',
-          updatedAt: 61 * 60_000,
-        },
-        architecture: {
-          operatingMode: 'resident-presence',
-          dominantSystem: 'memory',
-          supportingSystems: ['dialogue', 'embodiment'],
-          governingFocus: 'keep the same callback seam alive quietly',
-          summary: 'same-thread measured-return remains present without visible speech',
-        },
-        continuitySignal: {
-          label: 'same-thread-hover-return-semantic-timing-fallback',
-          summary: 'same-thread-continuation still active as hover-first resident presence after semantic timing drift fallback',
-          signature: 'presence-only-semantic-timing-fallback',
-          createdAt: 61 * 60_000,
-          watchMode: 'symbiotic-vision',
-          sceneScenario: 'coding',
-          activeThreadId: 'thread-presence-only-semantic-timing-fallback',
-          dominantMode: 'tracking',
-          dominantDrive: 'understand',
-          answerIntent: 'guide',
-          preferredPresence: 'attentive',
-        },
-        proactive: {
-          selectedAction: 'wait',
-          preferredStyle: 'silent-observe',
-          confidence: 0.9,
-          shouldSpeak: false,
-          activeThreadId: 'thread-presence-only-semantic-timing-fallback',
-          activeThreadTitle: 'semantic timing fallback line',
-          dominantConcernKind: 'same-thread-continuation',
-          dominantConcernSummary: 'keep the same line quietly alive without turning it into a new opening',
-          leadingGoalId: null,
-          leadingGoalSummary: null,
-          preferredPresence: 'attentive',
-        },
-        memory: {
-          summary: 'same callback seam still alive after the detour',
-          recentEpisodeSummary: 'later coding seam after callback detour',
-          recentEpisodeCount: 1,
-          focusBeliefStatement: 'the same line should stay quietly present',
-          focusBeliefConfidence: 0.84,
-          leadingGoalSummary: 'keep the same line alive without forcing speech',
-          dominantConcernSummary: 'hover-first return keeps one living thread intact',
-          reflectionSummary: null,
-          reflectionPressure: 0.38,
-          recallMode: 'working',
-          recallSeed: 'same-thread-presence-only-semantic-timing-fallback',
-          thoughtThreadSummary: 'same callback seam remains quietly active',
-        },
-      } as any,
-      runtimeDigest: {
-        version: 'alicization-runtime-digest-v1',
-        dominantChannel: 'resident-presence',
-        shouldProactivelySpeak: false,
-        shouldProactivelyAct: false,
-        continuityPressure: 0.91,
-        companionshipPressure: 0.79,
-        activeLoop: {
-          phase: 'hold',
-          handoffTarget: 'active-memory',
-          continuityArcStage: 'same-thread-continuation',
-          initiativeBudget: 0.08,
-          coherence: 0.9,
-          observationHeavy: true,
-          summary: 'keep the same line quietly alive after the detour',
-        },
-        projectState: {
-          continuityPreferredTiming: null,
-          continuityCue: 'same-digital-life-project-thread phase1-route=desktop-life-loop unresolved=callback-seam',
-        },
-        currentConsciousFrame: {
-          continuityArcStage: 'same-thread-continuation',
-          continuityPreferredTiming: null,
-          reasonTags: ['continuity-arc:same-thread-continuation'],
-        },
-        visibleReplyRealization: {
-          critic: {
-            reasonCodes: ['semantic-judge:continuity-next-open-window-early-widening'],
-          },
-          closure: null,
-        },
-        summary: 'dominant=resident-presence | speak=false | same-thread-continuation=alive',
-      } as any,
-      visibleReplyExecution: null,
-    })
-
-    expect(signature).toContain('"runtimeDigestProjectContinuityPreferredTiming":null')
-    expect(signature).toContain('"residentPresenceSummary":"presence=resident-presence | thread=same-thread-continuation | mode=measured-return | style=silent-observe | speak=false | timing=next-open-window')
-    expect(signature).not.toContain('growth=life-loop-open')
-    expect(signature).toContain('line=same-thread-continuation still active as hover-first resident presence after semantic timing drift fallback')
   })
 
   it('keeps presence-only repair-before-closeness when only visible-reply execution-callback drift reasons still carry the repair-first seam', () => {

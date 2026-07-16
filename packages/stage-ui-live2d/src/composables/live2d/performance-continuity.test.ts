@@ -158,7 +158,7 @@ describe('live2d speech continuity', () => {
     expect(stillVoicedFaceMouthTail.drive).toBeGreaterThan(stillVoicedFaceTail.drive)
   })
 
-  it('extends same-segment live2d speech carry when the tail upgrades from a still-voiced face line into a richer face-and-mouth same-her continuity line', () => {
+  it('extends same-segment live2d speech carry when the tail upgrades from a still-voiced face line into a richer face-and-mouth identity-continuity', () => {
     const stillVoicedFaceState = createLive2DSpeechContinuityState()
     const upgradedFaceMouthState = createLive2DSpeechContinuityState()
 

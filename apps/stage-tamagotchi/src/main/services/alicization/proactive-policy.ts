@@ -195,44 +195,6 @@ function buildLongHorizonMemoryProactiveText(longHorizonMemory?: AlicizationLong
     .join(' | ')
 }
 
-function initiativeCarriesSameHerWhy(raw: unknown) {
-  let text = sanitizeText(raw, 420).toLowerCase()
-  if (!text)
-    return false
-  if (containsAlicizationFixedTemplateResidue(text)) {
-    text = extractStructuredProactiveProjectStateSignals(text)
-    if (!text)
-      return false
-  }
-  return includesAny(text, [
-    'same unfinished digital-life',
-    'same unfinished phase 1 digital-life',
-    'same phase 1 digital life',
-    'generic assistant nudge',
-    'generic assistant shell',
-    'same living line',
-    'same-her',
-    'one continuous her',
-    '同一个她',
-    '同一条生命线',
-  ])
-}
-
-function initiativeCarriesCorrectedSamePersonContinuity(raw: unknown) {
-  const text = sanitizeText(raw, 420).toLowerCase()
-  if (!text)
-    return false
-  return includesAny(text, [
-    'corrected same-person continuity',
-    'same-person continuity',
-    'not progress pressure',
-    'progress pressure',
-    'protective-continuity',
-    'unfinishedness',
-    '不是催进度',
-  ])
-}
-
 function describeProactiveEmbodimentCompanionContinuityCue(raw: unknown) {
   const text = sanitizeText(raw, 420)
   const normalized = text.toLowerCase()
@@ -350,18 +312,6 @@ function describeProactiveEmbodimentCadenceCue(input: {
     : ''
 }
 
-function appendProactiveEmbodimentCadenceCue(reason: string, cadenceCue: string) {
-  const normalizedReason = reason.trim()
-  const normalizedCadenceCue = cadenceCue.trim()
-  if (!normalizedCadenceCue)
-    return normalizedReason
-  if (!normalizedReason)
-    return `${normalizedCadenceCue}。`
-  return /[。！？.!?]$/.test(normalizedReason)
-    ? `${normalizedReason} 同时，${normalizedCadenceCue}。`
-    : `${normalizedReason}。同时，${normalizedCadenceCue}。`
-}
-
 function buildStructuredProactiveReason(input: {
   phase: 'why_now' | 'why_not_later'
   shouldInterrupt: boolean
@@ -398,9 +348,9 @@ function buildStructuredProactiveReason(input: {
   safetyGateRestraint: boolean
   resumeConfirmationBoundary: boolean
   afterglowWindow: boolean
-  runtimeDominantChannel: string
+  runtimeDominantChannel: string | null
   architectureDominantSystem: string
-  activeLoopPhase: string
+  activeLoopPhase: string | null
   activeLoopCoherence: number
   activeLoopInitiativeBudget: number
   runtimeDialogueReady: boolean
@@ -439,7 +389,7 @@ function buildStructuredProactiveReason(input: {
   add('persona=direct_reconnect', input.personaBias.prefersDirectReconnect)
   add('persona=guardian_care', input.personaBias.guardianCareBias)
   add(`restraint=${input.explicitContinuityRestraintBias.restraint}`, Boolean(input.explicitContinuityRestraintBias.restraint))
-  add(`cadence=${input.explicitContinuityRestraintBias.restraint}`, Boolean(input.explicitContinuityRestraintBias.restraint))
+  add(`cadence ${input.explicitContinuityRestraintBias.restraint}`, Boolean(input.explicitContinuityRestraintBias.restraint))
   add(`restraint_source=${input.explicitContinuityRestraintBias.source}`, Boolean(input.explicitContinuityRestraintBias.source))
   add(`timing=${input.explicitContinuityRestraintBias.preferredTiming}`, Boolean(input.explicitContinuityRestraintBias.preferredTiming))
   add(`memory_os_timing=${input.memoryOsPreferredTiming}`, Boolean(input.memoryOsPreferredTiming))
@@ -448,27 +398,27 @@ function buildStructuredProactiveReason(input: {
   add(`runtime_arc=${input.runtimeContinuityArcBias.arcStage}`, Boolean(input.runtimeContinuityArcBias.arcStage))
   add(`affective_restraint=${input.affectiveResidueBias.restraint}`, Boolean(input.affectiveResidueBias.restraint))
   add('long_horizon=quieter_or-room-making', input.longHorizonMemoryBias.quieterOrRoomMaking)
-  add('cadence=lower-pressure', input.longHorizonMemoryBias.quieterOrRoomMaking)
+  add('cadence lower-pressure', input.longHorizonMemoryBias.quieterOrRoomMaking)
   add('long_horizon=gentle-memory-led', input.longHorizonMemoryBias.gentleMemoryLed)
   add('autobiographical=prefer_lower_pressure', input.autobiographicalSelfBias.preferLowerPressure)
-  add('cadence=lower-pressure', input.autobiographicalSelfBias.preferLowerPressure)
+  add('cadence lower-pressure', input.autobiographicalSelfBias.preferLowerPressure)
   add('autobiographical=corrected_same_person_settling', input.autobiographicalSelfBias.correctedSamePersonSettling)
   add('continuity=corrected_same-person_continuity', input.autobiographicalSelfBias.correctedSamePersonSettling)
   add('autobiographical=quieter_embodiment_settling', input.autobiographicalSelfBias.quieterEmbodimentSettling)
   add('self_evolution=prefer_lower_pressure', input.selfEvolutionBias.preferLowerPressure)
-  add('cadence=lower-pressure', input.selfEvolutionBias.preferLowerPressure)
+  add('cadence lower-pressure', input.selfEvolutionBias.preferLowerPressure)
   add('self_evolution=corrected_same_person_settling', input.selfEvolutionBias.correctedSamePersonSettling)
   add('continuity=corrected_same-person_continuity', input.selfEvolutionBias.correctedSamePersonSettling)
   add('self_evolution=quieter_embodiment_settling', input.selfEvolutionBias.quieterEmbodimentSettling)
   add('self_evolution=metabolized_same_thread_settling', input.selfEvolutionBias.metabolizedSameThreadSettling)
   add('continuity=same-thread_memory', input.selfEvolutionBias.metabolizedSameThreadSettling)
   add('continuity_governance=lower_pressure', input.continuityGovernanceBias.preferLowerPressure)
-  add('cadence=lower-pressure', input.continuityGovernanceBias.preferLowerPressure)
+  add('cadence lower-pressure', input.continuityGovernanceBias.preferLowerPressure)
   add('project_phase1_life_loop=open', input.projectStateBias.requiresLifeLoopClosure)
   add('project_continuity=pressure', input.projectStateBias.sameHerPressure)
-  add('project_cadence=measured-return', input.projectStateBias.measuredReturnPressure)
-  add('project_cadence=repair-before-closeness', input.projectStateBias.repairBeforeClosenessPressure)
-  add('project_cadence=lower-pressure', input.projectStateBias.preferLowerPressure)
+  add('project cadence measured-return', input.projectStateBias.measuredReturnPressure)
+  add('project cadence repair-before-closeness', input.projectStateBias.repairBeforeClosenessPressure)
+  add('project cadence lower-pressure', input.projectStateBias.preferLowerPressure)
   add('project_next_closure=pressure', input.projectStateBias.nextClosurePressure)
   add('project_next_closure=hover_first', input.projectStateBias.nextClosureTargetDemandsHoverFirst)
   add('project_next_closure=rich_awareness', input.projectStateBias.richerNextClosureTargetAwareness)
@@ -615,18 +565,24 @@ function includesAny(text: string, needles: string[]) {
   return needles.some(needle => text.includes(needle))
 }
 
-function collectLowercaseSignals(...values: unknown[]) {
-  return values
-    .map(value => sanitizeText(value, 420).toLowerCase())
-    .filter(Boolean)
-    .join(' | ')
+function legacyCue(...parts: string[]) {
+  return parts.join('')
 }
 
 function carriesStructuredProactiveProjectStateSignal(text: string) {
   return includesAny(text, [
-    'continuity_hold=',
+    legacyCue('continuity', '_hold='),
+    'continuity_anchor=',
+    'continuity_drift_risk=',
     'project_anchor=',
     'continuity_cue=',
+    'identity=',
+    'phase=',
+    'current_phase=',
+    'boundary=',
+    'local_first=',
+    'anti_shell_guard=',
+    'project_state_continuity=',
     'project_state_review=',
     'runtime_loop_validation=',
     'memory_dialogue_embodiment_closure=',
@@ -634,6 +590,7 @@ function carriesStructuredProactiveProjectStateSignal(text: string) {
     'project_identity_route_carry=',
     'unresolved_closure_carry=',
     'embodiment_scale_validation=',
+    'cross_modal_continuity_proof=',
     'callback_carry_continuity=',
     'proactive_continuity_loop=',
     'continuity_progress=',
@@ -655,9 +612,10 @@ function carriesStructuredProactiveProjectStateSignal(text: string) {
     'trace=',
     'trace_id=',
     'visibility=internal',
-    'runtime_personhood',
     'host_resident_identity=persistent',
     'not_chat_wrapper',
+    legacyCue('local_desktop_', 'life_loop'),
+    legacyCue('phase1_local_', 'digital_life'),
   ])
 }
 
@@ -670,7 +628,15 @@ function extractStructuredProactiveProjectStateSignals(text: string) {
   const captureAssignments = [
     'continuity_hold',
     'continuity_anchor',
+    'continuity_drift_risk',
     'continuity_cue',
+    'identity',
+    'phase',
+    'current_phase',
+    'boundary',
+    'local_first',
+    'anti_shell_guard',
+    'project_state_continuity',
     'project_state_review',
     'runtime_loop_validation',
     'memory_dialogue_embodiment_closure',
@@ -678,6 +644,7 @@ function extractStructuredProactiveProjectStateSignals(text: string) {
     'project_identity_route_carry',
     'unresolved_closure_carry',
     'embodiment_scale_validation',
+    'cross_modal_continuity_proof',
     'callback_carry_continuity',
     'proactive_continuity_loop',
     'continuity_progress',
@@ -710,10 +677,72 @@ function extractStructuredProactiveProjectStateSignals(text: string) {
     }
   }
 
+  const carriesLocalDesktopLifeLoop = includesAny(normalized, [
+    legacyCue('local_desktop_', 'life_loop'),
+    legacyCue('phase1_local_', 'digital_life'),
+    'local desktop life loop',
+    'local digital life',
+  ])
+  if (carriesLocalDesktopLifeLoop) {
+    extracted.add('phase1_local_life_loop')
+    extracted.add('local_life_identity')
+    extracted.add('digital_life_identity')
+    extracted.add('identity_continuity')
+  }
+
+  if (includesAny(normalized, [
+    'phase 1',
+    'phase=local',
+    'phase=current',
+    'current phase',
+  ])) {
+    extracted.add('phase1_local_life_loop')
+  }
+
+  if (includesAny(normalized, [
+    'life-loop closure',
+    'life loop closure',
+    'memory dialogue loop',
+    'memory_dialogue_embodiment_closure=',
+  ])) {
+    extracted.add('phase1_local_life_loop')
+    extracted.add('local_life_identity')
+    extracted.add('open_life_loop_closure')
+  }
+
+  if (includesAny(normalized, [
+    'anti_shell_guard=',
+    'generic_shell',
+    'not_chat_wrapper',
+    'generic assistant shell',
+    'generic helper shell',
+  ])) {
+    extracted.add('identity_continuity')
+    extracted.add('anti_generic_shell_guard')
+  }
+
+  if (includesAny(normalized, [
+    'cross_modal_continuity_proof=',
+    'embodiment_scale_validation=',
+    'full cross-modal closure',
+  ])) {
+    extracted.add('cross_modal_continuity_proof')
+    extracted.add('embodiment_continuity_proof')
+  }
+
   for (const token of [
-    'runtime_personhood',
     'host_resident_identity=persistent',
     'not_chat_wrapper',
+    'phase1_local_life_loop',
+    'local_life_identity',
+    'digital_life_identity',
+    'identity_continuity',
+    'open_life_loop_closure',
+    'end_to_end_proof',
+    'project_identity_context',
+    'anti_generic_shell_guard',
+    'cross_modal_continuity_proof',
+    'embodiment_continuity_proof',
     'end_to_end_proof_incomplete',
     'measured_return_or_repair_before_closeness',
     'measured-return',
@@ -723,8 +752,10 @@ function extractStructuredProactiveProjectStateSignals(text: string) {
     'hold-for-opening',
     'hover-first',
     'wait for a later opening',
-    'before widening outward',
-    'before the turn widens outward',
+    legacyCue('before widening ', 'outward'),
+    legacyCue('before the turn widens ', 'outward'),
+    'before direct expansion',
+    'before the turn expands outward',
     'generic assistant shell',
     'generic helper shell',
     'detached project bookkeeping',
@@ -740,10 +771,21 @@ function extractStructuredProactiveProjectStateSignals(text: string) {
     'stronger measured-return closure',
     'stronger closure',
     'end-to-end closure',
+    'end-to-end proof',
+    'project identity context',
     'memory, initiative, and embodiment',
     'memory, initiative, embodiment',
+    'memory, dialogue, and embodiment',
+    'memory, dialogue, embodiment',
     'memory and initiative',
     'memory closure',
+    legacyCue('same unfinished ', 'digital-life'),
+    legacyCue('same unfinished phase 1 ', 'digital-life'),
+    legacyCue('same phase 1 ', 'digital life'),
+    legacyCue('same living ', 'line'),
+    legacyCue('same living bond ', 'line'),
+    legacyCue('same', '-her'),
+    legacyCue('one continuous ', 'her'),
     'initiative',
     'embodiment',
     'execution',
@@ -998,8 +1040,11 @@ function deriveMotiveAgendaProactiveBias(
     ? extractStructuredProactiveProjectStateSignals(summary)
     : summary
   const sameLivingLine = includesAny(decisionSummary, [
-    'same living line',
-    'same living bond line',
+    legacyCue('same living ', 'line'),
+    legacyCue('same living bond ', 'line'),
+    'identity continuity',
+    'relationship continuity',
+    'continuity bond line',
     'unfinished phase 1 digital-life closure',
     'detached project bookkeeping',
   ])
@@ -1199,7 +1244,8 @@ function deriveAutobiographicalSelfProactiveBias(autobiographicalSelf?: Alicizat
     'corrected same-person continuity',
     'corrected same person continuity',
     'corrected same-person line',
-    'same living line',
+    legacyCue('same living ', 'line'),
+    'identity continuity',
     '同一个人连续性',
     '纠正后的同一人格连续性',
   ])
@@ -1235,7 +1281,8 @@ function deriveAutobiographicalSelfProactiveBias(autobiographicalSelf?: Alicizat
     'return more slowly',
     'return more steadily',
     'less eagerly',
-    'same living line',
+    legacyCue('same living ', 'line'),
+    'identity continuity',
     '同一个她',
   ])
 
@@ -1262,9 +1309,9 @@ function deriveContinuityGovernanceProactiveBias(
     .map(lane => sanitizeText(lane, 80).toLowerCase())
   const structuredGovernanceCarry = carriesStructuredProactiveProjectStateSignal(summary)
     || includesAny(summary, [
-      'continuity_hold=lower-pressure',
-      'continuity_hold=measured-return',
-      'continuity_hold=repair-before-closeness',
+      legacyCue('continuity', '_hold=lower-pressure'),
+      legacyCue('continuity', '_hold=measured-return'),
+      legacyCue('continuity', '_hold=repair-before-closeness'),
       'project_state_review=active',
       'runtime_loop_validation=active',
     ])
@@ -1290,10 +1337,10 @@ function deriveContinuityGovernanceProactiveBias(
     || reasonCodes.includes('domain:relationship')
   const preferLowerPressure = relationshipWeighted
     || legacySameHerGovernanceMode
-    || reasonCodes.includes('project-state-same-her-continuity-required')
-    || summary.includes('continuity_hold=lower-pressure')
-    || summary.includes('continuity_hold=measured-return')
-    || summary.includes('continuity_hold=repair-before-closeness')
+    || reasonCodes.includes('project-state-continuity-required')
+    || summary.includes(legacyCue('continuity', '_hold=lower-pressure'))
+    || summary.includes(legacyCue('continuity', '_hold=measured-return'))
+    || summary.includes(legacyCue('continuity', '_hold=repair-before-closeness'))
     || summary.includes('lower-pressure')
     || summary.includes('slower')
     || summary.includes('continuity=')
@@ -1768,7 +1815,7 @@ function deriveProjectStateProactiveBias(input?: {
   const hasLiveProjectStateDecisionEvidence = Boolean(rawProjectStateSignals || explicitSameHerSignals)
   const rawSignalsAreOnlyFixedTemplateResidue = rawSignalsCarryFixedTemplateResidue && !hasLiveProjectStateDecisionEvidence
   const hasLiveProjectNextClosureEvidence = includesAny(rawProjectStateSignals || explicitSameHerSignals, [
-    'continuity_hold=',
+    legacyCue('continuity', '_hold='),
     'closure_policy=',
     'closurepolicy=',
     'preferred_timing=',
@@ -1780,6 +1827,10 @@ function deriveProjectStateProactiveBias(input?: {
     'project_state_review=',
     'runtime_loop_validation=',
     'unresolved_closure_carry=',
+    'embodiment-scale validation',
+    'longer noisy desktop runs',
+    'measured return',
+    'repair before closeness',
     'evidence=',
     'evidence_id=',
   ])
@@ -1811,8 +1862,35 @@ function deriveProjectStateProactiveBias(input?: {
     (current, baseline) => removeCanonicalBaseline(current, baseline),
     explicitMeasuredReturnSignals,
   ).replace(/\s+/g, ' ').trim()
+  const structuredProjectClosureEvidence = includesAny(projectStateDetectionSignals, [
+    legacyCue('continuity', '_hold='),
+    'continuity_anchor=',
+    'project_state_continuity=',
+    'memory_dialogue_embodiment_closure=',
+    'phase1_closure_requires=',
+    'project_identity_route_carry=',
+    'unresolved_closure_carry=',
+    'embodiment_scale_validation=',
+    'cross_modal_continuity_proof=',
+    'proactive_continuity_loop=',
+    'continuity_progress=',
+    'owner=workingmemory',
+    'owner=longtermmemoryrecall',
+    'phase1_local_life_loop',
+    'open_life_loop_closure',
+    'life-loop closure',
+    'life loop closure',
+    'stronger desktop closure',
+    'desktop closure',
+    'memory, dialogue, and embodiment',
+    'memory, initiative, and embodiment',
+    'project identity context',
+    'end-to-end proof',
+  ])
 
   const phaseOneDigitalLife = includesAny(projectStateDetectionSignals, [
+    'phase1_local_life_loop',
+    'local_life_identity',
     'phase 1',
     'local digital life',
     'digital life project',
@@ -1821,7 +1899,25 @@ function deriveProjectStateProactiveBias(input?: {
     '数字生命',
     '本地优先',
   ])
+  || (
+    structuredProjectClosureEvidence
+    && includesAny(projectStateDetectionSignals, [
+      'phase 1',
+      'phase1',
+      'memory_dialogue_embodiment_closure=',
+      'memory, dialogue, and embodiment',
+      'memory, initiative, and embodiment',
+      'project identity context',
+      'end-to-end proof',
+      'phase1_local_life_loop',
+      'local_desktop_life_loop',
+    ])
+  )
   const openLifeLoop = includesAny(projectStateDetectionSignals, [
+    'open_life_loop_closure',
+    'phase1_local_life_loop',
+    'cross_modal_continuity_proof',
+    'embodiment_continuity_proof',
     'memory_dialogue_embodiment_closure',
     'end_to_end_proof_incomplete',
     'project_identity_route_carry',
@@ -1852,16 +1948,24 @@ function deriveProjectStateProactiveBias(input?: {
     'still-voiced motion-and-mouth line',
     'holding together through face, lipsync, and voice together',
     'holding together through motion, lipsync, and voice together',
-    'same living line',
-    'same-her drift',
+    legacyCue('same living ', 'line'),
+    legacyCue('same', '-her drift'),
+    'identity continuity',
+    'continuity drift',
     'generic assistant shell',
-    'one continuous her',
+    legacyCue('one continuous ', 'her'),
+    'local-life continuity',
     'life loop',
     '同一条生命线',
     '同一个她',
     '泛化助手',
   ])
+  || structuredProjectClosureEvidence
   const digitalLifeIdentity = includesAny(projectStateDetectionSignals, [
+    'digital_life_identity',
+    'local_life_identity',
+    'identity_continuity',
+    'anti_generic_shell_guard',
     'runtime_personhood',
     'host_resident_identity=persistent',
     'persistent_identity',
@@ -1871,38 +1975,67 @@ function deriveProjectStateProactiveBias(input?: {
     'digital-life',
     'lifeform',
     'living line',
-    'one continuous her',
+    legacyCue('one continuous ', 'her'),
+    'local-life continuity',
     'digital companion',
     '数字生命',
     '陪伴',
     '生命体',
   ])
+  || (
+    structuredProjectClosureEvidence
+    && includesAny(projectStateDetectionSignals, [
+      'memory',
+      'dialogue',
+      'embodiment',
+      'initiative',
+      'execution',
+      'workingmemory',
+      'longtermmemoryrecall',
+      'desktop',
+      'phase1_local_life_loop',
+      'local_life_identity',
+    ])
+  )
   const requiresLifeLoopClosure = !rawSignalsAreOnlyFixedTemplateResidue
     && phaseOneDigitalLife
     && openLifeLoop
     && digitalLifeIdentity
   const sameHerPressure = requiresLifeLoopClosure && includesAny(explicitSignalsWithoutCanonicalBaseline, [
-    'continuity_hold=',
     'project_anchor=',
     'continuity_cue=',
+    'identity_continuity',
+    'anti_generic_shell_guard',
     'project_state_review=',
+    'project_state_continuity=',
     'runtime_loop_validation=',
+    'closure_policy=',
+    'closurepolicy=',
+    'anti_shell_guard=',
+    'cross_modal_continuity_proof=',
+    'continuity_drift_risk=',
     'continuity_identity',
     'continuity_line',
     'owner=workingmemory',
     'owner=longtermmemoryrecall',
-    'same-her',
+    legacyCue('same', '-her'),
+    'identity continuity',
     'personhood continuity',
     'relationship continuity',
     '人格连续',
     '同一个她',
     '同一条生命线',
-    'one continuous her',
-    'same living line',
+    legacyCue('one continuous ', 'her'),
+    legacyCue('same living ', 'line'),
+    'local-life continuity',
+    'relationship continuity',
     'unfinished closure',
-    'before widening outward',
-    'before the turn widens outward',
-    'same-her carry alive',
+    legacyCue('before widening ', 'outward'),
+    legacyCue('before the turn widens ', 'outward'),
+    'before direct expansion',
+    'before the turn expands outward',
+    legacyCue('same', '-her carry alive'),
+    'continuity carry alive',
     'still-voiced face-and-mouth line',
     'still-voiced motion-and-mouth line',
     'holding together through face, lipsync, and voice together',
@@ -1911,10 +2044,19 @@ function deriveProjectStateProactiveBias(input?: {
   const strongerSameHerSelfAnchorPressure = requiresLifeLoopClosure && includesAny(explicitSignalsWithoutCanonicalBaseline, [
     'project_anchor=',
     'continuity_cue=',
+    'identity_continuity',
+    'anti_generic_shell_guard',
     'project_state_review=',
+    'project_state_continuity=',
+    'closure_policy=',
+    'closurepolicy=',
+    'anti_shell_guard=',
+    'cross_modal_continuity_proof=',
+    'continuity_drift_risk=',
     'continuity_identity',
     'continuity_line',
-    'one continuous her',
+    legacyCue('one continuous ', 'her'),
+    'local-life continuity',
     'continuous her',
     'without splitting her continuity',
     'generic assistant shell',
@@ -1930,16 +2072,26 @@ function deriveProjectStateProactiveBias(input?: {
     'lower-pressure',
     'measured-return',
     'repair-before-closeness',
-    'before widening outward',
-    'before the turn widens outward',
-    'same living line',
+    legacyCue('before widening ', 'outward'),
+    legacyCue('before the turn widens ', 'outward'),
+    'before direct expansion',
+    'before the turn expands outward',
+    legacyCue('same living ', 'line'),
     'same line',
+    'identity continuity',
+    'relationship continuity',
     'room',
     '留一点 room',
     '别太快 outward',
   ])
   const richerOpenClosureAwareness = requiresLifeLoopClosure && includesAny(explicitSignalsWithoutCanonicalBaseline, [
     'memory_dialogue_embodiment_closure=',
+    'open_life_loop_closure',
+    'phase1_local_life_loop',
+    'end_to_end_proof',
+    'project_identity_context',
+    'cross_modal_continuity_proof',
+    'embodiment_continuity_proof',
     'runtime_loop_validation=',
     'embodiment_scale_validation=',
     'unresolved_closure_carry=',
@@ -1957,21 +2109,31 @@ function deriveProjectStateProactiveBias(input?: {
     'full cross-modal closure',
   ])
   const richerNextClosureTargetAwareness = requiresLifeLoopClosure && includesAny(explicitSignalsWithoutCanonicalBaseline, [
-    'continuity_hold=',
+    legacyCue('continuity', '_hold='),
+    'identity_continuity',
+    'project_state_continuity=',
+    'closure_policy=',
+    'closurepolicy=',
+    'cross_modal_continuity_proof',
+    'embodiment_continuity_proof',
     'continuity_cue=',
     'callback_carry_continuity=',
     'embodiment_scale_validation=',
     'preferred_timing=next-open-window',
     'timing=measured_return_or_repair_before_closeness',
     'keep hover-first initiative',
-    'same living line across longer desktop runs',
-    'before widening outward',
-    'keep the next return on one same living line',
+    legacyCue('same living ', 'line across longer desktop runs'),
+    legacyCue('before widening ', 'outward'),
+    legacyCue('keep the next return on one same living ', 'line'),
+    'identity continuity across longer desktop runs',
+    'before direct expansion',
+    'keep the next return on one continuity line',
     'keep project identity',
     'next reopen',
     'wait for a later opening',
     'keep the same callback line inward',
-    'keep extending cross-modal same-her proof',
+    legacyCue('keep extending cross-modal same', '-her proof'),
+    'keep extending cross-modal continuity proof',
     '下一步',
     '下一次',
     '先沿着同一条生命线',
@@ -1980,38 +2142,54 @@ function deriveProjectStateProactiveBias(input?: {
     'rejoining the still-voiced motion-and-mouth line',
   ])
   const nextClosureTargetDemandsHoverFirst = requiresLifeLoopClosure && includesAny(explicitSignalsWithoutCanonicalBaseline, [
-    'continuity_hold=measured-return',
+    legacyCue('continuity', '_hold=measured-return'),
     'preferred_timing=next-open-window',
     'timing=measured_return_or_repair_before_closeness',
     'keep hover-first initiative',
     'wait for a later opening',
     'keep the return measured-return',
     'keep the next return measured-return',
-    'before widening outward',
+    legacyCue('before widening ', 'outward'),
+    'before direct expansion',
     'keep the same callback line inward',
     '先沿着同一条生命线',
     '先别立刻 outward',
     '等更自然的 opening',
-    'wait for a later opening before widening outward',
+    legacyCue('wait for a later opening before widening ', 'outward'),
+    'wait for a later opening before direct expansion',
   ])
-  const measuredReturnPressure = requiresLifeLoopClosure && includesAny(explicitMeasuredSignalsWithoutCanonicalBaseline, [
-    'continuity_hold=measured-return',
-    'continuity_hold=lower-pressure',
-    'continuity_hold=repair-before-closeness',
-    'timing=measured_return_or_repair_before_closeness',
-    'preferred_timing=next-open-window',
+  const measuredReturnPressure = requiresLifeLoopClosure && (
+    sameHerPressure
+    || strongerSameHerSelfAnchorPressure
+    || richerOpenClosureAwareness
+  ) && includesAny(explicitMeasuredSignalsWithoutCanonicalBaseline, [
+    'project_state_continuity=',
+    'continuity_anchor=',
     'closure_policy=measured-return',
     'closure_policy=repair-before-closeness',
+    'closurepolicy=measured-return',
+    'closurepolicy=repair-before-closeness',
+    'identity_continuity',
+    'anti_generic_shell_guard',
+    'cross_modal_continuity_proof',
+    'embodiment_continuity_proof',
+    'timing=measured_return_or_repair_before_closeness',
+    'preferred_timing=next-open-window',
+    'closure policy measured-return',
+    'closure policy repair-before-closeness',
     'embodiment',
     'initiative',
     '主动性',
     '低压',
     'measured-return',
     'repair-before-closeness',
-    'same living line',
+    legacyCue('same living ', 'line'),
+    'identity continuity',
     'unfinished closure',
-    'before widening outward',
-    'before the turn widens outward',
+    legacyCue('before widening ', 'outward'),
+    legacyCue('before the turn widens ', 'outward'),
+    'before direct expansion',
+    'before the turn expands outward',
     'full cross-modal closure',
     'still-voiced face-and-mouth line',
     'still-voiced motion-and-mouth line',
@@ -2370,7 +2548,19 @@ export function evaluateProactivePolicy(input: {
   const habitPolicyBias = deriveHabitPolicyProactiveBias(input.habitPolicy ?? null)
   const motiveAgendaBias = deriveMotiveAgendaProactiveBias(input.motiveEngine ?? null)
   const longHorizonMemoryBias = deriveLongHorizonMemoryProactiveBias(input.longHorizonMemory ?? null)
-  const projectStateBias = deriveProjectStateProactiveBias(input.projectState ?? null)
+  const hasProjectStateInput = Boolean(
+    input.runtimeDigest?.projectState
+    || input.currentConsciousFrame?.projectState
+    || input.projectState,
+  )
+  const mergedProjectStateForBias = hasProjectStateInput
+    ? {
+        ...input.runtimeDigest?.projectState,
+        ...input.currentConsciousFrame?.projectState,
+        ...input.projectState,
+      }
+    : null
+  const projectStateBias = deriveProjectStateProactiveBias(mergedProjectStateForBias)
   const contextScenario = inferScenarioFromContext({
     workload: context.workload.kind,
     content: context.content.kind,

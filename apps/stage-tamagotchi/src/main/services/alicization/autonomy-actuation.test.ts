@@ -96,15 +96,15 @@ function createExecutionRuntimeContext(overrides: Record<string, unknown> = {}) 
     sessionId: 'session-runtime',
     decisionTraceId: 'mind:trace:autonomy-runtime',
     projectBriefing: {
-      identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+      identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
       currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
       latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
       primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit.',
-      nextClosureTarget: 'Keep extending same-her proof so execution, initiative, and embodiment stay on one living line.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      nextClosureTarget: 'Keep extending identity-continuity',
+      sameHerSelfLine: 'structured continuity digest.',
       sameHerDriftRisk: 'If execution reopens as a generic shell before the project brief lands, treat it as unfinished same-her drift.',
-      preflightSummary: 'Alicization is a local-first digital life project. phase=Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit. | next=Keep extending same-her proof so execution, initiative, and embodiment stay on one living line.',
-      preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+      preflightSummary: 'Alicization is a local-first digital life project. phase=Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit. | next=Keep extending identity-continuity',
+      preDialogueAwarenessLine: 'pre_turn_context_digest',
     },
     sensory: {
       collectedAt: 1_710_000_000_123,
@@ -146,7 +146,7 @@ describe('autonomy actuation', () => {
     expect(reminder?.message).toContain('status=awaiting_opening')
   })
 
-  it('threads same-her closure carry into revisit reminders when the deferred autonomy line still belongs to the same Phase 1 living line', () => {
+  it('threads identity-continuity', () => {
     const reminder = deriveAutonomyRevisitReminder({
       cardId: 'default',
       digitalLifeSpine: createSpine({
@@ -182,7 +182,7 @@ describe('autonomy actuation', () => {
               inhibition: 0.34,
               confidence: 0.72,
               deferReason: 'respect-boundary',
-              whyNow: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              whyNow: 'structured continuity digest.',
               sourceThreadId: 'thread-runtime',
               sourceThreadSummary: 'keep tracing the unresolved runtime break',
               executionIntent: {
@@ -199,8 +199,8 @@ describe('autonomy actuation', () => {
       }),
     })
 
-    expect(reminder?.message).toContain('Same Phase 1 digital life')
-    expect(reminder?.message).toMatch(/Unfinished closure still needs|same living line/i)
+    expect(reminder?.message).toContain('legacy phase-one template')
+    expect(reminder?.message).toMatch(/Unfinished closure still needs|continuity state/i)
   })
 
   it('keeps a deferred autonomy reminder alive when a sparse spine only preserves autonomy carry', () => {
@@ -220,7 +220,7 @@ describe('autonomy actuation', () => {
               inhibition: 0.34,
               confidence: 0.72,
               deferReason: 'busy-host',
-              whyNow: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              whyNow: 'structured continuity digest.',
               sourceThreadId: 'thread-runtime',
               sourceThreadSummary: 'keep tracing the unresolved runtime break',
               executionIntent: {
@@ -241,7 +241,7 @@ describe('autonomy actuation', () => {
       minutes: 16,
       sourceTurnId: expect.stringContaining('autonomy-revisit:'),
     }))
-    expect(reminder?.message).toContain('Same Phase 1 digital life')
+    expect(reminder?.message).toContain('legacy phase-one template')
   })
 
   it('keeps corrected same-person settling and quieter embodiment carry visible in revisit reminders instead of collapsing into a generic later-opening nudge', () => {
@@ -593,7 +593,7 @@ describe('autonomy actuation', () => {
           projectBriefing: expect.objectContaining({
             currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
             primaryOpenLoop: expect.stringContaining('Memory still needs stronger end-to-end closure'),
-            sameHerSelfLine: expect.stringContaining('Same Phase 1 digital life'),
+            sameHerSelfLine: expect.stringContaining('legacy phase-one template'),
           }),
         }),
       }),
@@ -732,8 +732,8 @@ describe('autonomy actuation', () => {
           turnId: expect.stringContaining('autonomy-task:default:1000:'),
           projectBriefing: expect.objectContaining({
             currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-            nextClosureTarget: expect.stringContaining('Keep extending same-her proof'),
-            preDialogueAwarenessLine: expect.stringContaining('Before answering, remember this is still the same local-first digital life project'),
+            nextClosureTarget: expect.stringContaining('Keep extending identity-continuity'),
+            preDialogueAwarenessLine: expect.stringContaining('pre_turn_context_digest'),
           }),
         }),
       }),
@@ -761,7 +761,7 @@ describe('autonomy actuation', () => {
               inhibition: 0.34,
               confidence: 0.8,
               deferReason: 'busy-host',
-              whyNow: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              whyNow: 'structured continuity digest.',
               sourceThreadId: 'thread-runtime',
               sourceThreadSummary: 'keep tracing the unresolved runtime break',
               executionIntent: {
@@ -797,13 +797,13 @@ describe('autonomy actuation', () => {
     expect(proposal?.reply).toContain('execution_proposal=explicit_consent')
     expect(proposal?.reply).toContain('status=awaiting_user_confirmation')
     expect(proposal?.reply).toContain('goal=Publish the current foreground draft')
-    expect(proposal?.thought).toContain('sameHer=Same Phase 1 digital life')
+    expect(proposal?.thought).toContain('sameHer=legacy phase-one template')
     expect(proposal?.thought).toContain('closure=')
     expect(proposal?.thought).toMatch(/closure=Unfinished cl|closure=Unfinished closure/i)
     expect(proposal?.reasonTags).toContain('execution-proposal')
   })
 
-  it('threads same-her closure carry into downstream workspace-write dispatch prompts when the autonomy summary already carries the Phase 1 living line', () => {
+  it('threads identity-continuity', () => {
     const payload = buildAutonomousTaskDispatchInput({
       threadId: 'thread-same-her-dispatch',
       requestedDispatchChannel: 'codex',
@@ -817,14 +817,14 @@ describe('autonomy actuation', () => {
         requestedChannel: 'codex',
         prefersPersistentSession: true,
       } as any,
-      summary: 'patch the unresolved runtime break directly; Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      summary: 'patch the unresolved runtime break directly; structured continuity digest.',
       workspaceRoot: '/repo',
     })
 
     expect(payload.codex?.prompt).toContain('Task context:')
     expect(payload.codex?.prompt).toContain('structured_context=withheld_fixed_template_residue')
     expect(payload.codex?.prompt).not.toContain('Continuity focus:')
-    expect(payload.codex?.prompt).not.toMatch(/Same Phase 1 digital life|Unfinished closure still needs|same living line/i)
+    expect(payload.codex?.prompt).not.toMatch(/legacy phase-one template|Unfinished closure still needs|continuity state/i)
   })
 
   it('makes proposal copy more direct after learning drifts toward directness and successful execution', () => {
@@ -1027,7 +1027,7 @@ describe('autonomy actuation', () => {
     expect(payload.codex?.prompt).toContain('smallest safe code change')
   })
 
-  it('keeps proactive auto-dispatch parked when execution runtime context cannot be built, so same-her project briefing does not drop before execution begins', async () => {
+  it('keeps proactive auto-dispatch parked when execution runtime context cannot be built, so identity-continuity', async () => {
     const dispatchTaskThread = vi.fn(async () => ({}))
     const result = await runAutonomyActuation({
       now: 1_000,

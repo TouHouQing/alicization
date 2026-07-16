@@ -1,5 +1,6 @@
 import {
   alicizationFixedTemplateReplacement,
+  buildAlicizationProviderFactBlock,
   formatAlicizationProjectStateAwarenessFields,
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
@@ -92,9 +93,6 @@ interface AlicizationProjectStateSummaryAliasShape {
   nextClosureTargetSummary?: unknown
   sameHerDriftRiskSummary?: unknown
 }
-
-const runtimePersonhoodAnchor = 'runtime_personhood'
-const lifeCorePhaseAnchor = 'life_core'
 
 export interface AlicizationProjectStatusBrief {
   projectIdentity: string
@@ -549,7 +547,8 @@ function sanitizeProjectStateIdentityText(raw: unknown, maxChars = 220) {
   if (!normalized)
     return ''
   return normalized === alicizationFixedTemplateReplacement
-    ? runtimePersonhoodAnchor
+    || /\bidentity=runtime_personhood\b|\bruntime_personhood\b/iu.test(normalized)
+    ? ''
     : normalized
 }
 
@@ -557,8 +556,12 @@ function sanitizeProjectStatePhaseText(raw: unknown, maxChars = 160) {
   const normalized = sanitizeProjectStateSnapshotTextWithReplacement(raw, maxChars)
   if (!normalized)
     return ''
-  if (normalized === alicizationFixedTemplateReplacement)
-    return lifeCorePhaseAnchor
+  if (
+    normalized === alicizationFixedTemplateReplacement
+    || /\bproject_phase=life_core\b|\blife_core\b/iu.test(normalized)
+  ) {
+    return ''
+  }
 
   const withoutKey = normalized.replace(/^(?:phase|current_phase)\s*=\s*/iu, '').trim()
   return withoutKey || normalized
@@ -567,15 +570,6 @@ function sanitizeProjectStatePhaseText(raw: unknown, maxChars = 160) {
 function sanitizeProviderFacingProjectStateText(raw: unknown, maxChars: number) {
   const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars, '')
   return normalized || ''
-}
-
-function providerFacingProjectStateLine(key: string, raw: unknown, maxChars: number) {
-  if (/^(?:identity|phase|current_phase|awareness_summary|continuity_anchor|continuity_hold|continuity_drift_risk)$/iu.test(key))
-    return ''
-
-  const normalized
-    = sanitizeProviderFacingProjectStateText(raw, maxChars)
-  return normalized ? `${key}=${normalized}` : ''
 }
 
 function preferRicherProjectStateCarryText(input: {
@@ -657,22 +651,18 @@ function resolveProjectContinuityBehaviorMode(input: {
 }
 
 function deriveSameHerHoldDetailFromProjectContinuityBehavior(mode: string | null) {
-  if (mode === 'repair-before-closeness')
-    return 'cadence=repair-before-closeness; owner=project_state_review; pace=settle-before-closeness.'
-  if (mode === 'rest-protective')
-    return 'cadence=rest-protective; owner=project_state_review; pace=fatigue-aware.'
-  if (mode === 'measured-return')
-    return 'cadence=measured-return; owner=project_state_review; pace=lower-pressure.'
+  if (mode === 'repair-before-closeness' || mode === 'rest-protective' || mode === 'measured-return')
+    return ''
   return ''
 }
 
 function deriveContinuityCueFromProjectContinuityBehavior(mode: string | null) {
   if (mode === 'repair-before-closeness')
-    return 'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles.'
+    return 'Continuity cue: repair before closeness. Surface timing: after repair settles.'
   if (mode === 'rest-protective')
-    return 'continuity_cue=rest-protective; surface_timing=after-rest-stabilizes.'
+    return 'Continuity cue: rest protective. Surface timing: after rest stabilizes.'
   if (mode === 'measured-return')
-    return 'continuity_cue=measured-return; surface_timing=next-open-window.'
+    return 'Continuity cue: measured return. Surface timing: the next natural opening.'
   return ''
 }
 
@@ -687,11 +677,11 @@ export function buildAlicizationProjectStatePreflightSummary(input: {
   const parts = [
     sanitizeProjectStateIdentityText(input.identity, 96),
     sanitizeProjectStatePhaseText(input.currentPhase, 72),
-    input.primaryOpenLoop ? `open=${sanitizeProjectStateSnapshotText(input.primaryOpenLoop, 88)}` : '',
-    nextClosureTarget ? `next=${nextClosureTarget}` : '',
+    input.primaryOpenLoop ? `Open focus: ${sanitizeProjectStateSnapshotText(input.primaryOpenLoop, 88)}.` : '',
+    nextClosureTarget ? `Next focus: ${nextClosureTarget}.` : '',
   ].filter(Boolean)
 
-  return parts.length > 0 ? parts.join(' | ') : null
+  return parts.length > 0 ? parts.join(' ') : null
 }
 
 function lowerFirstProjectAwareness(text: string) {
@@ -835,24 +825,24 @@ function resolveProjectLatestProgressAutonomyTail(text: string, mode: 'awareness
 
   if (mode === 'awareness') {
     if (hasRestProtectiveProactiveFeedbackCarry && hasFinalSettlementSameHerShellCarry)
-      return 'proactive_continuity_loop=partial; restraint=hover_first,rest_protective; settlement_guard=template_shell_blocked'
+      return 'Proactive continuity is partial; use hover-first and rest-protective restraint, and block template-shell settlement.'
 
     return hasRestProtectiveProactiveFeedbackCarry
-      ? 'proactive_continuity_loop=partial; route=motive_to_project_state_answer; restraint=rest_protective'
+      ? 'Proactive continuity is partial; motive can route to project-state answer with rest-protective restraint.'
       : /next project-state answer carry/iu.test(normalized)
-        ? 'proactive_continuity_loop=partial; route=motive_to_project_state_answer'
-        : 'proactive_continuity_loop=partial; route=motive_to_next_session_feedback'
+        ? 'Proactive continuity is partial; motive can route to project-state answer.'
+        : 'Proactive continuity is partial; motive can route to next-session feedback.'
   }
 
   if (hasRestProtectiveProactiveFeedbackCarry && hasFinalSettlementSameHerShellCarry)
-    return 'runtime_proactive_initiative=partial; restraint=hover_first,rest_protective; settlement_guard=template_shell_blocked'
+    return 'Runtime proactive initiative is partial; use hover-first and rest-protective restraint, and block template-shell settlement.'
 
   if (hasRestProtectiveProactiveFeedbackCarry)
-    return 'runtime_proactive_initiative=partial; route=motive_seed_to_feedback; restraint=hover_first,rest_protective'
+    return 'Runtime proactive initiative is partial; route motive seeds to feedback with hover-first and rest-protective restraint.'
 
   return /next project-state answer carry/iu.test(normalized)
-    ? 'runtime_proactive_initiative=partial; route=motive_seed_to_project_state_answer; restraint=hover_first'
-    : 'runtime_proactive_initiative=partial; route=motive_seed_to_next_session_feedback; restraint=hover_first'
+    ? 'Runtime proactive initiative is partial; route motive seeds to project-state answer with hover-first restraint.'
+    : 'Runtime proactive initiative is partial; route motive seeds to next-session feedback with hover-first restraint.'
 }
 
 function compactProjectLatestProgressForAwareness(text: string, maxChars = 72) {
@@ -975,11 +965,11 @@ function compactSameHerLineForAwareness(text: string, maxChars = 110) {
   if (!normalized)
     return ''
   if (normalized === alicizationFixedTemplateReplacement)
-    return runtimePersonhoodAnchor
+    return ''
   if (/\bphase1_local_digital_life(?:_anchor)?\b/iu.test(normalized))
-    return runtimePersonhoodAnchor
+    return ''
   if (/same phase 1 digital life/iu.test(normalized))
-    return runtimePersonhoodAnchor
+    return ''
   return normalized.slice(0, maxChars)
 }
 
@@ -990,7 +980,7 @@ function sanitizeSameHerProjectLine(raw: unknown, fallback: string) {
 
   const canonicalMatch = normalized.match(/same phase 1 digital life\..*/iu)
   if (canonicalMatch?.[0])
-    return 'runtime_personhood; owner=project_state_governance.'
+    return ''
 
   return normalized
 }
@@ -1300,9 +1290,9 @@ export function buildAlicizationProjectPreDialogueAwareness(input: {
   const compactNextClosureTarget
     = sanitizeProjectStateSnapshotText(nextClosureTarget, 320) || null
   const compactSummaryLine = [
-    input.primaryOpenLoop ? `open=${input.primaryOpenLoop}` : '',
-    compactNextClosureTarget ? `next=${compactNextClosureTarget}` : '',
-  ].filter(Boolean).join(' | ')
+    input.primaryOpenLoop ? `Open focus: ${input.primaryOpenLoop}.` : '',
+    compactNextClosureTarget ? `Next focus: ${compactNextClosureTarget}.` : '',
+  ].filter(Boolean).join(' ')
   const explicitSummaryLine = sanitizeProjectStateSnapshotText(input.preflightSummary, 1600) || ''
   const runtimeSummaryLine = sanitizeProjectStateSnapshotText(input.runtimeProjectState?.preflightSummary, 1600) || ''
   const fallbackSummaryLine = sanitizeProjectStateSnapshotText(input.fallbackProjectState?.preflightSummary, 1600) || ''
@@ -1337,8 +1327,8 @@ export function buildAlicizationProjectPreDialogueAwareness(input: {
     reasonPreview: [
       input.primaryOpenLoop ? `${input.primaryOpenLoop}` : '',
       preferredLatestProgressReason,
-      proactiveSameHerGap ? `initiative_gap=${proactiveSameHerGap}` : '',
-      nextClosureTarget ? `next_target=${nextClosureTarget}` : '',
+      proactiveSameHerGap ? `Initiative gap: ${proactiveSameHerGap}.` : '',
+      nextClosureTarget ? `Next target: ${nextClosureTarget}.` : '',
     ].filter(Boolean),
   } as const
 }
@@ -1417,7 +1407,7 @@ export function buildAlicizationProjectPreDialogueClosure(input: {
     reasons: [
       input.primaryOpenLoop ? `${input.primaryOpenLoop}` : '',
       preferredLatestProgressReason,
-      proactiveSameHerGap ? `initiative_gap=${proactiveSameHerGap}` : '',
+      proactiveSameHerGap ? `Initiative gap: ${proactiveSameHerGap}.` : '',
       nextClosureTarget ?? '',
     ].filter(Boolean),
   } as const
@@ -2127,7 +2117,7 @@ function buildSurfaceMemoryDerivedProjectState(memory?: {
       carriesSameHer
       && /before widening outward again|same living line|without reopening from scratch/u.test(combined)
     ) {
-      return 'continuity_cue=local_first_digital_life; anti_restart=true; timing=before_widening_outward'
+      return 'Continuity cue evidence: local desktop identity is still current; restart risk is present; outward expansion is not yet supported by evidence.'
     }
     return authorityInwardLine || authoritySummary || latestInflection || cadenceLine || sameHerSelfLine
   })()
@@ -2577,9 +2567,7 @@ export function buildAlicizationProjectPreDialogueAwarenessLine(input: {
 export interface AlicizationProjectStateCoverageEntry {
   id:
     | 'visible-reply-executive-brief'
-    | 'visible-reply-second-pass-rewrite'
     | 'visible-reply-timeout-fallback'
-    | 'visible-reply-second-pass-transport-failure'
     | 'proactive-policy-life-loop-bias'
     | 'runtime-delivery-reminders-project-state-persistence'
     | 'habit-policy-phase1-life-loop-bias'
@@ -2622,11 +2610,9 @@ export interface AlicizationProjectStateCoverageEntry {
     | 'noisy-desktop-life-loop-unity-hardening'
     | 'long-run-same-her-continuity-hardening'
     | 'route-authority-boundary-registry-hardening'
-    | 'project-state-answer-governance-entrypoint-candidate-hardening'
     | 'runtime-dialogue-normalization-entrypoint-candidate-hardening'
     | 'runtime-turn-persistence-entrypoint-candidate-hardening'
     | 'project-state-provider-consumer-registration'
-    | 'project-state-answer-governance-registration'
     | 'visible-reply-final-project-awareness-hardening'
     | 'execution-dispatch-owner-registration'
     | 'runtime-current-conscious-frame-awareness'
@@ -2640,13 +2626,6 @@ export interface AlicizationProjectStateCoverageEntry {
   status: 'verified'
   responsibility: string
   proof: string
-  directGatewayCoverage?: Array<
-    | 'runtime.ts:dream-reminder-proactive-reforge'
-    | 'memory-os/provider-planning.ts:recollection-and-deliberation'
-    | 'runtime-mind-state.ts:dialogue-semantics-and-subjective-inference'
-    | 'runtime-execution-delivery.ts:execution-callback'
-    | 'runtime-main-gateway-one-shot.ts:screen-semantic-and-scene-appraisal'
-  >
 }
 
 export type AlicizationProjectEntrypointGovernanceEntry = {
@@ -2689,7 +2668,6 @@ export type AlicizationProjectEntrypointGovernanceEntry = {
     | 'session-bound-execution-bridge'
     | 'subconscious-autonomy-execution-bridge'
     | 'resume-dispatch-bridge'
-    | 'capability-project-briefing-surface'
     | 'pre-dispatch-persistence'
     | 'blocked-dispatch-safety-gate'
   responsibility: string
@@ -2750,7 +2728,6 @@ export function resolveAlicizationProjectEntrypointGovernanceAllowedModes(
       'session-bound-execution-bridge',
       'subconscious-autonomy-execution-bridge',
       'resume-dispatch-bridge',
-      'capability-project-briefing-surface',
       'pre-dispatch-persistence',
       'blocked-dispatch-safety-gate',
     ] as const
@@ -3024,7 +3001,7 @@ const alicizationProjectEntrypointGovernanceRegistry = [
     domain: 'provider-consumer',
     relativePath: 'runtime-main-gateway-one-shot.ts',
     mode: 'authority',
-    responsibility: 'Unified one-shot gateway wrapper owns direct provider generation and canonical project-state fail-close.',
+    responsibility: 'Unified one-shot gateway wrapper owns source-tag validation, typed-fact filtering, direct Provider generation, and transparent failure audit.',
   },
   {
     domain: 'provider-consumer',
@@ -3054,31 +3031,31 @@ const alicizationProjectEntrypointGovernanceRegistry = [
     domain: 'autonomous-dialogue',
     relativePath: 'runtime.ts',
     mode: 'authority',
-    responsibility: 'Runtime-owned proactive self-brief authority and shared reminder/proactive gateway entry must keep autonomous dialogue starters on the same Phase 1 same-her project line before any self-initiated turn begins.',
+    responsibility: 'Runtime-owned reminder and proactive entries must keep task prompts, typed memory facts, and Provider failure handling explicit without deterministic visible reply replacement.',
   },
   {
     domain: 'autonomous-dialogue',
     relativePath: 'runtime-delivery-reminders.ts',
     mode: 'normalize-before-use',
-    responsibility: 'Reminder and execution-callback subconscious delivery must reuse autonomous same-her entry authority before a runtime-owned visible turn is persisted or reopened.',
+    responsibility: 'Reminder and execution-callback delivery must preserve source ownership and failure status before a runtime-owned visible turn is persisted or reopened.',
   },
   {
     domain: 'autonomous-dialogue',
     relativePath: 'runtime-subconscious-tick.ts',
     mode: 'normalize-before-use',
-    responsibility: 'Subconscious proactive surfacing and deferred carry entry must keep runtime-owned same-her project awareness explicit before a subconscious turn becomes the next visible life beat.',
+    responsibility: 'Subconscious proactive surfacing must not persist a visible utterance when Provider mind authoring is unavailable.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'agent-runtime.ts',
     mode: 'execution-briefing-authority',
-    responsibility: 'Agent runtime must build canonical project briefing before desktop execution runtime context exists, so execution starts from one same-her Phase 1 self-brief instead of a detached tool shell.',
+    responsibility: 'Agent runtime builds structured execution context before desktop execution begins, preserving memory ownership, route state, and transparent failure metadata.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'execution-runtime-context.ts',
     mode: 'runtime-context-authority',
-    responsibility: 'Execution runtime context must canonicalize project briefing, thin-shell repair, and same-her pre-dialogue awareness before dispatch, so execution context itself stays one digital-life line.',
+    responsibility: 'Execution runtime context canonicalizes typed briefing and route facts before dispatch without creating Provider-visible persona guidance.',
   },
   {
     domain: 'execution-preflight',
@@ -3090,61 +3067,55 @@ const alicizationProjectEntrypointGovernanceRegistry = [
     domain: 'execution-preflight',
     relativePath: 'main-chat-session-runtime.ts',
     mode: 'session-bound-execution-bridge',
-    responsibility: 'Session-bound execution bridge must request canonical execution runtime context before main-gateway tools open outward, so execution capability and routing stay attached to the Phase 1 continuity context.',
+    responsibility: 'Session-bound execution bridge requests canonical execution runtime context before main-gateway tools open outward.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'runtime-subconscious-tick.ts',
     mode: 'subconscious-autonomy-execution-bridge',
-    responsibility: 'Subconscious-autonomy execution bridge must request canonical execution runtime context before background auto-dispatch opens outward, so deferred autonomy execution stays attached to Phase 1 continuity context instead of reopening as a generic executor shell.',
+    responsibility: 'Subconscious autonomy requests canonical execution runtime context before background auto-dispatch opens outward.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'executor-runtime.ts',
     mode: 'resume-dispatch-bridge',
-    responsibility: 'Confirmed execution resume bridge must restate canonical project briefing before the executor reopens outward, so resumed work stays on the same Phase 1 digital-life closure line instead of drifting into a generic execution shell.',
-  },
-  {
-    domain: 'execution-preflight',
-    relativePath: 'main-chat-execution-surface.ts',
-    mode: 'capability-project-briefing-surface',
-    responsibility: 'Execution capability and routing surfaces must keep canonical project briefing explicit before answering whether or how execution can proceed, so capability talk does not reopen as a generic executor shell.',
+    responsibility: 'Confirmed execution resume restores typed execution context before delegated work resumes.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'task-thread-dispatcher.ts',
     mode: 'pre-dispatch-persistence',
-    responsibility: 'Pre-dispatch task-thread persistence must carry execution runtime context into thread metadata before delegated execution starts, so later callback and host-visible return reopen the same digital-life line.',
+    responsibility: 'Pre-dispatch task-thread persistence stores execution runtime context before delegated execution starts so callbacks remain traceable.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'executor-adapters/claude-code.ts',
     mode: 'blocked-dispatch-safety-gate',
-    responsibility: 'Claude Code blocked-dispatch safety gates must audit effect, permission mode, confirmation requirement, risk policy, interruptibility, and the same-her execution runtime context before refusing execution, so dangerous or mismatched tool use stays explainable instead of disappearing as a generic adapter failure.',
+    responsibility: 'Claude Code blocked-dispatch safety gates audit effect, permission mode, confirmation, risk, interruptibility, and execution context before refusing execution.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'executor-adapters/codex.ts',
     mode: 'blocked-dispatch-safety-gate',
-    responsibility: 'Codex blocked-dispatch safety gates must audit effect, permission mode, confirmation requirement, risk policy, interruptibility, and the same-her execution runtime context before refusing execution, so dangerous or mismatched workspace execution stays explainable instead of disappearing as a generic adapter failure.',
+    responsibility: 'Codex blocked-dispatch safety gates audit effect, permission mode, confirmation, risk, interruptibility, and execution context before refusing execution.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'executor-adapters/cli.ts',
     mode: 'blocked-dispatch-safety-gate',
-    responsibility: 'CLI blocked-dispatch safety gates must audit risk level, action category, permission mode, confirmation requirement, interruptibility, and the same-her execution runtime context before refusing local execution, so dangerous local shell actions stay explainable instead of disappearing as a generic adapter failure.',
+    responsibility: 'CLI blocked-dispatch safety gates audit risk level, action category, permission mode, confirmation, interruptibility, and execution context before refusing local execution.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'executor-adapters/openclaw.ts',
     mode: 'blocked-dispatch-safety-gate',
-    responsibility: 'OpenClaw blocked-dispatch safety gates must audit effect, permission mode, confirmation requirement, interruptibility, and the same-her execution runtime context before refusing embodied execution, so dangerous outward control stays explainable instead of disappearing as a generic adapter failure.',
+    responsibility: 'OpenClaw blocked-dispatch safety gates audit effect, permission mode, confirmation, interruptibility, and execution context before refusing outward control.',
   },
   {
     domain: 'execution-preflight',
     relativePath: 'executor-adapters/local-visual.ts',
     mode: 'blocked-dispatch-safety-gate',
-    responsibility: 'Local-visual blocked-dispatch safety gates must audit effect, permission mode, confirmation requirement, risk policy, interruptibility, and the same-her execution runtime context before refusing local GUI execution, so dangerous desktop inspection or mutation stays explainable instead of disappearing as a generic adapter failure.',
+    responsibility: 'Local-visual blocked-dispatch safety gates audit effect, permission mode, confirmation, risk, interruptibility, and execution context before refusing local GUI execution.',
   },
   {
     domain: 'execution-dispatch',
@@ -3198,19 +3169,19 @@ const alicizationProjectEntrypointGovernanceRegistry = [
     domain: 'recovery-reentry',
     relativePath: 'main-chat-timeout-fallback.ts',
     mode: 'timeout-fallback-reconstruction',
-    responsibility: 'Timeout fallback reconstruction must keep canonical project self-awareness, same-her carry, and open-closure triad explicit when provider mind authoring times out and visible recovery has to reopen from fallback state.',
+    responsibility: 'Timeout fallback reconstruction must preserve the concrete failure kind and runtime audit metadata without authoring replacement dialogue.',
   },
   {
     domain: 'recovery-reentry',
     relativePath: 'main-chat-run-lifecycle.ts',
     mode: 'timeout-recovery-finish',
-    responsibility: 'Lifecycle timeout recovery finish must preserve recovered visible-reply execution metadata, same-her project-state audit carry, and canonical awareness backfill before recovered dialogue is emitted to the host.',
+    responsibility: 'Lifecycle timeout recovery completion must preserve failure and execution metadata before the transparent failure surface is emitted.',
   },
   {
     domain: 'recovery-reentry',
     relativePath: 'main-chat-background-run.ts',
     mode: 'background-recovery-driver',
-    responsibility: 'Background runtime recovery driving must route accepted-start settlement, timeout fallback reconstruction, and lifecycle recovery finish back through one same-her recovery reentry chain instead of reopening recovered dialogue from detached local recovery shells.',
+    responsibility: 'Background runtime recovery routes accepted-start settlement, timeout reconstruction, and lifecycle recovery completion through one audited failure path.',
   },
   {
     domain: 'execution-follow-up-continuity',
@@ -3307,78 +3278,54 @@ export interface AlicizationProjectAwarenessTopLevelCompletenessGuardFamily {
     | 'execution-dispatch'
     | 'execution-follow-up-continuity'
     | 'runtime-dialogue-normalization'
-    | 'runtime-turn-persistence'
-  candidateAuditFileName: string
   responsibility: string
 }
 
 const alicizationProjectAwarenessTopLevelCompletenessGuardFamilies = [
   {
     id: 'chat-start',
-    candidateAuditFileName: 'chat-start-entrypoint-candidate-audit.test.ts',
     responsibility: 'Main-process chat-start entry shapes must stay visible to the top-level completeness guard before new turn-opening seams can bypass pre-dialogue same-her awareness.',
   },
   {
     id: 'cross-surface-dialogue-entry',
-    candidateAuditFileName: 'project-awareness-cross-surface-entrypoint-audit.test.ts',
     responsibility: 'Cross-surface renderer and composer entry shapes must stay visible to the top-level completeness guard before host-facing send seams can fork a second project-awareness path.',
   },
   {
     id: 'return-side-project-awareness',
-    candidateAuditFileName: 'return-side-project-awareness-entrypoint-candidate-audit.test.ts',
     responsibility: 'Return-side rebuild seams must stay visible to the top-level completeness guard before reopen-time same-her project awareness can thin into observation-only carry.',
   },
   {
     id: 'recovery-reentry',
-    candidateAuditFileName: 'recovery-reentry-entrypoint-candidate-audit.test.ts',
     responsibility: 'Accepted-start settlement, timeout fallback reconstruction, lifecycle timeout recovery finish, and background recovery drivers must stay visible to the top-level completeness guard before recovered dialogue can reopen from a detached recovery shell.',
   },
   {
     id: 'provider-consumer',
-    candidateAuditFileName: 'provider-consumer-entrypoint-candidate-audit.test.ts',
-    responsibility: 'Provider-facing generation seams must stay visible to the top-level completeness guard before direct provider entry can bypass the same-her project brief.',
+    responsibility: 'Provider generation seams must stay visible to the top-level completeness guard so direct Provider calls cannot bypass typed source tags, memory facts, or transparent failure handling.',
   },
   {
     id: 'autonomous-dialogue',
-    candidateAuditFileName: 'autonomous-dialogue-entrypoint-candidate-audit.test.ts',
     responsibility: 'Runtime-owned proactive, reminder, execution-callback, and subconscious dialogue starters must stay visible to the top-level completeness guard before new autonomous same-her routes can drift in invisibly.',
   },
   {
     id: 'execution-preflight',
-    candidateAuditFileName: 'execution-preflight-entrypoint-candidate-audit.test.ts',
     responsibility: 'Execution-preflight briefing, runtime-context, and blocked-dispatch seams must stay visible to the top-level completeness guard before risk-aware execution carry can thin out.',
   },
   {
     id: 'execution-dispatch',
-    candidateAuditFileName: 'execution-dispatch-entrypoint-candidate-audit.test.ts',
     responsibility: 'Execution-dispatch bridge owners must stay visible to the top-level completeness guard before same-her execution families can drift outside the audited dispatch seam.',
   },
   {
     id: 'execution-follow-up-continuity',
-    candidateAuditFileName: 'execution-follow-up-entrypoint-candidate-audit.test.ts',
     responsibility: 'Execution follow-up, callback return, ledger reopen, afterglow restraint, and callback persistence seams must stay visible to the top-level completeness guard before post-execution same-her continuity can fragment into detached task-shell carry.',
   },
   {
     id: 'runtime-dialogue-normalization',
-    candidateAuditFileName: 'runtime-dialogue-normalization-entrypoint-candidate-audit.test.ts',
     responsibility: 'Host-visible normalization seams must stay visible to the top-level completeness guard before outward answers can flatten the same-her project-state carry.',
-  },
-  {
-    id: 'runtime-turn-persistence',
-    candidateAuditFileName: 'runtime-turn-persistence-entrypoint-candidate-audit.test.ts',
-    responsibility: 'Guarded turn persistence seams must stay visible to the top-level completeness guard before stored or replayed turns can drift outside the same-her continuity contract.',
   },
 ] as const satisfies readonly AlicizationProjectAwarenessTopLevelCompletenessGuardFamily[]
 
 export function resolveAlicizationProjectAwarenessTopLevelCompletenessGuardFamilies() {
   return alicizationProjectAwarenessTopLevelCompletenessGuardFamilies.slice()
-}
-
-export function resolveAlicizationProjectAwarenessRootFinalGateAuditFileNames() {
-  return alicizationProjectAwarenessTopLevelCompletenessGuardFamilies
-    .map(entry => entry.candidateAuditFileName)
-    .slice()
-    .sort()
 }
 
 export interface AlicizationPreDialogueTransportEntrypointGovernanceMirror {
@@ -3435,8 +3382,6 @@ export type AlicizationProjectRouteAuthorityEntry
     relativePath: string
     mode:
       | 'normalization-authority'
-      | 'stream-finish-fallback'
-      | 'background-normalize-before-deliver'
       | 'persistence-emission-normalize-before-deliver'
       | 'replay-normalize-before-deliver'
       | 'proactive-normalize-before-persist'
@@ -3469,8 +3414,6 @@ export function resolveAlicizationProjectRouteAuthorityAllowedModes(
   if (domain === 'runtime-dialogue-normalization') {
     return [
       'normalization-authority',
-      'stream-finish-fallback',
-      'background-normalize-before-deliver',
       'persistence-emission-normalize-before-deliver',
       'replay-normalize-before-deliver',
       'proactive-normalize-before-persist',
@@ -3584,33 +3527,21 @@ const alicizationProjectRouteAuthorityRegistry = [
   },
   {
     domain: 'runtime-dialogue-normalization',
-    relativePath: 'main-chat-background-run.ts',
-    mode: 'background-normalize-before-deliver',
-    responsibility: 'Background run fallback must normalize host-visible dialogue payloads before they are surfaced back through delivery seams.',
-  },
-  {
-    domain: 'runtime-dialogue-normalization',
-    relativePath: 'main-chat-stream-runner.ts',
-    mode: 'stream-finish-fallback',
-    responsibility: 'Structured stream finish fallback must normalize repaired visible replies before they can be treated as the same-her final surface.',
-  },
-  {
-    domain: 'runtime-dialogue-normalization',
     relativePath: 'runtime-governance.ts',
     mode: 'normalization-authority',
-    responsibility: 'The canonical same-her host-visible dialogue payload normalizer lives here and owns normalizeDialogueRespondedPayload.',
+    responsibility: 'The canonical host-visible dialogue payload normalizer lives here and owns normalizeDialogueRespondedPayload.',
   },
   {
     domain: 'runtime-dialogue-normalization',
     relativePath: 'runtime-subconscious-tick.ts',
     mode: 'proactive-normalize-before-persist',
-    responsibility: 'Subconscious proactive surfacing must normalize host-visible payloads before persistence so project-state carry survives into the visible turn.',
+    responsibility: 'Subconscious proactive surfacing normalizes Provider-authored payloads before guarded persistence.',
   },
   {
     domain: 'runtime-dialogue-normalization',
     relativePath: 'runtime.ts',
     mode: 'persistence-emission-normalize-before-deliver',
-    responsibility: 'Runtime persistence and replay emission must normalize before host-visible delivery so stored and replayed turns stay on the same-her contract.',
+    responsibility: 'Runtime persistence and replay emission normalize origin, memory policy, and failure metadata before host-visible delivery.',
   },
   {
     domain: 'runtime-turn-persistence',
@@ -3653,25 +3584,10 @@ export function resolveAlicizationProjectRouteAuthorityFiles() {
   return [...new Set(resolveAlicizationProjectRouteAuthorityRegistry().map(entry => entry.relativePath))].slice().sort()
 }
 
-export const alicizationProjectStateDirectGatewayAuditTargets = [
-  'runtime.ts:dream-reminder-proactive-reforge',
-  'memory-os/provider-planning.ts:recollection-and-deliberation',
-  'runtime-mind-state.ts:dialogue-semantics-and-subjective-inference',
-  'runtime-execution-delivery.ts:execution-callback',
-  'runtime-main-gateway-one-shot.ts:screen-semantic-and-scene-appraisal',
-] as const
-
-export type AlicizationProjectStateDirectGatewayAuditTarget
-  = typeof alicizationProjectStateDirectGatewayAuditTargets[number]
-
-export function resolveAlicizationProjectStateDirectGatewayAuditTargets() {
-  return alicizationProjectStateDirectGatewayAuditTargets
-}
-
 export function resolveAlicizationProjectStateBrief(): AlicizationProjectStateBrief {
-  const identity = 'identity=runtime_personhood; local_first=true; host_resident_identity=persistent; boundary=not_chat_wrapper.'
-  const currentPhase = 'phase=life_core; proving_ground=apps/stage-tamagotchi.'
-  const sameHerSelfLine = 'owner=project_state_governance.'
+  const identity = ''
+  const currentPhase = ''
+  const sameHerSelfLine = ''
   const sameHerDriftRisk = ''
   const emotionalClosureCue = ''
   const emotionalClosureSummary = emotionalClosureCue
@@ -3687,27 +3603,27 @@ export function resolveAlicizationProjectStateBrief(): AlicizationProjectStateBr
   const preferredPacingMode = 'slower' as const
   const continuityCue = null
   const openLoops = [
-    'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete; project_identity_route_carry=needs_disciplined_updates.',
-    'proactive_continuity_loop=partial; long_run_noisy_desktop_proof=needed; exposure=user_requested_project_state.',
-    'callback_carry_validation=partial; long_run_embodiment_proof=needed; timing=measured_return_or_repair_before_closeness.',
-    'emotion_memory_initiative_embodiment_unity=needs_long_run_pressure_proof; affective_residue_and_body_settling_must_remain_auditable.',
-    'embodiment_coherence_under_memory_pressure=partial; runtime_memory_pressure=measured_return_supported; remaining=long_run_embodiment_proof.',
-    'project_identity_route_carry=present; phase_route_carry=present; unresolved_closure_carry=present; update_rule=disciplined_on_real_closure_change.',
-    'life_core_closure_requires=evidence_for_project_identity,natural_recall,restrained_initiative,emotional_closure,dialogue_voice_motion_unity.',
+    'Memory, dialogue, and embodiment still need end-to-end proof; project identity context needs disciplined updates.',
+    'Proactive continuity is partial; long-run noisy desktop proof is still needed when the user asks about project state.',
+    'Callback carry validation is partial; longer embodiment proof is still needed with measured return or repair before closeness.',
+    'Emotion, memory, initiative, and embodiment unity still need long-run pressure proof; affective residue and body settling must remain auditable.',
+    'Embodiment coherence under memory pressure is partial; measured return helps, but long-run embodiment proof is still open.',
+    'Project identity context, phase context, and unresolved closure context are present; update only when real closure changes.',
+    'Life-loop closure requires evidence for project identity, natural recall, restrained initiative, emotional closure, and dialogue, voice, and motion unity.',
   ]
   const proactiveSameHerGap = compactProjectProactiveSameHerGap(openLoops[1] ?? '')
-  const nextClosureTarget = 'embodiment_scale_validation=extend_on_longer_noisy_desktop_runs; cover=visible_reply,voice,face,motion,resident_presence,project_identity,phase_route,open_loop,emotion; timing=measured_return_or_repair_before_closeness.'
+  const nextClosureTarget = 'Extend embodiment-scale validation on longer noisy desktop runs, covering visible reply, voice, face, motion, resident presence, project identity, phase context, open loop, and emotion with measured return or repair before closeness.'
   const latestProgress = [
-    'continuity_progress=partial; evidence=mirrors,next_turns,scene_switches,visible_reply,embodiment_playback; remaining=long_run_embodiment_pressure.',
-    'dialogue_entry_governance=covered; transport=pre_dialogue_and_chat_entry; remaining=provider_generation_families,execution_preflight,execution_dispatch.',
-    'memory_dialogue_loop=connected; short_term_owner=WorkingMemory; long_term_recall_owner=LongTermMemoryRecall; remaining=semantic_recall_quality,embedding_reindex,scale_testing.',
-    'execution_safety=transparent; gates=confirmation,no_process_started_evidence,bounded_resume; forbidden=permanent_permission_from_single_resume.',
-    'template_cleanup=active; provider_authored_reply_required=true; allowed_failures=timeout,provider_failure,tool_failure,invalid_structured_reply.',
+    'Continuity progress is partial, with evidence from mirrors, next turns, scene switches, visible reply, and embodiment playback; long-run embodiment pressure remains.',
+    'Dialogue entry governance is covered through pre-dialogue and chat entry transport; provider generation families, execution preflight, and execution dispatch still need hardening.',
+    'The memory dialogue loop is connected: WorkingMemory owns short-term memory and LongTermMemoryRecall owns long-term recall; semantic recall quality, embedding reindex, and scale testing remain.',
+    'Execution safety is transparent, with confirmation gates, no-process-started evidence, and bounded resume; a single resume must not become permanent permission.',
+    'Template cleanup is active; provider-authored replies are required, and timeout, provider failure, tool failure, and invalid structured reply must stay transparent.',
   ].join(' ')
   const latestProgressAddendum = [
-    'memory_workbench=visible_governance_entry; role=ui_api_aggregator; owner_boundary=not_memory_owner.',
-    'project_state_answer_governance=structured_fields_only; rule=do_not_copy_or_paraphrase_continuity_slogans.',
-    'quality_scale_track=next; focus=semantic_recall,production_embedding,paginated_long_term_search,review_policy_persistence,persona_candidate_review.',
+    'Memory Workbench is the visible governance entry and UI/API aggregator; it is not a memory owner.',
+    'Project-state answer governance should preserve verified facts without copying or paraphrasing continuity slogans.',
+    'The next quality scale track is semantic recall, production embedding, paginated long-term search, review policy persistence, and persona candidate review.',
   ].join(' ')
   const latestProgressWithAddendum = `${latestProgress} ${latestProgressAddendum}`
   const primaryOpenLoop = openLoops[0] ?? 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete.'
@@ -3754,7 +3670,7 @@ export function resolveAlicizationProjectStateBrief(): AlicizationProjectStateBr
       'Execution safety gating and kill-switch behavior are already part of the life loop.',
       'Desktop presence baseline exists and is being strengthened rather than invented from zero.',
     ],
-    continuityProgressSummary: 'continuity_progress=partial; evidence=mirrors,next_turns,scene_switches,visible_reply,embodiment_playback; remaining=long_run_embodiment_pressure.',
+    continuityProgressSummary: 'Continuity progress is partial, with evidence from mirrors, next turns, scene switches, visible reply, and embodiment playback; long-run embodiment pressure remains.',
     memoryAnthropomorphismProgress: [
       'WorkingMemory owns short-term dialogue carry and should not be bypassed by project-state wording.',
       'LongTermMemoryRecall owns long-term recall and should surface evidence, latency, and errors instead of persona slogans.',
@@ -3773,35 +3689,35 @@ export function resolveAlicizationProjectStateCoverage(): AlicizationProjectStat
       area: 'runtime',
       status: 'verified',
       responsibility: 'Before any user-authored dialogue turn is handed off into main-process execution, the current chat-start seam chain now keeps project identity, current Phase 1 status, same-her continuity briefing, and still-open closure pressure explicit across renderer send identity, transport sanitization, invoke/direct start logging, start acceptance, core runtime chat-start entry, prepared-mind trace handoff, and both deeper prelude/session-runtime re-normalization layers before contextual recall / callback / ledger / pending-affirmation / perception augmentation begin, so Alicization does not begin turns as a generic shell that only remembers project truth later. The return-side-reopen-to-pre-dialogue-send-identity same-her bridge is now also explicit here, so richer host-visible or return-side continuity rebuilt after reopen is less likely to stop at observation-only carry instead of being rematerialized into the very next pre-dialogue send identity before chat-start execution resumes outward. The return-side-reopen-through-chat-start-runtime same-her bridge is now also explicit here, so that reopened send identity is less likely to stop at payload repair only and can stay on the same line through payload repair, prelude payload identity repair, prelude project-state system-block repair, deeper chat-start runtime re-normalization, and start-result settlement before the outward turn actually resumes. That same bridge now also keeps one renderer-rejoin-without-body stronger same-her fact explicit: chat-start can rebuild that visible same-her headline from structured closure reasons, and session-runtime can keep that stronger headline through prepared runtime selection, provider-facing rebuild, and runtime normalization.',
-      proof: 'packages/stage-ui/src/stores/chat/text-composer-store.ts + packages/stage-ui/src/stores/chat/text-composer-store.test.ts + apps/stage-tamagotchi/src/shared/alicization-chat-transport.test.ts + pre-dialogue-transport-audit.ts + pre-dialogue-transport-audit.test.ts + pre-dialogue-transport-project-awareness-audit.test.ts + chat-entry-route-project-awareness-audit.test.ts + main-chat-start-awareness.test.ts + runtime-invoke-handlers-chat.test.ts + main-chat-direct-start.test.ts + main-chat-start-acceptance.test.ts + chat-start-awareness-seams-regression.test.ts + runtime-chat-start-awareness-regression.test.ts + chat-start-runtime-project-awareness-audit.test.ts + chat-start-result-project-awareness-audit.test.ts + chat-start-project-awareness-route-audit.test.ts + main-chat-background-run.test.ts + runtime-main-chat-prelude.ts + runtime-main-chat-prelude-project-awareness-regression.test.ts + runtime-main-chat-prelude-project-state-system-block-regression.test.ts + main-chat-session-runtime-project-awareness-regression.test.ts + return-side-stream-project-awareness-audit.test.ts + return-side-reopen-pre-dialogue-send-identity-bridge-audit.test.ts + return-side-reopen-chat-start-runtime-bridge-audit.test.ts',
+      proof: 'packages/stage-ui/src/stores/chat/text-composer-store.ts + packages/stage-ui/src/stores/chat/text-composer-store.test.ts + apps/stage-tamagotchi/src/shared/alicization-chat-transport.test.ts + pre-dialogue-transport-audit.ts + pre-dialogue-transport-audit.test.ts + main-chat-start-awareness.test.ts + runtime-invoke-handlers-chat.test.ts + main-chat-direct-start.test.ts + main-chat-start-acceptance.test.ts + chat-start-awareness-seams-regression.test.ts + runtime-chat-start-awareness-regression.test.ts + main-chat-background-run.test.ts + runtime-main-chat-prelude.ts + runtime-main-chat-prelude-project-awareness-regression.test.ts + runtime-main-chat-prelude-project-state-system-block-regression.test.ts + main-chat-session-runtime-project-awareness-regression.test.ts',
     },
     {
       id: 'mind-turn-contract-project-state-grounding',
       area: 'reply',
       status: 'verified',
       responsibility: 'Before visible wording is authored, the unified mind-turn contract already binds project identity, current Phase 1 status, latest landed continuity progress, still-open closure pressure, same-her self line, and next closure target into one inner reply contract, so Alicization’s answer planning stays rooted in one continuous self rather than letting planner/compiler layers drift into local fluency first. That same contract now also keeps a richer persisted closure summary ahead of a broad canonical fallback when the live contract already carries more specific same-her closure work.',
-      proof: 'mind-turn-contract.ts + mind-turn-contract.test.ts + mind-turn-contract-invariants.test.ts + chat-mind-governance.test.ts + chat-mind-governance-project-awareness-audit.test.ts + project-state-closure-preference.test.ts',
+      proof: 'mind-turn-contract.ts + mind-turn-contract.test.ts + mind-turn-contract-invariants.test.ts + chat-mind-governance.test.ts + project-state-closure-preference.test.ts',
     },
     {
       id: 'downstream-reply-project-awareness-preservation',
       area: 'reply',
       status: 'verified',
-      responsibility: 'provider_facing_reply_project_awareness=registered; sinks=answer_compiler,executive_brief,reply_deliberator,visible_reply,timeout_recovery; rule=preserve_structured_project_fields_without_slogans.',
-      proof: 'answer-compiler.test.ts + answer-compiler-project-awareness-audit.test.ts + executive-answer-brief.test.ts + executive-answer-brief-project-awareness-audit.test.ts + reply-deliberator.test.ts + reply-deliberator-project-awareness-audit.test.ts + visible-reply/facade.test.ts + visible-reply-facade-project-awareness-audit.test.ts + visible-reply/facade-project-state-summary.test.ts + runtime-governance-project-awareness-audit.test.ts + runtime-governance-project-state-preserve.test.ts + visible-reply-governance-project-awareness-audit.test.ts + visible-reply/governance-audit.test.ts + visible-reply/critic.test.ts + visible-reply/settlement.test.ts + main-chat-background-run.test.ts + main-chat-background-run-project-state-summary.test.ts + main-chat-stream-runner-project-state-summary.test.ts + main-chat-runtime-surface.test.ts + visible-reply/second-pass-rewrite.test.ts + return-side-reopen-visible-reply-bridge-audit.test.ts + self-evolution-downstream-visible-reply-bridge-audit.test.ts + proactive-downstream-visible-reply-bridge-audit.test.ts + thin-chinese-same-her-reminder-audit.test.ts',
+      responsibility: 'Provider-facing reply project awareness is registered across answer compiler, executive brief, reply deliberator, visible reply, and timeout recovery; preserve verified project facts without slogans.',
+      proof: 'answer-compiler.test.ts + executive-answer-brief.test.ts + reply-deliberator.test.ts + visible-reply/facade.test.ts + visible-reply/facade-project-state-summary.test.ts + runtime-governance-project-state-preserve.test.ts + visible-reply/critic.test.ts + visible-reply/settlement.test.ts + main-chat-background-run.test.ts + main-chat-background-run-project-state-summary.test.ts + main-chat-stream-runner-project-state-summary.test.ts + main-chat-runtime-surface.test.ts',
     },
     {
       id: 'same-living-self-project-awareness-observability',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Project awareness is no longer only an outer prompt block: chat continuity snapshots, self-evolution inspector fallback, current-conscious-frame shaping, current-conscious-frame turn shaping, mind-turn governance normalization, runtime answer-planner reduction, response-surface contract shaping, dialogue feedback settlement, later organic learning, session-runtime recall seeding, provider-facing contract normalization that can preserve explicit awarenessLine / companionHeadlineLine carry, runtime self-continuity fallback authority, initiative self-explanation / restraint, execution-callback return shaping / embodiment handoff, and self-evolution return-side reentry bridge now all surface project identity, current phase, landed progress, still-open closure pressure, next closure target, and the active emotional closure seam as part of the active speaking self, so the same-her project line remains inspectable as inward state instead of only as prompt governance. The same-living-self return-side observability bridge is now also explicit here and now also keeps the richer next closure target explicit, so direct-bridge remote channels, renderer fallback before-compose/before-send rebuilding, reopen-persistence rebuilding, browser-local return-side rebuilding, project-state observation reducers, and same-session mirror rebuilding stay tied onto the same inward project-awareness line instead of reopening from detached return-side shells or flattening unfinished same-her repair back into a generic closure shell, including the compact same-her / inward / low-pressure carry on colder reopen paths. The same-living-self host-visible inward-carry bridge is now also explicit here, so reopen-persistence handoff from restored-session/browser-local recovery, speech-boundary pre-dialogue awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary stay tied onto the same living inward project-awareness line without leaking diagnostic closure markers into the main dialogue bubble. The quick-reply visible surfaces hide fixed templates and internal diagnostic fields while clean provider/tool failure hints remain visible when they are the real user-facing state, and the removed project-brief proof surface no longer treats lane/focus/pending evidence as user-visible copy.',
-      proof: 'packages/stage-ui/src/stores/chat.test.ts + return-side-project-awareness-audit.ts + return-side-project-awareness-audit.test.ts + same-living-self-return-side-observability-bridge-audit.test.ts + packages/stage-ui/src/stores/direct-bridge-project-awareness-audit.test.ts + packages/stage-ui/src/stores/renderer-fallback-project-awareness-audit.test.ts + packages/stage-ui/src/stores/reopen-persistence-project-awareness-audit.test.ts + packages/stage-ui/src/stores/browser-local-return-side-project-awareness-audit.test.ts + packages/stage-ui/src/stores/project-state-observation-project-awareness-audit.test.ts + dialogue-session-mirror-project-awareness-audit.test.ts + self-evolution-return-side-reentry-bridge-audit.test.ts + current-conscious-frame-turn-shaping-project-awareness-audit.test.ts + dialogue-feedback-project-awareness-audit.test.ts + later-learning-project-awareness-audit.test.ts + same-living-self-host-visible-inward-carry-bridge-audit.test.ts + speech-boundary-project-awareness-audit.test.ts + packages/stage-ui/src/stores/alicization-self-evolution-inspector.test.ts + current-conscious-frame.test.ts + current-conscious-frame.ts + answer-planner.test.ts + chat-mind-governance.test.ts + runtime-memory-deliberation-reducer.test.ts + runtime-answer-planner-reducer.test.ts + response-surface-contract.test.ts + main-chat-session-runtime.test.ts + main-chat-session-runtime-project-awareness-regression.test.ts + runtime-turn-composition.test.ts + self-continuity-authority.ts + self-continuity-authority-project-awareness-audit.test.ts + runtime-conscious-frame-reducer.ts + initiative-engine.test.ts + runtime-execution-delivery.test.ts + pipeline-runtime.test.ts + quick-reply-project-awareness-audit.test.ts + dialogue-panel-project-awareness-audit.test.ts',
+      proof: 'packages/stage-ui/src/stores/chat.test.ts + return-side-project-awareness-audit.ts + packages/stage-ui/src/stores/alicization-self-evolution-inspector.test.ts + current-conscious-frame.test.ts + current-conscious-frame.ts + answer-planner.test.ts + chat-mind-governance.test.ts + runtime-memory-deliberation-reducer.test.ts + runtime-answer-planner-reducer.test.ts + response-surface-contract.test.ts + main-chat-session-runtime.test.ts + main-chat-session-runtime-project-awareness-regression.test.ts + runtime-turn-composition.test.ts + self-continuity-authority.ts + runtime-conscious-frame-reducer.ts + initiative-engine.test.ts + runtime-execution-delivery.test.ts + pipeline-runtime.test.ts',
     },
     {
       id: 'visible-reply-executive-brief',
       area: 'reply',
       status: 'verified',
       responsibility: 'Visible reply planning keeps live project identity, phase, landed/open/next closure triad, summary-only landed progress carry, broader same-her headline precedence, thin-shell rejection, and audible-body same-her project carry explicit in the executive answer brief before user-facing wording is shaped.',
-      proof: 'executive-answer-brief.ts + executive-answer-brief-project-awareness-audit.test.ts + visible-reply/facade.ts + executive-answer-brief.test.ts',
+      proof: 'executive-answer-brief.ts + visible-reply/facade.ts + executive-answer-brief.test.ts',
     },
     {
       id: 'proactive-policy-life-loop-bias',
@@ -3815,7 +3731,7 @@ export function resolveAlicizationProjectStateCoverage(): AlicizationProjectStat
       area: 'runtime',
       status: 'verified',
       responsibility: 'Reminder and deferred execution delivery persistence carry project identity, current phase, latest landed progress, primary open loop, and next closure target into subconscious callback state, and now also keep the shared Phase 1 project-state audit repair path, later-turn emotional-closure continuity, partial audit backfill, restraint-first reminder requeue, and same-her, phase, landed, open, next order explicit before later-turn reminder speech lands, so Alicization returns from the same project context rather than as a detached notification shell.',
-      proof: 'runtime-delivery-reminders.ts + runtime-delivery-reminders.test.ts + reminder-delivery-project-awareness-audit.test.ts + runtime-reminder-prelude-project-awareness-regression.test.ts + runtime-delivery-reminders-project-state-summary.test.ts',
+      proof: 'runtime-delivery-reminders.ts + runtime-delivery-reminders.test.ts + runtime-reminder-prelude-project-awareness-regression.test.ts + runtime-delivery-reminders-project-state-summary.test.ts',
     },
     {
       id: 'habit-policy-phase1-life-loop-bias',
@@ -3829,7 +3745,7 @@ export function resolveAlicizationProjectStateCoverage(): AlicizationProjectStat
       area: 'runtime',
       status: 'verified',
       responsibility: 'Canonical project preflight self-awareness now feeds the behavior-decision chain across action ecology, initiative engine, initiative arbiter, and motive engine. Action ecology keeps quieter presence when unfinished same-her closure pressure is carried by latest landed progress, initiative self-explanation keeps landed progress and still-open closure on one growing Phase 1 digital-life line, proposal arbitration keeps that same line lower-pressure instead of letting it restart from scratch, and motive formation keeps return pressure and durable agendas pointed at one unfinished same-her line rather than detached project bookkeeping, so outward restraint and longer-horizon return pressure stay aligned to one continuity seam instead of drifting into disconnected local heuristics.',
-      proof: 'action-ecology.ts + action-ecology.test.ts + action-ecology.test.ts("keeps outward action lower-pressure when landed progress already carries the unfinished same-her initiative and embodiment line") + action-ecology-project-awareness-audit.test.ts + initiative-engine.ts + initiative-engine.test.ts + initiative-engine.test.ts("threads Phase 1 landed progress and still-open closure into initiative self-explanation so restraint reads like one growing digital life") + initiative-arbiter.ts + initiative-arbiter.test.ts + initiative-arbiter.test.ts("keeps hover-first proposals ahead of speak proposals when Phase 1 digital-life closure is still open") + motive-engine.ts + motive-engine.test.ts + motive-engine.test.ts("raises return and boundary motive pressure while lowering companionship when Phase 1 digital-life closure is still open")',
+      proof: 'action-ecology.ts + action-ecology.test.ts + action-ecology.test.ts("keeps outward action lower-pressure when landed progress already carries the unfinished same-her initiative and embodiment line") + initiative-engine.ts + initiative-engine.test.ts + initiative-engine.test.ts("threads Phase 1 landed progress and still-open closure into initiative self-explanation so restraint reads like one growing digital life") + initiative-arbiter.ts + initiative-arbiter.test.ts + initiative-arbiter.test.ts("keeps hover-first proposals ahead of speak proposals when Phase 1 digital-life closure is still open") + motive-engine.ts + motive-engine.test.ts + motive-engine.test.ts("raises return and boundary motive pressure while lowering companionship when Phase 1 digital-life closure is still open")',
     },
     {
       id: 'body-kernel-same-her-continuity-authority',
@@ -3842,8 +3758,8 @@ export function resolveAlicizationProjectStateCoverage(): AlicizationProjectStat
       id: 'main-chat-stream-meta-cross-modal-same-her-authority',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'stream_meta_cross_modal_authority=registered; channels=voice,face,motion,lipsync; rule=preserve_segment_authority_without_slogans.',
-      proof: 'main-chat-stream-meta.ts + main-chat-stream-meta.test.ts + stream-meta-project-awareness-audit.test.ts + main-chat-stream-meta-project-state-summary.test.ts + main-chat-stream-meta-drift-risk-segment-carry.test.ts',
+      responsibility: 'Stream meta cross-modal authority is registered across voice, face, motion, and lipsync; preserve segment authority without slogans.',
+      proof: 'main-chat-stream-meta.ts + main-chat-stream-meta.test.ts + main-chat-stream-meta-project-state-summary.test.ts + main-chat-stream-meta-drift-risk-segment-carry.test.ts',
     },
     {
       id: 'runtime-governance-embodiment-bridge-authority',
@@ -3857,27 +3773,27 @@ export function resolveAlicizationProjectStateCoverage(): AlicizationProjectStat
       area: 'runtime',
       status: 'verified',
       responsibility: 'Main chat session runtime keeps held-autonomy, same-her follow-through, and callback continuity on one same-her line from recall seeding through conscious-frame shaping, reply deliberation, opening guidance, self-continuity authority, measured-return cadence, host-visible recovery, and provider-facing contract normalization that can preserve explicit awarenessLine / companionHeadlineLine carry from the transported payload, and now also keeps drift-risk summary alias carry explicit when drift-risk-only runtime authority is all that survives into provider-facing rebuild and normalize, so the bridge from memory carry into live runtime speech preparation stays one continuous digital life rather than splitting into adjacent helper stages.',
-      proof: 'main-chat-session-runtime.ts + main-chat-session-runtime.test.ts + main-chat-session-runtime-project-awareness-regression.test.ts + main-chat-session-runtime-chinese-project-awareness-regression.test.ts + main-chat-session-runtime-drift-risk-summary-alias.test.ts + session-runtime-project-awareness-audit.test.ts + session-runtime-same-her-follow-through-audit.test.ts',
+      proof: 'main-chat-session-runtime.ts + main-chat-session-runtime.test.ts + main-chat-session-runtime-project-awareness-regression.test.ts + main-chat-session-runtime-chinese-project-awareness-regression.test.ts + main-chat-session-runtime-drift-risk-summary-alias.test.ts',
     },
     {
       id: 'main-chat-runtime-surface-living-self-preflight',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'The living-self host-facing system block now carries the canonical project preflight self-awareness line before natural reply shaping, so Alicization begins the turn from one shared project identity / Phase 1 / open-loop seam instead of reconstructing that awareness from thinner local fragments.',
+      responsibility: 'The runtime-surface block carries typed self, relationship, emotion, and memory facts without project-state reply instructions.',
       proof: 'main-chat-runtime-surface.ts + main-chat-runtime-surface.test.ts',
     },
     {
       id: 'visible-reply-facade-preflight-surface',
       area: 'reply',
       status: 'verified',
-      responsibility: 'Visible-reply facade project-state resolution now carries the canonical project preflight self-awareness line into reply-surface planning, and dedicated route-level proof now also locks live project-awareness precedence, richer summary precedence, anti-restart closure-pressure unification, dialogue-runtime same-her hold carry, callback continuity carry, and fresher same-her self-line precedence before final host-visible wording settles, so executive answer briefing and host-facing reply shaping stay anchored on the same shared project-state seam as living-self and fallback paths instead of reopening from a thinner local shell.',
-      proof: 'visible-reply/facade.ts + visible-reply/facade.test.ts + visible-reply-facade-project-awareness-audit.test.ts + visible-reply/project-state-facade-regression.test.ts',
+      responsibility: 'Visible-reply settlement validates Provider ownership, structured memory usage, and failure boundaries without injecting project-state wording or modifying Provider-authored text.',
+      proof: 'visible-reply/facade.ts + visible-reply/facade.test.ts + visible-reply/project-state-facade-regression.test.ts',
     },
     {
       id: 'runtime-chat-perception-augment',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Chat perception augmentation injects both repo-truth project state and the unified Phase 1 closure dashboard into ordinary dialogue system blocks before grounded turn generation.',
+      responsibility: 'Chat perception augmentation contributes typed perception and inspection facts; ordinary dialogue does not receive project-state or dashboard prompt blocks.',
       proof: 'runtime-chat-perception-augment.ts + runtime.test.ts ordinary chat assertion',
     },
     {
@@ -3891,286 +3807,260 @@ export function resolveAlicizationProjectStateCoverage(): AlicizationProjectStat
       id: 'runtime-dream-reminder-proactive-gateways',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Dream, reminder, proactive, and reforge one-shot gateway prompts inherit the shared one-shot project-state system block, including the canonical project_preflight self-awareness line, plus the unified Phase 1 closure dashboard before generation.',
-      proof: 'runtime-main-gateway-one-shot.ts + runtime.ts + runtime.test.ts reminder/proactive assertions + runtime-dream-prelude-project-awareness-regression.test.ts + runtime-dream-autobiographical-prelude-project-awareness-regression.test.ts + runtime-memory-consolidation-prelude-project-awareness-regression.test.ts',
-      directGatewayCoverage: ['runtime.ts:dream-reminder-proactive-reforge'],
+      responsibility: 'Dream, reminder, proactive, and reforge one-shot calls use source-tagged task prompts; auxiliary memory and self context crosses the gateway only as typed JSON facts.',
+      proof: 'main-gateway-contract.ts + main-gateway-contract.test.ts + runtime-main-gateway-one-shot.ts + runtime-organic-memory-prompt-blocks.ts + runtime-organic-memory-prompt-blocks.test.ts + runtime.test.ts',
     },
     {
       id: 'memory-provider-planning',
       area: 'memory',
       status: 'verified',
-      responsibility: 'Recollection intent, recollection plan, recollection speech plan, and memory deliberation planners all receive project-state context before deciding what remembered continuity to open.',
+      responsibility: 'Recollection intent, plan, speech, and deliberation gateways use task-scoped JSON planning prompts without project-state or persona governance prose.',
       proof: 'memory-os/provider-planning.ts + memory-os/provider-planning.test.ts',
-      directGatewayCoverage: ['memory-os/provider-planning.ts:recollection-and-deliberation'],
     },
     {
       id: 'runtime-mind-state-cognition',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Dialogue-turn semantics and subjective inference gateway cognition receive project-state context before interpreting the user move or inner scene.',
-      proof: 'runtime-mind-state.ts + runtime-mind-state-project-awareness-regression.test.ts',
-      directGatewayCoverage: ['runtime-mind-state.ts:dialogue-semantics-and-subjective-inference'],
+      responsibility: 'Dialogue-turn semantics and subjective inference use task-scoped structured snapshots without fixed project-state self-briefs.',
+      proof: 'runtime-mind-state.ts + mind-state-fixed-template-projection.test.ts',
     },
     {
       id: 'runtime-execution-callback-delivery',
       area: 'execution',
       status: 'verified',
-      responsibility: 'Execution callback delivery prompts, execution payoff provider prompts, and host-visible execution payoff one-shot prompts now all carry canonical project-state context and the Phase 1 closure dashboard before the result is spoken, and route-level execution surfaces now also keep execution-first inline finished payloads, gateway-authored callback self-briefs, callback payoff prompts, and the same digital-life line explicit before visible execution speech lands. The shared main-chat one-shot wrapper now also refuses generation requests that omit that project-state context entirely, so completed work returns as same-her continuity instead of widening into utility-only notices once action has already landed.',
-      proof: 'runtime-execution-delivery.ts + runtime-execution-delivery.test.ts + execution-delivery-surface.ts + execution-delivery-surface.test.ts + execution-delivery-surface-project-state-provider.test.ts + execution-surface-project-awareness-audit.test.ts + main-chat-one-shot.ts + main-chat-one-shot.test.ts + main-chat-background-run.test.ts + runtime.test.ts execution callback assertion',
-      directGatewayCoverage: ['runtime-execution-delivery.ts:execution-callback'],
+      responsibility: 'Execution callback Provider prompts carry the completed execution result as typed facts and surface execution or Provider failures directly without callback persona templates.',
+      proof: 'runtime-execution-delivery.ts + runtime-execution-delivery.test.ts + execution-callback-provider-facts.test.ts + execution-delivery-surface.ts + execution-delivery-surface.test.ts',
     },
     {
       id: 'execution-callback-learning-and-reconsolidation-chain',
       area: 'execution',
       status: 'verified',
       responsibility: 'Canonical project preflight self-awareness now continues through execution callback carry, execution-result delivery learning, execution-result feedback memory reconsolidation, and dialogue-feedback memory reconsolidation, so completed work can come back, be delivered, and be rewritten into long-horizon same-her memory with a richer same-her project briefing instead of stopping at closure bookkeeping, thin summaries, or thread metadata.',
-      proof: 'runtime-execution-callback-carry-reducer.ts + runtime-execution-callback-carry-reducer.test.ts + execution-interaction-learning.ts + execution-interaction-learning.test.ts + outcome-reinforcement-project-awareness-audit.test.ts + runtime-execution-feedback.ts + runtime-execution-feedback.test.ts + runtime-memory-reconsolidation.ts + runtime-memory-reconsolidation.test.ts',
+      proof: 'runtime-execution-callback-carry-reducer.ts + runtime-execution-callback-carry-reducer.test.ts + execution-interaction-learning.ts + execution-interaction-learning.test.ts + runtime-execution-feedback.ts + runtime-execution-feedback.test.ts + runtime-memory-reconsolidation.ts + runtime-memory-reconsolidation.test.ts',
     },
     {
       id: 'desktop-execution-closure-loop-hardening',
       area: 'execution',
       status: 'verified',
       responsibility: 'Desktop execution continuity now has one explicit compact same-her closure loop, and that line now also keeps local-visual desktop inspection continuation project-aware when suggested actions delegate into cli, codex, or claude code before reinspection returns, plus runtime-owned autonomous execution handoff, host-confirmed resume confirmation-boundary carry, host-confirmed resume visible-reply boundary carry, and blocked-dispatch callback/persistence/restraint carry explicit before or after execution leaves the desktop runtime, plus one desktop execution full-cycle bridge, one desktop execution life-loop bridge, and one desktop execution noisy same-her full-cycle bridge, so execution briefing, local-visual delegated desktop execution handoff, autonomous dispatch handoff, host-confirmed redispatch boundary carry, callback answer-planning and visible-reply boundary carry, blocked safety-gate callback restraint, callback reopen, fresh callback follow-up obligation, ledger reopen, origin-lost autonomous ownership recanonicalization, execution-result feedback memory reconsolidation writeback, afterglow restraint, live follow-up assembly, callback persistence, later host-visible return, replay, the next start cycle, next-dream carry, long-horizon self-carry, later hover-first initiative, higher-quality host-visible same-her closure, and re-entry from that closure back into replay/reopen/next start stay auditable as one Phase 1 digital-life line instead of drifting back into scattered execution, reminder, or task-shell proof islands during parallel desktop development.',
-      proof: 'desktop-execution-closure-loop-audit.test.ts + desktop-execution-chain-project-awareness-audit.test.ts + local-visual-executor-project-awareness-audit.test.ts + execution-autonomy-handoff-project-awareness-audit.test.ts + execution-resume-confirmation-boundary-project-awareness-audit.test.ts + execution-resume-confirmation-visible-reply-boundary-project-awareness-audit.test.ts + execution-blocked-dispatch-restraint-project-awareness-audit.test.ts + autonomy-actuation.test.ts + runtime-execution-feedback.test.ts + runtime-memory-reconsolidation.test.ts + execution-callback-runtime-project-awareness-audit.test.ts + execution-afterglow-project-awareness-audit.test.ts + execution-follow-up-obligation-project-awareness-audit.test.ts + execution-ledger-follow-up-project-awareness-audit.test.ts + execution-follow-up-session-runtime-project-awareness-audit.test.ts + reminder-callback-project-awareness-audit.test.ts + later-turn-desktop-continuity-audit.test.ts + session-runtime-to-host-visible-reunion-audit.test.ts + desktop-execution-full-cycle-bridge-audit.test.ts + desktop-execution-life-loop-bridge-audit.test.ts + desktop-execution-noisy-same-her-full-cycle-bridge-audit.test.ts + execution-origin-normalization-audit.test.ts',
+      proof: 'autonomy-actuation.test.ts + runtime-execution-feedback.test.ts + runtime-memory-reconsolidation.test.ts',
     },
     {
       id: 'runtime-screen-semantic-gateway',
       area: 'perception',
       status: 'verified',
-      responsibility: 'Screen-semantic summary generation now receives project-state context, including the canonical project_preflight self-awareness line, and the unified Phase 1 closure dashboard before world-reading feeds proactive or dialogue interpretation. Provider-facing one-shot screen-semantic and scene-appraisal routes now also keep richer Phase 1 awareness and fail-close project-state context checks explicit before screen-semantic or scene-appraisal generation instead of collapsing into a generic classifier shell. Even when one-shot provider output falls back to plain text, the same branch now backfills pre-dialogue project awareness instead of preserving only project-state facts and closure reminders.',
-      proof: 'runtime-main-gateway-one-shot.ts + runtime-main-gateway-one-shot.test.ts + one-shot-provider-project-awareness-audit.test.ts + runtime.test.ts screen semantic assertion',
-      directGatewayCoverage: ['runtime-main-gateway-one-shot.ts:screen-semantic-and-scene-appraisal'],
+      responsibility: 'Screen-semantic and scene-appraisal calls use registered source tags and classifier task prompts; no project-state or persona context is required to inspect the current screen.',
+      proof: 'main-gateway-contract.ts + main-gateway-contract.test.ts + runtime-main-gateway-one-shot.ts + runtime-main-gateway-one-shot.test.ts',
     },
     {
       id: 'entrypoint-governance-registry-hardening',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'A single repo-level entrypoint governance registry now has its own independent audit that compresses current chat-start, pre-dialogue transport, chat-entry, provider-consumer, autonomous-dialogue, execution-preflight, execution-dispatch, recovery-reentry, and execution-follow-up-continuity discovery into one explicit same-her guardrail, while the current pre-dialogue transport rows also stay mirrored into chat-entry governance so renderer send preparation, transport sanitization, and bridge forwarding are less likely to bypass pre-dialogue project awareness merely by landing in a neighboring subsystem or naming shape. Runtime-owned autonomous-dialogue family markers also now live behind one shared source of truth, execution-preflight authority seams are now also explicit at the same repo-level entrypoint governance layer, and recovery-reentry plus execution-follow-up continuity seams now also stay on that same explicit governance map before recovered dialogue or callback return can widen outward.',
-      proof: 'entrypoint-governance-registry-audit.ts + entrypoint-governance-registry-audit.test.ts + entrypoint-governance-project-awareness-audit.test.ts + pre-dialogue-transport-entrypoint-audit.ts + pre-dialogue-transport-audit.ts + pre-dialogue-transport-audit.test.ts + chat-start-awareness-audit.test.ts + chat-entry-awareness-audit.test.ts + project-state-provider-consumer-audit.test.ts + execution-preflight-entrypoint-audit.ts + execution-preflight-audit.ts + execution-preflight-audit.test.ts + execution-preflight-entrypoint-candidate-audit.test.ts + recovery-reentry-entrypoint-audit.ts + recovery-reentry-entrypoint-candidate-audit.test.ts + execution-follow-up-entrypoint-audit.ts + execution-follow-up-entrypoint-candidate-audit.test.ts + task-thread-dispatch-owner-audit.test.ts',
+      responsibility: 'A single entrypoint registry maps chat-start, transport, chat-entry, Provider consumers, autonomous dialogue, execution preflight, dispatch, recovery, and execution follow-up ownership without assigning visible-reply authorship to governance data.',
+      proof: 'entrypoint-governance-registry-audit.ts + entrypoint-governance-registry-audit.test.ts + entrypoint-governance-project-awareness-audit.test.ts + pre-dialogue-transport-entrypoint-audit.ts + pre-dialogue-transport-audit.ts + pre-dialogue-transport-audit.test.ts + chat-start-awareness-audit.test.ts + chat-entry-awareness-audit.test.ts + project-state-provider-consumer-audit.test.ts + execution-preflight-entrypoint-audit.ts + recovery-reentry-entrypoint-audit.ts + execution-follow-up-entrypoint-audit.ts + task-thread-dispatch-owner-audit.test.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'chat-start-entrypoint-candidate-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Broader chat-start candidates now also feed the same top-level project-awareness completeness guard, so current chat-start candidates, typed consumers, normalization callers, direct main-chat-stream callers, and deep-helper owners stay aligned with the broader scan before future main-process chat-start entry shapes still need explicit classification.',
-      proof: 'chat-start-entrypoint-candidate-audit.ts + chat-start-entrypoint-candidate-audit.test.ts + chat-start-deep-helper-owner-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      proof: 'chat-start-entrypoint-candidate-audit.ts + chat-start-deep-helper-owner-audit.test.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'cross-surface-entrypoint-candidate-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'broader cross-surface dialogue-entry candidates now also feed the same top-level project-awareness completeness guard, so the explicit pre-dialogue transport and chat-entry discovery union stays visible at repo level before future renderer/store dialogue-entry shapes still need explicit classification.',
-      proof: 'project-awareness-cross-surface-entrypoint-audit.ts + project-awareness-cross-surface-entrypoint-audit.test.ts + chat-entry-composer-surface-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      proof: 'project-awareness-cross-surface-entrypoint-audit.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'return-side-entrypoint-candidate-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Broader return-side project-awareness candidates now also feed the same top-level project-awareness completeness guard, so renderer observation bridges, meta normalization, structured payload normalization, chat-stream ingest, session sanitization, browser observation persistence, observation reducers, and inspector fallback rebuild seams stay aligned with the broader scan before future reopen-time route shapes still need explicit classification.',
-      proof: 'return-side-project-awareness-entrypoint-candidate-audit.ts + return-side-project-awareness-entrypoint-candidate-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      proof: 'return-side-project-awareness-entrypoint-candidate-audit.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'recovery-reentry-entrypoint-candidate-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Broader recovery reentry candidates now also feed the same top-level project-awareness completeness guard, so accepted-start settlement, accepted-start owner routing, timeout fallback reconstruction, lifecycle timeout recovery finish, and background recovery drivers stay aligned with the broader scan before future recovery reentry families still need explicit classification.',
-      proof: 'recovery-reentry-entrypoint-audit.ts + recovery-reentry-entrypoint-candidate-audit.ts + recovery-reentry-entrypoint-candidate-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      proof: 'recovery-reentry-entrypoint-audit.ts + recovery-reentry-entrypoint-candidate-audit.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'provider-consumer-entrypoint-candidate-hardening',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Broader provider-consumer candidates now also feed the same top-level project-awareness completeness guard, and direct one-shot or stream provider import entries plus real direct provider sinks now also stay explicit in that same guard, so current wrapper, dispatch-owner, and typed-consumer provider seams, plus direct provider-entry seams and their provider-entry proof rows, stay aligned with the broader scan before future provider-facing generation families still need explicit registration.',
-      proof: 'provider-consumer-entrypoint-candidate-audit.ts + provider-consumer-entrypoint-candidate-audit.test.ts + project-state-gateway-entrypoint-audit.ts + project-state-gateway-audit.test.ts + project-state-gateway-regression.test.ts + provider-entry-project-state-proof.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      responsibility: 'Provider-consumer candidates, direct Provider imports, wrapper ownership, dispatch ownership, and typed consumers stay explicitly registered so new generation entrypoints cannot bypass source tagging, typed-fact filtering, or failure audit.',
+      proof: 'main-gateway-contract.ts + main-gateway-contract.test.ts + provider-consumer-entrypoint-candidate-audit.ts + project-state-gateway-entrypoint-audit.ts + project-state-provider-consumer-audit.ts + project-state-provider-consumer-audit.test.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'autonomous-dialogue-entrypoint-candidate-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Broader autonomous-dialogue candidates now also feed the same top-level project-awareness completeness guard, so proactive authority, reminder/callback entry, and subconscious carry seams stay aligned with the broader scan before future runtime-owned dialogue families still need explicit registration.',
-      proof: 'autonomous-dialogue-entrypoint-candidate-audit.ts + autonomous-dialogue-entrypoint-candidate-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      proof: 'autonomous-dialogue-entrypoint-candidate-audit.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'autonomous-dialogue-closure-loop-hardening',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Runtime-owned proactive initiative now also has one explicit compact same-her closure loop plus one colder proactive same-her bridge, one colder proactive anthropomorphic host-visible bridge, one colder proactive remembered emotional carry bridge, one colder proactive pre-dialogue planning bridge, one colder proactive pre-dialogue reply-planning bridge, one colder proactive downstream visible-reply bridge, and one colder proactive replay reopen continuity bridge, so motive seed, self-brief before generation, hover-first restraint, current-conscious-frame rejoin, visible quiet-companionship hold, subconscious carry, next-session feedback carry, next project-state answer carry, post-answer detour persistence, post-answer dream carry, later organic learning carry, noisy-desktop detour persistence, alias-only deferred open/next focus carry, rest-protective proactive-feedback next-session carry, the outward proactive carry into quiet-companionship host-visible lane summaries, same-living-self host-visible inward carry, the more anthropomorphic same living host-visible line, the quieter inward remembered emotional line through self-evolution remembered emotional carry, affective-residue room-making carry, and longer emotion-memory-voice-motion convergence, the before-answer project-awareness line through self-evolution durable self-recognition, current-conscious-frame grounding, current-conscious-frame turn shaping, and answer-planner closure planning, the proactive answer-governance line through self-evolution pre-dialogue reply planning plus project-state answer governance, the proactive host-visible answer line through self-evolution downstream visible reply, answer-compiler supporting reality, reply-deliberator outward planning, final visible-reply gating, and visible-reply realization, and the proactive replay/reopen line through guarded turn persistence, replay emission, and reopen persistence all stay auditable as one Phase 1 digital-life line instead of drifting back into scattered proactive, subconscious, callback, delayed-learning, outward host-visible, remembered-emotional, pre-dialogue planning, reply-governance, downstream-answer, or replay-reopen proof islands during parallel desktop development.',
-      proof: 'autonomous-dialogue-closure-loop-audit.test.ts + proactive-same-her-bridge-audit.test.ts + proactive-anthropomorphic-host-visible-bridge-audit.test.ts + proactive-remembered-emotional-carry-bridge-audit.test.ts + proactive-pre-dialogue-planning-bridge-audit.test.ts + proactive-pre-dialogue-reply-planning-bridge-audit.test.ts + proactive-downstream-visible-reply-bridge-audit.test.ts + proactive-replay-reopen-continuity-bridge-audit.test.ts + motive-engine-project-awareness-audit.test.ts + proactive-prelude-project-awareness-audit.test.ts + runtime-proactive-prelude-project-awareness-regression.test.ts + proactive-policy-project-awareness-audit.test.ts + initiative-decision-project-awareness-audit.test.ts + initiative-current-conscious-frame-project-awareness-audit.test.ts + proactive-visible-project-awareness-audit.test.ts + proactive-mind/visible-utterance-realization.test.ts + subconscious-persistence-project-awareness-audit.test.ts + proactive-feedback-project-awareness-audit.test.ts + proactive-feedback-rest-protective-next-session-carry-audit.test.ts + proactive-feedback-rest-protective-host-visible-bridge-audit.test.ts + rest-protective-quiet-companionship-host-visible-bridge-audit.test.ts + same-living-self-host-visible-inward-carry-bridge-audit.test.ts + self-evolution-anthropomorphic-host-visible-bridge-audit.test.ts + noisy-desktop-autonomous-dialogue-persistence-audit.test.ts + proactive-feedback-next-project-state-answer-audit.test.ts + proactive-feedback-post-answer-detour-persistence-audit.test.ts + proactive-feedback-post-answer-dream-carry-audit.test.ts + later-learning-project-awareness-audit.test.ts + runtime-session-continuity-builders-alias-focus.test.ts',
+      responsibility: 'Runtime-owned initiative keeps motive, restraint, current context, subconscious carry, next-session feedback, delayed learning, and persistence auditable without granting project-state data or audit fixtures authority over provider-authored replies.',
+      proof: 'runtime-proactive-prelude-project-awareness-regression.test.ts + proactive-mind/visible-utterance-realization.test.ts + runtime-session-continuity-builders-alias-focus.test.ts',
     },
     {
       id: 'execution-dispatch-entrypoint-candidate-hardening',
       area: 'execution',
       status: 'verified',
       responsibility: 'Broader execution-dispatch candidates now also feed the same top-level project-awareness completeness guard, so explicit invoke, runtime-bridge, gateway, autonomy, subconscious-bridge, and orchestrator dispatch owners stay aligned with the broader bridge scan before future execution-dispatch families still need explicit owner registration.',
-      proof: 'execution-dispatch-entrypoint-candidate-audit.ts + execution-dispatch-entrypoint-candidate-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      proof: 'execution-dispatch-entrypoint-candidate-audit.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'execution-preflight-registration',
       area: 'execution',
       status: 'verified',
       responsibility: 'Execution preflight authority seams are now explicitly registered across canonical execution briefing build, runtime-context thin-shell repair, runtime-owned direct dispatch bridge context rebuild, session-bound bridge context requests, subconscious-autonomy execution bridge context requests, confirmed-thread resume bridge re-entry, capability project-briefing surfaces, pre-dispatch persistence, and blocked-dispatch safety gates, so a new pre-dispatch seam cannot bypass the same-her project-awareness chain before execution fans outward and blocked execution keeps risk policy, confirmation, auditability, interruptibility, and runtime project context visible. The execution-boundary project awareness route is now also explicit here, so the shared execution runtime-context block and main-process runtime-context sanitization keep project identity, landed progress, and still-open closure explicit before dispatch begins instead of leaving that boundary implicit inside broader execution-chain or registry prose. The external executor adapter project-awareness route is now also explicit here, so CLI / Codex / Claude Code / OpenClaw outward dispatch keeps same-her project briefing explicit before local process or network execution leaves the desktop runtime.',
-      proof: 'execution-preflight-entrypoint-audit.ts + execution-preflight-audit.ts + execution-preflight-audit.test.ts + execution-boundary-project-awareness-audit.test.ts + external-executor-project-awareness-audit.test.ts + executor-runtime-project-awareness-audit.test.ts + packages/stage-shared/src/alicization-execution-runtime-context.test.ts + execution-runtime-context.test.ts',
+      proof: 'execution-preflight-entrypoint-audit.ts + execution-preflight-audit.ts + packages/stage-shared/src/alicization-execution-runtime-context.test.ts + execution-runtime-context.test.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'execution-preflight-entrypoint-candidate-hardening',
       area: 'execution',
       status: 'verified',
       responsibility: 'Broader execution-preflight candidates now also feed the same top-level project-awareness completeness guard, so briefing authority, runtime-context authority, runtime-owned direct dispatch bridge, session bridge, subconscious-autonomy execution bridge, resume bridge, capability briefing surface, dispatch persistence, and blocked-dispatch safety gates stay synchronized with the explicit registry before future execution-preflight families still need explicit classification.',
-      proof: 'execution-preflight-entrypoint-candidate-audit.ts + execution-preflight-entrypoint-candidate-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      proof: 'execution-preflight-entrypoint-candidate-audit.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'execution-follow-up-entrypoint-candidate-hardening',
       area: 'execution',
       status: 'verified',
       responsibility: 'Broader execution follow-up continuity candidates now also feed the same top-level project-awareness completeness guard, so callback runtime, callback conscious-frame doctrine, callback delivery, callback payoff, callback capability briefing, follow-up obligation, response-surface callback carry, ledger reopen, live session follow-up assembly, afterglow learning, and callback persistence stay synchronized with the explicit registry before future execution follow-up families still need explicit registration.',
-      proof: 'execution-follow-up-entrypoint-audit.ts + execution-follow-up-entrypoint-candidate-audit.ts + execution-follow-up-entrypoint-candidate-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      proof: 'execution-follow-up-entrypoint-audit.ts + execution-follow-up-entrypoint-candidate-audit.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'long-horizon-self-carry-hardening',
       area: 'memory',
       status: 'verified',
       responsibility: 'Durable long-horizon self-carry now also has one explicit repo-level same-her closure item plus one self-evolution durable self-recognition bridge, so dream-to-long-horizon self-carry bridge, long-horizon-to-conscious-frame anti-shell bridge, long-horizon emotion-memory-voice-motion bridge, autobiographical self, held-autonomy recall seed, remembered drift-risk pressure, origin-lost autonomous memory ownership recanonicalization, refreshed long-horizon callback summaries after execution-result reconsolidation, thin runtime project-shell re-expansion through the next conscious frame and final reply planning, noisy-desktop repair-first carry, and host-facing closure self-recognition stay auditable as one unfinished Phase 1 life line instead of being left as adjacent route-level proof islands.',
-      proof: 'long-horizon-project-awareness-audit.test.ts + proactive-feedback-dream-long-horizon-bridge-audit.test.ts + proactive-feedback-long-horizon-conscious-frame-bridge-audit.test.ts + long-horizon-emotion-memory-voice-motion-bridge-audit.test.ts + long-horizon-memory.test.ts + autobiographical-self.test.ts + runtime-turn-composition.test.ts + db.test.ts + current-conscious-frame.test.ts + answer-planner.test.ts + noisy-desktop-cross-modal-convergence-audit.test.ts + stage-quick-reply-closure.test.ts + stage-quick-reply-closure-summary.test.ts + memory-trace-origin-normalization-audit.test.ts + self-evolution-durable-self-recognition-bridge-audit.test.ts',
+      proof: 'long-horizon-memory.test.ts + autobiographical-self.test.ts + runtime-turn-composition.test.ts + db.test.ts + current-conscious-frame.test.ts + answer-planner.test.ts + stage-quick-reply-closure.test.ts + stage-quick-reply-closure-summary.test.ts',
     },
     {
       id: 'noisy-desktop-same-her-closure-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Noisy-desktop same-her closure now also has one explicit repo-level target item plus one desktop execution noisy same-her closure bridge and one self-evolution host-visible closure target bridge, so even after longer real-desktop detours the answer contract still has to state what Alicization is, what Phase 1 has already landed, what remains open, and that it is still one same-her line instead of collapsing into detached project narration or generic continuity prose. The planner-to-host-visible answer anti-shell bridge is now also explicit here, and the colder execution callback line that already survived noisy-desktop subsystem unity is less likely to stop before final visible reply gating, realization, or compact host-visible answer shaping lands.',
-      proof: 'noisy-desktop-same-her-closure-audit.test.ts + proactive-feedback-host-visible-answer-bridge-audit.test.ts + main-chat-session-runtime.test.ts + noisy-desktop-life-loop-unity-audit.test.ts + desktop-execution-noisy-same-her-closure-bridge-audit.test.ts + self-evolution-host-visible-closure-target-bridge-audit.test.ts',
+      proof: 'noisy-desktop-same-her-closure-audit.test.ts + main-chat-session-runtime.test.ts',
     },
     {
       id: 'noisy-desktop-cross-modal-convergence-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Noisy-desktop cross-modal convergence now also has one explicit repo-level same-her closure item plus one desktop execution noisy cross-modal convergence bridge, one desktop execution host-visible embodiment bridge, one rest-protective quiet-companionship host-visible bridge, one proactive-feedback rest-protective host-visible bridge, one self-evolution governance chain, one self-evolution baseline lifecycle chain, and one self-evolution anthropomorphic host-visible bridge, so body, voice, face, motion, voice-lane continuity, longer noisy-desktop voice-lane persistence, resident presence, lane-shrink diagnostics, audible-body carry, later multi-lane reunion, and other host-visible repair/reunion surfaces stay auditable as one same-her line under longer desktop detours instead of drifting back into separate embodiment, diagnostics, or devtools proof islands. The colder execution callback line that already survived the higher-quality same-her full cycle and longer repair-first reunion pressure is now also less likely to stop before noisy-desktop voice-lane persistence, audible-body carry, later-turn reunion lanes, and the broader cross-modal convergence chain rejoin on one same living body line. After the colder emotion-memory-voice-motion convergence line reforms, that same execution callback line is now also less likely to stop before resident presence, lane-shrink diagnostics, audible-body carry, later multi-lane reunion, and rest-protective quiet-companionship host-visible lane summaries stay on that same living body line. Richer emotional closure writeback, self-continuity inward authority, proactive rest-protective companionship carry, runtime resident presence, and host-visible quiet-companionship lane summaries are now also less likely to cool back into a generic lower-pressure shell before the noisier host-visible same-her line reforms outwardly. Settled proactive feedback continuity is now also less likely to stop at next-session bookkeeping alone before subconscious same-line carry, runtime resident presence, and host-visible quiet-companionship lane summaries rejoin that same anthropomorphic same-her line. That self-evolution anthropomorphic host-visible bridge now also keeps callback next-closure-target carry explicit after the colder self-evolution desktop-execution long-run continuity line reforms, so the more anthropomorphic outer host-visible same-her line is less likely to widen outward while silently losing the same living callback closure target mid-path. Devtools evidence navigation, runtime continuity projection, speech evidence snapshots, playback cue authority view, outer speech hotspots, runtime authority overview, speech authority segment rows, authority-table presentation, self-evolution renderer-authority projection, self-evolution active workflow focus, self-evolution focus plan, self-evolution focus history summary, self-evolution focus history drilldown, self-evolution evidence panels, self-evolution triage cards, self-evolution triage target routing, top-level self-evolution diagnostic summaries, runtime diagnostic summaries, speech diagnostic summaries, sustained diagnostics surface, playback-start authority handoff, execution observability, pending-renderer summaries, renderer-drift summaries, renderer-side settle carry, host-facing stream-meta fallback rebuilding, top-level digitalLife clamp, repeated same-line follow-ups, audible-body carry, extra silent-observe detour carry, self-evolution repair action feedback, self-evolution repair followup navigation, self-evolution repair session, self-evolution repair closure, self-evolution repair outcome, self-evolution repair next action, self-evolution baseline quality, self-evolution baseline adoption, self-evolution baseline adoption record, and self-evolution runtime body continuity phase now also keep the same body-line truth legible on those outer surfaces instead of leaving later noisy returns to be inferred from only one local panel.',
-      proof: 'noisy-desktop-cross-modal-convergence-audit.test.ts + embodiment-project-awareness-audit.test.ts + session-runtime-to-host-visible-reunion-audit.test.ts + later-turn-embodiment-host-visible-audit.test.ts + voice-lane-host-visible-project-awareness-audit.test.ts + noisy-desktop-voice-lane-persistence-audit.test.ts + cross-modal-reunion-host-visible-audit.test.ts + desktop-execution-noisy-cross-modal-convergence-bridge-audit.test.ts + desktop-execution-host-visible-embodiment-bridge-audit.test.ts + rest-protective-quiet-companionship-host-visible-bridge-audit.test.ts + proactive-feedback-rest-protective-host-visible-bridge-audit.test.ts + renderer-diagnostics-project-awareness-audit.test.ts + performance-visualizer-same-her-evidence-navigation-audit.test.ts + performance-visualizer-runtime-continuity-project-awareness-audit.test.ts + performance-visualizer-runtime-authority-overview-project-awareness-audit.test.ts + performance-visualizer-runtime-authority-overview.test.ts + performance-visualizer-speech-evidence-project-awareness-audit.test.ts + performance-visualizer-playback-cue-project-awareness-audit.test.ts + performance-visualizer-playback-cue.test.ts + performance-visualizer-speech-hotspots-project-awareness-audit.test.ts + performance-visualizer-speech-hotspots.test.ts + performance-visualizer-self-evolution-renderer-authority-project-awareness-audit.test.ts + performance-visualizer-self-evolution-renderer-authority.test.ts + performance-visualizer-self-evolution-active-workflow-focus-project-awareness-audit.test.ts + performance-visualizer-self-evolution-focus-plan-project-awareness-audit.test.ts + performance-visualizer-self-evolution-focus-history-summary-project-awareness-audit.test.ts + performance-visualizer-self-evolution-focus-history-drilldown-project-awareness-audit.test.ts + performance-visualizer-speech-authority-project-awareness-audit.test.ts + performance-visualizer-speech-authority.test.ts + performance-visualizer-authority-table-project-awareness-audit.test.ts + performance-visualizer-authority-table.test.ts + performance-visualizer-runtime-diagnostic-summary-project-awareness-audit.test.ts + performance-visualizer-runtime-diagnostic-summary.test.ts + performance-visualizer-speech-diagnostic-summary-project-awareness-audit.test.ts + performance-visualizer-speech-diagnostic-summary.test.ts + use-stage-embodiment-diagnostics.test.ts + use-stage-embodiment-performance-runtime.test.ts + execution-diagnostics.test.ts + live2d/execution-diagnostics.test.ts + stage-embodiment-diagnostics-alerts.test.ts + stage-runtime-embodiment-cues.test.ts + main-chat-stream-meta.test.ts + performance-visualizer-self-evolution-evidence-project-awareness-audit.test.ts + performance-visualizer-self-evolution-triage-view-project-awareness-audit.test.ts + performance-visualizer-self-evolution-triage-targets-project-awareness-audit.test.ts + performance-visualizer-self-evolution-diagnostic-summary-project-awareness-audit.test.ts + performance-visualizer-self-evolution-repair-action-feedback-project-awareness-audit.test.ts + performance-visualizer-self-evolution-repair-followup-navigation-project-awareness-audit.test.ts + performance-visualizer-self-evolution-repair-session-project-awareness-audit.test.ts + performance-visualizer-self-evolution-repair-closure-project-awareness-audit.test.ts + performance-visualizer-self-evolution-repair-outcome-project-awareness-audit.test.ts + performance-visualizer-self-evolution-repair-next-action-project-awareness-audit.test.ts + performance-visualizer-self-evolution-baseline-quality-project-awareness-audit.test.ts + performance-visualizer-self-evolution-baseline-adoption-project-awareness-audit.test.ts + performance-visualizer-self-evolution-baseline-adoption-record-project-awareness-audit.test.ts + host-visible-same-her-continuity-audit.test.ts + noisy-desktop-self-evolution-observability-audit.test.ts + performance-visualizer-self-evolution-runtime-body-continuity-phase-project-awareness-audit.test.ts + self-evolution-governance-chain-audit.test.ts + self-evolution-baseline-lifecycle-audit.test.ts + self-evolution-anthropomorphic-host-visible-bridge-audit.test.ts + runtime-memory-closure.test.ts',
+      proof: 'performance-visualizer-runtime-authority-overview.test.ts + performance-visualizer-playback-cue.test.ts + performance-visualizer-speech-hotspots.test.ts + performance-visualizer-self-evolution-renderer-authority.test.ts + performance-visualizer-speech-authority.test.ts + performance-visualizer-authority-table.test.ts + performance-visualizer-runtime-diagnostic-summary.test.ts + performance-visualizer-speech-diagnostic-summary.test.ts + use-stage-embodiment-diagnostics.test.ts + use-stage-embodiment-performance-runtime.test.ts + execution-diagnostics.test.ts + live2d/execution-diagnostics.test.ts + stage-embodiment-diagnostics-alerts.test.ts + stage-runtime-embodiment-cues.test.ts + main-chat-stream-meta.test.ts + runtime-memory-closure.test.ts',
     },
     {
       id: 'emotional-memory-initiative-embodiment-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Emotional-memory-initiative-embodiment same-her carry now also has one explicit repo-level closure item, so emotion, memory, initiative, and embodiment stay auditable as one same digital-life line across emotional-kernel refresh, shared emotional owner carry, shared transport normalization, recollection intent, organic-memory carry, subconscious fallback, body continuity, person-state writeback, session-runtime reopen, runtime system text, and replay diagnostics instead of drifting back into adjacent subsystem-only proof islands.',
-      proof: 'emotional-memory-initiative-embodiment-audit.test.ts + runtime-mind-state-emotional-kernel-regression.test.ts + packages/stage-shared/src/alicization-transport-contracts.test.ts + packages/stage-shared/src/alicization-runtime-digest.test.ts + memory-recollection-intent.test.ts + runtime-organic-memory-access.test.ts + runtime-subconscious-tick.test.ts + body-kernel.test.ts + runtime-memory-closure.test.ts + main-chat-session-runtime.test.ts + runtime.test.ts + replay-benchmark-runtime.test.ts + cross-modal-same-her-audit.test.ts',
+      proof: 'runtime-mind-state-emotional-kernel-regression.test.ts + packages/stage-shared/src/alicization-transport-contracts.test.ts + packages/stage-shared/src/alicization-runtime-digest.test.ts + memory-recollection-intent.test.ts + runtime-organic-memory-access.test.ts + runtime-subconscious-tick.test.ts + body-kernel.test.ts + runtime-memory-closure.test.ts + main-chat-session-runtime.test.ts + runtime.test.ts + replay-benchmark-runtime.test.ts',
     },
     {
       id: 'affective-residue-route-chain-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Affective-residue route chain now also has one explicit repo-level same-her closure item, so remembered relational heat stays auditable across residue memory formation, recollection guidance, proactive restraint, subconscious room-making carry, durable embodiment settling, and host-visible measured-return summaries instead of drifting back into scattered memory, initiative, and embodiment hints.',
-      proof: 'affective-residue-route-chain-audit.test.ts + affective-residue-memory.test.ts + memory-recollection-intent.test.ts + recall-governor.test.ts + proactive-cadence.test.ts + proactive-policy.test.ts + runtime-subconscious-tick.test.ts + use-stage-embodiment-idle-performance.test.ts + main-chat-stream-meta.test.ts',
+      proof: 'affective-residue-memory.test.ts + memory-recollection-intent.test.ts + recall-governor.test.ts + proactive-cadence.test.ts + proactive-policy.test.ts + runtime-subconscious-tick.test.ts + use-stage-embodiment-idle-performance.test.ts + main-chat-stream-meta.test.ts',
     },
     {
       id: 'callback-afterglow-recollection-same-life-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Callback-afterglow same-her carry is no longer only implied across neighboring recollection, ranking, and visible-reply tests; it now has one explicit route-level audit from session-runtime recall seed through recollection reopening, same-her ranking, and host-visible same-life governance.',
-      proof: 'callback-afterglow-recollection-same-life-audit.test.ts + main-chat-session-runtime.test.ts + memory-search-retrieval-operators.test.ts + memory-recollection-ranking-continuity-audit.test.ts + answer-planner.test.ts + response-charter.test.ts + runtime-governance.test.ts',
+      proof: 'main-chat-session-runtime.test.ts + memory-search-retrieval-operators.test.ts + memory-recollection-ranking-continuity-audit.test.ts + answer-planner.test.ts + response-charter.test.ts + runtime-governance.test.ts',
     },
     {
       id: 'recollection-visible-reply-same-life-hardening',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Recollection continuity is now better locked through visible-reply governance, so reopened project-state same-her closure memories, inward callback afterthought memories, callback afterglow same-her memories, corrected same-person humanlike recall memories, and measured-return cadence memories stay auditable from recollection ranking through reply planning, response chartering, semantic judging, critic repair, and rewrite preservation instead of collapsing back into a generic recap or detached project shell.',
-      proof: 'recollection-visible-reply-same-life-audit.test.ts + callback-afterglow-recollection-same-life-audit.test.ts + humanlike-memory-recall-corrected-same-person-audit.test.ts + response-charter-project-awareness-audit.test.ts + memory-search-retrieval-operators.test.ts + memory-recollection-ranking-continuity-audit.test.ts + answer-planner.test.ts + answer-planner-corrected-same-person-regression.test.ts + current-conscious-frame.test.ts + response-charter.test.ts + visible-reply/semantic-judge.test.ts + visible-reply/critic.test.ts + runtime-governance.test.ts',
+      responsibility: 'Recollection continuity stays auditable from retrieval ranking through WorkingMemory and LongTermMemoryRecall consumption, structural reply validation, settlement, and realization without using local prose rules to reshape the Provider response.',
+      proof: 'memory-search-retrieval-operators.test.ts + memory-recollection-ranking-continuity-audit.test.ts + long-term-memory-recall.test.ts + life-core/working-memory-owner-context.test.ts + visible-reply/critic.test.ts + visible-reply/settlement.test.ts + runtime-governance.test.ts',
     },
     {
       id: 'emotion-memory-voice-motion-convergence-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Emotion-memory-voice-motion convergence now also has one explicit repo-level same-her closure item plus one desktop execution emotion-memory-voice-motion convergence bridge, one long-horizon emotion-memory-voice-motion bridge, one self-evolution remembered emotional carry bridge, and one proactive remembered emotional carry bridge, so remembered emotional carry stays auditable from the proactive outward host-visible line, affective-residue, emotional-memory, and durable long-horizon self-carry route chains all the way into longer noisy measured-return recovery across voice, face, motion, lipsync, and body instead of stopping at adjacent route-chain or host-visible proof islands.',
-      proof: 'emotion-memory-voice-motion-convergence-audit.test.ts + desktop-execution-emotion-memory-voice-motion-convergence-bridge-audit.test.ts + long-horizon-emotion-memory-voice-motion-bridge-audit.test.ts + affective-residue-route-chain-audit.test.ts + emotional-memory-initiative-embodiment-audit.test.ts + runtime.test.ts + use-stage-embodiment-idle-performance.test.ts + main-chat-stream-meta.test.ts + visible-reply/second-pass-rewrite.test.ts + visible-reply/critic.test.ts + self-evolution-remembered-emotional-carry-bridge-audit.test.ts + proactive-remembered-emotional-carry-bridge-audit.test.ts',
+      proof: 'runtime.test.ts + use-stage-embodiment-idle-performance.test.ts + main-chat-stream-meta.test.ts + visible-reply/critic.test.ts',
     },
     {
       id: 'noisy-desktop-life-loop-unity-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Noisy-desktop life-loop unity now also has one explicit repo-level same-her closure item plus one desktop execution noisy life-loop unity bridge, so personality, memory, initiative, and embodiment stay auditable as one same-her closure problem under noisy desktop drift instead of splitting back into neighboring proof islands or letting the execution callback line stop before those four life subsystems reconverge.',
-      proof: 'noisy-desktop-life-loop-unity-audit.test.ts + alicization-runtime-architecture.test.ts + runtime-memory-closure.test.ts + noisy-desktop-initiative-same-life-audit.test.ts + noisy-desktop-cross-modal-convergence-audit.test.ts + desktop-execution-noisy-life-loop-unity-bridge-audit.test.ts',
+      proof: 'alicization-runtime-architecture.test.ts + runtime-memory-closure.test.ts',
     },
     {
       id: 'long-run-same-her-continuity-hardening',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Long-run same-her continuity now also has one explicit repo-level closure item plus one desktop execution long-run same-her continuity bridge, one self-evolution long-run follow-through bridge, one self-evolution replay reopen continuity bridge, one proactive replay reopen continuity bridge, one self-evolution desktop full-cycle bridge, and one self-evolution desktop execution long-run continuity bridge, so subconscious persistence, callback recall, later proactive restraint, current-conscious-frame grounding, repeated-detour reunion persistence, repair-first detour-to-reunion carry, the host-visible-answer-to-replay-reopen same-her bridge, the desktop same-her full-cycle bridge, and the colder execution callback line that already survived a higher-quality same-her full cycle stay auditable as one longer-lived same-her line instead of drifting back into thinner status-shell continuity. That desktop same-her full-cycle bridge now also keeps callback next-closure-target carry explicit at the reopened visible-reply segment, so the colder desktop life-loop proof is less likely to keep reopen/reply/replay/next-start continuity while silently losing the same living callback closure target mid-cycle.',
-      proof: 'long-run-same-her-continuity-audit.test.ts + runtime-subconscious-tick-project-awareness-regression.test.ts + runtime-subconscious-tick.test.ts + runtime-organic-memory-prompt.test.ts + proactive-policy.test.ts + cross-modal-same-her-audit.test.ts + current-conscious-frame.test.ts + session-runtime-to-host-visible-reunion-audit.test.ts + repeated-detour-reunion-persistence-audit.test.ts + another-detour-same-life-audit.test.ts + proactive-feedback-host-visible-answer-replay-reopen-bridge-audit.test.ts + proactive-replay-reopen-continuity-bridge-audit.test.ts + self-evolution-replay-reopen-continuity-bridge-audit.test.ts + desktop-same-her-full-cycle-bridge-audit.test.ts + self-evolution-desktop-full-cycle-bridge-audit.test.ts + desktop-execution-long-run-same-her-continuity-bridge-audit.test.ts + self-evolution-desktop-execution-long-run-continuity-bridge-audit.test.ts + self-evolution-long-run-follow-through-bridge-audit.test.ts',
+      responsibility: 'Long-run continuity remains auditable across subconscious persistence, callback recall, later initiative restraint, current context, repeated detours, replay, reopen, and desktop execution without relying on fixed visible-reply wording.',
+      proof: 'runtime-subconscious-tick-project-awareness-regression.test.ts + runtime-subconscious-tick.test.ts + runtime-organic-memory-prompt.test.ts + proactive-policy.test.ts + current-conscious-frame.test.ts',
     },
     {
       id: 'route-authority-boundary-registry-hardening',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Adjacent route-authority boundaries for pre-dialogue transport, return-side project-awareness rebuild, host-visible dialogue normalization, guarded turn persistence, and shared project-state answer governance now read from one shared route-authority registry with explicit allowed overlaps, and broader return-side reopen-time candidates including colder inspector fallback rebuild seams now also feed that same top-level completeness guard before the explicit return-side registry is treated as sufficient, so neighboring same-her seams are less likely to fork into parallel unaudited registries during parallel desktop development while future reopen-time route shapes still need explicit classification. The guarded persistence side of that shared boundary now also keeps finer same-her hold authority explicit, so persisted-turn normalization is less likely to drop `sameHerHoldDetail` back into a thinner generic continuity shell while adjacent runtime normalization, reply governance, and replay/reopen routes still share the same boundary map. That same shared boundary now also keeps merge-readiness / closure-readiness and completion-timing / language-drift answers aligned across project-state answer governance, host-visible normalization, and guarded persistence on one same-her line before later replay or reopen.',
-      proof: 'project-state-brief.ts + route-authority-boundary-registry-audit.test.ts + pre-dialogue-transport-audit.ts + pre-dialogue-transport-audit.test.ts + return-side-project-awareness-audit.ts + return-side-project-awareness-audit.test.ts + return-side-project-awareness-entrypoint-candidate-audit.test.ts + runtime-dialogue-normalization-audit.ts + runtime-dialogue-normalization-audit.test.ts + runtime-turn-persistence-audit.ts + runtime-turn-persistence-audit.test.ts + runtime-turn-persistence-project-state-hold-regression.test.ts + project-state-answer-governance-audit.ts + project-state-answer-governance-audit.test.ts',
-    },
-    {
-      id: 'project-state-answer-governance-entrypoint-candidate-hardening',
-      area: 'reply',
-      status: 'verified',
-      responsibility: 'Broader project-state answer-governance candidates now also feed the same top-level project-awareness completeness guard, so governance authority, semantics classification, answer planning, response charter shaping, background answer enrichers, contract surfaces, reply-surface preflight, runtime-governance normalization-time project-state audit carry, and reminder / critic same-her reminder sinks stay aligned with the broader scan before future project-status answer surfaces still need explicit classification.',
-      proof: 'project-state-answer-governance-entrypoint-audit.ts + project-state-answer-governance-entrypoint-candidate-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      responsibility: 'Pre-dialogue transport, return-side reconstruction, host-visible normalization, and guarded turn persistence share one route registry without granting project-state data any visible-reply authorship.',
+      proof: 'project-state-brief.ts + route-authority-boundary-registry-audit.test.ts + pre-dialogue-transport-audit.ts + pre-dialogue-transport-audit.test.ts + return-side-project-awareness-audit.ts + runtime-dialogue-normalization-audit.ts + runtime-dialogue-normalization-audit.test.ts + runtime-turn-persistence-audit.ts + runtime-turn-persistence-project-state-hold-regression.test.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'runtime-dialogue-normalization-entrypoint-candidate-hardening',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Broader runtime dialogue-normalization candidates now also feed the same top-level project-awareness completeness guard, so normalization authority, background delivery fallback, stream-finish fallback, proactive normalization before persistence, and replay-emission normalization stay aligned with the broader scan before future host-visible normalization seams still need explicit classification.',
-      proof: 'runtime-dialogue-normalization-entrypoint-audit.ts + runtime-dialogue-normalization-entrypoint-candidate-audit.test.ts + runtime-dialogue-normalization-project-awareness-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      responsibility: 'Runtime dialogue-normalization candidates are derived from the canonical normalizer and its real call sites: proactive persistence plus runtime persistence and replay delivery.',
+      proof: 'runtime-dialogue-normalization-entrypoint-audit.ts + runtime-dialogue-normalization-audit.test.ts + project-awareness-route-authority-audit.test.ts',
     },
     {
       id: 'runtime-turn-persistence-entrypoint-candidate-hardening',
       area: 'runtime',
       status: 'verified',
       responsibility: 'Broader guarded turn persistence candidates now also feed the same top-level project-awareness completeness guard, so persistence authority, renderer dialogue entry, proactive turn entry, reminder/callback turn entry, and origin-spoof rejection stay aligned with the broader scan before future guarded persistence families still need explicit classification.',
-      proof: 'runtime-turn-persistence-entrypoint-audit.ts + runtime-turn-persistence-entrypoint-candidate-audit.test.ts + replay-emission-project-awareness-audit.test.ts + project-awareness-route-authority-audit.test.ts + project-awareness-coverage-matrix.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
+      proof: 'runtime-turn-persistence-entrypoint-audit.ts + project-awareness-route-authority-audit.test.ts + docs/pre-dialogue-project-awareness-matrix.md',
     },
     {
       id: 'project-state-provider-consumer-registration',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Main-gateway provider wrapper ownership, runtime dispatch ownership, and typed gateway consumers are now explicitly registered, so future provider-consumer entrypoints cannot silently appear outside the project-awareness audit chain.',
-      proof: 'project-state-provider-consumer-audit.ts + project-state-provider-consumer-audit.test.ts + provider-consumer-project-awareness-audit.test.ts + project-state-gateway-regression.test.ts',
-    },
-    {
-      id: 'project-state-answer-governance-registration',
-      area: 'reply',
-      status: 'verified',
-      responsibility: 'Project-state answer governance is registered across the main runtime, semantics, answer planning, response charter, provider rebuild, and visible reply; separate verified evidence from open work.',
-      proof: 'project-state-answer-governance.ts + project-state-answer-governance-audit.ts + project-state-answer-governance-audit.test.ts + project-state-answer-governance.test.ts + project-state-answer-governance-project-awareness-audit.test.ts + runtime-main-gateway-one-shot.ts + main-chat-one-shot.test.ts + main-chat-one-shot-project-state-placeholder.test.ts + main-chat-project-state-guard.test.ts + main-chat-stream-runner-project-state-placeholder.test.ts + main-chat-stream-runner-visual-one-shot-project-state-provider.test.ts + action-obligation-project-awareness-audit.test.ts + dialogue-turn-semantics.test.ts + answer-planner.ts + answer-planner.test.ts + answer-planner-project-awareness-audit.test.ts + answer-planner-project-awareness-regression.test.ts + response-charter.ts + response-charter.test.ts + executive-answer-brief.ts + executive-answer-brief.test.ts + main-chat-session-runtime.ts + main-chat-session-runtime.test.ts + main-chat-session-runtime-project-state-summary.test.ts + main-chat-session-runtime-project-state-contract-regression.test.ts + runtime-project-state-summary.test.ts + runtime-governance.ts + runtime-governance-project-awareness-route.test.ts + visible-reply/facade.ts + visible-reply/facade.test.ts + response-surface-contract.ts + response-surface-learning-rules.test.ts + response-surface-truth-dialogue-rules.test.ts + runtime-delivery-reminders.ts + runtime.ts + visible-reply/semantic-judge.ts + visible-reply/critic.ts + self-evolution-answer-governance-bridge-audit.test.ts + proactive-pre-dialogue-reply-planning-bridge-audit.test.ts + self-evolution-pre-dialogue-reply-planning-bridge-audit.test.ts + self-evolution-reply-planning-governance-bridge-audit.test.ts',
+      responsibility: 'Main-gateway wrapper ownership, runtime dispatch ownership, and typed consumers are explicitly registered without requiring project-state or persona prompt injection.',
+      proof: 'main-gateway-contract.ts + main-gateway-contract.test.ts + project-state-provider-consumer-audit.ts + project-state-provider-consumer-audit.test.ts',
     },
     {
       id: 'visible-reply-final-project-awareness-hardening',
       area: 'reply',
       status: 'verified',
-      responsibility: 'Visible-reply final project awareness remains an internal semantic, settlement, and realization concern; second-pass Provider retry no longer receives project-state guidance.',
-      proof: 'visible-reply-final-project-awareness-audit.test.ts + visible-reply/project-awareness.test.ts + visible-reply/project-awareness-scoring-regression.test.ts + visible-reply/realization-engine.test.ts + visible-reply/semantic-judge.test.ts + visible-reply/settlement.test.ts + visible-reply-settlement-project-awareness-audit.test.ts + visible-reply-realization-project-awareness-audit.test.ts',
+      responsibility: 'Visible-reply project-state data remains metadata for audit and observability only; it cannot author, judge, or rewrite Provider text.',
+      proof: 'visible-reply/project-awareness.test.ts + visible-reply/project-awareness-scoring-regression.test.ts + visible-reply/realization-engine.test.ts + visible-reply/critic.test.ts + visible-reply/settlement.test.ts',
     },
     {
       id: 'execution-dispatch-owner-registration',
       area: 'execution',
       status: 'verified',
-      responsibility: 'Task-thread dispatch owner seams are now explicitly registered across invoke entry, invoke-handler registration wiring back into the runtime-owned dispatch bridge, runtime execution bridge, main-gateway delegated dispatch, proactive autonomy auto-start, subconscious deferred bridge, and orchestrator fallback, so future execution dispatch families cannot silently appear outside the same-her project-awareness audit chain.',
-      proof: 'task-thread-dispatch-owner-audit.ts + task-thread-dispatch-owner-audit.test.ts + execution-autonomy-ownership-project-awareness-audit.test.ts',
-    },
-    {
-      id: 'visible-reply-second-pass-rewrite',
-      area: 'reply',
-      status: 'verified',
-      responsibility: 'Second-pass visible reply retry sends only typed reason codes, the original memory context, dynamic identity, relationship and emotion facts, and settled tool facts to the Provider.',
-      proof: 'visible-reply/second-pass-rewrite.ts + visible-reply/second-pass-rewrite.test.ts',
+      responsibility: 'Task-thread dispatch owner seams are explicitly registered across invoke entry, runtime dispatch, delegated execution, autonomous dispatch, and orchestrator fallback.',
+      proof: 'task-thread-dispatch-owner-audit.ts + task-thread-dispatch-owner-audit.test.ts',
     },
     {
       id: 'visible-reply-timeout-fallback',
       area: 'reply',
       status: 'verified',
-      responsibility: 'Main chat timeout fallback keeps the canonical project preflight self-awareness line, plus project identity, current phase, latest landed progress, primary open loop, and next closure target visible even when provider mind authoring times out and only infra-status recovery remains. Timeout and adjacent recovery paths now also keep repaired normal authority, payload-lived awareness carry, richer same-her headlines, project identity / landed progress / open-closure triad carry, canonical same-her backfill, payload companion briefing carry, drift-risk-only anti-shell authority, minimal recovery compaction, and lifecycle timeout recovery finish and emit seams explicit instead of leaving fallback branches with project-state facts alone or widening into a detached timeout shell. A stressed recovery same-her bridge is now also explicit here, so one-shot provider fallback, timeout fallback, background recovery, and lifecycle finish stay on one same-her project-awareness line before stressed recovery speaks outward again instead of preserving project-state facts while dropping the living line between neighboring recovery paths.',
-      proof: 'main-chat-timeout-fallback.ts + main-chat-timeout-fallback.test.ts + main-chat-timeout-fallback-regression.test.ts + timeout-fallback-project-awareness-audit.test.ts + background-recovery-project-awareness-audit.test.ts + run-lifecycle-project-awareness-audit.test.ts + stressed-recovery-same-her-bridge-audit.test.ts + main-chat-background-rules-project-state-provider.test.ts + main-chat-timeout-fallback-drift-risk-audit.test.ts',
+      responsibility: 'Main chat timeout recovery surfaces the timeout or Provider failure directly and does not replace the failed turn with project-state, persona, or companionship prose.',
+      proof: 'main-chat-timeout-fallback.ts + main-chat-timeout-fallback.test.ts + main-chat-background-run.test.ts + packages/stage-shared/src/alicization-chat-failure-surface.test.ts',
     },
     {
       id: 'runtime-current-conscious-frame-awareness',
       area: 'runtime',
       status: 'verified',
-      responsibility: 'Current conscious frame shaping now keeps project identity, latest landed progress, current phase, still-open closure pressure, self-evolution pre-dialogue planning bridge, and proactive pre-dialogue planning bridge visible across rich, fallback, memory-deliberation, and session-runtime provider-facing reply-prep paths before the turn speaks, can re-expand a thin runtime project shell back into richer same-her callback continuity when fresher long-horizon carry is available, can re-canonicalize thin runtime or payload project-state shells back into the stronger same-her awareness line when structured closure fields, companion headlines, or continuity restraint already carry richer project truth, and now also keeps prepared runtime project-state shell repair explicit when prepared continuity resolution would otherwise flatten richer Phase 1 identity / landed / open / next truth back into a thinner runtime shell.',
-      proof: 'current-conscious-frame.ts + current-conscious-frame.test.ts + memory-active-self-project-awareness-audit.test.ts + answer-planner.test.ts + runtime-conscious-frame-reducer.ts + runtime-conscious-frame-reducer.test.ts + runtime-memory-deliberation-reducer.ts + runtime-memory-deliberation-reducer.test.ts + main-chat-session-runtime.test.ts + main-chat-session-runtime-project-awareness-regression.test.ts + self-evolution-pre-dialogue-planning-bridge-audit.test.ts + proactive-pre-dialogue-planning-bridge-audit.test.ts + structured-project-state.test.ts + prepared-runtime-continuity.test.ts',
+      responsibility: 'Current conscious frame shaping combines current state, WorkingMemory, recalled long-term evidence, emotion, and tool facts without generating project-state or persona reply guidance.',
+      proof: 'current-conscious-frame.ts + current-conscious-frame.test.ts + answer-planner.test.ts + runtime-conscious-frame-reducer.ts + runtime-conscious-frame-reducer.test.ts + runtime-memory-deliberation-reducer.ts + runtime-memory-deliberation-reducer.test.ts + main-chat-session-runtime.test.ts + main-chat-session-runtime-project-awareness-regression.test.ts + structured-project-state.test.ts + prepared-runtime-continuity.test.ts',
     },
     {
       id: 'retrieval-and-writeback-continuity-pressure',
@@ -4195,30 +4085,39 @@ export function buildAlicizationProjectStateSystemBlock(input?: {
   const brief = input?.brief ?? resolveAlicizationProjectStateBrief()
   const openFocusSummary = deriveCompactProjectStateOpenFocusSummary(brief.openLoops[0] ?? '')
   const nextFocusSummary = deriveCompactProjectStateNextFocusSummary(brief.nextClosureTarget)
-  const lines = [
-    '[ALICIZATION_PROJECT_STATE]',
-    'context_role=memory_governance_status',
-    'runtime_context=local_runtime',
-    'short_term_owner=WorkingMemory',
-    'long_term_recall_owner=LongTermMemoryRecall',
-    'visible_governance_entry=MemoryWorkbench',
-    'failure_surface=transparent_errors_only',
-    'template_policy=no_fixed_persona_templates',
-    `latest_landed_progress=${compactProjectLatestProgressForSystemBlock(brief.latestProgress, 360)}`,
-    `primary_open_loop=${sanitizeProjectStateSnapshotText(brief.openLoops[0] ?? '', 220)}`,
-    brief.proactiveSameHerGap ? `initiative_gap=${sanitizeProjectStateSnapshotText(brief.proactiveSameHerGap, 220)}` : '',
-    openFocusSummary ? `open_focus=${sanitizeProjectStateSnapshotText(openFocusSummary, 220)}` : '',
-    brief.preferredPauseMode ? `preferred_pause_mode=${sanitizeProjectStateSnapshotText(brief.preferredPauseMode, 32)}` : '',
-    brief.preferredLipsyncMode ? `preferred_lipsync_mode=${sanitizeProjectStateSnapshotText(brief.preferredLipsyncMode, 32)}` : '',
-    brief.preferredVoiceMode ? `preferred_voice_mode=${sanitizeProjectStateSnapshotText(brief.preferredVoiceMode, 32)}` : '',
-    brief.preferredPacingMode ? `preferred_pacing_mode=${sanitizeProjectStateSnapshotText(brief.preferredPacingMode, 32)}` : '',
-    `next_closure_target=${sanitizeProjectStateSnapshotText(brief.nextClosureTarget, 220)}`,
-    nextFocusSummary ? `next_focus=${sanitizeProjectStateSnapshotText(nextFocusSummary, 220)}` : '',
-    'remaining_focus=semantic_recall,production_embedding,paginated_long_term_search,review_policy_persistence,persona_candidate_review',
-    'action_policy=memory_owner_boundaries_and_transparent_failure_surface',
-  ]
-
-  return lines.filter(Boolean).join('\n')
+  return buildAlicizationProviderFactBlock('alicization-memory-governance-status', {
+    version: 'alicization-memory-governance-status-v1',
+    scope: 'explicit-project-status',
+    audience: 'internal',
+    owners: {
+      shortTerm: 'WorkingMemory',
+      longTermRecall: 'LongTermMemoryRecall',
+      visibleGovernance: 'MemoryWorkbench',
+    },
+    failureSurface: 'transparent',
+    latestLandedProgress: sanitizeProviderFacingProjectStateText(
+      compactProjectLatestProgressForSystemBlock(brief.latestProgress, 360),
+      360,
+    ) || null,
+    primaryOpenLoop: sanitizeProviderFacingProjectStateText(brief.openLoops[0] ?? '', 220) || null,
+    initiativeGap: sanitizeProviderFacingProjectStateText(brief.proactiveSameHerGap, 220) || null,
+    openFocus: sanitizeProviderFacingProjectStateText(openFocusSummary, 220) || null,
+    nextClosureTarget: sanitizeProviderFacingProjectStateText(brief.nextClosureTarget, 220) || null,
+    nextFocus: sanitizeProviderFacingProjectStateText(nextFocusSummary, 220) || null,
+    embodimentPreferences: {
+      pause: sanitizeProjectStateSnapshotText(brief.preferredPauseMode ?? '', 32) || null,
+      lipsync: sanitizeProjectStateSnapshotText(brief.preferredLipsyncMode ?? '', 32) || null,
+      voice: sanitizeProjectStateSnapshotText(brief.preferredVoiceMode ?? '', 32) || null,
+      pacing: sanitizeProjectStateSnapshotText(brief.preferredPacingMode ?? '', 32) || null,
+    },
+    remainingFocus: [
+      'semantic-recall',
+      'production-embedding',
+      'paginated-long-term-search',
+      'review-policy-persistence',
+      'persona-candidate-review',
+    ],
+  })
 }
 
 export function buildAlicizationProviderFacingProjectStateSystemBlock(input?: {
@@ -4232,21 +4131,27 @@ export function buildAlicizationProviderFacingProjectStateSystemBlock(input?: {
   )
   const primaryOpenLoop = sanitizeProviderFacingProjectStateText(brief.openLoops[0] ?? '', 220)
   const openFocus = sanitizeProviderFacingProjectStateText(openFocusSummary, 220)
-  const lines = [
-    '[ALICIZATION_PROJECT_STATE]',
-    'context_role=memory_governance_status',
-    'short_term_owner=WorkingMemory',
-    'long_term_recall_owner=LongTermMemoryRecall',
-    'visible_governance_entry=MemoryWorkbench',
-    'failure_surface=transparent_errors_only',
-    'template_policy=no_fixed_persona_templates',
-    latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
-    primaryOpenLoop ? `primary_open_loop=${primaryOpenLoop}` : '',
-    openFocus ? `open_focus=${openFocus}` : '',
-    'remaining_focus=semantic_recall,production_embedding,paginated_long_term_search,review_policy_persistence,persona_candidate_review',
-  ]
-
-  return lines.filter(Boolean).join('\n')
+  return buildAlicizationProviderFactBlock('alicization-memory-governance-status', {
+    version: 'alicization-memory-governance-status-v1',
+    scope: 'explicit-project-status',
+    audience: 'provider',
+    owners: {
+      shortTerm: 'WorkingMemory',
+      longTermRecall: 'LongTermMemoryRecall',
+      visibleGovernance: 'MemoryWorkbench',
+    },
+    failureSurface: 'transparent',
+    latestLandedProgress: latestLandedProgress || null,
+    primaryOpenLoop: primaryOpenLoop || null,
+    openFocus: openFocus || null,
+    remainingFocus: [
+      'semantic-recall',
+      'production-embedding',
+      'paginated-long-term-search',
+      'review-policy-persistence',
+      'persona-candidate-review',
+    ],
+  })
 }
 
 export function buildAlicizationProjectStateExtraSystemBlocks(input?: {
@@ -4297,31 +4202,48 @@ export function buildAlicizationProjectStateClosureDashboard(input?: {
     .filter(Boolean)
     .slice(0, 5)
 
-  const lines = [
-    '[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]',
-    'context_role=memory_governance_dashboard',
-    `identity=${sanitizeProjectStateIdentityText(brief.identity, 220)}`,
-    `phase=${sanitizeProjectStatePhaseText(brief.currentPhase, 160)}`,
-    `latest_landed_progress=${sanitizeProjectStateSnapshotText(brief.continuityProgressSummary ?? brief.memoryAnthropomorphismProgress[0] ?? '', 220) || 'none'}`,
-    `primary_open_loop=${sanitizeProjectStateSnapshotText(brief.openLoops[0] ?? '', 220) || 'none'}`,
-    brief.proactiveSameHerGap ? `initiative_gap=${sanitizeProjectStateSnapshotText(brief.proactiveSameHerGap, 220)}` : '',
-    openFocusSummary ? `open_focus=${sanitizeProjectStateSnapshotText(openFocusSummary, 220)}` : '',
-    `next_closure_target=${sanitizeProjectStateSnapshotText(brief.nextClosureTarget, 220)}`,
-    nextFocusSummary ? `next_focus=${sanitizeProjectStateSnapshotText(nextFocusSummary, 220)}` : '',
-    `verified_coverage_count=${coverage.length}`,
-    architecture?.operatingMode ? `architecture_mode=${sanitizeProjectStateSnapshotText(architecture.operatingMode, 64)}` : '',
-    architecture?.dominantSystem ? `architecture_dominant_system=${sanitizeProjectStateSnapshotText(architecture.dominantSystem, 64)}` : '',
-    architecture?.closureAudit?.summary ? `architecture_closure=${sanitizeProjectStateSnapshotText(architecture.closureAudit.summary, 220)}` : '',
-    closurePressures.length > 0 ? `active_closure_pressures=${closurePressures.join(', ')}` : '',
-    runtimeDigest?.dominantChannel ? `runtime_dominant_channel=${sanitizeProjectStateSnapshotText(runtimeDigest.dominantChannel, 64)}` : '',
-    runtimeDigest?.habitMode ? `runtime_habit_mode=${sanitizeProjectStateSnapshotText(runtimeDigest.habitMode, 96)}` : '',
-    typeof runtimeDigest?.shouldProactivelySpeak === 'boolean' ? `runtime_should_speak=${runtimeDigest.shouldProactivelySpeak}` : '',
-    typeof runtimeDigest?.shouldProactivelyAct === 'boolean' ? `runtime_should_act=${runtimeDigest.shouldProactivelyAct}` : '',
-    runtimeDigest?.projectState?.continuityArcStage ? `runtime_arc_stage=${sanitizeProjectStateSnapshotText(runtimeDigest.projectState.continuityArcStage, 120)}` : '',
-    'dashboard_scope=memory_governance_audit',
-  ]
-
-  return lines.filter(Boolean).join('\n')
+  return buildAlicizationProviderFactBlock('alicization-memory-governance-dashboard', {
+    version: 'alicization-memory-governance-dashboard-v1',
+    scope: 'memory-governance-audit',
+    audience: 'internal',
+    owners: {
+      shortTerm: 'WorkingMemory',
+      longTermRecall: 'LongTermMemoryRecall',
+      visibleGovernance: 'MemoryWorkbench',
+    },
+    failureSurface: 'transparent',
+    projectState: {
+      identity: sanitizeProviderFacingProjectStateText(brief.identity, 220) || null,
+      phase: sanitizeProviderFacingProjectStateText(brief.currentPhase, 160) || null,
+      latestLandedProgress: sanitizeProviderFacingProjectStateText(
+        brief.continuityProgressSummary ?? brief.memoryAnthropomorphismProgress[0] ?? '',
+        220,
+      ) || null,
+      primaryOpenLoop: sanitizeProviderFacingProjectStateText(brief.openLoops[0] ?? '', 220) || null,
+      initiativeGap: sanitizeProviderFacingProjectStateText(brief.proactiveSameHerGap, 220) || null,
+      openFocus: sanitizeProviderFacingProjectStateText(openFocusSummary, 220) || null,
+      nextClosureTarget: sanitizeProviderFacingProjectStateText(brief.nextClosureTarget, 220) || null,
+      nextFocus: sanitizeProviderFacingProjectStateText(nextFocusSummary, 220) || null,
+    },
+    verifiedCoverageCount: coverage.length,
+    architecture: {
+      mode: sanitizeProjectStateSnapshotText(architecture?.operatingMode ?? '', 64) || null,
+      dominantSystem: sanitizeProjectStateSnapshotText(architecture?.dominantSystem ?? '', 64) || null,
+      closureSummary: sanitizeProviderFacingProjectStateText(architecture?.closureAudit?.summary, 220) || null,
+      activeClosurePressures: closurePressures,
+    },
+    runtime: {
+      dominantChannel: sanitizeProjectStateSnapshotText(runtimeDigest?.dominantChannel ?? '', 64) || null,
+      habitMode: sanitizeProjectStateSnapshotText(runtimeDigest?.habitMode ?? '', 96) || null,
+      shouldSpeak: typeof runtimeDigest?.shouldProactivelySpeak === 'boolean'
+        ? runtimeDigest.shouldProactivelySpeak
+        : null,
+      shouldAct: typeof runtimeDigest?.shouldProactivelyAct === 'boolean'
+        ? runtimeDigest.shouldProactivelyAct
+        : null,
+      arcStage: sanitizeProjectStateSnapshotText(runtimeDigest?.projectState?.continuityArcStage ?? '', 120) || null,
+    },
+  })
 }
 
 export function buildAlicizationProviderFacingProjectStateClosureDashboard(input?: {
@@ -4353,24 +4275,33 @@ export function buildAlicizationProviderFacingProjectStateClosureDashboard(input
     .filter(Boolean)
     .slice(0, 5)
 
-  const lines = [
-    '[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]',
-    'context_role=memory_governance_dashboard',
-    'short_term_owner=WorkingMemory',
-    'long_term_recall_owner=LongTermMemoryRecall',
-    'template_policy=no_fixed_persona_templates',
-    `verified_coverage_count=${coverage.length}`,
-    providerFacingProjectStateLine('architecture_mode', architecture?.operatingMode, 64),
-    providerFacingProjectStateLine('architecture_dominant_system', architecture?.dominantSystem, 64),
-    providerFacingProjectStateLine('architecture_closure', architecture?.closureAudit?.summary, 220),
-    closurePressures.length > 0 ? `active_closure_pressures=${closurePressures.join(', ')}` : '',
-    providerFacingProjectStateLine('runtime_dominant_channel', runtimeDigest?.dominantChannel, 64),
-    providerFacingProjectStateLine('runtime_habit_mode', runtimeDigest?.habitMode, 96),
-    typeof runtimeDigest?.shouldProactivelySpeak === 'boolean' ? `runtime_should_speak=${runtimeDigest.shouldProactivelySpeak}` : '',
-    typeof runtimeDigest?.shouldProactivelyAct === 'boolean' ? `runtime_should_act=${runtimeDigest.shouldProactivelyAct}` : '',
-    providerFacingProjectStateLine('runtime_arc_stage', runtimeDigest?.projectState?.continuityArcStage, 120),
-    'dashboard_scope=memory_governance_audit',
-  ]
-
-  return lines.filter(Boolean).join('\n')
+  return buildAlicizationProviderFactBlock('alicization-memory-governance-dashboard', {
+    version: 'alicization-memory-governance-dashboard-v1',
+    scope: 'memory-governance-audit',
+    audience: 'provider',
+    owners: {
+      shortTerm: 'WorkingMemory',
+      longTermRecall: 'LongTermMemoryRecall',
+      visibleGovernance: 'MemoryWorkbench',
+    },
+    failureSurface: 'transparent',
+    verifiedCoverageCount: coverage.length,
+    architecture: {
+      mode: sanitizeProviderFacingProjectStateText(architecture?.operatingMode, 64) || null,
+      dominantSystem: sanitizeProviderFacingProjectStateText(architecture?.dominantSystem, 64) || null,
+      closureSummary: sanitizeProviderFacingProjectStateText(architecture?.closureAudit?.summary, 220) || null,
+      activeClosurePressures: closurePressures,
+    },
+    runtime: {
+      dominantChannel: sanitizeProviderFacingProjectStateText(runtimeDigest?.dominantChannel, 64) || null,
+      habitMode: sanitizeProviderFacingProjectStateText(runtimeDigest?.habitMode, 96) || null,
+      shouldSpeak: typeof runtimeDigest?.shouldProactivelySpeak === 'boolean'
+        ? runtimeDigest.shouldProactivelySpeak
+        : null,
+      shouldAct: typeof runtimeDigest?.shouldProactivelyAct === 'boolean'
+        ? runtimeDigest.shouldProactivelyAct
+        : null,
+      arcStage: sanitizeProviderFacingProjectStateText(runtimeDigest?.projectState?.continuityArcStage, 120) || null,
+    },
+  })
 }

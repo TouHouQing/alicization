@@ -10,7 +10,7 @@ import type { CommonContentPart, Message, ToolMessage } from '@xsai/shared-chat'
 
 import type { StructuredOutputResult, StructuredValidationIssue } from '../composables/alicization-structured-output'
 import type { AlicizationAbortReason } from '../composables/alicization-turn-abort'
-import type { ChatAssistantMessage, ChatAssistantStructuredPayload, ChatHistoryItem, ChatSlices, ChatSlicesExecutionStatus, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
+import type { ChatAssistantMessage, ChatAssistantStructuredPayload, ChatSlices, ChatSlicesExecutionStatus, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
 import type {
   AlicizationConversationTurnInput,
   AlicizationDialogueEmbodimentEnvelope,
@@ -21,29 +21,19 @@ import type {
   AlicizationEmotion,
   AlicizationMindTurnGovernance,
   AlicizationPersonalityState,
-  AlicizationPreDialogueSendIdentity,
-  AlicizationProjectStateContinuitySnapshot,
   AlicizationRuntimeDigest,
-  AlicizationVisibleReplyPublicClosureSummary,
-  AlicizationVisibleReplyPublicCriticSummary,
 } from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
 
 import {
-
-  alicizationFixedTemplateReplacement,
   alicizationProviderResponseFormat,
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
   detectAlicizationExecutionCapabilityInquiry,
   detectAlicizationExecutionRoutingIntent,
-  formatAlicizationProjectStateAwarenessFields,
   isAlicizationDecorativePersonaTemplateContamination,
   isAlicizationProviderSchemaUnsupportedError,
-  isAlicizationThinProjectAwarenessLine,
-  isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
   looksLikeAlicizationStructuredPayloadText,
   resolveAlicizationChatFailureSurface,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
   sanitizeAlicizationProviderFacingText,
   shouldBufferAlicizationStructuredSpeechPrelude,
 } from '@proj-alicization/stage-shared'
@@ -56,7 +46,6 @@ import { applyPromptBudget, compactMessagesForPromptAssembly, sanitizeAssistantO
 import { composeAlicizationPromptMessages } from '../composables/alicization-prompt-composer'
 import {
   normalizeStructuredOutput,
-  normalizeStructuredPreDialogueClosurePayload,
   normalizeStructuredProjectStatePayload,
   validateStructuredContract,
 } from '../composables/alicization-structured-output'
@@ -72,7 +61,6 @@ import {
   normalizeAlicizationPerformancePayload,
 } from './alicization-bridge'
 import { useAlicizationPresenceDispatcherStore } from './alicization-presence-dispatcher'
-import { useAlicizationSelfEvolutionInspectorStore } from './alicization-self-evolution-inspector'
 import {
   blockAlicizationRendererLocalVisibleReply,
   removeAlicizationExecutionStatusSlices,
@@ -81,31 +69,11 @@ import {
 import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
-import { shouldAttachProjectStatePreDialogueIdentity } from './chat/pre-dialogue-project-state-intent'
-import {
-  buildPreDialogueSendIdentityFromSnapshots as buildSharedPreDialogueSendIdentityFromSnapshots,
-  resolvePreDialogueClosureCompanionHeadlineLine,
-  resolvePreferredCompanionHeadlineLine,
-  sanitizePreDialogueSendIdentity as sanitizeSharedPreDialogueSendIdentity,
-} from './chat/pre-dialogue-send-identity'
 import { useChatSessionStore } from './chat/session-store'
 import { useChatStreamStore } from './chat/stream-store'
 import { useLLM } from './llm'
 import { useConsciousnessStore } from './modules/consciousness'
 import { useProvidersStore } from './providers'
-
-type AlicizationPreDialogueClosurePayload = NonNullable<ChatAssistantStructuredPayload['preDialogueClosure']>
-interface AlicizationPreDialogueAwarenessPayload {
-  status: 'grounded' | 'partial' | 'drift'
-  summaryLine: string | null
-  companionHeadlineLine: string | null
-  companionBriefingLine: string | null
-  companionNextClosureLine: string | null
-  awarenessLine: string | null
-  emotionalClosureCue: string | null
-  reasonPreview: string[]
-}
-type ChatPreDialogueSendIdentity = NonNullable<ChatStreamEventContext['preDialogueSendIdentity']>
 
 type StreamToolCallPayload = Extract<StreamEvent, { type: 'tool-call' }>
 
@@ -113,125 +81,6 @@ const runtimeAuthoritativeVisibleReplyBlockedErrorMessage = 'Alicization runtime
 
 function createRuntimeAuthoritativeVisibleReplyBlockedError() {
   return new Error(runtimeAuthoritativeVisibleReplyBlockedErrorMessage)
-}
-
-function sanitizeChatPreDialogueSendIdentity(
-  identity: ChatStreamEventContext['preDialogueSendIdentity'],
-): ChatStreamEventContext['preDialogueSendIdentity'] {
-  if (!identity)
-    return null
-
-  return sanitizeSharedPreDialogueSendIdentity(
-    identity as AlicizationPreDialogueSendIdentity,
-  ) as ChatStreamEventContext['preDialogueSendIdentity']
-}
-
-function toAlicizationChatStartPreDialogueSendIdentity(
-  identity: ChatStreamEventContext['preDialogueSendIdentity'],
-): AlicizationPreDialogueSendIdentity | null {
-  const sanitizedIdentity = sanitizeChatPreDialogueSendIdentity(identity)
-  if (!sanitizedIdentity)
-    return null
-
-  return {
-    status: sanitizedIdentity.status,
-    summaryLine: sanitizedIdentity.summaryLine,
-    companionHeadlineLine: sanitizedIdentity.companionHeadlineLine ?? null,
-    companionBriefingLine: sanitizedIdentity.companionBriefingLine ?? null,
-    companionNextClosureLine: sanitizedIdentity.companionNextClosureLine ?? null,
-    awarenessLine: sanitizedIdentity.awarenessLine ?? null,
-    emotionalClosureCue: sanitizedIdentity.emotionalClosureCue ?? null,
-    projectState: sanitizedIdentity.projectState ?? null,
-    emotionalKernel: sanitizedIdentity.emotionalKernel ?? null,
-    reasonPreview: sanitizedIdentity.reasonPreview.filter((reason): reason is string => typeof reason === 'string' && reason.trim().length > 0),
-  }
-}
-
-function toStructuredPreDialogueAwarenessPayload(
-  identity: ChatStreamEventContext['preDialogueSendIdentity'],
-): AlicizationPreDialogueAwarenessPayload | null {
-  if (!identity)
-    return null
-
-  return {
-    status: identity.status,
-    summaryLine: identity.summaryLine,
-    companionHeadlineLine: identity.companionHeadlineLine ?? null,
-    companionBriefingLine: identity.companionBriefingLine ?? null,
-    companionNextClosureLine: identity.companionNextClosureLine ?? null,
-    awarenessLine: identity.awarenessLine ?? null,
-    emotionalClosureCue: identity.emotionalClosureCue ?? null,
-    reasonPreview: identity.reasonPreview.filter((reason): reason is string => typeof reason === 'string' && reason.trim().length > 0),
-  }
-}
-
-function sanitizeChatProviderFacingTemplateText(value: unknown, maxChars = 420) {
-  return sanitizeAlicizationProviderFacingText(value, maxChars, alicizationFixedTemplateReplacement) || null
-}
-
-type ChatStructuredAwarenessField
-  = | 'identity'
-    | 'phase'
-    | 'open'
-    | 'next'
-    | 'continuity_anchor'
-    | 'continuity_hold'
-    | 'continuity_drift_risk'
-    | 'emotional_closure'
-    | 'summary'
-
-function formatChatStructuredAwarenessField(
-  field: ChatStructuredAwarenessField,
-  value: unknown,
-  maxChars = 420,
-) {
-  const structured = formatAlicizationProjectStateAwarenessFields({
-    ...(field === 'identity' ? { identity: value } : {}),
-    ...(field === 'phase' ? { currentPhase: value } : {}),
-    ...(field === 'open' ? { primaryOpenLoop: value } : {}),
-    ...(field === 'next' ? { nextClosureTarget: value } : {}),
-    ...(field === 'continuity_anchor' ? { continuityAnchor: value } : {}),
-    ...(field === 'continuity_hold' ? { sameHerHoldDetail: value } : {}),
-    ...(field === 'continuity_drift_risk' ? { continuityDriftRisk: value } : {}),
-    ...(field === 'emotional_closure' ? { emotionalClosureCue: value } : {}),
-    ...(field === 'summary' ? { summary: value } : {}),
-    maxChars,
-  })
-  const prefix = `${field}=`
-  return structured
-    .split('|')
-    .map(fragment => fragment.trim())
-    .find(fragment => fragment.startsWith(prefix))
-    ?.slice(prefix.length)
-    .trim()
-    || null
-}
-
-function sanitizeChatAwarenessStructuredText(
-  value: unknown,
-  maxChars = 420,
-  fields: ChatStructuredAwarenessField[] = ['summary', 'next', 'open', 'continuity_hold', 'emotional_closure', 'continuity_anchor', 'continuity_drift_risk', 'identity', 'phase'],
-) {
-  const sanitized = sanitizeChatProviderFacingTemplateText(value, maxChars)
-  if (!sanitized)
-    return null
-  if (sanitized !== alicizationFixedTemplateReplacement)
-    return sanitized
-
-  for (const field of fields) {
-    const structured = formatChatStructuredAwarenessField(field, value, maxChars)
-    if (
-      structured
-      && structured !== alicizationFixedTemplateReplacement
-      && structured !== 'phase1_local_digital_life'
-      && structured !== 'runtime_personhood'
-      && structured !== 'continuity_review_required'
-    ) {
-      return structured
-    }
-  }
-
-  return alicizationFixedTemplateReplacement
 }
 
 function containsChatVisibleReplyFixedTemplateResidue(value: unknown, maxChars = 4000) {
@@ -262,51 +111,24 @@ function compactStringList(value: unknown, limit = 16) {
   return result
 }
 
-function arrayCount(value: unknown) {
-  return Array.isArray(value) ? value.length : 0
-}
-
-function countFromRecord(raw: Record<string, unknown>, key: string, fallback: number) {
-  const value = raw[key]
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-    ? value
-    : fallback
-}
-
 function normalizeVisibleReplyCriticForPersistence(
   raw: AlicizationConversationTurnInput['visibleReplyCritic'] | null | undefined,
 ): AlicizationConversationTurnInput['visibleReplyCritic'] | null {
   if (!isRecordPayload(raw))
     return null
 
-  const reasonCodes = compactStringList(raw.reasonCodes).length > 0
-    ? compactStringList(raw.reasonCodes)
-    : compactStringList(raw.reasons)
-  const repairReasonCodes = compactStringList(raw.repairReasonCodes)
-  const summary: AlicizationVisibleReplyPublicCriticSummary = {
+  const status = raw.status === 'pass' || raw.status === 'blocked'
+    ? raw.status
+    : null
+  if (!status)
+    return null
+
+  return {
     version: 'visible-reply-critic-public-summary-v1',
-    reasonCodes,
-    repairReasonCodes,
-    mustPreserveCount: countFromRecord(raw, 'mustPreserveCount', arrayCount(raw.mustPreserve)),
-    mustDropCount: countFromRecord(raw, 'mustDropCount', arrayCount(raw.mustDrop)),
+    status,
+    providerMindRequired: raw.providerMindRequired === true,
+    reasonCodes: compactStringList(raw.reasonCodes),
   }
-
-  if (typeof raw.providerMindRequired === 'boolean')
-    summary.providerMindRequired = raw.providerMindRequired
-  if (typeof raw.semanticLoopClosed === 'boolean')
-    summary.semanticLoopClosed = raw.semanticLoopClosed
-  if (typeof raw.status === 'string' && raw.status.trim())
-    summary.status = raw.status.trim()
-
-  return summary
-}
-
-function criticPreserveCount(raw: unknown) {
-  return isRecordPayload(raw) ? countFromRecord(raw, 'mustPreserveCount', arrayCount(raw.mustPreserve)) : 0
-}
-
-function criticDropCount(raw: unknown) {
-  return isRecordPayload(raw) ? countFromRecord(raw, 'mustDropCount', arrayCount(raw.mustDrop)) : 0
 }
 
 function normalizeVisibleReplyClosureForPersistence(
@@ -315,26 +137,24 @@ function normalizeVisibleReplyClosureForPersistence(
   if (!isRecordPayload(raw))
     return null
 
-  const initialCritic = isRecordPayload(raw.initialCritic) ? raw.initialCritic : null
-  const finalCritic = isRecordPayload(raw.finalCritic) ? raw.finalCritic : null
-  const summary: AlicizationVisibleReplyPublicClosureSummary = {
+  const status = raw.status === 'approved' || raw.status === 'blocked'
+    ? raw.status
+    : null
+  if (!status)
+    return null
+
+  const normalizeCriticStatus = (value: unknown) =>
+    value === 'pass' || value === 'blocked'
+      ? value
+      : null
+
+  return {
     version: 'visible-reply-closure-public-summary-v1',
+    status,
     reasonCodes: compactStringList(raw.reasonCodes),
-    repairReasonCodes: compactStringList(raw.repairReasonCodes),
-    initialCriticMustPreserveCount: countFromRecord(raw, 'initialCriticMustPreserveCount', criticPreserveCount(initialCritic)),
-    initialCriticMustDropCount: countFromRecord(raw, 'initialCriticMustDropCount', criticDropCount(initialCritic)),
-    finalCriticMustPreserveCount: countFromRecord(raw, 'finalCriticMustPreserveCount', criticPreserveCount(finalCritic)),
-    finalCriticMustDropCount: countFromRecord(raw, 'finalCriticMustDropCount', criticDropCount(finalCritic)),
+    initialCriticStatus: normalizeCriticStatus(raw.initialCriticStatus),
+    finalCriticStatus: normalizeCriticStatus(raw.finalCriticStatus),
   }
-
-  if (typeof raw.status === 'string' && raw.status.trim())
-    summary.status = raw.status.trim()
-  if (typeof raw.providerMindRequired === 'boolean')
-    summary.providerMindRequired = raw.providerMindRequired
-  if (typeof raw.semanticLoopClosed === 'boolean')
-    summary.semanticLoopClosed = raw.semanticLoopClosed
-
-  return summary
 }
 
 function sanitizeAlicizationAuditDetails(
@@ -374,326 +194,6 @@ function sanitizeAlicizationAuditDetails(
   return sanitized
 }
 
-function sanitizeChatAwarenessTemplateReasonPreview(values: unknown, maxChars = 420) {
-  const result: string[] = []
-  if (!Array.isArray(values))
-    return result
-
-  for (const value of values) {
-    const sanitized = sanitizeChatAwarenessStructuredText(value, maxChars, [
-      'next',
-      'open',
-      'continuity_hold',
-      'emotional_closure',
-      'continuity_anchor',
-      'continuity_drift_risk',
-      'summary',
-      'identity',
-      'phase',
-    ])
-    if (
-      !sanitized
-      || sanitized === alicizationFixedTemplateReplacement
-      || sanitized === 'phase1_local_digital_life'
-      || sanitized === 'runtime_personhood'
-      || sanitized === 'continuity_review_required'
-      || result.includes(sanitized)
-    ) {
-      continue
-    }
-
-    result.push(sanitized)
-  }
-
-  return result
-}
-
-function deriveStructuredPreDialogueAwarenessFromClosure(
-  closure: ChatAssistantStructuredPayload['preDialogueClosure'],
-): AlicizationPreDialogueAwarenessPayload | null {
-  if (!closure)
-    return null
-
-  const summaryLine = sanitizeChatAwarenessStructuredText(closure.summaryLine, 420, ['summary', 'open'])
-  const companionBriefingLine = sanitizeChatAwarenessStructuredText(closure.companionBriefingLine, 420, ['summary', 'continuity_anchor', 'open'])
-  const companionNextClosureLine = sanitizeChatAwarenessStructuredText(closure.companionNextClosureLine, 420, ['next'])
-  const companionHeadlineLine = sanitizeChatAwarenessStructuredText(resolvePreDialogueClosureCompanionHeadlineLine(closure), 420, ['open', 'next', 'summary'])
-  const resolvePreferredClosureAwarenessLine = () => {
-    const normalizedCompanionHeadlineLine = typeof companionHeadlineLine === 'string' ? companionHeadlineLine.trim() : ''
-    const normalizedCompanionBriefingLine = typeof companionBriefingLine === 'string'
-      && companionBriefingLine !== alicizationFixedTemplateReplacement
-      ? companionBriefingLine.trim()
-      : ''
-    const normalizedSummaryLine = typeof summaryLine === 'string' ? summaryLine.trim() : ''
-    const preferredProjectAwareLine = normalizedCompanionBriefingLine || normalizedSummaryLine || ''
-    if (!normalizedCompanionHeadlineLine)
-      return preferredProjectAwareLine || null
-    if (!preferredProjectAwareLine)
-      return normalizedCompanionHeadlineLine || null
-
-    const lowerHeadline = normalizedCompanionHeadlineLine.toLowerCase()
-    const projectAwareLineCarriesStructuredClosure = /(?:^|\|\s*)(?:identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure)=/iu.test(preferredProjectAwareLine)
-    const headlineLooksEmbodimentOnly = lowerHeadline.includes('body')
-      || lowerHeadline.includes('face')
-      || lowerHeadline.includes('motion')
-      || lowerHeadline.includes('lipsync')
-      || lowerHeadline.includes('voice')
-
-    if (projectAwareLineCarriesStructuredClosure && headlineLooksEmbodimentOnly)
-      return preferredProjectAwareLine
-
-    return normalizedCompanionHeadlineLine || preferredProjectAwareLine || null
-  }
-  const awarenessLine = resolvePreferredClosureAwarenessLine()
-  const reasonPreview = [
-    companionHeadlineLine,
-    summaryLine,
-    ...(closure.reasons ?? []),
-  ].map(value => sanitizeChatAwarenessStructuredText(value)).filter((value): value is string =>
-    typeof value === 'string'
-    && value.trim().length > 0
-    && value !== alicizationFixedTemplateReplacement)
-
-  if (!summaryLine && !awarenessLine && reasonPreview.length === 0)
-    return null
-
-  return {
-    status: closure.status,
-    summaryLine,
-    companionHeadlineLine,
-    companionBriefingLine,
-    companionNextClosureLine,
-    awarenessLine,
-    emotionalClosureCue: sanitizeChatAwarenessStructuredText(closure.emotionalClosureCue, 420, ['emotional_closure', 'continuity_hold']),
-    reasonPreview,
-  }
-}
-
-function normalizeStructuredPreDialogueAwarenessPayload(
-  awareness: unknown,
-): AlicizationPreDialogueAwarenessPayload | null {
-  const payload = awareness && typeof awareness === 'object' && !Array.isArray(awareness)
-    ? awareness as Record<string, unknown>
-    : null
-  if (!payload)
-    return null
-
-  const status = payload.status
-  if (status !== 'grounded' && status !== 'partial' && status !== 'drift')
-    return null
-
-  const summaryLine = sanitizeChatAwarenessStructuredText(payload.summaryLine, 420, ['summary', 'open'])
-  const companionHeadlineLine = sanitizeChatAwarenessStructuredText(payload.companionHeadlineLine, 420, ['open', 'next', 'summary'])
-  const companionBriefingLine = sanitizeChatAwarenessStructuredText(payload.companionBriefingLine, 420, ['summary', 'continuity_anchor', 'open'])
-  const companionNextClosureLine = sanitizeChatAwarenessStructuredText(payload.companionNextClosureLine, 420, ['next'])
-  const awarenessLine = sanitizeChatAwarenessStructuredText(payload.awarenessLine, 420, ['summary', 'continuity_anchor', 'open', 'next'])
-  const emotionalClosureCue = sanitizeChatAwarenessStructuredText(payload.emotionalClosureCue, 420, ['emotional_closure', 'continuity_hold'])
-  const reasonPreview = sanitizeChatAwarenessTemplateReasonPreview(payload.reasonPreview)
-
-  if (!summaryLine && !companionBriefingLine && !awarenessLine && reasonPreview.length === 0)
-    return null
-
-  return {
-    status,
-    summaryLine,
-    companionHeadlineLine,
-    companionBriefingLine,
-    companionNextClosureLine,
-    awarenessLine,
-    emotionalClosureCue,
-    reasonPreview,
-  }
-}
-
-function normalizePreDialogueSendIdentityText(value: unknown) {
-  if (typeof value !== 'string')
-    return null
-
-  const normalized = value.trim()
-  return normalized || null
-}
-
-function normalizePreDialogueSendIdentityReasonPreview(
-  reasonPreview: ChatPreDialogueSendIdentity['reasonPreview'],
-) {
-  const normalized: string[] = []
-
-  for (const reason of reasonPreview ?? []) {
-    const trimmed = typeof reason === 'string' ? reason.trim() : ''
-    if (!trimmed || normalized.includes(trimmed))
-      continue
-    normalized.push(trimmed)
-  }
-
-  return normalized
-}
-
-function normalizePreDialogueSendIdentityProjectState(
-  projectState: ChatPreDialogueSendIdentity['projectState'],
-) {
-  return projectState
-    && typeof projectState === 'object'
-    && !Array.isArray(projectState)
-    ? { ...projectState } as Record<string, unknown>
-    : null
-}
-
-function looksLikeThinPreDialogueSendIdentityLine(value: unknown) {
-  const normalized = normalizePreDialogueSendIdentityText(value)
-  if (!normalized)
-    return false
-
-  const lowered = normalized.toLowerCase()
-  return isAlicizationThinProjectAwarenessLine(normalized)
-    || isThinSamePhaseCarryLine(normalized)
-    || lowered.includes('generic continuity reminder')
-    || lowered.includes('generic continuity shell')
-    || lowered.includes('generic awareness reminder')
-    || lowered.includes('generic same-her reminder')
-    || lowered.includes('generic next target')
-    || lowered.includes('generic closure summary')
-}
-
-function resolveSessionFallbackAwarenessSummaryLine(input: {
-  strongerPreDialogueAwarenessSummary: string | null
-  structuredPreDialogueAwarenessSummary: string | null
-  preferredAwarenessLine: string | null
-  strongerContinuitySummary: string | null
-}) {
-  if (input.strongerPreDialogueAwarenessSummary)
-    return input.strongerPreDialogueAwarenessSummary
-
-  const structuredSummaryLooksThin = looksLikeThinPreDialogueSendIdentityLine(
-    input.structuredPreDialogueAwarenessSummary,
-  )
-
-  if (structuredSummaryLooksThin) {
-    return input.preferredAwarenessLine
-      ?? input.strongerContinuitySummary
-      ?? input.structuredPreDialogueAwarenessSummary
-      ?? null
-  }
-
-  return input.structuredPreDialogueAwarenessSummary
-    ?? input.preferredAwarenessLine
-    ?? input.strongerContinuitySummary
-    ?? null
-}
-
-function mergePreDialogueSendIdentityText(existing: unknown, incoming: unknown) {
-  const existingText = normalizePreDialogueSendIdentityText(existing)
-  const incomingText = normalizePreDialogueSendIdentityText(incoming)
-  if (!incomingText)
-    return existingText
-  if (!existingText)
-    return incomingText
-
-  const existingLooksThin = looksLikeThinPreDialogueSendIdentityLine(existingText)
-  const incomingLooksThin = looksLikeThinPreDialogueSendIdentityLine(incomingText)
-  if (existingLooksThin && !incomingLooksThin)
-    return incomingText
-  if (incomingLooksThin && !existingLooksThin)
-    return existingText
-
-  return incomingText
-}
-
-function mergePreDialogueSendIdentityProjectState(
-  existingProjectState: Record<string, unknown> | null,
-  incomingProjectState: Record<string, unknown> | null,
-) {
-  if (!existingProjectState)
-    return incomingProjectState
-  if (!incomingProjectState)
-    return existingProjectState
-
-  const merged: Record<string, unknown> = { ...existingProjectState }
-  for (const [key, value] of Object.entries(incomingProjectState)) {
-    if (value == null)
-      continue
-    if (typeof value === 'string' && !value.trim())
-      continue
-    merged[key] = value
-  }
-
-  return merged
-}
-
-function alignPersistedPreDialogueAwarenessCompanionHeadline(input: {
-  awareness: AlicizationPreDialogueAwarenessPayload | null
-  preDialogueSendIdentity: ChatStreamEventContext['preDialogueSendIdentity']
-}) {
-  const awareness = input.awareness
-  const preDialogueSendIdentity = input.preDialogueSendIdentity
-  if (!awareness || !preDialogueSendIdentity)
-    return awareness
-
-  const preferredCompanionHeadlineLine = resolvePreferredCompanionHeadlineLine({
-    awarenessCompanionHeadlineLine: awareness.companionHeadlineLine,
-    closureCompanionHeadlineLine: preDialogueSendIdentity.companionHeadlineLine,
-  })
-
-  if (preferredCompanionHeadlineLine === awareness.companionHeadlineLine)
-    return awareness
-
-  return {
-    ...awareness,
-    companionHeadlineLine: preferredCompanionHeadlineLine,
-  }
-}
-
-function needsPreDialogueSendIdentityUpgrade(
-  identity: ChatStreamEventContext['preDialogueSendIdentity'],
-) {
-  if (!identity || typeof identity !== 'object')
-    return true
-
-  const projectState = normalizePreDialogueSendIdentityProjectState(identity.projectState ?? null)
-  return [
-    identity.summaryLine,
-    identity.companionHeadlineLine,
-    identity.companionBriefingLine,
-    identity.companionNextClosureLine,
-    identity.awarenessLine,
-    projectState?.preflightSummary,
-    projectState?.preDialogueAwarenessLine,
-    projectState?.awarenessLine,
-    projectState?.companionHeadlineLine,
-    projectState?.companionBriefingLine,
-    projectState?.nextClosureTarget,
-  ].some(value => looksLikeThinPreDialogueSendIdentityLine(value))
-}
-
-function upgradeExplicitPreDialogueSendIdentity(
-  identity: ChatStreamEventContext['preDialogueSendIdentity'],
-  rebuiltIdentity: ChatStreamEventContext['preDialogueSendIdentity'],
-): ChatStreamEventContext['preDialogueSendIdentity'] {
-  if (!identity)
-    return sanitizeChatPreDialogueSendIdentity(rebuiltIdentity)
-  if (!rebuiltIdentity || !needsPreDialogueSendIdentityUpgrade(identity))
-    return sanitizeChatPreDialogueSendIdentity(identity)
-
-  const existingProjectState = normalizePreDialogueSendIdentityProjectState(identity.projectState ?? null)
-  const rebuiltProjectState = normalizePreDialogueSendIdentityProjectState(rebuiltIdentity.projectState ?? null)
-
-  return sanitizeChatPreDialogueSendIdentity({
-    ...identity,
-    status: rebuiltIdentity.status ?? identity.status,
-    summaryLine: mergePreDialogueSendIdentityText(identity.summaryLine, rebuiltIdentity.summaryLine),
-    companionHeadlineLine: mergePreDialogueSendIdentityText(identity.companionHeadlineLine, rebuiltIdentity.companionHeadlineLine),
-    companionBriefingLine: mergePreDialogueSendIdentityText(identity.companionBriefingLine, rebuiltIdentity.companionBriefingLine),
-    companionNextClosureLine: mergePreDialogueSendIdentityText(identity.companionNextClosureLine, rebuiltIdentity.companionNextClosureLine),
-    awarenessLine: mergePreDialogueSendIdentityText(identity.awarenessLine, rebuiltIdentity.awarenessLine),
-    emotionalClosureCue: mergePreDialogueSendIdentityText(identity.emotionalClosureCue, rebuiltIdentity.emotionalClosureCue),
-    projectState: mergePreDialogueSendIdentityProjectState(existingProjectState, rebuiltProjectState) as ChatPreDialogueSendIdentity['projectState'],
-    emotionalKernel: identity.emotionalKernel ?? rebuiltIdentity.emotionalKernel ?? null,
-    reasonPreview: normalizePreDialogueSendIdentityReasonPreview([
-      ...identity.reasonPreview,
-      ...rebuiltIdentity.reasonPreview,
-    ]),
-  })
-}
-
 interface SendOptions {
   providerId?: string
   model: string
@@ -702,7 +202,6 @@ interface SendOptions {
   attachments?: { type: 'image', data: string, mimeType: string }[]
   tools?: StreamOptions['tools']
   input?: WebSocketEventInputs
-  preDialogueSendIdentity?: ChatStreamEventContext['preDialogueSendIdentity']
   origin?: 'ui-user' | 'tool-output' | 'context-recall' | 'system'
 }
 
@@ -726,88 +225,6 @@ interface QueuedSend {
 }
 
 type ExternalPipelineAborter = (reason: AlicizationAbortReason) => Promise<void> | void
-
-function toAlicizationPreDialogueClosurePayload(input: {
-  status: 'grounded' | 'partial' | 'drift'
-  summaryLine: string | null
-  companionHeadlineLine?: string | null
-  sameHerDriftRiskLine?: string | null
-  companionBriefingLine?: string | null
-  companionNextClosureLine?: string | null
-  emotionalClosureCue?: string | null
-  briefingLines?: string[]
-  reasons: string[]
-}): AlicizationPreDialogueClosurePayload {
-  return {
-    status: input.status,
-    summaryLine: input.summaryLine,
-    companionHeadlineLine: input.companionHeadlineLine ?? null,
-    sameHerDriftRiskLine: input.sameHerDriftRiskLine ?? null,
-    companionBriefingLine: input.companionBriefingLine ?? null,
-    companionNextClosureLine: input.companionNextClosureLine ?? null,
-    emotionalClosureCue: input.emotionalClosureCue ?? null,
-    briefingLines: [...(input.briefingLines ?? [])],
-    reasons: [...input.reasons],
-  }
-}
-
-function toAlicizationPreDialogueClosureSnapshot(
-  input: ChatAssistantStructuredPayload['preDialogueClosure'],
-): AlicizationProjectStateContinuitySnapshot['preDialogueClosure'] {
-  if (!input)
-    return null
-
-  return {
-    status: input.status,
-    summaryLine: input.summaryLine ?? null,
-    companionHeadlineLine: input.companionHeadlineLine ?? null,
-    sameHerDriftRiskLine: input.sameHerDriftRiskLine ?? null,
-    companionBriefingLine: input.companionBriefingLine ?? null,
-    emotionalClosureCue: input.emotionalClosureCue ?? null,
-    companionNextClosureLine: input.companionNextClosureLine ?? null,
-    briefingLines: [...(input.briefingLines ?? [])],
-    reasons: [...(input.reasons ?? [])],
-  }
-}
-
-function normalizeProjectStateContinuitySnapshotForChat(
-  snapshot: AlicizationProjectStateContinuitySnapshot | Record<string, unknown> | null | undefined,
-): AlicizationProjectStateContinuitySnapshot | null {
-  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot))
-    return null
-
-  const record = snapshot as Record<string, unknown>
-  const normalizedProjectState = normalizeStructuredProjectStatePayload(record) ?? null
-  if (!normalizedProjectState)
-    return null
-
-  const preDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
-    (record.preDialogueAwareness ?? null) as Record<string, unknown> | null,
-  ) ?? null
-  const normalizedPreDialogueClosure = normalizeStructuredPreDialogueClosurePayload(
-    (record.preDialogueClosure ?? null) as Record<string, unknown> | null,
-  ) ?? null
-  const preDialogueClosure = normalizedPreDialogueClosure
-    ? toAlicizationPreDialogueClosurePayload(normalizedPreDialogueClosure)
-    : null
-
-  return {
-    ...record,
-    identity: normalizedProjectState.identity || null,
-    currentPhase: normalizedProjectState.currentPhase || null,
-    latestLandedProgress: normalizedProjectState.latestLandedProgress ?? null,
-    primaryOpenLoop: normalizedProjectState.primaryOpenLoop ?? null,
-    nextClosureTarget: normalizedProjectState.nextClosureTarget || null,
-    continuitySummary: normalizedProjectState.continuitySummary ?? null,
-    sameHerSelfLine: normalizedProjectState.sameHerSelfLine ?? null,
-    sameHerHoldDetail: normalizedProjectState.sameHerHoldDetail ?? null,
-    sameHerDriftRisk: normalizedProjectState.sameHerDriftRisk ?? null,
-    emotionalClosureCue: normalizedProjectState.emotionalClosureCue ?? null,
-    proactiveSameHerGap: normalizedProjectState.proactiveSameHerGap ?? null,
-    preDialogueAwareness,
-    preDialogueClosure,
-  } as AlicizationProjectStateContinuitySnapshot
-}
 
 function stageChatText(path: string, params?: Record<string, unknown>) {
   return translateStageUi(`stage.chat.${path}`, params)
@@ -1026,7 +443,7 @@ function extractExecutorToolReplyEvidence(result: unknown, toolName: string): Ex
   }
 }
 
-type StructuredWithContract = StructuredOutputResult
+type StructuredWithContract = Omit<StructuredOutputResult, 'preDialogueAwareness' | 'preDialogueClosure'>
   & Omit<ChatAssistantStructuredPayload, | 'thought'
   | 'emotion'
   | 'reply'
@@ -1036,7 +453,8 @@ type StructuredWithContract = StructuredOutputResult
   | 'sentimentConfidence'
   | 'format'
   | 'parsePath'
-  | 'repairTimedOut'>
+  | 'preDialogueAwareness'
+  | 'preDialogueClosure'>
   & {
     embodiment?: AlicizationDialogueEmbodimentEnvelope | null
     embodimentScript?: AlicizationEmbodimentScriptV1 | null
@@ -1045,8 +463,6 @@ type StructuredWithContract = StructuredOutputResult
     digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
     runtimeDigest?: AlicizationRuntimeDigest | null
     projectState?: StructuredOutputResult['projectState']
-    preDialogueClosure?: ChatAssistantStructuredPayload['preDialogueClosure']
-    preDialogueAwareness?: AlicizationPreDialogueAwarenessPayload | null
     governance?: AlicizationMindTurnGovernance | null
     origin?: AlicizationVisibleArtifactOrigin
     learningPolicy?: {
@@ -1077,8 +493,6 @@ export function mergeStructuredRuntimeMeta(
     digitalLifeSpine: AlicizationDigitalLifeSpineDigest | null
     runtimeDigest: AlicizationRuntimeDigest | null
     projectState?: StructuredOutputResult['projectState']
-    preDialogueClosure?: ChatAssistantStructuredPayload['preDialogueClosure']
-    preDialogueAwareness?: AlicizationPreDialogueAwarenessPayload | null
     governance: AlicizationMindTurnGovernance | null
   },
 ): StructuredWithContract {
@@ -1096,15 +510,17 @@ export function mergeStructuredRuntimeMeta(
   const normalizedStructuredProjectState = normalizeStructuredProjectStatePayload(
     (structured.projectState ?? null) as Record<string, unknown> | null,
   ) ?? null
-  const normalizedInputPreDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
-    (input.preDialogueAwareness ?? null) as Record<string, unknown> | null,
-  )
-  const normalizedStructuredPreDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
-    (structured.preDialogueAwareness ?? null) as Record<string, unknown> | null,
-  )
+  const {
+    preDialogueAwareness: _preDialogueAwareness,
+    preDialogueClosure: _preDialogueClosure,
+    ...structuredWithoutPreDialogue
+  } = structured as StructuredWithContract & {
+    preDialogueAwareness?: unknown
+    preDialogueClosure?: unknown
+  }
 
   return {
-    ...structured,
+    ...structuredWithoutPreDialogue,
     embodiment: input.embodiment ?? structured.embodiment ?? null,
     embodimentScript: input.embodimentScript ?? structured.embodimentScript ?? null,
     speechTimeline: input.speechTimeline ?? structured.speechTimeline ?? null,
@@ -1112,8 +528,6 @@ export function mergeStructuredRuntimeMeta(
     digitalLifeSpine: input.digitalLifeSpine ?? structured.digitalLifeSpine ?? null,
     runtimeDigest: input.runtimeDigest ?? structured.runtimeDigest ?? null,
     projectState: normalizedInputProjectState ?? normalizedStructuredProjectState ?? null,
-    preDialogueClosure: input.preDialogueClosure ?? structured.preDialogueClosure ?? null,
-    preDialogueAwareness: normalizedInputPreDialogueAwareness ?? normalizedStructuredPreDialogueAwareness ?? null,
     governance: input.governance ?? structured.governance ?? null,
   }
 }
@@ -1628,226 +1042,11 @@ function isUsableMindTurnGovernanceCandidate(value: unknown): value is Alicizati
     && Array.isArray(candidate.mustNotDo)
 }
 
-function hasStructuredJsonContract(structured: StructuredOutputResult | undefined) {
-  if (!structured?.parsePath)
-    return false
-  return structured.parsePath === 'json' || structured.parsePath === 'repair-json'
-}
-
-function deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
-  messages: ChatAssistantMessage[],
-): AlicizationProjectStateContinuitySnapshot | null {
-  const sanitizeSessionFallbackText = (raw: unknown, maxChars: number) => {
-    const sanitized = sanitizeChatProviderFacingTemplateText(raw, maxChars)
-    if (!sanitized || sanitized === alicizationFixedTemplateReplacement)
-      return null
-    return sanitized
-  }
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (message.role !== 'assistant' || !message.structured || typeof message.structured !== 'object')
-      continue
-
-    const visibleReplyRealization = message.structured.visibleReplyRealization
-      && typeof message.structured.visibleReplyRealization === 'object'
-      ? message.structured.visibleReplyRealization as {
-        projectStateAudit?: {
-          sameHerSummary?: unknown
-          currentPhaseSummary?: unknown
-          sameHerHoldDetail?: unknown
-          landedProgressSummary?: unknown
-          openClosureSummary?: unknown
-          nextClosureTargetSummary?: unknown
-          emotionalClosureSummary?: unknown
-          preDialogueAwarenessSummary?: unknown
-          continuitySummary?: unknown
-          embodimentClosureSummary?: unknown
-          sameHerDriftRiskSummary?: unknown
-          sameHerDriftRisk?: unknown
-          proactiveSameHerGapSummary?: unknown
-        } | null
-      }
-      : null
-    const projectStateAudit = visibleReplyRealization?.projectStateAudit
-      && typeof visibleReplyRealization.projectStateAudit === 'object'
-      ? visibleReplyRealization.projectStateAudit
-      : null
-    const normalizedProjectState = normalizeStructuredProjectStatePayload(
-      (message.structured.projectState ?? null) as Record<string, unknown> | null,
-    )
-    if (!normalizedProjectState)
-      continue
-
-    const normalizedIdentity = sanitizeSessionFallbackText(normalizedProjectState.identity, 220)
-      ?? null
-    const normalizedCurrentPhase = sanitizeSessionFallbackText(normalizedProjectState.currentPhase, 180)
-      ?? null
-    const normalizedLatestLandedProgress = sanitizeSessionFallbackText(normalizedProjectState.latestLandedProgress, 320)
-      ?? null
-    const normalizedPrimaryOpenLoop = sanitizeSessionFallbackText(normalizedProjectState.primaryOpenLoop, 320)
-      ?? null
-    const normalizedNextClosureTarget = sanitizeSessionFallbackText(normalizedProjectState.nextClosureTarget, 320)
-      ?? null
-    const strongerCurrentPhase
-      = sanitizeSessionFallbackText(projectStateAudit?.currentPhaseSummary, 180)
-        ?? normalizedCurrentPhase
-    const strongerNextClosureTarget
-      = sanitizeSessionFallbackText(projectStateAudit?.nextClosureTargetSummary, 320)
-        ?? normalizedNextClosureTarget
-    const strongerLatestLandedProgress
-      = sanitizeSessionFallbackText(projectStateAudit?.landedProgressSummary, 320)
-        ?? null
-    const strongerPrimaryOpenLoop
-      = sanitizeSessionFallbackText(projectStateAudit?.openClosureSummary, 320)
-        ?? null
-    const strongerPreDialogueAwarenessSummary
-      = sanitizeSessionFallbackText(projectStateAudit?.preDialogueAwarenessSummary, 320)
-        ?? null
-    const strongerContinuitySummary
-      = sanitizeSessionFallbackText(projectStateAudit?.continuitySummary, 480)
-        ?? strongerPreDialogueAwarenessSummary
-        ?? sanitizeSessionFallbackText((message.structured.projectState as Record<string, unknown> | null | undefined)?.continuitySummary, 480)
-        ?? null
-    const structuredPreDialogueAwareness = message.structured.preDialogueAwareness
-      && typeof message.structured.preDialogueAwareness === 'object'
-      ? message.structured.preDialogueAwareness as {
-        status?: 'grounded' | 'partial' | 'drift'
-        summaryLine?: unknown
-        companionHeadlineLine?: unknown
-        companionBriefingLine?: unknown
-        companionNextClosureLine?: unknown
-        awarenessLine?: unknown
-        emotionalClosureCue?: unknown
-        reasonPreview?: unknown
-      }
-      : null
-    const structuredPreDialogueAwarenessSummary
-      = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.summaryLine, 320)
-        ?? null
-    const strongerCompanionHeadlineLine
-      = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.companionHeadlineLine, 320)
-        ?? null
-    const structuredAwarenessLine = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.awarenessLine, 320)
-    const structuredCompanionBriefingLine = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.companionBriefingLine, 320)
-    const shouldPreferSameHerHoldDetail = false
-    const shouldRebuildAwarenessFromBaseProjectState = Boolean(
-      !shouldPreferSameHerHoldDetail
-      && isAlicizationThinProjectAwarenessLine(
-        structuredAwarenessLine
-        || strongerPreDialogueAwarenessSummary
-        || structuredCompanionBriefingLine,
-      ),
-    )
-    const strongerEmotionalClosureCue
-      = sanitizeSessionFallbackText(projectStateAudit?.emotionalClosureSummary, 320)
-        ?? sanitizeSessionFallbackText(structuredPreDialogueAwareness?.emotionalClosureCue, 320)
-        ?? null
-    const structuredCompanionNextClosureLine
-      = sanitizeSessionFallbackText(structuredPreDialogueAwareness?.companionNextClosureLine, 320)
-        ?? null
-    const structuredReasonPreview = Array.isArray(structuredPreDialogueAwareness?.reasonPreview)
-      ? structuredPreDialogueAwareness.reasonPreview
-          .map(reason => sanitizeSessionFallbackText(reason, 320))
-          .filter((reason): reason is string => typeof reason === 'string' && reason.trim().length > 0)
-      : []
-    const preferredAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        identity: normalizedIdentity,
-        currentPhase: strongerCurrentPhase,
-        preDialogueAwarenessLine: shouldRebuildAwarenessFromBaseProjectState
-          ? null
-          : structuredAwarenessLine,
-        awarenessLine: shouldRebuildAwarenessFromBaseProjectState
-          ? null
-          : structuredAwarenessLine,
-        companionHeadlineLine: strongerCompanionHeadlineLine,
-        companionBriefingLine: shouldRebuildAwarenessFromBaseProjectState
-          ? null
-          : structuredCompanionBriefingLine,
-        preDialogueAwarenessSummary: shouldRebuildAwarenessFromBaseProjectState
-          ? null
-          : strongerPreDialogueAwarenessSummary,
-        emotionalClosureSummary: strongerEmotionalClosureCue,
-        latestLandedProgress: strongerLatestLandedProgress ?? normalizedLatestLandedProgress,
-        landedProgressSummary: strongerLatestLandedProgress,
-        primaryOpenLoop: strongerPrimaryOpenLoop ?? normalizedPrimaryOpenLoop,
-        openClosureSummary: strongerPrimaryOpenLoop,
-        nextClosureTarget: strongerNextClosureTarget,
-        nextClosureTargetSummary: strongerNextClosureTarget,
-      },
-    })
-    const shouldSynthesizePreDialogueAwareness = Boolean(
-      strongerPreDialogueAwarenessSummary
-      || structuredPreDialogueAwarenessSummary
-      || preferredAwarenessLine
-      || strongerCompanionHeadlineLine
-      || structuredCompanionBriefingLine
-      || strongerNextClosureTarget
-      || strongerEmotionalClosureCue,
-    )
-
-    return {
-      identity: normalizedIdentity,
-      currentPhase: strongerCurrentPhase,
-      latestLandedProgress: strongerLatestLandedProgress ?? normalizedLatestLandedProgress,
-      primaryOpenLoop: strongerPrimaryOpenLoop ?? normalizedPrimaryOpenLoop,
-      nextClosureTarget: strongerNextClosureTarget,
-      continuitySummary: strongerContinuitySummary,
-      sameHerSelfLine: null,
-      sameHerHoldDetail: null,
-      sameHerDriftRisk: null,
-      proactiveSameHerGap: null,
-      emotionalClosureCue: strongerEmotionalClosureCue,
-      preDialogueAwareness: shouldSynthesizePreDialogueAwareness
-        ? {
-            status: (structuredPreDialogueAwareness?.status ?? 'partial'),
-            summaryLine: resolveSessionFallbackAwarenessSummaryLine({
-              strongerPreDialogueAwarenessSummary,
-              structuredPreDialogueAwarenessSummary,
-              preferredAwarenessLine,
-              strongerContinuitySummary,
-            }),
-            companionHeadlineLine: strongerCompanionHeadlineLine,
-            companionBriefingLine: structuredCompanionBriefingLine ?? null,
-            companionNextClosureLine: structuredCompanionNextClosureLine
-              ?? strongerNextClosureTarget,
-            awarenessLine: preferredAwarenessLine
-              ?? structuredAwarenessLine
-              ?? null,
-            emotionalClosureCue: strongerEmotionalClosureCue,
-            reasonPreview: [
-              ...structuredReasonPreview,
-              strongerPreDialogueAwarenessSummary,
-              structuredPreDialogueAwarenessSummary,
-              strongerLatestLandedProgress,
-              strongerPrimaryOpenLoop,
-              strongerNextClosureTarget,
-              strongerEmotionalClosureCue,
-            ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
-          }
-        : message.structured.preDialogueAwareness ?? null,
-      preDialogueClosure: toAlicizationPreDialogueClosureSnapshot(message.structured.preDialogueClosure ?? null),
-      nonHumanAuthoredStatus: message.structured.nonHumanAuthoredStatus ?? null,
-      turnId: message.id ?? `session-history-${index}`,
-      sessionId: '',
-      origin: message.origin ?? 'user-turn',
-    }
-  }
-
-  return null
-}
-
-function selectAssistantMessages(messages: ChatHistoryItem[]): ChatAssistantMessage[] {
-  return messages.flatMap((message) => {
-    if (message.role !== 'assistant')
-      return []
-
-    return [{
-      ...message,
-      slices: Array.isArray(message.slices) ? message.slices : [],
-      tool_results: Array.isArray(message.tool_results) ? message.tool_results : [],
-    }] as ChatAssistantMessage[]
-  })
+function hasStructuredJsonContract(
+  structured: StructuredOutputResult | undefined,
+  validationIssues: StructuredValidationIssue[],
+) {
+  return structured?.parsePath === 'json' && validationIssues.length === 0
 }
 
 function normalizeStructuredTurnForPersistence(
@@ -1899,7 +1098,6 @@ function createFailureStructuredArtifact(input: {
     sentimentConfidence: 0.2,
     format: 'mind-turn-v1',
     parsePath: 'fallback',
-    repairTimedOut: false,
     contractFailed: true,
     origin: failureSurface.origin,
     learningPolicy: {
@@ -1963,7 +1161,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const chatStream = useChatStreamStore()
   const chatContext = useChatContextStore()
   const presenceDispatcher = useAlicizationPresenceDispatcherStore()
-  const selfEvolutionInspector = useAlicizationSelfEvolutionInspectorStore()
   const { activeSessionId } = storeToRefs(chatSession)
   const { streamingMessage } = storeToRefs(chatStream)
 
@@ -2012,115 +1209,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       model,
       providerConfig,
     }
-  }
-
-  function buildPreDialogueSendIdentityFromSnapshots(input: {
-    preDialogueSendIdentity?: ChatStreamEventContext['preDialogueSendIdentity']
-    projectStateContinuitySnapshot?: Record<string, unknown> | null
-    preDialogueClosureSnapshot?: Record<string, unknown> | null
-    preDialogueAwarenessSnapshot?: Record<string, unknown> | null
-  }): ChatStreamEventContext['preDialogueSendIdentity'] {
-    const normalizedAwareness = normalizeStructuredPreDialogueAwarenessPayload(
-      (input.preDialogueAwarenessSnapshot ?? null) as Record<string, unknown> | null,
-    )
-    const normalizedClosurePayload = normalizeStructuredPreDialogueClosurePayload(
-      (input.preDialogueClosureSnapshot ?? null) as Record<string, unknown> | null,
-    ) ?? null
-    const normalizedClosure = normalizedClosurePayload
-      ? toAlicizationPreDialogueClosurePayload(normalizedClosurePayload)
-      : null
-    const normalizedContinuity = normalizeProjectStateContinuitySnapshotForChat(
-      input.projectStateContinuitySnapshot,
-    )
-    const continuityAwareness = normalizeStructuredPreDialogueAwarenessPayload(
-      (normalizedContinuity?.preDialogueAwareness ?? null) as Record<string, unknown> | null,
-    )
-    const latestLandedProgress = normalizedContinuity?.latestLandedProgress ?? null
-    const rebuiltIdentity = buildSharedPreDialogueSendIdentityFromSnapshots({
-      projectStateContinuitySnapshot: normalizedContinuity
-        ? {
-            ...normalizedContinuity,
-            latestLandedProgress,
-            preDialogueAwareness: continuityAwareness,
-          } as AlicizationProjectStateContinuitySnapshot
-        : null,
-      preDialogueClosureSnapshot: normalizedClosure,
-      preDialogueAwarenessSnapshot: normalizedAwareness,
-      continuitySummary: normalizedContinuity?.continuitySummary ?? null,
-    })
-
-    return upgradeExplicitPreDialogueSendIdentity(
-      input.preDialogueSendIdentity ?? null,
-      rebuiltIdentity,
-    )
-  }
-
-  function resolvePreDialogueSendIdentityForTurn(input: {
-    preDialogueSendIdentity?: ChatStreamEventContext['preDialogueSendIdentity']
-    sessionMessages?: ChatAssistantMessage[]
-    preferInspectorSnapshots?: boolean
-    userText?: string | null
-    origin?: SendOptions['origin']
-  }): ChatStreamEventContext['preDialogueSendIdentity'] {
-    const explicitPreDialogueSendIdentity = input.preDialogueSendIdentity ?? null
-    const allowImplicitProjectStateContinuity = shouldAttachProjectStatePreDialogueIdentity({
-      latestUserText: input.userText ?? null,
-      origin: input.origin ?? 'ui-user',
-    })
-    if (!allowImplicitProjectStateContinuity)
-      return sanitizeChatPreDialogueSendIdentity(explicitPreDialogueSendIdentity)
-
-    const inspectorProjectStateContinuitySnapshot = selfEvolutionInspector.projectStateContinuitySnapshot
-    const inspectorPreDialogueClosureSnapshot = selfEvolutionInspector.preDialogueClosureSnapshot
-    const inspectorPreDialogueAwarenessSnapshot = selfEvolutionInspector.preDialogueAwarenessSnapshot
-    const fallbackProjectStateContinuitySnapshot
-      = inspectorProjectStateContinuitySnapshot
-        ? null
-        : deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(input.sessionMessages ?? [])
-    const rawEffectiveProjectStateContinuitySnapshot = input.preferInspectorSnapshots === false
-      ? fallbackProjectStateContinuitySnapshot ?? inspectorProjectStateContinuitySnapshot
-      : inspectorProjectStateContinuitySnapshot ?? fallbackProjectStateContinuitySnapshot
-    const effectiveProjectStateContinuitySnapshot = normalizeProjectStateContinuitySnapshotForChat(
-      rawEffectiveProjectStateContinuitySnapshot,
-    )
-    const shouldTreatContinuityAwarenessAsExplicitSnapshot = Boolean(
-      !inspectorPreDialogueAwarenessSnapshot
-      && inspectorProjectStateContinuitySnapshot
-      && effectiveProjectStateContinuitySnapshot
-      && rawEffectiveProjectStateContinuitySnapshot === inspectorProjectStateContinuitySnapshot,
-    )
-    const effectivePreDialogueClosureSnapshot = inspectorPreDialogueClosureSnapshot
-      ?? effectiveProjectStateContinuitySnapshot?.preDialogueClosure
-      ?? null
-    const effectivePreDialogueAwarenessSnapshot = inspectorPreDialogueAwarenessSnapshot
-      ?? (
-        shouldTreatContinuityAwarenessAsExplicitSnapshot
-          ? effectiveProjectStateContinuitySnapshot?.preDialogueAwareness ?? null
-          : null
-      )
-      ?? deriveStructuredPreDialogueAwarenessFromClosure(
-        effectivePreDialogueClosureSnapshot
-          ? toAlicizationPreDialogueClosurePayload(effectivePreDialogueClosureSnapshot as {
-              status: 'grounded' | 'partial' | 'drift'
-              summaryLine: string | null
-              companionHeadlineLine?: string | null
-              sameHerDriftRiskLine?: string | null
-              companionBriefingLine?: string | null
-              companionNextClosureLine?: string | null
-              emotionalClosureCue?: string | null
-              briefingLines?: string[]
-              reasons: string[]
-            })
-          : null,
-      )
-      ?? null
-
-    return buildPreDialogueSendIdentityFromSnapshots({
-      preDialogueSendIdentity: explicitPreDialogueSendIdentity,
-      projectStateContinuitySnapshot: effectiveProjectStateContinuitySnapshot as unknown as Record<string, unknown> | null,
-      preDialogueClosureSnapshot: effectivePreDialogueClosureSnapshot as Record<string, unknown> | null,
-      preDialogueAwarenessSnapshot: effectivePreDialogueAwarenessSnapshot as Record<string, unknown> | null,
-    })
   }
 
   const sendQueue = createQueue<QueuedSend>({
@@ -2239,21 +1327,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     }
 
     const sendingCreatedAt = Date.now()
-    const existingAssistantSessionMessages = selectAssistantMessages(chatSession.getSessionMessages(sessionId))
-    const resolvedPreDialogueSendIdentity = resolvePreDialogueSendIdentityForTurn({
-      preDialogueSendIdentity: options.preDialogueSendIdentity,
-      sessionMessages: existingAssistantSessionMessages,
-      userText: sendingMessage,
-      origin: options.origin ?? 'ui-user',
-    })
-    let effectivePreDialogueSendIdentity = resolvedPreDialogueSendIdentity
     const streamingMessageContext: ChatStreamEventContext = {
       sessionId,
       message: { role: 'user', content: sendingMessage, createdAt: sendingCreatedAt, id: nanoid() },
       contexts: chatContext.getContextsSnapshot(),
       composedMessage: [],
       input: options.input,
-      preDialogueSendIdentity: effectivePreDialogueSendIdentity,
     }
 
     const isStaleGeneration = () => chatSession.getSessionGeneration(sessionId) !== generation
@@ -2292,14 +1371,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     trackFirstMessage()
 
     const sessionMessagesForSend = chatSession.getSessionMessages(sessionId)
-    const assistantSessionMessagesForSend = selectAssistantMessages(sessionMessagesForSend)
-    effectivePreDialogueSendIdentity = resolvePreDialogueSendIdentityForTurn({
-      preDialogueSendIdentity: options.preDialogueSendIdentity,
-      sessionMessages: assistantSessionMessagesForSend,
-      userText: sendingMessage,
-      origin: options.origin ?? 'ui-user',
-    })
-    streamingMessageContext.preDialogueSendIdentity = effectivePreDialogueSendIdentity
     let userTurnMessageId: string | null = null
     let assistantOutputCommitted = false
     let runtimeAuthoritativeVisibleReplyBlocked = false
@@ -2318,18 +1389,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let turnDigitalLifeSpine: AlicizationDigitalLifeSpineDigest | null = null
     let turnRuntimeDigest: AlicizationRuntimeDigest | null = null
     let turnProjectState: StructuredOutputResult['projectState'] = null
-    let turnPreDialogueClosure: ChatAssistantStructuredPayload['preDialogueClosure'] = null
-    let turnPreDialogueAwareness: AlicizationPreDialogueAwarenessPayload | null = null
     let turnVisibleReplyExecution: AlicizationConversationTurnInput['visibleReplyExecution'] | null = null
     let turnVisibleReplyCritic: AlicizationConversationTurnInput['visibleReplyCritic'] | null = null
     let turnVisibleReplyClosure: AlicizationConversationTurnInput['visibleReplyClosure'] | null = null
     const turnToolCalls: ToolMessage[] = []
 
     const getTurnStructuredRuntimeMeta = () => {
-      const preDialogueAwareness
-        = turnPreDialogueAwareness
-          ?? toStructuredPreDialogueAwarenessPayload(effectivePreDialogueSendIdentity)
-          ?? deriveStructuredPreDialogueAwarenessFromClosure(turnPreDialogueClosure)
       return {
         embodiment: turnEmbodiment,
         embodimentScript: turnEmbodimentScript,
@@ -2338,8 +1403,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         digitalLifeSpine: turnDigitalLifeSpine,
         runtimeDigest: turnRuntimeDigest,
         projectState: turnProjectState,
-        preDialogueClosure: turnPreDialogueClosure,
-        preDialogueAwareness,
         governance: turnMindGovernance,
       }
     }
@@ -2367,9 +1430,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           (event.runtimeDigest?.projectState ?? turnProjectState ?? null) as Record<string, unknown> | null,
         ) ?? turnProjectState
       }
-      turnPreDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
-        (event.preDialogueAwareness ?? turnPreDialogueAwareness ?? null) as Record<string, unknown> | null,
-      ) ?? turnPreDialogueAwareness
     }
 
     const setStagedAssistantResolution = (resolution: StagedAssistantResolution) => {
@@ -2585,8 +1645,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       finalAssistantDisplayText = finalReply
       assistantTextCommitted = true
 
-      // NOTICE: Alicization may rewrite structured output after validation/retry, so visible text
-      // and token hooks must flush only once from the final committed reply.
+      // NOTICE: Provider output becomes visible only after structural settlement.
       await hooks.emitTokenLiteralHooks(finalReply, streamingMessageContext)
       updateUI()
 
@@ -2660,18 +1719,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       const alicizationBridge = hasAlicizationBridge() ? getAlicizationBridge() : null
       const runtimeAuthoritativeBridge = Boolean(alicizationBridge?.streamChat)
-      if (hasAlicizationBridge()
-        && runtimeAuthoritativeBridge
-        && needsPreDialogueSendIdentityUpgrade(options.preDialogueSendIdentity ?? null)) {
-        await selfEvolutionInspector.refresh()
-      }
-      effectivePreDialogueSendIdentity = resolvePreDialogueSendIdentityForTurn({
-        preDialogueSendIdentity: options.preDialogueSendIdentity,
-        sessionMessages: assistantSessionMessagesForSend,
-        userText: sendingMessage,
-        origin,
-      })
-      streamingMessageContext.preDialogueSendIdentity = effectivePreDialogueSendIdentity
       const requiresImmediateFileToolCall = origin === 'ui-user' && detectFileSystemToolIntent(sendingMessage)
       const requiresReminderToolCall = origin === 'ui-user' && detectReminderToolIntent(sendingMessage)
       const executionToolRoutingIntent = origin === 'ui-user'
@@ -2867,7 +1914,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   messages: messagePayload,
                   supportsTools: override.supportsTools ?? streamOptions.supportsTools,
                   waitForTools: override.waitForTools ?? streamOptions.waitForTools,
-                  preDialogueSendIdentity: toAlicizationChatStartPreDialogueSendIdentity(effectivePreDialogueSendIdentity),
                 }, {
                   abortSignal: streamOptions.abortSignal,
                   onStreamEvent: async (event) => {
@@ -3043,32 +2089,18 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const buildStructuredOutputWithGuard = async (payload: {
         fullText: string
         reasoning: string
-        reply: string
       }): Promise<StructuredWithContract> => {
         const candidate = mergeStructuredRuntimeMeta(
           normalizeStructuredOutput({
             fullText: payload.fullText,
             thought: payload.reasoning,
-            reply: payload.reply,
             previousEmotion: getPreviousAssistantEmotion(),
           }),
           getTurnStructuredRuntimeMeta(),
         )
-        const validationIssues = hasStructuredJsonContract(candidate)
-          ? validateStructuredContract(candidate)
-          : [{
-            code: 'json-contract-missing',
-            message: 'Provider response did not satisfy the structured contract.',
-          } satisfies StructuredValidationIssue]
+        const validationIssues = validateStructuredContract(candidate)
 
-        if (!candidate.reply.trim() && !validationIssues.some(issue => issue.code === 'reply-surface-roleplay-residue')) {
-          validationIssues.push({
-            code: 'reply-surface-roleplay-residue',
-            message: 'Provider response did not contain a safe visible reply.',
-          })
-        }
-
-        if (!hasStructuredJsonContract(candidate) || validationIssues.length > 0) {
+        if (!hasStructuredJsonContract(candidate, validationIssues)) {
           await appendAlicizationAuditLog({
             level: 'warning',
             category: 'alicization.structured',
@@ -3102,7 +2134,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const applyAssistantResult = async (payload: {
         fullText: string
         reasoning: string
-        reply: string
       }) => {
         const structured = await buildStructuredOutputWithGuard(payload)
         if (structured.origin === 'failure-surface') {
@@ -3118,9 +2149,33 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         const finalReply = structured.reply.trim()
+        const inspectedOutput = sanitizeAssistantOutputForDisplay(finalReply, {
+          realtimeIntent: false,
+          verifiedToolResult: turnToolEvidence.verifiedToolResult,
+        })
+        const outputRejected = !finalReply
+          || inspectedOutput.fabricationDetected
+          || inspectedOutput.leakDetected
+          || inspectedOutput.cleanText.trim() !== finalReply
+
+        if (outputRejected) {
+          await appendAlicizationAuditLog({
+            level: 'warning',
+            category: 'output-guard',
+            action: 'provider-output-rejected',
+            message: 'Renderer rejected unsafe provider output without writing substitute dialogue.',
+            details: {
+              empty: !finalReply,
+              fabricationDetected: inspectedOutput.fabricationDetected,
+              leakDetected: inspectedOutput.leakDetected,
+              removedCount: inspectedOutput.removedCount,
+            },
+          })
+          return stageFailureSurface(inspectedOutput.leakDetected ? 'internal-leak' : 'structured-contract')
+        }
+
         if (
-          !finalReply
-          || isAlicizationDecorativePersonaTemplateContamination(finalReply)
+          isAlicizationDecorativePersonaTemplateContamination(finalReply)
           || containsChatVisibleReplyFixedTemplateResidue(finalReply)
         ) {
           await appendAlicizationAuditLog({
@@ -3243,37 +2298,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return
 
         const finalCategorization = categorizeResponse(fullText, activeProvider.value)
-        const providerSpeech = finalCategorization.speech.trim()
-        const inspectedOutput = sanitizeAssistantOutputForDisplay(providerSpeech, {
-          realtimeIntent: false,
-          verifiedToolResult: turnToolEvidence.verifiedToolResult,
-        })
-        const outputRejected = !providerSpeech
-          || inspectedOutput.fabricationDetected
-          || inspectedOutput.leakDetected
-          || inspectedOutput.cleanText.trim() !== providerSpeech
-
-        if (outputRejected) {
-          await appendAlicizationAuditLog({
-            level: 'warning',
-            category: 'output-guard',
-            action: 'provider-output-rejected',
-            message: 'Renderer rejected unsafe provider output without writing substitute dialogue.',
-            details: {
-              empty: !providerSpeech,
-              fabricationDetected: inspectedOutput.fabricationDetected,
-              leakDetected: inspectedOutput.leakDetected,
-              removedCount: inspectedOutput.removedCount,
-            },
-          })
-          stageFailureSurface(inspectedOutput.leakDetected ? 'internal-leak' : 'structured-contract')
-          return
-        }
 
         await applyAssistantResult({
           fullText,
           reasoning: finalCategorization.reasoning,
-          reply: providerSpeech,
         })
       }
 
@@ -3406,107 +2434,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
         }
         else {
-          await selfEvolutionInspector.refresh()
-          const allowPromptProjectStateContinuity = shouldAttachProjectStatePreDialogueIdentity({
-            latestUserText: sendingMessage,
-            origin,
-          })
-          const preDialogueClosureSnapshot = allowPromptProjectStateContinuity
-            ? selfEvolutionInspector.preDialogueClosureSnapshot
-            : null
-          const preDialogueAwarenessSnapshot = allowPromptProjectStateContinuity
-            ? selfEvolutionInspector.preDialogueAwarenessSnapshot
-            : null
-          const normalizedPreDialogueClosureSnapshot = preDialogueClosureSnapshot
-            ? normalizeStructuredPreDialogueClosurePayload(preDialogueClosureSnapshot as unknown as Record<string, unknown>)
-            : null
-          const normalizedPreDialogueAwarenessSnapshot = preDialogueAwarenessSnapshot
-            ? normalizeStructuredPreDialogueAwarenessPayload(preDialogueAwarenessSnapshot)
-            : null
-          turnPreDialogueClosure = normalizedPreDialogueClosureSnapshot
-            ? toAlicizationPreDialogueClosurePayload(normalizedPreDialogueClosureSnapshot)
-            : null
-          turnPreDialogueAwareness = normalizedPreDialogueAwarenessSnapshot || turnPreDialogueAwareness
-          const fallbackProjectStateContinuitySnapshot
-            = !allowPromptProjectStateContinuity || selfEvolutionInspector.projectStateContinuitySnapshot
-              ? null
-              : deriveFallbackProjectStateContinuitySnapshotFromSessionMessages(
-                  assistantSessionMessagesForSend,
-                )
-          const rawEffectiveProjectStateContinuitySnapshot
-            = allowPromptProjectStateContinuity
-              ? selfEvolutionInspector.projectStateContinuitySnapshot
-              ?? fallbackProjectStateContinuitySnapshot
-              : null
-          const effectiveProjectStateContinuitySnapshot = normalizeProjectStateContinuitySnapshotForChat(
-            rawEffectiveProjectStateContinuitySnapshot,
-          )
-          const shouldTreatContinuityAwarenessAsExplicitPromptSnapshot = Boolean(
-            allowPromptProjectStateContinuity
-            && !preDialogueAwarenessSnapshot
-            && selfEvolutionInspector.projectStateContinuitySnapshot
-            && effectiveProjectStateContinuitySnapshot
-            && rawEffectiveProjectStateContinuitySnapshot === selfEvolutionInspector.projectStateContinuitySnapshot,
-          )
-          const effectivePreDialogueAwarenessSnapshot
-            = normalizedPreDialogueAwarenessSnapshot
-              ?? (
-                shouldTreatContinuityAwarenessAsExplicitPromptSnapshot
-                  ? normalizeStructuredPreDialogueAwarenessPayload(
-                      (effectiveProjectStateContinuitySnapshot?.preDialogueAwareness ?? null) as Record<string, unknown> | null,
-                    )
-                  : null
-              )
-              ?? deriveStructuredPreDialogueAwarenessFromClosure(turnPreDialogueClosure)
-              ?? null
-          const shouldUpgradeFallbackPromptAwareness = Boolean(
-            !preDialogueAwarenessSnapshot
-            && fallbackProjectStateContinuitySnapshot,
-          )
-          const effectivePromptPreDialogueSendIdentity = shouldUpgradeFallbackPromptAwareness
-            ? resolvePreDialogueSendIdentityForTurn({
-                preDialogueSendIdentity: options.preDialogueSendIdentity,
-                sessionMessages: assistantSessionMessagesForSend,
-                userText: sendingMessage,
-                origin,
-              })
-            : null
-          if (effectivePromptPreDialogueSendIdentity) {
-            effectivePreDialogueSendIdentity = effectivePromptPreDialogueSendIdentity
-            streamingMessageContext.preDialogueSendIdentity = effectivePromptPreDialogueSendIdentity
-          }
-          const effectivePromptPreDialogueAwarenessSnapshot
-            = effectivePromptPreDialogueSendIdentity
-              ? toStructuredPreDialogueAwarenessPayload(effectivePromptPreDialogueSendIdentity)
-              ?? effectivePreDialogueAwarenessSnapshot
-              : effectivePreDialogueAwarenessSnapshot
-          turnPreDialogueAwareness = effectivePromptPreDialogueAwarenessSnapshot
-            ? normalizeStructuredPreDialogueAwarenessPayload(effectivePromptPreDialogueAwarenessSnapshot)
-            ?? turnPreDialogueAwareness
-            : turnPreDialogueAwareness
-          if (!turnProjectState && effectiveProjectStateContinuitySnapshot) {
-            turnProjectState = normalizeStructuredProjectStatePayload({
-              identity: effectiveProjectStateContinuitySnapshot.identity,
-              currentPhase: effectiveProjectStateContinuitySnapshot.currentPhase,
-              latestLandedProgress: effectiveProjectStateContinuitySnapshot.latestLandedProgress,
-              primaryOpenLoop: effectiveProjectStateContinuitySnapshot.primaryOpenLoop,
-              nextClosureTarget: effectiveProjectStateContinuitySnapshot.nextClosureTarget,
-              continuitySummary: effectiveProjectStateContinuitySnapshot.continuitySummary ?? null,
-              sameHerSelfLine: effectiveProjectStateContinuitySnapshot.sameHerSelfLine ?? null,
-              sameHerHoldDetail: effectiveProjectStateContinuitySnapshot.sameHerHoldDetail ?? null,
-              sameHerDriftRisk: effectiveProjectStateContinuitySnapshot.sameHerDriftRisk ?? null,
-              proactiveSameHerGap: effectiveProjectStateContinuitySnapshot.proactiveSameHerGap ?? null,
-            }) ?? turnProjectState
-          }
           const composed = composeAlicizationPromptMessages({
             messages: newMessages as Message[],
             soulContent: soulSnapshot?.content ?? null,
             hostName: soulSnapshot?.frontmatter?.profile?.hostName ?? null,
             personalityState: turnPersonalityState,
             contextsSnapshot,
-            projectStateContinuitySnapshot: effectiveProjectStateContinuitySnapshot,
-            preDialogueAwarenessSnapshot: effectivePromptPreDialogueAwarenessSnapshot,
-            preDialogueClosureSnapshot: normalizedPreDialogueClosureSnapshot,
           })
           newMessages = composed.messages as any
 
@@ -3518,49 +2451,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               message: 'Injected low-personality semantic directives into SOUL anchor.',
               details: {
                 triggered: composed.personalityDirectiveResult.triggered,
-              },
-            })
-          }
-
-          if (effectiveProjectStateContinuitySnapshot) {
-            await appendAlicizationAuditLog({
-              level: 'notice',
-              category: 'alicization.prompt',
-              action: 'project-state-continuity.injected',
-              message: selfEvolutionInspector.projectStateContinuitySnapshot
-                ? 'Injected latest project-state continuity snapshot before this dialogue turn.'
-                : 'Injected fallback project-state continuity snapshot from recent session carry before this dialogue turn.',
-              details: {
-                turnId,
-                sessionId,
-                continuitySourceTurnId: effectiveProjectStateContinuitySnapshot.turnId,
-                origin: effectiveProjectStateContinuitySnapshot.origin,
-                nonHumanAuthoredStatus: effectiveProjectStateContinuitySnapshot.nonHumanAuthoredStatus,
-                sameHerSelfLine: effectiveProjectStateContinuitySnapshot.sameHerSelfLine ?? null,
-                sameHerHoldDetail: effectiveProjectStateContinuitySnapshot.sameHerHoldDetail ?? null,
-                currentPhase: effectiveProjectStateContinuitySnapshot.currentPhase,
-                nextClosureTarget: effectiveProjectStateContinuitySnapshot.nextClosureTarget,
-              },
-            })
-          }
-
-          if (normalizedPreDialogueClosureSnapshot) {
-            await appendAlicizationAuditLog({
-              level: 'notice',
-              category: 'alicization.prompt',
-              action: 'pre-dialogue-closure.injected',
-              message: 'Injected pre-dialogue closure snapshot before this dialogue turn.',
-              details: {
-                turnId,
-                sessionId,
-                status: normalizedPreDialogueClosureSnapshot.status,
-                summaryLine: normalizedPreDialogueClosureSnapshot.summaryLine,
-                sameHerDriftRiskLine: normalizedPreDialogueClosureSnapshot.sameHerDriftRiskLine ?? null,
-                companionBriefingLine: normalizedPreDialogueClosureSnapshot.companionBriefingLine ?? null,
-                companionNextClosureLine: normalizedPreDialogueClosureSnapshot.companionNextClosureLine ?? null,
-                emotionalClosureCue: normalizedPreDialogueClosureSnapshot.emotionalClosureCue ?? null,
-                briefingLines: normalizedPreDialogueClosureSnapshot.briefingLines ?? [],
-                reasons: normalizedPreDialogueClosureSnapshot.reasons ?? [],
               },
             })
           }
@@ -3666,11 +2556,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       await hooks.emitAfterMessageComposedHooks(sendingMessage, streamingMessageContext)
       await hooks.emitBeforeSendHooks(sendingMessage, streamingMessageContext)
-      effectivePreDialogueSendIdentity = streamingMessageContext.preDialogueSendIdentity ?? effectivePreDialogueSendIdentity
-      turnPreDialogueAwareness = alignPersistedPreDialogueAwarenessCompanionHeadline({
-        awareness: turnPreDialogueAwareness,
-        preDialogueSendIdentity: effectivePreDialogueSendIdentity,
-      })
 
       if (shouldAbort())
         return

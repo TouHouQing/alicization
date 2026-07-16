@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   AlicizationVisibleReplyClosureBlockedError,
@@ -39,7 +39,37 @@ function createExecution() {
 }
 
 describe('visible reply closure orchestrator', () => {
-  it('blocks an invalid first Provider reply without requiring second-pass reauthoring', async () => {
+  it('blocks an invalid Provider reply without requesting a second authored reply', async () => {
+    const prepared = createPrepared()
+    let thrown: unknown
+    try {
+      await closeAlicizationVisibleReply({
+        draft: {
+          fullText: '{"reply":""}',
+          visibleReplyExecution: createExecution(),
+        },
+        prepared,
+      })
+    }
+    catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(AlicizationVisibleReplyClosureBlockedError)
+    expect((thrown as AlicizationVisibleReplyClosureBlockedError).closure).toMatchObject({
+      status: 'blocked',
+    })
+    expect(
+      (thrown as AlicizationVisibleReplyClosureBlockedError).closure,
+    ).not.toHaveProperty('rewriteAttempted')
+    expect(
+      (thrown as AlicizationVisibleReplyClosureBlockedError).closure,
+    ).not.toHaveProperty('rewriteSucceeded')
+    expect((thrown as AlicizationVisibleReplyClosureBlockedError).closure.reasonCodes)
+      .toContain('structured-payload-visible-reply')
+  })
+
+  it('exposes only the structured-contract failure surface when validation fails', async () => {
     let thrown: unknown
     try {
       await closeAlicizationVisibleReply({
@@ -64,29 +94,22 @@ describe('visible reply closure orchestrator', () => {
     })
   })
 
-  it('never invokes a legacy second-pass callback after validation blocks the first reply', async () => {
-    const rewriteSecondPass = vi.fn()
+  it('marks the first Provider reply approved without repair telemetry', async () => {
+    const result = await closeAlicizationVisibleReply({
+      draft: {
+        fullText: JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'Obligation: answer. Truth: grounded. Focus: current turn. Move: answer. Tone: warm.',
+          emotion: 'neutral',
+          reply: '首个 Provider 回复直接通过。',
+        }),
+        visibleReplyExecution: createExecution(),
+      },
+      prepared: createPrepared(),
+    })
 
-    let thrown: unknown
-    try {
-      await closeAlicizationVisibleReply({
-        draft: {
-          fullText: '{"reply":""}',
-          visibleReplyExecution: createExecution(),
-        },
-        prepared: createPrepared(),
-        forceRewrite: true,
-        forceReasonCodes: ['provider-payload-json-invalid'],
-        rewriteSecondPass,
-      })
-    }
-    catch (error) {
-      thrown = error
-    }
-
-    expect(thrown).toBeInstanceOf(AlicizationVisibleReplyClosureBlockedError)
-    expect(rewriteSecondPass).not.toHaveBeenCalled()
-    expect((thrown as AlicizationVisibleReplyClosureBlockedError).closure.reasonCodes)
-      .toContain('provider-payload-json-invalid')
+    expect(result?.closure.status).toBe('approved')
+    expect(result?.closure).not.toHaveProperty('rewriteAttempted')
+    expect(result?.closure).not.toHaveProperty('rewriteSucceeded')
   })
 })

@@ -10,10 +10,6 @@ import type {
   MainGatewayResolvedConfig,
 } from './runtime-soul'
 
-import {
-  resolveAlicizationChatStartPayloadPreDialogueSendIdentity,
-  summarizeAlicizationPreDialogueSendIdentityForDebug,
-} from './main-chat-start-awareness'
 import { readTransportContentAsText } from './runtime-transport-content'
 
 interface AlicizationMainChatRunStateReadFacade {
@@ -81,15 +77,13 @@ type AlicizationMainChatStartAcceptance
 export async function acceptAlicizationMainChatStart(
   input: AcceptAlicizationMainChatStartOptions,
 ): Promise<AlicizationMainChatStartAcceptance> {
-  const payload = resolveAlicizationChatStartPayloadPreDialogueSendIdentity(input.payload)
-  const preDialogueAwarenessDebug = summarizeAlicizationPreDialogueSendIdentityForDebug(payload)
+  const payload = input.payload
   const key = input.mainChatRunState.createKey(payload.cardId, payload.turnId)
   const existing = input.getExistingRun(key)
   if (existing && existing.state === 'running') {
     await input.appendRuntimeDebugLine('chat-start.duplicate-running', {
       cardId: payload.cardId,
       turnId: payload.turnId,
-      ...preDialogueAwarenessDebug,
     })
     return {
       accepted: false,
@@ -106,7 +100,6 @@ export async function acceptAlicizationMainChatStart(
     await input.appendRuntimeDebugLine('chat-start.duplicate-finished', {
       cardId: payload.cardId,
       turnId: payload.turnId,
-      ...preDialogueAwarenessDebug,
     })
     return {
       accepted: false,
@@ -144,7 +137,6 @@ export async function acceptAlicizationMainChatStart(
       cardId: payload.cardId,
       turnId: payload.turnId,
       reason,
-      ...preDialogueAwarenessDebug,
     })
     return {
       accepted: false,
@@ -166,7 +158,6 @@ export async function acceptAlicizationMainChatStart(
     providerId: llmConfigState.activeProviderId,
     model: llmConfigState.activeModelId,
     persistedConfigKeys: llmConfigState.persistedConfigKeys,
-    ...preDialogueAwarenessDebug,
   })
 
   input.rememberMainGatewayRoute({
@@ -196,7 +187,6 @@ export async function acceptAlicizationMainChatStart(
     preparationDeferred: true,
     gatewayReachable: null,
     gatewayReachabilityCode: null,
-    ...preDialogueAwarenessDebug,
   })
 
   return {

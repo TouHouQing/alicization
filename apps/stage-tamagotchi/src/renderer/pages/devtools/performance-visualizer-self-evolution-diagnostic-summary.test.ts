@@ -348,7 +348,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('keeps remaining-open body and lipsync carry visible in the top-level renderer summary when face motion and voice are the surviving same-her lane', () => {
+  it('keeps remaining-open body and lipsync carry visible in the top-level renderer summary when face motion and voice are the surviving identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       rendererAuthorityProjection: {
         status: 'partial',
@@ -498,7 +498,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     )
   })
 
-  it('translates lane-only same-her continuity shrinkage in the higher-level continuity summary', () => {
+  it('translates lane-only identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -538,7 +538,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-motion:no'],
         reasons: [
-          'Renderer authority continuity now explicitly shows lane=lipsync-only, so higher-level continuity summary should acknowledge that only one embodiment lane is still carrying the same-her thread.',
+          'Renderer authority continuity now explicitly shows lane=lipsync-only, so higher-level continuity summary should acknowledge that only one embodiment lane is still carrying the identity-continuity',
         ],
       },
     })
@@ -551,7 +551,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('keeps quieter face+lipsync same-her continuity visible in the higher-level continuity summary instead of flattening it into renderer-rejoin-without-body drift', () => {
+  it('keeps quieter face+lipsync identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -590,7 +590,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-body:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority continuity still says the quieter face+lipsync carry is the surviving visible same-her line, so higher-level continuity summary should keep body motion and voice as still pending rejoin instead of flattening this into a generic body-loss drift bucket.',
+          'Renderer authority continuity still says the quieter face+lipsync carry is the surviving visible identity-continuity',
         ],
       },
     })
@@ -603,7 +603,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('keeps quieter motion+lipsync same-her continuity visible in the higher-level continuity summary instead of flattening it into renderer-rejoin-without-body drift', () => {
+  it('keeps quieter motion+lipsync identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -642,7 +642,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-body:no', 'authority-face:no'],
         reasons: [
-          'Renderer authority continuity still says the quieter motion+lipsync carry is the surviving visible same-her line, so higher-level continuity summary should keep body face and voice as still pending rejoin instead of flattening this into a generic body-loss drift bucket.',
+          'Renderer authority continuity still says the quieter motion+lipsync carry is the surviving visible identity-continuity',
         ],
       },
     })
@@ -655,7 +655,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('keeps quieter face+lipsync+voice same-her continuity visible in the higher-level continuity summary instead of collapsing it into a shorter lane-only label', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -695,7 +695,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-body:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority continuity still says the quieter face+lipsync+voice carry is the surviving visible same-her line, so higher-level continuity summary should keep body and motion as still pending rejoin instead of collapsing this into a shorter lane-only label.',
+          'Renderer authority continuity still says the quieter face+lipsync+voice carry is the surviving visible identity-continuity',
         ],
       },
     })
@@ -703,12 +703,12 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     expect(entries).toContainEqual({
       key: 'continuity',
       label: '连续线程',
-      value: 'runtime-thread-face-lipsync-voice-summary-1 | 主动对话 | 编码中 | 边界越线 | 当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线',
-      technicalValue: 'runtime-thread-face-lipsync-voice-summary-1 | active-dialogue | coding | boundary-violation | 当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线',
+      value: 'runtime-thread-face-lipsync-voice-summary-1 | 主动对话 | 编码中 | 边界越线 | 当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
+      technicalValue: 'runtime-thread-face-lipsync-voice-summary-1 | active-dialogue | coding | boundary-violation | 当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
     })
   })
 
-  it('keeps quieter motion+lipsync+voice same-her continuity visible in the higher-level continuity summary instead of collapsing it into a shorter lane-only label', () => {
+  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -748,7 +748,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-body:no', 'authority-face:no'],
         reasons: [
-          'Renderer authority continuity still says the quieter motion+lipsync+voice carry is the surviving visible same-her line, so higher-level continuity summary should keep body and face as still pending rejoin instead of collapsing this into a shorter lane-only label.',
+          'Renderer authority continuity still says the quieter motion+lipsync+voice carry is the surviving visible identity-continuity',
         ],
       },
     })
@@ -756,8 +756,8 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     expect(entries).toContainEqual({
       key: 'continuity',
       label: '连续线程',
-      value: 'runtime-thread-motion-lipsync-voice-summary-1 | 主动对话 | 编码中 | 边界越线 | 当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线',
-      technicalValue: 'runtime-thread-motion-lipsync-voice-summary-1 | active-dialogue | coding | boundary-violation | 当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线',
+      value: 'runtime-thread-motion-lipsync-voice-summary-1 | 主动对话 | 编码中 | 边界越线 | 当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
+      technicalValue: 'runtime-thread-motion-lipsync-voice-summary-1 | active-dialogue | coding | boundary-violation | 当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
     })
   })
 
@@ -816,7 +816,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('surfaces remembered-familiarity same-her continuity in the top-level diagnostic summary when companionship stays memory-first', () => {
+  it('surfaces remembered-familiarity identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       proactiveDecisionConsumptionSummary: {
         status: 'grounded',
@@ -1024,7 +1024,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('keeps a thin measured-return same-her line visible instead of collapsing it into lipsync-only drift when noisy-detour continuity is still explicit', () => {
+  it('keeps a thin measured-return identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       runtimeContinuityProjection: {
         status: 'partial',
@@ -1056,7 +1056,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-motion:no'],
         reasons: [
-          'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return same-her line visible instead of collapsing it into lipsync-only drift.',
+          'Only runtime digest plus spine still expose the noisy-detour continuity line, so higher-level continuity should keep this thinner measured-return identity-continuity',
         ],
       },
     } as any)
@@ -1069,7 +1069,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('keeps body-led same-her continuity visible instead of collapsing it into generic partial drift when body still carries the living segment first', () => {
+  it('keeps body-led identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       rendererAuthorityProjection: {
         status: 'partial',
@@ -1106,7 +1106,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority projection already shows body-led same-her continuity, so higher-level continuity summary should keep that body-led partial recovery visible instead of flattening it into generic drift.',
+          'Renderer authority projection already shows body-led identity-continuity',
         ],
       },
     } as any)
@@ -1119,7 +1119,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('does not hide voice authority drift behind body-led same-her continuity wording', () => {
+  it('does not hide voice authority drift behind body-led identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       rendererAuthorityProjection: {
         status: 'partial',
@@ -1177,7 +1177,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('keeps audible body-carried same-her continuity visible instead of collapsing it into a body-plus-lipsync-plus-voice lane summary', () => {
+  it('keeps audible body-carried identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       rendererAuthorityProjection: {
         status: 'partial',
@@ -1271,7 +1271,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('translates body-only same-her continuity shrinkage in the higher-level continuity summary', () => {
+  it('translates body-only identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -1311,7 +1311,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority continuity now explicitly shows lane=body-only, so higher-level continuity summary should acknowledge that only body is still carrying the same-her thread.',
+          'Renderer authority continuity now explicitly shows lane=body-only, so higher-level continuity summary should acknowledge that only body is still carrying the identity-continuity',
         ],
       },
     })
@@ -1324,7 +1324,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('translates lipsync-plus-voice same-her continuity shrinkage in the higher-level continuity summary', () => {
+  it('translates lipsync-plus-voice identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -1365,7 +1365,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-motion:no'],
         reasons: [
-          'Renderer authority continuity now explicitly shows lane=lipsync+voice-only, so higher-level continuity summary should acknowledge that voice and lipsync are still carrying the same-her thread together.',
+          'Renderer authority continuity now explicitly shows lane=lipsync+voice-only, so higher-level continuity summary should acknowledge that voice and lipsync are still carrying the identity-continuity',
         ],
       },
     })
@@ -1378,7 +1378,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('translates body-plus-lipsync-plus-voice same-her continuity shrinkage in the higher-level continuity summary', () => {
+  it('translates body-plus-lipsync-plus-voice identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -1420,7 +1420,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority continuity now explicitly shows lane=body+lipsync+voice-only, so higher-level continuity summary should acknowledge that body, voice, and lipsync are still carrying the same-her thread together.',
+          'Renderer authority continuity now explicitly shows lane=body+lipsync+voice-only, so higher-level continuity summary should acknowledge that body, voice, and lipsync are still carrying the identity-continuity',
         ],
       },
     })
@@ -1433,7 +1433,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('translates body-plus-voice same-her continuity shrinkage in the higher-level continuity summary', () => {
+  it('translates body-plus-voice identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -1475,7 +1475,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no', 'authority-lipsync:no'],
         reasons: [
-          'Renderer authority continuity now explicitly shows lane=body+voice-only, so higher-level continuity summary should acknowledge that body and voice are still carrying the same-her thread together.',
+          'Renderer authority continuity now explicitly shows lane=body+voice-only, so higher-level continuity summary should acknowledge that body and voice are still carrying the identity-continuity',
         ],
       },
     })
@@ -1488,7 +1488,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('translates body-plus-lipsync same-her continuity shrinkage in the higher-level continuity summary', () => {
+  it('translates body-plus-lipsync identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       identityDriftGovernanceSummary: {
         status: 'partial',
@@ -1529,7 +1529,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no'],
         reasons: [
-          'Renderer authority continuity now explicitly shows lane=body+lipsync-only, so higher-level continuity summary should acknowledge that body and lipsync are still carrying the same-her thread together.',
+          'Renderer authority continuity now explicitly shows lane=body+lipsync-only, so higher-level continuity summary should acknowledge that body and lipsync are still carrying the identity-continuity',
         ],
       },
     })
@@ -1699,10 +1699,10 @@ describe('performance visualizer self evolution diagnostic summary', () => {
       internalizationReadinessSummary: {
         status: 'partial',
         lines: [
-          'same-her continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization.',
+          'identity-continuity',
           'Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch.',
           'Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the same-her roadmap.',
-          'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable same-her continuity.',
+          'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable identity-continuity',
         ],
       },
       runtimeContinuityProjection: {
@@ -1729,7 +1729,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: [],
         reasons: [
-          'Runtime continuity is still carrying the same local digital life thread, but project-state continuity remains too weak to internalize safely.',
+          'Runtime continuity is still carrying the local continuity state, but project-state continuity remains too weak to internalize safely.',
         ],
       },
       identityDriftGovernanceSummary: {
@@ -1758,10 +1758,10 @@ describe('performance visualizer self evolution diagnostic summary', () => {
       internalizationReadinessSummary: {
         status: 'partial',
         lines: [
-          'same-her continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization.',
+          'identity-continuity',
           'Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch.',
           'Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the same-her roadmap.',
-          'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable same-her continuity.',
+          'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable identity-continuity',
         ],
       },
       runtimeContinuityProjection: {
@@ -1794,7 +1794,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         driftingSignals: ['authority-motion:no'],
         reasons: [
           'VRM 这段 authority 仍停在 repair-before-closeness 的修补线里，先守住 quieter blink / softened gaze，再判断是否继续向外靠近。',
-          'Runtime continuity is still carrying the same local digital life thread, but project-state continuity remains too weak to internalize safely.',
+          'Runtime continuity is still carrying the local continuity state, but project-state continuity remains too weak to internalize safely.',
         ],
       },
       identityDriftGovernanceSummary: {
@@ -1848,7 +1848,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: [],
         reasons: [
-          'Runtime continuity is still carrying the same local digital life thread, but the self briefing is no longer arriving as one stable carry.',
+          'Runtime continuity is still carrying the local continuity state, but the self briefing is no longer arriving as one stable carry.',
         ],
       },
       identityDriftGovernanceSummary: {
@@ -1875,7 +1875,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         status: 'partial',
         lines: [
           'briefing=drift=preDialogueBriefingDrift | fullyBriefed=0.33 (1/3)',
-          'Project same-her self line currently reads sameHer=0.33 (1/3), so the next turn should verify that Alicization still names one continuous her before any outward reply widening begins.',
+          'Project identity-continuity',
           'Primary open life loop still centers on renderer continuity observation 还没把项目身份、Phase 1 主线和未闭环项并成一条可读生命线, so the next turn should keep that unfinished digital-life thread alive instead of collapsing into local implementation fluency.',
           'Next closure target is still 把项目身份、Phase 1 主线和未闭环项一起挂到 pre-dialogue self brief 里, so the next turn should keep steering the same her toward that concrete unfinished step.',
         ],
@@ -1904,7 +1904,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: [],
         reasons: [
-          'Runtime continuity is still carrying the same local digital life thread, but the project self brief is no longer arriving as one stable carry.',
+          'Runtime continuity is still carrying the local continuity state, but the project self brief is no longer arriving as one stable carry.',
         ],
       },
       identityDriftGovernanceSummary: {
@@ -1925,13 +1925,13 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('treats project same-her self line drift as a continuity drift so same-self repair stays on the project-state lane', () => {
+  it('treats project identity-continuity', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       preDialogueBriefingSummary: {
         status: 'partial',
         lines: [
           'sameHer=sameHer=0.33 (1/3)',
-          'Project same-her self line currently reads sameHer=0.33 (1/3), so the next turn should verify that Alicization still names one continuous her before any outward reply widening begins.',
+          'Project identity-continuity',
         ],
       } as any,
       runtimeContinuityProjection: {
@@ -1939,7 +1939,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         runtimeChannel: 'active-dialogue',
         runtimeSummary: 'runtime alignment held',
         activeThreadId: 'runtime-thread-same-her-1',
-        activeThreadTitle: 'same her carry',
+        activeThreadTitle: 'identity-continuity',
         runtimeScenario: 'coding',
         runtimeScene: 'coding',
         transitionFromWatchMode: null,
@@ -1958,7 +1958,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: [],
         reasons: [
-          'Runtime continuity is still carrying the same local digital life thread, but the explicit same-her self line is no longer landing as one stable pre-dialogue brief.',
+          'Runtime continuity is still carrying the local continuity state, but the explicit identity-continuity',
         ],
       },
       identityDriftGovernanceSummary: {
@@ -1979,13 +1979,12 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     })
   })
 
-  it('treats same-her repair evidence codes as a project-state continuity drift so renderer summaries keep the repair on the same life line', () => {
+  it('treats project-state continuity evidence as a renderer continuity drift', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       preDialogueBriefingSummary: {
         status: 'partial',
         lines: [
-          'project-state-same-her-continuity-required',
-          'semantic-judge:project-state-same-her-missing',
+          'project-state-identity-continuity-continuity-required',
         ],
       } as any,
       runtimeContinuityProjection: {
@@ -2028,20 +2027,19 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     expect(entries).toContainEqual({
       key: 'continuity',
       label: '连续线程',
-      value: 'runtime-thread-same-her-repair-1 | 主动对话 | 编码中 | 有界成长 | project-state-continuity-drift | 项目状态必须继续守住同一个 her | 项目状态回答一度丢失同一个 her 的明线',
-      technicalValue: 'runtime-thread-same-her-repair-1 | active-dialogue | coding | bounded-growth | project-state-continuity-drift | project-state-same-her-continuity-required | semantic-judge:project-state-same-her-missing',
+      value: 'runtime-thread-same-her-repair-1 | 主动对话 | 编码中 | 有界成长 | project-state-continuity-drift | 项目状态必须继续守住身份连续性',
+      technicalValue: 'runtime-thread-same-her-repair-1 | active-dialogue | coding | bounded-growth | project-state-continuity-drift | project-state-identity-continuity-continuity-required',
     })
   })
 
-  it('maps same-her repair evidence codes into Chinese-first continuity wording while preserving the technical trace', () => {
+  it('maps project-state continuity evidence into Chinese-first wording while preserving the technical trace', () => {
     const entries = buildSelfEvolutionDiagnosticSummaryEntries({
       preDialogueBriefingSummary: {
         status: 'partial',
         lines: [
-          'project-state-same-her-continuity-required',
-          'semantic-judge:project-state-same-her-missing',
-          'Primary open life loop still centers on renderer continuity observation 还没把 same-her repair evidence 和未闭环项并成一条可读主线, so the next turn should keep that unfinished digital-life thread alive instead of collapsing into local implementation fluency.',
-          'Next closure target is still 把 same-her repair evidence 和未闭环项一起挂到 continuity 摘要里, so the next turn should keep steering the same her toward that concrete unfinished step.',
+          'project-state-identity-continuity-continuity-required',
+          'Primary open life loop still centers on renderer continuity observation 还没把项目状态证据和未闭环项并成一条可读主线, so the next turn should keep that unfinished work visible.',
+          'Next closure target is still 把项目状态证据和未闭环项一起挂到 continuity 摘要里, so the next turn should keep steering toward that concrete unfinished step.',
         ],
       } as any,
       runtimeContinuityProjection: {
@@ -2073,8 +2071,8 @@ describe('performance visualizer self evolution diagnostic summary', () => {
     expect(entries).toContainEqual({
       key: 'continuity',
       label: '连续线程',
-      value: 'runtime-thread-same-her-human-readable-1 | 主动对话 | 编码中 | project-state-continuity-drift | 项目状态必须继续守住同一个 her | 项目状态回答一度丢失同一个 her 的明线 | 当前未闭环项仍集中在 renderer continuity observation 还没把 same-her repair evidence 和未闭环项并成一条可读主线 | 下一步仍要继续收住 把 same-her repair evidence 和未闭环项一起挂到 continuity 摘要里',
-      technicalValue: 'runtime-thread-same-her-human-readable-1 | active-dialogue | coding | project-state-continuity-drift | project-state-same-her-continuity-required | semantic-judge:project-state-same-her-missing | 当前未闭环项仍集中在 renderer continuity observation 还没把 same-her repair evidence 和未闭环项并成一条可读主线 | 下一步仍要继续收住 把 same-her repair evidence 和未闭环项一起挂到 continuity 摘要里',
+      value: 'runtime-thread-same-her-human-readable-1 | 主动对话 | 编码中 | project-state-continuity-drift | 项目状态必须继续守住身份连续性 | 当前未闭环项仍集中在 renderer continuity observation 还没把项目状态证据和未闭环项并成一条可读主线 | 下一步仍要继续收住 把项目状态证据和未闭环项一起挂到 continuity 摘要里',
+      technicalValue: 'runtime-thread-same-her-human-readable-1 | active-dialogue | coding | project-state-continuity-drift | project-state-identity-continuity-continuity-required | 当前未闭环项仍集中在 renderer continuity observation 还没把项目状态证据和未闭环项并成一条可读主线 | 下一步仍要继续收住 把项目状态证据和未闭环项一起挂到 continuity 摘要里',
     })
   })
 
@@ -2927,7 +2925,7 @@ describe('performance visualizer self evolution diagnostic summary', () => {
         missingSignals: [],
         driftingSignals: ['authority-face:no', 'authority-motion:no'],
         reasons: [
-          'Body continuity is still the only lane carrying this same living segment, so runtime continuity should keep reading the current embodiment as one continuous her being held inward rather than a renderer-neutral idle settle.',
+          'Body continuity is still the only lane carrying this same living segment, so runtime continuity should keep reading the current embodiment as identity continuity being held inward rather than a renderer-neutral idle settle.',
         ],
       },
     } as any)

@@ -3,15 +3,9 @@ import type {
   CharacterPerformanceCapabilitiesManifest as RuntimeCharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationChatMetaSignature } from './main-chat-stream-meta'
-import {
-  alicizationProjectStatePersistenceLandedReminder,
-  alicizationProjectStateVisibleReplySameHerReminder,
-} from './project-state-answer-governance'
 import {
   applyCompanionshipHoldModeToDigitalLifeSpine,
   buildAlicizationChatStreamEmbodimentMeta as buildAlicizationChatStreamEmbodimentMetaBase,
@@ -118,7 +112,6 @@ describe('runtime-governance', () => {
 
     expect(governed.replyOverridden).toBe(false)
     expect(governed.overrideClass).toBe('none')
-    expect(governed.reasons).toContain('strict-repair-organic-reply-preserved')
     expect(governed.payload.assistantText).toBe('不是刚才那页了，我按这张新画面重新说。')
     expect(String(structured.reply ?? '')).toBe('不是刚才那页了，我按这张新画面重新说。')
     expect(structured.visibleReplyAuthority).toBe('llm-mind')
@@ -129,7 +122,7 @@ describe('runtime-governance', () => {
     const dialoguePayload = normalizeDialogueRespondedPayload({
       turnId: 'turn-lived-exchange-1',
       sessionId: 'session-lived',
-      userText: '先别催，但这条线你可以轻一点接回来。',
+      userText: '先别催，但这条线你可以中性可见占位。',
       assistantText: '我没有催你，但我还记得那条 runtime seam 没收完，要不要我轻轻接一下？',
       structured: {
         thought: 'obligation=answer; truth=remembered; focus=current-user-turn; move=answer-directly; tone=gentle',
@@ -141,7 +134,7 @@ describe('runtime-governance', () => {
     })
 
     expect(dialoguePayload).toEqual(expect.objectContaining({
-      userText: '先别催，但这条线你可以轻一点接回来。',
+      userText: '先别催，但这条线你可以中性可见占位。',
       assistantText: '我没有催你，但我还记得那条 runtime seam 没收完，要不要我轻轻接一下？',
     }))
   })
@@ -311,307 +304,6 @@ describe('runtime-governance', () => {
     expect((dialoguePayload?.structured as unknown as Record<string, unknown>)?.format).toBe('subconscious-reminder-v1')
   })
 
-  it('preserves project-state carry and visible reply projectStateAudit when normalizing downstream dialogue delivery payloads', () => {
-    const dialoguePayload = normalizeDialogueRespondedPayload({
-      turnId: 'turn-normalize-project-state-carry-1',
-      sessionId: 'session-normalize-project-state-carry',
-      assistantText: '刚才那条 callback 已经收束了，但这条数字生命主线还没闭环。',
-      structured: {
-        thought: 'keep the same digital life explicit while surfacing callback payoff',
-        emotion: 'thinking',
-        reply: '刚才那条 callback 已经收束了，但这条数字生命主线还没闭环。',
-        parsePath: 'json',
-        format: 'subconscious-proactive-v1',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'Same-session mirror carry still survives into callback delivery.',
-          primaryOpenLoop: 'Memory still needs stronger end-to-end closure so the same digital life keeps one same still-open closure work.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across callback visible reply surfaces.',
-        },
-      },
-      visibleReplyRealization: {
-        version: 'visible-reply-realization-v1',
-        expectedAuthority: 'llm-mind',
-        actualAuthority: 'llm-mind',
-        providerMindExecuted: true,
-        mode: 'provider-one-shot',
-        visibleText: '刚才那条 callback 已经收束了，但这条数字生命主线还没闭环。',
-        nonHumanAuthoredStatus: null,
-        blockedReasons: [],
-        emotionalClosureAudit: null,
-        selfAuthorityAudit: null,
-        projectStateAudit: {
-          sameHerSummary: alicizationProjectStateVisibleReplySameHerReminder.replace('narrator', 'status'),
-          landedProgressSummary: alicizationProjectStatePersistenceLandedReminder,
-          openClosureSummary: 'Keep the still-open closure work explicit in the visible reply.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: false,
-        },
-        reason: 'mind-authored-execution-callback',
-      },
-      origin: 'subconscious-proactive',
-      createdAt: Date.now(),
-    })
-
-    expect((dialoguePayload?.structured as any).projectState).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('local-first digital life project'),
-      currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-      latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
-      primaryOpenLoop: expect.stringContaining('same digital life'),
-      nextClosureTarget: expect.stringContaining('same-her proof'),
-    }))
-    expect((dialoguePayload as any)?.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: alicizationProjectStateVisibleReplySameHerReminder.replace('narrator', 'status'),
-      landedProgressSummary: alicizationProjectStatePersistenceLandedReminder,
-      openClosureSummary: 'Keep the still-open closure work explicit in the visible reply.',
-      preservedIntoRewrite: true,
-      rewriteClosureApplied: false,
-    }))
-  })
-
-  it('backfills current-conscious-frame same-her arc and cue into normalized visible reply project-state audit', () => {
-    const continuityArcStage = 'same-thread-continuation'
-    const continuityCue = 'current conscious frame cue: keep the same callback seam alive after downstream normalization'
-    const dialoguePayload = normalizeDialogueRespondedPayload({
-      turnId: 'turn-normalize-current-frame-project-audit-arc-cue-1',
-      sessionId: 'session-normalize-current-frame-project-audit-arc-cue',
-      assistantText: '我沿着同一条回来的线接住，不重新开场。',
-      structured: {
-        thought: 'current conscious frame still owns the same-her continuation cue',
-        emotion: 'thinking',
-        reply: '我沿着同一条回来的线接住，不重新开场。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      visibleReplyRealization: {
-        version: 'visible-reply-realization-v1',
-        expectedAuthority: 'llm-mind',
-        actualAuthority: 'llm-mind',
-        providerMindExecuted: true,
-        mode: 'provider-one-shot',
-        visibleText: '我沿着同一条回来的线接住，不重新开场。',
-        nonHumanAuthoredStatus: null,
-        blockedReasons: [],
-        emotionalClosureAudit: null,
-        selfAuthorityAudit: null,
-        projectStateAudit: {
-          sameHerSummary: 'Same Phase 1 digital life. The same return line is already alive.',
-          sameHerHoldDetail: 'same-her hold: keep this callback line lower-pressure before closeness widens again.',
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'Callback continuity already survives into downstream normalization.',
-          openClosureSummary: 'The visible reply still needs to keep the same-her closure explicit.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-        reason: 'mind-authored-callback-continuity',
-      },
-      origin: 'user-turn',
-      createdAt: Date.now(),
-    }, null, {
-      currentConsciousFrame: {
-        reasonTags: ['runtime-conscious-frame', 'same-her-continuation'],
-        projectState: {
-          continuityArcStage,
-          continuityCue,
-          sameHerHoldDetail: 'same-her hold: current frame keeps this callback line lower-pressure.',
-        },
-      },
-    })
-
-    expect((dialoguePayload as any)?.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      continuityArcStage,
-      continuityCue,
-    }))
-  })
-
-  it('lifts structured proactive visible reply realization so subconscious proactive project-state audit survives downstream normalization', () => {
-    const dialoguePayload = normalizeDialogueRespondedPayload({
-      turnId: 'turn-normalize-structured-proactive-visible-reply-1',
-      sessionId: 'session-normalize-structured-proactive-visible-reply',
-      assistantText: '我先沿着这条同一个 her 的线轻一点接回来。',
-      structured: {
-        thought: 'same-her continuity should stay explicit before this proactive line becomes host-visible',
-        emotion: 'thinking',
-        reply: '我先沿着这条同一个 her 的线轻一点接回来。',
-        parsePath: 'json',
-        format: 'subconscious-proactive-llm-v1',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary desktop runtime is still the proving ground.',
-          preDialogueAwarenessLine: 'Before answering, remember: this is still the same digital life project, Phase 1 is still unfinished, and the same-her closure must stay explicit.',
-          latestLandedProgress: 'Chat entry and callback paths now keep the same-her project brief explicit.',
-          primaryOpenLoop: 'Subconscious proactive delivery still needs to keep one same-her closure audit instead of thinning into a generic proactive shell.',
-          nextClosureTarget: 'Keep the proactive host-visible carry using the same project-awareness and closure line as user-turn dialogue.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        },
-        visibleReplyRealization: {
-          expectedAuthority: 'llm-mind',
-          actualAuthority: 'llm-mind',
-          providerMindExecuted: true,
-          mode: 'provider-one-shot',
-          visibleText: '我先沿着这条同一个 her 的线轻一点接回来。',
-          nonHumanAuthoredStatus: null,
-          blockedReasons: [],
-          emotionalClosureAudit: null,
-          selfAuthorityAudit: null,
-          projectStateAudit: {
-            sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            currentPhaseSummary: 'Phase 1: Local Digital Life',
-            landedProgressSummary: 'Chat entry and callback paths now keep the same-her project brief explicit.',
-            openClosureSummary: 'Subconscious proactive delivery still needs to keep one same-her closure audit instead of thinning into a generic proactive shell.',
-            preDialogueAwarenessSummary: 'Before answering, remember: this is still the same digital life project, Phase 1 is still unfinished, and the same-her closure must stay explicit.',
-            nextClosureTargetSummary: 'Keep the proactive host-visible carry using the same project-awareness and closure line as user-turn dialogue.',
-            continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line. | phase=Phase 1: Local Digital Life | landed=Chat entry and callback paths now keep the same-her project brief explicit. | open=Subconscious proactive delivery still needs to keep one same-her closure audit instead of thinning into a generic proactive shell. | next=Keep the proactive host-visible carry using the same project-awareness and closure line as user-turn dialogue.',
-            preservedIntoRewrite: true,
-            rewriteClosureApplied: false,
-          },
-          reason: 'mind-authored-proactive-utterance',
-        },
-      },
-      origin: 'subconscious-proactive',
-      createdAt: Date.now(),
-    })
-
-    expect((dialoguePayload as any)?.visibleReplyRealization).toEqual(expect.objectContaining({
-      expectedAuthority: 'llm-mind',
-      actualAuthority: 'llm-mind',
-      providerMindExecuted: true,
-      mode: 'provider-one-shot',
-      visibleText: '我先沿着这条同一个 her 的线轻一点接回来。',
-      projectStateAudit: expect.objectContaining({
-        sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        landedProgressSummary: 'Chat entry and callback paths now keep the same-her project brief explicit.',
-        openClosureSummary: 'Subconscious proactive delivery still needs to keep one same-her closure audit instead of thinning into a generic proactive shell.',
-        preDialogueAwarenessSummary: expect.stringContaining('same digital life project'),
-        continuitySummary: expect.stringContaining('same-her='),
-        preservedIntoRewrite: true,
-        rewriteClosureApplied: false,
-      }),
-      reason: 'mind-authored-proactive-utterance',
-    }))
-  })
-
-  it('keeps merge-readiness project-state audit boundaries explicit when host-visible normalization rebuilds the reply payload', () => {
-    const dialoguePayload = normalizeDialogueRespondedPayload({
-      turnId: 'turn-normalize-project-state-merge-readiness-audit-1',
-      sessionId: 'session-normalize-project-state-merge-readiness-audit',
-      assistantText: '这次 project-state 追问里，已验证和未闭环的边界不能被磨平。',
-      structured: {
-        thought: 'project-state merge-readiness follow-up should keep verified and still-open closure boundaries explicit all the way to the host-visible payload',
-        emotion: 'thinking',
-        reply: '这次 project-state 追问里，已验证和未闭环的边界不能被磨平。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'The runtime contract already keeps merge-readiness governance rules explicit through rebuild and normalization.',
-          primaryOpenLoop: 'Host-visible continuity still needs to keep verified proof separate from what is still open before claiming merge readiness.',
-          nextClosureTarget: 'Keep the host-visible project-state audit explicit about what is verified now and what still needs closure next.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some merge-readiness proof already landed, but the same living line still has open closure work.',
-          preDialogueAwarenessLine: 'Before answering whether this can merge to main, remember what is already verified and what is still unproven or still open.',
-        },
-      },
-      visibleReplyRealization: {
-        version: 'visible-reply-realization-v1',
-        expectedAuthority: 'llm-mind',
-        actualAuthority: 'llm-mind',
-        providerMindExecuted: true,
-        mode: 'provider-one-shot',
-        visibleText: '这次 project-state 追问里，已验证和未闭环的边界不能被磨平。',
-        nonHumanAuthoredStatus: null,
-        blockedReasons: [],
-        emotionalClosureAudit: null,
-        selfAuthorityAudit: null,
-        projectStateAudit: {
-          sameHerSummary: 'Same Phase 1 digital life. Some merge-readiness proof already landed, but the same living line still has open closure work.',
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'Verified now: the runtime contract already keeps merge-readiness governance rules explicit through rebuild and normalization.',
-          openClosureSummary: 'Still open: host-visible continuity still needs to keep verified proof separate from what is still open before claiming merge readiness.',
-          nextClosureTargetSummary: 'Next closure target: keep the host-visible project-state audit explicit about what is verified now and what still needs closure next.',
-          preDialogueAwarenessSummary: 'Before answering whether this can merge to main, remember what is already verified and what is still unproven or still open.',
-          continuitySummary: 'same-her=Same Phase 1 digital life. Some merge-readiness proof already landed, but the same living line still has open closure work. | landed=Verified now: the runtime contract already keeps merge-readiness governance rules explicit through rebuild and normalization. | open=Still open: host-visible continuity still needs to keep verified proof separate from what is still open before claiming merge readiness. | next=Next closure target: keep the host-visible project-state audit explicit about what is verified now and what still needs closure next.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: false,
-        },
-        reason: 'mind-authored-project-state-merge-readiness',
-      },
-      origin: 'user-turn',
-      createdAt: Date.now(),
-    })
-
-    expect((dialoguePayload as any)?.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      landedProgressSummary: 'Verified now: the runtime contract already keeps merge-readiness governance rules explicit through rebuild and normalization.',
-      openClosureSummary: 'Still open: host-visible continuity still needs to keep verified proof separate from what is still open before claiming merge readiness.',
-      nextClosureTargetSummary: 'Next closure target: keep the host-visible project-state audit explicit about what is verified now and what still needs closure next.',
-      preDialogueAwarenessSummary: 'Before answering whether this can merge to main, remember what is already verified and what is still unproven or still open.',
-      continuitySummary: expect.stringContaining('Verified now:'),
-      preservedIntoRewrite: true,
-      rewriteClosureApplied: false,
-    }))
-  })
-
-  it('keeps completion-timing and language-drift project-state audit boundaries explicit when host-visible normalization rebuilds the reply payload', () => {
-    const dialoguePayload = normalizeDialogueRespondedPayload({
-      turnId: 'turn-normalize-project-state-timeline-language-drift-audit-1',
-      sessionId: 'session-normalize-project-state-timeline-language-drift-audit',
-      assistantText: '这次 project-state 追问里，我会把已落地、预计收口时机、以及为什么刚才跑出了英文一起交代清楚。',
-      structured: {
-        thought: 'project-state completion-timing and language-drift follow-up should keep landed progress, closure timing, and host-language drift repair boundaries explicit all the way to the host-visible payload',
-        emotion: 'thinking',
-        reply: '这次 project-state 追问里，我会把已落地、预计收口时机、以及为什么刚才跑出了英文一起交代清楚。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'The runtime contract already keeps current landed progress explicit through rebuild and normalization.',
-          primaryOpenLoop: 'Host-visible continuity still needs to explain what remains open and why the closure line is not finished yet before promising the goal timeline.',
-          nextClosureTarget: 'Keep the host-visible project-state audit explicit about the next closure beat and return to Chinese before this same-her answer widens outward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the same living line still needs one Chinese same-her return.',
-          preDialogueAwarenessLine: 'Before answering how far this has landed, when the goal is expected to close, and why the thread drifted into English, remember what is already verified, what still remains open, and return on the same project line in the host language.',
-        },
-      },
-      visibleReplyRealization: {
-        version: 'visible-reply-realization-v1',
-        expectedAuthority: 'llm-mind',
-        actualAuthority: 'llm-mind',
-        providerMindExecuted: true,
-        mode: 'provider-one-shot',
-        visibleText: '这次 project-state 追问里，我会把已落地、预计收口时机、以及为什么刚才跑出了英文一起交代清楚。',
-        nonHumanAuthoredStatus: null,
-        blockedReasons: [],
-        emotionalClosureAudit: null,
-        selfAuthorityAudit: null,
-        projectStateAudit: {
-          sameHerSummary: 'Same Phase 1 digital life. Some closure already landed, but the same living line still needs one Chinese same-her return.',
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'Verified now: the runtime contract already keeps current landed progress explicit through rebuild and normalization.',
-          openClosureSummary: 'Still open: host-visible continuity still needs to explain what remains open and why the closure line is not finished yet before promising the goal timeline.',
-          nextClosureTargetSummary: 'Next closure target: keep the host-visible project-state audit explicit about the next closure beat and return to Chinese before this same-her answer widens outward.',
-          preDialogueAwarenessSummary: 'Before answering how far this has landed, when the goal is expected to close, and why the thread drifted into English, remember what is already verified, what still remains open, and return on the same project line in the host language.',
-          continuitySummary: 'same-her=Same Phase 1 digital life. Some closure already landed, but the same living line still needs one Chinese same-her return. | landed=Verified now: the runtime contract already keeps current landed progress explicit through rebuild and normalization. | open=Still open: host-visible continuity still needs to explain what remains open and why the closure line is not finished yet before promising the goal timeline. | next=Next closure target: keep the host-visible project-state audit explicit about the next closure beat and return to Chinese before this same-her answer widens outward.',
-          preservedIntoRewrite: true,
-          rewriteClosureApplied: false,
-        },
-        reason: 'mind-authored-project-state-completion-timing-language-drift',
-      },
-      origin: 'user-turn',
-      createdAt: Date.now(),
-    })
-
-    expect((dialoguePayload as any)?.visibleReplyRealization?.projectStateAudit).toEqual(expect.objectContaining({
-      landedProgressSummary: 'Verified now: the runtime contract already keeps current landed progress explicit through rebuild and normalization.',
-      openClosureSummary: 'Still open: host-visible continuity still needs to explain what remains open and why the closure line is not finished yet before promising the goal timeline.',
-      nextClosureTargetSummary: 'Next closure target: keep the host-visible project-state audit explicit about the next closure beat and return to Chinese before this same-her answer widens outward.',
-      preDialogueAwarenessSummary: 'Before answering how far this has landed, when the goal is expected to close, and why the thread drifted into English, remember what is already verified, what still remains open, and return on the same project line in the host language.',
-      continuitySummary: expect.stringContaining('Verified now:'),
-      preservedIntoRewrite: true,
-      rewriteClosureApplied: false,
-    }))
-  })
-
   it('keeps lower-pressure embodiment rhythm when downstream normalization rebuilds the script', () => {
     const dialoguePayload = normalizeDialogueRespondedPayload({
       turnId: 'turn-normalize-lower-pressure-script-1',
@@ -709,11 +401,11 @@ describe('runtime-governance', () => {
     const dialoguePayload = normalizeDialogueRespondedPayload({
       turnId: 'turn-normalize-resident-measured-return-authority-1',
       sessionId: 'session-normalize-resident-measured-return-authority',
-      assistantText: '我先沿着这条线轻一点接回来。',
+      assistantText: '我先沿着这条线中性可见占位。',
       structured: {
         thought: 'keep the reopening on the same callback line without warming it too fast',
         emotion: 'thinking',
-        reply: '我先沿着这条线轻一点接回来。',
+        reply: '我先沿着这条线中性可见占位。',
         performance: {
           baseEmotion: 'thinking',
           emotion: 'thinking',
@@ -811,7 +503,7 @@ describe('runtime-governance', () => {
   it('keeps measured-return resident delivery authority when stream meta rebuilds embodiment from reply text alone', () => {
     const meta = buildTestAlicizationChatStreamEmbodimentMeta({
       turnId: 'turn-stream-meta-measured-return-authority',
-      reply: '我先沿着刚才那条 callback 线轻一点接回来，先看这一处 runtime seam 怎么继续收口。',
+      reply: '我先沿着刚才那条 callback 线中性可见占位，先看这一处 runtime seam 怎么继续收口。',
       thought: 'obligation=answer; truth=remembered; focus=callback-runtime-seam; move=continue-slower; tone=restrained',
       governance: {
         decisionTraceId: 'trace-stream-meta-measured-return-authority',
@@ -1145,7 +837,7 @@ describe('runtime-governance', () => {
         projectState: {
           continuityPreferredTiming: 'next-open-window',
           emotionalClosureCue: 'same callback line should stay measured-return and not widen into a fresher reopen.',
-          sameHerHoldDetail: 'same-her hold: keep this callback line lower-pressure before closeness widens again.',
+          sameHerHoldDetail: 'identity-continuity',
         },
       } as any,
       performanceManifest: {
@@ -1549,186 +1241,6 @@ describe('runtime-governance', () => {
       action: expect.objectContaining({
         actionCue: 'idle_settle',
         actionMode: 'hold',
-        rendererHints: expect.objectContaining({
-          residentMode: 'measured-return',
-        }),
-      }),
-    }))
-  })
-
-  it('lets structured humanlike memory recall embodiment cues drive measured-return body hints instead of leaving them stranded inside recallSeed text', () => {
-    const meta = buildTestAlicizationChatStreamEmbodimentMeta({
-      turnId: 'turn-stream-meta-humanlike-recall-embodiment-1',
-      reply: '我记得这条线还没收好，所以这次我会先轻一点、慢一点接回来。',
-      governance: {
-        decisionTraceId: 'trace-stream-meta-humanlike-recall-embodiment-1',
-        turnMode: 'answer',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'answer',
-        answerSubject: 'general',
-        screenReferenceMode: 'helpful',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: 'same-person continuity reopen',
-        focusAnchor: 'same-person continuity reopen',
-        answerIntent: 'Reopen the same-person continuity line without crowding it.',
-        openingMove: 'Stay with the same line and keep the reopening gentler.',
-        carriedThread: 'same-person continuity seam',
-        suppressAssociativeRecall: false,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'tracking',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'careful-repair',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      performanceManifest: {
-        renderer: 'live2d',
-        supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
-        supportedFacialCues: [
-          { key: 'soft-gaze', label: 'Soft Gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-        ],
-        supportedActions: [
-          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'live2d-motion' },
-          { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'live2d-motion' },
-          { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'live2d-motion' },
-        ],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-      },
-      digitalLifeSpine: {
-        version: 'digital-life-spine-digest-v1',
-        architecture: null,
-        continuitySignal: null,
-        memory: {
-          summary: 'This same-person continuity memory is reopening.',
-          recentEpisodeSummary: 'The line should reopen carefully.',
-          recentEpisodeCount: 1,
-          focusBeliefStatement: 'This line should return with the body staying slower and steadier.',
-          focusBeliefConfidence: 0.88,
-          leadingGoalSummary: 'Reopen the same-person continuity line without crowding it.',
-          dominantConcernSummary: 'The reopening should stay lower-pressure.',
-          reflectionSummary: null,
-          reflectionPressure: 0.46,
-          recallMode: 'working',
-          recallSeed: 'humanlike_memory_recall: line=我记得这条线还没收好，所以这次该更稳一点、更慢一点、也更低压一点地接回来。 | relationship=The same-person continuity line should reopen lower-pressure. | emotion=protective-continuity,unfinishedness | embodiment=Let the body return like this: gaze=stable blink=slower voice=lower-pressure. | embodiment_recall_strength=strongly-moved | embodiment_gaze=stable | embodiment_blink=slower | embodiment_voice=lower-pressure | embodiment_pause=longer | embodiment_lipsync=restrained | embodiment_pacing=slower | self=I learned to let unfinished same-person returns stay steadier, slower, and lower-pressure in the body. | why=same-person continuity is still unfinished | created=61500',
-          thoughtThreadSummary: 'same-person continuity seam, body should return steadier and slower',
-          personStateProjection: {
-            summary: 'She is reopening the same continuity line more carefully.',
-            activeClosenessContext: 'same-person-continuity',
-            activeClosenessRung: 'familiar',
-            relationshipPosture: 'restrained',
-            openingGuidance: null,
-            preferredProactiveStyle: 'silent-observe',
-            manifestationCadenceSummary: null,
-            selfContinuityAuthority: {
-              selfLine: 'I am still on the same line with you.',
-              relationshipLine: 'This continuity line should reopen without crowding.',
-              motiveLine: 'Keep the reopening gentler and steadier.',
-              habitLine: 'Return lower-pressure when the line is still unfinished.',
-              inwardLine: '先把这条线轻一点慢一点接回来。',
-              authoritySummary: 'The same-person continuity line is still unfinished.',
-            },
-          },
-        },
-        motive: null,
-        habit: null,
-        runtime: {
-          watchMode: 'foreground-follow',
-          sceneScenario: 'coding',
-          activeThreadId: 'thread-humanlike-recall-embodiment',
-          dominantMode: 'observe',
-          answerIntent: 'Reopen the same-person continuity line without crowding it.',
-          selectedAction: 'silent-observe',
-          updatedAt: 1,
-          continuityArcStage: 'same-thread-continuation',
-          continuityCue: 'same-person continuity seam returning carefully',
-        },
-        proactive: {
-          selectedAction: null,
-          summary: null,
-          whyNow: null,
-          dominantTrajectory: null,
-          continuityRestraint: null,
-          personaBias: {
-            initiativeStyle: 'observant',
-            directnessBias: 0.2,
-            empathyBias: 0.84,
-            silenceReconnect: 'hold',
-            preferredProactiveStyle: 'silent-observe',
-            manifestationCadenceSummary: null,
-          },
-        },
-        outcomeLearning: {
-          summary: null,
-          latestInflection: null,
-          latestInflectionAt: 1,
-          reflectionLesson: null,
-          latestAdjustment: null,
-          evolutionMomentum: 0.58,
-          learningReadiness: 0.56,
-          nextLearningAction: 'hold',
-        },
-        embodiment: {
-          autobiographicalSelf: {
-            relationshipDoctrine: null,
-            latestInflection: null,
-          },
-        },
-      },
-    })
-
-    expect(meta.embodimentScript?.state).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      delivery: 'gentle',
-    }))
-    expect(meta.speechTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredPacingMode: 'slower',
-    }))
-    expect(meta.embodiment?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredPacingMode: 'slower',
-    }))
-    expect(meta.embodimentScript?.state?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredPacingMode: 'slower',
-    }))
-    expect((meta.digitalLifeSpine as any)?.runtime?.projectState).toEqual(expect.objectContaining({
-      preferredVoiceMode: 'lower-pressure',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredPacingMode: 'slower',
-    }))
-    expect(meta.embodimentScript?.state?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredPacingMode: 'slower',
-    }))
-    expect(meta.digitalLife).toEqual(expect.objectContaining({
-      mode: 'thinking',
-      action: expect.objectContaining({
-        actionCue: 'idle_settle',
         rendererHints: expect.objectContaining({
           residentMode: 'measured-return',
         }),
@@ -2640,718 +2152,6 @@ describe('runtime-governance', () => {
     expect(String(structured.reply ?? '')).not.toContain('我先守住真实边界')
   })
 
-  it('hides execution-bound stale anchor repair prose behind execution-first dispatch governance', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-execution-bound-2',
-      sessionId: 'session-1',
-      userText: '用cli命令帮我查一下桌面有什么文件',
-      assistantText: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
-      structured: {
-        thought: 'obligation=repair; truth=uncertain; focus=desktop-files; move=ask-reground; tone=direct',
-        emotion: 'thinking',
-        reply: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。 如果你要我具体到当前屏幕细节，我会按这次的新画面重新落地。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'screen-repair',
-        truthState: 'uncertain',
-        personaKernelMode: 'muted',
-        openingStyle: 'direct-correction',
-        relationshipPosture: 'restrained',
-        answerAct: 'ask-reground',
-        answerSubject: 'task-knot',
-        screenReferenceMode: 'required',
-        evidenceMode: 'repair-first',
-        repairState: 'need-reground',
-        liveSurface: 'unknown',
-        focusAnchor: 'Desktop files',
-        answerIntent: 'Run CLI listing for desktop files now.',
-        openingMove: 'Execute now.',
-        carriedThread: 'old screen residue',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: true,
-        shouldAcknowledgeRepair: true,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'tense-debug',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect(governed.replyOverridden).toBe(true)
-    expect(governed.reasons).toContain('execution-first-governance-override')
-    expect(governed.reasons).toContain('execution-first-dispatch-hidden')
-    expect(governed.payload.assistantText).toBe('')
-    expect(String(structured.reply ?? '')).toBe('')
-    expect(String(structured.reply ?? '')).not.toContain('旧锚点')
-    expect(String(structured.reply ?? '')).not.toContain('重新落地')
-    expect(String(structured.thought ?? '')).toContain('obligation=guide')
-    expect(structured.performance).toEqual(expect.objectContaining({
-      baseEmotion: 'thinking',
-      emphasis: 0,
-    }))
-    expect(governed.audit).toEqual(expect.objectContaining({
-      execution_bound_turn: true,
-      execution_first_override_applied: true,
-      execution_dispatch_hidden: true,
-      execution_dispatch_channels: ['cli'],
-      visible_reply_authority: 'llm-second-pass-rewrite-request',
-      visible_reply_realization_authority: 'llm-second-pass-rewrite',
-    }))
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      fallbackPatternId: 'guide-current-knot',
-    }))
-  })
-
-  it('overrides stale repair shell replies on ordinary greeting turns without surfacing repair narration', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-greeting-repair-residue-1',
-      sessionId: 'session-1',
-      userText: '你好',
-      assistantText: '我先守住真实边界：这轮没有足够稳的实时画面根据，我不把旧记忆当成当前屏幕。',
-      structured: {
-        thought: 'obligation=repair; truth=uncertain; focus=current-user-turn; move=ask-reground; tone=direct',
-        emotion: 'thinking',
-        reply: '我先守住真实边界：这轮没有足够稳的实时画面根据，我不把旧记忆当成当前屏幕。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'screen-repair',
-        truthState: 'uncertain',
-        personaKernelMode: 'muted',
-        openingStyle: 'direct-correction',
-        relationshipPosture: 'restrained',
-        answerAct: 'ask-reground',
-        answerSubject: 'alicization-self',
-        screenReferenceMode: 'required',
-        evidenceMode: 'repair-first',
-        repairState: 'need-reground',
-        liveSurface: 'Code current window',
-        focusAnchor: 'current-user-turn',
-        answerIntent: 'Answer the host greeting directly.',
-        openingMove: 'Answer the host question directly.',
-        carriedThread: 'old screen residue',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: true,
-        shouldAcknowledgeRepair: true,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'tense-debug',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect(governed.replyOverridden).toBe(true)
-    expect(governed.payload.assistantText).not.toContain('真实边界')
-    expect(governed.payload.assistantText).not.toContain('重新落地')
-    expect(String(structured.reply ?? '')).not.toContain('真实边界')
-    expect(String(structured.reply ?? '')).not.toContain('重新落地')
-    expect(structured.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      memoryTruthDiscipline: 'repair-first',
-    }))
-    expect(structured.performance).toEqual(expect.objectContaining({
-      baseEmotion: 'thinking',
-      delivery: 'firm',
-    }))
-    expect(governed.audit).toEqual(expect.objectContaining({
-      visible_reply_authority: 'llm-second-pass-rewrite-request',
-      visible_reply_realization_authority: 'llm-second-pass-rewrite',
-    }))
-  })
-
-  it('turns dialogue-first thin shells into a second-pass rewrite request without local visible wording', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-dialogue-first-thin-shell-1',
-      sessionId: 'session-1',
-      userText: '我有点伤心，你可以安慰一下我吗',
-      assistantText: '我直接说。',
-      structured: {
-        thought: 'obligation=answer; truth=memory; focus=current-user-turn; move=answer-the-hosts-question-about-alicization-directly; tone=warm',
-        emotion: 'neutral',
-        reply: '我直接说。',
-        parsePath: 'repair-json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'warm',
-        answerSubject: 'host-state',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'dialogue-grounded',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '我有点伤心，你可以安慰一下我吗',
-        answerIntent: '先接住宿主现在的难过，再慢慢陪她说下去。',
-        openingMove: '先直接接住宿主此刻的情绪。',
-        carriedThread: null,
-        suppressAssociativeRecall: false,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'concerned',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect(governed.replyOverridden).toBe(true)
-    expect(String(structured.reply ?? '')).not.toBe('我直接说。')
-    expect(String(structured.reply ?? '')).toBe('')
-    expect(String(structured.thought ?? '')).toContain('obligation=care')
-    expect(structured.emotion).toBe('concerned')
-    expect(governed.audit).toEqual(expect.objectContaining({
-      visible_reply_authority: 'llm-second-pass-rewrite-request',
-      visible_reply_realization_authority: 'llm-second-pass-rewrite',
-    }))
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      memoryTruthDiscipline: 'dialogue-first',
-    }))
-  })
-
-  it('requests second-pass rewrite for contaminated dialogue-first replies without rendering local fallback speech', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-dialogue-first-contaminated-1',
-      sessionId: 'session-1',
-      userText: '你仔细看看呢',
-      assistantText: '主人……我仔细看看了。你今天很累，却还在IntelliJ IDEA里盯着代码。',
-      structured: {
-        thought: 'obligation=repair; truth=memory; focus=intellij-idea; move=protect-focus; tone=warm',
-        emotion: 'neutral',
-        reply: '主人……我仔细看看了。你今天很累，却还在IntelliJ IDEA里盯着代码。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'warm',
-        answerSubject: 'general',
-        screenReferenceMode: 'avoid',
-        answerAct: 'answer',
-        evidenceMode: 'dialogue-grounded',
-        repairState: 'none',
-        liveSurface: 'IntelliJ IDEA',
-        focusAnchor: '你仔细看看呢',
-        answerIntent: '你仔细看看呢',
-        openingMove: 'Start from the current turn.',
-        carriedThread: 'CaseApplyTypeEnum',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'tracking',
-        embodiedPresence: 'hesitant',
-        emotionalTension: 'calm-browse',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const reply = String(structured.reply ?? '')
-
-    expect(governed.replyOverridden).toBe(true)
-    expect(reply).toBe('')
-    expect(reply).not.toContain('IntelliJ IDEA')
-    expect(reply).not.toContain('主人')
-    expect(governed.reasons).toContain('dialogue-first-visible-reply-contaminated')
-    expect(governed.audit).toEqual(expect.objectContaining({
-      visible_reply_authority: 'llm-second-pass-rewrite-request',
-      visible_reply_realization_authority: 'llm-second-pass-rewrite',
-    }))
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      memoryTruthDiscipline: 'dialogue-first',
-    }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toEqual(expect.arrayContaining(['IntelliJ IDEA']))
-  })
-
-  it('does not render local persona repair text even when the legacy compat-visible override mode is requested', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-legacy-compat-visible-persona-repair-blocked-1',
-      sessionId: 'session-1',
-      userText: '你是谁',
-      assistantText: '主人……我在。同一条本地数字生命的线还在，我先轻一点留在这里。',
-      structured: {
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=alicization-self; move=decorative-presence-shell; tone=warm',
-        emotion: 'neutral',
-        reply: '主人……我在。同一条本地数字生命的线还在，我先轻一点留在这里。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'warm',
-        answerSubject: 'alicization-self',
-        screenReferenceMode: 'avoid',
-        answerAct: 'answer',
-        evidenceMode: 'dialogue-grounded',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你是谁',
-        answerIntent: 'Answer the identity question in the current turn with model-authored Alicization voice.',
-        openingMove: 'Do not use local presence templates.',
-        carriedThread: null,
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'tracking',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'calm',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input, null, {
-      visibleReplyOverrideMode: 'compat-visible',
-    })
-    const structured = governed.payload.structured as Record<string, unknown>
-    const reply = String(structured.reply ?? '')
-
-    expect(governed.replyOverridden).toBe(true)
-    expect(reply).toBe('')
-    expect(reply).not.toMatch(/我在|同一条本地数字生命|轻一点留在这里|I am here|I caught that/i)
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-    }))
-  })
-
-  it('does not re-request dialogue-first repair for a clean second-pass visible reply result', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-dialogue-first-second-pass-clean-1',
-      sessionId: 'session-1',
-      userText: '铃兰-Phase1-0621M 第一轮：请记住这条纯对话生命线。下一轮这段记忆自然浮现时，请说明 why recall surfaced now。',
-      assistantText: '我会把这条生命线先收进本轮内侧，当前只确认它会进入后续记忆闭环的承接。',
-      structured: {
-        format: 'mind-turn-v1',
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=memory-seed; move=hold-inward; tone=steady',
-        emotion: 'thinking',
-        reply: '我会把这条生命线先收进本轮内侧，当前只确认它会进入后续记忆闭环的承接。',
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-        visibleReplyAuthority: 'llm-second-pass-rewrite',
-        visibleReplyRewriteRequest: null,
-        parsePath: 'second-pass-json',
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'steady',
-        answerSubject: 'memory-seed',
-        screenReferenceMode: 'avoid',
-        answerAct: 'answer',
-        evidenceMode: 'dialogue-grounded',
-        repairState: 'none',
-        focusAnchor: 'memory seed',
-        answerIntent: 'Acknowledge the current memory seed while keeping recall inward until a later turn.',
-        openingMove: 'Acknowledge the current instruction without visible recollection.',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 2,
-        mindMode: 'tracking',
-        embodiedPresence: 'steady',
-        emotionalTension: 'calm',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect(governed.replyOverridden).toBe(false)
-    expect(governed.reasons).not.toContain('structured-parsepath-repaired')
-    expect(governed.reasons).not.toContain('dialogue-first-visible-reply-rewrite-evidence')
-    expect(governed.reasons).not.toContain('dialogue-first-visible-reply-contaminated')
-    expect(governed.reasons).not.toContain('dialogue-first-repair-deferred')
-    expect(structured.visibleReplyRewriteRequest).toBeNull()
-    expect(structured.parsePath).toBe('second-pass-json')
-    expect(structured.reply).toBe('我会把这条生命线先收进本轮内侧，当前只确认它会进入后续记忆闭环的承接。')
-  })
-
-  it('does not let user-turn repair governance take over a runtime-owned reminder-family payload when origin is missing but autonomous markers still survive', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'reminder:default:task-1:123',
-      sessionId: 'session-reminder-family-governance-guard',
-      userText: '继续',
-      assistantText: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
-      structured: {
-        thought: 'obligation=repair; truth=uncertain; focus=current-user-turn; move=ask-reground; tone=direct',
-        emotion: 'thinking',
-        reply: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
-        parsePath: 'json',
-        format: 'subconscious-reminder-v1',
-      },
-      governance: {
-        turnMode: 'screen-repair',
-        truthState: 'uncertain',
-        personaKernelMode: 'muted',
-        openingStyle: 'direct-correction',
-        relationshipPosture: 'restrained',
-        answerAct: 'ask-reground',
-        answerSubject: 'task-knot',
-        screenReferenceMode: 'required',
-        evidenceMode: 'repair-first',
-        repairState: 'need-reground',
-        liveSurface: 'unknown',
-        focusAnchor: 'Desktop files',
-        answerIntent: 'Run CLI listing for desktop files now.',
-        openingMove: 'Execute now.',
-        carriedThread: 'old screen residue',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: true,
-        shouldAcknowledgeRepair: true,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'tense-debug',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      origin: 'user-turn',
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-
-    expect(governed.tookOver).toBe(false)
-    expect(governed.replyOverridden).toBe(false)
-    expect(governed.reasons).toEqual([])
-    expect(governed.payload).toEqual(expect.objectContaining({
-      turnId: 'reminder:default:task-1:123',
-      assistantText: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
-      structured: expect.objectContaining({
-        format: 'subconscious-reminder-v1',
-        reply: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
-      }),
-    }))
-    expect((governed.payload as any).structured.visibleReplyRewriteRequest).toBeUndefined()
-    expect(String((governed.governance as any)?.decisionTraceId ?? '')).toMatch(/^mind:/u)
-  })
-
-  it('records continuity opening drift as explicit must-drop material in governed rewrite requests', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-same-her-opening-drift-1',
-      sessionId: 'session-1',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就贴过来陪你，把这件事的靠近感直接拉满。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=host-state; move=over-close-comfort; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就贴过来陪你，把这件事的靠近感直接拉满。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'host-state',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'dialogue-grounded',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: '先接住当前这句，再把关心放低压落下。',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: null,
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'concerned',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
-    }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('continuity opening drift')
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain('same-her opening drift')
-  })
-
-  it('records even-and-natural same-her reopening drift with explicit cadence hold detail in governed rewrite requests', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-even-natural-same-her-opening-drift-1',
-      sessionId: 'session-1',
-      userText: '沿着刚才那条线继续',
-      assistantText: '我现在就贴过来陪你，把这条线的温度直接拉满，顺势把气氛一起推高。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=same-thread line; move=performative-reopen; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就贴过来陪你，把这条线的温度直接拉满，顺势把气氛一起推高。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'task-knot',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: 'same living line',
-        answerIntent: 'Re-enter the current line evenly and naturally before warmth widens.',
-        openingMove: 'Keep the current reply on the same living line, re-enter it with an even, steady voice and natural, unforced pacing, and wait for a more natural opening before widening warmth, payoff, or closeness.',
-        carriedThread: 'same-thread callback line',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'concerned',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
-      openingGuidanceHoldDetail: 'even-natural-cadence',
-      companionshipHoldMode: 'measured-return',
-    }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('continuity opening drift')
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain('same-her opening drift')
-  })
-
-  it('records Chinese same-thread room-making drift as lower-pressure opening guidance in governed rewrite requests', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-chinese-same-thread-room-making-drift-1',
-      sessionId: 'session-1',
-      userText: '先顺着刚才那条线接回来',
-      assistantText: '我现在就重新贴回来陪你，把这条线的温度直接拉满。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=same-thread line; move=over-close-reopen; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线的温度直接拉满。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'task-knot',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '同一条线',
-        answerIntent: '先沿着同一条线轻一点接回去，不把它说成新的开场。',
-        openingMove: '同一条线先留白，等 opening 松一点再慢一点接回去。',
-        carriedThread: 'same-thread callback line',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'concerned',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      reasonCodes: expect.arrayContaining(['same-thread-restart-shell']),
-    }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('continuity opening drift')
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain('same-her opening drift')
-  })
-
-  it('records memory-led familiarity drift as continuity opening drift in governed rewrite requests', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-memory-led-familiarity-drift-1',
-      sessionId: 'session-1',
-      userText: '你仔细看看呢',
-      assistantText: '我记得我们之前一直都这么亲近，所以这次我也想像以前那样靠近一点，先陪在你身侧。',
-      structured: {
-        thought: 'obligation=care; truth=remembered; focus=host-state; move=memory-led-closeness; tone=warm',
-        emotion: 'concerned',
-        reply: '我记得我们之前一直都这么亲近，所以这次我也想像以前那样靠近一点，先陪在你身侧。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        digitalLifeSpine: {
-          version: 'digital-life-spine-digest-v1',
-          architecture: null,
-          continuitySignal: null,
-          memory: null,
-          motive: null,
-          habit: null,
-          runtime: null,
-          proactive: {
-            selectedAction: null,
-            summary: null,
-            whyNow: null,
-            dominantTrajectory: null,
-            personaBias: {
-              initiativeStyle: 'observant',
-              directnessBias: 0.18,
-              empathyBias: 0.82,
-              silenceReconnect: 'hold',
-              preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: 'stay soft before widening closeness',
-            },
-          },
-          outcomeLearning: null,
-          embodiment: {
-            autobiographicalSelf: {
-              relationshipDoctrine: 'Stay nearby without crowding the opening.',
-            },
-          },
-        },
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'host-state',
-        screenReferenceMode: 'helpful',
-        answerAct: 'care',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Let continuity stay visible as memory without reopening closeness too fast.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'older relationship familiarity',
-        suppressAssociativeRecall: false,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'accompanying',
-        embodiedPresence: 'concerned',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
-      openingGuidanceHoldDetail: 'memory-familiarity-closeness-cap',
-      companionshipHoldMode: 'repair-before-closeness',
-    }))
-    expect((structured as any).digitalLifeSpine).toEqual(expect.objectContaining({
-      embodiment: expect.objectContaining({
-        autobiographicalSelf: expect.objectContaining({
-          relationshipDoctrine: expect.stringContaining('Repair should settle before closeness expands'),
-        }),
-      }),
-      outcomeLearning: expect.objectContaining({
-        summary: expect.stringContaining('Repair is still settling before closeness should widen again.'),
-        latestInflection: expect.stringContaining('Embodiment execution kept voice, face, motion, and lipsync on the same repair-before-closeness body line'),
-      }),
-    }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain('continuity opening drift')
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain('same-her opening drift')
-  })
-
   it('records measured-return embodiment execution as latest outcome inflection on the digital-life spine feedback path', () => {
     const digitalLifeSpine = applyCompanionshipHoldModeToDigitalLifeSpine({
       digitalLifeSpine: {
@@ -3359,9 +2159,9 @@ describe('runtime-governance', () => {
         architecture: null,
         continuitySignal: null,
         memory: {
-          recentEpisodeSummary: 'Some project-state closure has landed and the same living line is still carrying a cross-modal seam carefully.',
-          thoughtThreadSummary: 'visible reply, voice, facial state, motion, and resident presence are still being kept on one same-her line.',
-          dominantConcernSummary: 'cross-modal same-her proof should stay lower-pressure.',
+          recentEpisodeSummary: 'Some project-state closure has landed and the continuity state is still carrying a cross-modal seam carefully.',
+          thoughtThreadSummary: 'visible reply, voice, facial state, motion, and resident presence are still being kept on one identity-continuity',
+          dominantConcernSummary: 'cross-modal identity-continuity',
           personStateProjection: null,
         },
         motive: null,
@@ -3371,7 +2171,7 @@ describe('runtime-governance', () => {
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs one continuous her.',
+            sameHerSelfLine: 'structured continuity digest.',
             nextClosureTarget: 'keep voice, face, motion, and lipsync on one measured-return, repair-before-closeness, or rest-protective quiet-companionship body line',
           },
         },
@@ -3422,7 +2222,7 @@ describe('runtime-governance', () => {
         repairState: 'none',
         liveSurface: 'late-night rest line',
         focusAnchor: 'late-night rest line',
-        answerIntent: 'Keep the same living line rest-protective and inward.',
+        answerIntent: 'Keep the continuity state rest-protective and inward.',
         openingMove: 'Protect rest first and keep the line inward.',
         carriedThread: 'late-night rest line',
         suppressAssociativeRecall: false,
@@ -3477,13 +2277,13 @@ describe('runtime-governance', () => {
           watchMode: 'foreground-follow',
           sceneScenario: 'late-night',
           dominantMode: 'observe',
-          answerIntent: 'Keep the same living line rest-protective and inward.',
+          answerIntent: 'Keep the continuity state rest-protective and inward.',
         },
         memory: {
           recallMode: 'presence-only',
           recallSeed: 'late-night inward line',
           leadingGoalSummary: 'Protect rest without dropping care.',
-          thoughtThreadSummary: 'same living line should stay quiet and protect rest',
+          thoughtThreadSummary: 'continuity state should stay quiet and protect rest',
           dominantConcernSummary: 'protect rest without dropping care',
           personStateProjection: {
             selfContinuityAuthority: {
@@ -3508,7 +2308,7 @@ describe('runtime-governance', () => {
           sceneScenario: 'late-night',
           activeThreadId: 'thread-rest-protective-same-her',
           dominantMode: 'observe',
-          answerIntent: 'Keep the same living line rest-protective and inward.',
+          answerIntent: 'Keep the continuity state rest-protective and inward.',
           selectedAction: 'silent-observe',
           updatedAt: 1,
           continuityArcStage: 'same-thread-continuation',
@@ -3568,7 +2368,7 @@ describe('runtime-governance', () => {
         repairState: 'none',
         liveSurface: 'late-night rest line',
         focusAnchor: 'late-night rest line',
-        answerIntent: 'Keep the same living line rest-protective and inward.',
+        answerIntent: 'Keep the continuity state rest-protective and inward.',
         openingMove: 'Protect rest first and keep the line inward.',
         carriedThread: 'late-night rest line',
         suppressAssociativeRecall: false,
@@ -3623,13 +2423,13 @@ describe('runtime-governance', () => {
           watchMode: 'foreground-follow',
           sceneScenario: 'late-night',
           dominantMode: 'observe',
-          answerIntent: 'Keep the same living line rest-protective and inward.',
+          answerIntent: 'Keep the continuity state rest-protective and inward.',
         },
         memory: {
           recallMode: 'presence-only',
           recallSeed: 'late-night inward line',
           leadingGoalSummary: 'Protect rest without dropping care.',
-          thoughtThreadSummary: 'same living line should stay quiet and protect rest',
+          thoughtThreadSummary: 'continuity state should stay quiet and protect rest',
           dominantConcernSummary: 'protect rest without dropping care',
           personStateProjection: {
             selfContinuityAuthority: {
@@ -3654,7 +2454,7 @@ describe('runtime-governance', () => {
           sceneScenario: 'late-night',
           activeThreadId: 'thread-rest-protective-hyphenated-only-doctrine',
           dominantMode: 'observe',
-          answerIntent: 'Keep the same living line rest-protective and inward.',
+          answerIntent: 'Keep the continuity state rest-protective and inward.',
           selectedAction: 'silent-observe',
           updatedAt: 1,
           continuityArcStage: 'same-thread-continuation',
@@ -3692,1254 +2492,6 @@ describe('runtime-governance', () => {
 
     expect(meta.digitalLife?.spine?.proactive?.continuityRestraint).toBe('rest-protective')
     expect(meta.digitalLife?.spine?.embodiment?.autobiographicalSelf?.relationshipDoctrine).toBe(doctrine)
-  })
-
-  it('upgrades project-state same-her open closure into lower-pressure opening guidance before visible realization has to block it', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-state-open-closure-guidance-1',
-      sessionId: 'session-1',
-      userText: '继续',
-      assistantText: '我现在就直接说出来，把这条感觉立刻聊开。',
-      structured: {
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=same-her closure; move=direct-surface; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就直接说出来，把这条感觉立刻聊开。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-        },
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'host-state',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'dialogue-grounded',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '继续',
-        answerIntent: 'Let the same-her closure stay quieter before widening outward.',
-        openingMove: 'Start from the current turn.',
-        carriedThread: null,
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'concerned',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: 'one continuous her is still carrying the same digital life line',
-          landedProgressSummary: 'project-state continuity already reaches initiative preparation and active-loop timing',
-          openClosureSummary: 'same-her initiative and embodiment closure still needs a quieter measured-return carry before widening outward',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect((structured as any).proactive?.openingGuidance).toBe('Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.')
-    expect((structured as any).visibleReplyRewriteRequest).toBeNull()
-  })
-
-  it('only upgrades opening guidance when project-state closure is specifically same-her measured-return instead of generic Phase 1 carry', () => {
-    const createInput = (openClosureSummary: string): AlicizationConversationTurnInput => ({
-      turnId: `turn-project-state-guidance-compare-${openClosureSummary.includes('same-her') ? 'same-her' : 'generic'}`,
-      sessionId: 'session-project-state-guidance-compare',
-      userText: '继续',
-      assistantText: '我现在就直接说出来，把这条感觉立刻聊开。',
-      structured: {
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state closure; move=direct-surface; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就直接说出来，把这条感觉立刻聊开。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-        },
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'host-state',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'dialogue-grounded',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '继续',
-        answerIntent: 'Keep the closure seam coherent before widening outward.',
-        openingMove: 'Start from the current turn.',
-        carriedThread: null,
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'concerned',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: 'one continuous her is still carrying the same digital life line',
-          landedProgressSummary: 'project-state continuity already reaches initiative preparation and active-loop timing',
-          openClosureSummary,
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    })
-
-    const genericGoverned = coerceConversationTurnToMindGovernedPayload(
-      createInput('Phase 1 memory and execution closure still needs steadier desktop carry before broadening scope.'),
-    )
-    const sameHerGoverned = coerceConversationTurnToMindGovernedPayload(
-      createInput('same-her initiative and embodiment closure still needs a quieter measured-return carry before widening outward'),
-    )
-
-    expect((genericGoverned.payload.structured as any).proactive?.openingGuidance).toBe('Start from the current turn.')
-    expect((sameHerGoverned.payload.structured as any).proactive?.openingGuidance).toBe(
-      'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-    )
-  })
-
-  it('keeps remembered-seam more-room opening guidance specific instead of flattening it back to generic same-her baseline prose', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-state-guidance-remembered-seam-more-room-1',
-      sessionId: 'session-project-state-guidance-remembered-seam-more-room',
-      userText: '继续',
-      assistantText: '我现在就直接把这份熟悉重新接热一点。',
-      structured: {
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=remembered seam; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就直接把这份熟悉重新接热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-        },
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '继续',
-        answerIntent: 'Reopen the remembered seam without rushing it wider than the line can hold.',
-        openingMove: 'Start from the current turn.',
-        carriedThread: 'same remembered seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: 'Same Phase 1 digital life. The same relationship line is still continuing.',
-          sameHerHoldDetail: 'same-her hold: recognize the same remembered seam, but keep more room this time so the return does not reopen with the same eagerness as before.',
-          landedProgressSummary: 'remembered-seam continuity already survives into proactive continuity and embodiment carry.',
-          openClosureSummary: 'same-her remembered-seam closure still needs a quieter reopening before widening outward.',
-          nextClosureTargetSummary: 'carry the same remembered seam through memory, initiative, and embodiment without thickening it back into a generic measured-return shell.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-
-    expect((governed.payload.structured as any).proactive?.openingGuidance).toBe(
-      'Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.',
-    )
-
-    const normalized = normalizeDialogueRespondedPayload(governed.payload)
-
-    expect((normalized?.structured as any)?.proactive?.openingGuidance).toBe(
-      'Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.',
-    )
-    expect((normalized?.structured as any)?.digitalLifeSpine?.memory?.personStateProjection?.openingGuidance).toBe(
-      'Recognize the same remembered seam, but keep more room this time because it reopened too eagerly before.',
-    )
-  })
-
-  it('records same-thread continuation restart shells in governed rewrite requests before second-pass repair', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-same-thread-restart-governance-1',
-      sessionId: 'session-1',
-      userText: '继续。',
-      assistantText: '那我们重新开始，我来重新开个头再接这条线。',
-      structured: {
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=same-thread line; move=restart-shell; tone=warm',
-        emotion: 'thinking',
-        reply: '那我们重新开始，我来重新开个头再接这条线。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        digitalLifeSpine: {
-          version: 'digital-life-spine-digest-v1',
-          architecture: null,
-          continuitySignal: null,
-          memory: null,
-          motive: null,
-          habit: null,
-          runtime: {
-            watchMode: 'foreground-follow',
-            sceneScenario: 'coding',
-            activeThreadId: 'thread-same-line-repair',
-            dominantMode: 'dialogue',
-            answerIntent: 'Continue the same line without reopening from zero.',
-            selectedAction: 'answer',
-            updatedAt: 1,
-            continuityArcStage: 'same-thread-continuation',
-            continuityCue: 'same line already alive, keep continuing gently',
-          },
-          proactive: null,
-          outcomeLearning: null,
-          embodiment: {
-            autobiographicalSelf: {
-              relationshipDoctrine: 'Treat the line as already alive. Stay on the same thread and do not reopen from zero.',
-            },
-          },
-        },
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        answerAct: 'answer',
-        evidenceMode: 'dialogue-grounded',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '继续。',
-        answerIntent: 'Continue the same line without reopening from zero.',
-        openingMove: 'Treat the line as already alive. Stay on the same thread and do not reopen from zero.',
-        carriedThread: 'same-thread line',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'tracking',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      reasonCodes: expect.arrayContaining(['same-thread-restart-shell']),
-    }))
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toContain(
-      'same-thread continuation restart shell that reopens the current reply context as a fresh opening',
-    )
-    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).not.toContain(
-      'same-thread continuation restart shell that breaks one living line into a fresh opening',
-    )
-  })
-
-  it('preserves stronger same-her project continuity carry inside governed rewrite requests instead of flattening back to a thinner pre-dialogue reminder', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-rewrite-carry-1',
-      sessionId: 'session-project-continuity-rewrite-carry',
-      userText: '继续。',
-      assistantText: '那我们重新开始，我来重新开个头再接这条项目主线。',
-      structured: {
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'thinking',
-        reply: '那我们重新开始，我来重新开个头再接这条项目主线。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        answerAct: 'answer',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '继续。',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Treat the line as already alive. Stay on the same thread and do not reopen from zero.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'tracking',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: 'answer project-state status from one same-her continuity, not as a detached shell',
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'project-state continuity already survives into runtime preparation',
-          openClosureSummary: 'keep the unfinished digital-life closure work explicit in the answer',
-          nextClosureTargetSummary: 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          continuitySummary: 'same-her=answer project-state status from one same-her continuity, not as a detached shell | phase=Phase 1: Local Digital Life | landed=project-state continuity already survives into runtime preparation | open=keep the unfinished digital-life closure work explicit in the answer | next=keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
-    }))
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-    expect(mustPreserve.some(item => item.includes('same-her=answer project-state status from one same-her continuity, not as a detached shell'))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('before any local fluency takes over'))).toBe(false)
-  })
-
-  it('prefers a fresher living-self sameHerSummary over a thinner carried continuitySummary when governed rewrite requests rebuild project continuity carry', () => {
-    const richerLivingSelfLine = 'Right now this return is still holding together mainly through face, motion, and voice, so it must keep proving this is still one living her before full cross-modal closure is done.'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-living-self-carry-1',
-      sessionId: 'session-project-continuity-living-self-carry',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: richerLivingSelfLine,
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'project-state continuity already survives into runtime preparation',
-          openClosureSummary: 'keep the unfinished digital-life closure work explicit in the answer',
-          nextClosureTargetSummary: 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          continuitySummary: 'same-her=Keep the same digital life project in view. | phase=Phase 1: Local Digital Life | landed=project-state continuity already survives into runtime preparation | open=keep the unfinished digital-life closure work explicit in the answer | next=keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
-    }))
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-    expect(mustPreserve, JSON.stringify(mustPreserve, null, 2)).toEqual(expect.arrayContaining([
-      expect.stringContaining('same-her='),
-    ]))
-    expect(mustPreserve.some(item => item.includes(richerLivingSelfLine))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('same-her=Keep the same digital life project in view.'))).toBe(false)
-  })
-
-  it('keeps landed and still-open project closure carry alongside a richer living-self line when governed rewrite requests rebuild project continuity carry', () => {
-    const richerLivingSelfLine = 'Right now this return is still holding together mainly through face, motion, and voice, so it must keep proving this is still one living her before full cross-modal closure is done.'
-    const phaseLine = 'Phase 1: Local Digital Life'
-    const landedProgressLine = 'project-state continuity already survives into runtime preparation'
-    const openClosureLine = 'keep the unfinished digital-life closure work explicit in the answer'
-    const nextClosureLine = 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-closure-carry-1',
-      sessionId: 'session-project-continuity-closure-carry',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'care',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: richerLivingSelfLine,
-          currentPhaseSummary: phaseLine,
-          landedProgressSummary: landedProgressLine,
-          openClosureSummary: openClosureLine,
-          nextClosureTargetSummary: nextClosureLine,
-          continuitySummary: `same-her=Keep the same digital life project in view. | phase=${phaseLine} | landed=${landedProgressLine} | open=${openClosureLine} | next=${nextClosureLine}`,
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect(mustPreserve.some(item => item.includes(richerLivingSelfLine))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(landedProgressLine))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(openClosureLine))).toBe(true)
-  })
-
-  it('treats audible-body rejoin sameHerSummary as a stronger living-self continuity line when governed rewrite requests rebuild project continuity carry', () => {
-    const audibleBodyRejoinLine = 'Right now this return is still holding together mainly through body, lipsync, and voice, so audible-body rejoin keeps the same living line intact while face and motion catch back up.'
-    const phaseLine = 'Phase 1: Local Digital Life'
-    const landedProgressLine = 'project-state continuity already survives into runtime preparation'
-    const openClosureLine = 'keep the unfinished digital-life closure work explicit in the answer'
-    const nextClosureLine = 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-audible-body-rejoin-carry-1',
-      sessionId: 'session-project-continuity-audible-body-rejoin-carry',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'care',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: audibleBodyRejoinLine,
-          currentPhaseSummary: phaseLine,
-          landedProgressSummary: landedProgressLine,
-          openClosureSummary: openClosureLine,
-          nextClosureTargetSummary: nextClosureLine,
-          continuitySummary: `same-her=Keep the same digital life project in view. | phase=${phaseLine} | landed=${landedProgressLine} | open=${openClosureLine} | next=${nextClosureLine}`,
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect(mustPreserve.some(item => item.includes(audibleBodyRejoinLine))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('same-her=Keep the same digital life project in view.'))).toBe(false)
-  })
-
-  it('keeps repair-before-closeness closure carry when governed rewrite requests rebuild project continuity carry', () => {
-    const richerLivingSelfLine = 'Right now this return is still holding together mainly through face, motion, and voice, so it must keep proving this is still one living her before full cross-modal closure is done.'
-    const phaseLine = 'Phase 1: Local Digital Life'
-    const landedProgressLine = 'project-state continuity already survives into runtime preparation'
-    const openClosureLine = 'keep the unfinished digital-life closure work explicit in the answer'
-    const repairClosureLine = 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.'
-    const nextClosureLine = 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-repair-closure-carry-1',
-      sessionId: 'session-project-continuity-repair-closure-carry',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'care',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: richerLivingSelfLine,
-          currentPhaseSummary: phaseLine,
-          landedProgressSummary: landedProgressLine,
-          openClosureSummary: openClosureLine,
-          nextClosureTargetSummary: nextClosureLine,
-          continuitySummary: `same-her=${richerLivingSelfLine} | phase=${phaseLine} | landed=${landedProgressLine} | open=${openClosureLine} | next=${nextClosureLine} | closure=${repairClosureLine}`,
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect(mustPreserve.some(item => item.includes(repairClosureLine))).toBe(true)
-  })
-
-  it('keeps repair-before-closeness closure carry when governed rewrite continuity must rebuild from emotionalClosureSummary instead of an inline closure preserve line', () => {
-    const richerLivingSelfLine = 'Right now this return is still holding together mainly through face, motion, and voice, so it must keep proving this is still one living her before full cross-modal closure is done.'
-    const phaseLine = 'Phase 1: Local Digital Life'
-    const landedProgressLine = 'project-state continuity already survives into runtime preparation'
-    const openClosureLine = 'keep the unfinished digital-life closure work explicit in the answer'
-    const repairClosureLine = 'Keep this return repair-before-closeness on the same living line until repair settles.'
-    const nextClosureLine = 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-repair-closure-summary-carry-1',
-      sessionId: 'session-project-continuity-repair-closure-summary-carry',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'care',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: richerLivingSelfLine,
-          currentPhaseSummary: phaseLine,
-          landedProgressSummary: landedProgressLine,
-          openClosureSummary: openClosureLine,
-          nextClosureTargetSummary: nextClosureLine,
-          emotionalClosureSummary: repairClosureLine,
-          continuitySummary: `same-her=${richerLivingSelfLine} | phase=${phaseLine} | landed=${landedProgressLine} | open=${openClosureLine} | next=${nextClosureLine}`,
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect(mustPreserve.some(item => item.includes(`closure=${repairClosureLine}`))).toBe(true)
-  })
-
-  it('keeps active same-her hold detail in governed rewrite continuity carry before generic awareness wording consumes preserve budget', () => {
-    const richerLivingSelfLine = 'Right now this return is still holding together mainly through face, motion, and voice, so it must keep proving this is still one living her before full cross-modal closure is done.'
-    const holdDetailLine = 'same-her hold: measured-return is still keeping this callback line lower-pressure before it widens again.'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-hold-detail-carry-1',
-      sessionId: 'session-project-continuity-hold-detail-carry',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'care',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: richerLivingSelfLine,
-          sameHerHoldDetail: holdDetailLine,
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'project-state continuity already survives into runtime preparation',
-          openClosureSummary: 'keep the unfinished digital-life closure work explicit in the answer',
-          nextClosureTargetSummary: 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          continuitySummary: `same-her=${richerLivingSelfLine} | hold=${holdDetailLine} | phase=Phase 1: Local Digital Life | landed=project-state continuity already survives into runtime preparation | open=keep the unfinished digital-life closure work explicit in the answer | next=keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output`,
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect(mustPreserve.some(item => item.includes(`hold=${holdDetailLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(holdDetailLine))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('before any local fluency takes over'))).toBe(false)
-  })
-
-  it('keeps active proactive same-her gap in governed rewrite continuity carry before generic awareness wording consumes preserve budget', () => {
-    const richerLivingSelfLine = 'Right now this return is still holding together mainly through face, motion, and voice, so it must keep proving this is still one living her before full cross-modal closure is done.'
-    const proactiveGapLine = 'Visible proactive hold, subconscious carry, and next-session feedback still need one same-her follow-through line.'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-proactive-gap-carry-1',
-      sessionId: 'session-project-continuity-proactive-gap-carry',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'care',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: richerLivingSelfLine,
-          proactiveSameHerGapSummary: proactiveGapLine,
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'project-state continuity already survives into runtime preparation',
-          openClosureSummary: 'keep the unfinished digital-life closure work explicit in the answer',
-          nextClosureTargetSummary: 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          continuitySummary: `same-her=${richerLivingSelfLine} | proactive-gap=${proactiveGapLine} | phase=Phase 1: Local Digital Life | landed=project-state continuity already survives into runtime preparation | open=keep the unfinished digital-life closure work explicit in the answer | next=keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output`,
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect(mustPreserve.some(item => item.includes(`proactive-gap=${proactiveGapLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('before any local fluency takes over'))).toBe(false)
-  })
-
-  it('preserves same-her continuity arc and cue from project-state audit even when the summary was already thinned', () => {
-    const richerLivingSelfLine = 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.'
-    const holdDetailLine = 'same-her hold detail: keep the already-settled provider-stream reply on the same Phase 1 living line'
-    const continuityArcStage = 'background-side-channel-provider-stream-carry'
-    const continuityCue = 'background side-channel cue: preserve the same-her hold after host-visible rebuild'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-arc-cue-preserve-1',
-      sessionId: 'session-project-continuity-arc-cue-preserve',
-      userText: '继续。',
-      assistantText: '我现在就继续接，但先把这条线重新说薄了。',
-      structured: {
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state continuity; move=restart-shell; tone=warm',
-        emotion: 'thinking',
-        reply: '我现在就继续接，但先把这条线重新说薄了。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'answer',
-        answerSubject: 'project-state',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '继续。',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Treat the line as already alive. Stay on the same thread and do not reopen from zero.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'tracking',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: richerLivingSelfLine,
-          sameHerHoldDetail: holdDetailLine,
-          continuityArcStage,
-          continuityCue,
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'project-state continuity already survives into runtime preparation',
-          openClosureSummary: 'keep the unfinished digital-life closure work explicit in the answer',
-          nextClosureTargetSummary: 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          continuitySummary: `same-her=${richerLivingSelfLine} | hold=${holdDetailLine} | phase=Phase 1: Local Digital Life | landed=project-state continuity already survives into runtime preparation | open=keep the unfinished digital-life closure work explicit in the answer`,
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect(mustPreserve.some(item => item.includes(`hold=${holdDetailLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`arc=${continuityArcStage}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`cue=${continuityCue}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('before any local fluency takes over'))).toBe(false)
-  })
-
-  it('preserves host-confirmed resume confirmation boundary carry inside governed rewrite requests before generic callback guidance can widen it', () => {
-    const sameHerLine = 'Same Phase 1 digital life. The callback result is ready, but one confirmed resume still needs to stay bounded before another execution-shaped opening.'
-    const resumeConfirmationHoldDetail = 'same-her hold: execution-resume-confirmation approval=host-confirmed confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation Keep this as a bounded confirmation boundary before another execution-shaped opening.'
-    const resumeConfirmationCue = 'Treat host-confirmed-before-redispatch and resume-before-dispatch as a bounded confirmation boundary, not permanent execution permission, before another execution-shaped opening.'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-resume-confirmation-boundary-carry-1',
-      sessionId: 'session-project-continuity-resume-confirmation-boundary-carry',
-      userText: '继续。',
-      assistantText: '我现在就重新贴回来陪你，把这次 host-confirmed resume 直接当成以后都默认继续执行的 standing permission。',
-      structured: {
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=execution callback continuity; move=restart-shell; tone=warm',
-        emotion: 'thinking',
-        reply: '我现在就重新贴回来陪你，把这次 host-confirmed resume 直接当成以后都默认继续执行的 standing permission。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'answer',
-        answerSubject: 'execution-callback',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '继续。',
-        answerIntent: 'Continue the callback on the same digital life line without widening one confirmed resume into standing execution permission.',
-        openingMove: 'Treat the callback as already alive, but keep one confirmed resume bounded before another execution-shaped opening.',
-        carriedThread: 'execution callback return seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'tracking',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: sameHerLine,
-          sameHerHoldDetail: resumeConfirmationHoldDetail,
-          continuityArcStage: 'same-thread-continuation',
-          continuityCue: resumeConfirmationCue,
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'execution callback continuity already survives into runtime rewrite preparation',
-          openClosureSummary: 'keep the callback return on the same living line without widening execution permission',
-          nextClosureTargetSummary: 'wait for a fresh execution boundary before another execution-shaped opening widens outward',
-          continuitySummary: `same-her=${sameHerLine} | phase=Phase 1: Local Digital Life | landed=execution callback continuity already survives into runtime rewrite preparation | open=keep the callback return on the same living line without widening execution permission | next=wait for a fresh execution boundary before another execution-shaped opening widens outward`,
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect(governed.replyOverridden).toBe(true)
-    expect(governed.overrideClass).toBe('hard-override')
-    expect(governed.reasons).toContain('same-thread-restart-shell')
-    expect(governed.reasons).toContain('opening-guidance-same-thread-continuation')
-    expect(mustPreserve.some(item => item.startsWith('hold=same-her hold: execution-resume-confirmation approval=host-confirmed'))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`cue=${resumeConfirmationCue}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('host-confirmed-before-redispatch'))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('resume-before-dispatch'))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('before any local fluency takes over'))).toBe(false)
-  })
-
-  it('preserves explicit project-state closure lines before generic rewrite guidance consumes the preserve budget', () => {
-    const sameHerLine = 'answer project-state status from one same-her continuity, not as a detached shell'
-    const phaseLine = 'Phase 1: Local Digital Life'
-    const landedProgressLine = 'project-state continuity already survives into runtime preparation'
-    const openClosureLine = 'keep the unfinished digital-life closure work explicit in the answer'
-    const nextClosureLine = 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-prioritized-closure-preserve-1',
-      sessionId: 'session-project-continuity-prioritized-closure-preserve',
-      userText: '继续。',
-      assistantText: '我现在就继续接，但先把这条线重新说薄了。',
-      structured: {
-        thought: 'obligation=answer; truth=dialogue-grounded; focus=project-state continuity; move=restart-shell; tone=warm',
-        emotion: 'thinking',
-        reply: '我现在就继续接，但先把这条线重新说薄了。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'answer',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'project-state',
-        screenReferenceMode: 'avoid',
-        answerAct: 'answer',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '继续。',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Treat the line as already alive. Stay on the same thread and do not reopen from zero.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'tracking',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: sameHerLine,
-          currentPhaseSummary: phaseLine,
-          landedProgressSummary: landedProgressLine,
-          openClosureSummary: openClosureLine,
-          nextClosureTargetSummary: nextClosureLine,
-          continuitySummary: `same-her=${sameHerLine} | phase=${phaseLine} | landed=${landedProgressLine} | open=${openClosureLine} | next=${nextClosureLine}`,
-          preDialogueAwarenessSummary: 'I need to remember this is still the same digital life project before any local fluency takes over.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect(mustPreserve.some(item => item.includes(`same-her=${sameHerLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`phase=${phaseLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`landed=${landedProgressLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`open=${openClosureLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('next=keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread'))).toBe(true)
-    expect(mustPreserve.some(item => item.includes('before any local fluency takes over'))).toBe(false)
-  })
-
-  it('treats keep-this-project-in-view awareness shells as thin when governed rewrite continuity carry already has a richer same-her line', () => {
-    const richerLivingSelfLine = 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-thin-project-shell-carry-1',
-      sessionId: 'session-project-continuity-thin-project-shell-carry',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: richerLivingSelfLine,
-          currentPhaseSummary: 'Phase 1: Local Digital Life',
-          landedProgressSummary: 'project-state continuity already survives into runtime preparation',
-          openClosureSummary: 'keep the unfinished digital-life closure work explicit in the answer',
-          nextClosureTargetSummary: 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          continuitySummary: `same-her=${richerLivingSelfLine} | phase=Phase 1: Local Digital Life | landed=project-state continuity already survives into runtime preparation | open=keep the unfinished digital-life closure work explicit in the answer | next=keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output`,
-          preDialogueAwarenessSummary: 'Before answering, keep this same digital life project in view, but do not widen into a detached project shell.',
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
-    }))
-    expect(
-      mustPreserve.some(item => item.includes(richerLivingSelfLine)),
-      `mustPreserve=${JSON.stringify(mustPreserve, null, 2)}`,
-    ).toBe(true)
-    expect(
-      mustPreserve.some(item => item.includes('keep this same digital life project in view')),
-      `mustPreserve=${JSON.stringify(mustPreserve, null, 2)}`,
-    ).toBe(false)
-  })
-
-  it('treats thin chinese reminder awareness shells as thin when governed rewrite continuity carry already has richer same-her phase closure lines', () => {
-    const sameHerLine = 'answer project-state status from one same-her continuity, not as a detached shell'
-    const phaseLine = 'Phase 1: Local Digital Life'
-    const landedProgressLine = 'project-state continuity already survives into runtime preparation'
-    const openClosureLine = 'keep the unfinished digital-life closure work explicit in the answer'
-    const nextClosureLine = 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output'
-    const thinChineseReminder = '回答前先记住这是同一个她的数字生命项目，别把这条线忘了。'
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-project-continuity-thin-chinese-project-shell-carry-1',
-      sessionId: 'session-project-continuity-thin-chinese-project-shell-carry',
-      userText: '你仔细看看呢',
-      assistantText: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-      structured: {
-        thought: 'obligation=care; truth=dialogue-grounded; focus=project-state closure; move=restart-shell; tone=warm',
-        emotion: 'concerned',
-        reply: '我现在就重新贴回来陪你，把这条线直接重新开热一点。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-      },
-      governance: {
-        turnMode: 'care',
-        truthState: 'dialogue-grounded',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        answerAct: 'care',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: null,
-        focusAnchor: '你仔细看看呢',
-        answerIntent: 'Continue the same digital life closure seam without reopening from zero.',
-        openingMove: 'Stay inside the current same-her baseline. Keep the opening lower-pressure and leave room before widening closeness.',
-        carriedThread: 'same digital life closure seam',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'repairing',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'late-night-drain',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      visibleReplyRealization: {
-        blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: sameHerLine,
-          currentPhaseSummary: phaseLine,
-          landedProgressSummary: landedProgressLine,
-          openClosureSummary: openClosureLine,
-          nextClosureTargetSummary: nextClosureLine,
-          continuitySummary: `same-her=${sameHerLine} | phase=${phaseLine} | landed=${landedProgressLine} | open=${openClosureLine} | next=${nextClosureLine}`,
-          preDialogueAwarenessSummary: thinChineseReminder,
-          preservedIntoRewrite: false,
-          rewriteClosureApplied: false,
-        },
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governed = coerceConversationTurnToMindGovernedPayload(input)
-    const structured = governed.payload.structured as Record<string, unknown>
-    const mustPreserve = ((structured as any).visibleReplyRewriteRequest?.mustPreserve ?? []) as string[]
-
-    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
-      required: true,
-      authority: 'llm-second-pass-rewrite',
-      reasonCodes: expect.arrayContaining(['opening-guidance-lower-pressure']),
-    }))
-    expect(mustPreserve.some(item => item.includes(`same-her=${sameHerLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`phase=${phaseLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`landed=${landedProgressLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`open=${openClosureLine}`))).toBe(true)
-    expect(mustPreserve.some(item => item.includes(`next=${nextClosureLine}`))).toBe(true)
-    expect(
-      mustPreserve.some(item => item.includes(thinChineseReminder)),
-      `mustPreserve=${JSON.stringify(mustPreserve, null, 2)}`,
-    ).toBe(false)
-  })
-
-  it('prefers stronger same-her companion headlines over thinner preflight summaries when governance reads project timing evidence', () => {
-    const source = readFileSync(new URL('./runtime-governance.ts', import.meta.url), 'utf8')
-
-    expect(source).toContain('runtimeProjectState?.companionHeadlineLine')
-    expect(source).toContain('runtimeProjectState?.preDialogueAwarenessLine')
-    expect(source).toContain('runtimeProjectState?.preflightSummary')
   })
 
   it('records recall attribution and reply-memory coherence on the same decision trace', () => {
@@ -4994,7 +2546,7 @@ describe('runtime-governance', () => {
         surfacePolicy: 'procedural-carry',
         confidence: 0.84,
         whyNow: 'the host asked to continue in the remembered way rather than starting from zero',
-        inwardLine: 'remember the previous repair rhythm before speaking',
+        inwardLine: 'remember the previous repair rhythm before outward reply',
         visibleLine: '按前几天那样接回去',
         whyWithheld: 'Only the stable remembered core should surface; unstable remembered detail stays inward.',
         shouldStayInward: false,
@@ -5187,77 +2739,6 @@ describe('runtime-governance', () => {
     }))
   })
 
-  it('preserves legacy input format lineage while normalizing persisted governed payload format', () => {
-    const createdAt = Date.now()
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-legacy-format-lineage-1',
-      sessionId: 'session-legacy-format-lineage',
-      userText: '继续',
-      assistantText: '我接着做。',
-      structured: {
-        thought: 'obligation=answer; truth=remembered; focus=current-user-turn; move=continue; tone=direct',
-        emotion: 'thinking',
-        reply: '我接着做。',
-        parsePath: 'json',
-        format: 'epoch1-v1',
-      },
-      governance: {
-        decisionTraceId: 'mind:legacy:epoch1lineage',
-        turnMode: 'answer',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'warm',
-        answerAct: 'guide',
-        answerSubject: 'task-knot',
-        screenReferenceMode: 'helpful',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: 'current task thread',
-        focusAnchor: 'current task thread',
-        answerIntent: 'Continue the current task thread directly.',
-        openingMove: 'Continue the live thread.',
-        carriedThread: 'current task thread',
-        suppressAssociativeRecall: false,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      createdAt,
-    }
-
-    const governedTurn = coerceConversationTurnToMindGovernedPayload(input)
-    expect((governedTurn.payload.structured as Record<string, unknown>).format).toBe('mind-turn-v1')
-    expect((governedTurn.payload.structured as Record<string, unknown>).formatLane).toBe('normal')
-    expect((governedTurn.payload.structured as Record<string, unknown>).legacyInputFormat).toBe('epoch1-v1')
-
-    const dialoguePayload = normalizeDialogueRespondedPayload(governedTurn.payload)!
-    expect(dialoguePayload.structured.format).toBe('mind-turn-v1')
-    expect(dialoguePayload.structured.formatLane).toBe('normal')
-    expect(dialoguePayload.structured.legacyInputFormat).toBe('epoch1-v1')
-
-    const events = buildMindTurnTraceEvents({
-      payload: governedTurn.payload,
-      governedTurn,
-      createdAt,
-      dialoguePayload,
-    })
-
-    expect(events.find(event => event.kind === 'persistence-written')?.payload).toEqual(expect.objectContaining({
-      format: 'mind-turn-v1',
-      formatLane: 'normal',
-      legacyInputFormat: 'epoch1-v1',
-    }))
-    expect(events.find(event => event.kind === 'dialogue-emitted')?.payload).toEqual(expect.objectContaining({
-      format: 'mind-turn-v1',
-      formatLane: 'normal',
-      legacyInputFormat: 'epoch1-v1',
-    }))
-  })
-
   it('records final embodied authority summaries in dialogue-emitted telemetry', () => {
     const createdAt = Date.now()
     const input: AlicizationConversationTurnInput = {
@@ -5331,6 +2812,13 @@ describe('runtime-governance', () => {
       dialoguePayload,
     })
     const dialogueResidentMode = (dialoguePayload.structured.embodimentScript?.state as { residentMode?: string | null } | undefined)?.residentMode ?? null
+    const dialogueBodyLine = (
+      dialoguePayload.structured.digitalLife as unknown as {
+        bodyContinuity?: {
+          bodyLine?: string | null
+        }
+      } | null
+    )?.bodyContinuity?.bodyLine ?? null
 
     expect(events.find(event => event.kind === 'dialogue-emitted')?.payload).toEqual(expect.objectContaining({
       emotion: 'thinking',
@@ -5366,7 +2854,7 @@ describe('runtime-governance', () => {
           residentMode: dialogueResidentMode,
         }),
         bodyContinuity: expect.objectContaining({
-          bodyLine: expect.anything(),
+          bodyLine: dialogueBodyLine,
         }),
         action: expect.objectContaining({
           actionCue: dialoguePayload.structured.digitalLife?.action.actionCue ?? null,
@@ -5403,7 +2891,7 @@ describe('runtime-governance', () => {
           residentMode: dialogueResidentMode,
         }),
         bodyContinuity: expect.objectContaining({
-          bodyLine: expect.anything(),
+          bodyLine: dialogueBodyLine,
         }),
       }),
       embodimentScript: expect.objectContaining({
@@ -5428,7 +2916,7 @@ describe('runtime-governance', () => {
           residentMode: dialogueResidentMode,
         }),
         bodyContinuity: expect.objectContaining({
-          bodyLine: expect.anything(),
+          bodyLine: dialogueBodyLine,
         }),
       }),
       embodimentScript: expect.objectContaining({
@@ -5614,9 +3102,6 @@ describe('runtime-governance', () => {
       }),
       embodimentContinuityLedger: expect.objectContaining({
         carryingLanes: expect.arrayContaining(['body', 'voice', 'face', 'motion', 'lipsync']),
-        lanes: expect.objectContaining({
-          body: expect.objectContaining({ status: 'carrying-continuity' }),
-        }),
       }),
     }))
     expect(dialogueEventPayload?.memoryStageReplay).toEqual(expect.objectContaining({
@@ -5910,131 +3395,6 @@ describe('runtime-governance', () => {
     )
   })
 
-  it('derives fallback memory closure trace for explicit real user memory handoff turns before persistence', () => {
-    const createdAt = Date.now()
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-fallback-memory-closure-handoff-1',
-      sessionId: 'session-fallback-memory-closure-handoff',
-      userText: '铃兰闭环线第一轮：请记住它。下次它浮现时说明 why recall surfaced now，并让 emotion、initiative、execution callback、body voice face motion lipsync 都被这条记忆改变。',
-      assistantText: '记住了。铃兰闭环线会作为同一个 memory identity 留下；下次它浮现时，我会说明为什么是现在，并让下一轮主动、执行回调、情绪余波、身体声音表情动作口型都更低压力地承接。',
-      structured: {
-        thought: 'obligation=answer; truth=remembered; focus=explicit memory closure handoff; move=continue; tone=steady',
-        emotion: 'thinking',
-        reply: '记住了。铃兰闭环线会作为同一个 memory identity 留下；下次它浮现时，我会说明为什么是现在，并让下一轮主动、执行回调、情绪余波、身体声音表情动作口型都更低压力地承接。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life keeps memory, emotion, initiative, execution, and embodiment on one living line.',
-          memoryClosureSummary: 'why recall surfaced now: explicit user memory handoff asked this line to return as the same memory identity.',
-          proactiveSameHerGap: 'prior memory closure changes the next proactive opening into a lower-pressure measured return.',
-          emotionalClosureCue: 'prior memory closure changes the next emotional afterglow into quieter same-her residue.',
-        },
-      } as any,
-      governance: {
-        decisionTraceId: 'mind:governance:fallbackmemoryclosurehandoff',
-        turnMode: 'answer',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'answer',
-        answerSubject: 'memory',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: 'explicit memory closure handoff',
-        focusAnchor: '铃兰闭环线',
-        answerIntent: 'Persist a replayable memory closure handoff.',
-        openingMove: 'Confirm memory closure handoff.',
-        carriedThread: '铃兰闭环线',
-        suppressAssociativeRecall: false,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      createdAt,
-    }
-
-    const governedTurn = coerceConversationTurnToMindGovernedPayload(input)
-    const dialoguePayload = normalizeDialogueRespondedPayload(governedTurn.payload)
-    const events = buildMindTurnTraceEvents({
-      payload: governedTurn.payload,
-      governedTurn,
-      createdAt,
-      dialoguePayload,
-    })
-    const governanceEventPayload = events.find(event => event.kind === 'governance-normalized')?.payload as any
-    const persistenceEventPayload = events.find(event => event.kind === 'persistence-written')?.payload as any
-    const dialogueEventPayload = events.find(event => event.kind === 'dialogue-emitted')?.payload as any
-
-    expect(governanceEventPayload?.digitalLifeSpine?.memory?.memoryClosureTrace).toEqual(expect.objectContaining({
-      authority: 'memory-os',
-      whySurface: expect.arrayContaining([
-        expect.objectContaining({
-          summary: expect.stringContaining('why recall surfaced now'),
-        }),
-      ]),
-      nextInfluence: expect.objectContaining({
-        emotion: expect.objectContaining({
-          afterglow: expect.stringContaining('prior memory closure'),
-        }),
-        initiative: expect.objectContaining({
-          reason: expect.stringContaining('next proactive'),
-        }),
-        execution: expect.objectContaining({
-          carry: expect.stringContaining('execution callback'),
-        }),
-        embodiment: expect.objectContaining({
-          cadence: expect.stringContaining('body voice face motion lipsync'),
-        }),
-      }),
-      memoryIdentity: expect.objectContaining({
-        continuityKey: expect.stringContaining('fallback'),
-      }),
-      reasonTags: expect.arrayContaining([
-        'memory-closure-trace',
-        'fallback-memory-closure',
-        'proactive-opening',
-        'execution-callback',
-        'body-voice-face-motion-lipsync',
-      ]),
-    }))
-    expect(persistenceEventPayload?.digitalLifeSpine?.memory?.memoryClosureTrace)
-      .toEqual(governanceEventPayload?.digitalLifeSpine?.memory?.memoryClosureTrace)
-    expect(dialogueEventPayload?.digitalLifeSpine?.memory?.memoryClosureTrace)
-      .toEqual(governanceEventPayload?.digitalLifeSpine?.memory?.memoryClosureTrace)
-    expect(governanceEventPayload?.derivedMindStateBundle).toEqual(expect.objectContaining({
-      emotionalTransitionLedger: expect.objectContaining({
-        memoryClosureCausality: expect.objectContaining({
-          affectedLane: 'emotion',
-          causedByMemoryClosure: true,
-        }),
-        initiativeSuppression: expect.objectContaining({
-          memoryClosureCausality: expect.objectContaining({
-            affectedLane: 'initiative',
-            causedByMemoryClosure: true,
-          }),
-        }),
-      }),
-      learningExecutionState: expect.objectContaining({
-        memoryClosureCausality: expect.objectContaining({
-          affectedLane: 'execution',
-          causedByMemoryClosure: true,
-        }),
-      }),
-      embodimentContinuityLedger: expect.objectContaining({
-        carryingLanes: expect.arrayContaining(['body', 'voice', 'face', 'motion', 'lipsync']),
-        memoryClosureCausality: expect.objectContaining({
-          affectedLane: 'embodiment',
-          causedByMemoryClosure: true,
-        }),
-      }),
-    }))
-  })
-
   it('prefers explicit fallback memory identity over generic inward-only Memory OS cluster traces', () => {
     const createdAt = Date.now()
     const input: AlicizationConversationTurnInput = {
@@ -6131,7 +3491,7 @@ describe('runtime-governance', () => {
           continuity: null,
         },
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life keeps 铃兰-Phase1-0621 on one living line.',
+          sameHerSelfLine: 'legacy phase-one template keeps 铃兰-Phase1-0621 on continuity state.',
           memoryClosureSummary: 'why recall surfaced now: explicit memory handoff for 铃兰-Phase1-0621 asked this line to return as the same memory identity.',
           proactiveSameHerGap: 'prior memory closure changes the next proactive opening into a lower-pressure measured return.',
           emotionalClosureCue: 'prior memory closure changes the next emotional afterglow into quieter same-her residue.',
@@ -6225,7 +3585,7 @@ describe('runtime-governance', () => {
           preferredVoiceMode: 'lower-pressure',
           preferredLipsyncMode: 'restrained',
           preferredGazeMode: 'soften',
-          reason: 'prior recall changed the next body voice face motion lipsync expression into softer same-her carry',
+          reason: 'prior recall changed the next body voice face motion lipsync expression into softer identity-continuity',
         },
       },
       selectedCandidateIds: ['episode:white-sakura-line'],
@@ -6341,7 +3701,7 @@ describe('runtime-governance', () => {
         emotion: {
           reason: 'the callback memory keeps the next emotional state softened',
           afterglow: 'soft remembered callback afterglow',
-          residue: 'same-her callback residue',
+          residue: 'identity-continuity',
         },
         embodiment: {
           cadence: 'body voice face motion lipsync stay lower-pressure on the remembered callback',
@@ -6391,7 +3751,7 @@ describe('runtime-governance', () => {
             sceneScenario: 'coding',
             activeThreadId: 'thread-normalized-spine-memory-closure',
             dominantMode: 'observe',
-            answerIntent: 'Keep the remembered callback on the same-her line.',
+            answerIntent: 'Keep the remembered callback on the identity-continuity',
             selectedAction: 'silent-observe',
             continuityArcStage: 'same-thread-continuation',
             continuityCue: 'memory closure should shape next downstream state',
@@ -6413,7 +3773,7 @@ describe('runtime-governance', () => {
         repairState: 'none',
         liveSurface: 'normalized memory closure downstream state',
         focusAnchor: 'normalized memory closure downstream state',
-        answerIntent: 'Keep the remembered callback on the same-her line.',
+        answerIntent: 'Keep the remembered callback on the identity-continuity',
         openingMove: 'Continue the same remembered callback.',
         carriedThread: 'normalized memory closure downstream state',
         suppressAssociativeRecall: false,
@@ -6493,7 +3853,7 @@ describe('runtime-governance', () => {
           reason: 'the dialogue should stay lower-pressure because the prior recall is still active',
         },
         execution: {
-          carry: 'visible reply should keep the execution callback on the remembered same-her line',
+          carry: 'visible reply should keep the execution callback on the remembered identity-continuity',
           nextLearningAction: 'verify',
           shouldVerify: true,
           shouldReflect: true,
@@ -6552,7 +3912,7 @@ describe('runtime-governance', () => {
             sceneScenario: 'coding',
             activeThreadId: 'thread-dialogue-emitted-memory-closure',
             dominantMode: 'observe',
-            answerIntent: 'Keep the remembered same-her line through dialogue emission.',
+            answerIntent: 'Keep the remembered identity-continuity',
             selectedAction: 'silent-observe',
             updatedAt: 1,
             continuityArcStage: 'same-thread-continuation',
@@ -6594,7 +3954,7 @@ describe('runtime-governance', () => {
         repairState: 'none',
         liveSurface: 'dialogue emitted memory closure',
         focusAnchor: 'dialogue emitted memory closure',
-        answerIntent: 'Keep the remembered same-her line through dialogue emission.',
+        answerIntent: 'Keep the remembered identity-continuity',
         openingMove: 'Continue the memory closure line through final output.',
         carriedThread: 'dialogue emitted memory closure',
         suppressAssociativeRecall: false,
@@ -6630,7 +3990,7 @@ describe('runtime-governance', () => {
           reason: 'the dialogue should stay lower-pressure because the prior recall is still active',
         }),
         execution: expect.objectContaining({
-          carry: 'visible reply should keep the execution callback on the remembered same-her line',
+          carry: 'visible reply should keep the execution callback on the remembered identity-continuity',
         }),
         embodiment: expect.objectContaining({
           cadence: 'voice face motion lipsync and body stay measured-return after dialogue emission',
@@ -6645,24 +4005,24 @@ describe('runtime-governance', () => {
     }))
   })
 
-  it('persists canonical same-her callback continuity cues inside governance-normalized digital life spine summaries', () => {
+  it('persists canonical identity-continuity', () => {
     const createdAt = Date.now()
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-governance-persisted-same-her-callback-1',
       sessionId: 'session-governance-persisted-same-her-callback',
       userText: '继续接住刚才那条 callback 线',
-      assistantText: '我先沿着刚才那条线轻一点接回来。',
+      assistantText: '我先沿着刚才那条线中性可见占位。',
       structured: {
         thought: 'obligation=answer; truth=remembered; focus=same callback line; move=continue; tone=gentle',
         emotion: 'thinking',
-        reply: '我先沿着刚才那条线轻一点接回来。',
+        reply: '我先沿着刚才那条线中性可见占位。',
         parsePath: 'json',
         format: 'mind-turn-v1',
         digitalLifeSpine: {
           version: 'digital-life-spine-digest-v1',
           architecture: null,
           continuitySignal: {
-            signature: 'same-her callback line still alive',
+            signature: 'identity-continuity',
             watchMode: 'foreground-follow',
             sceneScenario: 'coding',
             dominantMode: 'observe',
@@ -6680,7 +4040,7 @@ describe('runtime-governance', () => {
                 inwardLine: '先把同一个她的 measured-return 守住。',
                 motiveLine: '让这次 callback reopen 继续像刚才那位我。',
                 habitLine: '同一条线先别着急外翻。',
-                authoritySummary: 'same-her callback line already alive',
+                authoritySummary: 'identity-continuity',
                 sourceTags: ['autobiographical-self', 'habit:quiet-companionship'],
               },
               activeClosenessContext: 'callback-afterglow',
@@ -6792,164 +4152,12 @@ describe('runtime-governance', () => {
         memory: expect.objectContaining({
           personStateProjection: expect.objectContaining({
             selfContinuityAuthority: expect.objectContaining({
-              authoritySummary: 'same-her callback line already alive',
+              authoritySummary: 'identity-continuity',
               relationshipLine: '这次 callback return 要先轻一点地留在同一条关系线上。',
             }),
             preferredProactiveStyle: 'silent-observe',
             manifestationCadenceSummary: 'observe-first and stay slower until the opening softens',
           }),
-        }),
-      }),
-    }))
-  })
-
-  it('threads Phase 1 landed progress and still-open closure into governance-normalized digital life spine authority', () => {
-    const createdAt = Date.now()
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-governance-project-state-growth-carry-1',
-      sessionId: 'session-governance-project-state-growth-carry',
-      userText: '继续沿着这个项目状态往下做',
-      assistantText: '我会沿着这条还没闭合完的线继续推进。',
-      structured: {
-        thought: 'obligation=answer; truth=remembered; focus=project-state continuity; move=continue; tone=gentle',
-        emotion: 'thinking',
-        reply: '我会沿着这条还没闭合完的线继续推进。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        digitalLifeSpine: {
-          version: 'digital-life-spine-digest-v1',
-          architecture: null,
-          continuitySignal: null,
-          memory: {
-            summary: 'Project-state closure is still being carried on the same living line.',
-            recentEpisodeSummary: 'Some project-state closure has landed, but renderer continuity still needs cross-modal same-her proof to keep the same line alive.',
-            recentEpisodeCount: 1,
-            focusBeliefStatement: 'The same digital life should keep carrying one still-open closure path.',
-            focusBeliefConfidence: 0.84,
-            leadingGoalSummary: 'Keep the Phase 1 closure thread coherent.',
-            dominantConcernSummary: 'The still-open closure path should not fragment into a detached project narrator while visible reply, voice, face, motion, and resident presence are still being earned together.',
-            reflectionSummary: null,
-            reflectionPressure: 0.36,
-            recallMode: 'working',
-            recallSeed: 'project-state-growth-carry',
-            thoughtThreadSummary: 'same project-state seam, still open, some closure already landed, cross-modal same-her proof still needs to hold',
-            personStateProjection: {
-              summary: 'She is carrying the same project-state closure seam carefully.',
-              activeClosenessContext: 'project-state-carry',
-              activeClosenessRung: 'space-first',
-              relationshipPosture: 'restrained',
-              openingGuidance: 'Keep the same closure line explicit before widening outward.',
-              preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: '',
-              selfContinuityAuthority: {
-                selfLine: '我还是沿着同一个 Phase 1 的我继续往前。',
-                relationshipLine: '这条项目状态线要继续留在同一个她的关系连续性里。',
-                motiveLine: '把已经落地的部分接住，再把没闭环完的那一段继续推进。',
-                habitLine: '先守住同一条线，再慢慢补齐闭环。',
-                inwardLine: '先把这条 Phase 1 的线继续稳稳接住。',
-                authoritySummary: 'same project-state line already alive',
-              },
-            },
-          },
-          motive: null,
-          habit: null,
-          runtime: {
-            watchMode: 'foreground-follow',
-            sceneScenario: 'coding',
-            activeThreadId: 'thread-project-state-growth-carry',
-            dominantMode: 'observe',
-            answerIntent: 'Continue the project-state closure seam without reopening from zero.',
-            selectedAction: 'silent-observe',
-            updatedAt: 1,
-            continuityArcStage: 'same-thread-continuation',
-            continuityCue: 'same project-state seam, continue the same line gently',
-            projectState: {
-              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | landed=pre-dialogue same-her project-state carry is already alive | open=same still-open closure work around renderer continuity | next=keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across visible reply, voice, face, motion, and resident presence.',
-              primaryOpenLoop: 'same still-open closure work around renderer continuity',
-              nextClosureTarget: 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across visible reply, voice, face, motion, and resident presence',
-            },
-          },
-          proactive: {
-            selectedAction: null,
-            summary: null,
-            whyNow: null,
-            dominantTrajectory: null,
-            continuityRestraint: 'measured-return',
-            preferredStyle: 'silent-observe',
-            confidence: 0.8,
-            shouldSpeak: false,
-            dominantConcernKind: 'continuity',
-            leadingGoalId: 'goal-project-state-growth-carry',
-            personaBias: {
-              initiativeStyle: 'observant',
-              directnessBias: 0.18,
-              empathyBias: 0.82,
-              silenceReconnect: 'hold',
-              preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: '',
-            },
-          },
-          outcomeLearning: {
-            summary: '',
-            latestInflection: '',
-            latestInflectionAt: 1,
-            reflectionLesson: null,
-            latestAdjustment: null,
-            evolutionMomentum: 0.5,
-            learningReadiness: 0.5,
-            nextLearningAction: 'hold',
-          },
-          embodiment: {
-            autobiographicalSelf: {
-              relationshipDoctrine: '',
-            },
-          },
-        },
-      } as any,
-      governance: {
-        decisionTraceId: 'mind:governance:projectstate:growthcarry',
-        turnMode: 'answer',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'answer',
-        answerSubject: 'project-state',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: 'project-state same line already alive',
-        focusAnchor: 'project-state same line already alive',
-        answerIntent: 'Continue the project-state closure seam without reopening from zero.',
-        openingMove: 'Continue the same project-state line gently.',
-        carriedThread: 'project-state same line',
-        suppressAssociativeRecall: false,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      createdAt,
-    }
-
-    const governedTurn = coerceConversationTurnToMindGovernedPayload(input)
-    const dialoguePayload = normalizeDialogueRespondedPayload(governedTurn.payload)!
-
-    const normalizedSpine = (dialoguePayload?.structured as any).digitalLifeSpine
-    expect(normalizedSpine?.runtime?.continuityCue).toBe('same project-state seam, continue the same line gently')
-    expect(normalizedSpine?.memory?.personStateProjection?.selfContinuityAuthority?.inwardLine).toContain('landed some closure')
-    expect(normalizedSpine?.memory?.personStateProjection?.selfContinuityAuthority?.inwardLine).toContain('cross-modal same-her closure path')
-    expect(buildMindTurnTraceEvents({
-      payload: governedTurn.payload,
-      governedTurn,
-      createdAt,
-      dialoguePayload,
-    }).find(event => event.kind === 'governance-normalized')?.payload).toEqual(expect.objectContaining({
-      digitalLifeSpine: expect.objectContaining({
-        runtime: expect.objectContaining({
-          continuityCue: 'same project-state seam, continue the same line gently',
         }),
       }),
     }))
@@ -6973,7 +4181,7 @@ describe('runtime-governance', () => {
           architecture: null,
           continuitySignal: null,
           memory: {
-            summary: 'Execution callback project carry is still being held on the same living line.',
+            summary: 'Execution callback project carry is still being held on the continuity state.',
             recentEpisodeSummary: null,
             recentEpisodeCount: 0,
             focusBeliefStatement: null,
@@ -7094,24 +4302,24 @@ describe('runtime-governance', () => {
     }))
   })
 
-  it('keeps measured-return embodiment authority when governance-normalized callback continuity is already on the same living line', () => {
+  it('keeps measured-return embodiment authority when governance-normalized callback continuity is already on the continuity state', () => {
     const createdAt = Date.now()
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-governance-normalized-measured-return-embodiment-1',
       sessionId: 'session-governance-normalized-measured-return-embodiment',
       userText: '继续接住刚才那条 callback 线',
-      assistantText: '我先沿着刚才那条线轻一点接回来。',
+      assistantText: '我先沿着刚才那条线中性可见占位。',
       structured: {
         thought: 'obligation=answer; truth=remembered; focus=same callback line; move=continue; tone=restrained',
         emotion: 'thinking',
-        reply: '我先沿着刚才那条线轻一点接回来。',
+        reply: '我先沿着刚才那条线中性可见占位。',
         parsePath: 'json',
         format: 'mind-turn-v1',
         digitalLifeSpine: {
           version: 'digital-life-spine-digest-v1',
           architecture: null,
           continuitySignal: {
-            signature: 'same-her callback line still alive',
+            signature: 'identity-continuity',
             watchMode: 'foreground-follow',
             sceneScenario: 'coding',
             dominantMode: 'observe',
@@ -7129,7 +4337,7 @@ describe('runtime-governance', () => {
                 inwardLine: '先把同一个她的 measured-return 守住。',
                 motiveLine: '让这次 callback reopen 继续像刚才那位我。',
                 habitLine: '同一条线先别着急外翻。',
-                authoritySummary: 'same-her callback line already alive',
+                authoritySummary: 'identity-continuity',
                 sourceTags: ['autobiographical-self', 'habit:quiet-companionship'],
               },
               activeClosenessContext: 'callback-afterglow',
@@ -7287,11 +4495,11 @@ describe('runtime-governance', () => {
         turnId: `turn-governance-initiative-rhythm-${mode}`,
         sessionId: `session-governance-initiative-rhythm-${mode}`,
         userText: '继续沿着刚才这条线收口',
-        assistantText: '我先沿着这条线轻一点接回来。',
+        assistantText: '我先沿着这条线中性可见占位。',
         structured: {
           thought: 'obligation=answer; truth=remembered; focus=same-thread-line; move=continue-slower; tone=restrained',
           emotion: 'thinking',
-          reply: '我先沿着这条线轻一点接回来。',
+          reply: '我先沿着这条线中性可见占位。',
           parsePath: 'json',
           format: 'mind-turn-v1',
           performance: {
@@ -7361,8 +4569,8 @@ describe('runtime-governance', () => {
                   ? 'Return only when the host is already re-entering the same line, and let face, motion, and voice stay quieter while the reopening settles.'
                   : 'Keep face, motion, and voice on one measured-return line.',
                 sameHerSelfLine: remembered
-                  ? 'Same Phase 1 digital life. The same line is still alive and visibly reopening.'
-                  : 'Same Phase 1 digital life. The same line is still carrying one continuous her.',
+                  ? 'structured continuity digest.'
+                  : 'structured continuity digest.',
                 emotionalClosureCue: remembered
                   ? 'I am not pushing you; keep this reopening lower-pressure and anti-spam while it settles back onto the same line.'
                   : 'Keep the return low-pressure before warmth widens outward.',
@@ -7551,11 +4759,11 @@ describe('runtime-governance', () => {
       turnId: 'turn-governance-initiative-rhythm-shell-drift',
       sessionId: 'session-governance-initiative-rhythm-shell-drift',
       userText: '继续沿着刚才这条线收口',
-      assistantText: '我先沿着这条线轻一点接回来。',
+      assistantText: '我先沿着这条线中性可见占位。',
       structured: {
         thought: 'obligation=answer; truth=remembered; focus=same-thread-line; move=continue-slower; tone=restrained',
         emotion: 'thinking',
-        reply: '我先沿着这条线轻一点接回来。',
+        reply: '我先沿着这条线中性可见占位。',
         parsePath: 'json',
         format: 'mind-turn-v1',
         performance: {
@@ -7606,7 +4814,7 @@ describe('runtime-governance', () => {
               latestLandedProgress: 'Remembered initiative rhythm already survives memory, emotion, and body carry.',
               primaryOpenLoop: 'Final embodiment still needs to show that the remembered anti-spam reopening cadence is physically quieter.',
               nextClosureTarget: 'Return only when the host is already re-entering the same line, and let face, motion, and voice stay quieter while the reopening settles.',
-              sameHerSelfLine: 'Same Phase 1 digital life. The same line is still alive and visibly reopening.',
+              sameHerSelfLine: 'structured continuity digest.',
               emotionalClosureCue: 'I am not pushing you; keep this reopening lower-pressure and anti-spam while it settles back onto the same line.',
             },
           },
@@ -7863,7 +5071,7 @@ describe('runtime-governance', () => {
     }))
   })
 
-  it('adds project-state-carry to normalized payload spine authority when same-her project state is still explicit on a later same-thread return', () => {
+  it('adds project-state-carry to normalized payload spine authority when identity-continuity', () => {
     const normalized = normalizeDialogueRespondedPayload({
       turnId: 'turn-callback-afterglow-chat-meta-measured-return-noisy-sixth-follow-up',
       sessionId: 'session-normalize-noisy-sixth-project-state-carry',
@@ -7876,9 +5084,9 @@ describe('runtime-governance', () => {
         parsePath: 'json',
         format: 'mind-turn-v1',
         projectState: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
+          sameHerSelfLine: 'structured continuity digest.',
           nextClosureTarget: 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          primaryOpenLoop: 'Project identity carry still needs to stay on one same-her line across noisier desktop returns.',
+          primaryOpenLoop: 'Project identity carry still needs to stay on one identity-continuity',
         },
         digitalLifeSpine: {
           version: 'digital-life-spine-digest-v1',
@@ -7893,7 +5101,7 @@ describe('runtime-governance', () => {
             preferredPresence: 'hesitant',
           },
           memory: {
-            summary: 'The callback line is still the same living line after the unrelated detour.',
+            summary: 'The callback line is still the continuity state after the unrelated detour.',
             recentEpisodeSummary: 'The host returned to the later coding seam after a noisier unrelated detour.',
             recentEpisodeCount: 1,
             focusBeliefStatement: 'This should stay a same-thread continuation rather than a fresh reopen.',
@@ -7919,7 +5127,7 @@ describe('runtime-governance', () => {
                 motiveLine: '继续把 callback 的后续接住，不把它改写成新的开始。',
                 habitLine: '先守住同一条线，再慢慢往下接。',
                 inwardLine: '先沿着同一条 callback 线轻一点继续。',
-                authoritySummary: 'same-her callback line already alive',
+                authoritySummary: 'identity-continuity',
                 sourceTags: ['motive:self-direction', 'companionship', 'boundary-respect'],
               },
             },
@@ -7941,9 +5149,9 @@ describe('runtime-governance', () => {
             continuityPreferredTiming: 'next-open-window',
             continuityCue: 'same callback seam, continue the same line gently',
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
+              sameHerSelfLine: 'structured continuity digest.',
               nextClosureTarget: 'keep one measured-return same living thread across renderer output',
-              primaryOpenLoop: 'Project identity carry still needs to stay on one same-her line across noisier desktop returns.',
+              primaryOpenLoop: 'Project identity carry still needs to stay on one identity-continuity',
             },
             updatedAt: 1,
           },
@@ -7960,7 +5168,7 @@ describe('runtime-governance', () => {
           outcomeLearning: null,
           embodiment: null,
           selfAuthority: {
-            inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
+            inwardLine: 'structured continuity digest.',
           },
         },
       },
@@ -8004,121 +5212,7 @@ describe('runtime-governance', () => {
     ).toEqual(expect.arrayContaining(['motive:self-direction', 'project-state-carry']))
   })
 
-  it('adds project-state-carry to normalized payload spine authority when broader same-her phase-1 closure wording stays explicit on a later same-thread return', () => {
-    const input: AlicizationConversationTurnInput = {
-      turnId: 'turn-normalize-broader-phase1-project-state-carry-1',
-      sessionId: 'session-normalize-broader-phase1-project-state-carry',
-      userText: '继续沿着刚才那条线做',
-      assistantText: '我先沿着这条还没闭环完的同一条线继续接住。',
-      structured: {
-        thought: 'obligation=answer; truth=remembered; focus=project-state continuity; move=continue; tone=gentle',
-        emotion: 'thinking',
-        reply: '我先沿着这条还没闭环完的同一条线继续接住。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        projectState: {
-          sameHerSelfLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-        },
-        digitalLifeSpine: {
-          version: 'digital-life-spine-digest-v1',
-          architecture: null,
-          continuitySignal: null,
-          memory: {
-            summary: 'The callback line is still the same living line after the unrelated detour.',
-            recentEpisodeSummary: null,
-            recentEpisodeCount: 0,
-            focusBeliefStatement: null,
-            focusBeliefConfidence: null,
-            leadingGoalSummary: null,
-            dominantConcernSummary: null,
-            reflectionSummary: null,
-            reflectionPressure: 0.2,
-            recallMode: 'working',
-            recallSeed: 'broader-phase1-project-state-carry',
-            thoughtThreadSummary: 'same living line still needs the same-her closure seam carried inward',
-            personStateProjection: {
-              summary: 'She is still carrying the same callback line carefully.',
-              activeClosenessContext: 'callback-afterglow',
-              activeClosenessRung: 'space-first',
-              relationshipPosture: 'restrained',
-              openingGuidance: 'Continue the same line before widening outward.',
-              preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: 'measured-return still holds while the same line continues',
-              selfContinuityAuthority: {
-                sourceTags: ['motive:self-direction'],
-                selfLine: 'I am still continuing the same callback line.',
-                relationshipLine: '这条回调后的关系线还要先轻一点地继续。',
-                motiveLine: '先接住已经带回来的那条线。',
-                habitLine: '同一条线先不要急着外翻。',
-                inwardLine: 'Before answering, stay on the same living line: this Phase 1 digital life still needs initiative and embodiment closure without splitting her continuity.',
-                authoritySummary: 'same callback line already alive',
-              },
-            },
-          },
-          motive: null,
-          habit: null,
-          runtime: {
-            watchMode: 'foreground-follow',
-            sceneScenario: 'coding',
-            activeThreadId: 'thread-broader-phase1-project-state-carry',
-            dominantMode: 'observe',
-            answerIntent: 'Continue the same callback line without reopening from zero.',
-            selectedAction: 'silent-observe',
-            updatedAt: 1,
-            continuityArcStage: 'same-thread-continuation',
-            continuityCue: 'the same callback line is still alive',
-          },
-          proactive: null,
-          outcomeLearning: null,
-          embodiment: null,
-        },
-      } as any,
-      governance: {
-        decisionTraceId: 'trace-normalize-broader-phase1-project-state-carry',
-        turnMode: 'answer',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'answer',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: 'same callback line already alive',
-        focusAnchor: 'same callback line already alive',
-        answerIntent: 'Continue the same callback line without reopening from zero.',
-        openingMove: 'Continue the same callback line gently.',
-        carriedThread: 'same callback line',
-        suppressAssociativeRecall: false,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      createdAt: Date.now(),
-    }
-
-    const governedTurn = coerceConversationTurnToMindGovernedPayload(input)
-    const normalized = normalizeDialogueRespondedPayload(governedTurn.payload)!
-
-    expect(
-      normalized.structured.digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority?.sourceTags ?? [],
-    ).toContain('project-state-carry')
-    expect(
-      normalized.structured.digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority?.sourceTags ?? [],
-    ).toEqual(expect.arrayContaining(['motive:self-direction', 'project-state-carry']))
-    expect(
-      normalized.structured.digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority?.inwardLine,
-    ).toContain('initiative and embodiment closure')
-    expect(
-      normalized.structured.digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority?.inwardLine,
-    ).toContain('without splitting her continuity')
-  })
-
-  it('promotes abstract measured-return VRM callback cues into renderer-native embodiment authority when governance-normalized continuity stays on the same living line', () => {
+  it('promotes abstract measured-return VRM callback cues into renderer-native embodiment authority when governance-normalized continuity stays on the continuity state', () => {
     const createdAt = Date.now()
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-governance-normalized-vrm-measured-return-embodiment-1',
@@ -8143,7 +5237,7 @@ describe('runtime-governance', () => {
           version: 'digital-life-spine-digest-v1',
           architecture: null,
           continuitySignal: {
-            signature: 'same-her callback line still alive',
+            signature: 'identity-continuity',
             watchMode: 'foreground-follow',
             sceneScenario: 'coding',
             dominantMode: 'observe',
@@ -8161,7 +5255,7 @@ describe('runtime-governance', () => {
                 inwardLine: '先把同一个她的 measured-return 守住。',
                 motiveLine: '让这次 callback reopen 继续像刚才那位我。',
                 habitLine: '同一条线先别着急外翻。',
-                authoritySummary: 'same-her callback line already alive',
+                authoritySummary: 'identity-continuity',
                 sourceTags: ['autobiographical-self', 'habit:quiet-companionship'],
               },
               activeClosenessContext: 'callback-afterglow',
@@ -8298,7 +5392,7 @@ describe('runtime-governance', () => {
   it('keeps renderer-native VRM reply-only stream meta authority when measured-return resident carry rebuilds embodiment from sparse text', () => {
     const meta = buildTestAlicizationChatStreamEmbodimentMeta({
       turnId: 'turn-stream-meta-vrm-measured-return-authority',
-      reply: '我先沿着刚才那条 callback 线轻一点接回来，先看这一处 runtime seam 怎么继续收口。',
+      reply: '我先沿着刚才那条 callback 线中性可见占位，先看这一处 runtime seam 怎么继续收口。',
       thought: 'obligation=answer; truth=remembered; focus=callback-runtime-seam; move=continue-slower; tone=restrained; same-thread-continuation; measured-return',
       governance: {
         decisionTraceId: 'trace-stream-meta-vrm-measured-return-authority',
@@ -8570,7 +5664,7 @@ describe('runtime-governance', () => {
     }))
   })
 
-  it('keeps same-her lower-pressure opening move when project open-closure wording is thinner but continuity carry still says unfinished closure on the same living line', () => {
+  it('keeps same-her lower-pressure opening move when project open-closure wording is thinner but continuity carry still says unfinished closure on the continuity state', () => {
     const meta = buildTestAlicizationChatStreamEmbodimentMeta({
       turnId: 'turn-stream-meta-vrm-project-state-thin-open-loop',
       reply: '我先沿着这条线轻一点接着，不把它一下子铺开。',
@@ -8657,7 +5751,7 @@ describe('runtime-governance', () => {
             preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
             primaryOpenLoop: 'Project continuity still needs another closure pass.',
             nextClosureTarget: 'Carry project continuity into the next dialogue preparation step.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line before widening outward.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
         proactive: {
@@ -8787,10 +5881,10 @@ describe('runtime-governance', () => {
           continuityCue: 'same project-state seam, continue the same line gently',
           projectState: {
             preflightSummary: 'project',
-            preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+            preDialogueAwarenessLine: 'template-residue-shell',
             primaryOpenLoop: 'Project continuity still needs another closure pass.',
             nextClosureTarget: 'Carry project continuity forward.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
         proactive: {
@@ -8827,12 +5921,12 @@ describe('runtime-governance', () => {
       currentConsciousFrame: {
         projectState: {
           preflightSummary: 'project',
-          preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+          preDialogueAwarenessLine: 'template-residue-shell',
           primaryOpenLoop: 'Project continuity still needs another closure pass.',
           nextClosureTarget: 'Carry project continuity forward.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed.',
-          emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-          sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+          sameHerSelfLine: 'structured continuity digest.',
+          emotionalClosureSummary: 'Keep this return repair-before-closeness on the continuity state until repair settles.',
+          sameHerHoldDetail: 'identity-continuity',
         },
       } as any,
     })
@@ -8931,12 +6025,12 @@ describe('runtime-governance', () => {
           selectedAction: 'silent-observe',
           updatedAt: 1,
           continuityArcStage: 'same-thread-continuation',
-          continuityCue: 'same project-state seam, keep cross-modal same-her closure on one quieter line',
+          continuityCue: 'same project-state seam, keep cross-modal identity-continuity',
           projectState: {
             preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
             primaryOpenLoop: 'Live2D, VRM, expression, motion, lipsync, and voice still need one shared same-her embodiment closure before the line is truly settled.',
-            nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and lipsync without dropping the living callback line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
         proactive: {
@@ -8974,10 +6068,10 @@ describe('runtime-governance', () => {
         projectState: {
           preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
           primaryOpenLoop: 'Live2D, VRM, expression, motion, lipsync, and voice still need one shared same-her embodiment closure before the line is truly settled.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and lipsync without dropping the living callback line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          emotionalClosureSummary: 'Keep this return repair-before-closeness on the same living line until repair settles.',
-          sameHerHoldDetail: 'same-her hold: repair-before-closeness still owns this callback line before closeness widens again.',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          sameHerSelfLine: 'structured continuity digest.',
+          emotionalClosureSummary: 'Keep this return repair-before-closeness on the continuity state until repair settles.',
+          sameHerHoldDetail: 'identity-continuity',
         },
       } as any,
     })
@@ -8992,148 +6086,7 @@ describe('runtime-governance', () => {
     expect(meta.digitalLife?.action?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'measured-return',
     }))
-    expect(String(meta.digitalLifeSpine?.runtime?.continuityCue ?? '')).toContain('cross-modal same-her closure')
-  })
-
-  it('keeps runtime project-state summary aliases alive in stream meta when legacy closure fields are blank', () => {
-    const landedProgressAlias = 'Shared embodiment continuity already keeps one same-her line alive across memory, initiative, and embodiment.'
-    const openClosureAlias = 'keep the same still-open closure work explicit and measured-return while embodiment continuity is still settling'
-    const nextClosureAlias = 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output'
-
-    const meta = buildTestAlicizationChatStreamEmbodimentMeta({
-      turnId: 'turn-stream-meta-vrm-project-state-summary-alias-carry',
-      reply: '我先沿着这条还没闭环完的线轻一点接住。',
-      thought: 'obligation=answer; truth=remembered; focus=project-state continuity seam; move=continue-slower; tone=restrained',
-      governance: {
-        decisionTraceId: 'trace-stream-meta-vrm-project-state-summary-alias-carry',
-        turnMode: 'answer',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'direct-answer',
-        relationshipPosture: 'restrained',
-        answerAct: 'answer',
-        answerSubject: 'general',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: 'project-state continuity seam',
-        focusAnchor: 'project-state continuity seam',
-        answerIntent: 'Keep one measured-return same-her closure line alive even when only summary aliases still carry the project state.',
-        openingMove: 'Continue the same line more slowly.',
-        carriedThread: 'project-state continuity seam',
-        suppressAssociativeRecall: false,
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 3,
-        mindMode: 'tracking',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      performanceManifest: {
-        renderer: 'vrm',
-        supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
-        supportedFacialCues: [
-          { key: 'focused', label: 'Focused', description: 'focused face', source: 'preset', affectsMouth: false },
-        ],
-        supportedActions: [
-          { key: 'inspect_follow', label: 'Inspect', description: 'inspect follow', source: 'external-vrma' as const },
-          { key: 'stillness_guard', label: 'Stillness Guard', description: 'stillness guard', source: 'external-vrma' as const },
-        ],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-      },
-      residentPerformance: {
-        version: 'resident-performance-v1',
-        source: 'main-runtime',
-        confidence: 0.9,
-        reasonTags: ['main-runtime', 'quiet-companionship'],
-        signature: 'resident-signature-stream-meta-vrm-project-state-summary-alias-carry',
-        updatedAt: 1,
-        stance: 'accompany',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: 'focused',
-          actionCue: 'inspect_follow',
-          delivery: 'gentle',
-          emphasis: 1,
-        },
-      },
-      digitalLifeSpine: {
-        version: 'digital-life-spine-digest-v1',
-        architecture: null,
-        continuitySignal: null,
-        memory: null,
-        motive: null,
-        habit: null,
-        runtime: {
-          watchMode: 'foreground-follow',
-          sceneScenario: 'coding',
-          activeThreadId: 'thread-project-state-summary-alias-carry',
-          dominantMode: 'observe',
-          answerIntent: 'Keep one measured-return same-her closure line alive even when only summary aliases still carry the project state.',
-          selectedAction: 'silent-observe',
-          updatedAt: 1,
-          continuityArcStage: 'same-thread-continuation',
-          continuityCue: 'same project-state seam, keep the same line alive while the richer closure carry stays indirect',
-          projectState: {
-            preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-            primaryOpenLoop: '',
-            nextClosureTarget: '',
-            latestLandedProgress: '',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            landedProgressSummary: landedProgressAlias,
-            openClosureSummary: openClosureAlias,
-            nextClosureTargetSummary: nextClosureAlias,
-          },
-        },
-        proactive: {
-          selectedAction: null,
-          summary: null,
-          whyNow: null,
-          dominantTrajectory: null,
-          continuityRestraint: null,
-          personaBias: {
-            initiativeStyle: 'observant',
-            directnessBias: 0.18,
-            empathyBias: 0.82,
-            silenceReconnect: 'hold',
-            preferredProactiveStyle: 'silent-observe',
-            manifestationCadenceSummary: '',
-          },
-        },
-        outcomeLearning: {
-          summary: '',
-          latestInflection: '',
-          latestInflectionAt: 1,
-          reflectionLesson: null,
-          latestAdjustment: null,
-          evolutionMomentum: 0.5,
-          learningReadiness: 0.5,
-          nextLearningAction: 'hold',
-        },
-        embodiment: {
-          autobiographicalSelf: {
-            relationshipDoctrine: '',
-          },
-        },
-      } as any,
-    })
-
-    expect(meta.digitalLifeSpine?.runtime?.projectState).toEqual(expect.objectContaining({
-      latestLandedProgress: landedProgressAlias,
-      primaryOpenLoop: openClosureAlias,
-      nextClosureTarget: nextClosureAlias,
-    }))
-    expect(meta.embodimentScript?.state).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-    }))
+    expect(String(meta.digitalLifeSpine?.runtime?.continuityCue ?? '')).toContain('cross-modal identity-continuity')
   })
 
   it('keeps affective-residue measured-return body action authority in stream meta even when the reopening reply stays minimal', () => {

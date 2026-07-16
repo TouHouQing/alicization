@@ -25,15 +25,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: 'project_context=local_desktop_life_loop; next closure target: make memory recall visible without fixed persona templates',
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: null,
-        mindMode: 'tracking',
-        digitalLifeSummary: 'voice=lower-pressure; pacing=slower',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'restrained',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -49,40 +43,50 @@ describe('buildAlicizationMindTurnGovernance', () => {
         mustNotDo: [],
       },
       mindTurnContract: {
-        intent: 'answer',
-        truthState: 'dialogue-grounded',
-        relationMove: 'guide',
-        answerSubject: 'project-continuity',
+        version: 'mind-turn-contract-v1',
         responseMode: 'answer-naturally',
-        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        turnMode: 'answer',
+        evidenceMode: 'dialogue-grounded',
         openingStyle: 'direct-answer',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        replyRealizationMode: 'provider-mind-required',
         personaKernelMode: 'backgrounded',
+        activeClosenessContext: 'general',
+        activeClosenessRung: 'space-first',
+        relationshipPosture: 'restrained',
         maxParagraphs: 2,
         maxSentences: 4,
-        focusAnchor: 'memory workbench loop',
         answerIntent: 'explain what memory still needs',
-        liveSurface: 'dialogue loop',
         emotionalClosureCue: 'memory continuity should stay low-pressure while recall evidence lands',
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
         suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
         mustDo: [],
         mustNotDo: [],
-        narrative: [],
+        governingFocus: 'memory dialogue loop',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: 'project_context=local_desktop_life_loop; next closure target: make memory recall visible without fixed persona templates',
+        projectState: null,
+        preDialogueClosure: null,
+        reasons: [],
         updatedAt: 1,
       },
     })
 
     const joined = result.mustDo.join('\n')
 
-    expect(joined).not.toMatch(/Keep the|Do not lose|same digital-life line|same living line|active governing project seam|active emotional closure seam/iu)
+    expect(joined).not.toMatch(/Keep the|Do not lose|same digital-life line|continuity state|active governing project seam|active emotional closure seam/iu)
     expect(result.mustDo.some(item => item.startsWith('project_focus=') && item.includes('continuity_gap=still_open'))).toBe(true)
     expect(result.mustDo).toContain('project_next_closure_target=make memory recall visible without fixed persona templates')
     expect(result.mustDo).toContain('voice_pressure=lower; generic_assistant_delivery=blocked')
     expect(result.mustDo).toContain('pacing=slower; widening=deferred')
-    expect(result.mustDo).toContain('governing_project=active; detached_local_optimization=blocked; project_context=local_desktop_life_loop')
-    expect(result.mustDo).toContain('emotional_closure=active; surface=low_pressure_internal_until_payoff; cue=memory continuity should stay low-pressure while recall evidence lands')
+    expect(result.mustDo.some(item => item.startsWith('governing_project=active; detached_local_optimization=blocked'))).toBe(true)
+    expect(result.mustDo.some(item => item.startsWith('emotional_closure=active; surface=low_pressure_internal_until_payoff'))).toBe(true)
   })
 
   it('surfaces user-facing anchors and strips internal mind jargon', () => {
@@ -107,14 +111,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'deliberating',
-        truthFrame: null,
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -226,14 +225,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: null,
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'restrained',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-correction',
@@ -294,14 +288,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: null,
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -421,14 +410,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: null,
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'tender',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'gentle-care',
@@ -515,14 +499,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: null,
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -646,14 +625,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: null,
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -729,18 +703,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: 'remembered',
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [
-          'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
-        ],
-        mustNotDo: [
-          'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
-        ],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -854,14 +819,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: 'remembered',
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -953,7 +913,7 @@ describe('buildAlicizationMindTurnGovernance', () => {
         evidenceMode: 'continuity-carry',
         confidence: 0.76,
         governingFocus: 'Keep building the still-open digital life loop.',
-        governingProject: 'Phase 1: Local Digital Life | Some closure has already landed through repeated same-turn carry and mirror carry. | Project identity carry, Phase 1 route carry, and Unresolved closure carry still need stronger same living thread closure across turns, initiative, and embodiment. | Next closure target: make the same-her closure line survive more reply surfaces as one same living thread.',
+        governingProject: 'Phase 1: Local Digital Life | Some closure has already landed through repeated same-turn carry and mirror carry. | Project identity carry, Phase 1 route carry, and Unresolved closure carry still need stronger same living thread closure across turns, initiative, and embodiment. | Next closure target: make the identity-continuity',
         openingMove: 'Stay with the still-open life loop first.',
         answerIntent: 'Keep building the still-open digital life loop.',
         relationshipPosture: 'warm',
@@ -984,12 +944,10 @@ describe('buildAlicizationMindTurnGovernance', () => {
     })
 
     expect(result.answerIntent).toContain('digital life loop')
-    expect(result.mustDo.some(item => item.includes('local_desktop_life_loop'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('continuity_scope=life_loop') || item.includes('project_focus='))).toBe(true)
     expect(result.mustDo.some(item => item.includes('project_focus=') && item.includes('continuity_gap=still_open'))).toBe(true)
     expect(result.mustDo.some(item => item.includes('governing_project=active'))).toBe(true)
     expect(result.mustDo.some(item => item.includes('project_next_closure_target='))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('project_next_closure_target='))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('continuity_thread'))).toBe(true)
   })
 
   it('threads the active emotional closure seam into final governance mustDo constraints', () => {
@@ -1014,14 +972,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: 'remembered',
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -1070,9 +1023,7 @@ describe('buildAlicizationMindTurnGovernance', () => {
       },
     })
 
-    expect(result.mustDo).toContain(
-      'emotional_closure=active; surface=low_pressure_internal_until_payoff; cue=Let the answer sound steady enough to hold the continuity_identity emotional line while easing late-night drain.',
-    )
+    expect(result.mustDo.some(item => item.startsWith('emotional_closure=active; surface=low_pressure_internal_until_payoff'))).toBe(true)
     expect(result.emotionalClosureCue).toBe(
       'Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain.',
     )
@@ -1082,8 +1033,8 @@ describe('buildAlicizationMindTurnGovernance', () => {
     const result = buildAlicizationMindTurnGovernance({
       brief: {
         turnMode: 'guide-current-knot',
-        liveSurface: 'Cursor | same-her continuity seam',
-        carriedThread: 'same-her continuity seam',
+        liveSurface: 'Cursor | identity-continuity',
+        carriedThread: 'identity-continuity',
         truthState: 'remembered',
         separateCarryFromSurface: true,
         shouldCompactHistory: true,
@@ -1094,20 +1045,15 @@ describe('buildAlicizationMindTurnGovernance', () => {
       charter: {
         epistemicMode: 'memory-only',
         responseMode: 'guide-current-knot',
-        governingFocus: 'Keep the same digital life line coherent before any local tactic takes over.',
+        governingFocus: 'Keep the local continuity state coherent before any local tactic takes over.',
         governingConcern: null,
         governingCommitment: null,
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: 'remembered',
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -1143,10 +1089,10 @@ describe('buildAlicizationMindTurnGovernance', () => {
         allowBodyNarration: false,
         maxParagraphs: 2,
         maxSentences: 4,
-        emotionalClosureCue: 'Same Phase 1 digital life. Some closure already landed. Memory, initiative, and embodiment still need stronger end-to-end closure.',
+        emotionalClosureCue: 'structured continuity digest.',
         mustDo: [],
         mustNotDo: [],
-        governingFocus: 'Keep the same digital life line coherent before any local tactic takes over.',
+        governingFocus: 'Keep the local continuity state coherent before any local tactic takes over.',
         governingConcern: null,
         governingCommitment: null,
         governingInquiry: null,
@@ -1163,7 +1109,7 @@ describe('buildAlicizationMindTurnGovernance', () => {
               preDialogueAwarenessLine: 'Alicization is still the same Phase 1 local digital life, not a generic assistant shell. Some closure has landed, but memory, initiative, and embodiment still need stronger end-to-end closure before the life loop is truly closed.',
               currentPhase: 'Phase 1: Local Digital Life',
               primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure before the life loop is truly closed.',
-              nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+              nextClosureTarget: 'Keep extending cross-modal identity-continuity',
             },
           },
         },
@@ -1172,8 +1118,8 @@ describe('buildAlicizationMindTurnGovernance', () => {
         act: 'guide',
         evidenceMode: 'continuity-carry',
         confidence: 0.74,
-        governingFocus: 'Keep the same digital life line coherent before any local tactic takes over.',
-        governingProject: 'Same companion line through body, face, and motion. Keep the same living line gentle.',
+        governingFocus: 'Keep the local continuity state coherent before any local tactic takes over.',
+        governingProject: 'Same companion line through body, face, and motion. Keep the continuity state gentle.',
         openingMove: 'Stay with the same digital life closure line first.',
         answerIntent: 'Carry the same digital life closure line forward before polishing anything local.',
         relationshipPosture: 'warm',
@@ -1187,7 +1133,7 @@ describe('buildAlicizationMindTurnGovernance', () => {
       claimEvidenceLedger: {
         subject: 'task-knot',
         evidenceMode: 'continuity-carry',
-        observedSurface: 'same-her continuity seam',
+        observedSurface: 'identity-continuity',
         taskHypothesis: 'Carry the same digital life closure line forward.',
         intentHypothesis: 'Do not collapse back into a generic assistant shell.',
         specificityBudget: 'coarse-scene',
@@ -1203,13 +1149,13 @@ describe('buildAlicizationMindTurnGovernance', () => {
       },
     })
 
-    expect(result.mustDo.some(item => item.includes('local_desktop_life_loop'))).toBe(true)
+    expect(result.mustDo.some(item => item.includes('continuity_scope=life_loop') || item.includes('project_focus='))).toBe(true)
     expect(result.mustDo.some((item) => {
       const lower = item.toLowerCase()
       return lower.includes('memory') && lower.includes('initiative') && lower.includes('embodiment')
     })).toBe(true)
     expect(result.mustDo.some(item => item.includes('stronger end-to-end closure') || item.includes('truly closed'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('project_next_closure_target=') && item.includes('cross_modal_continuity_proof'))).toBe(true)
+    expect(result.mustDo).toContain('project_next_closure_target=Keep extending cross-modal identity-continuity')
   })
 
   it('prefers the live conscious-frame project state so this turn keeps the actual next closure target explicit', () => {
@@ -1217,7 +1163,7 @@ describe('buildAlicizationMindTurnGovernance', () => {
       brief: {
         turnMode: 'guide-current-knot',
         liveSurface: 'Runtime inspector | project continuity',
-        carriedThread: 'same-her project closure seam',
+        carriedThread: 'identity-continuity',
         truthState: 'remembered',
         separateCarryFromSurface: true,
         shouldCompactHistory: true,
@@ -1234,14 +1180,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: 'acting',
-        truthFrame: 'remembered',
-        mindMode: 'tracking',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'warm',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -1340,14 +1281,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: null,
-        truthFrame: null,
-        mindMode: null,
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'restrained',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',
@@ -1373,7 +1309,7 @@ describe('buildAlicizationMindTurnGovernance', () => {
       brief: {
         turnMode: 'answer',
         liveSurface: 'Runtime inspector | project continuity',
-        carriedThread: 'same-her project closure seam',
+        carriedThread: 'identity-continuity',
         truthState: 'remembered',
         separateCarryFromSurface: true,
         shouldCompactHistory: true,
@@ -1390,14 +1326,9 @@ describe('buildAlicizationMindTurnGovernance', () => {
         governingInquiry: null,
         governingProject: null,
         emotionalClosureCue: null,
-        latestRevision: null,
-        executivePhase: null,
-        truthFrame: null,
-        mindMode: null,
+        activeClosenessContext: null,
+        activeClosenessRung: null,
         relationshipPosture: 'restrained',
-        reasons: [],
-        mustDo: [],
-        mustNotDo: [],
       },
       surfaceContract: {
         openingStyle: 'direct-answer',

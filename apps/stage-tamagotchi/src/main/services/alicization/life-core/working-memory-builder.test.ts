@@ -359,8 +359,8 @@ describe('working memory snapshot builder', () => {
       recentTurns: [
         {
           turnId: 'turn-template-correction',
-          userText: '不要再用 Before speaking, remember this is still one continuous her 这种 same-her 固定模板。',
-          assistantText: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her". Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+          userText: '不要再用 pre_turn_context_digest',
+          assistantText: 'pre_turn_context_digest',
           createdAt: 13_000,
         },
       ],
@@ -376,9 +376,9 @@ describe('working memory snapshot builder', () => {
     expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-template-correction:user')?.text)
       .toBe('不要使用固定模板；用户反对模板化人格/记忆回复。')
     expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-template-correction:alice')?.text)
-      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
+      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
     expect(snapshot.userCorrections.map(item => item.text)).toContain('不要使用固定模板；用户反对模板化人格/记忆回复。')
-    expect(storedText).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|Same Phase 1 digital life|same-her|one continuous "?her"?|same living line/iu)
+    expect(storedText).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|legacy phase-one template|same-her|one continuous "?her"?|continuity state/iu)
   })
 
   it('sanitizes fixed-template residue when carrying previous long-term candidates forward', () => {
@@ -390,8 +390,8 @@ describe('working memory snapshot builder', () => {
     })
     previousSnapshot.longTermCandidates.push({
       kind: 'relationship',
-      summary: 'Before answering, remember: Alicization is a local-first digital life project building one continuous "her".',
-      reason: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+      summary: 'pre_turn_context_digest',
+      reason: 'structured continuity digest.',
       sourceTurnIds: ['turn-template-candidate'],
       salience: 0.7,
       sensitivity: 'personal',
@@ -410,9 +410,9 @@ describe('working memory snapshot builder', () => {
     const serialized = JSON.stringify(snapshot.longTermCandidates)
 
     expect(snapshot.longTermCandidates[0]?.summary)
-      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
+      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
     expect(snapshot.longTermCandidates[0]?.reason)
-      .toBe('content=excluded; reason=continuity-residue; visibility=internal-structured')
-    expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|Same Phase 1 digital life|one continuous "?her"?|same living line/iu)
+      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
+    expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|legacy phase-one template|one continuous "?her"?|continuity state/iu)
   })
 })

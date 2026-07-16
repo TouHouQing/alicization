@@ -6,11 +6,11 @@ import { resolveCanonicalStructuredProjectState } from './structured-project-sta
 const fixedTemplateResiduePattern = new RegExp([
   'Before (?:answering|speaking|acting)',
   'Right now I am',
-  'Same Phase 1 digital life',
+  'legacy phase-one template',
   'same-her',
-  'same living line',
+  'continuity state',
   'one living her',
-  'one continuous her',
+  'identity continuity',
   'host computer',
   'better chat wrapper',
   'project identity, landed progress, and open closure',
@@ -37,7 +37,7 @@ function expectNoFixedTemplateResidue(value: unknown) {
 }
 
 function oldBriefingTemplate() {
-  return ['Before answering,', 'keep the same digital life project in view.'].join(' ')
+  return ['pre_turn_context_digest', 'keep the same digital life project in view.'].join(' ')
 }
 
 function oldEmbodimentHeadlineTemplate() {
@@ -53,23 +53,23 @@ describe('structured project state', () => {
 
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
-        identity: 'project_state_owner=ProjectStateGovernance',
+        identity: 'project_state_scope=visible_governance',
         currentPhase: 'runtime_context=local_runtime',
         latestLandedProgress: 'Runtime project-state observation is available before reply shaping.',
         primaryOpenLoop: 'Memory, initiative, and embodiment review remain open.',
         nextClosureTarget: 'Review memory, initiative, and embodiment closure evidence.',
-        sameHerSelfLine: 'continuity_owner=ProjectStateGovernance',
+        sameHerSelfLine: 'continuity_context=present',
       },
       runtimePreflightSummary: 'runtime preflight',
       payloadPreDialogueAwarenessLine: 'payload awareness',
     })
 
-    expect(rebuilt.identity).toBe('project_state_owner=ProjectStateGovernance')
+    expect(rebuilt.identity).toBe('project_state_scope=visible_governance')
     expect(rebuilt.currentPhase).toBe('runtime_context=local_runtime')
     expect(rebuilt.latestLandedProgress).toBe('Runtime project-state observation is available before reply shaping.')
     expect(rebuilt.primaryOpenLoop).toBe('Memory, initiative, and embodiment review remain open.')
     expect(rebuilt.nextClosureTarget).toBe('Review memory, initiative, and embodiment closure evidence.')
-    expect(rebuilt.sameHerSelfLine).toBe('continuity_owner=ProjectStateGovernance')
+    expect(rebuilt.sameHerSelfLine).toBe('continuity_context=present')
     expect(rebuilt.sameHerDriftRisk).toBe(canonicalProjectState.sameHerDriftRisk)
     expectNoFixedTemplateResidue(rebuilt)
   })
@@ -128,7 +128,7 @@ describe('structured project state', () => {
       },
       runtimePreferredAwarenessLine: legacyHeadline,
       runtimePreDialogueAwarenessLine: oldBriefingTemplate(),
-      payloadPreDialogueAwarenessLine: 'Before answering, remember the project.',
+      payloadPreDialogueAwarenessLine: 'pre_turn_context_digest',
     })
 
     expect(rebuilt.preDialogueAwarenessLine).not.toBe(legacyHeadline)
@@ -151,7 +151,7 @@ describe('structured project state', () => {
       runtimePreflightSummary: 'same digital life | landed | open closure',
       runtimePreferredAwarenessLine: oldBriefingTemplate(),
       runtimePreDialogueAwarenessLine: oldBriefingTemplate(),
-      payloadPreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+      payloadPreDialogueAwarenessLine: 'template-residue-shell',
     })
 
     expect(rebuilt.preflightSummary).not.toBe('same digital life | landed | open closure')
@@ -163,17 +163,17 @@ describe('structured project state', () => {
   it('keeps legacy latestProgress but rebuilds awareness as structured evidence', () => {
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life',
         latestProgress: 'Legacy-only structured return marker already lands before visible reply shaping.',
         primaryOpenLoop: 'Memory, initiative, and embodiment review remains open across longer desktop returns.',
         nextClosureTarget: 'Keep closure evidence structured before broader fluency takes over.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        sameHerSelfLine: 'structured continuity digest.',
       },
       runtimePreflightSummary: 'same digital life | landed | open closure',
       runtimePreferredAwarenessLine: oldBriefingTemplate(),
       runtimePreDialogueAwarenessLine: oldBriefingTemplate(),
-      payloadPreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+      payloadPreDialogueAwarenessLine: 'template-residue-shell',
     })
 
     expect(rebuilt.latestLandedProgress).toBe('Legacy-only structured return marker already lands before visible reply shaping.')
@@ -186,7 +186,7 @@ describe('structured project state', () => {
     const legacyChineseAwareness = '开口前先记住：这还是同一个数字生命项目，她仍在 Phase 1。已经落地的是桌面返场开始能带回同一条 same-her life line，但记忆、主动性和具身之间还没有彻底闭环，下一步还得继续把这些 closure 收成一个 living line。'
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         currentPhase: 'Phase 1: Local Digital Life',
         preDialogueAwarenessSummary: legacyChineseAwareness,
         preDialogueAwarenessLine: legacyChineseAwareness,
@@ -194,7 +194,7 @@ describe('structured project state', () => {
       },
       runtimePreferredAwarenessLine: oldBriefingTemplate(),
       runtimePreDialogueAwarenessLine: oldBriefingTemplate(),
-      payloadPreDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+      payloadPreDialogueAwarenessLine: 'template-residue-shell',
     })
 
     expect(rebuilt.preDialogueAwarenessLine).not.toBe(legacyChineseAwareness)
@@ -205,22 +205,22 @@ describe('structured project state', () => {
   it('derives repair-before-closeness carry as structured continuity fields', () => {
     const rebuilt = resolveCanonicalStructuredProjectState({
       normalizedProjectState: {
-        identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
         currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         latestLandedProgress: 'Same-session mirror carry and callback continuity already survive execution re-entry.',
         primaryOpenLoop: 'Repair-first callback continuity still needs reviewed closure before execution opens outward again.',
         nextClosureTarget: 'Keep the callback repair seam structured through execution re-entry.',
-        sameHerSelfLine: 'Same Phase 1 digital life. This reopened callback should keep the same living line rather than reopen from a generic shell.',
+        sameHerSelfLine: 'structured continuity digest.',
         sameHerDriftRisk: 'If execution re-entry flattens into a generic shell here, treat that as unfinished same-her drift.',
         continuityRestraint: 'repair-before-closeness',
         continuityPreferredTiming: 'next-open-window',
       },
-      runtimePreDialogueAwarenessLine: 'Same Phase 1 digital life. This reopened callback should keep the same living line rather than reopen from a generic shell.',
+      runtimePreDialogueAwarenessLine: 'structured continuity digest.',
       runtimePreflightSummary: 'identity=Alicization | phase=Phase 1 | open=Repair-first callback continuity | next=Keep the same callback repair seam explicit',
     })
 
     expect(rebuilt.sameHerHoldDetail).toBe(
-      'continuity_hold=repair-before-closeness; owner=project_state_review; pace=settle-before-closeness.',
+      'cadence=repair-before-closeness; owner=project_state_review; pace=settle-before-closeness.',
     )
     expect(rebuilt.continuityCue).toBe(
       'continuity_cue=repair-before-closeness; surface_timing=after-repair-settles.',

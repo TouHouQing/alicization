@@ -5,7 +5,6 @@ export interface AlicizationMemorySpeechPostureArtifact {
   surfaceMode: string | null
   placement: string | null
   certainty: string | null
-  styleNote: string | null
 }
 
 export function deriveAlicizationMemorySpeechPosture(input: {
@@ -17,6 +16,5 @@ export function deriveAlicizationMemorySpeechPosture(input: {
     surfaceMode: speech?.surfaceMode ?? null,
     placement: speech?.placement ?? null,
     certainty: speech?.certainty ?? null,
-    styleNote: speech?.styleNote ?? null,
   }
 }

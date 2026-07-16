@@ -544,7 +544,15 @@ function buildReplayBenchmarkShipGate(input: {
       status: !projectStateAuditSummary
         || projectStateAuditSummary.comparedTurnCount <= 0
         || (
-          projectStateAuditSummary.fullyCarriedTurnCount >= projectStateAuditSummary.comparedTurnCount
+          projectStateAuditSummary.contentCompleteTurnCount >= projectStateAuditSummary.comparedTurnCount
+          && projectStateAuditSummary.validationStatus.knownTurnCount === projectStateAuditSummary.comparedTurnCount
+          && projectStateAuditSummary.validationStatus.approvedTurnCount === projectStateAuditSummary.comparedTurnCount
+          && projectStateAuditSummary.validationStatus.blockedTurnCount === 0
+          && projectStateAuditSummary.validationStatus.unknownTurnCount === 0
+          && projectStateAuditSummary.evidenceStatus.knownTurnCount === projectStateAuditSummary.comparedTurnCount
+          && projectStateAuditSummary.evidenceStatus.presentTurnCount === projectStateAuditSummary.comparedTurnCount
+          && projectStateAuditSummary.evidenceStatus.missingTurnCount === 0
+          && projectStateAuditSummary.evidenceStatus.unknownTurnCount === 0
           && (
             projectStateAuditSummary.sameHerSummaryTurnCount <= 0
             || projectStateAuditSummary.sameHerSelfLineTurnCount >= projectStateAuditSummary.sameHerSummaryTurnCount
@@ -553,7 +561,7 @@ function buildReplayBenchmarkShipGate(input: {
         ? 'pass'
         : 'fail',
       detail: projectStateAuditSummary
-        ? `projectStateAudit=${Number((projectStateAuditSummary.fullyCarriedTurnCount / Math.max(1, projectStateAuditSummary.comparedTurnCount)).toFixed(2))} (${projectStateAuditSummary.fullyCarriedTurnCount}/${projectStateAuditSummary.comparedTurnCount}), preDialogueAwareness=${projectStateAuditSummary.preDialogueAwarenessTurnCount}, continuitySummary=${projectStateAuditSummary.continuitySummaryTurnCount}, embodimentClosure=${projectStateAuditSummary.embodimentClosureTurnCount}, preserved=${projectStateAuditSummary.preservedTurnCount}, rewriteApplied=${projectStateAuditSummary.rewriteAppliedTurnCount}, sameHerSelfLine=${projectStateAuditSummary.sameHerSelfLineTurnCount}${(projectStateAuditSummary.sameHerHoldDetailTurnCount ?? 0) > 0 || (projectStateAuditSummary.continuityArcStageTurnCount ?? 0) > 0 || (projectStateAuditSummary.continuityCueTurnCount ?? 0) > 0 ? `, sameHerHoldDetail=${projectStateAuditSummary.sameHerHoldDetailTurnCount ?? 0}, continuityArcStage=${projectStateAuditSummary.continuityArcStageTurnCount ?? 0}, continuityCue=${projectStateAuditSummary.continuityCueTurnCount ?? 0}` : ''}${projectStateAuditSummary.sameHerSummaryTurnCount > 0 && projectStateAuditSummary.sameHerSelfLineTurnCount < projectStateAuditSummary.sameHerSummaryTurnCount ? ', selfLineDrift=degraded-to-generic-guidance, humanRisk=reply-slipped-toward-generic-project-shell-instead-of-one-continuous-her' : ''}`
+        ? `projectStateAudit=${Number((projectStateAuditSummary.contentCompleteTurnCount / Math.max(1, projectStateAuditSummary.comparedTurnCount)).toFixed(2))} (${projectStateAuditSummary.contentCompleteTurnCount}/${projectStateAuditSummary.comparedTurnCount}), preDialogueAwareness=${projectStateAuditSummary.preDialogueAwarenessTurnCount}, continuitySummary=${projectStateAuditSummary.continuitySummaryTurnCount}, embodimentClosure=${projectStateAuditSummary.embodimentClosureTurnCount}, validationKnown=${projectStateAuditSummary.validationStatus.knownTurnCount}, validationApproved=${projectStateAuditSummary.validationStatus.approvedTurnCount}, validationBlocked=${projectStateAuditSummary.validationStatus.blockedTurnCount}, validationUnknown=${projectStateAuditSummary.validationStatus.unknownTurnCount}, evidenceKnown=${projectStateAuditSummary.evidenceStatus.knownTurnCount}, evidencePresent=${projectStateAuditSummary.evidenceStatus.presentTurnCount}, evidenceMissing=${projectStateAuditSummary.evidenceStatus.missingTurnCount}, evidenceUnknown=${projectStateAuditSummary.evidenceStatus.unknownTurnCount}, sameHerSelfLine=${projectStateAuditSummary.sameHerSelfLineTurnCount}${(projectStateAuditSummary.sameHerHoldDetailTurnCount ?? 0) > 0 || (projectStateAuditSummary.continuityArcStageTurnCount ?? 0) > 0 || (projectStateAuditSummary.continuityCueTurnCount ?? 0) > 0 ? `, sameHerHoldDetail=${projectStateAuditSummary.sameHerHoldDetailTurnCount ?? 0}, continuityArcStage=${projectStateAuditSummary.continuityArcStageTurnCount ?? 0}, continuityCue=${projectStateAuditSummary.continuityCueTurnCount ?? 0}` : ''}${projectStateAuditSummary.sameHerSummaryTurnCount > 0 && projectStateAuditSummary.sameHerSelfLineTurnCount < projectStateAuditSummary.sameHerSummaryTurnCount ? ', selfLineDrift=degraded-to-generic-guidance, humanRisk=reply-slipped-toward-generic-project-shell-instead-of-one-continuous-her' : ''}`
         : 'projectStateAudit=n/a',
     },
   ] satisfies AlicizationRunReplayBenchmarkResult['shipGate']
@@ -889,16 +897,80 @@ function buildReplayPreDialogueBriefingSummary(input: {
     : null
 }
 
+function createReplayValidationStatusSummary() {
+  return {
+    knownTurnCount: 0,
+    approvedTurnCount: 0,
+    blockedTurnCount: 0,
+    unknownTurnCount: 0,
+  }
+}
+
+function normalizeReplayValidationStatus(raw: unknown) {
+  return raw === 'approved' || raw === 'blocked'
+    ? raw
+    : 'unknown'
+}
+
+function countReplayValidationStatus(
+  summary: ReturnType<typeof createReplayValidationStatusSummary>,
+  raw: unknown,
+) {
+  const status = normalizeReplayValidationStatus(raw)
+  if (status === 'approved') {
+    summary.knownTurnCount += 1
+    summary.approvedTurnCount += 1
+    return
+  }
+  if (status === 'blocked') {
+    summary.knownTurnCount += 1
+    summary.blockedTurnCount += 1
+    return
+  }
+  summary.unknownTurnCount += 1
+}
+
+function createReplayEvidenceStatusSummary() {
+  return {
+    knownTurnCount: 0,
+    presentTurnCount: 0,
+    missingTurnCount: 0,
+    unknownTurnCount: 0,
+  }
+}
+
+function normalizeReplayEvidenceStatus(raw: unknown) {
+  return raw === 'present' || raw === 'missing'
+    ? raw
+    : 'unknown'
+}
+
+function countReplayEvidenceStatus(
+  summary: ReturnType<typeof createReplayEvidenceStatusSummary>,
+  raw: unknown,
+) {
+  const status = normalizeReplayEvidenceStatus(raw)
+  if (status === 'present') {
+    summary.knownTurnCount += 1
+    summary.presentTurnCount += 1
+    return
+  }
+  if (status === 'missing') {
+    summary.knownTurnCount += 1
+    summary.missingTurnCount += 1
+    return
+  }
+  summary.unknownTurnCount += 1
+}
+
 function buildReplayEmotionalClosureSummary(input: {
   turns: AlicizationReplayTurn[]
 }): NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['emotionalClosureSummary']> | null {
   let comparedTurnCount = 0
   let activeCueTurnCount = 0
-  let preservedTurnCount = 0
-  let rewriteAppliedTurnCount = 0
-  let fullyClosedTurnCount = 0
   let lowPressureRequiredTurnCount = 0
   let antiRestartRequiredTurnCount = 0
+  const validationStatus = createReplayValidationStatusSummary()
 
   for (const turn of input.turns) {
     const audit = turn.visibleReplyRealization?.emotionalClosureAudit ?? null
@@ -915,31 +987,41 @@ function buildReplayEmotionalClosureSummary(input: {
     if (!audit && !projectStateEmotionalClosureCue)
       continue
     comparedTurnCount += 1
+    countReplayValidationStatus(
+      validationStatus,
+      turn.visibleReplyRealization?.visibleReplyValidationStatus,
+    )
     if (audit?.activeCue || projectStateEmotionalClosureCue)
       activeCueTurnCount += 1
-    if (audit?.preservedIntoRewrite)
-      preservedTurnCount += 1
-    if (audit?.rewriteClosureApplied)
-      rewriteAppliedTurnCount += 1
     if (audit?.lowPressureRequired)
       lowPressureRequiredTurnCount += 1
     if (audit?.antiRestartRequired)
       antiRestartRequiredTurnCount += 1
-    if ((audit?.activeCue || projectStateEmotionalClosureCue) && audit?.preservedIntoRewrite && audit?.rewriteClosureApplied)
-      fullyClosedTurnCount += 1
   }
 
   return comparedTurnCount > 0
     ? {
         comparedTurnCount,
         activeCueTurnCount,
-        preservedTurnCount,
-        rewriteAppliedTurnCount,
-        fullyClosedTurnCount,
         lowPressureRequiredTurnCount,
         antiRestartRequiredTurnCount,
+        validationStatus,
       }
     : null
+}
+
+function hasReplayEmotionalClosureDrift(
+  summary: ReturnType<typeof buildReplayEmotionalClosureSummary>,
+) {
+  if (!summary || summary.comparedTurnCount <= 0)
+    return false
+
+  const comparedTurnCount = summary.comparedTurnCount
+  return summary.activeCueTurnCount < comparedTurnCount
+    || summary.validationStatus.knownTurnCount !== comparedTurnCount
+    || summary.validationStatus.approvedTurnCount !== comparedTurnCount
+    || summary.validationStatus.blockedTurnCount > 0
+    || summary.validationStatus.unknownTurnCount > 0
 }
 
 function buildReplaySelfAuthoritySummary(input: {
@@ -948,25 +1030,24 @@ function buildReplaySelfAuthoritySummary(input: {
   let comparedTurnCount = 0
   let authoritySummaryTurnCount = 0
   let closenessPostureTurnCount = 0
-  let preservedTurnCount = 0
-  let rewriteAppliedTurnCount = 0
-  let fullyCarriedTurnCount = 0
+  let contentCompleteTurnCount = 0
+  const validationStatus = createReplayValidationStatusSummary()
 
   for (const turn of input.turns) {
     const audit = turn.visibleReplyRealization?.selfAuthorityAudit ?? null
     if (!audit)
       continue
     comparedTurnCount += 1
+    countReplayValidationStatus(
+      validationStatus,
+      turn.visibleReplyRealization?.visibleReplyValidationStatus,
+    )
     if (audit.authoritySummary)
       authoritySummaryTurnCount += 1
     if (audit.closenessPosture)
       closenessPostureTurnCount += 1
-    if (audit.preservedIntoRewrite)
-      preservedTurnCount += 1
-    if (audit.rewriteClosureApplied)
-      rewriteAppliedTurnCount += 1
-    if (audit.authoritySummary && audit.closenessPosture && audit.preservedIntoRewrite && audit.rewriteClosureApplied)
-      fullyCarriedTurnCount += 1
+    if (audit.authoritySummary && audit.closenessPosture)
+      contentCompleteTurnCount += 1
   }
 
   return comparedTurnCount > 0
@@ -974,11 +1055,33 @@ function buildReplaySelfAuthoritySummary(input: {
         comparedTurnCount,
         authoritySummaryTurnCount,
         closenessPostureTurnCount,
-        preservedTurnCount,
-        rewriteAppliedTurnCount,
-        fullyCarriedTurnCount,
+        contentCompleteTurnCount,
+        validationStatus,
       }
     : null
+}
+
+function buildReplayFailureTurnSelfAuthoritySummary(
+  turn: AlicizationReplayTurn | null | undefined,
+): NonNullable<AlicizationReplayBenchmarkFailureTurnRecord['selfAuthoritySummary']> | null {
+  const audit = turn?.visibleReplyRealization?.selfAuthorityAudit ?? null
+  if (!audit)
+    return null
+
+  return {
+    authoritySummary: typeof audit.authoritySummary === 'string'
+      ? audit.authoritySummary
+      : null,
+    closenessPosture: typeof audit.closenessPosture === 'string'
+      ? audit.closenessPosture
+      : null,
+    visibleReplyValidationStatus: normalizeReplayValidationStatus(
+      turn?.visibleReplyRealization?.visibleReplyValidationStatus,
+    ),
+    projectStateEvidenceStatus: normalizeReplayEvidenceStatus(
+      turn?.visibleReplyRealization?.projectStateEvidenceStatus,
+    ),
+  }
 }
 
 function readPreparedSessionMirrorProjectStateTexts(
@@ -1085,6 +1188,9 @@ function readReplayStructuredProjectStateTexts(
 
 export const __alicizationTestOnly = {
   readPreparedSessionMirrorProjectStateTexts,
+  buildReplayEmotionalClosureSummary,
+  hasReplayEmotionalClosureDrift,
+  buildReplaySelfAuthoritySummary,
   buildReplayProjectStateAuditSummary,
   hasRuntimeSamplingTraceDownstreamStateEvidence,
   readRuntimeSamplingTraceDownstreamStateLanes,
@@ -1096,6 +1202,7 @@ export const __alicizationTestOnly = {
   replayNoisyDesktopEventRoleText,
   readReplayLongRunSameHerEventRoles,
   buildReplayLongRunSameHerSessionSummary,
+  buildReplayLongRunSameHerTurnDiagnostics,
   readReplayLongRunSameHerMemoryIdentityContinuity,
 }
 
@@ -1119,17 +1226,28 @@ function buildReplayProjectStateAuditSummary(input: {
   let continuitySummaryTurnCount = 0
   let embodimentClosureTurnCount = 0
   let preDialogueClosureTurnCount = 0
-  let preservedTurnCount = 0
-  let rewriteAppliedTurnCount = 0
-  let fullyCarriedTurnCount = 0
+  let contentCompleteTurnCount = 0
+  const validationStatus = createReplayValidationStatusSummary()
+  const evidenceStatus = createReplayEvidenceStatusSummary()
 
-  for (const [index, turn] of input.turns.entries()) {
-    const audit = turn.visibleReplyRealization?.projectStateAudit ?? null
-    const preparedMirrorAudit = readPreparedSessionMirrorProjectStateTexts(input.preparedTurns?.[index] ?? null)
-    const structuredProjectState = readReplayStructuredProjectStateTexts(turn)
+  for (const turn of input.turns) {
+    const realization = turn.visibleReplyRealization ?? null
+    const audit = realization?.projectStateAudit ?? null
+    if (!realization && !audit)
+      continue
+    comparedTurnCount += 1
+    countReplayValidationStatus(
+      validationStatus,
+      realization?.visibleReplyValidationStatus,
+    )
+    countReplayEvidenceStatus(
+      evidenceStatus,
+      realization?.projectStateEvidenceStatus,
+    )
     if (!audit)
       continue
-    const allowsPreparedMirrorUpgrade = audit?.rewriteClosureApplied !== true
+
+    const structuredProjectState = readReplayStructuredProjectStateTexts(turn)
     const structured = turn.structured && typeof turn.structured === 'object'
       ? turn.structured as Record<string, unknown>
       : null
@@ -1154,16 +1272,11 @@ function buildReplayProjectStateAuditSummary(input: {
       && value.trim().length > 0
       && hasReplaySameHerProjectStateCue(value),
     ) ?? null
-    const carriesPreparedExplicitSameHerSelfLine = hasReplaySameHerProjectStateCue(preparedMirrorAudit.sameHerSelfLine)
-    const carriesPreparedFallbackSameHerSummary = allowsPreparedMirrorUpgrade
-      && hasReplaySameHerProjectStateCue(preparedMirrorAudit.sameHerSummary)
-    const carriesStructuredSameHerSelfLine = hasReplaySameHerProjectStateCue(structuredSameHerCarryLine)
-    comparedTurnCount += 1
-    const carriesSameHerSummary = typeof audit.sameHerSummary === 'string'
+    const carriesAuditSameHerSummary = typeof audit.sameHerSummary === 'string'
       && audit.sameHerSummary.trim().length > 0
-    const carriesPreparedSameHerSummary = typeof preparedMirrorAudit.sameHerSummary === 'string'
-      && preparedMirrorAudit.sameHerSummary.trim().length > 0
-    if (carriesSameHerSummary || carriesPreparedSameHerSummary)
+    const carriesStructuredSameHerSelfLine = hasReplaySameHerProjectStateCue(structuredSameHerCarryLine)
+    const carriesSameHerSummary = carriesAuditSameHerSummary
+    if (carriesSameHerSummary)
       sameHerSummaryTurnCount += 1
     if (typeof (audit as { sameHerHoldDetail?: unknown }).sameHerHoldDetail === 'string'
       && (audit as { sameHerHoldDetail?: string }).sameHerHoldDetail?.trim()) {
@@ -1223,11 +1336,6 @@ function buildReplayProjectStateAuditSummary(input: {
       structuredProjectState.awarenessLine,
       structuredSameHerSummaryLine,
       structuredProjectState.preDialogueAwarenessLine,
-      !allowsPreparedMirrorUpgrade
-        ? null
-        : isAlicizationThinProjectAwarenessLine(preparedMirrorAudit.projectPreflightSummary)
-          ? null
-          : preparedMirrorAudit.projectPreflightSummary,
     ].find((value): value is string =>
       typeof value === 'string'
       && value.trim().length > 0
@@ -1261,57 +1369,37 @@ function buildReplayProjectStateAuditSummary(input: {
     }
     if (carriesPreDialogueClosure)
       preDialogueClosureTurnCount += 1
-    if (audit?.preservedIntoRewrite)
-      preservedTurnCount += 1
-    if (audit?.rewriteClosureApplied)
-      rewriteAppliedTurnCount += 1
-    const carriesCurrentPhaseSummary = hasReplayCanonicalProjectPhaseCue((audit as { currentPhaseSummary?: unknown }).currentPhaseSummary)
-    const carriesLandedProgressSummary = matchesReplayProjectStateCue(
-      normalizeReplayStructuredCue(audit.landedProgressSummary, 320),
-      [
-        normalizeReplayProjectStateCue(resolveAlicizationProjectStateBrief().continuityProgressSummary ?? '', 240),
-        '已落地',
-        'landed progress',
-        'same-her line',
-      ].filter(Boolean),
-    ) || hasReplayCanonicalLandedProgressCue(audit.landedProgressSummary)
-    const carriesOpenClosureSummary = hasReplayCanonicalOpenLoopCue(audit.openClosureSummary)
-    const carriesNextClosureTargetSummary = hasReplayCanonicalNextClosureCue((audit as { nextClosureTargetSummary?: unknown }).nextClosureTargetSummary)
-    const carriesPreparedMirrorSameHerSelfLine = carriesPreparedFallbackSameHerSummary
-      || (
-        carriesPreparedExplicitSameHerSelfLine
-        && (
-          !audit?.rewriteClosureApplied
-          || carriesCurrentPhaseSummary
-          || carriesNextClosureTargetSummary
-          || carriesContinuitySummary
-          || carriesAuditPreDialogueAwareness
-        )
-      )
+    const currentPhaseContent = (audit as { currentPhaseSummary?: unknown }).currentPhaseSummary
+    const nextClosureTargetContent = (audit as { nextClosureTargetSummary?: unknown }).nextClosureTargetSummary
+    const hasCurrentPhaseContent = typeof currentPhaseContent === 'string'
+      && currentPhaseContent.trim().length > 0
+    const hasLandedProgressContent = typeof audit.landedProgressSummary === 'string'
+      && audit.landedProgressSummary.trim().length > 0
+    const hasOpenClosureContent = typeof audit.openClosureSummary === 'string'
+      && audit.openClosureSummary.trim().length > 0
+    const hasNextClosureTargetContent = typeof nextClosureTargetContent === 'string'
+      && nextClosureTargetContent.trim().length > 0
     const carriesAuditSameHerOnly = hasReplaySameHerProjectStateCue(audit?.sameHerSummary)
       && !carriesStructuredSameHerSelfLine
-      && !carriesPreparedMirrorSameHerSelfLine
       && !hasReplaySameHerProjectStateCue(structuredProjectState.preDialogueAwarenessLine)
     const carriesSameHerSelfLine = carriesStructuredSameHerSelfLine
-      || carriesPreparedMirrorSameHerSelfLine
       || (hasReplaySameHerProjectStateCue(audit?.sameHerSummary) && !carriesAuditSameHerOnly)
     if (carriesSameHerSelfLine) {
       sameHerSelfLineTurnCount += 1
     }
     if (
       carriesSameHerSummary
-      && carriesCurrentPhaseSummary
-      && carriesLandedProgressSummary
-      && carriesOpenClosureSummary
-      && carriesNextClosureTargetSummary
+      && hasCurrentPhaseContent
+      && hasLandedProgressContent
+      && hasOpenClosureContent
+      && hasNextClosureTargetContent
       && carriesEmotionalClosureSummary
       && carriesPreDialogueAwareness
       && carriesContinuitySummary
       && carriesEmbodimentClosureSummary
-      && audit?.preservedIntoRewrite
       && carriesPreDialogueClosure
     ) {
-      fullyCarriedTurnCount += 1
+      contentCompleteTurnCount += 1
     }
   }
 
@@ -1333,9 +1421,9 @@ function buildReplayProjectStateAuditSummary(input: {
         continuitySummaryTurnCount,
         embodimentClosureTurnCount,
         preDialogueClosureTurnCount,
-        preservedTurnCount,
-        rewriteAppliedTurnCount,
-        fullyCarriedTurnCount,
+        contentCompleteTurnCount,
+        validationStatus,
+        evidenceStatus,
       }
     : null
 }
@@ -5090,8 +5178,8 @@ function buildReplayLongRunSameHerTurnDiagnostics(input: {
     || categories.has('execution')
     || hasReplayExecutionCallbackProjectStateCarry(input)
     || /execution callback|execution-callback|callback|proactive|主动|next-session|feedback carry|afterglow/u.test(text)
-  const hasEmotionalCarry = input.sampledTurn.visibleReplyRealization?.emotionalClosureAudit?.preservedIntoRewrite === true
-    || input.sampledTurn.visibleReplyRealization?.emotionalClosureAudit?.rewriteClosureApplied === true
+  const activeEmotionalCue = input.sampledTurn.visibleReplyRealization?.emotionalClosureAudit?.activeCue
+  const hasEmotionalCarry = (typeof activeEmotionalCue === 'string' && activeEmotionalCue.trim().length > 0)
     || (!emotionExplicitlyMissing && /emotional closure|emotional residue|emotion|afterglow|情绪|余波|low-pressure/u.test(text))
   const crossModalEmbodimentGap = formatReplayCrossModalEmbodimentGapReasonForRow({
     prepared: input.prepared,
@@ -5123,7 +5211,7 @@ function buildReplayLongRunSameHerTurnDiagnostics(input: {
     missingLanes.push('emotion')
     missingLaneReasons.emotion = [
       ...(emotionExplicitlyMissing ? ['text explicitly says emotional carry is missing'] : []),
-      'emotional closure audit did not preserve or rewrite closure',
+      'emotional closure audit did not carry emotional closure evidence',
     ]
   }
   if (!hasEmbodimentCarry) {
@@ -6531,11 +6619,7 @@ export function createAlicizationReplayBenchmarkRuntime(
     datasetFeedback.emotionalClosureSummary = buildReplayEmotionalClosureSummary({
       turns,
     })
-    if (
-      datasetFeedback.emotionalClosureSummary
-      && datasetFeedback.emotionalClosureSummary.comparedTurnCount > 0
-      && datasetFeedback.emotionalClosureSummary.fullyClosedTurnCount < datasetFeedback.emotionalClosureSummary.comparedTurnCount
-    ) {
+    if (hasReplayEmotionalClosureDrift(datasetFeedback.emotionalClosureSummary)) {
       datasetFeedback.driftSignals?.push('emotionalClosureDrift')
     }
     datasetFeedback.selfAuthoritySummary = buildReplaySelfAuthoritySummary({
@@ -6544,7 +6628,10 @@ export function createAlicizationReplayBenchmarkRuntime(
     if (
       datasetFeedback.selfAuthoritySummary
       && datasetFeedback.selfAuthoritySummary.comparedTurnCount > 0
-      && datasetFeedback.selfAuthoritySummary.fullyCarriedTurnCount < datasetFeedback.selfAuthoritySummary.comparedTurnCount
+      && (
+        datasetFeedback.selfAuthoritySummary.contentCompleteTurnCount < datasetFeedback.selfAuthoritySummary.comparedTurnCount
+        || datasetFeedback.selfAuthoritySummary.validationStatus.blockedTurnCount > 0
+      )
     ) {
       datasetFeedback.driftSignals?.push('selfAuthorityDrift')
     }
@@ -6555,7 +6642,11 @@ export function createAlicizationReplayBenchmarkRuntime(
     if (
       datasetFeedback.projectStateAuditSummary
       && datasetFeedback.projectStateAuditSummary.comparedTurnCount > 0
-      && datasetFeedback.projectStateAuditSummary.fullyCarriedTurnCount < datasetFeedback.projectStateAuditSummary.comparedTurnCount
+      && (
+        datasetFeedback.projectStateAuditSummary.contentCompleteTurnCount < datasetFeedback.projectStateAuditSummary.comparedTurnCount
+        || datasetFeedback.projectStateAuditSummary.validationStatus.blockedTurnCount > 0
+        || datasetFeedback.projectStateAuditSummary.evidenceStatus.missingTurnCount > 0
+      )
     ) {
       datasetFeedback.driftSignals?.push('projectStateAuditDrift')
     }
@@ -6578,12 +6669,23 @@ export function createAlicizationReplayBenchmarkRuntime(
     })
     datasetFeedback.longRunSameHerSessionSummary = longRunSameHerSessionResult.summary
     datasetFeedback.memoryClosureLongRun = replay.memoryClosureLongRun
+    const sampledTurnById = new Map(turns.map(turn => [turn.turnId, turn]))
     const failingTurnSet = buildReplayBenchmarkFailingTurnSet({
       packId,
       turns,
       preparedTurns: replay.turns,
       quality: replay.quality,
       gate: replay.gate,
+    }).map((failingTurn) => {
+      const selfAuthoritySummary = buildReplayFailureTurnSelfAuthoritySummary(
+        sampledTurnById.get(failingTurn.turnId),
+      )
+      return selfAuthoritySummary
+        ? {
+            ...failingTurn,
+            selfAuthoritySummary,
+          }
+        : failingTurn
     })
     const paritySummaries = failingTurnSet
       .map(turn => turn.paritySummary)

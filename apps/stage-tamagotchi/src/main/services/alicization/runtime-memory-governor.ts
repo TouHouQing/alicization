@@ -8,14 +8,11 @@ export interface RuntimeMemoryGovernanceReducerInput {
     governance: AlicizationMindTurnGovernance | null
     context: OrganicMemoryPromptContext
   }) => AlicizationMindTurnGovernance | null
-  applyRecollectionSurfaceRules: (governance: AlicizationMindTurnGovernance | null) => AlicizationMindTurnGovernance | null
 }
 
 export function reduceRuntimeMemoryGovernance(input: RuntimeMemoryGovernanceReducerInput) {
-  return input.applyRecollectionSurfaceRules(
-    input.applyMemoryDeliberationToGovernance({
-      governance: input.governance,
-      context: input.context,
-    }),
-  )
+  return input.applyMemoryDeliberationToGovernance({
+    governance: input.governance,
+    context: input.context,
+  })
 }

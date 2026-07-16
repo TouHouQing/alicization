@@ -239,7 +239,6 @@ export interface AlicizationLearningExecutionTelemetryInput {
       warmthReleaseBias?: number
     }
     responsePosture?: {
-      secondPassRequiredBias?: number
       hypothesisLabelBias?: number
       specificityClampBias?: number
       templateShellSuppressionBias?: number
@@ -717,7 +716,6 @@ function summarizeSelfRevisionStatePatch(inputValue: NonNullable<AlicizationLear
     Number(relationshipPosture.warmthReleaseBias ?? 0),
   )
   const responsePostureBias = Math.max(
-    Number(responsePosture.secondPassRequiredBias ?? 0),
     Number(responsePosture.hypothesisLabelBias ?? 0),
     Number(responsePosture.specificityClampBias ?? 0),
     Number(responsePosture.templateShellSuppressionBias ?? 0),

@@ -30,7 +30,6 @@ import {
   resolvePreferredPersonStateProjection,
   resolvePreferredSelfContinuityAuthority,
 } from './person-state-projection-resolution'
-import { sanitizeBriefText } from './runtime-realtime'
 import {
   normalizeCustomDirectives,
   parseSoul,
@@ -90,6 +89,66 @@ export interface AlicizationMainChatRuntimeSurface {
 }
 
 export const alicizationLivingSelfMarker = 'alicization-living-self'
+
+const alicizationProviderFactTypes = new Set([
+  'alicization-action-obligation',
+  'alicization-datetime',
+  'alicization-execution-callbacks',
+  'alicization-execution-capabilities',
+  'alicization-execution-ledger',
+  'alicization-execution-reply-context',
+  'alicization-execution-routing',
+  'alicization-execution-settlement-context',
+  'alicization-execution-settlement-request',
+  'alicization-host',
+  'alicization-inspection',
+  'alicization-living-self',
+  'alicization-long-term-memory-recall',
+  'alicization-memory-context',
+  'alicization-persona-directives',
+  'alicization-persona-profile',
+  'alicization-personality-state',
+  'alicization-personality-thresholds',
+  'alicization-perception',
+  'alicization-project-state-facts',
+  'alicization-required-tool-facts',
+  'alicization-spark-event',
+  'alicization-turn-memory-context',
+]) as ReadonlySet<string>
+
+function readAlicizationProviderFactType(content: string) {
+  try {
+    const parsed = JSON.parse(content) as {
+      data?: unknown
+      type?: unknown
+    }
+    return typeof parsed?.type === 'string' && parsed.data !== undefined
+      ? parsed.type
+      : null
+  }
+  catch {
+    return null
+  }
+}
+
+function isUserAuthoredSoulSystemMessage(message: Message) {
+  return message.role === 'system'
+    && typeof message.content === 'string'
+    && message.content.startsWith('---\n')
+}
+
+export function filterAlicizationProviderSystemMessages(messages: Message[]) {
+  return messages.filter((message) => {
+    if (message.role !== 'system' || typeof message.content !== 'string')
+      return true
+
+    if (isUserAuthoredSoulSystemMessage(message))
+      return true
+
+    const type = readAlicizationProviderFactType(message.content)
+    return Boolean(type && alicizationProviderFactTypes.has(type))
+  })
+}
 
 interface MainChatRuntimeSurfaceToolDescriptor {
   function?: {
@@ -307,17 +366,19 @@ function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRu
 
 export function buildCardCustomDirectivesSystemBlock(directives: string) {
   const normalized = normalizeCustomDirectives(directives)
-  return normalized || ''
+  return normalized
+    ? buildAlicizationProviderFactBlock('alicization-persona-directives', {
+        text: normalized,
+      })
+    : ''
 }
 
 export function buildTurnScopedPersonaKernelSystemBlock(input: {
   mode: 'backgrounded' | 'muted'
   reason?: string
 }) {
-  return buildAlicizationProviderFactBlock('alicization-turn-persona-kernel', {
-    mode: input.mode,
-    reason: input.reason ? sanitizeBriefText(input.reason, 180) : null,
-  })
+  void input
+  return ''
 }
 
 export function readMessageContentAsText(content: unknown) {
@@ -504,17 +565,8 @@ export function buildAlicizationMainChatRuntimeSurface(
   ])
 
   let messages = prependSystemBlocksToMessages(input.baseMessages, promptBlocks)
-  if (input.personaKernelMode === 'full') {
-    messages = injectCardCustomDirectivesIntoMessages(messages, input.customDirectivesResolution.text)
-  }
-  else {
-    messages = prependSystemBlocksToMessages(messages, [
-      buildTurnScopedPersonaKernelSystemBlock({
-        mode: input.personaKernelMode,
-        reason: input.personaKernelReason,
-      }),
-    ])
-  }
+  messages = injectCardCustomDirectivesIntoMessages(messages, input.customDirectivesResolution.text)
+  messages = filterAlicizationProviderSystemMessages(messages)
 
   const effectiveAllowTools = dialogueFirstLivingPromptMode
     ? false
@@ -528,9 +580,7 @@ export function buildAlicizationMainChatRuntimeSurface(
   const hasVisualGrounding = input.hasVisualGrounding
   const expectedVisibleReplyAuthority = resolveAlicizationMainChatNormalVisibleReplyAuthority(input.governance)
   const replyRealizationMode = 'provider-mind-required' as const
-  const whyProviderMindRequired = expectedVisibleReplyAuthority === 'llm-second-pass-rewrite'
-    ? 'provider-second-pass-settlement-required'
-    : 'provider-settlement-required'
+  const whyProviderMindRequired = 'provider-settlement-required'
   const replyExecutionPlan = {
     preferredMode: hasVisualGrounding
       ? 'provider-one-shot' as const

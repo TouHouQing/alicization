@@ -19,7 +19,6 @@ import {
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import {
   normalizeCustomDirectives,
   parseSoul,
@@ -165,16 +164,6 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
     personaKernel?: AlicizationPersonaKernelSnapshot | null
   }) {
     const blocks: string[] = []
-    if (input.includeProjectStateContext) {
-      const projectState = resolveAlicizationProjectStateBrief()
-      blocks.push(buildAlicizationProviderFactBlock('alicization-project-state', {
-        identity: projectState.identity,
-        currentPhase: projectState.currentPhase,
-        latestLandedProgress: projectState.latestProgress,
-        primaryOpenLoop: projectState.openLoops[0] ?? null,
-        nextClosureTarget: projectState.nextClosureTarget,
-      }))
-    }
 
     const hostName = sanitizeText(input.hostName, '')
     if (hostName)

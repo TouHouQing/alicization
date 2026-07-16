@@ -306,12 +306,12 @@ describe('task-thread governor', () => {
       capabilities: createCapabilities(['codex', 'cli']),
       experience: {
         projectBriefing: {
-          identity: 'Alicization is a local-first digital life project growing one continuous her on the host computer.',
+          identity: 'Alicization is a local-first digital life project growing identity continuity on the host computer.',
           currentPhase: 'Phase 1: Local Digital Life.',
           latestLandedProgress: 'First-dispatch execution planning already keeps live project progress in the runtime context.',
           primaryOpenLoop: 'Execution still needs first-dispatch project briefing persistence before resume and feedback can stay continuous.',
           nextClosureTarget: 'Keep first-dispatch execution, resume, and feedback on one same-her Phase 1 line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           sameHerDriftRisk: 'If first-dispatch project briefing only appears in routing prose, treat that as execution continuity drift.',
           proactiveSameHerGap: 'First-dispatch planning still needs stronger proof that proactive carry survives into execution runtime context instead of collapsing into generic routing guidance.',
           preflightSummary: 'Alicization execution planning still belongs to the same Phase 1 life loop.',
@@ -334,7 +334,7 @@ describe('task-thread governor', () => {
           projectBriefing: expect.objectContaining({
             latestLandedProgress: 'First-dispatch execution planning already keeps live project progress in the runtime context.',
             primaryOpenLoop: 'Execution still needs first-dispatch project briefing persistence before resume and feedback can stay continuous.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
             proactiveSameHerGap: 'First-dispatch planning still needs stronger proof that proactive carry survives into execution runtime context instead of collapsing into generic routing guidance.',
           }),
         }),
@@ -374,12 +374,12 @@ describe('task-thread governor', () => {
       capabilities: createCapabilities(['codex', 'cli']),
       experience: {
         projectBriefing: {
-          identity: 'Alicization is a local-first digital life project growing one continuous her on the host computer.',
+          identity: 'Alicization is a local-first digital life project growing identity continuity on the host computer.',
           currentPhase: 'Phase 1: Local Digital Life.',
           latestLandedProgress: ' ',
           primaryOpenLoop: '',
           nextClosureTarget: ' ',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSelfLine: 'structured continuity digest.',
           sameHerDriftRisk: '',
           landedProgressSummary: aliasLandedProgress,
           openClosureSummary: aliasOpenClosure,

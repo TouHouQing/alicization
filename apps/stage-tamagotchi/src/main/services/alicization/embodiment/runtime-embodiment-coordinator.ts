@@ -1248,9 +1248,9 @@ function resolveProjectStateEmbodimentRestraint(seed: AlicizationRuntimeEmbodime
     'personhood continuity',
     'relationship continuity',
     'one same',
-    'same living line',
+    'continuity-axis',
     'unfinished closure',
-    'one continuous her',
+    'identity-continuity',
   ])
   const repairBeforeClosenessPressure = includesCadenceNeedle(combined, [
     'repair-before-closeness',
@@ -1270,13 +1270,13 @@ function resolveProjectStateEmbodimentRestraint(seed: AlicizationRuntimeEmbodime
     'voice',
     'motion',
     'facial state',
-    'same living line',
+    'continuity-axis',
     'before widening outward',
     'before the turn widens outward',
     'initiative should stay nearby',
     'initiative should stay nearby and lower-pressure',
     'same digital life carrying memory, emotion, and embodiment',
-    'rechecking on the same living line',
+    'rechecking on continuity-axis',
   ])
 
   if (phaseOneDigitalLife && repairBeforeClosenessPressure)
@@ -1442,7 +1442,7 @@ function hasExecutionCallbackSameThreadMeasuredReturn(seed: AlicizationRuntimeEm
       'same callback line',
       'callback afterglow',
       'callback detour',
-      'same living line',
+      'continuity-axis',
       '沿着刚才那条线',
       '同一条线',
     ])

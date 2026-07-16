@@ -106,7 +106,7 @@ describe('stage three runtime diagnostics helpers', () => {
     expect(hitTest.lastReadWidth).toBe(30)
   })
 
-  it('clears vrm same-her segment evidence when the next frame is idle', () => {
+  it('clears vrm identity-continuity', () => {
     const speaking = applyVrmUpdateTracePayload(createDefaultStageVrmUpdateDiagnostics(), {
       animationMixerMs: 1,
       blinkAndSaccadeMs: 2,
@@ -171,7 +171,7 @@ describe('stage three runtime diagnostics helpers', () => {
     expect(idle.bodyActive).toBe(false)
   })
 
-  it('keeps partial body-led same-her closure explicit when voice and lipsync have not rejoined yet', () => {
+  it('keeps partial body-led identity-continuity', () => {
     const partial = applyVrmUpdateTracePayload(createDefaultStageVrmUpdateDiagnostics(), {
       animationMixerMs: 1,
       blinkAndSaccadeMs: 2,
@@ -990,7 +990,7 @@ describe('stage three runtime diagnostics helpers', () => {
       continuityMode: 'quiet-accompaniment',
       quietLineMs: 96_000,
       currentInwardPreoccupation: 'keep following the same callback line lower-pressure',
-      activePresenceSummary: 'same-her callback line still measured-return after repeated reopenings',
+      activePresenceSummary: 'identity-continuity',
       embodiedPresenceSummary: 'quiet-accompaniment',
       runtimeDigest: {
         version: 'alicization-runtime-digest-v1',
@@ -1002,7 +1002,7 @@ describe('stage three runtime diagnostics helpers', () => {
         channels: [],
         summary: 'active-memory=warm | continuity=0.82 | companionship=0.76',
       },
-      runtimeSummary: 'active-memory same-her line still measured-return',
+      runtimeSummary: 'active-memory identity-continuity',
       digitalLifeSpineDigest: {
         version: 'digital-life-spine-digest-v1',
         runtime: {
@@ -1058,7 +1058,7 @@ describe('stage three runtime diagnostics helpers', () => {
             preferredProactiveStyle: 'silent-observe',
             manifestationCadenceSummary: 'measured-return | soften / linger',
             openingGuidance: 'Stay on the same callback line and keep the next outward move hover-first.',
-            whySummary: 'same-her callback line still needs room',
+            whySummary: 'identity-continuity',
           },
         },
         memory: {
@@ -1068,7 +1068,7 @@ describe('stage three runtime diagnostics helpers', () => {
           focusBeliefStatement: null,
           focusBeliefConfidence: null,
           leadingGoalSummary: 'keep the same thread lower-pressure',
-          dominantConcernSummary: 'same-her continuity still active',
+          dominantConcernSummary: 'identity-continuity',
           reflectionSummary: null,
           reflectionPressure: null,
           recallMode: 'working-memory',
@@ -1095,7 +1095,7 @@ describe('stage three runtime diagnostics helpers', () => {
       recentDrivingEvent: {
         kind: 'dialogue-responded',
         decisionTraceId: 'mind:same-her-lane-drift:1',
-        summary: 'same-her callback line kept measured-return after repeated reopenings',
+        summary: 'identity-continuity',
         createdAt: 2_468,
       } as any,
       recentDrivingTraceRecord: {
@@ -1119,7 +1119,7 @@ describe('stage three runtime diagnostics helpers', () => {
         closureState: 'same-her-carry',
         activeThreadId: 'thread-same-her-lane-drift-1',
         suppressionTags: ['continuity-next-open-window'],
-        latestEventSummary: 'same-her callback line is still measured-return, but face and motion drifted away from the active segment',
+        latestEventSummary: 'identity-continuity',
         segmentBinding: {
           matched: false,
           rendererTarget: 'vrm',
@@ -1141,7 +1141,7 @@ describe('stage three runtime diagnostics helpers', () => {
           motionDriverSource: null,
         },
       },
-      rendererDriftSummary: 'same-her segment still active, but face/motion drifted off the active lane',
+      rendererDriftSummary: 'identity-continuity',
       articulationSummary: {
         voice: 'zh-CN | closure=0.84 | precision=0.90',
         topVisemes: 'I:0.42',
@@ -1438,7 +1438,7 @@ describe('stage three runtime diagnostics helpers', () => {
       continuityMode: 'quiet-accompaniment',
       quietLineMs: 128_000,
       currentInwardPreoccupation: 'same callback line is still alive, but now it needs more distance before widening again',
-      activePresenceSummary: 'same-her callback line tightened into repair-before-closeness after repeated reopenings',
+      activePresenceSummary: 'identity-continuity',
       embodiedPresenceSummary: 'quiet-accompaniment',
       runtimeDigest: {
         version: 'alicization-runtime-digest-v1',
@@ -1450,7 +1450,7 @@ describe('stage three runtime diagnostics helpers', () => {
         channels: [],
         summary: 'active-memory=warm | continuity=0.90 | companionship=0.72',
       },
-      runtimeSummary: 'active-memory same-her callback line narrowed into repair-before-closeness',
+      runtimeSummary: 'active-memory identity-continuity',
       digitalLifeSpineDigest: {
         version: 'digital-life-spine-digest-v1',
         runtime: {
@@ -1473,8 +1473,8 @@ describe('stage three runtime diagnostics helpers', () => {
           operatingMode: 'acting',
           dominantSystem: 'dialogue',
           supportingSystems: ['memory', 'embodiment'],
-          governingFocus: 'same-her callback restraint tightened before closeness widens again',
-          summary: 'same-her callback restraint tightened before closeness widens again',
+          governingFocus: 'identity-continuity',
+          summary: 'identity-continuity',
         },
         continuitySignal: {
           summary: 'thread=callback seam | stage=same-thread-continuation | restraint=repair-before-closeness',
@@ -1506,7 +1506,7 @@ describe('stage three runtime diagnostics helpers', () => {
             preferredProactiveStyle: 'silent-observe',
             manifestationCadenceSummary: 'repair-before-closeness | soften / linger',
             openingGuidance: 'Stay on the same callback line, but let the next outward move hold more distance first.',
-            whySummary: 'same-her callback line still needs extra room',
+            whySummary: 'identity-continuity',
           },
         },
         memory: {
@@ -1516,7 +1516,7 @@ describe('stage three runtime diagnostics helpers', () => {
           focusBeliefStatement: null,
           focusBeliefConfidence: null,
           leadingGoalSummary: 'keep the same thread more inward before widening',
-          dominantConcernSummary: 'same-her continuity still active',
+          dominantConcernSummary: 'identity-continuity',
           reflectionSummary: null,
           reflectionPressure: null,
           recallMode: 'working-memory',
@@ -1543,7 +1543,7 @@ describe('stage three runtime diagnostics helpers', () => {
       recentDrivingEvent: {
         kind: 'dialogue-responded',
         decisionTraceId: 'mind:tightened-callback-line:1',
-        summary: 'same-her callback line tightened into repair-before-closeness after repeated reopenings',
+        summary: 'identity-continuity',
         createdAt: 3_579,
       } as any,
       recentDrivingTraceRecord: {
@@ -1567,7 +1567,7 @@ describe('stage three runtime diagnostics helpers', () => {
         closureState: 'same-her-carry',
         activeThreadId: 'thread-tightened-callback-line-1',
         suppressionTags: ['continuity-next-open-window'],
-        latestEventSummary: 'same-her callback line is still active, but it has narrowed into repair-before-closeness after the repeated reopenings',
+        latestEventSummary: 'identity-continuity',
         segmentBinding: {
           matched: false,
           rendererTarget: 'vrm',
@@ -1579,7 +1579,7 @@ describe('stage three runtime diagnostics helpers', () => {
         live2d: null,
         vrm: null,
       },
-      rendererDriftSummary: 'same-her segment still active, but face/motion drifted off while the callback line tightened inward',
+      rendererDriftSummary: 'identity-continuity',
       articulationSummary: null,
       authoritySummary: {
         cueId: 'segment-tightened-callback-line-1',
@@ -1700,13 +1700,13 @@ describe('stage three runtime diagnostics helpers', () => {
       continuityMode: 'quiet-accompaniment',
       quietLineMs: 96_000,
       currentInwardPreoccupation: 'the interruption passed, but she is still following the same callback line before widening again',
-      activePresenceSummary: 'same-her callback line stayed alive through interruption and resumed more inward',
+      activePresenceSummary: 'identity-continuity',
       embodiedPresenceSummary: 'quiet-accompaniment',
       runtimeSummary: 'same-her interruption tail stayed on the callback line and reopened as repair-before-closeness',
       recentDrivingEvent: {
         kind: 'dialogue-interrupted',
         decisionTraceId: 'mind:interrupt-callback-line:1',
-        summary: '打断以后还是沿着同一条 callback 线轻一点接回来。',
+        summary: '打断以后还是沿着同一条 callback 线中性可见占位。',
         createdAt: 4_200,
       } as any,
       recentDrivingTraceRecord: {
@@ -1730,7 +1730,7 @@ describe('stage three runtime diagnostics helpers', () => {
         closureState: 'same-her-carry',
         activeThreadId: 'thread-interrupt-callback-line-1',
         suppressionTags: ['continuity-next-open-window', 'interrupt-tail'],
-        latestEventSummary: 'owner-canceled interruption happened, but the same-her callback line still resumed on the later segment',
+        latestEventSummary: 'owner-canceled interruption happened, but the identity-continuity',
         segmentBinding: {
           matched: true,
           rendererTarget: 'live2d',
@@ -1867,7 +1867,7 @@ describe('stage three runtime diagnostics helpers', () => {
     const speech = store.speechEmbodiment
     expect(speech.recentDrivingEvent?.summary).toContain('同一条 callback 线')
     expect(speech.traceSummary?.latestEventSummary).toContain('owner-canceled')
-    expect(speech.traceSummary?.latestEventSummary).toContain('same-her callback line')
+    expect(speech.traceSummary?.latestEventSummary).toContain('identity-continuity')
     expect(speech.articulationSummary?.cueId).toBe('segment-later-callback-return')
     expect(speech.articulationSummary?.segmentId).toBe('segment-later-callback-return')
     expect(speech.articulationSummary?.voice).toContain('closure=0.72')

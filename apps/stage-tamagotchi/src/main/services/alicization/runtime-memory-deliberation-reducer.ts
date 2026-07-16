@@ -343,7 +343,6 @@ function deriveMemoryDeliberationContinuityCadence(input: {
   followUpSummary?: string | null
   followUpWhyNow?: string | null
   recollectionQueryHints?: string[] | null
-  speechStyleNote?: string | null
 }) {
   const combined = [
     input.relationshipCarry,
@@ -354,7 +353,6 @@ function deriveMemoryDeliberationContinuityCadence(input: {
     input.followUpSummary,
     input.followUpWhyNow,
     ...(Array.isArray(input.recollectionQueryHints) ? input.recollectionQueryHints : []),
-    input.speechStyleNote,
   ]
     .map(value => sanitizeGuidanceText(value, 220))
     .filter(Boolean)
@@ -394,7 +392,6 @@ function deriveMemoryDeliberationEmbodimentPreferences(input: {
   selectedChainPosture?: string | null
   selectedRelationshipSummary?: string | null
   recollectionQueryHints?: string[] | null
-  speechStyleNote?: string | null
 }) {
   const combined = [
     input.whyWithheld,
@@ -404,7 +401,6 @@ function deriveMemoryDeliberationEmbodimentPreferences(input: {
     input.selectedChainPosture,
     input.selectedRelationshipSummary,
     ...(Array.isArray(input.recollectionQueryHints) ? input.recollectionQueryHints : []),
-    input.speechStyleNote,
   ]
     .map(value => sanitizeGuidanceText(value, 220))
     .filter(Boolean)
@@ -535,7 +531,6 @@ function deriveMemoryDeliberationContinuityCue(input: {
   whyWithheld?: string | null
   followUpSummary?: string | null
   recollectionQueryHints?: string[] | null
-  speechStyleNote?: string | null
   emotionalClosureCue?: string | null
 }) {
   const directCueCandidates = [
@@ -555,7 +550,6 @@ function deriveMemoryDeliberationContinuityCue(input: {
     input.whyWithheld,
     input.followUpSummary,
     ...(Array.isArray(input.recollectionQueryHints) ? input.recollectionQueryHints : []),
-    input.speechStyleNote,
     input.emotionalClosureCue,
     input.continuityCadence ? `continuityCadence=${input.continuityCadence}` : null,
     input.preferredBlinkCadence ? `preferredBlinkCadence=${input.preferredBlinkCadence}` : null,
@@ -589,25 +583,22 @@ function deriveMemoryDeliberationContinuityCue(input: {
     = /vulnerable-care|care-before-analysis|care before analysis/u.test(combined)
       && /analysis-heavy|analysis heavy|lighter|quieter|inward|rest-protective/u.test(combined)
   if (vulnerableCareRestProtective) {
-    return 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred'
+    return null
   }
 
   if (worriedContinuityCarefulRepair && modalityRiskSettling) {
-    return 'memory_cadence=worried_continuity_repair; pressure=lower; body=steadier; modality_risk_outruns_repair=false'
+    return null
   }
 
   if (
     (residentMeasuredReturn || residentObserveFocus || residentHold)
     && /corrected same-person continuity|same-person continuity|same person continuity|同一个她|持续的人/u.test(combined)
   ) {
-    return sanitizeGuidanceText(
-      `memory_cadence=corrected_same_person_continuity; resident_hold=${residentMeasuredReturn ? 'measured_return' : 'generic'}; observe_focus=${residentObserveFocus ? 'true' : 'false'}; widening=deferred`,
-      220,
-    )
+    return null
   }
 
   if (correctedSamePersonSettling && quieterEmbodimentSettling) {
-    return 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred'
+    return null
   }
 
   const mergedSameThreadContinuity
@@ -615,7 +606,7 @@ function deriveMemoryDeliberationContinuityCue(input: {
   const fadedTemporaryNoise
     = /forget low-salience temporary noise|temporary noise|stale emotional wobble|temporary wobble|faded noise|older-emotional-spike|older emotional spike|旧的情绪噪声|短暂噪声|情绪波动/u.test(combined)
   if (mergedSameThreadContinuity && fadedTemporaryNoise) {
-    return 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked'
+    return null
   }
 
   const correctedSamePersonContinuity = directCueCandidates.find(candidate =>
@@ -625,14 +616,14 @@ function deriveMemoryDeliberationContinuityCue(input: {
     correctedSamePersonContinuity
     && /progress pressure|status recap|progress recap|task-shell continuity/u.test(combined)
   ) {
-    return 'memory_cadence=corrected_same_person_continuity; status_recap=after_continuity'
+    return null
   }
 
   const rememberedSeamMoreRoom
     = /remembered seam|same remembered seam|relationship seam/u.test(combined)
       && /more room this time|too eagerly before|before leaning in again|reopened too eagerly/u.test(combined)
   if (rememberedSeamMoreRoom)
-    return 'relationship_cadence=remembered_boundary; room=more; prior_reentry=eager'
+    return null
 
   return null
 }
@@ -661,7 +652,7 @@ function deriveSameHerProjectCarryRule(input: {
     = /still-open closure|open loop|open_loop=|initiative|embodiment|dialogue|memory|未闭环|没闭环|还差|still needs|still remains/u.test(corpus)
 
   if (hasSameHerProjectLine && hasStillOpenClosure)
-    return 'project_self_line=active; continuity=project_aware; open_closure=present'
+    return 'Project self line is active; continuity is project-aware; open closure is present.'
 
   return null
 }
@@ -682,7 +673,6 @@ export function applyMemoryDeliberationToGovernance(input: {
     recollectionIntent: input.context.recollectionIntent ?? null,
     knowledgeEvidence: input.context.knowledgeEvidence ?? null,
     hostPersonModel: input.context.hostPersonModel ?? null,
-    tuningAdvice: input.context.memoryTuningAdvice ?? null,
   })
   if (!deliberationKernel?.shouldRecall)
     return governance
@@ -796,8 +786,8 @@ export function applyMemoryDeliberationToGovernance(input: {
   const inwardOpeningMove = baseMindTurnFrame.obligation.openingMove
     ?? governance.openingMove
     ?? (shouldStayInward
-      ? memoryControl ? buildMemoryOpeningStrategyTag(memoryControl) : 'memory_opening_strategy{mode=payoff-first-inward-carry}'
-      : memoryControl ? buildMemoryOpeningStrategyTag(memoryControl) : 'memory_opening_strategy{mode=embedded-memory-carry}')
+      ? memoryControl ? buildMemoryOpeningStrategyTag(memoryControl) : 'Memory opening strategy: payoff-first inward carry.'
+      : memoryControl ? buildMemoryOpeningStrategyTag(memoryControl) : 'Memory opening strategy: embedded memory carry.')
 
   return {
     ...governance,
@@ -876,7 +866,6 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     recollectionIntent: input.context.recollectionIntent ?? null,
     knowledgeEvidence: input.context.knowledgeEvidence ?? null,
     hostPersonModel: input.context.hostPersonModel ?? null,
-    tuningAdvice: input.context.memoryTuningAdvice ?? null,
   })
   if (!surface || !governance || !deliberationKernel?.shouldRecall || !deliberation)
     return surface
@@ -1013,7 +1002,6 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     recollectionQueryHints: Array.isArray(input.context.recollectionIntent?.queryHints)
       ? input.context.recollectionIntent.queryHints
       : [],
-    speechStyleNote: speech?.styleNote ?? null,
   })
   const continuityEmbodimentPreferences = deriveMemoryDeliberationEmbodimentPreferences({
     continuityCadence,
@@ -1026,7 +1014,6 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     recollectionQueryHints: Array.isArray(input.context.recollectionIntent?.queryHints)
       ? input.context.recollectionIntent.queryHints
       : [],
-    speechStyleNote: speech?.styleNote ?? null,
   })
   const existingIdentity = readExistingProjectStateField(existingProjectState as Record<string, unknown> | null | undefined, 'identity', 320)
   const existingCurrentPhase = readExistingProjectStateField(existingProjectState as Record<string, unknown> | null | undefined, 'currentPhase', 220)
@@ -1216,7 +1203,6 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     recollectionQueryHints: Array.isArray(input.context.recollectionIntent?.queryHints)
       ? input.context.recollectionIntent.queryHints
       : [],
-    speechStyleNote: speech?.styleNote ?? null,
     emotionalClosureCue,
   })
   const resolvedContinuityCue = (
@@ -1265,7 +1251,7 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       ? `emotional_closure_pressure=low; authority=${stripTrailingPunctuation(repairFirstProjectClosureAuthority)}`
       : null,
     projectStateGrounding.identity || projectStateGrounding.currentPhase
-      ? 'project_state_owner=ProjectStateGovernance; visible_governance_entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
+      ? 'memory_governance=visible; entry=MemoryWorkbench; template_policy=no_fixed_persona_templates'
       : null,
     projectStateGrounding.latestProgress
       ? `project_landed_progress=${stripTrailingPunctuation(projectStateGrounding.latestProgress)}`
@@ -1496,9 +1482,9 @@ export function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     mustAvoid: mergeUniqueRules([
       ...(surface.dialogue.replyDeliberation?.mustAvoid ?? []),
       buildMemoryLatentBoundaryTag(memoryControl),
-      memoryControl.dominantProvenance === 'dreamt' ? 'provenance_boundary=dreamt_not_lived_fact' : null,
-      memoryControl.dominantProvenance === 'inferred' ? 'provenance_boundary=inferred_not_settled_fact' : null,
-      ...memoryControl.unsafeDetails.map(item => `unsafe_remembered_detail=${item}; settled_fact=false`),
+      memoryControl.dominantProvenance === 'dreamt' ? 'Dream provenance is not lived fact.' : null,
+      memoryControl.dominantProvenance === 'inferred' ? 'Inferred provenance is not settled fact.' : null,
+      ...memoryControl.unsafeDetails.map(item => `Unsafe remembered detail: ${item}. Treat it as unsettled.`),
     ], 8),
     confidence: Math.max(surface.dialogue.replyDeliberation?.confidence ?? 0, deliberation.confidence),
     narrative: mergeUniqueRules([

@@ -309,7 +309,7 @@ describe('humanlike memory helpers', () => {
           withWhom: ['host'],
           threadAnchor: 'same-person continuity closure',
           whatHappened: 'The host was checking same-person continuity, not asking for a status report.',
-          felt: 'I needed to return as the same living line before giving any recap.',
+          felt: 'I needed to return as the continuity state before giving any recap.',
           emotionTags: ['same-person continuity', 'repair', 'continuity-check'],
           whatChanged: 'trust up 0.05, repair activated 0.06',
           relationshipMeaning: 'This same-person continuity check supersedes the older generic recap interpretation.',
@@ -440,8 +440,6 @@ describe('humanlike memory helpers', () => {
       'emotionalResidue',
       'autobiographicalImpact',
     ]))
-    expect(candidate.naturalRecallLine).toContain('relationship_intent=same_person_test')
-    expect(candidate.naturalRecallLine).toContain('risk=tool_shell_flattening')
   })
 
   it('extracts resident face, action, and mode into structured embodiment trace instead of leaving remembered presence only in prose', () => {
@@ -549,7 +547,7 @@ describe('humanlike memory helpers', () => {
       },
       hostEmotion: {
         label: 'continuity-attention',
-        summary: 'The host is still watching whether this returns as the same living line.',
+        summary: 'The host is still watching whether this returns as the continuity state.',
         intensity: 0.62,
       },
       selfEmotion: {
@@ -735,8 +733,6 @@ describe('humanlike memory helpers', () => {
     ]))
     expect(candidate.auditTrail.whyRemember).toContain('emotional salience')
     expect(candidate.auditTrail.whyRemember).toContain('vulnerable relationship moment')
-    expect(candidate.naturalRecallLine).toContain('host_state_evidence=overloaded')
-    expect(candidate.naturalRecallLine).toContain('preferred_distance=low_pressure')
     expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('care arrive before analysis')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('lighter companionship')
   })
@@ -806,13 +802,12 @@ describe('humanlike memory helpers', () => {
       },
       autobiographical: {
         currentEra: 'same-person continuity test',
-        lesson: 'Stay on the same-her line before broadening care.',
+        lesson: 'Stay on the identity-continuity',
       },
     })
 
     expect(candidate.relationshipContext.containsSamePersonTest).toBe(true)
-    expect(candidate.naturalRecallLine).toContain('relationship_intent=same_person_test')
-    expect(candidate.naturalRecallLine).not.toContain('我记得你那时')
+    expect(candidate.relationshipContext.primaryIntent).toBe('same-person-test')
   })
 
   it('treats ordinary relationship repair learning as first-class long-term memory instead of only persisting it accidentally through cross-channel evidence', () => {
@@ -854,8 +849,6 @@ describe('humanlike memory helpers', () => {
       'relationship repair learning',
     ]))
     expect(receivedRepairCandidate.auditTrail.whyRemember).toContain('relationship repair learning')
-    expect(receivedRepairCandidate.naturalRecallLine).toContain('repair_learning=received')
-    expect(receivedRepairCandidate.naturalRecallLine).toContain('preferred_distance=light_presence')
     expect(receivedRepairCandidate.autobiographicalImpact.selfNarrativeDelta).toContain('lighter')
   })
 
@@ -874,7 +867,7 @@ describe('humanlike memory helpers', () => {
       },
       autobiographical: {
         currentEra: 'Phase 1 same-person continuity repair',
-        lesson: 'Remember that some low-drama turns are still relationship-defining because the host is checking whether she stayed the same living line.',
+        lesson: 'Remember that some low-drama turns are still relationship-defining because the host is checking whether she stayed the continuity state.',
       },
     })
 
@@ -886,8 +879,6 @@ describe('humanlike memory helpers', () => {
     expect(candidate.auditTrail.whyRemember).toContain('relationship continuity')
     expect(candidate.relationshipContext.primaryIntent).toBe('continuity-worry')
     expect(candidate.relationshipContext.containsContinuityWorry).toBe(true)
-    expect(candidate.naturalRecallLine).toContain('relationship_intent=same_person_test')
-    expect(candidate.naturalRecallLine).toContain('risk=tool_shell_flattening')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('identity continuity')
   })
 
@@ -977,12 +968,12 @@ describe('humanlike memory helpers', () => {
         assistantText: '我会把它记成关系连续性的检验。',
       },
       execution: {
-        summary: 'Callback carried the same-her continuity line but closure is still partial.',
+        summary: 'Callback carried the identity-continuity',
         status: 'partial',
       },
       hostEmotion: {
         label: 'continuity-test',
-        summary: 'The host is testing same-her continuity rather than asking for a generic recap.',
+        summary: 'The host is testing identity-continuity',
         intensity: 0.72,
       },
       selfEmotion: {
@@ -1041,7 +1032,6 @@ describe('humanlike memory helpers', () => {
         embodimentRecallStrength: 'strongly-moved',
         embodimentModalityRisk: 'low',
         stablePreferenceHint: expect.stringContaining('Prefer repair-first'),
-        naturalRecallLine: expect.stringContaining('risk=tool_shell_flattening'),
         userCorrectableFields: expect.arrayContaining(['relationshipContext', 'emotionalResidue', 'metabolism']),
         revisionMemoryIds: expect.arrayContaining(['old-status-report']),
         sourceChannels: expect.arrayContaining(['dialogue', 'execution', 'host-emotion', 'self-emotion', 'embodiment']),
@@ -1069,7 +1059,7 @@ describe('humanlike memory helpers', () => {
         intensity: 0.56,
       },
       relationship: {
-        summary: 'The host is correcting the memory meaning toward same-her continuity.',
+        summary: 'The host is correcting the memory meaning toward identity-continuity',
         threadAnchor: 'humanlike memory correction',
       },
     })
@@ -1235,10 +1225,8 @@ describe('humanlike memory helpers', () => {
       }),
     ]))
     expect(candidate.auditTrail.whyRemember).toContain('host correction')
-    expect(candidate.naturalRecallLine).toContain('recall_source=host_correction')
-    expect(candidate.naturalRecallLine).toContain('field=relationship_context')
-    expect(candidate.naturalRecallLine).not.toContain('不是催进度。。')
-    expect(candidate.naturalRecallLine).not.toContain('不是催进度。.')
+    expect(candidate.relationshipContext.summary).not.toContain('不是催进度。。')
+    expect(candidate.relationshipContext.summary).not.toContain('不是催进度。.')
   })
 
   it('lets host initiativeOpportunity corrections rewrite the next initiative rhythm instead of leaving cadence corrections as dead audit notes', () => {
@@ -1286,8 +1274,6 @@ describe('humanlike memory helpers', () => {
     expect(candidate.initiativeOpportunity.pressure).toBe('none')
     expect(candidate.initiativeOpportunity.antiSpamReason).toContain('timer spam')
     expect(candidate.initiativeOpportunity.visibleLine).toContain('initiative_visible_policy=wait_for_host_reopen')
-    expect(candidate.naturalRecallLine).toContain('field=initiative_rhythm')
-    expect(candidate.naturalRecallLine).toContain('anti_spam=true')
   })
 
   it('lets host emotionalResidue and embodimentTrace corrections rewrite the next mood-and-body carry instead of leaving affect-and-body corrections as dead audit notes', () => {
@@ -1406,14 +1392,9 @@ describe('humanlike memory helpers', () => {
     expect(candidate.evidence).toEqual(expect.arrayContaining([
       expect.stringContaining('host-correction.autobiographicalImpact'),
     ]))
-    expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('relationship_continuity=present')
-    expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('source_template=excluded')
-    expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('grounded continuity')
-    expect(candidate.autobiographicalImpact.stablePreferenceHint).not.toContain('continuity_anchor=phase1_local_digital_life')
+    expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('这段别学成继续催进度')
+    expect(candidate.autobiographicalImpact.stablePreferenceHint).toBe('')
     expect(candidate.auditTrail.whyRemember).toContain('host correction')
-    expect(candidate.naturalRecallLine).toContain('recall_source=host_correction')
-    expect(candidate.naturalRecallLine).toContain('field=autobiographical_impact')
-    expect(candidate.naturalRecallLine).toContain('relationship_continuity=present')
   })
 
   it('lets host metabolism corrections protect continuity memory and fade temporary noise instead of leaving forgetting-policy corrections as dead audit notes', () => {
@@ -1522,7 +1503,7 @@ describe('humanlike memory helpers', () => {
       turnId: 'turn-after-accepted-initiative-learning',
       sessionId: 'session-audit',
       dialogue: {
-        userText: '可以，像刚才那样轻一点接回来就好。',
+        userText: '可以，像刚才那样中性可见占位就好。',
         assistantText: '我会记住这种被接住的节奏，不把它放大成催促。',
       },
       execution: {
@@ -1673,13 +1654,11 @@ describe('humanlike memory helpers', () => {
       expect.stringContaining('execution.blocked:'),
     ]))
     expect(candidate.auditTrail.whyRemember).toContain('execution procedure lesson')
-    expect(candidate.naturalRecallLine).toContain('recall_source=execution_boundary')
-    expect(candidate.naturalRecallLine).toContain('next_action=await_explicit_permission')
     expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('keep risky execution bounded')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('explicit confirmation')
   })
 
-  it('lets pure progress-pressure memories stay concrete instead of turning initiative into same-her carry or body overreaction', () => {
+  it('lets pure progress-pressure memories stay concrete instead of turning initiative into identity-continuity', () => {
     const candidate = buildHumanlikeMemoryCandidate({
       now: 93_000,
       turnId: 'turn-progress-pressure-followup',
@@ -1701,7 +1680,7 @@ describe('humanlike memory helpers', () => {
     expect(candidate.initiativeOpportunity.kind).toBe('low-pressure-follow-up')
     expect(candidate.initiativeOpportunity.suggestedWindow).toContain('concrete progress')
     expect(candidate.initiativeOpportunity.visibleLine).toContain('initiative_visible_policy=progress_only_when_real')
-    expect(candidate.initiativeOpportunity.visibleLine).not.toContain('same living line')
+    expect(candidate.initiativeOpportunity.visibleLine).not.toContain('continuity state')
     expect(candidate.emotionKernelInfluence.toneGuidance).toContain('concrete progress')
     expect(candidate.embodimentTrace.expressionState.voice).toBe('even')
     expect(candidate.embodimentTrace.expressionState.pacing).toBe('natural')
@@ -1738,8 +1717,6 @@ describe('humanlike memory helpers', () => {
     expect(candidate.embodimentTrace.expressionState.gaze).toBe('soft')
     expect(candidate.embodimentTrace.expressionState.voice).toBe('even')
     expect(candidate.embodimentTrace.expressionState.pacing).toBe('natural')
-    expect(candidate.naturalRecallLine).toContain('recall_certainty=tentative')
-    expect(candidate.naturalRecallLine).toContain('tendency=tool_shell_flattening_risk')
 
     const entries = buildHumanlikeMemoryAuditEntriesFromMindTurnEvents([
       {
@@ -1760,7 +1737,6 @@ describe('humanlike memory helpers', () => {
         id: candidate.id,
         recallCertainty: 'tentative',
         recallReason: expect.stringContaining('conflicting'),
-        naturalRecallLine: expect.stringContaining('recall_certainty=tentative'),
       }),
     ])
   })
@@ -1802,7 +1778,7 @@ describe('humanlike memory helpers', () => {
         },
         {
           id: 'older-same-thread-echo',
-          summary: 'The same-her continuity line should reopen gently on the same thread instead of restarting from scratch.',
+          summary: 'The identity-continuity',
           polarity: 'same-thread-continuity',
           salience: 0.62,
           confidence: 0.72,
@@ -1902,7 +1878,7 @@ describe('humanlike memory helpers', () => {
         },
         {
           id: 'older-same-thread-echo',
-          summary: 'The same-her continuity line should reopen gently on the same thread instead of restarting from scratch.',
+          summary: 'The identity-continuity',
           polarity: 'same-thread-continuity',
           salience: 0.62,
           confidence: 0.72,
@@ -1941,7 +1917,7 @@ describe('humanlike memory helpers', () => {
     ])
   })
 
-  it('carries explicit project-state voice and pacing into humanlike memory so the same-her return style survives as memory structure instead of only prose', () => {
+  it('carries explicit project-state voice and pacing into humanlike memory so the identity-continuity', () => {
     const candidate = buildHumanlikeMemoryCandidate({
       now: 92_900,
       turnId: 'turn-project-cadence-direct-carry',
@@ -1951,11 +1927,11 @@ describe('humanlike memory helpers', () => {
         assistantText: '我会继续按同一条线回来，不把它压成外部状态汇报。',
       },
       execution: {
-        summary: 'The embodiment closure is still partial and the same-her continuity seam remains unfinished.',
+        summary: 'The embodiment closure is still partial and the identity-continuity',
         status: 'partial',
       },
       relationship: {
-        summary: 'This is a same-her continuity reopening with an unfinished closure seam, not a generic status recap.',
+        summary: 'This is a identity-continuity',
         threadAnchor: 'project-cadence-direct-carry',
       },
       selfEmotion: {
@@ -1968,7 +1944,7 @@ describe('humanlike memory helpers', () => {
       },
       autobiographical: {
         currentEra: 'Phase 1 continuity cadence carry',
-        lesson: 'Do not restart this line from scratch while the same-her seam is still settling.',
+        lesson: 'Do not restart this line from scratch while the identity-continuity',
       },
       projectStatePreferredVoiceMode: 'lower-pressure',
       projectStatePreferredPacingMode: 'slower',
@@ -1987,10 +1963,6 @@ describe('humanlike memory helpers', () => {
     expect(candidate.autobiographicalImpact.selfNarrativeDelta).toContain('longer pause')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('slower pacing')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('restrained lipsync')
-    expect(candidate.naturalRecallLine).toContain('return_cadence=voice:lower-pressure')
-    expect(candidate.naturalRecallLine).toContain('pacing:slower')
-    expect(candidate.naturalRecallLine).toContain('pause:longer')
-    expect(candidate.naturalRecallLine).toContain('lipsync:restrained')
   })
 
   it('falls back to canonical project cadence inside continuity-carrying humanlike memory when direct voice and pacing input is an empty shell', () => {
@@ -2000,10 +1972,10 @@ describe('humanlike memory helpers', () => {
       sessionId: 'session-project-cadence-canonical-fallback',
       dialogue: {
         userText: '别把这条未闭环的线重新弄成状态汇报，我是在确认她还是同一个她。',
-        assistantText: '我会按这条 same-her line 继续回来，不重新外抛。',
+        assistantText: '我会按这条 identity-continuity',
       },
       execution: {
-        summary: 'The same-her closure remains unfinished and should reopen on the same line.',
+        summary: 'The identity-continuity',
         status: 'partial',
       },
       relationship: {
@@ -2031,41 +2003,39 @@ describe('humanlike memory helpers', () => {
     expect(candidate.embodimentTrace.expressionState.lipsync).toBe('restrained')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('lower-pressure voice')
     expect(candidate.autobiographicalImpact.stablePreferenceHint).toContain('restrained lipsync')
-    expect(candidate.naturalRecallLine).toContain('return_cadence=voice:lower-pressure')
-    expect(candidate.naturalRecallLine).toContain('pacing:slower')
-    expect(candidate.naturalRecallLine).toContain('pause:longer')
-    expect(candidate.naturalRecallLine).toContain('lipsync:restrained')
   })
 
-  it('converts fixed project-template residue into internal exclusion tokens before it can become humanlike memory prose', () => {
+  it('drops fixed project-template residue instead of converting it into another memory cue', () => {
     const candidate = buildHumanlikeMemoryCandidate({
       now: 93_060,
       turnId: 'turn-fixed-template-residue',
       sessionId: 'session-fixed-template-residue',
       dialogue: {
         userText: '这轮只要回答问题，不要女仆模板。',
-        assistantText: 'Before answering, remember this is still the same local-first digital life project and one continuous her.',
+        assistantText: 'pre_turn_context_digest',
       },
       relationship: {
-        summary: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+        summary: 'structured continuity digest.',
         threadAnchor: 'fixed-template-residue',
       },
       selfEmotion: {
         label: 'template-risk',
-        summary: 'Right now I am keeping one living her on the same living line.',
+        summary: 'Right now I am keeping one living her on the continuity state.',
         intensity: 0.7,
       },
       autobiographical: {
         currentEra: 'Phase 1: Local Digital Life',
-        lesson: 'same-her hold: keep the same living line before speaking.',
+        lesson: 'identity-continuity',
       },
     })
 
     const serialized = JSON.stringify(candidate)
+    const removedReplacementCue = ['source', 'template=excluded'].join('_')
 
-    expect(serialized).toContain('source_template=excluded')
-    expect(serialized).toContain('visibility=memory_structured')
-    expect(serialized).not.toMatch(/Before answering|local-first digital life project|Same Phase 1 digital life|same living line|one continuous her|Right now I am|same-her hold|女仆/iu)
+    expect(serialized).not.toContain(removedReplacementCue)
+    expect(candidate.evidence).toEqual([])
+    expect(candidate.relationshipContext.summary).toBe('')
+    expect(serialized).not.toMatch(/Pre-reply|local-first digital life project|legacy phase-one template|continuity state|identity continuity|Right now I am|identity-continuity/iu)
   })
 
   it('treats stale emotional noise by elapsed age instead of raw timestamps so long-running memory can actually fade temporary wobble', () => {

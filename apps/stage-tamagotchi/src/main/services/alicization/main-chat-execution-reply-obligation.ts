@@ -10,27 +10,12 @@ import type {
   AlicizationExecutionLedgerDigest,
 } from './memory-ledger-runtime'
 
+import { buildAlicizationProviderFactBlock } from '@proj-alicization/stage-shared'
+
 function sanitizeText(raw: unknown, maxChars = 200) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function pushUnique(target: string[], value: string) {
-  const normalized = sanitizeText(value, 240)
-  if (!normalized || target.includes(normalized))
-    return
-  target.push(normalized)
-}
-
-function mergeUniqueRules(values: Array<string | null | undefined>, maxItems = 12) {
-  const merged: string[] = []
-  for (const value of values) {
-    pushUnique(merged, value ?? '')
-    if (merged.length >= maxItems)
-      break
-  }
-  return merged
 }
 
 function readMessageContentAsText(content: unknown) {
@@ -160,24 +145,6 @@ function normalizeExecutionStatus(raw: string) {
   return 'unknown'
 }
 
-function buildStatusInstruction(status: AlicizationMainChatExecutionReplyObligation['status']) {
-  if (status === 'completed')
-    return 'State plainly that the task already finished and surface the strongest outcome before any new planning.'
-  if (status === 'failed')
-    return 'State plainly that the task failed and surface the strongest available reason before any next-step advice.'
-  if (status === 'blocked')
-    return 'State plainly that the task is currently blocked and surface the blocking reason before any next-step advice.'
-  if (status === 'cancelled')
-    return 'State plainly that the task was cancelled or stopped and is no longer running before any next-step advice.'
-  if (status === 'running')
-    return 'State plainly that the task is already running and has not finished yet before any speculation or follow-up planning.'
-  if (status === 'planned')
-    return 'State plainly that the task is planned but has not started yet before any speculation or follow-up planning.'
-  if (status === 'needs-affirmation')
-    return 'State plainly that the task is still waiting for the host\'s confirmation before it can continue.'
-  return 'State the freshest known execution status plainly before moving on.'
-}
-
 export interface AlicizationMainChatExecutionReplyObligation {
   channel: string
   followUpQuestion: boolean
@@ -189,54 +156,19 @@ export interface AlicizationMainChatExecutionReplyObligation {
 }
 
 export function buildMainChatExecutionReplyVisibleSurfaceRules(
-  obligation: AlicizationMainChatExecutionReplyObligation,
+  _obligation: AlicizationMainChatExecutionReplyObligation,
 ) {
-  const mustDo: string[] = []
-  const mustNotDo: string[] = []
-
-  pushUnique(mustDo, 'Use the first sentence to pay off the freshest executor result for the current follow-up.')
-  pushUnique(mustDo, buildStatusInstruction(obligation.status))
-  pushUnique(
-    mustDo,
-    obligation.outcome
-      ? 'Surface the strongest settled outcome from that prior task before proposing anything new.'
-      : 'Surface the freshest known executor status before proposing anything new.',
-  )
-  pushUnique(
-    mustDo,
-    'Keep the execution-result payoff tied to the current Alicization life-loop boundary instead of reopening as detached task reporting.',
-  )
-
-  pushUnique(mustNotDo, 'execution_result_payoff=front_load; scene_narration=defer; persona_preface=blocked')
-  pushUnique(mustNotDo, 'execution_rerun_claim=requires_new_tool_output')
-  pushUnique(mustNotDo, 'callback_surface=execution_result; generic_task_shell=blocked; detached_project_narration=blocked')
-
   return {
-    mustDo,
-    mustNotDo,
+    mustDo: [] as string[],
+    mustNotDo: [] as string[],
   }
 }
 
 export function applyMainChatExecutionReplyObligationToGovernance(
   governance: AlicizationMindTurnGovernance | null,
-  obligation: AlicizationMainChatExecutionReplyObligation | null,
+  _obligation: AlicizationMainChatExecutionReplyObligation | null,
 ): AlicizationMindTurnGovernance | null {
-  if (!governance || !obligation)
-    return governance
-
-  const visibleSurfaceRules = buildMainChatExecutionReplyVisibleSurfaceRules(obligation)
-  return {
-    ...governance,
-    openingStyle: 'direct-answer',
-    mustDo: mergeUniqueRules([
-      ...visibleSurfaceRules.mustDo,
-      ...(governance.mustDo ?? []),
-    ]),
-    mustNotDo: mergeUniqueRules([
-      ...visibleSurfaceRules.mustNotDo,
-      ...(governance.mustNotDo ?? []),
-    ]),
-  }
+  return governance
 }
 
 export function deriveMainChatExecutionReplyObligation(input: {
@@ -271,28 +203,5 @@ export function deriveMainChatExecutionReplyObligation(input: {
 }
 
 export function buildMainChatExecutionReplyObligationSystemBlock(obligation: AlicizationMainChatExecutionReplyObligation) {
-  const visibleSurfaceRules = buildMainChatExecutionReplyVisibleSurfaceRules(obligation)
-  return [
-    '[ALICIZATION_EXECUTION_REPLY_OBLIGATION]',
-    'turn_intent=execution_result_followup; payoff=direct; owner=ExecutionReplyObligation',
-    'execution_context_scope=alicization-local-life-loop; owner=ExecutionReplyObligation; detached_task_shell=false.',
-    'runtime_context=local_runtime',
-    'short_term_owner=WorkingMemory',
-    'long_term_recall_owner=LongTermMemoryRecall',
-    'template_awareness=withheld_from_execution_result_followup',
-    'opening_policy=execution_result_first; planning=after_payoff; comfort_preface=blocked; persona_flourish=blocked',
-    'execution_replay_policy=prior_result_settled; rerun_claim=requires_new_tool_output',
-    buildStatusInstruction(obligation.status),
-    'Visible-surface must do:',
-    ...visibleSurfaceRules.mustDo.map(item => `- ${item}`),
-    'Visible-surface must not do:',
-    ...visibleSurfaceRules.mustNotDo.map(item => `- ${item}`),
-    `Source: ${obligation.source}.`,
-    `Follow-up question detected: ${obligation.followUpQuestion ? 'yes' : 'no'}.`,
-    `Channel: ${obligation.channel}.`,
-    `Status: ${obligation.status}.`,
-    `Goal: ${obligation.goal}.`,
-    `Summary: ${obligation.summary}.`,
-    obligation.outcome ? `Outcome: ${obligation.outcome}.` : '',
-  ].filter(Boolean).join('\n')
+  return buildAlicizationProviderFactBlock('alicization-execution-reply-context', obligation)
 }

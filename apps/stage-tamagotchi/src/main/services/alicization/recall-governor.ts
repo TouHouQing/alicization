@@ -248,8 +248,8 @@ function buildProjectPreflightRecallFallbackProjectState(
     return null
 
   return {
-    identity: 'runtime_personhood',
-    currentPhase: 'life_core',
+    identity: '',
+    currentPhase: '',
     latestLandedProgress: projectStateCarryLine.includes('verified_closure_progress=partial.')
       ? 'verified_closure_progress=partial.'
       : '',
@@ -288,7 +288,7 @@ function isStructuredRecallProjectAnchorText(raw: unknown) {
       || /\bproject_anchor=runtime_personhood\b/iu.test(sanitized)
       || sanitized === 'runtime_personhood'
     )
-    ? sanitized
+    ? null
     : null
 }
 
@@ -415,17 +415,17 @@ function formatRecallGovernorRationale(input: {
 
   if (input.mode === 'self-continuity') {
     if (input.restProtectiveEmotionalKernel) {
-      return 'reason=self_continuity_rest_protection; recall_scope=narrow_self_continuity; rest_protection=active; associative_recall=bounded'
+      return 'Reason: self-continuity rest protection. Recall scope is narrow self-continuity; rest protection is active and associative recall is bounded.'
     }
 
     return [
-      'reason=self_continuity_authorized',
-      `autobiographical_continuity=${input.autobiographicalContinuityPresent ? 'present' : 'absent'}`,
-      `self_authority=${input.selfAuthorityPresent ? 'present' : 'absent'}`,
-      `project_anchor=${input.projectAnchorPresent ? 'present' : 'absent'}`,
-      `emotional_closure=${input.emotionalClosurePresent ? 'present' : 'absent'}`,
-      'scene_claim=fresh_screen_not_assumed',
-    ].join('; ')
+      'Reason: self-continuity authorized.',
+      `Autobiographical continuity: ${input.autobiographicalContinuityPresent ? 'present' : 'absent'}.`,
+      `Self authority: ${input.selfAuthorityPresent ? 'present' : 'absent'}.`,
+      `Continuity anchor: ${input.projectAnchorPresent ? 'present' : 'absent'}.`,
+      `Emotional closure: ${input.emotionalClosurePresent ? 'present' : 'absent'}.`,
+      'Scene claim: fresh screen is not assumed.',
+    ].join(' ')
   }
 
   return 'reason=memory_not_admitted; recall_scope=none; associative_recall=suppressed'
@@ -892,31 +892,31 @@ export function buildRecallGovernorSystemBlock(state: AlicizationRecallGovernorS
     : 'none'
 
   return [
-    '[ALICIZATION_RECALL_GOVERNOR]',
-    'block_role=recall_gate; old_memory_entry=policy_gated',
-    `mode=${state.mode}`,
-    `recall_seed_present=${state.recallSeed ? 'yes' : 'no'}`,
-    `thread_anchor_count=${state.threadAnchors?.length ?? 0}`,
-    `affect_anchor_count=${state.affectAnchors?.length ?? 0}`,
-    `relationship_anchor_count=${state.relationshipAnchors?.length ?? 0}`,
-    `salience_bias=${(state.salienceBias ?? 0.5).toFixed(2)}`,
-    `scene_anchor_present=${state.sceneAnchor ? 'yes' : 'no'}`,
-    `scene_familiarity_hint=${typeof state.sceneFamiliarityHint === 'number' ? state.sceneFamiliarityHint.toFixed(2) : 'none'}`,
-    `affective_carry=${state.affectiveCarry ? 'present' : 'none'}`,
-    `affective_mood=${sanitizeAlicizationProviderFacingText(state.affectiveCarry?.moodLabel, 64, '') || 'none'}`,
-    `affective_tension=${sanitizeAlicizationProviderFacingText(state.affectiveCarry?.emotionalTension, 64, '') || 'none'}`,
-    `embodied_carry=${state.embodiedCarry ? 'present' : 'none'}`,
-    `embodied_presence=${sanitizeAlicizationProviderFacingText(state.embodiedCarry?.presence, 64, '') || 'none'}`,
-    `embodied_style=${sanitizeAlicizationProviderFacingText(state.embodiedCarry?.suggestedStyle, 64, '') || 'none'}`,
-    `recollection_intent=${state.recollectionIntent ? 'present' : 'none'}`,
-    `recollection_mode=${sanitizeAlicizationProviderFacingText(state.recollectionIntent?.mode, 64, '') || 'none'}`,
-    `recollection_temporal_focus=${sanitizeAlicizationProviderFacingText(state.recollectionIntent?.temporalFocus, 64, '') || 'none'}`,
-    `suppress_associative_recall=${state.suppressAssociativeRecall ? 'yes' : 'no'}`,
-    `allow_active_thoughts=${state.allowActiveThoughts ? 'yes' : 'no'}`,
-    `allow_recalled_fragments=${state.allowRecalledFragments ? 'yes' : 'no'}`,
-    `recalled_fragment_cap=${state.recalledFragmentCap ?? 0}`,
-    `recalled_fragment_source_budget=${sourceBudget}`,
-    `carry_as_memory=${state.carryAsMemory ? 'yes' : 'no'}`,
-    `rationale=${sanitizeAlicizationProviderFacingText(state.rationale, 360, 'reason=withheld')}`,
+    'Recall governor.',
+    'Recall gate: old memory entry is policy-gated.',
+    `Mode: ${state.mode}.`,
+    `Recall seed present: ${state.recallSeed ? 'yes' : 'no'}.`,
+    `Thread anchor count: ${state.threadAnchors?.length ?? 0}.`,
+    `Affect anchor count: ${state.affectAnchors?.length ?? 0}.`,
+    `Relationship anchor count: ${state.relationshipAnchors?.length ?? 0}.`,
+    `Salience bias: ${(state.salienceBias ?? 0.5).toFixed(2)}.`,
+    `Scene anchor present: ${state.sceneAnchor ? 'yes' : 'no'}.`,
+    `Scene familiarity hint: ${typeof state.sceneFamiliarityHint === 'number' ? state.sceneFamiliarityHint.toFixed(2) : 'none'}.`,
+    `Affective carry: ${state.affectiveCarry ? 'present' : 'none'}.`,
+    `Affective mood: ${sanitizeAlicizationProviderFacingText(state.affectiveCarry?.moodLabel, 64, '') || 'none'}.`,
+    `Affective tension: ${sanitizeAlicizationProviderFacingText(state.affectiveCarry?.emotionalTension, 64, '') || 'none'}.`,
+    `Embodied carry: ${state.embodiedCarry ? 'present' : 'none'}.`,
+    `Embodied presence: ${sanitizeAlicizationProviderFacingText(state.embodiedCarry?.presence, 64, '') || 'none'}.`,
+    `Embodied style: ${sanitizeAlicizationProviderFacingText(state.embodiedCarry?.suggestedStyle, 64, '') || 'none'}.`,
+    `Recollection intent: ${state.recollectionIntent ? 'present' : 'none'}.`,
+    `Recollection mode: ${sanitizeAlicizationProviderFacingText(state.recollectionIntent?.mode, 64, '') || 'none'}.`,
+    `Recollection temporal focus: ${sanitizeAlicizationProviderFacingText(state.recollectionIntent?.temporalFocus, 64, '') || 'none'}.`,
+    `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
+    `Allow active thoughts: ${state.allowActiveThoughts ? 'yes' : 'no'}.`,
+    `Allow recalled fragments: ${state.allowRecalledFragments ? 'yes' : 'no'}.`,
+    `Recalled fragment cap: ${state.recalledFragmentCap ?? 0}.`,
+    `Recalled fragment source budget: ${sourceBudget}.`,
+    `Carry as memory: ${state.carryAsMemory ? 'yes' : 'no'}.`,
+    `Rationale: ${sanitizeAlicizationProviderFacingText(state.rationale, 360, 'withheld')}.`,
   ].join('\n')
 }

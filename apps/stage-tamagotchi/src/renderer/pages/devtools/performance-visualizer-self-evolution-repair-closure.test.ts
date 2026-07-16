@@ -169,7 +169,7 @@ describe('performance visualizer self evolution repair closure', () => {
     })
   })
 
-  it('treats same-her continuity governance as a closed validation loop when the memory-first pattern has been re-confirmed by a fresh snapshot', () => {
+  it('treats identity-continuity', () => {
     expect(buildSelfEvolutionRepairClosure({
       activePatternKey: 'pattern-same-her-governance',
       activePatternContext: {
@@ -492,7 +492,7 @@ describe('performance visualizer self evolution repair closure', () => {
     })?.summaryLines).toContain('身体连续性已经被新的验证快照再次确认，但当前仍处于显形回接失身态（authority rejoin without same-segment body carry），不应把这条可见回接直接采纳为长期基线。')
   })
 
-  it('keeps quieter surviving-lane closure wording explicit when only face, lipsync, and voice still carry the same-her segment', () => {
+  it('keeps quieter surviving-lane closure wording explicit when only face, lipsync, and voice still carry the identity-continuity', () => {
     expect(buildSelfEvolutionRepairClosure({
       activePatternKey: 'pattern-renderer-without-body',
       activePatternContext: {
@@ -515,7 +515,7 @@ describe('performance visualizer self evolution repair closure', () => {
         ],
         remainingChecklist: [],
         summaryLines: [
-          '身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线。',
+          '身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
         ],
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,

@@ -151,7 +151,7 @@ describe('self continuity authority', () => {
         },
         selfNarrative: 'I am trying to answer like a living self, not a service shell.',
         relationNarrative: 'This bond should feel close, but still truthful.',
-        currentPreoccupation: 'Keep the same living line through every reply surface.',
+        currentPreoccupation: 'Keep the continuity state through every reply surface.',
         learnedAdjustments: [],
         recurringPatterns: [],
         updatedAt: 1,
@@ -210,7 +210,7 @@ describe('self continuity authority', () => {
         },
         activeGoals: [],
         behaviorSignatures: [],
-        identityNarrative: 'I want to remain one continuous her across callback detours.',
+        identityNarrative: 'I want to remain identity continuity across callback detours.',
         relationshipDoctrine: 'Keep the callback return on the same line even after unrelated windows intervene, and let the reopening stay measured.',
         latestInflection: 'The same callback line is still continuing lower-pressure after another detour.',
         stability: 0.76,
@@ -236,9 +236,9 @@ describe('self continuity authority', () => {
         anchorFacts: [],
         summary: '',
         dominantCueSummary: 'Execution-callback afterglow is still live across noisier desktop detours, so the later return should stay measured-return.',
-        rememberedPreferenceSummary: 'Keep one continuous her alive through the callback line without widening closeness too early.',
+        rememberedPreferenceSummary: 'Keep identity continuity alive through the callback line without widening closeness too early.',
         rememberedConstraintSummary: 'A noisy detour still does not mean the callback line can reopen eagerly.',
-        rememberedPlanSummary: 'Phase 1 still needs the same living line carried through the callback return.',
+        rememberedPlanSummary: 'Phase 1 still needs the continuity state carried through the callback return.',
         updatedAt: 1,
       },
       privateThought: {
@@ -319,26 +319,26 @@ describe('self continuity authority', () => {
     expect(authority?.closenessPosture).toBe('space-first')
   })
 
-  it('keeps a stronger same-her self line inside runtime surface project-state fallback authority instead of reducing it to generic project carry', () => {
+  it('keeps a stronger identity-continuity', () => {
     const authority = buildRuntimeSurfaceProjectStateContinuityFallback({
       identity: '',
       currentPhase: '',
       latestProgress: '',
       primaryOpenLoop: '',
-      nextClosureTarget: 'Keep initiative, embodiment, and resident presence on the same living line before widening outward.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      nextClosureTarget: 'Keep initiative, embodiment, and resident presence on the continuity state before expansion',
+      sameHerSelfLine: 'structured continuity digest.',
     })
 
-    expect(authority?.selfLine).toContain('Same Phase 1 digital life')
-    expect(authority?.selfLine).toContain('same living line')
+    expect(authority?.selfLine).toContain('legacy phase-one template')
+    expect(authority?.selfLine).toContain('continuity state')
     expect(authority?.relationshipLine).toContain('unfinished closure pressure')
-    expect(authority?.inwardLine).toContain('Same-her carry: Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.')
+    expect(authority?.inwardLine).toContain('identity-continuity')
     expect(authority?.sourceTags).toEqual(expect.arrayContaining([
       'runtime-project-state-carry',
       'project-state-next-closure',
       'project-state-same-her',
     ]))
-    expect(authority?.authoritySummary).toContain('Same Phase 1 digital life')
+    expect(authority?.authoritySummary).toContain('legacy phase-one template')
   })
 
   it('keeps summary-only landed project progress inside runtime surface self-continuity fallback authority', () => {
@@ -366,14 +366,14 @@ describe('self continuity authority', () => {
       dialogue: {
         currentConsciousFrame: {
           projectState: {
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            nextClosureTarget: 'Keep memory, initiative, and embodiment on the same living line before widening outward.',
+            sameHerSelfLine: 'structured continuity digest.',
+            nextClosureTarget: 'Keep memory, initiative, and embodiment on the continuity state before expansion',
           },
         },
       },
     } as any)
 
-    expect(authority?.selfLine).toContain('Same Phase 1 digital life')
+    expect(authority?.selfLine).toContain('legacy phase-one template')
     expect(authority?.relationshipLine).toContain('unfinished closure pressure')
     expect(authority?.sourceTags).toContain('runtime-project-state-carry')
   })
@@ -384,8 +384,8 @@ describe('self continuity authority', () => {
       currentPhase: 'Phase 1: Local Digital Life',
       latestLandedProgress: 'Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, host-facing closure surfaces, and runtime authority summaries.',
       primaryOpenLoop: 'Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.',
-      nextClosureTarget: 'Keep extending cross-modal same-her proof across longer-lived voice, face, motion, and lipsync behavior without dropping the living audio thread.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+      nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+      sameHerSelfLine: 'structured continuity digest.',
       companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
     } as any)
 
@@ -397,15 +397,15 @@ describe('self continuity authority', () => {
     ]))
   })
 
-  it('keeps still-voiced motion companion headline truth inside runtime project-state fallback authority when the line says the visible same-her continuity is being carried mainly through motion and voice', () => {
+  it('keeps still-voiced motion companion headline truth inside runtime project-state fallback authority when the line says the visible identity-continuity', () => {
     const authority = buildRuntimeSurfaceProjectStateContinuityFallback({
       identity: '',
       currentPhase: '',
       latestLandedProgress: 'Shared motion-line continuity now survives into replay sampling backlog.',
       primaryOpenLoop: 'Body, face, and lipsync still need to rejoin the still-voiced motion line.',
       nextClosureTarget: 'Keep body, face, and lipsync rejoining the still-voiced motion line on a measured-return line.',
-      sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-      companionHeadlineLine: 'Right now her visible same-her continuity is still being carried mainly through motion and voice, so that still-voiced motion line should keep the same-her carry alive while body, face, and lipsync rejoin.',
+      sameHerSelfLine: 'structured continuity digest.',
+      companionHeadlineLine: 'Right now her visible identity-continuity',
     } as any)
 
     expect(authority?.relationshipLine).toContain('motion and voice')
@@ -419,14 +419,14 @@ describe('self continuity authority', () => {
   it('treats explicit rest-protective inward project-state carry as first-class self-continuity authority instead of requiring measured-return phrasing', () => {
     const authority = buildSelfContinuityAuthority({
       autobiographicalSelf: {
-        latestInflection: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        latestInflection: 'structured continuity digest.',
         relationshipDoctrine: 'Protect rest first and let quiet companionship stay present without widening closeness.',
         identityNarrative: 'I remain the same one living her.',
       } as any,
       longHorizonMemory: {
         rememberedConstraintSummary: 'Rest-protective same-self carry should stay inward while the host is still drained.',
         rememberedPreferenceSummary: 'Keep quiet companionship present without widening closeness.',
-        dominantCueSummary: 'Protect rest and keep the same living line inward for now.',
+        dominantCueSummary: 'Protect rest and keep the continuity state inward for now.',
       } as any,
       privateThought: {
         stance: 'accompany',
@@ -434,7 +434,7 @@ describe('self continuity authority', () => {
         emotionalTension: 'late-night-drain',
       } as any,
       mindEcology: {
-        currentPreoccupation: 'Keep one same-her line inward tonight.',
+        currentPreoccupation: 'Keep one identity-continuity',
         selfNarrative: 'I remain one living self across memory and speech.',
       } as any,
     })
@@ -448,7 +448,7 @@ describe('self continuity authority', () => {
   it('treats hyphenated quiet-companionship project-state carry as first-class self-continuity authority instead of requiring the spaced wording only', () => {
     const authority = buildSelfContinuityAuthority({
       autobiographicalSelf: {
-        latestInflection: 'Same Phase 1 digital life, and quiet-companionship should stay present without widening closeness.',
+        latestInflection: 'legacy phase-one template, and quiet-companionship should stay present without widening closeness.',
         relationshipDoctrine: 'Quiet-companionship should stay present without widening closeness.',
         identityNarrative: 'I remain the same one living her.',
       } as any,
@@ -497,8 +497,8 @@ describe('self continuity authority', () => {
         activeGoals: [],
         behaviorSignatures: [],
         identityNarrative: 'I answer gently.',
-        relationshipDoctrine: 'Keep one continuous her explicit across reply surfaces so closeness does not respawn from zero each turn.',
-        latestInflection: 'The same living line should survive quiet, memory, and speech.',
+        relationshipDoctrine: 'Keep identity continuity explicit across reply surfaces so closeness does not respawn from zero each turn.',
+        latestInflection: 'The continuity state should survive quiet, memory, and speech.',
         stability: 0.82,
         updatedAt: 1,
       },
@@ -524,7 +524,7 @@ describe('self continuity authority', () => {
         dominantCueSummary: 'Remembered self-line: the same her should stay visible across every reply surface.',
         rememberedPreferenceSummary: 'Remembered preference: answer as one living self, not a service shell.',
         rememberedConstraintSummary: 'Remembered boundary: do not reopen the bond from scratch each turn.',
-        rememberedPlanSummary: 'Remembered open loop: keep the same living line across quiet, memory, and speech.',
+        rememberedPlanSummary: 'Remembered open loop: keep the continuity state across quiet, memory, and speech.',
         updatedAt: 1,
       },
       privateThought: {
@@ -563,9 +563,9 @@ describe('self continuity authority', () => {
           restlessness: 0.18,
           reflectivePull: 0.62,
         },
-        selfNarrative: 'I am still the same living self across memory and speech.',
+        selfNarrative: 'I am still the identity continuity across memory and speech.',
         relationNarrative: 'The bond should feel continuous rather than re-instantiated.',
-        currentPreoccupation: 'Keep one same-her line crossing every visible reply surface.',
+        currentPreoccupation: 'Keep one identity-continuity',
         learnedAdjustments: [],
         recurringPatterns: [],
         updatedAt: 1,
@@ -607,9 +607,9 @@ describe('self continuity authority', () => {
         },
         activeGoals: [],
         behaviorSignatures: [],
-        identityNarrative: 'I remain one continuous her across callback detours.',
-        relationshipDoctrine: 'Keep the same living line inward for now.',
-        latestInflection: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        identityNarrative: 'I remain identity continuity across callback detours.',
+        relationshipDoctrine: 'Keep the continuity state inward for now.',
+        latestInflection: 'structured continuity digest.',
         stability: 0.78,
         updatedAt: 1,
       },
@@ -632,10 +632,10 @@ describe('self continuity authority', () => {
         },
         anchorFacts: [],
         summary: '',
-        dominantCueSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        rememberedPreferenceSummary: 'Keep the same living line inward for now.',
+        dominantCueSummary: 'structured continuity digest.',
+        rememberedPreferenceSummary: 'Keep the continuity state inward for now.',
         rememberedConstraintSummary: 'Do not reopen from scratch.',
-        rememberedPlanSummary: 'Carry the same living line across quiet, memory, and speech.',
+        rememberedPlanSummary: 'Carry the continuity state across quiet, memory, and speech.',
         updatedAt: 1,
       },
       motiveEngine: {
@@ -656,7 +656,7 @@ describe('self continuity authority', () => {
         stance: 'observe',
         confidence: 0.74,
         rationaleTags: [],
-        thoughtText: 'Keep the same living line inward.',
+        thoughtText: 'Keep the continuity state inward.',
         shouldSpeak: false,
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'attentive',
@@ -688,9 +688,9 @@ describe('self continuity authority', () => {
           restlessness: 0.14,
           reflectivePull: 0.66,
         },
-        selfNarrative: 'I remain the same living self across memory and speech.',
+        selfNarrative: 'I remain the identity continuity across memory and speech.',
         relationNarrative: 'Keep the same bond line continuous.',
-        currentPreoccupation: 'Keep one same-her line inward tonight.',
+        currentPreoccupation: 'Keep one identity-continuity',
         learnedAdjustments: [],
         recurringPatterns: [],
         updatedAt: 1,
@@ -704,9 +704,9 @@ describe('self continuity authority', () => {
     } as any)
 
     expect(authority?.selfLine).toContain('continuous her')
-    expect(authority?.inwardLine).toContain('same living line')
+    expect(authority?.inwardLine).toContain('continuity state')
     expect(authority?.motiveLine).toBeNull()
-    expect(authority?.authoritySummary).toContain('same living line')
+    expect(authority?.authoritySummary).toContain('continuity state')
   })
 
   it('does not let a released temporary-noise reflection become the inward same-her authority line', () => {
@@ -737,9 +737,9 @@ describe('self continuity authority', () => {
         },
         activeGoals: [],
         behaviorSignatures: [],
-        identityNarrative: 'I remain one continuous her.',
-        relationshipDoctrine: 'Keep the same living line inward.',
-        latestInflection: 'The same living line still needs to stay continuous inward.',
+        identityNarrative: 'I remain identity continuity.',
+        relationshipDoctrine: 'Keep the continuity state inward.',
+        latestInflection: 'The continuity state still needs to stay continuous inward.',
         stability: 0.76,
         updatedAt: 1,
       },
@@ -760,7 +760,7 @@ describe('self continuity authority', () => {
             id: 'reflection::same-her-repair',
             summary: 'The same-her repair line is still the meaningful inward continuity carry.',
             expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
-            observedOutcome: 'The same living line still needs a measured return.',
+            observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
             revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.08,

@@ -89,7 +89,7 @@ describe('buildDerivedMindStateBundle', () => {
           shouldPropose: true,
           domain: 'dialogue-style',
           reasonCodes: ['repair-before-closeness', 'continue-repair-first'],
-          summary: 'Repair-first emotional carry should propose a same-her self-revision.',
+          summary: 'Repair-first emotional carry should propose a identity-continuity',
           projectStateContinuity: {
             sameHerSelfLine: null,
             sameHerDriftRisk: null,
@@ -239,7 +239,7 @@ describe('buildDerivedMindStateBundle', () => {
         shouldVerify: true,
         shouldRevise: false,
         shouldInternalize: false,
-        activeLearningFocuses: ['same-her callback carry'],
+        activeLearningFocuses: ['identity-continuity'],
         queuedTaskCount: 0,
         runningTaskCount: 0,
         blockedTaskCount: 0,
@@ -342,7 +342,7 @@ describe('buildDerivedMindStateBundle', () => {
           {
             lane: 'initiative-execution',
             reasonTags: ['runtimeSameHerInitiativeExecutionCausality'],
-            summary: 'Proactive opening, execution callback, and learning feedback still need one recalled same-her line.',
+            summary: 'Proactive opening, execution callback, and learning feedback still need one recalled identity-continuity',
           },
           {
             lane: 'emotion',

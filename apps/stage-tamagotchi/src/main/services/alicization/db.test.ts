@@ -2114,7 +2114,7 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
-  it('refreshes memory consolidations after episodic reconsolidation so long-horizon summaries inherit the newer same-her callback lesson', async () => {
+  it('refreshes memory consolidations after episodic reconsolidation so long-horizon summaries inherit the newer identity-continuity', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     await db.appendEpisodicEvents([
       {
@@ -2131,8 +2131,8 @@ describe('alicization sqlite dao', () => {
         whatHappened: 'The execution callback returned cleanly, but the older lesson still framed it too much like a generic shell.',
         felt: 'steady',
         emotionTags: ['execution-callback', 'generic-shell'],
-        whatChanged: 'The callback result arrived, but the memory lesson still lagged behind the newer same-her carry.',
-        relationshipMeaning: 'The callback should come back on one same living line instead of a detached shell.',
+        whatChanged: 'The callback result arrived, but the memory lesson still lagged behind the newer identity-continuity',
+        relationshipMeaning: 'The callback should come back on one continuity state instead of a detached shell.',
         lesson: 'Do not let the execution callback flatten into a generic shell.',
         sourceSummary: 'execution callback return',
         confidence: 0.84,
@@ -2148,13 +2148,13 @@ describe('alicization sqlite dao', () => {
     expect(before[0]?.lesson).not.toContain('same thread should now be answered')
 
     await db.searchEpisodicEvents({
-      recallSeed: 'bring the execution callback back on the same living line',
+      recallSeed: 'bring the execution callback back on the continuity state',
       limit: 1,
       sessionId: 'session-execution-callback-memory-refresh',
       turnId: 'turn-execution-callback-memory-refresh',
       threadAnchors: ['execution callback seam'],
       affectAnchors: ['feedback:valued', 'same-her-callback'],
-      relationshipAnchors: ['host correction', 'same living line'],
+      relationshipAnchors: ['host correction', 'continuity state'],
       carryAsMemory: true,
       recollectionIntent: {
         mode: 'relationship-history',
@@ -2162,16 +2162,16 @@ describe('alicization sqlite dao', () => {
         searchEpisodes: true,
         searchConversations: true,
         searchProceduralExperience: true,
-        queryHints: ['execution callback', 'same living line', 'same her'],
-        rationale: 'The same thread should now be answered with the richer same-her callback carry instead of the older generic shell lesson.',
+        queryHints: ['execution callback', 'continuity state', 'same her'],
+        rationale: 'The same thread should now be answered with the richer identity-continuity',
         confidence: 0.82,
       },
       reconsolidationDecisionTraceId: 'mind:execution-callback:memory-refresh',
     })
 
     const after = await db.listMemoryConsolidations(8)
-    expect(after[0]?.lesson).toContain('same thread should now be answered with the richer same-her callback carry')
-    expect(after[0]?.summary).toContain('same living line')
+    expect(after[0]?.lesson).toContain('same thread should now be answered with the richer identity-continuity')
+    expect(after[0]?.summary).toContain('continuity state')
     await db.close()
   })
 
@@ -2599,10 +2599,10 @@ describe('alicization sqlite dao', () => {
             emotionalResidueTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
             embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
             metabolismSummary: 'Downrank the older status shell and keep the corrected same-person continuity meaning active.',
-            autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure same living line.',
+            autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure continuity state.',
           },
           projectState: {
-            selfContinuityInwardLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+            selfContinuityInwardLine: 'structured continuity digest.',
             selfContinuitySourceTags: ['project-state-carry', 'continuity-execution-callback-project-carry'],
           },
         },
@@ -4278,18 +4278,18 @@ describe('alicization sqlite dao', () => {
         action: 'verify',
         reason: 'verify contradiction',
         projectStateContinuity: {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+          identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
           currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
           sameHerSummary: 'Keep one same local digital life coherent across emotion, memory, initiative, and embodiment while learning from this turn.',
           landedProgressSummary: 'Project-state continuity already survives into runtime preparation and visible reply carry.',
           openClosureSummary: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
           proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-          preDialogueAwarenessLine: 'Before answering, remember: this is still one local digital life project and the unfinished Phase 1 closure still belongs to one living her.',
-          emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'same-her hold: keep this delayed learning carry on the same living line before later retries widen into generic verification bookkeeping.',
-          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the same-her self line disappears, treat that as unfinished closure drift.',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          emotionalClosureCue: 'identity-continuity',
+          sameHerSelfLine: 'structured continuity digest.',
+          sameHerHoldDetail: 'identity-continuity',
+          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the identity-continuity',
         },
         focuses: ['resolve-contradictions'],
         dominantTrajectory: 'Need to verify',
@@ -4310,19 +4310,19 @@ describe('alicization sqlite dao', () => {
     expect(claimed).toHaveLength(1)
     expect(claimed[0]?.status).toBe('claimed')
     expect(claimed[0]?.payload.projectStateContinuity).toEqual(expect.objectContaining({
-      identity: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      currentPhase: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      identity: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
+      currentPhase: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
       landedProgressSummary: expect.stringContaining('runtime preparation'),
       proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
-      preDialogueAwarenessLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      emotionalClosureCue: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      sameHerSelfLine: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      sameHerHoldDetail: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
-      sameHerDriftRisk: 'content=excluded; reason=continuity-residue; visibility=internal-structured',
+      preDialogueAwarenessLine: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
+      emotionalClosureCue: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
+      sameHerSelfLine: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
+      sameHerHoldDetail: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
+      sameHerDriftRisk: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
     }))
-    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).not.toMatch(/Before answering|local-first digital life project|Phase 1: Local Digital Life|Same Phase 1 digital life|same living line|same-her hold|one living her/iu)
+    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).not.toMatch(/Pre-reply|local-first digital life project|Phase 1: Local Digital Life|legacy phase-one template|continuity state|identity-continuity/iu)
     expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).toContain('content=excluded')
-    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).toContain('visibility=internal-structured')
+    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).toContain('visibility=redacted_internal')
 
     await db.startLearningTask('learning-task-1', nowMs)
     await db.completeLearningTask('learning-task-1', {

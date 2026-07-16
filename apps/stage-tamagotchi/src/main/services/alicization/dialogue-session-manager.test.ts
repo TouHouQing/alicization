@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 
-const fixedTemplateResiduePattern = /Before (?:answering|speaking|acting)|Right now I am|Same Phase 1 digital life|same[- ]her|same living line|one living her|one continuous her|local-first digital life project|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu
+const fixedTemplateResiduePattern = /Before (?:answering|speaking|acting)|Right now I am|legacy phase-one template|same[- ]her|continuity state|one living her|identity continuity|local-first digital life project|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu
 
 function expectNoFixedTemplateResidue(value: unknown) {
   expect(String(value ?? '')).not.toMatch(fixedTemplateResiduePattern)
@@ -393,9 +393,9 @@ describe('dialogue session manager', () => {
       runtimeDigest: {
         projectState: {
           currentPhase: 'Phase 1: Local Digital Life',
-          primaryOpenLoop: 'Execution reopenings still need stronger same-her closure.',
+          primaryOpenLoop: 'Execution reopenings still need stronger identity-continuity',
           preflightSummary: 'Keep the same digital life project in view before local detail takes over.',
-          preDialogueAwarenessLine: 'Before answering, remember: Alicization is a local-first digital life project in Phase 1, and this unfinished closure still has to stay on the same living line.',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
         },
       } as any,
     }
@@ -948,15 +948,15 @@ describe('dialogue session manager', () => {
             continuityKind: 'execution-callback',
             executionCallbackCarryMode: 'lower-pressure',
             sourceThreadId: 'thread-callback-project',
-            projectStatePreDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-            projectIdentity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+            projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
+            projectIdentity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
             projectPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
             projectLatestLandedProgress: 'Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.',
             projectPrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-            projectNextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-            projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+            projectNextClosureTarget: 'Keep extending cross-modal identity-continuity',
+            projectStateSameHerSelfLine: 'structured continuity digest.',
+            projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
           },
         }],
         tasks: [{
@@ -1025,9 +1025,9 @@ describe('dialogue session manager', () => {
       getNow: () => 80,
     })
     const aliasOnlyLandedProgress = 'Project identity carry and Phase 1 route carry already survive callback return even when the canonical landed slot goes blank.'
-    const aliasOnlyOpenClosure = 'Memory, initiative, and embodiment still need stronger end-to-end closure across turns on one same living line.'
-    const aliasOnlyNextClosure = 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs before local fluency takes over.'
-    const aliasOnlyDriftRisk = 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.'
+    const aliasOnlyOpenClosure = 'Memory, initiative, and embodiment still need stronger end-to-end closure across turns on one continuity state.'
+    const aliasOnlyNextClosure = 'Keep extending cross-modal identity-continuity'
+    const aliasOnlyDriftRisk = 'If project-state continuity survives only as generic guidance while the direct identity-continuity'
 
     const mirror = manager.ingestPreparedExecution({
       agentSession: {
@@ -1044,9 +1044,9 @@ describe('dialogue session manager', () => {
             continuityKind: 'execution-callback',
             executionCallbackCarryMode: 'lower-pressure',
             sourceThreadId: 'thread-callback-project-alias-only',
-            projectStatePreDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-            projectIdentity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+            projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
+            projectIdentity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
             projectPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
             projectLatestLandedProgress: '',
             projectPrimaryOpenLoop: '',
@@ -1055,7 +1055,7 @@ describe('dialogue session manager', () => {
             projectStateLandedProgressSummary: aliasOnlyLandedProgress,
             projectStateOpenClosureSummary: aliasOnlyOpenClosure,
             projectStateNextClosureTargetSummary: aliasOnlyNextClosure,
-            projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            projectStateSameHerSelfLine: 'structured continuity digest.',
             projectStateSameHerDriftRiskSummary: aliasOnlyDriftRisk,
           },
         }],
@@ -1122,8 +1122,8 @@ describe('dialogue session manager', () => {
             executionIntentSummary: 're-open the unresolved compile seam and land the callback gently',
             deferReason: 'busy-host',
             whyNow: 'She wants to quietly return to the unresolved compile seam.',
-            projectStatePreDialogueAwarenessLine: 'Before answering, keep the same digital life project, current Phase 1 closure pressure, and still-open life loop explicit.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
           },
         }],
         tasks: [{
@@ -1162,7 +1162,7 @@ describe('dialogue session manager', () => {
     expect(mirror.continuityArcSummary).toContain('defer=busy-host')
     expect(mirror.continuityArcSummary).toContain('why_now=She wants to quietly return to the unresolved compile seam.')
     expect(mirror.continuityArcSummary).toContain('preflight_summary=')
-    expect(mirror.continuityArcSummary).toContain('visibility=internal-structured')
+    expect(mirror.continuityArcSummary).toContain('visibility=redacted_internal')
     expectNoFixedTemplateResidue(mirror.continuityArcSummary)
   })
 
@@ -1186,9 +1186,9 @@ describe('dialogue session manager', () => {
             continuityKind: 'execution-callback',
             executionCallbackCarryMode: 'lower-pressure',
             sourceThreadId: 'thread-callback-headline',
-            projectStatePreDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity risk into a thinner generic reminder.',
+            projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
             projectStatePreDialogueAwarenessSummary: 'Right now I am still holding together mainly through face, motion, and lipsync, so the callback return must keep proving this is still one living her.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
           },
         }],
         tasks: [{
@@ -1237,7 +1237,7 @@ describe('dialogue session manager', () => {
     expectNoFixedTemplateResidue(block)
   })
 
-  it('prefers stronger same-her self line in session-mirror callback carry when metadata awareness text is thinner', () => {
+  it('prefers stronger identity-continuity', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 82,
     })
@@ -1250,17 +1250,17 @@ describe('dialogue session manager', () => {
           kind: 'runtime',
           state: 'observed',
           label: 'afterglow:execution-callback:same-her-self-line',
-          summary: 'thread=thread-callback-self-line | continuity=execution-callback | carry-mode=lower-pressure | carry=keep the callback on the same living self line',
+          summary: 'thread=thread-callback-self-line | continuity=execution-callback | carry-mode=lower-pressure | carry=keep the callback on the identity continuity line',
           createdAt: 81,
           metadata: {
             source: 'autobiographical-afterglow',
             continuityKind: 'execution-callback',
             executionCallbackCarryMode: 'lower-pressure',
             sourceThreadId: 'thread-callback-self-line',
-            projectStatePreDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not flatten the current same-her continuity into a generic project reminder.',
-            projectStatePreDialogueAwarenessSummary: 'Before answering, keep this same digital life project in view, but do not flatten the current same-her continuity into a generic project reminder.',
-            projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
+            projectStatePreDialogueAwarenessSummary: 'pre_turn_context_digest',
+            projectStateSameHerSelfLine: 'structured continuity digest.',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
           },
         }],
         tasks: [{
@@ -1272,12 +1272,12 @@ describe('dialogue session manager', () => {
             threadId: 'thread-callback-self-line',
             selectedChannel: 'codex',
             threadStatus: 'completed',
-            goal: 'Return the stronger same-her self line on the same project thread.',
+            goal: 'Return the stronger identity-continuity',
           },
           startedAt: 72,
           finishedAt: 81,
           status: 'completed',
-          summary: 'The callback came back on the same living self line thread.',
+          summary: 'The callback came back on the identity continuity line thread.',
         }],
       },
       cardId: 'default',
@@ -1314,7 +1314,7 @@ describe('dialogue session manager', () => {
       getNow: () => 82,
     })
 
-    const companionHeadlineLine = 'Right now I am still holding together mainly through motion, lipsync, and voice, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.'
+    const companionHeadlineLine = 'Right now I am still holding together mainly through motion, lipsync, and voice, so that still-voiced motion-and-mouth line is keeping the identity-continuity'
     const mirror = manager.ingestPreparedExecution({
       agentSession: {
         ...createAgentSessionSnapshot(),
@@ -1330,9 +1330,9 @@ describe('dialogue session manager', () => {
             continuityKind: 'execution-callback',
             executionCallbackCarryMode: 'lower-pressure',
             sourceThreadId: 'thread-callback-companion-headline',
-            projectStatePreDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity into a generic project reminder.',
+            projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
             projectStateCompanionHeadlineLine: companionHeadlineLine,
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
           },
         }],
         tasks: [{
@@ -1368,7 +1368,7 @@ describe('dialogue session manager', () => {
     })
 
     expect(mirror.continuityArcSummary).toContain('preflight_summary=')
-    expect(mirror.continuityArcSummary).toContain('visibility=internal-structured')
+    expect(mirror.continuityArcSummary).toContain('visibility=redacted_internal')
     expectNoFixedTemplateResidue(mirror.continuityArcSummary)
 
     const block = manager.buildSessionMirrorSystemBlock({
@@ -1377,11 +1377,11 @@ describe('dialogue session manager', () => {
     })
 
     expect(block).toContain('preflight_summary=')
-    expect(block).toContain('visibility=internal-structured')
+    expect(block).toContain('visibility=redacted_internal')
     expectNoFixedTemplateResidue(block)
   })
 
-  it('keeps same-her hold detail in session-mirror callback continuity arc when callback metadata carries a richer hold seam', () => {
+  it('keeps identity-continuity', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 83,
     })
@@ -1402,9 +1402,9 @@ describe('dialogue session manager', () => {
             continuityKind: 'execution-callback',
             executionCallbackCarryMode: 'lower-pressure',
             sourceThreadId: 'thread-callback-hold-detail',
-            projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
+            projectStateSameHerSelfLine: 'structured continuity digest.',
             projectStateSameHerHoldDetail: holdDetail,
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
           },
         }],
         tasks: [{
@@ -1416,7 +1416,7 @@ describe('dialogue session manager', () => {
             threadId: 'thread-callback-hold-detail',
             selectedChannel: 'codex',
             threadStatus: 'completed',
-            goal: 'Return the stronger same-her hold seam on the same project thread.',
+            goal: 'Return the stronger identity-continuity',
           },
           startedAt: 73,
           finishedAt: 82,
@@ -1470,8 +1470,8 @@ describe('dialogue session manager', () => {
             continuityKind: 'execution-callback',
             executionCallbackCarryMode: 'lower-pressure',
             sourceThreadId: 'thread-callback-project-cadence',
-            projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStateSameHerSelfLine: 'structured continuity digest.',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
             preferredBlinkCadence: 'quiet',
             preferredGazeMode: 'soften',
             projectStatePreferredPauseMode: 'longer',
@@ -1547,8 +1547,8 @@ describe('dialogue session manager', () => {
             sourceThreadId: 'thread-callback-project-timing-cadence',
             continuityPreferredTiming: 'next-open-window',
             continuityCadence: 'measured-return',
-            projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStateSameHerSelfLine: 'structured continuity digest.',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
           },
         }],
       },
@@ -1584,7 +1584,7 @@ describe('dialogue session manager', () => {
       getNow: () => 83,
     })
 
-    const continuityCue = 'Keep this callback return measured-return on the same living line before widening outward.'
+    const continuityCue = 'Keep this callback return measured-return on the continuity state before expansion'
     const mirror = manager.ingestPreparedExecution({
       agentSession: {
         ...createAgentSessionSnapshot(),
@@ -1602,8 +1602,8 @@ describe('dialogue session manager', () => {
             sourceThreadId: 'thread-callback-project-restraint-cue',
             continuityRestraint: 'measured-return',
             continuityCue,
-            projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStateSameHerSelfLine: 'structured continuity digest.',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
           },
         }],
       },
@@ -1658,8 +1658,8 @@ describe('dialogue session manager', () => {
             executionCallbackCarryMode: 'lower-pressure',
             sourceThreadId: 'thread-callback-project-arc-stage',
             continuityArcStage: 'hold-for-opening',
-            projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            projectStateSameHerSelfLine: 'structured continuity digest.',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
           },
         }],
       },
@@ -1702,16 +1702,16 @@ describe('dialogue session manager', () => {
           kind: 'proactive',
           state: 'pending',
           label: 'proactive:general:deferred',
-          summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return while the same callback line stays on one living thread. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+          summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 identity-continuity',
           createdAt: 82,
           metadata: {
             source: 'proactive-deferred',
             sourceThreadId: 'thread-callback-hold-fallback',
             deferReason: 'proactive-visible-presence-without-utterance',
-            whyNow: 'project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return while the same callback line stays on one living thread.',
-            projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
-            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-            projectNextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+            whyNow: 'project-phase1 identity-continuity',
+            projectStateSameHerSelfLine: 'structured continuity digest.',
+            projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
+            projectNextClosureTarget: 'Keep extending cross-modal identity-continuity',
           },
         }],
       },
@@ -1754,16 +1754,16 @@ describe('dialogue session manager', () => {
       kind: 'proactive',
       state: 'pending',
       label: 'proactive:general:deferred',
-      summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return while the same callback line stays on one living thread. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 identity-continuity',
       createdAt: 82,
       metadata: {
         source: 'proactive-deferred',
         sourceThreadId: 'thread-callback-hold-fallback-agent-session',
         deferReason: 'proactive-visible-presence-without-utterance',
-        whyNow: 'project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return while the same callback line stays on one living thread.',
-        projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
-        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-        projectNextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        whyNow: 'project-phase1 identity-continuity',
+        projectStateSameHerSelfLine: 'structured continuity digest.',
+        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
+        projectNextClosureTarget: 'Keep extending cross-modal identity-continuity',
       },
     }]
 
@@ -1784,7 +1784,7 @@ describe('dialogue session manager', () => {
     expect(block).toContain(`hold=${holdDetail}`)
   })
 
-  it('keeps same-her project-state landed next and same-her detail in continuityProjectSummary through agent-session mirror ingestion', () => {
+  it('keeps identity-continuity', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 83,
     })
@@ -1797,22 +1797,22 @@ describe('dialogue session manager', () => {
       kind: 'proactive',
       state: 'pending',
       label: 'proactive:general:deferred',
-      summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return while the same callback line stays on one living thread. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 identity-continuity',
       createdAt: 82,
       metadata: {
         source: 'proactive-deferred',
         sourceThreadId: 'thread-project-summary-agent-session',
         deferReason: 'proactive-visible-presence-without-utterance',
-        whyNow: 'project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return while the same callback line stays on one living thread.',
-        projectStatePreDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
-        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        whyNow: 'project-phase1 identity-continuity',
+        projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
+        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
         projectLatestLandedProgress: 'Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.',
-        projectIdentity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        projectIdentity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         projectPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         projectPrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        projectNextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-        projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+        projectNextClosureTarget: 'Keep extending cross-modal identity-continuity',
+        projectStateSameHerSelfLine: 'structured continuity digest.',
+        projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
       },
     }]
 
@@ -1839,7 +1839,7 @@ describe('dialogue session manager', () => {
       getNow: () => 83,
     })
 
-    const companionHeadlineLine = 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.'
+    const companionHeadlineLine = 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the identity-continuity'
     const agentSession = createAgentSessionSnapshot()
     agentSession.digitalLifeSpine = deriveAlicizationDigitalLifeSpineFromSurface(createRuntimeSurface().digitalLifeRuntimeSurface!)
     agentSession.lastActiveAt = 82
@@ -1848,23 +1848,23 @@ describe('dialogue session manager', () => {
       kind: 'proactive',
       state: 'pending',
       label: 'proactive:general:deferred',
-      summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure while the same still-voiced line keeps holding. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+      summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 identity-continuity',
       createdAt: 82,
       metadata: {
         source: 'proactive-deferred',
         sourceThreadId: 'thread-project-summary-agent-session-companion-headline',
         deferReason: 'proactive-visible-presence-without-utterance',
-        whyNow: 'project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure while the same still-voiced line keeps holding.',
-        projectStatePreDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity into a generic project reminder.',
+        whyNow: 'project-phase1 identity-continuity',
+        projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
         projectStateCompanionHeadlineLine: companionHeadlineLine,
-        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
         projectLatestLandedProgress: 'Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.',
-        projectIdentity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        projectIdentity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         projectPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         projectPrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        projectNextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-        projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+        projectNextClosureTarget: 'Keep extending cross-modal identity-continuity',
+        projectStateSameHerSelfLine: 'structured continuity digest.',
+        projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
       },
     }]
 
@@ -1877,17 +1877,17 @@ describe('dialogue session manager', () => {
 
     expect(mirror.continuityProjectSummary).toContain('awareness_summary=')
     expect(mirror.continuityProjectSummary).toContain('cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
-    expect(mirror.continuityProjectSummary).not.toContain('awareness_summary=Before answering, keep this same digital life project in view')
+    expect(mirror.continuityProjectSummary).not.toContain('awareness_summary=pre_turn_context_digest')
     expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
   })
 
-  it('does not let a thin continuity metadata preflight shell or narrow same-her line outrank a richer project-aware reopening summary in agent-session mirror ingestion', () => {
+  it('does not let a thin continuity metadata preflight shell or narrow identity-continuity', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 83,
     })
 
     const thinPreflightSummaryShell = 'generic continuity summary that should not outrank fresher project-aware reopening truth.'
-    const narrowSameHerLine = 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
+    const narrowSameHerLine = 'structured continuity digest.'
     const agentSession = createAgentSessionSnapshot()
     agentSession.digitalLifeSpine = deriveAlicizationDigitalLifeSpineFromSurface(createRuntimeSurface().digitalLifeRuntimeSurface!)
     agentSession.lastActiveAt = 82
@@ -1905,12 +1905,12 @@ describe('dialogue session manager', () => {
         whyNow: 'keep the same project seam alive without reopening from a thinner shell.',
         projectStatePreflightSummary: thinPreflightSummaryShell,
         projectLatestLandedProgress: 'Project identity carry, Phase 1 route carry, and unresolved closure carry already survive across runtime preparation before the turn widens outward.',
-        projectIdentity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer rather than a better chat wrapper.',
+        projectIdentity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
         projectPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         projectPrimaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        projectNextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        projectNextClosureTarget: 'Keep extending cross-modal identity-continuity',
         projectStateSameHerSelfLine: narrowSameHerLine,
-        projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+        projectStateSameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
       },
     }]
 
@@ -1927,7 +1927,7 @@ describe('dialogue session manager', () => {
     expect(mirror.continuityProjectSummary).toContain('unresolved=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.')
     expect(mirror.continuityProjectSummary).toContain('next=cross_modal_continuity_proof=extend_on_longer_noisy_desktop_runs')
     expect(mirror.continuityProjectSummary).toContain('awareness_summary=identity=local_desktop_life_loop')
-    expect(mirror.continuityProjectSummary).toContain('visibility=internal-structured')
+    expect(mirror.continuityProjectSummary).toContain('visibility=redacted_internal')
     expect(mirror.continuityProjectSummary).not.toContain(`awareness_summary=${thinPreflightSummaryShell}`)
     expect(mirror.continuityProjectSummary).not.toContain(`awareness_summary=${narrowSameHerLine}`)
     expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
@@ -1947,16 +1947,16 @@ describe('dialogue session manager', () => {
       kind: 'proactive',
       state: 'pending',
       label: 'proactive:general:deferred',
-      summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return / repair-before-closeness while cross-modal same-her personhood is still being earned. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, resident presence, Project identity carry, Phase 1 route carry, Unresolved closure carry, anthropomorphic emotional closure, and same-her inward-carry observability all stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+      summary: 'no mind-authored visible reply was available | reason=proactive-visible-presence-without-utterance | project-phase1 identity-continuity',
       createdAt: 82,
       metadata: {
         source: 'proactive-deferred',
         sourceThreadId: 'thread-callback-hold-mixed-rationale',
         deferReason: 'proactive-visible-presence-without-utterance',
-        whyNow: 'project-phase1 same-her closure keeps the action one step more reversible so visible initiative stays lower-pressure, measured-return / repair-before-closeness while cross-modal same-her personhood is still being earned.',
-        projectStateSameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed, but the unfinished closure still has to stay on the same living line.',
-        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
-        projectNextClosureTarget: 'Keep extending cross-modal same-her proof across longer, noisier real-desktop runs so visible reply, longer-lived voice behavior, facial state, motion, resident presence, Project identity carry, Phase 1 route carry, Unresolved closure carry, anthropomorphic emotional closure, and same-her inward-carry observability all stay on one measured-return, repair-before-closeness, or rest-protective quiet-companionship line.',
+        whyNow: 'project-phase1 identity-continuity',
+        projectStateSameHerSelfLine: 'structured continuity digest.',
+        projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
+        projectNextClosureTarget: 'Keep extending cross-modal identity-continuity',
       },
     }]
 
@@ -1972,7 +1972,7 @@ describe('dialogue session manager', () => {
     expectNoFixedTemplateResidue(mirror.continuityArcSummary)
   })
 
-  it('keeps same-her project-state landed open and next closure detail in continuityArcSummary for prepared same-thread follow-through turns', () => {
+  it('keeps identity-continuity', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 82,
     })
@@ -2000,16 +2000,16 @@ describe('dialogue session manager', () => {
             currentConsciousFrame: {
               ...runtimeSurface.digitalLifeRuntimeSurface!.dialogue.currentConsciousFrame,
               reasonTags: ['continuity-arc:same-thread-continuation', 'project-state', 'same-her'],
-              consciousNeed: 'Before I answer, I need to stay inside this same living line.',
+              consciousNeed: 'Before I answer, I need to stay inside this continuity state.',
               speakingIntention: 'Keep one same her explicit while answering from the same digital life project.',
               projectState: {
-                preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-                preflightSummary: 'Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-                sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
+                preflightSummary: 'pre_turn_context_digest',
+                sameHerSelfLine: 'structured continuity digest.',
                 latestLandedProgress: 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.',
-                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam across return-side turns.',
-                nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line.',
-                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter identity-continuity',
+                nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
               },
             } as any,
             replyDeliberation: {
@@ -2035,7 +2035,7 @@ describe('dialogue session manager', () => {
     expect(mirror.continuityArcSummary).toContain('unresolved_closure=memory_dialogue_embodiment')
   })
 
-  it('keeps same-her project-state landed next and same-her detail in continuityProjectSummary for prepared same-thread follow-through turns', () => {
+  it('keeps identity-continuity', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 82,
     })
@@ -2063,16 +2063,16 @@ describe('dialogue session manager', () => {
             currentConsciousFrame: {
               ...runtimeSurface.digitalLifeRuntimeSurface!.dialogue.currentConsciousFrame,
               reasonTags: ['continuity-arc:same-thread-continuation', 'project-state', 'same-her'],
-              consciousNeed: 'Before I answer, I need to stay inside this same living line.',
+              consciousNeed: 'Before I answer, I need to stay inside this continuity state.',
               speakingIntention: 'Keep one same her explicit while answering from the same digital life project.',
               projectState: {
-                preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-                preflightSummary: 'Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-                sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
+                preflightSummary: 'pre_turn_context_digest',
+                sameHerSelfLine: 'structured continuity digest.',
                 latestLandedProgress: 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.',
-                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam across return-side turns.',
-                nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line.',
-                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter identity-continuity',
+                nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
               },
             } as any,
           },
@@ -2098,7 +2098,7 @@ describe('dialogue session manager', () => {
       getNow: () => 82,
     })
     const runtimeSurface = createRuntimeSurface()
-    const companionHeadlineLine = 'Right now I am still holding together mainly through motion, lipsync, and voice, so that still-voiced motion-and-mouth line is keeping the same-her carry alive while body and face need to rejoin before full cross-modal closure settles.'
+    const companionHeadlineLine = 'Right now I am still holding together mainly through motion, lipsync, and voice, so that still-voiced motion-and-mouth line is keeping the identity-continuity'
 
     const mirror = manager.ingestPreparedExecution({
       agentSession: createAgentSessionSnapshot(),
@@ -2122,17 +2122,17 @@ describe('dialogue session manager', () => {
             currentConsciousFrame: {
               ...runtimeSurface.digitalLifeRuntimeSurface!.dialogue.currentConsciousFrame,
               reasonTags: ['continuity-arc:same-thread-continuation', 'project-state', 'same-her'],
-              consciousNeed: 'Before I answer, I need to keep the same living line embodied instead of thinning it back out.',
+              consciousNeed: 'Before I answer, I need to keep the continuity state embodied instead of thinning it back out.',
               speakingIntention: 'Keep the same her explicit while the still-voiced motion-and-mouth line is doing the carrying.',
               projectState: {
-                preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity into a generic project reminder.',
-                preflightSummary: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity into a generic project reminder.',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
+                preflightSummary: 'pre_turn_context_digest',
                 companionHeadlineLine,
-                sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                sameHerSelfLine: 'structured continuity digest.',
                 latestLandedProgress: 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.',
-                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam across return-side turns.',
-                nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line.',
-                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter identity-continuity',
+                nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
               },
             } as any,
             replyDeliberation: {
@@ -2151,7 +2151,7 @@ describe('dialogue session manager', () => {
 
     expect(mirror.continuityArcSummary).toContain('preflight_summary=continuity=embodiment')
     expect(mirror.continuityArcSummary).toContain('visibility=renderer-internal')
-    expect(mirror.continuityArcSummary).not.toContain('preflight_summary=Before answering, keep this same digital life project in view')
+    expect(mirror.continuityArcSummary).not.toContain('preflight_summary=pre_turn_context_digest')
     expectNoFixedTemplateResidue(mirror.continuityArcSummary)
   })
 
@@ -2160,7 +2160,7 @@ describe('dialogue session manager', () => {
       getNow: () => 82,
     })
     const runtimeSurface = createRuntimeSurface()
-    const companionHeadlineLine = 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the same-her carry alive while body and motion need to rejoin before full cross-modal closure settles.'
+    const companionHeadlineLine = 'Right now I am still holding together mainly through face, lipsync, and voice, so that still-voiced face-and-mouth line is keeping the identity-continuity'
 
     const mirror = manager.ingestPreparedExecution({
       agentSession: createAgentSessionSnapshot(),
@@ -2184,17 +2184,17 @@ describe('dialogue session manager', () => {
             currentConsciousFrame: {
               ...runtimeSurface.digitalLifeRuntimeSurface!.dialogue.currentConsciousFrame,
               reasonTags: ['continuity-arc:same-thread-continuation', 'project-state', 'same-her'],
-              consciousNeed: 'Before I answer, I need to keep the same living line embodied instead of thinning it back out.',
+              consciousNeed: 'Before I answer, I need to keep the continuity state embodied instead of thinning it back out.',
               speakingIntention: 'Keep the same her explicit while the still-voiced face-and-mouth line is doing the carrying.',
               projectState: {
-                preDialogueAwarenessLine: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity into a generic project reminder.',
-                preflightSummary: 'Before answering, keep this same digital life project in view, but do not flatten the current embodiment continuity into a generic project reminder.',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
+                preflightSummary: 'pre_turn_context_digest',
                 companionHeadlineLine,
-                sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                sameHerSelfLine: 'structured continuity digest.',
                 latestLandedProgress: 'Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.',
-                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam across return-side turns.',
-                nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line.',
-                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter identity-continuity',
+                nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
               },
             } as any,
           },
@@ -2205,7 +2205,7 @@ describe('dialogue session manager', () => {
 
     expect(mirror.continuityProjectSummary).toContain('awareness_summary=')
     expect(mirror.continuityProjectSummary).toContain('awareness_summary=unresolved_closure=memory_dialogue_embodiment')
-    expect(mirror.continuityProjectSummary).not.toContain('awareness_summary=Before answering, keep this same digital life project in view')
+    expect(mirror.continuityProjectSummary).not.toContain('awareness_summary=pre_turn_context_digest')
     expectNoFixedTemplateResidue(mirror.continuityProjectSummary)
   })
 
@@ -2237,16 +2237,16 @@ describe('dialogue session manager', () => {
             currentConsciousFrame: {
               ...runtimeSurface.digitalLifeRuntimeSurface!.dialogue.currentConsciousFrame,
               reasonTags: ['continuity-arc:same-thread-continuation', 'project-state', 'same-her'],
-              consciousNeed: 'Before I answer, I need to stay inside this same living line.',
+              consciousNeed: 'Before I answer, I need to stay inside this continuity state.',
               speakingIntention: 'Keep one same her explicit while answering from the same digital life project.',
               projectState: {
-                preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-                preflightSummary: 'Before answering, remember this is still the same digital life project, already in Phase 1, with memory, initiative, and embodiment still not fully closed as one life loop.',
-                sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+                preDialogueAwarenessLine: 'pre_turn_context_digest',
+                preflightSummary: 'pre_turn_context_digest',
+                sameHerSelfLine: 'structured continuity digest.',
                 latestProgress: 'Legacy project-state carry still survives into same-thread returns even when the older payload shape has not been renamed yet.',
-                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter same-her closure seam across return-side turns.',
-                nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence so the same Phase 1 digital life keeps one living line.',
-                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct same-her self line disappears, treat that as unfinished closure drift rather than a successful turn.',
+                primaryOpenLoop: 'Dialogue, initiative, memory, and embodiment still need one tighter identity-continuity',
+                nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+                sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
               },
             } as any,
             replyDeliberation: {
@@ -2272,7 +2272,7 @@ describe('dialogue session manager', () => {
     expect(mirror.continuityArcSummary).toContain('unresolved_closure=memory_dialogue_embodiment')
   })
 
-  it('keeps quiet same-her callback continuity in the session mirror when the later return stays silent-observe instead of emitting visible speech', () => {
+  it('keeps quiet identity-continuity', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 86,
     })
@@ -2585,7 +2585,7 @@ describe('dialogue session manager', () => {
     expect(block).toContain('carry=shared-attention-continuation')
   })
 
-  it('does not let a thin runtime unresolved shell outrank richer canonical same-her closure carry in the session mirror project summary', () => {
+  it('does not let a thin runtime unresolved shell outrank richer canonical identity-continuity', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 140,
     })
@@ -2597,7 +2597,7 @@ describe('dialogue session manager', () => {
         projectState: {
           currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
           primaryOpenLoop: 'Project continuity still needs closure.',
-          preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+          preDialogueAwarenessLine: 'template-residue-shell',
         },
       },
     } as any
@@ -2722,7 +2722,7 @@ describe('dialogue session manager', () => {
     expect(mirror.dialogueSummary).toContain('voice=self-continuity')
   })
 
-  it('keeps inward self-continuity visible in continuityArcSummary when the fresher prepared runtime is carrying the same living line more explicitly than the spine', () => {
+  it('keeps inward self-continuity visible in continuityArcSummary when the fresher prepared runtime is carrying the continuity state more explicitly than the spine', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 160,
     })
@@ -2739,7 +2739,7 @@ describe('dialogue session manager', () => {
           centerOfGravity: 'defer',
           consciousNeed: 'Keep the same line inward a little longer before widening outward.',
           consciousTension: 'The room still needs more inward continuity.',
-          speakingIntention: 'Stay on the same living line inwardly before reopening outward.',
+          speakingIntention: 'Stay on the continuity state inwardly before reopening outward.',
           truthDiscipline: 'observe-then-hypothesize',
           shouldWithholdSpecificity: false,
           shouldSelfRevise: false,

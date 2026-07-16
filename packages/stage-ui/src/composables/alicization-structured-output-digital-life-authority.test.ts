@@ -180,7 +180,6 @@ describe('alicization structured output digital life authority', () => {
         embodimentScript: createEmbodimentScriptWithDigitalLife(),
       }),
       thought: 'fallback-thought',
-      reply: 'fallback-reply',
     })
 
     expect(result.digitalLife).toEqual(expect.objectContaining({
@@ -227,7 +226,6 @@ describe('alicization structured output digital life authority', () => {
         embodimentScript: createEmbodimentScriptWithDigitalLife(),
       }),
       thought: 'fallback-thought',
-      reply: 'fallback-reply',
     })
 
     expect(result.digitalLife?.variationToken).toBe('turn-top-level-digital-life-authority')

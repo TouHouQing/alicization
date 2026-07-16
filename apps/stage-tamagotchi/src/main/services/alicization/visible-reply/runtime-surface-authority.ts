@@ -20,8 +20,6 @@ export interface AlicizationMainChatReplyProjectStateAudit {
   continuitySummary?: string | null
   embodimentClosureSummary?: string | null
   preDialogueAwarenessSummary?: string | null
-  preservedIntoRewrite?: boolean
-  rewriteClosureApplied?: boolean
 }
 
 export interface AlicizationMainChatReplyResponseSurfaceContract {
@@ -67,9 +65,7 @@ export function resolveAlicizationMainChatNormalVisibleReplyAuthority(
 }
 
 export function describeAlicizationMainChatProviderMindRequirement(
-  authority: AlicizationMainChatReplyAuthoritySurface['expectedVisibleReplyAuthority'],
+  _authority: AlicizationMainChatReplyAuthoritySurface['expectedVisibleReplyAuthority'],
 ) {
-  if (authority === 'llm-second-pass-rewrite')
-    return 'This turn may need provider-authored second-pass repair; local deterministic wording is not allowed to realize normal visible dialogue.'
   return 'This turn should be fully realized by the provider mind rather than a local deterministic wording layer.'
 }

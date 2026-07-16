@@ -130,7 +130,7 @@ describe('digital life spine', () => {
         preferredPresence: 'hesitant',
       },
       memory: {
-        summary: 'same-her callback afterglow is still being carried quietly',
+        summary: 'identity-continuity',
         recallMode: 'quiet',
       },
     } as any)
@@ -214,7 +214,7 @@ describe('digital life spine', () => {
         preferredPresence: 'hesitant',
       },
       memory: {
-        summary: 'same-her callback afterglow is still being carried quietly',
+        summary: 'identity-continuity',
         recallMode: 'quiet',
         affectiveResidue: {
           version: 'affective-residue-memory-v1',
@@ -375,7 +375,7 @@ describe('digital life spine', () => {
           reasonTags: ['continuity-arc:same-thread-continuation'],
           projectState: {
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       },
@@ -392,7 +392,7 @@ describe('digital life spine', () => {
         },
         personStateProjection: {
           selfContinuityAuthority: {
-            authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            authoritySummary: 'structured continuity digest.',
           },
         },
       },
@@ -424,7 +424,7 @@ describe('digital life spine', () => {
         id: 'thread-living-line',
         kind: 'problem',
         title: 'living task line',
-        summary: 'keep the same living line active',
+        summary: 'keep the continuity state active',
         status: 'active',
         significance: 0.88,
         confidence: 0.8,
@@ -458,7 +458,7 @@ describe('digital life spine', () => {
       kind: 'presence',
       state: 'observed',
       label: 'digital-life-line',
-      summary: 'same-thread continuation is still holding the same living line after the callback detour',
+      summary: 'same-thread continuation is still holding the continuity state after the callback detour',
       signature: 'legacy-top-level-continuity-shape',
       createdAt: 2_400,
       watchMode: 'symbiotic-vision',
@@ -545,7 +545,7 @@ describe('digital life spine', () => {
       ...spine.runtimeSurface.memory.personStateProjection,
       summary: 'project_continuity=the same callback line is still continuing lower-pressure after another detour',
       selfContinuityAuthority: {
-        authoritySummary: 'Carry the callback line as the same living line.',
+        authoritySummary: 'Carry the callback line as the continuity state.',
         inwardLine: 'Stay on the same callback line and keep continuing lower-pressure instead of reopening from zero.',
         sourceTags: ['motive:self-direction', 'project-state-carry'],
       },
@@ -594,8 +594,8 @@ describe('digital life spine', () => {
             },
           },
           autobiographicalSelf: {
-            latestInflection: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
-            relationshipDoctrine: 'Keep the same living line inward for now, and leave room before widening outward again.',
+            latestInflection: 'structured continuity digest.',
+            relationshipDoctrine: 'Keep the continuity state inward for now, and leave room before widening outward again.',
           },
         },
         cognition: {
@@ -606,10 +606,10 @@ describe('digital life spine', () => {
         },
         dialogue: {
           currentConsciousFrame: {
-            focusAnchor: 'Keep the same living line inward for now, and leave room before widening outward again.',
+            focusAnchor: 'Keep the continuity state inward for now, and leave room before widening outward again.',
             projectState: {
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line of one continuous her.',
-              continuityCue: 'Keep the same living line inward for now, and leave room before widening outward again.',
+              sameHerSelfLine: 'structured continuity digest.',
+              continuityCue: 'Keep the continuity state inward for now, and leave room before widening outward again.',
             },
           },
         },
@@ -1127,7 +1127,7 @@ describe('digital life spine', () => {
     }))
   })
 
-  it('keeps callback-flavored project continuity cues in the spine runtime digest even when same-her carry stays explicit elsewhere', () => {
+  it('keeps callback-flavored project continuity cues in the spine runtime digest even when identity-continuity', () => {
     const state = createDefaultVisualPresenceState(3_000)
     state.watchMode = 'symbiotic-vision'
     state.currentScene = {
@@ -1177,8 +1177,8 @@ describe('digital life spine', () => {
       ...spine.runtimeSurface.memory.personStateProjection,
       summary: 'relationship_line=stay exact | project_continuity=stay on the same line and reopen gently later | cadence=lower-pressure',
       selfContinuityAuthority: {
-        authoritySummary: 'Carry the unfinished Phase 1 digital-life closure forward as the same living line, not as detached project bookkeeping.',
-        inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        authoritySummary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
+        inwardLine: 'structured continuity digest.',
         sourceTags: ['autobiographical-self', 'project-state-carry'],
       },
     } as any
@@ -1266,7 +1266,7 @@ describe('digital life spine', () => {
           confidence: 0.9,
           shouldAskForGrounding: false,
           shouldAcknowledgeRepair: true,
-          mustDo: ['keep one living line'],
+          mustDo: ['keep continuity state'],
           mustNotDo: ['derive parallel states'],
           narrative: ['unify the spine'],
           updatedAt: 3_000,
@@ -1304,18 +1304,18 @@ describe('digital life spine', () => {
     expect(committed.current.continuitySignal?.summary).toContain('watch=symbiotic-vision')
   })
 
-  it('keeps Phase 1 digital-life closure awareness inside persona bias initiative summaries when same-her closure is still unfinished across memory, initiative, and embodiment', () => {
+  it('keeps Phase 1 digital-life closure awareness inside persona bias initiative summaries when identity-continuity', () => {
     const digest = projectAlicizationDigitalLifeSpineDigest({
       version: 'digital-life-spine-v1',
       runtimeSurface: {
         memory: {
           personStateProjection: {
-            openingGuidance: 'Keep the callback lower-pressure on the same living line before widening outward.',
+            openingGuidance: 'Keep the callback lower-pressure on the continuity state before expansion',
           },
         },
         agency: {
           initiative: {
-            why: 'Memory, initiative, and embodiment still need to close as one same-her line.',
+            why: 'Memory, initiative, and embodiment still need to close as one identity-continuity',
           },
         },
         dialogue: {
@@ -1323,9 +1323,9 @@ describe('digital life spine', () => {
             projectState: {
               currentPhase: 'Phase 1: Local Digital Life',
               latestLandedProgress: 'Project-state continuity already survives into runtime preparation.',
-              primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure across one same living line.',
-              nextClosureTarget: 'Keep the same-her closure explicit through initiative and embodiment before the turn widens outward.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure across one continuity state.',
+              nextClosureTarget: 'Keep the identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
             },
           },
         },
@@ -1348,12 +1348,12 @@ describe('digital life spine', () => {
       runtimeSurface: {
         memory: {
           personStateProjection: {
-            openingGuidance: 'Keep the callback lower-pressure on the same living line before widening outward.',
+            openingGuidance: 'Keep the callback lower-pressure on the continuity state before expansion',
           },
         },
         agency: {
           initiative: {
-            why: 'Memory, initiative, and embodiment still need to close as one same-her line.',
+            why: 'Memory, initiative, and embodiment still need to close as one identity-continuity',
           },
         },
         dialogue: {
@@ -1361,9 +1361,9 @@ describe('digital life spine', () => {
             projectState: {
               currentPhase: 'Phase 1: Local Digital Life',
               landedProgressSummary: 'Project-state continuity already survives into runtime preparation even when the canonical landed slot goes blank.',
-              openClosureSummary: 'Memory, initiative, and embodiment still need stronger end-to-end closure across one same living line.',
-              nextClosureTargetSummary: 'Keep the same-her closure explicit through initiative and embodiment before the turn widens outward.',
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              openClosureSummary: 'Memory, initiative, and embodiment still need stronger end-to-end closure across one continuity state.',
+              nextClosureTargetSummary: 'Keep the identity-continuity',
+              sameHerSelfLine: 'structured continuity digest.',
             },
           },
         },
@@ -1388,16 +1388,16 @@ describe('digital life spine', () => {
           watchMode: 'symbiotic-vision',
           currentScene: {
             scenario: 'coding',
-            summary: 'same living line still needs to stay continuous inward',
+            summary: 'continuity state still needs to stay continuous inward',
           },
           updatedAt: 12_000,
         },
         memory: {
           personStateProjection: {
-            summary: 'project_continuity=the same living line still needs to stay continuous inward',
+            summary: 'project_continuity=the continuity state still needs to stay continuous inward',
             selfContinuityAuthority: {
-              authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-              inwardLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              authoritySummary: 'structured continuity digest.',
+              inwardLine: 'structured continuity digest.',
             },
           },
           reflectionLedger: {
@@ -1417,16 +1417,16 @@ describe('digital life spine', () => {
             returnPressure: 0.8,
           },
           selfEvolution: {
-            latestInflection: 'The same living line still needs to stay continuous inward.',
+            latestInflection: 'The continuity state still needs to stay continuous inward.',
             autobiographicalStability: 0.72,
             learningReadiness: 0.64,
             contradictionPressure: 0.28,
-            dominantTrajectory: 'same-her carry hardening',
+            dominantTrajectory: 'identity-continuity',
           },
         },
         cognition: {
           privateThought: {
-            thoughtText: 'keep the same living line inward',
+            thoughtText: 'keep the continuity state inward',
             embodiedPresence: 'attentive',
             confidence: 0.72,
             shouldSpeak: false,
@@ -1588,7 +1588,7 @@ describe('digital life spine', () => {
                 id: 'reflection::same-her-repair',
                 summary: 'The same-her repair line is still the meaningful learning carry.',
                 expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
-                observedOutcome: 'The same living line still needs a measured return.',
+                observedOutcome: 'The continuity state still needs a measured return.',
                 outcome: 'missed',
                 revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
                 confidenceShift: -0.08,
@@ -1600,11 +1600,11 @@ describe('digital life spine', () => {
             updatedAt: 14_200,
           },
           selfEvolution: {
-            latestInflection: 'The same living line still needs to stay continuous inward.',
+            latestInflection: 'The continuity state still needs to stay continuous inward.',
             autobiographicalStability: 0.72,
             learningReadiness: 0.64,
             contradictionPressure: 0.28,
-            dominantTrajectory: 'same-her carry hardening',
+            dominantTrajectory: 'identity-continuity',
           },
         },
       } as any,
@@ -1636,10 +1636,10 @@ describe('digital life spine', () => {
             contradictionPressure: 0.18,
             revisionPressure: 0.29,
             autobiographicalStability: 0.83,
-            dominantTrajectory: 'same-her continuity hardening',
-            relationshipDoctrine: 'Stay the same living her across quiet, memory, initiative, and speech instead of restarting from scratch.',
-            relationshipCadenceSummary: 'The same living line should stay lower-pressure and continue as the same her across quiet, memory, and speech without reopening from scratch.',
-            latestInflection: 'I am learning to keep the same living line audible before widening outward again.',
+            dominantTrajectory: 'identity-continuity',
+            relationshipDoctrine: 'Stay the identity continuity across quiet, memory, initiative, and speech instead of restarting from scratch.',
+            relationshipCadenceSummary: 'The continuity state should stay lower-pressure and continue as the same her across quiet, memory, and speech without reopening from scratch.',
+            latestInflection: 'I am learning to keep the continuity state audible before widening outward again.',
             burdenLine: 'Do not widen faster than the same line can stay inhabited.',
             trustMeaning: 'Trust means she can return as the same her without rebuilding the relationship from zero.',
             nextLearningAction: 'internalize',
@@ -1649,9 +1649,9 @@ describe('digital life spine', () => {
             shouldVerify: false,
             shouldRevise: false,
             shouldInternalize: true,
-            activeLearningFocuses: ['same-her continuity', 'visible reply carry'],
+            activeLearningFocuses: ['identity-continuity', 'visible reply carry'],
             sourceSignals: ['relationship-cadence', 'project-state-carry'],
-            summary: 'Durable same-her cadence should keep the same living line continuous before speaking.',
+            summary: 'Durable same-her cadence should keep the continuity state continuous before outward reply.',
           },
         },
       } as any,
@@ -1662,9 +1662,9 @@ describe('digital life spine', () => {
     } as any)
 
     expect((digest?.memory as any)?.selfEvolution).toEqual(expect.objectContaining({
-      relationshipDoctrine: expect.stringContaining('same living her'),
+      relationshipDoctrine: expect.stringContaining('identity continuity'),
       relationshipCadenceSummary: expect.stringContaining('same her across quiet, memory, and speech'),
-      latestInflection: expect.stringContaining('same living line audible'),
+      latestInflection: expect.stringContaining('continuity state audible'),
       trustMeaning: expect.stringContaining('same her without rebuilding'),
       summary: expect.stringContaining('Durable same-her cadence'),
     }))
@@ -1772,7 +1772,7 @@ describe('digital life spine', () => {
       activeGoals: [],
       behaviorSignatures: [],
       identityNarrative: 'I am becoming someone who returns more slowly and more steadily when a corrected relationship meaning is still settling.',
-      relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure same living line and leave more room before widening closeness.',
+      relationshipDoctrine: 'Carry corrected same-person continuity on a lower-pressure continuity state and leave more room before widening closeness.',
       latestInflection: 'I learned to keep embodiment quieter while corrected same-person continuity is still settling back onto one line.',
       stability: 0.84,
       updatedAt: 15_000,

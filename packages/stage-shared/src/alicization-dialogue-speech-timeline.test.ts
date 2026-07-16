@@ -186,7 +186,7 @@ describe('alicization dialogue speech timeline', () => {
     expect(repairBeforeClosenessTimeline?.segments[0]?.rendererSettle?.vrmActionFadeMs).toBeGreaterThanOrEqual(180)
   })
 
-  it('adds quieter companionship renderer aliases for quiet-companionship so inward same-her carry stays embodied without widening into measured-return warmth', () => {
+  it('adds quieter companionship renderer aliases for quiet-companionship so inward identity-continuity', () => {
     const quietCompanionshipTimeline = buildAlicizationDialogueSpeechTimeline({
       reply: '我先安静陪着，把这条线接稳一点。',
       candidateEmotion: 'thinking',
@@ -245,7 +245,7 @@ describe('alicization dialogue speech timeline', () => {
       },
       projectState: {
         emotionalClosureCue:
-          'same-her closure seam: recognize the same remembered seam, keep more room this time, and do not reopen it with the same eagerness as before.',
+          'identity-continuity',
       } as any,
     })
 
@@ -428,7 +428,7 @@ describe('alicization dialogue speech timeline', () => {
     expect(measuredReturnTimeline?.segments[0]?.rendererHints?.preferredMotionAliases).not.toContain('CheerWave')
   })
 
-  it('filters warmer renderer aliases back out when still-voiced face-line carry is the structured same-her continuity signal', () => {
+  it('filters warmer renderer aliases back out when still-voiced face-line carry is the structured identity-continuity', () => {
     const sameHerCarryTimeline = buildAlicizationDialogueSpeechTimeline({
       reply: '我先沿着这条还活着的表情和声音线轻一点回来。',
       candidateEmotion: 'thinking',
@@ -482,9 +482,9 @@ describe('alicization dialogue speech timeline', () => {
     )
   })
 
-  it('keeps an explicit action cue across thinner later segments when still-voiced face-line carry is the surviving same-her continuity signal', () => {
+  it('keeps an explicit action cue across thinner later segments when still-voiced face-line carry is the surviving identity-continuity', () => {
     const timeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着这条还活着的表情和声音线轻一点接回来，然后再继续看这一处。',
+      reply: '我先沿着这条还活着的表情和声音线中性可见占位，然后再继续看这一处。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -526,9 +526,9 @@ describe('alicization dialogue speech timeline', () => {
     expect(timeline?.segments.every(segment => segment.actionCue === 'observe_focus')).toBe(true)
   })
 
-  it('keeps an explicit action cue across thinner later segments when body+voice-only carry is the surviving same-her continuity signal', () => {
+  it('keeps an explicit action cue across thinner later segments when body+voice-only carry is the surviving identity-continuity', () => {
     const timeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着这条身体和声音还活着的线轻一点接回来，然后再继续看这一处 runtime seam。',
+      reply: '我先沿着这条身体和声音还活着的线中性可见占位，然后再继续看这一处 runtime seam。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -571,7 +571,7 @@ describe('alicization dialogue speech timeline', () => {
     expect(timeline?.segments.every(segment => segment.actionCue === 'observe_focus')).toBe(true)
   })
 
-  it('filters warmer renderer aliases back out when signature-only still-voiced motion-line carry is the surviving same-her continuity signal', () => {
+  it('filters warmer renderer aliases back out when signature-only still-voiced motion-line carry is the surviving identity-continuity', () => {
     const sameHerCarryTimeline = buildAlicizationDialogueSpeechTimeline({
       reply: '我先沿着这条还活着的动作和声音线轻一点回来。',
       candidateEmotion: 'thinking',
@@ -625,9 +625,9 @@ describe('alicization dialogue speech timeline', () => {
     )
   })
 
-  it('keeps an explicit action cue across thinner later segments when signature-only still-voiced motion-line carry is the surviving same-her continuity signal', () => {
+  it('keeps an explicit action cue across thinner later segments when signature-only still-voiced motion-line carry is the surviving identity-continuity', () => {
     const timeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着这条还活着的动作和声音线轻一点接回来，然后再继续看这一处。',
+      reply: '我先沿着这条还活着的动作和声音线中性可见占位，然后再继续看这一处。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -669,7 +669,7 @@ describe('alicization dialogue speech timeline', () => {
     expect(timeline?.segments.every(segment => segment.actionCue === 'observe_focus')).toBe(true)
   })
 
-  it('filters warmer renderer aliases back out when quieter body+lipsync-only carry is the structured same-her continuity signal', () => {
+  it('filters warmer renderer aliases back out when quieter body+lipsync-only carry is the structured identity-continuity', () => {
     const sameHerCarryTimeline = buildAlicizationDialogueSpeechTimeline({
       reply: '我先沿着这条更轻一点的 body 和 lipsync 生命线慢一点回来。',
       candidateEmotion: 'thinking',
@@ -723,7 +723,7 @@ describe('alicization dialogue speech timeline', () => {
     )
   })
 
-  it('filters warmer renderer aliases back out when quieter face+lipsync-only and motion+lipsync-only carry are the structured same-her continuity signal', () => {
+  it('filters warmer renderer aliases back out when quieter face+lipsync-only and motion+lipsync-only carry are the structured identity-continuity', () => {
     const faceLipsyncCarryTimeline = buildAlicizationDialogueSpeechTimeline({
       reply: '我先沿着这条更轻一点的表情和口型生命线慢一点回来。',
       candidateEmotion: 'thinking',
@@ -885,7 +885,7 @@ describe('alicization dialogue speech timeline', () => {
 
   it('derives measured-return speech embodiment hints directly from project emotional closure carry when no explicit embodiment hints survive', () => {
     const timeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着同一条线轻一点接回来。',
+      reply: '我先沿着同一条线中性可见占位。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -900,9 +900,9 @@ describe('alicization dialogue speech timeline', () => {
         runtime: {
           watchMode: 'symbiotic-vision',
           sceneScenario: 'coding',
-          sceneSummary: 'same living line still settling',
+          sceneSummary: 'continuity state still settling',
           activeThreadId: 'thread-measured-return-project-closure',
-          activeThreadTitle: 'same living line',
+          activeThreadTitle: 'continuity state',
           dominantMode: 'thinking',
           dominantDrive: 'understand',
           answerIntent: 'guide',
@@ -920,7 +920,7 @@ describe('alicization dialogue speech timeline', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
@@ -934,7 +934,7 @@ describe('alicization dialogue speech timeline', () => {
   })
 
   it('also carries project-derived callback resident mode into speech settle timing, not only renderer hint labels', () => {
-    const reply = '我先沿着同一条线轻一点接回来。'
+    const reply = '我先沿着同一条线中性可见占位。'
     const measuredReturnTimeline = buildAlicizationDialogueSpeechTimeline({
       reply,
       candidateEmotion: 'thinking',
@@ -950,7 +950,7 @@ describe('alicization dialogue speech timeline', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
@@ -969,7 +969,7 @@ describe('alicization dialogue speech timeline', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her repair seam: keep this return repair-before-closeness on the same living line before closeness widens again.',
+        emotionalClosureCue: 'same-her repair seam: keep this return repair-before-closeness on the continuity state before closeness widens again.',
       },
     })
 
@@ -988,7 +988,7 @@ describe('alicization dialogue speech timeline', () => {
 
   it('keeps same-thread audible carry settle timing more inward than an otherwise similar same-thread baseline on the real closure path', () => {
     const ordinaryTimeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着同一条线轻一点接回来。',
+      reply: '我先沿着同一条线中性可见占位。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -1027,12 +1027,12 @@ describe('alicization dialogue speech timeline', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
     const sameHerCarryTimeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着同一条线轻一点接回来。',
+      reply: '我先沿着同一条线中性可见占位。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -1073,7 +1073,7 @@ describe('alicization dialogue speech timeline', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
@@ -1154,7 +1154,7 @@ describe('alicization dialogue speech timeline', () => {
         currentPhase: 'Phase 1: Local Digital Life',
         memoryClosureSummary: null,
         primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her closure seam: keep the return low-pressure, leave more room, and do not reopen from scratch while the same living line is still settling.',
+        emotionalClosureCue: 'identity-continuity',
       },
     })
 
@@ -1169,7 +1169,7 @@ describe('alicization dialogue speech timeline', () => {
 
   it('derives softer callback embodiment hints directly from projectState continuity cadence and explicit blink-gaze preference even when emotional closure cue is absent', () => {
     const ordinaryTimeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着这条线轻一点接回来。',
+      reply: '我先沿着这条线中性可见占位。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -1188,7 +1188,7 @@ describe('alicization dialogue speech timeline', () => {
     })
 
     const softerMeasuredReturnTimeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着这条线轻一点接回来。',
+      reply: '我先沿着这条线中性可见占位。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -1206,12 +1206,12 @@ describe('alicization dialogue speech timeline', () => {
         continuityCadence: 'measured-return',
         preferredBlinkCadence: 'quiet',
         preferredGazeMode: 'soften',
-        sameHerHoldDetail: 'same-her hold: recognize the same remembered seam and keep more room this time before closeness widens again.',
+        sameHerHoldDetail: 'identity-continuity',
       },
     })
 
     const repairFirstTimeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着这条线轻一点接回来。',
+      reply: '我先沿着这条线中性可见占位。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -1229,7 +1229,7 @@ describe('alicization dialogue speech timeline', () => {
         continuityCadence: 'repair-before-closeness',
         preferredBlinkCadence: 'quiet',
         preferredGazeMode: 'soften',
-        sameHerHoldDetail: 'same-her hold: keep repair-before-closeness on the same living line until repair settles.',
+        sameHerHoldDetail: 'identity-continuity',
       },
     })
 
@@ -1259,7 +1259,7 @@ describe('alicization dialogue speech timeline', () => {
 
   it('carries remembered pause and lipsync cadence from projectState closure bias into segment renderer hints', () => {
     const timeline = buildAlicizationDialogueSpeechTimeline({
-      reply: '我先沿着这条线轻一点接回来。',
+      reply: '我先沿着这条线中性可见占位。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -1279,7 +1279,7 @@ describe('alicization dialogue speech timeline', () => {
         preferredGazeMode: 'soften',
         preferredPauseMode: 'longer',
         preferredLipsyncMode: 'restrained',
-        sameHerHoldDetail: 'same-her hold: keep the remembered return quieter, longer, and more restrained before widening the line again.',
+        sameHerHoldDetail: 'identity-continuity',
       } as any,
     })
 
@@ -1314,7 +1314,7 @@ describe('alicization dialogue speech timeline', () => {
         preferredLipsyncMode: 'restrained',
         preferredVoiceMode: 'lower-pressure',
         preferredPacingMode: 'slower',
-        sameHerHoldDetail: 'same-her hold: keep the return lower-pressure and slower before the line widens again.',
+        sameHerHoldDetail: 'identity-continuity',
       } as any,
     })
 

@@ -61,7 +61,6 @@ const basePatch = {
     warmthReleaseBias: 0,
   },
   responsePosture: {
-    secondPassRequiredBias: 0.08,
     hypothesisLabelBias: 0.04,
     specificityClampBias: 0.1,
     templateShellSuppressionBias: 0.12,
@@ -81,7 +80,7 @@ const basePatch = {
     sameHerDriftRisk: null,
     proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
     emotionalClosureCue: null,
-    sameHerHoldDetail: 'same-her hold: keep this self-revision on the same living line before later replay summaries cool it into generic verification bookkeeping.',
+    sameHerHoldDetail: 'identity-continuity',
     continuityGuard: null,
     continuityPressure: 0.18,
   },
@@ -214,7 +213,7 @@ describe('self evolution version runtime', () => {
       productionGoldCoverage: 1,
       now: 120,
       projectStateContinuityDrift: true,
-      projectStateContinuitySummary: 'same-her=Answer project-state questions from one same-her continuity, not as a detached project narrator shell. | landed=Keep the latest landed project-state progress explicit in the rewritten answer. | open=Keep the still-open closure work explicit in the rewritten answer.',
+      projectStateContinuitySummary: 'same-her=Answer project-state questions from one identity-continuity',
       projectStateSummary: {
         comparedTurnCount: 3,
         identityHitCount: 1,
@@ -241,11 +240,11 @@ describe('self evolution version runtime', () => {
       'self-evolution:project-state-proactive-gap-carry-weak',
     ]))
     expect(validated.candidates[0]?.validation.projectStateContinuityReasons?.some(reason =>
-      reason.startsWith('self-evolution:project-state-continuity-summary=same-her=Answer project-state questions from one same-her continuity'),
+      reason.startsWith('self-evolution:project-state-continuity-summary=same-her=Answer project-state questions from one identity-continuity'),
     )).toBe(true)
   })
 
-  it('keeps same-her hold detail visible as version-level continuity evidence during replay validation', () => {
+  it('keeps identity-continuity', () => {
     const candidate = buildAlicizationSelfEvolutionVersionCandidate({
       event: baseEvent,
       patch: basePatch,

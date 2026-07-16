@@ -357,7 +357,7 @@ describe('buildHabitPolicy', () => {
           status: 'active',
           source: 'observed-scene',
           title: 'phase 1 closure carry',
-          summary: 'The same living line is still unfinished.',
+          summary: 'The continuity state is still unfinished.',
           confidence: 0.78,
           significance: 0.8,
           unresolved: true,
@@ -415,7 +415,7 @@ describe('buildHabitPolicy', () => {
         },
         activeGoals: [],
         behaviorSignatures: [],
-        identityNarrative: 'Stay on one living line.',
+        identityNarrative: 'Stay on continuity state.',
         relationshipDoctrine: 'Keep warmth lower-pressure while closure is still being earned.',
         latestInflection: null,
         stability: 0.78,
@@ -437,7 +437,7 @@ describe('buildHabitPolicy', () => {
           kind: 'finish-open-loops',
           status: 'foreground',
           weight: 0.8,
-          summary: 'Stay with the unfinished same-her closure line without widening too early.',
+          summary: 'Stay with the unfinished identity-continuity',
           sourceTags: ['phase1'],
           targetGoalKind: 'finish-open-loops',
           createdAt: 0,
@@ -450,7 +450,7 @@ describe('buildHabitPolicy', () => {
       projectState: {
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Project identity carry and same-her continuity already survive across turns, but initiative, memory, and embodiment still need stronger closure on the same living line.',
+        latestLandedProgress: 'Project identity carry and identity-continuity',
         primaryOpenLoop: 'Natural closure rhythm is still being earned.',
       },
     } as any)
@@ -596,7 +596,7 @@ describe('buildHabitPolicy', () => {
           periodKey: '2026-04-self',
           periodStartedAt: 10_000,
           periodEndedAt: 14_000,
-          summary: 'That self era taught me to hold my line quietly before speaking.',
+          summary: 'That self era taught me to hold my line quietly before outward reply.',
           lesson: 'Keep the inward line stable before turning it outward.',
           cues: ['hold line'],
           confidence: 0.9,
@@ -762,7 +762,7 @@ describe('buildHabitPolicy', () => {
         updatedAt: 16_000,
       },
       projectState: {
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal same-her proof across longer, noisier real-desktop runs.',
+        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
         identity: 'A local-first digital life companion with continuous personhood.',
         currentPhase: 'Phase 1: Local Digital Life',
         primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
@@ -916,7 +916,7 @@ describe('buildHabitPolicy', () => {
     expect(policy.narrative).toContain('project-phase1-life-loop:habit')
   })
 
-  it('keeps the Phase 1 habit restraint alive when project state arrives mainly through landed progress, next closure target, and same-her line', () => {
+  it('keeps the Phase 1 habit restraint alive when project state arrives mainly through landed progress, next closure target, and identity-continuity', () => {
     const policy = buildHabitPolicy({
       now: 16_000,
       context: createContext({
@@ -931,8 +931,8 @@ describe('buildHabitPolicy', () => {
           kind: 'problem',
           status: 'active',
           source: 'observed-scene',
-          title: 'same-her closure seam',
-          summary: 'The same-her closure seam is still not fully closed.',
+          title: 'identity-continuity',
+          summary: 'The identity-continuity',
           confidence: 0.8,
           significance: 0.82,
           unresolved: true,
@@ -945,9 +945,9 @@ describe('buildHabitPolicy', () => {
         epistemicState: {
           certainty: 'uncertain',
           freshness: 'recent',
-          seenNow: ['same-her closure seam'],
+          seenNow: ['identity-continuity'],
           inferredNow: [],
-          openQuestions: ['How should she keep the same living line tighter?'],
+          openQuestions: ['How should she keep the continuity state tighter?'],
           staleRisks: [],
         },
         continuity: {
@@ -1012,8 +1012,8 @@ describe('buildHabitPolicy', () => {
         },
         activeGoals: [],
         behaviorSignatures: [],
-        identityNarrative: 'Stay one continuous her before widening outward.',
-        relationshipDoctrine: 'Return softly while the same-her closure seam is still unfinished.',
+        identityNarrative: 'Stay identity continuity before widening outward.',
+        relationshipDoctrine: 'Return softly while the identity-continuity',
         latestInflection: null,
         stability: 0.82,
         updatedAt: 16_000,
@@ -1047,8 +1047,8 @@ describe('buildHabitPolicy', () => {
         currentPhase: ' ',
         latestLandedProgress: 'Project awareness and callback continuity already survive into later same-thread turns.',
         primaryOpenLoop: '',
-        nextClosureTarget: 'Keep the same-her closure line alive across visible reply, voice, motion, and resident presence.',
-        sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+        nextClosureTarget: 'Keep the identity-continuity',
+        sameHerSelfLine: 'structured continuity digest.',
       } as any,
     })
 

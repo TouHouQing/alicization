@@ -247,9 +247,6 @@ describe('memory deliberation regression pack', () => {
       placement: 'before-payoff',
       certainty: 'approximate',
       confidence: 0.88,
-      internalLead: 'What comes back first is the runtime seam we kept carrying.',
-      visibleLead: 'It feels like the same runtime seam again.',
-      styleNote: 'Let recollection bend the answer without becoming a memory dump.',
       rationale: 'The host is explicitly asking how this used to be handled.',
     } as any
     runtimeSurface.memory.memoryDeliberation = {
@@ -281,13 +278,15 @@ describe('memory deliberation regression pack', () => {
       },
     } as any
 
-    const { compiler, charter, surface } = buildContracts(runtimeSurface)
+    const { compiler, surface } = buildContracts(runtimeSurface)
 
     expect(compiler?.memoryWhyNow).toContain('remembered runtime seam')
     expect(compiler?.memoryStableCore).toContain('Return to the same seam before branching.')
     expect(compiler?.memoryUnsafeDetails?.[0]).toContain('exact wording')
-    expect(surface.contract.mustDo).toContain('If recollection becomes visible, let the stable remembered core do the work before any fragmentary detail.')
-    expect(charter.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+    expect(surface.contract.mustDo.some(item => item.includes('stable remembered core'))).toBe(true)
+    expect(surface.contract.mustNotDo.some(item =>
+      item.includes('Do not surface unstable remembered detail as settled fact'),
+    )).toBe(true)
   })
 
   it('keeps ambiguous time recall on stable core and suppresses exact details', () => {
@@ -298,9 +297,6 @@ describe('memory deliberation regression pack', () => {
       placement: 'inside-payoff',
       certainty: 'approximate',
       confidence: 0.76,
-      internalLead: 'I vaguely remember the seam drifting this way before.',
-      visibleLead: 'I think this resembles the runtime seam we dealt with before.',
-      styleNote: 'Keep the memory approximate and humility-forward.',
       rationale: 'The recall is real but interference-prone.',
     } as any
     runtimeSurface.memory.memoryDeliberation = {
@@ -330,8 +326,10 @@ describe('memory deliberation regression pack', () => {
 
     const { compiler, surface } = buildContracts(runtimeSurface)
 
-    expect(compiler?.memoryWhyWithheld).toContain('stable remembered core')
-    expect(surface.contract.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+    expect(compiler?.memoryWhyWithheld).toContain('stable core')
+    expect(surface.contract.mustNotDo.some(item =>
+      item.includes('unstable remembered detail') || item.includes('contested remembered detail'),
+    )).toBe(true)
   })
 
   it('suppresses the wrong thread lure when a nearby competing seam is still plausible', () => {
@@ -342,9 +340,6 @@ describe('memory deliberation regression pack', () => {
       placement: 'inside-payoff',
       certainty: 'approximate',
       confidence: 0.79,
-      internalLead: 'The old runtime seam is nearby, but another thread still shadows it.',
-      visibleLead: 'This may be the same seam, but I only want to use the stable part.',
-      styleNote: 'Use stable core only.',
       rationale: 'A nearby competing thread cluster still matches the current recall cue.',
     } as any
     runtimeSurface.memory.memoryDeliberation = {
@@ -380,7 +375,9 @@ describe('memory deliberation regression pack', () => {
 
     expect(compiler?.memoryUnsafeDetails?.[0]).toContain('competing thread cluster')
     expect(compiler?.memoryWhyWithheld).toContain('stable core')
-    expect(surface.contract.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+    expect(surface.contract.mustNotDo.some(item =>
+      item.includes('unstable remembered detail') || item.includes('contested remembered detail'),
+    )).toBe(true)
   })
 
   it('keeps relevant recollection inward-only when the current payoff still needs the foreground', () => {
@@ -391,9 +388,6 @@ describe('memory deliberation regression pack', () => {
       placement: 'internal-only',
       certainty: 'approximate',
       confidence: 0.7,
-      internalLead: 'The remembered line should stay inward.',
-      visibleLead: null,
-      styleNote: 'Let memory bend tone quietly.',
       rationale: 'The answer needs continuity but not overt retrospection.',
     } as any
     runtimeSurface.memory.memoryDeliberation = {
@@ -425,10 +419,10 @@ describe('memory deliberation regression pack', () => {
       },
     } as any
 
-    const { compiler, charter, surface } = buildContracts(runtimeSurface)
+    const { compiler, surface } = buildContracts(runtimeSurface)
 
     expect(compiler?.memoryShouldStayInward).toBe(true)
-    expect(charter.mustDo.some(item => item.includes('keep recollection inward until the host has room for it'))).toBe(true)
+    expect(surface.contract.mustDo.some(item => item.includes('remembered continuity contour'))).toBe(true)
     expect(surface.contract.mustNotDo).toContain('Do not force recollection forward before the host has room for it.')
   })
 

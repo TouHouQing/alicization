@@ -371,7 +371,7 @@ describe('runtime visual presence state', () => {
         workloadKind: 'coding',
         contentKind: 'doc',
         scenario: 'same-line-measured-return',
-        summary: 'same-her closure is still settling and should stay lower-pressure',
+        summary: 'identity-continuity',
         source: 'screen-semantic-summary',
         confidence: 0.82,
         beganAt: 20_000,

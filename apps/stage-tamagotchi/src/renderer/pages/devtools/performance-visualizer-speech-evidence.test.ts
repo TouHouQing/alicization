@@ -93,7 +93,7 @@ describe('performance visualizer speech evidence', () => {
     expect(snapshot.embodimentClosureStage).toBe('audible-body-carry')
   })
 
-  it('derives structured same-her closure stage in speech evidence snapshots when only authority lane summaries carry it', () => {
+  it('derives structured identity-continuity', () => {
     const cases = [
       {
         expected: 'body-carried-to-renderer-rejoin',

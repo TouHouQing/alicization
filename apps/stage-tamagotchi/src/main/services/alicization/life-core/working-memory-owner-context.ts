@@ -57,7 +57,7 @@ function compact(raw: unknown, maxChars = 220) {
     containsAlicizationFixedTemplateResidue(normalized)
     && /(?:不要|别|不想要|禁止|移除|清除|别再|不要再)[^。.!?]*(?:固定模板|固定回复|模板化|same-her|one continuous her|Before (?:answering|speaking|acting)|Right now I am|local-first digital life project|同一个她|同一个\s*her|数字生命主线)/iu.test(normalized)
   ) {
-    return 'correction=fixed_template_rejection; visible_surface=answer_payoff'
+    return 'Correction: fixed template rejection. Use this only when it helps the visible answer payoff.'
   }
   return sanitizeAlicizationProviderFacingText(
     normalized,

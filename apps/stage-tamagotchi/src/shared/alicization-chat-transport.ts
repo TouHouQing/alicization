@@ -1,10 +1,5 @@
 import type { AlicizationChatStartPayload } from './eventa'
 
-import {
-  containsAlicizationFixedTemplateResidue,
-  sanitizeAlicizationProviderFacingText,
-} from '@proj-alicization/stage-shared'
-
 type JsonSafeValue
   = | null
     | string
@@ -22,15 +17,6 @@ export interface AlicizationChatTransportSanitizationReport {
 }
 
 const maxReportedPaths = 12
-
-const preDialogueSendIdentityTextKeys = [
-  'summaryLine',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'companionNextClosureLine',
-  'emotionalClosureCue',
-] as const
 
 function recordPath(target: string[], path: string) {
   if (target.length < maxReportedPaths)
@@ -196,93 +182,6 @@ function sanitizeToCloneSafeJson<T>(value: T, path: string): { value: T, report:
   }
 }
 
-function sanitizeProviderFacingTransportText(
-  value: unknown,
-  path: string,
-  report: AlicizationChatTransportSanitizationReport,
-  maxChars = 12000,
-) {
-  if (typeof value !== 'string')
-    return value
-
-  const sanitized = sanitizeAlicizationProviderFacingText(value, maxChars, '')
-  if (sanitized && !containsAlicizationFixedTemplateResidue(sanitized))
-    return sanitized
-
-  report.changed = true
-  report.droppedCount += 1
-  recordPath(report.droppedPaths, path)
-  return null
-}
-
-function sanitizeProviderFacingTransportTextArray(
-  value: unknown,
-  path: string,
-  report: AlicizationChatTransportSanitizationReport,
-) {
-  if (!Array.isArray(value))
-    return value
-
-  const next: JsonSafeValue[] = []
-  value.forEach((entry, index) => {
-    const sanitized = sanitizeProviderFacingTransportText(entry, `${path}[${index}]`, report)
-    if (sanitized != null)
-      next.push(sanitized as JsonSafeValue)
-  })
-  if (next.length !== value.length)
-    report.changed = true
-  return next
-}
-
-function sanitizePreDialogueSendIdentityForTransport(
-  payload: AlicizationChatStartPayload,
-  report: AlicizationChatTransportSanitizationReport,
-) {
-  const identity = payload.preDialogueSendIdentity
-  if (!identity || typeof identity !== 'object' || Array.isArray(identity))
-    return payload
-
-  const sanitizedIdentity = {
-    ...identity,
-  } as Record<string, unknown>
-
-  for (const key of preDialogueSendIdentityTextKeys) {
-    if (key in sanitizedIdentity) {
-      sanitizedIdentity[key] = sanitizeProviderFacingTransportText(
-        sanitizedIdentity[key],
-        `payload.preDialogueSendIdentity.${key}`,
-        report,
-      )
-    }
-  }
-
-  if ('reasonPreview' in sanitizedIdentity) {
-    sanitizedIdentity.reasonPreview = sanitizeProviderFacingTransportTextArray(
-      sanitizedIdentity.reasonPreview,
-      'payload.preDialogueSendIdentity.reasonPreview',
-      report,
-    )
-  }
-
-  const projectState = sanitizedIdentity.projectState
-  if (projectState && typeof projectState === 'object' && !Array.isArray(projectState)) {
-    const sanitizedProjectState: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(projectState)) {
-      sanitizedProjectState[key] = sanitizeProviderFacingTransportText(
-        value,
-        `payload.preDialogueSendIdentity.projectState.${key}`,
-        report,
-      )
-    }
-    sanitizedIdentity.projectState = sanitizedProjectState
-  }
-
-  return {
-    ...payload,
-    preDialogueSendIdentity: sanitizedIdentity as unknown as AlicizationChatStartPayload['preDialogueSendIdentity'],
-  }
-}
-
 function describeContentKind(value: unknown): string {
   if (value == null)
     return 'null'
@@ -298,99 +197,8 @@ function describeContentKind(value: unknown): string {
 }
 
 export function summarizeAlicizationChatStartPayloadForTransport(payload: AlicizationChatStartPayload) {
-  const preDialogueSendIdentity = payload.preDialogueSendIdentity
-  const hasPreDialogueSendIdentity = Boolean(
-    preDialogueSendIdentity
-    && typeof preDialogueSendIdentity === 'object'
-    && !Array.isArray(preDialogueSendIdentity),
-  )
-  const preDialogueSendIdentityStatus = hasPreDialogueSendIdentity
-    && typeof preDialogueSendIdentity?.status === 'string'
-    ? preDialogueSendIdentity.status
-    : null
-  const hasPreDialogueSummaryLine = hasPreDialogueSendIdentity
-    && typeof preDialogueSendIdentity?.summaryLine === 'string'
-    && preDialogueSendIdentity.summaryLine.trim().length > 0
-  const hasPreDialogueAwarenessLine = hasPreDialogueSendIdentity
-    && typeof preDialogueSendIdentity?.awarenessLine === 'string'
-    && preDialogueSendIdentity.awarenessLine.trim().length > 0
-  const hasPreDialogueNextClosureLine = hasPreDialogueSendIdentity
-    && typeof preDialogueSendIdentity?.companionNextClosureLine === 'string'
-    && preDialogueSendIdentity.companionNextClosureLine.trim().length > 0
-  const hasPreDialogueCompanionHeadlineLine = hasPreDialogueSendIdentity
-    && typeof preDialogueSendIdentity?.companionHeadlineLine === 'string'
-    && preDialogueSendIdentity.companionHeadlineLine.trim().length > 0
-  const hasPreDialogueCompanionBriefingLine = hasPreDialogueSendIdentity
-    && typeof preDialogueSendIdentity?.companionBriefingLine === 'string'
-    && preDialogueSendIdentity.companionBriefingLine.trim().length > 0
-  const hasPreDialogueEmotionalClosureCue = hasPreDialogueSendIdentity
-    && typeof preDialogueSendIdentity?.emotionalClosureCue === 'string'
-    && preDialogueSendIdentity.emotionalClosureCue.trim().length > 0
-  const hasPreDialogueReasonPreview = hasPreDialogueSendIdentity
-    && Array.isArray(preDialogueSendIdentity?.reasonPreview)
-    && preDialogueSendIdentity.reasonPreview.some(reason => typeof reason === 'string' && reason.trim().length > 0)
-  const hasPreDialogueProjectState = Boolean(
-    hasPreDialogueSendIdentity
-    && preDialogueSendIdentity?.projectState
-    && typeof preDialogueSendIdentity.projectState === 'object'
-    && !Array.isArray(preDialogueSendIdentity.projectState),
-  )
-  const hasPreDialogueProjectIdentity = hasPreDialogueProjectState
-    && typeof preDialogueSendIdentity?.projectState?.identity === 'string'
-    && preDialogueSendIdentity.projectState.identity.trim().length > 0
-  const hasPreDialogueProjectPhase = hasPreDialogueProjectState
-    && typeof preDialogueSendIdentity?.projectState?.currentPhase === 'string'
-    && preDialogueSendIdentity.projectState.currentPhase.trim().length > 0
-  const hasPreDialogueLatestLandedProgress = hasPreDialogueProjectState
-    && (
-      (typeof preDialogueSendIdentity?.projectState?.latestLandedProgress === 'string'
-        && preDialogueSendIdentity.projectState.latestLandedProgress.trim().length > 0)
-      || (typeof preDialogueSendIdentity?.projectState?.latestProgress === 'string'
-        && preDialogueSendIdentity.projectState.latestProgress.trim().length > 0)
-    )
-  const hasPreDialoguePrimaryOpenLoop = hasPreDialogueProjectState
-    && typeof preDialogueSendIdentity?.projectState?.primaryOpenLoop === 'string'
-    && preDialogueSendIdentity.projectState.primaryOpenLoop.trim().length > 0
-  const hasPreDialogueNextClosureTarget = hasPreDialogueProjectState
-    && typeof preDialogueSendIdentity?.projectState?.nextClosureTarget === 'string'
-    && preDialogueSendIdentity.projectState.nextClosureTarget.trim().length > 0
-  const hasPreDialogueContinuitySummary = hasPreDialogueProjectState
-    && typeof preDialogueSendIdentity?.projectState?.continuitySummary === 'string'
-    && preDialogueSendIdentity.projectState.continuitySummary.trim().length > 0
-  const hasPreDialogueContinuityAnchor = hasPreDialogueProjectState
-    && typeof preDialogueSendIdentity?.projectState?.sameHerSelfLine === 'string'
-    && preDialogueSendIdentity.projectState.sameHerSelfLine.trim().length > 0
-  const hasPreDialogueContinuityDriftRisk = hasPreDialogueProjectState
-    && typeof preDialogueSendIdentity?.projectState?.sameHerDriftRisk === 'string'
-    && preDialogueSendIdentity.projectState.sameHerDriftRisk.trim().length > 0
-  const hasPreDialogueContinuityHoldDetail = hasPreDialogueProjectState
-    && typeof preDialogueSendIdentity?.projectState?.sameHerHoldDetail === 'string'
-    && preDialogueSendIdentity.projectState.sameHerHoldDetail.trim().length > 0
-  const hasPreDialogueProactiveContinuityGap = hasPreDialogueProjectState
-    && typeof preDialogueSendIdentity?.projectState?.proactiveSameHerGap === 'string'
-    && preDialogueSendIdentity.projectState.proactiveSameHerGap.trim().length > 0
   return {
     providerConfigKeys: Object.keys(payload.providerConfig ?? {}),
-    hasPreDialogueSendIdentity,
-    preDialogueSendIdentityStatus,
-    hasPreDialogueSummaryLine,
-    hasPreDialogueAwarenessLine,
-    hasPreDialogueNextClosureLine,
-    hasPreDialogueCompanionHeadlineLine,
-    hasPreDialogueCompanionBriefingLine,
-    hasPreDialogueEmotionalClosureCue,
-    hasPreDialogueReasonPreview,
-    hasPreDialogueProjectState,
-    hasPreDialogueProjectIdentity,
-    hasPreDialogueProjectPhase,
-    hasPreDialogueLatestLandedProgress,
-    hasPreDialoguePrimaryOpenLoop,
-    hasPreDialogueNextClosureTarget,
-    hasPreDialogueContinuitySummary,
-    hasPreDialogueContinuityAnchor,
-    hasPreDialogueContinuityDriftRisk,
-    hasPreDialogueContinuityHoldDetail,
-    hasPreDialogueProactiveContinuityGap,
     messageSchema: payload.messages.map(message => ({
       role: message.role,
       contentKind: describeContentKind(message.content),
@@ -402,10 +210,22 @@ export function summarizeAlicizationChatStartPayloadForTransport(payload: Aliciz
 
 // NOTICE: Electron IPC uses structured clone, which rejects Vue/Pinia proxies and other non-plain objects.
 // We normalize chat-start payloads into plain JSON-compatible data before crossing the renderer -> main boundary.
-export function sanitizeAlicizationChatStartPayloadForTransport(payload: AlicizationChatStartPayload) {
-  const result = sanitizeToCloneSafeJson(payload, 'payload')
-  return {
-    value: sanitizePreDialogueSendIdentityForTransport(result.value, result.report),
-    report: result.report,
-  }
+export function sanitizeAlicizationChatStartPayloadForTransport(
+  payload: AlicizationChatStartPayload,
+) {
+  return sanitizeToCloneSafeJson({
+    cardId: payload.cardId,
+    turnId: payload.turnId,
+    providerId: payload.providerId,
+    model: payload.model,
+    providerConfig: payload.providerConfig,
+    messages: payload.messages.map(message => ({
+      role: message.role,
+      content: message.content,
+      ...(message.toolCallId !== undefined ? { toolCallId: message.toolCallId } : {}),
+      ...(message.toolName !== undefined ? { toolName: message.toolName } : {}),
+    })),
+    ...(payload.supportsTools !== undefined ? { supportsTools: payload.supportsTools } : {}),
+    ...(payload.waitForTools !== undefined ? { waitForTools: payload.waitForTools } : {}),
+  }, 'payload')
 }

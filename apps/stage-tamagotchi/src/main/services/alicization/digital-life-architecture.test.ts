@@ -46,7 +46,7 @@ describe('digital life architecture', () => {
             id: 'thread-runtime-spine',
             kind: 'problem',
             title: 'runtime spine unification',
-            summary: 'Keep perception, dialogue, control, and memory on one living line.',
+            summary: 'Keep perception, dialogue, control, and memory on continuity state.',
             status: 'active',
             source: 'grounded-scene',
             significance: 0.88,
@@ -399,7 +399,7 @@ describe('digital life architecture', () => {
           reasonTags: ['continuity-arc:same-thread-continuation'],
           projectState: {
             currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            sameHerSelfLine: 'structured continuity digest.',
           },
         },
       },
@@ -416,7 +416,7 @@ describe('digital life architecture', () => {
         },
         personStateProjection: {
           selfContinuityAuthority: {
-            authoritySummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+            authoritySummary: 'structured continuity digest.',
           },
         },
       },

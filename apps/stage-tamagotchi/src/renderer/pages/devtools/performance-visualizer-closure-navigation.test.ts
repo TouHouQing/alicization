@@ -6,7 +6,7 @@ import {
 } from './performance-visualizer-closure-navigation'
 
 describe('performance visualizer closure navigation', () => {
-  it('routes same-her continuity diagnostics into renderer authority evidence before generic repair-path defaults', () => {
+  it('routes identity-continuity', () => {
     const context = readPerformanceVisualizerClosureNavigationContext({
       source: 'quick-reply-closure',
       status: 'partial',
@@ -22,7 +22,7 @@ describe('performance visualizer closure navigation', () => {
     })
   })
 
-  it('routes body-led same-her continuity diagnostics into runtime continuity evidence before renderer-local repair views', () => {
+  it('routes body-led identity-continuity', () => {
     const context = readPerformanceVisualizerClosureNavigationContext({
       source: 'quick-reply-closure',
       status: 'partial',
@@ -39,7 +39,7 @@ describe('performance visualizer closure navigation', () => {
     })
   })
 
-  it('routes body-only same-her continuity diagnostics into concrete body-held runtime evidence before stopping at the broader runtime continuity panel', () => {
+  it('routes body-only identity-continuity', () => {
     const context = readPerformanceVisualizerClosureNavigationContext({
       source: 'quick-reply-closure',
       status: 'partial',
@@ -57,7 +57,7 @@ describe('performance visualizer closure navigation', () => {
     })
   })
 
-  it('routes audible-body same-her continuity diagnostics into concrete speech observability evidence before stopping at abstract runtime continuity panels', () => {
+  it('routes audible-body identity-continuity', () => {
     const context = readPerformanceVisualizerClosureNavigationContext({
       source: 'quick-reply-closure',
       status: 'partial',
@@ -75,7 +75,7 @@ describe('performance visualizer closure navigation', () => {
     })
   })
 
-  it('routes body-led renderer-rejoin same-her continuity diagnostics into concrete runtime continuity evidence before stopping at the broader runtime continuity panel', () => {
+  it('routes body-led renderer-rejoin identity-continuity', () => {
     const context = readPerformanceVisualizerClosureNavigationContext({
       source: 'quick-reply-closure',
       status: 'partial',
@@ -93,7 +93,7 @@ describe('performance visualizer closure navigation', () => {
     })
   })
 
-  it('routes full-cross-modal-lock same-her continuity diagnostics into concrete runtime continuity lock evidence before stopping at the broader runtime continuity panel', () => {
+  it('routes full-cross-modal-lock identity-continuity', () => {
     const context = readPerformanceVisualizerClosureNavigationContext({
       source: 'quick-reply-closure',
       status: 'partial',
@@ -111,7 +111,7 @@ describe('performance visualizer closure navigation', () => {
     })
   })
 
-  it('routes voice-lipsync same-her continuity diagnostics into concrete speech authority evidence before stopping at abstract renderer authority panels', () => {
+  it('routes voice-lipsync identity-continuity', () => {
     const context = readPerformanceVisualizerClosureNavigationContext({
       source: 'quick-reply-closure',
       status: 'partial',
@@ -129,7 +129,7 @@ describe('performance visualizer closure navigation', () => {
     })
   })
 
-  it('routes voice-only same-her continuity diagnostics into concrete speech observability evidence before stopping at abstract renderer authority panels', () => {
+  it('routes voice-only identity-continuity', () => {
     const context = readPerformanceVisualizerClosureNavigationContext({
       source: 'quick-reply-closure',
       status: 'partial',
@@ -147,7 +147,7 @@ describe('performance visualizer closure navigation', () => {
     })
   })
 
-  it('routes renderer-rejoin-without-body same-her continuity diagnostics into concrete runtime continuity audit evidence before stopping at abstract renderer authority panels', () => {
+  it('routes renderer-rejoin-without-body identity-continuity', () => {
     const context = readPerformanceVisualizerClosureNavigationContext({
       source: 'quick-reply-closure',
       status: 'partial',

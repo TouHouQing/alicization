@@ -6,6 +6,8 @@ import type {
 } from '../../../shared/eventa'
 import type { ContextualConversationTurn } from './runtime-soul'
 
+import { buildAlicizationProviderFactBlock } from '@proj-alicization/stage-shared'
+
 import {
   readExecutionOutcome,
   readTaskThreadActivityAt,
@@ -44,7 +46,6 @@ interface AlicizationExecutionLedgerRuntimeOptions {
 const executionCuePattern = /刚才|刚刚|结果|进展|状态|成功了吗|失败了吗|跑完|完成了没|继续|接着|那个命令|那个任务|执行|工具|cli|codex|claude|openclaw|command|task|tool|result|status|通过原因|排查建议|风险|did it|what happened|how did it go|why did it pass|next steps|risk/i
 const executionMentionPattern = /执行|命令|任务|工具|cli|codex|claude|openclaw|command|task|tool|run|patch|fix/i
 const ledgerMaxThreadAgeMs = 15 * 60_000
-const executionLedgerBoundary = 'owner=ExecutionLedger; confirmed_entries_only=true; detached_task_shell=false.'
 
 function shouldRecallExecutionLedger(input: {
   recentThreads: AlicizationTaskThreadRecord[]
@@ -104,42 +105,23 @@ function buildExecutionLedgerItem(input: {
 }
 
 function buildExecutionLedgerRecallText(items: AlicizationExecutionLedgerDigest[]) {
-  return [
-    'execution_history_scope:alicization-local-life-loop',
-    `execution_boundary:${executionLedgerBoundary}`,
-    ...items.map(item => [
-      `execution_channel:${item.channel}`,
-      `execution_status:${item.status}`,
-      `execution_goal:${item.goal}`,
-      item.summary ? `execution_summary:${item.summary}` : '',
-      item.eventKinds.length > 0 ? `execution_events:${item.eventKinds.join(',')}` : '',
-      item.outcome ? `execution_outcome:${item.outcome}` : '',
-    ].filter(Boolean).join(' ')),
-  ].filter(Boolean).join('\n')
+  return items.map(item => [
+    `execution_channel:${item.channel}`,
+    `execution_status:${item.status}`,
+    `execution_goal:${item.goal}`,
+    item.summary ? `execution_summary:${item.summary}` : '',
+    item.eventKinds.length > 0 ? `execution_events:${item.eventKinds.join(',')}` : '',
+    item.outcome ? `execution_outcome:${item.outcome}` : '',
+  ].filter(Boolean).join(' ')).join('\n')
 }
 
 function buildExecutionLedgerSystemBlock(items: AlicizationExecutionLedgerDigest[]) {
   if (items.length === 0)
     return ''
 
-  return [
-    '[ALICIZATION_EXECUTION_LEDGER]',
-    'Recent structured executor history for the current session.',
-    'execution_history_scope=alicization-local-life-loop; owner=ExecutionLedger; detached_task_shell=false.',
-    'short_term_owner=WorkingMemory',
-    'long_term_recall_owner=LongTermMemoryRecall',
-    'failure_surface=report_provider_tool_and_execution_failures_directly',
-    'execution_boundary=confirmed_entries_only; review_queue_candidates_are_not_confirmed_memory.',
-    'Treat only these entries as actually executed. Do not invent missing actions or results.',
-    ...items.map(item => [
-      `- channel=${item.channel}`,
-      `status=${item.status}`,
-      `goal=${item.goal}`,
-      item.summary ? `summary=${item.summary}` : '',
-      item.eventKinds.length > 0 ? `events=${item.eventKinds.join(',')}` : '',
-      item.outcome ? `outcome=${item.outcome}` : '',
-    ].filter(Boolean).join(' | ')),
-  ].join('\n')
+  return buildAlicizationProviderFactBlock('alicization-execution-ledger', {
+    entries: items,
+  })
 }
 
 export function createAlicizationMemoryLedgerRuntime(options: AlicizationExecutionLedgerRuntimeOptions) {

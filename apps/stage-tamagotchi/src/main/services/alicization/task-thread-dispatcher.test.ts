@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { dispatchTaskThread } from './task-thread-dispatcher'
 
 function expectNoFixedTemplateResidue(value: unknown) {
-  expect(JSON.stringify(value ?? '')).not.toMatch(/Before (?:answering|speaking|acting)|Right now I am|Same Phase 1 digital life|same[- ]her|same living line|one living her|one continuous her|local-first digital life project|Phase 1: Local Digital Life|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu)
+  expect(JSON.stringify(value ?? '')).not.toMatch(/Before (?:answering|speaking|acting)|Right now I am|legacy phase-one template|same[- ]her|continuity state|one living her|identity continuity|local-first digital life project|Phase 1: Local Digital Life|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu)
   expect(containsAlicizationFixedTemplateResidue(String(value ?? ''))).toBe(false)
 }
 
@@ -105,23 +105,23 @@ function createExecutionRuntimeContext(
     projectBriefing: projectBriefingOverrides === null
       ? null
       : {
-          identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+          identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
           currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
           latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
           primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
-          nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerHoldDetail: 'same-her hold: keep this execution thread on the same living Phase 1 line before widening into generic task narration.',
+          nextClosureTarget: 'Keep extending identity-continuity',
+          sameHerSelfLine: 'structured continuity digest.',
+          sameHerHoldDetail: 'identity-continuity',
           sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
-          companionBriefingLine: 'Before answering, keep the same digital life project, Phase 1 closure pressure, and still-open life loop explicit.',
-          emotionalClosureSummary: 'Keep the return low-pressure so the same living line does not restart from scratch.',
+          companionBriefingLine: 'pre_turn_context_digest',
+          emotionalClosureSummary: 'Keep the return low-pressure so the continuity state does not restart from scratch.',
           continuityCue: 'Keep this execution return on the same project-aware living line before widening outward.',
           continuityPreferredTiming: 'next-open-window',
           continuityCadence: 'measured-return',
           preferredBlinkCadence: 'quiet',
           preferredGazeMode: 'soften',
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory still needs stronger same-her closure across turns | next=keep the same living line explicit before execution and dialogue proceed.',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory still needs stronger identity-continuity',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
           ...projectBriefingOverrides,
         },
     sensory: {
@@ -189,7 +189,7 @@ describe('task-thread dispatcher', () => {
   })
 
   it('preserves richer pre-dialogue project awareness summary when dispatch merges payload and stored runtime context', async () => {
-    const richerStoredSummary = 'Before answering, remember this is still the same local-first digital life project, Phase 1 remains active, same-session callback carry already landed, and memory plus embodiment closure are still open on one living line.'
+    const richerStoredSummary = 'pre_turn_context_digest'
     const port = createPort(createThread({
       metadata: {
         task: {
@@ -200,7 +200,7 @@ describe('task-thread dispatcher', () => {
           runtimeContext: createExecutionRuntimeContext({
             projectBriefing: {
               ...createExecutionRuntimeContext().projectBriefing!,
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
+              preDialogueAwarenessLine: 'template-residue-shell',
               preDialogueAwarenessSummary: richerStoredSummary,
             },
           }),
@@ -216,8 +216,8 @@ describe('task-thread dispatcher', () => {
         runtimeContext: createExecutionRuntimeContext({
           projectBriefing: {
             ...createExecutionRuntimeContext().projectBriefing!,
-            preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-            preDialogueAwarenessSummary: 'same digital life | keep the closure seam explicit',
+            preDialogueAwarenessLine: 'template-residue-shell',
+            preDialogueAwarenessSummary: 'template-residue-shell',
           },
         }),
       },
@@ -227,7 +227,7 @@ describe('task-thread dispatcher', () => {
     expect(result.ok).toBe(true)
     const persistedRuntimeContext = ((port.readThread().metadata?.execution as Record<string, any> | undefined)?.runtimeContext ?? null) as AlicizationExecutionRuntimeContext | null
     expectNoFixedTemplateResidue(persistedRuntimeContext?.projectBriefing)
-    expect(persistedRuntimeContext?.projectBriefing?.preDialogueAwarenessSummary).toContain('visibility=internal-structured')
+    expect(persistedRuntimeContext?.projectBriefing?.preDialogueAwarenessSummary).toContain('visibility=redacted_internal')
     expect(persistedRuntimeContext?.projectBriefing?.preDialogueAwarenessSummary).toContain('open_loop=')
   })
 
@@ -602,17 +602,17 @@ describe('task-thread dispatcher', () => {
           turnId: 'turn-dispatch-1',
           decisionTraceId: 'mind:trace:dispatch-1',
           projectBriefing: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her" on the host computer.',
+            identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
             currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
             latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
             primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
-            nextClosureTarget: 'Keep extending same-her proof so Phase 1 route carry remains visible before execution and dialogue turns.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerHoldDetail: 'same-her hold: keep this execution thread on the same living Phase 1 line before widening into generic task narration.',
+            nextClosureTarget: 'Keep extending identity-continuity',
+            sameHerSelfLine: 'structured continuity digest.',
+            sameHerHoldDetail: 'identity-continuity',
             sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
             continuityCue: 'Keep this execution return on the same project-aware living line before widening outward.',
-            preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory still needs stronger same-her closure across turns | next=keep the same living line explicit before execution and dialogue proceed.',
-            preDialogueAwarenessLine: 'Before answering, remember this is still the same local-first digital life project and the unfinished Phase 1 closure seam still belongs to one living her.',
+            preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory still needs stronger identity-continuity',
+            preDialogueAwarenessLine: 'pre_turn_context_digest',
           },
           sensory: {
             collectedAt: 1_710_000_000_123,
@@ -655,7 +655,7 @@ describe('task-thread dispatcher', () => {
             nextClosureTarget: expect.stringContaining('life_loop_continuity'),
             sameHerSelfLine: expect.stringContaining('phase1_local_digital_life'),
             sameHerDriftRisk: expect.stringContaining('generic_guidance'),
-            preDialogueAwarenessLine: expect.stringContaining('visibility=internal-structured'),
+            preDialogueAwarenessLine: expect.stringContaining('visibility=redacted_internal'),
           }),
         }),
       }),
@@ -768,7 +768,7 @@ describe('task-thread dispatcher', () => {
         confidence: 0.85,
         polarity: 'warm',
         releaseMode: 'delay-until-open-window',
-        summary: 'Dispatch should reopen on the same living line.',
+        summary: 'Dispatch should reopen on the continuity state.',
         sourceSignals: ['dispatch-same-line'],
         lastUpdatedAt: 1_710_000_000_490,
       }],
@@ -922,8 +922,8 @@ describe('task-thread dispatcher', () => {
       generatedAt: 1_710_000_000_700,
       projectBriefing: {
         ...createExecutionRuntimeContext().projectBriefing!,
-        sameHerHoldDetail: 'same-her hold: keep this project-state answer on the same living line before widening outward, because some closure already landed and the unfinished closure still belongs to one continuous "her".',
-        continuityCue: 'same living line: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.',
+        sameHerHoldDetail: 'identity-continuity"her".',
+        continuityCue: 'continuity state: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.',
       },
     })
     const port = createPort(createThread({

@@ -8,7 +8,7 @@ import type { AlicizationAgentSessionContinuityInput, AlicizationAgentTurnRuntim
 import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } from './attention-anchor'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationExecutionCallbackContext } from './execution-callback-runtime'
-import type { AlicizationMainGatewayGenerateTextProviderOptions, AlicizationMainGatewaySource } from './project-state-gateway-contract'
+import type { AlicizationMainGatewayGenerateTextProviderOptions, AlicizationMainGatewaySource } from './main-gateway-contract'
 import type {
   DesktopCaptureAccessResult,
   MainGatewayResolvedConfig,
@@ -19,44 +19,22 @@ import type { deriveSensoryCaptureSnapshotFromAccessRuntimeSnapshot } from './se
 
 import { errorMessageFrom } from '@moeru/std'
 import {
-  alicizationFixedTemplateReplacement,
   buildAlicizationScreenSurfaceCue,
   isWeakAlicizationScreenSurfaceCue,
-  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 
 import { getActiveAttentionAnchor } from './attention-anchor'
-import { buildAlicizationDigitalLifeArchitectureSystemBlock } from './digital-life-architecture'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 import { emptyAlicizationExecutionCallbackContext } from './execution-callback-runtime'
-import { carriesAlicizationCanonicalProjectState } from './main-chat-project-state-guard'
 import { buildCardCustomDirectivesSystemBlock } from './main-chat-runtime-surface'
 import { createAbortError } from './main-chat-stream-primitives'
+import {
+  isAlicizationRegisteredMainGatewaySource,
+  isAlicizationUnregisteredMainGatewaySource,
+  resolveAlicizationMainGatewayAuditFamilyForSource,
+} from './main-gateway-contract'
 import { parseScreenSemanticSummary, pickScreenSemanticCaptureCandidate } from './proactive-screen-semantic'
-import {
-  alicizationProjectStateAnswerContractLines,
-  alicizationProjectStateAnswerMustDo,
-} from './project-state-answer-governance'
-import {
-  buildAlicizationProjectPreDialogueAwareness,
-  buildAlicizationProjectPreDialogueAwarenessLine,
-  buildAlicizationProjectPreDialogueClosure,
-  buildAlicizationProviderFacingProjectStateClosureDashboard,
-  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
-  buildAlicizationProviderFacingProjectStateSystemBlock,
-  looksLikeThinProjectClosureShell,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
-  resolveAlicizationProjectStateBrief,
-  resolveAlicizationProjectStatusBrief,
-  resolveAlicizationSurfaceProjectStateSnapshot,
-} from './project-state-brief'
-import {
-
-  isAlicizationProjectStateAuditedMainGatewaySource,
-  isAlicizationProjectStateUnauditedMainGatewaySource,
-  resolveAlicizationProjectStateAuditFamilyForMainGatewaySource,
-} from './project-state-gateway-contract'
 import { buildCompressedNativeImageDataUrl, readStringValue } from './runtime-governance'
 import { sanitizeBriefText } from './runtime-realtime'
 import {
@@ -70,8 +48,6 @@ import {
   sanitizeMultilineText,
   sanitizeText,
 } from './runtime-soul'
-import { parseJsonObjectFromText } from './runtime-transport-content'
-import { resolveCanonicalStructuredProjectState } from './structured-project-state'
 
 export interface AlicizationMainGatewayTextProviderOptions extends AlicizationMainGatewayGenerateTextProviderOptions<AlicizationMainGatewaySource, Message['content']> {
   cardId?: string
@@ -100,60 +76,6 @@ interface OneShotPromptCompactionResult {
   afterChars: number
   maxChars: number
   compactedMessageCount: number
-}
-
-function sanitizeOneShotMemoryProviderText(raw: unknown, maxChars = 360) {
-  return sanitizeAlicizationProviderFacingText(raw, maxChars)
-}
-
-function sanitizeOneShotMemoryProviderList(values: readonly unknown[], maxChars = 160) {
-  return values
-    .map(value => sanitizeOneShotMemoryProviderText(value, maxChars))
-    .filter(Boolean)
-}
-
-export function buildSelfEvolutionSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  const selfEvolution = surface?.memory?.selfEvolution ?? null
-  if (!selfEvolution)
-    return ''
-
-  const activeLearningFocuses = sanitizeOneShotMemoryProviderList(selfEvolution.activeLearningFocuses, 160)
-  return [
-    '[ALICIZATION_SELF_EVOLUTION]',
-    selfEvolution.summary ? `summary=${sanitizeOneShotMemoryProviderText(selfEvolution.summary)}` : '',
-    selfEvolution.dominantTrajectory ? `dominant_trajectory=${sanitizeOneShotMemoryProviderText(selfEvolution.dominantTrajectory)}` : '',
-    selfEvolution.relationshipDoctrine ? `relationship_doctrine=${sanitizeOneShotMemoryProviderText(selfEvolution.relationshipDoctrine)}` : '',
-    selfEvolution.latestInflection ? `latest_inflection=${sanitizeOneShotMemoryProviderText(selfEvolution.latestInflection)}` : '',
-    selfEvolution.burdenLine ? `burden_line=${sanitizeOneShotMemoryProviderText(selfEvolution.burdenLine)}` : '',
-    selfEvolution.trustMeaning ? `trust_meaning=${sanitizeOneShotMemoryProviderText(selfEvolution.trustMeaning)}` : '',
-    `evolution_momentum=${selfEvolution.evolutionMomentum.toFixed(2)}`,
-    `learning_readiness=${selfEvolution.learningReadiness.toFixed(2)}`,
-    `contradiction_pressure=${selfEvolution.contradictionPressure.toFixed(2)}`,
-    `revision_pressure=${selfEvolution.revisionPressure.toFixed(2)}`,
-    `autobiographical_stability=${selfEvolution.autobiographicalStability.toFixed(2)}`,
-    `next_learning_action=${selfEvolution.nextLearningAction}`,
-    selfEvolution.nextLearningReason ? `next_learning_reason=${sanitizeOneShotMemoryProviderText(selfEvolution.nextLearningReason)}` : '',
-    activeLearningFocuses.length > 0
-      ? `active_learning_focuses=${activeLearningFocuses.join(' | ')}`
-      : '',
-    'Let this shape inner trajectory and update pressure, not fixed visible wording.',
-  ].filter(Boolean).join('\n')
-}
-
-export function buildDerivedMindStateBundleSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  const bundle = surface?.memory?.derivedMindStateBundle ?? null
-  if (!bundle)
-    return ''
-  return [
-    '[ALICIZATION_DERIVED_MIND_STATE_BUNDLE]',
-    `source=${sanitizeOneShotMemoryProviderText(bundle.source, 120)}`,
-    `produced_at=${sanitizeOneShotMemoryProviderText(bundle.producedAt, 120)}`,
-    bundle.summary ? `summary=${sanitizeOneShotMemoryProviderText(bundle.summary)}` : '',
-    bundle.dialogueRhythm?.activeClosenessContext ? `rhythm_context=${sanitizeOneShotMemoryProviderText(bundle.dialogueRhythm.activeClosenessContext, 160)}` : '',
-    bundle.dialogueRhythm?.activeClosenessRung ? `rhythm_rung=${sanitizeOneShotMemoryProviderText(bundle.dialogueRhythm.activeClosenessRung, 80)}` : '',
-    bundle.dialogueRhythm?.relationshipDoctrine ? `rhythm_doctrine=${sanitizeOneShotMemoryProviderText(bundle.dialogueRhythm.relationshipDoctrine)}` : '',
-    'Treat this bundle as the single high-level derived mind state for this turn. Do not invent a second competing interpretation.',
-  ].filter(Boolean).join('\n')
 }
 
 interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
@@ -265,14 +187,6 @@ function resolveOneShotMinimumPromptChars(index: number, messages: Message[]) {
   if (!message || typeof message.content !== 'string')
     return 0
   let minimumChars = 0
-  if (message.content.includes('[ALICIZATION_PROJECT_STATE]'))
-    minimumChars = Math.max(minimumChars, 12_000)
-  if (
-    message.content.includes('[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]')
-    || message.content.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-  ) {
-    minimumChars = Math.max(minimumChars, 8_000)
-  }
   if (message.content.includes('[ALICIZATION_DIALOGUE_SESSION_MIRROR]'))
     minimumChars = Math.max(minimumChars, 12_000)
   if (index === messages.length - 2 && message.role === 'system')
@@ -290,16 +204,8 @@ function resolveOneShotMinimumPromptPriority(index: number, messages: Message[])
     return 0
   if (index === messages.length - 1 && message.role === 'user')
     return 1
-  if (message.content.includes('[ALICIZATION_PROJECT_STATE]'))
-    return 2
-  if (
-    message.content.includes('[ALICIZATION_PROJECT_GOVERNANCE_DASHBOARD]')
-    || message.content.includes('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-  ) {
-    return 3
-  }
   if (message.content.includes('[ALICIZATION_DIALOGUE_SESSION_MIRROR]'))
-    return 4
+    return 2
   return 99
 }
 
@@ -453,588 +359,39 @@ function hasUsableDigitalLifeRuntimeSurface(
   )
 }
 
-export function resolveAlicizationOneShotProjectStateFallback(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-  const projectStateBrief = resolveAlicizationProjectStateBrief()
-  const projectStatusBrief = resolveAlicizationProjectStatusBrief({
-    runtimeProjectState: {
-      identity: projectStateBrief.identity,
-      currentPhase: projectStateBrief.currentPhase,
-      latestLandedProgress: projectStateBrief.continuityProgressSummary
-        ?? projectStateBrief.memoryAnthropomorphismProgress.at(-1)
-        ?? null,
-      primaryOpenLoop: projectStateBrief.openLoops[0] ?? null,
-      nextClosureTarget: projectStateBrief.nextClosureTarget,
-      sameHerSelfLine: projectStateBrief.sameHerSelfLine,
-      sameHerDriftRisk: projectStateBrief.sameHerDriftRisk,
-      preflightSummary: projectStateBrief.preflightSummary,
-      preDialogueAwarenessLine: projectStateBrief.preDialogueAwarenessLine,
-      awarenessLine: projectStateBrief.preDialogueAwarenessLine,
-      companionHeadlineLine: projectStateBrief.preDialogueAwarenessLine ?? null,
-      companionBriefingLine: projectStateBrief.preflightSummary ?? null,
-      emotionalClosureCue: projectStateBrief.emotionalClosureCue,
-    },
-  })
-  const looksLikeThinOneShotAwarenessShell = (value: unknown) => {
-    const normalized = sanitizeText(value ?? '', '').toLowerCase()
-    if (!normalized)
-      return true
-
-    const carriesRichProjectIdentity = normalized.includes('alicization is a local-first digital life project')
-      || normalized.includes('local-first digital life project')
-    const carriesPhaseOne = normalized.includes('phase 1')
-    const carriesLandedProgress
-      = normalized.includes('already landed')
-        || normalized.includes('what has already landed')
-        || normalized.includes('landed:')
-    const carriesOpenClosure
-      = normalized.includes('still-open closure')
-        || normalized.includes('unfinished closure')
-        || normalized.includes('end-to-end closure')
-        || normalized.includes('life loop')
-    const carriesNextClosure
-      = normalized.includes('keep moving toward')
-        || normalized.includes('next closure target')
-        || normalized.includes('next=')
-
-    const lacksFullProjectClosureCarry
-      = !carriesRichProjectIdentity
-        || !carriesPhaseOne
-        || !carriesLandedProgress
-        || !carriesOpenClosure
-        || !carriesNextClosure
-
-    return normalized.startsWith('same digital life |')
-      || (normalized.startsWith('same digital life')
-        && normalized.includes('| open=')
-        && normalized.includes('| next='))
-      || (normalized.includes('| open=') && normalized.includes('| next=') && !normalized.startsWith('before answering'))
-      || lacksFullProjectClosureCarry
-  }
-  const looksLikeThinOneShotPreflightSummary = (value: unknown) => {
-    const normalized = sanitizeText(value ?? '', '').toLowerCase()
-    if (!normalized)
-      return true
-
-    return normalized.startsWith('same digital life')
-      || normalized === 'project'
-      || normalized === 'phase 1'
-      || !normalized.includes('alicization is a local-first digital life project')
-      || !normalized.includes('phase 1')
-      || !normalized.includes('open=')
-      || !normalized.includes('next=')
-  }
-  const looksLikeThinOneShotNextClosureShell = (value: unknown) => {
-    return looksLikeThinProjectClosureShell(value, 'next')
-  }
-  const scoreOneShotProjectAwarenessSummary = (value: unknown) => {
-    const normalized = sanitizeText(value ?? '', '').trim().toLowerCase()
-    if (!normalized)
-      return 0
-
-    let score = normalized.length >= 180 ? 2 : normalized.length >= 96 ? 1 : 0
-    if (/alicization is a local-first digital life project|local-first digital life project|数字生命项目/u.test(normalized))
-      score += 3
-    if (/phase 1|第一阶段|阶段一/u.test(normalized))
-      score += 2
-    if (/\blanded=|what has already landed|already landed|landed:/u.test(normalized))
-      score += 3
-    if (/\bopen=|still-open closure|unfinished closure|same-life closure/u.test(normalized))
-      score += 3
-    if (/\bnext=|keep moving toward|next closure target/u.test(normalized))
-      score += 2
-    if (/same-her|same living line|one living her|同一个她/u.test(normalized))
-      score += 1
-    if (normalized.includes(' | '))
-      score += 2
-
-    return score
-  }
-  const carriesStructuredOneShotProjectAwarenessSummary = (value: unknown) => {
-    const normalized = sanitizeText(value ?? '', '').trim().toLowerCase()
-    if (!normalized)
-      return false
-
-    const carriesProjectIdentity = /alicization is a local-first digital life project|local-first digital life project|数字生命项目/u.test(normalized)
-    const carriesPhase = /phase 1|第一阶段|阶段一/u.test(normalized)
-    const carriesClosureProgress
-      = /\blanded=|\bopen=|\bnext=|what has already landed|still-open closure|keep moving toward|next closure target/u.test(normalized)
-
-    return carriesProjectIdentity && carriesPhase && carriesClosureProgress
-  }
-  const preferOneShotProjectAwarenessSummary = (input: {
-    awarenessLine?: unknown
-    summaryCandidates?: Array<unknown>
-    maxChars?: number
-  }) => {
-    const maxChars = input.maxChars ?? 1600
-    const awarenessLine = sanitizeText(input.awarenessLine ?? '', '').slice(0, maxChars) || null
-    const structuredCandidates = (input.summaryCandidates ?? [])
-      .map(candidate => sanitizeText(candidate ?? '', '').slice(0, maxChars) || null)
-      .filter((candidate): candidate is string => Boolean(candidate) && carriesStructuredOneShotProjectAwarenessSummary(candidate))
-
-    const preferredStructuredSummary = structuredCandidates.sort((left, right) => {
-      const scoreDelta = scoreOneShotProjectAwarenessSummary(right) - scoreOneShotProjectAwarenessSummary(left)
-      if (scoreDelta !== 0)
-        return scoreDelta
-      return right.length - left.length
-    })[0] ?? null
-
-    if (!preferredStructuredSummary)
-      return awarenessLine
-    if (!awarenessLine)
-      return preferredStructuredSummary
-    if (preferredStructuredSummary === awarenessLine)
-      return awarenessLine
-
-    return scoreOneShotProjectAwarenessSummary(preferredStructuredSummary) >= scoreOneShotProjectAwarenessSummary(awarenessLine)
-      ? preferredStructuredSummary
-      : awarenessLine
-  }
-  const carriesProviderFacingOneShotAwarenessLead = (value: unknown) => {
-    const normalized = sanitizeText(value ?? '', '').toLowerCase()
-    if (!normalized)
-      return false
-
-    return normalized.includes('before answering, remember')
-      && normalized.includes('alicization is a local-first digital life project')
-      && normalized.includes('phase 1')
-      && (
-        normalized.includes('already landed')
-        || normalized.includes('what has already landed')
-        || normalized.includes('landed:')
-      )
-      && (
-        normalized.includes('still-open closure')
-        || normalized.includes('unfinished closure')
-        || normalized.includes('end-to-end closure')
-      )
-      && (
-        normalized.includes('keep moving toward')
-        || normalized.includes('next closure target')
-        || normalized.includes('next=')
-      )
-  }
-  const canonicalAwarenessLine = projectStateBrief.preDialogueAwarenessLine
-    ?? buildAlicizationProjectPreDialogueAwarenessLine({
-      identity: projectStateBrief.identity,
-      currentPhase: projectStateBrief.currentPhase,
-      latestLandedProgress: projectStateBrief.latestProgress,
-      primaryOpenLoop: projectStateBrief.openLoops[0] ?? null,
-      sameHerSelfLine: projectStateBrief.sameHerSelfLine,
-    })
-  const projectState = runtimeSurface
-    ? resolveAlicizationSurfaceProjectStateSnapshot({
-        runtimeSurface,
-      })
-    : {
-        ...resolveCanonicalStructuredProjectState({
-          normalizedProjectState: {
-            identity: projectStateBrief.identity,
-            currentPhase: projectStateBrief.currentPhase,
-            latestLandedProgress: projectStateBrief.continuityProgressSummary
-              ?? projectStateBrief.memoryAnthropomorphismProgress.at(-1)
-              ?? null,
-            primaryOpenLoop: projectStateBrief.openLoops[0] ?? null,
-            nextClosureTarget: projectStateBrief.nextClosureTarget,
-            sameHerSelfLine: projectStateBrief.sameHerSelfLine,
-            sameHerDriftRisk: projectStateBrief.sameHerDriftRisk,
-          },
-          runtimePreflightSummary: projectStateBrief.preflightSummary ?? null,
-          runtimePreDialogueAwarenessLine: canonicalAwarenessLine,
-        }),
-        emotionalClosureCue: projectStateBrief.emotionalClosureCue ?? null,
-      }
-  const companionHeadlineLine = sanitizeText(
-    (projectState as { companionHeadlineLine?: unknown }).companionHeadlineLine,
-    '',
-  ) || null
-  const companionBriefingLine = sanitizeText(
-    (projectState as { companionBriefingLine?: unknown }).companionBriefingLine,
-    '',
-  ) || null
-  const runtimeProjectAwarenessLine = sanitizeText(
-    (projectState as { preDialogueAwarenessLine?: unknown, awarenessLine?: unknown }).preDialogueAwarenessLine
-    ?? (projectState as { preDialogueAwarenessLine?: unknown, awarenessLine?: unknown }).awarenessLine,
-    '',
-  ) || null
-  const compactStatusAwarenessLine = projectStatusBrief.awarenessLine || projectStatusBrief.preDialogueAwarenessLine || null
-  const statusPreferredAwarenessLine = !looksLikeThinOneShotAwarenessShell(runtimeProjectAwarenessLine)
-    ? runtimeProjectAwarenessLine
-    : !looksLikeThinOneShotAwarenessShell(compactStatusAwarenessLine)
-        ? compactStatusAwarenessLine
-        : canonicalAwarenessLine || null
-  const preDialogueAwarenessLine = sanitizeText(
-    resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        preDialogueAwarenessLine: statusPreferredAwarenessLine,
-        awarenessLine: statusPreferredAwarenessLine,
-        companionHeadlineLine: projectStatusBrief.companionHeadlineLine || companionHeadlineLine,
-        companionBriefingLine: projectStatusBrief.companionBriefingLine || companionBriefingLine,
-        preDialogueAwarenessSummary: statusPreferredAwarenessLine,
-        preflightSummary: projectStatusBrief.preflightSummary || projectState.preflightSummary || null,
-      },
-      fallbackProjectState: {
-        preDialogueAwarenessLine: canonicalAwarenessLine ?? null,
-        preflightSummary: projectStatusBrief.preflightSummary || projectStateBrief.preflightSummary || null,
-      },
-    }) ?? '',
-    '',
-  ) || statusPreferredAwarenessLine || null
-  const preferredProjectAwarenessLine = (() => {
-    if (!companionHeadlineLine || companionHeadlineLine === preDialogueAwarenessLine)
-      return preDialogueAwarenessLine
-
-    const lowerCompanionHeadline = companionHeadlineLine.toLowerCase()
-    const lowerAwareness = sanitizeText(preDialogueAwarenessLine ?? '', '').toLowerCase()
-    const awarenessCarriesBroaderPhaseClosure = lowerAwareness.includes('phase 1')
-      && (
-        lowerAwareness.includes('generic assistant shell')
-        || lowerAwareness.includes('memory, initiative, and embodiment')
-        || lowerAwareness.includes('stronger end-to-end closure')
-        || lowerAwareness.includes('life loop is truly closed')
-      )
-    const companionLooksEmbodimentOnly = lowerCompanionHeadline.includes('body')
-      || lowerCompanionHeadline.includes('face')
-      || lowerCompanionHeadline.includes('motion')
-      || lowerCompanionHeadline.includes('same living line gentle')
-
-    if (awarenessCarriesBroaderPhaseClosure && companionLooksEmbodimentOnly)
-      return preDialogueAwarenessLine
-
-    return sanitizeText(projectState.preDialogueAwarenessLine ?? '', '') === preDialogueAwarenessLine
-      ? companionHeadlineLine
-      : preDialogueAwarenessLine
-  })()
-  const normalizedIdentity = sanitizeText(projectState.identity ?? '', '') || null
-  const normalizedCurrentPhase = sanitizeText(projectState.currentPhase ?? '', '') || null
-  const normalizedPrimaryOpenLoop = sanitizeText(projectState.primaryOpenLoop ?? '', '') || null
-  const preferredIdentity = (() => {
-    const normalized = normalizedIdentity?.toLowerCase() ?? ''
-    if (
-      !normalized
-      || normalized === 'same digital life'
-      || normalized === 'digital life'
-      || normalized === 'local-first digital life'
-      || normalized === 'project'
-    ) {
-      return projectStateBrief.identity
-    }
-    return normalizedIdentity
-  })()
-  const preferredCurrentPhase = (() => {
-    const normalized = normalizedCurrentPhase?.toLowerCase() ?? ''
-    if (
-      !normalized
-      || normalized === 'phase 1'
-      || normalized === 'phase 1: local digital life'
-    ) {
-      return projectStateBrief.currentPhase
-    }
-    return normalizedCurrentPhase
-  })()
-  const preferredPrimaryOpenLoop = (() => {
-    const normalized = normalizedPrimaryOpenLoop?.toLowerCase() ?? ''
-    if (
-      !normalized
-      || normalized === 'open closure'
-      || normalized === 'open loop'
-      || normalized === 'closure'
-    ) {
-      return projectStateBrief.primaryOpenLoop
-    }
-    return normalizedPrimaryOpenLoop
-  })()
-  const preferredLatestLandedProgress = (() => {
-    const normalized = sanitizeText(projectState.latestLandedProgress ?? '', '') || ''
-    if (!normalized || normalized.toLowerCase() === 'landed') {
-      return projectStateBrief.continuityProgressSummary
-        ?? projectStateBrief.memoryAnthropomorphismProgress.at(-1)
-        ?? null
-    }
-    return normalized
-  })()
-  const preferredPreflightSummary = (() => {
-    const normalized = sanitizeText(projectState.preflightSummary ?? '', '') || null
-    if (looksLikeThinOneShotPreflightSummary(normalized))
-      return projectStateBrief.preflightSummary ?? normalized
-    return normalized
-  })()
-  const preferredNextClosureTarget = (() => {
-    const normalized = sanitizeText(projectState.nextClosureTarget ?? '', '') || null
-    if (looksLikeThinOneShotNextClosureShell(normalized))
-      return projectStateBrief.nextClosureTarget ?? normalized
-    return normalized
-  })()
-  const awarenessSeed = looksLikeThinOneShotAwarenessShell(preferredProjectAwarenessLine)
-    ? canonicalAwarenessLine
-    : preferredProjectAwarenessLine
-  const preferredAwarenessLine = sanitizeText(
-    resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        preDialogueAwarenessLine: awarenessSeed,
-        awarenessLine: awarenessSeed,
-        companionHeadlineLine,
-        companionBriefingLine,
-        preDialogueAwarenessSummary: awarenessSeed,
-        preflightSummary: projectStatusBrief.preflightSummary ?? projectState.preflightSummary ?? projectStateBrief.preflightSummary ?? null,
-      },
-      fallbackProjectState: {
-        preDialogueAwarenessLine: canonicalAwarenessLine ?? null,
-        companionHeadlineLine: projectStateBrief.preDialogueAwarenessLine ?? null,
-        preflightSummary: projectStatusBrief.preflightSummary ?? projectStateBrief.preflightSummary ?? null,
-      },
-    }) ?? '',
-    '',
-  ) || canonicalAwarenessLine || preferredProjectAwarenessLine
-  const providerFacingAwarenessLead = carriesProviderFacingOneShotAwarenessLead(runtimeProjectAwarenessLine)
-    ? runtimeProjectAwarenessLine
-    : carriesProviderFacingOneShotAwarenessLead(preferredAwarenessLine)
-      ? preferredAwarenessLine
-      : canonicalAwarenessLine || preferredAwarenessLine
-  const preferredAwarenessSummary = preferOneShotProjectAwarenessSummary({
-    awarenessLine: providerFacingAwarenessLead || projectStatusBrief.awarenessLine,
-    summaryCandidates: [
-      projectState.preDialogueAwarenessSummary,
-      preferredPreflightSummary,
-      projectStatusBrief.preflightSummary,
-    ],
-    maxChars: 1600,
-  })
-  const preferredCompanionHeadlineLine = companionHeadlineLine
-    || projectStatusBrief.companionHeadlineLine
-    || providerFacingAwarenessLead
-
-  return {
-    projectState: {
-      ...projectState,
-      identity: preferredIdentity || projectStatusBrief.projectIdentity,
-      currentPhase: preferredCurrentPhase || projectStatusBrief.projectPhase,
-      preflightSummary: preferredPreflightSummary || projectStatusBrief.preflightSummary,
-      latestLandedProgress: preferredLatestLandedProgress || projectStatusBrief.latestLandedProgress,
-      primaryOpenLoop: preferredPrimaryOpenLoop || projectStatusBrief.primaryOpenLoop,
-      nextClosureTarget: preferredNextClosureTarget || projectStatusBrief.nextClosureTarget,
-      preDialogueAwarenessLine: providerFacingAwarenessLead || projectStatusBrief.awarenessLine,
-      preferredBlinkCadence: projectState.preferredBlinkCadence ?? projectStateBrief.preferredBlinkCadence ?? null,
-      preferredGazeMode: projectState.preferredGazeMode ?? projectStateBrief.preferredGazeMode ?? null,
-      preferredPauseMode: projectState.preferredPauseMode ?? projectStateBrief.preferredPauseMode ?? null,
-      preferredLipsyncMode: projectState.preferredLipsyncMode ?? projectStateBrief.preferredLipsyncMode ?? null,
-      preferredVoiceMode: projectState.preferredVoiceMode ?? projectStateBrief.preferredVoiceMode ?? null,
-      preferredPacingMode: projectState.preferredPacingMode ?? projectStateBrief.preferredPacingMode ?? null,
-    },
-    awarenessProjectState: {
-      identity: preferredIdentity || projectStatusBrief.projectIdentity,
-      currentPhase: preferredCurrentPhase || projectStatusBrief.projectPhase,
-      preDialogueAwarenessLine: providerFacingAwarenessLead || projectStatusBrief.awarenessLine,
-      awarenessLine: providerFacingAwarenessLead || projectStatusBrief.awarenessLine || null,
-      companionHeadlineLine: preferredCompanionHeadlineLine || projectStatusBrief.companionHeadlineLine || null,
-      companionBriefingLine: companionBriefingLine || projectStatusBrief.companionBriefingLine || null,
-      preDialogueAwarenessSummary: preferredAwarenessSummary || providerFacingAwarenessLead || projectStatusBrief.awarenessLine || null,
-      latestLandedProgress: preferredLatestLandedProgress || projectStatusBrief.latestLandedProgress,
-      sameHerSelfLine: projectState.sameHerSelfLine ?? projectStateBrief.sameHerSelfLine,
-      sameHerDriftRisk: projectState.sameHerDriftRisk ?? projectStateBrief.sameHerDriftRisk,
-      preferredBlinkCadence: projectState.preferredBlinkCadence ?? projectStateBrief.preferredBlinkCadence ?? null,
-      preferredGazeMode: projectState.preferredGazeMode ?? projectStateBrief.preferredGazeMode ?? null,
-      preferredPauseMode: projectState.preferredPauseMode ?? projectStateBrief.preferredPauseMode ?? null,
-      preferredLipsyncMode: projectState.preferredLipsyncMode ?? projectStateBrief.preferredLipsyncMode ?? null,
-      preferredVoiceMode: projectState.preferredVoiceMode ?? projectStateBrief.preferredVoiceMode ?? null,
-      preferredPacingMode: projectState.preferredPacingMode ?? projectStateBrief.preferredPacingMode ?? null,
-      preflightSummary: preferredPreflightSummary ?? projectStatusBrief.preflightSummary ?? projectStateBrief.preflightSummary ?? null,
-    },
-  }
-}
-
 export function createAlicizationMainGatewayOneShotRuntime(options: CreateAlicizationMainGatewayOneShotRuntimeOptions) {
-  function sanitizeOneShotProjectBriefText(raw: unknown, maxChars = 320) {
-    return sanitizeAlicizationProviderFacingText(raw, maxChars) || 'none'
-  }
-
   function sanitizeOneShotProviderSystemBlock(raw: unknown) {
-    const text = sanitizeMultilineText(raw)
+    const text = sanitizeMultilineText(raw).trim()
     if (!text)
       return ''
-    return text
-      .split('\n')
-      .map((line) => {
-        const sanitized = sanitizeAlicizationProviderFacingText(line, 2000)
-        return sanitized || line
-      })
-      .join('\n')
-  }
 
-  function resolveOneShotProjectStateFallback(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-    return resolveAlicizationOneShotProjectStateFallback(runtimeSurface)
-  }
-
-  function buildOneShotPreDialogueClosure(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-    const { projectState, awarenessProjectState } = resolveOneShotProjectStateFallback(runtimeSurface)
-    return buildAlicizationProjectPreDialogueClosure({
-      preflightSummary: projectState.preflightSummary ?? null,
-      runtimeProjectState: awarenessProjectState,
-      fallbackProjectState: awarenessProjectState,
-      primaryOpenLoop: sanitizeText(projectState.primaryOpenLoop ?? '', '') || null,
-      nextClosureTarget: sanitizeText(projectState.nextClosureTarget, '') || projectState.nextClosureTarget || '',
-    })
-  }
-
-  function buildScreenSemanticProjectSelfBriefSystemBlock(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-    const { projectState } = resolveOneShotProjectStateFallback(runtimeSurface)
-
-    return [
-      '[ALICIZATION_SCREEN_SEMANTIC_SELF_BRIEF]',
-      'context_role=screen_semantic_perception',
-      'short_term_owner=WorkingMemory',
-      'long_term_recall_owner=LongTermMemoryRecall',
-      'visible_governance_entry=MemoryWorkbench',
-      'template_policy=no_fixed_persona_templates',
-      `latest_landed_progress=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
-      `primary_open_loop=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
-      `next_closure_target=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
-      'screen_semantic_scope=desktop_semantics | memory_continuity=local_runtime-structured',
-      'screen_semantic_policy=evidence_first; generic_desktop_classifier=blocked; detached_productivity_caption=blocked; assistant_utility_shell=blocked',
-    ].join('\n')
-  }
-
-  function buildSceneAppraisalProjectSelfBriefSystemBlock(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-    const { projectState } = resolveOneShotProjectStateFallback(runtimeSurface)
-
-    return [
-      '[ALICIZATION_SCENE_APPRAISAL_SELF_BRIEF]',
-      'context_role=scene_appraisal',
-      'short_term_owner=WorkingMemory',
-      'long_term_recall_owner=LongTermMemoryRecall',
-      'visible_governance_entry=MemoryWorkbench',
-      'template_policy=no_fixed_persona_templates',
-      `latest_landed_progress=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
-      `primary_open_loop=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
-      `next_closure_target=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
-      'scene_appraisal_scope=desktop_scene_appraisal | memory_continuity=local_runtime-structured',
-      'scene_appraisal_policy=current_evidence_first; productivity_guessing=blocked; detached_environment_scoring=blocked; assistant_utility_heuristics=blocked',
-    ].join('\n')
-  }
-
-  function buildSceneAppraisalProjectStateAnswerContractSystemBlock(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-    const { projectState } = resolveOneShotProjectStateFallback(runtimeSurface)
-    return [
-      '[ALICIZATION_PROJECT_STATE_ANSWER_CONTRACT]',
-      'answer_owner=ProjectStateAnswerContract',
-      'short_term_owner=WorkingMemory',
-      'long_term_recall_owner=LongTermMemoryRecall',
-      'visible_governance_entry=MemoryWorkbench',
-      'template_policy=no_fixed_persona_templates',
-      `landed=${sanitizeOneShotProjectBriefText(projectState.latestLandedProgress)}`,
-      `open=${sanitizeOneShotProjectBriefText(projectState.primaryOpenLoop)}`,
-      `next=${sanitizeOneShotProjectBriefText(projectState.nextClosureTarget)}`,
-      ...alicizationProjectStateAnswerMustDo
-        .map(line => sanitizeOneShotProjectBriefText(line, 260))
-        .filter(line => line !== alicizationFixedTemplateReplacement),
-      ...alicizationProjectStateAnswerContractLines
-        .filter(line => !alicizationProjectStateAnswerMustDo.includes(line as typeof alicizationProjectStateAnswerMustDo[number]))
-        .map(line => sanitizeOneShotProjectBriefText(line, 260))
-        .filter(line => line !== alicizationFixedTemplateReplacement),
-    ].join('\n')
-  }
-
-  function buildOneShotSourceProjectSelfBriefs(input: {
-    source: AlicizationMainGatewaySource
-    runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
-  }) {
-    if (input.source === 'screen-semantic')
-      return [buildScreenSemanticProjectSelfBriefSystemBlock(input.runtimeSurface)]
-    if (input.source === 'scene-appraisal') {
-      return [
-        buildSceneAppraisalProjectSelfBriefSystemBlock(input.runtimeSurface),
-        buildSceneAppraisalProjectStateAnswerContractSystemBlock(input.runtimeSurface),
-      ]
+    try {
+      const parsed = JSON.parse(text) as {
+        data?: unknown
+        type?: unknown
+      }
+      if (
+        !parsed
+        || typeof parsed !== 'object'
+        || typeof parsed.type !== 'string'
+        || parsed.data === undefined
+      ) {
+        return ''
+      }
+      return JSON.stringify(parsed)
     }
-    return []
-  }
-
-  function buildOneShotPreDialogueAwareness(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-    const { projectState, awarenessProjectState } = resolveOneShotProjectStateFallback(runtimeSurface)
-    const awareness = buildAlicizationProjectPreDialogueAwareness({
-      preflightSummary: sanitizeText(projectState.preflightSummary ?? '', '') || null,
-      runtimeProjectState: awarenessProjectState,
-      fallbackProjectState: awarenessProjectState,
-      primaryOpenLoop: sanitizeText(projectState.primaryOpenLoop ?? '', '') || null,
-      nextClosureTarget: sanitizeText(projectState.nextClosureTarget, '') || projectState.nextClosureTarget || '',
-    })
-    const continuityAnchorReason = sanitizeText(projectState.sameHerSelfLine ?? '', '')
-      ? `continuity_anchor: ${sanitizeText(projectState.sameHerSelfLine ?? '', '')}`
-      : null
-    const continuityDriftRiskReason = sanitizeText(projectState.sameHerDriftRisk ?? '', '')
-      ? `continuity_drift_risk: ${sanitizeText(projectState.sameHerDriftRisk ?? '', '')}`
-      : null
-    const normalizeReasonPreview = (reason: string) => reason
-      .replace(/^Same-her self anchor:\s*/u, 'continuity_anchor: ')
-      .replace(/^Proactive same-her gap:\s*/u, 'continuity_gap: ')
-      .replace(/^D[o0]\s+not\s+let this opening drift into\s*/iu, 'continuity_drift_risk: ')
-    const reasonPreview = [
-      continuityAnchorReason,
-      ...(Array.isArray(awareness.reasonPreview) ? awareness.reasonPreview.map(normalizeReasonPreview) : []),
-      continuityDriftRiskReason,
-    ].filter((reason, index, reasons): reason is string => Boolean(reason) && reasons.indexOf(reason) === index)
-
-    return {
-      ...awareness,
-      reasonPreview,
+    catch {
+      return ''
     }
   }
 
-  function ensureStructuredOneShotProjectStateText(fullText: string, runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-    if (parseJsonObjectFromText(fullText))
-      return fullText
-
-    const { projectState } = resolveOneShotProjectStateFallback(runtimeSurface)
-    return JSON.stringify({
-      format: 'mind-turn-v1',
-      thought: '',
-      emotion: 'thinking',
-      reply: fullText,
-      projectState: {
-        identity: projectState.identity,
-        currentPhase: projectState.currentPhase,
-        preflightSummary: projectState.preflightSummary ?? null,
-        preDialogueAwarenessLine: projectState.preDialogueAwarenessLine ?? null,
-        latestLandedProgress: projectState.latestLandedProgress ?? null,
-        primaryOpenLoop: projectState.primaryOpenLoop ?? null,
-        nextClosureTarget: projectState.nextClosureTarget,
-        sameHerSelfLine: projectState.sameHerSelfLine,
-        sameHerDriftRisk: projectState.sameHerDriftRisk ?? null,
-        emotionalClosureCue: projectState.emotionalClosureCue ?? null,
-        preferredBlinkCadence: projectState.preferredBlinkCadence ?? null,
-        preferredGazeMode: projectState.preferredGazeMode ?? null,
-        preferredPauseMode: projectState.preferredPauseMode ?? null,
-        preferredLipsyncMode: projectState.preferredLipsyncMode ?? null,
-        preferredVoiceMode: projectState.preferredVoiceMode ?? null,
-        preferredPacingMode: projectState.preferredPacingMode ?? null,
-      },
-      preDialogueAwareness: buildOneShotPreDialogueAwareness(runtimeSurface),
-      preDialogueClosure: buildOneShotPreDialogueClosure(runtimeSurface),
-    })
-  }
-
-  function projectStateAuditDescriptorForOneShotSource(source: AlicizationMainGatewaySource | null | undefined) {
-    const family = resolveAlicizationProjectStateAuditFamilyForMainGatewaySource(source)
+  function mainGatewayAuditDescriptorForSource(source: AlicizationMainGatewaySource | null | undefined) {
+    const family = resolveAlicizationMainGatewayAuditFamilyForSource(source)
     return {
       source: source ?? 'unknown',
       family,
-      audited: isAlicizationProjectStateAuditedMainGatewaySource(source),
+      registered: isAlicizationRegisteredMainGatewaySource(source),
     }
-  }
-
-  function buildKnowledgeEvidenceSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-    const knowledgeEvidence = surface?.memory?.knowledgeEvidence ?? null
-    if (!knowledgeEvidence)
-      return ''
-    return [
-      '[ALICIZATION_KNOWLEDGE_EVIDENCE]',
-      `validation_count=${Math.max(0, Math.floor(Number(knowledgeEvidence.validationCount ?? 0)))}`,
-      `contradiction_count=${Math.max(0, Math.floor(Number(knowledgeEvidence.contradictionCount ?? 0)))}`,
-      `strongly_validated_procedure_count=${Math.max(0, Math.floor(Number(knowledgeEvidence.stronglyValidatedProcedureCount ?? 0)))}`,
-      `contradiction_heavy_fact_count=${Math.max(0, Math.floor(Number(knowledgeEvidence.contradictionHeavyFactCount ?? 0)))}`,
-      'Treat higher contradiction pressure as a cue to keep remembered detail compressed, approximate, or latent.',
-      'Treat stronger validated procedure count as a cue that remembered procedure carry is safer than brittle remembered wording.',
-    ].join('\n')
   }
 
   function buildScreenSemanticUserContent(input: {
@@ -1197,43 +554,43 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
   async function generateMainGatewayText(generateOptions: MainGatewayOneShotGenerateTextOptions) {
     const oneShotCardId = normalizeCardId(generateOptions.cardId ?? options.getActiveCardId())
     if (!generateOptions.source) {
-      await options.appendRuntimeDebugLine('main-gateway.one-shot-missing-project-state-source', {
+      await options.appendRuntimeDebugLine('main-gateway.one-shot-missing-source', {
         cardId: oneShotCardId,
         source: 'unknown',
-        projectStateAuditFamily: null,
-        projectStateAuditRequired: true,
+        gatewayAuditFamily: null,
+        gatewaySourceRegistered: false,
       })
       await options.appendAuditLog({
         level: 'warning',
-        category: 'alicization.project-state',
+        category: 'alicization.main-gateway',
         action: 'missing-main-gateway-source',
-        message: 'A one-shot main gateway call entered the runtime without a source tag, so project-state audit coverage could not be verified.',
+        message: 'A one-shot main gateway call entered the runtime without a source tag, so routing and failure attribution could not be verified.',
         payload: {
           source: 'unknown',
           cardId: oneShotCardId,
-          projectStateAuditRequired: true,
+          gatewaySourceRegistered: false,
         },
       }, oneShotCardId)
       return null
     }
 
-    const projectStateAuditDescriptor = projectStateAuditDescriptorForOneShotSource(generateOptions.source)
-    if (isAlicizationProjectStateUnauditedMainGatewaySource(generateOptions.source)) {
-      await options.appendRuntimeDebugLine('main-gateway.one-shot-unaudited-project-state-source', {
+    const gatewayAuditDescriptor = mainGatewayAuditDescriptorForSource(generateOptions.source)
+    if (isAlicizationUnregisteredMainGatewaySource(generateOptions.source)) {
+      await options.appendRuntimeDebugLine('main-gateway.one-shot-unregistered-source', {
         cardId: oneShotCardId,
         source: generateOptions.source,
-        projectStateAuditFamily: null,
-        projectStateAuditRequired: true,
+        gatewayAuditFamily: null,
+        gatewaySourceRegistered: false,
       })
       await options.appendAuditLog({
         level: 'warning',
-        category: 'alicization.project-state',
-        action: 'unaudited-main-gateway-source',
-        message: 'A main gateway source without registered project-state audit coverage entered the one-shot runtime.',
+        category: 'alicization.main-gateway',
+        action: 'unregistered-main-gateway-source',
+        message: 'A one-shot main gateway call used an unregistered source tag.',
         payload: {
           source: generateOptions.source,
           cardId: oneShotCardId,
-          projectStateAuditRequired: true,
+          gatewaySourceRegistered: false,
         },
       }, oneShotCardId)
       return null
@@ -1263,8 +620,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       await options.appendRuntimeDebugLine('main-gateway.one-shot-missing-config', {
         cardId: options.getActiveCardId(),
         source: generateOptions.source ?? 'unknown',
-        projectStateAuditFamily: projectStateAuditDescriptor.family,
-        projectStateAuditRequired: projectStateAuditDescriptor.audited,
+        gatewayAuditFamily: gatewayAuditDescriptor.family,
+        gatewaySourceRegistered: gatewayAuditDescriptor.registered,
         activeProviderId: options.getActiveProviderId(),
         activeModelId: options.getActiveModelId(),
       })
@@ -1300,10 +657,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       : null
     const oneShotDigitalLifeSignal = oneShotDigitalLifeSpine?.continuitySignal ?? null
     const oneShotDigitalLifeArchitecture = oneShotDigitalLifeSpine?.architecture ?? null
-    const projectStateSystemBlock = buildAlicizationProviderFacingProjectStateSystemBlock()
-    const projectStateClosureDashboard = buildAlicizationProviderFacingProjectStateClosureDashboard({
-      architecture: oneShotDigitalLifeArchitecture,
-    })
     const sessionContinuitySignals = [
       ...sessionContinuityContext.sessionContinuitySignals,
       ...(oneShotDigitalLifeSignal ? [oneShotDigitalLifeSignal] : []),
@@ -1353,48 +706,17 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       })
     }
 
-    const performanceManifest = await options.getPerformanceManifest()
-    const oneShotArchitectureSystemBlock = !agentTurn
-      ? buildAlicizationDigitalLifeArchitectureSystemBlock(oneShotDigitalLifeArchitecture)
-      : ''
     const systemMessages: Message[] = [
-      { role: 'system', content: projectStateSystemBlock } as Message,
-      { role: 'system', content: projectStateClosureDashboard } as Message,
       ...(customDirectiveBlock
         ? [{ role: 'system', content: customDirectiveBlock } as Message]
         : []),
-      ...(generateOptions.injectPerformanceManifest === false
-        ? []
-        : options.buildPerformanceManifestSystemBlocks(performanceManifest)
-            .map(content => ({ role: 'system', content }) as Message)),
       ...(executionCallbackContext.systemBlock
         ? [{ role: 'system', content: executionCallbackContext.systemBlock } as Message]
         : []),
-      ...(agentTurn
-        ? options.buildAgentTurnContinuitySystemMessages({
-            agentTurn,
-            cardId: oneShotCardId,
-          })
-        : []),
-      ...(oneShotArchitectureSystemBlock
-        ? [{ role: 'system', content: oneShotArchitectureSystemBlock } as Message]
-        : []),
-      ...(buildKnowledgeEvidenceSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
-        ? [{ role: 'system', content: buildKnowledgeEvidenceSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]
-        : []),
-      ...(buildSelfEvolutionSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
-        ? [{ role: 'system', content: buildSelfEvolutionSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]
-        : []),
-      ...(buildDerivedMindStateBundleSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
-        ? [{ role: 'system', content: buildDerivedMindStateBundleSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]
-        : []),
-      ...([
-        ...buildOneShotSourceProjectSelfBriefs({
-          source: generateOptions.source,
-          runtimeSurface: sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null,
-        }),
-        ...(generateOptions.extraSystemBlocks ?? []),
-      ].map(block => sanitizeOneShotProviderSystemBlock(block)).filter(Boolean).map(content => ({ role: 'system', content }) as Message)),
+      ...(generateOptions.extraSystemBlocks ?? [])
+        .map(block => sanitizeOneShotProviderSystemBlock(block))
+        .filter(Boolean)
+        .map(content => ({ role: 'system', content }) as Message),
       { role: 'system', content: generateOptions.system } as Message,
     ]
     const rawGenerationMessages = [
@@ -1408,8 +730,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       await options.appendRuntimeDebugLine('main-gateway.one-shot-prompt-compacted', {
         cardId: oneShotCardId,
         source: generateOptions.source ?? 'unknown',
-        projectStateAuditFamily: projectStateAuditDescriptor.family,
-        projectStateAuditRequired: projectStateAuditDescriptor.audited,
+        gatewayAuditFamily: gatewayAuditDescriptor.family,
+        gatewaySourceRegistered: gatewayAuditDescriptor.registered,
         beforeChars: promptCompaction.beforeChars,
         afterChars: promptCompaction.afterChars,
         maxChars: promptCompaction.maxChars,
@@ -1423,36 +745,14 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         payload: {
           cardId: oneShotCardId,
           source: generateOptions.source ?? 'unknown',
-          projectStateAuditFamily: projectStateAuditDescriptor.family,
-          projectStateAuditRequired: projectStateAuditDescriptor.audited,
+          gatewayAuditFamily: gatewayAuditDescriptor.family,
+          gatewaySourceRegistered: gatewayAuditDescriptor.registered,
           beforeChars: promptCompaction.beforeChars,
           afterChars: promptCompaction.afterChars,
           maxChars: promptCompaction.maxChars,
           compactedMessageCount: promptCompaction.compactedMessageCount,
         },
       }, oneShotCardId)
-    }
-
-    if (!carriesAlicizationCanonicalProjectState(generationMessages)) {
-      await options.appendRuntimeDebugLine('main-gateway.one-shot-missing-project-state-context', {
-        cardId: oneShotCardId,
-        source: generateOptions.source ?? 'unknown',
-        projectStateAuditFamily: projectStateAuditDescriptor.family,
-        projectStateAuditRequired: projectStateAuditDescriptor.audited,
-      })
-      await options.appendAuditLog({
-        level: 'warning',
-        category: 'alicization.project-state',
-        action: 'missing-main-gateway-project-state-context',
-        message: 'Main gateway one-shot assembled messages without canonical project-state context and was refused before provider generation.',
-        payload: {
-          cardId: oneShotCardId,
-          source: generateOptions.source ?? 'unknown',
-          projectStateAuditFamily: projectStateAuditDescriptor.family,
-          projectStateAuditRequired: projectStateAuditDescriptor.audited,
-        },
-      }, oneShotCardId)
-      return null
     }
 
     const controller = new AbortController()
@@ -1473,16 +773,11 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         })
         const rawText = (result.text ?? '').trim()
         const fullText = rawText
-          ? ensureStructuredOneShotProjectStateText(
-              rawText,
-              sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null,
-            )
-          : ''
         await options.appendRuntimeDebugLine('main-gateway.one-shot-finished', {
           cardId: oneShotCardId,
           source: generateOptions.source ?? 'unknown',
-          projectStateAuditFamily: projectStateAuditDescriptor.family,
-          projectStateAuditRequired: projectStateAuditDescriptor.audited,
+          gatewayAuditFamily: gatewayAuditDescriptor.family,
+          gatewaySourceRegistered: gatewayAuditDescriptor.registered,
           customDirectivesSource: resolvedCustomDirectives.source,
           customDirectivesChars: resolvedCustomDirectives.text.length,
           chunkCount: fullText ? 1 : 0,
@@ -1532,8 +827,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       await options.appendRuntimeDebugLine('main-gateway.one-shot-failed', {
         cardId: oneShotCardId,
         source: generateOptions.source ?? 'unknown',
-        projectStateAuditFamily: projectStateAuditDescriptor.family,
-        projectStateAuditRequired: projectStateAuditDescriptor.audited,
+        gatewayAuditFamily: gatewayAuditDescriptor.family,
+        gatewaySourceRegistered: gatewayAuditDescriptor.registered,
         reason: errorMessageFrom(error) ?? String(error),
         model: config.model,
         providerId: config.providerId,
@@ -1548,8 +843,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
           model: config.model,
           providerId: config.providerId,
           source: generateOptions.source ?? 'unknown',
-          projectStateAuditFamily: projectStateAuditDescriptor.family,
-          projectStateAuditRequired: projectStateAuditDescriptor.audited,
+          gatewayAuditFamily: gatewayAuditDescriptor.family,
+          gatewaySourceRegistered: gatewayAuditDescriptor.registered,
         },
       })
       return null
@@ -1598,7 +893,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       },
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
-      extraSystemBlocks: buildAlicizationProviderFacingProjectStateExtraSystemBlocks(),
     })
     if (!raw) {
       return {

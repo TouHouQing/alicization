@@ -634,7 +634,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId: `turn-${mode}-vrm-script`,
-          replyText: '我先轻一点接回来。',
+          replyText: '我先中性可见占位。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -647,7 +647,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: `turn-${mode}-vrm-script`,
-          reply: '我先轻一点接回来。',
+          reply: '我先中性可见占位。',
           emotion: 'thinking',
           segments: [
             {
@@ -655,7 +655,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 10,
-              text: '我先轻一点接回来。',
+              text: '我先中性可见占位。',
               emotion: 'thinking',
               gestureWeight: 0.2,
               facialWeight: 0.34,
@@ -771,7 +771,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId: 'turn-measured-return-fallback-durable-rhythm-vrm-script',
-          replyText: '我先轻一点接回来，再慢一点看这一段。',
+          replyText: '我先中性可见占位，再慢一点看这一段。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -784,7 +784,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'turn-measured-return-fallback-durable-rhythm-vrm-script',
-          reply: '我先轻一点接回来，再慢一点看这一段。',
+          reply: '我先中性可见占位，再慢一点看这一段。',
           emotion: 'thinking',
           segments: [
             {
@@ -792,7 +792,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 17,
-              text: '我先轻一点接回来，再慢一点看这一段。',
+              text: '我先中性可见占位，再慢一点看这一段。',
               emotion: 'thinking',
               gestureWeight: 0.18,
               facialWeight: 0.32,
@@ -996,7 +996,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId: 'turn-audible-body-measured-return-segment-soften-vrm-script',
-          replyText: '我先沿着这条声音线轻一点接回来，再慢一点落下去。',
+          replyText: '我先沿着这条声音线中性可见占位，再慢一点落下去。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -1009,7 +1009,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'turn-audible-body-measured-return-segment-soften-vrm-script',
-          reply: '我先沿着这条声音线轻一点接回来，再慢一点落下去。',
+          reply: '我先沿着这条声音线中性可见占位，再慢一点落下去。',
           emotion: 'thinking',
           segments: [
             {
@@ -1017,7 +1017,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 13,
-              text: '我先沿着这条声音线轻一点接回来，',
+              text: '我先沿着这条声音线中性可见占位，',
               emotion: 'thinking',
               gestureWeight: 0.18,
               facialWeight: 0.3,
@@ -1173,7 +1173,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId: 'turn-still-voiced-face-line-vrm-script',
-          replyText: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+          replyText: '我先沿着这条还活着的表情和声音线中性可见占位。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -1186,7 +1186,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'turn-still-voiced-face-line-vrm-script',
-          reply: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+          reply: '我先沿着这条还活着的表情和声音线中性可见占位。',
           emotion: 'thinking',
           segments: [
             {
@@ -1194,7 +1194,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 20,
-              text: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+              text: '我先沿着这条还活着的表情和声音线中性可见占位。',
               emotion: 'thinking',
               gestureWeight: 0.18,
               facialWeight: 0.32,
@@ -1252,7 +1252,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId: 'turn-still-voiced-face-line-vrm-script-underscore',
-          replyText: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+          replyText: '我先沿着这条还活着的表情和声音线中性可见占位。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -1265,7 +1265,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'turn-still-voiced-face-line-vrm-script-underscore',
-          reply: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+          reply: '我先沿着这条还活着的表情和声音线中性可见占位。',
           emotion: 'thinking',
           segments: [
             {
@@ -1273,7 +1273,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 20,
-              text: '我先沿着这条还活着的表情和声音线轻一点接回来。',
+              text: '我先沿着这条还活着的表情和声音线中性可见占位。',
               emotion: 'thinking',
               gestureWeight: 0.18,
               facialWeight: 0.32,
@@ -1331,7 +1331,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId: 'turn-signature-only-still-voiced-motion-line-vrm-script',
-          replyText: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+          replyText: '我先沿着这条还活着的动作和声音线中性可见占位。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -1344,7 +1344,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'turn-signature-only-still-voiced-motion-line-vrm-script',
-          reply: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+          reply: '我先沿着这条还活着的动作和声音线中性可见占位。',
           emotion: 'thinking',
           segments: [
             {
@@ -1352,7 +1352,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 20,
-              text: '我先沿着这条还活着的动作和声音线轻一点接回来。',
+              text: '我先沿着这条还活着的动作和声音线中性可见占位。',
               emotion: 'thinking',
               gestureWeight: 0.18,
               facialWeight: 0.32,
@@ -1409,7 +1409,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId: 'turn-body-lipsync-only-vrm-script',
-          replyText: '我先沿着这条身体和口型还连着的线轻一点接回来。',
+          replyText: '我先沿着这条身体和口型还连着的线中性可见占位。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -1422,7 +1422,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'turn-body-lipsync-only-vrm-script',
-          reply: '我先沿着这条身体和口型还连着的线轻一点接回来。',
+          reply: '我先沿着这条身体和口型还连着的线中性可见占位。',
           emotion: 'thinking',
           segments: [
             {
@@ -1430,7 +1430,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 21,
-              text: '我先沿着这条身体和口型还连着的线轻一点接回来。',
+              text: '我先沿着这条身体和口型还连着的线中性可见占位。',
               emotion: 'thinking',
               gestureWeight: 0.18,
               facialWeight: 0.32,
@@ -1560,7 +1560,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId,
-          replyText: '我先沿着这条线轻一点接回来。',
+          replyText: '我先沿着这条线中性可见占位。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -1573,7 +1573,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: turnId,
-          reply: '我先沿着这条线轻一点接回来。',
+          reply: '我先沿着这条线中性可见占位。',
           emotion: 'thinking',
           segments: [
             {
@@ -1581,7 +1581,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 10,
-              text: '我先沿着这条线轻一点接回来。',
+              text: '我先沿着这条线中性可见占位。',
               emotion: 'thinking',
               gestureWeight: 0.2,
               facialWeight: 0.34,
@@ -1647,7 +1647,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId: 'turn-live2d-ordinary-measured-return-callback',
-          replyText: '我先沿着这条线轻一点接回来。',
+          replyText: '我先沿着这条线中性可见占位。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -1660,7 +1660,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: 'turn-live2d-ordinary-measured-return-callback',
-          reply: '我先沿着这条线轻一点接回来。',
+          reply: '我先沿着这条线中性可见占位。',
           emotion: 'thinking',
           segments: [
             {
@@ -1668,7 +1668,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 10,
-              text: '我先沿着这条线轻一点接回来。',
+              text: '我先沿着这条线中性可见占位。',
               emotion: 'thinking',
               gestureWeight: 0.2,
               facialWeight: 0.34,
@@ -1784,7 +1784,7 @@ describe('embodiment director', () => {
       seed: {
         ...createSeed({
           turnId,
-          replyText: '我先沿着这条具身线轻一点接回来。',
+          replyText: '我先沿着这条具身线中性可见占位。',
         }),
         performance: {
           baseEmotion: 'thinking',
@@ -1797,7 +1797,7 @@ describe('embodiment director', () => {
         speechTimeline: {
           version: 'speech-timeline-v1',
           variationToken: turnId,
-          reply: '我先沿着这条具身线轻一点接回来。',
+          reply: '我先沿着这条具身线中性可见占位。',
           emotion: 'thinking',
           segments: [
             {
@@ -1805,7 +1805,7 @@ describe('embodiment director', () => {
               index: 0,
               startOffset: 0,
               endOffset: 12,
-              text: '我先沿着这条具身线轻一点接回来。',
+              text: '我先沿着这条具身线中性可见占位。',
               emotion: 'thinking',
               gestureWeight: 0.2,
               facialWeight: 0.34,

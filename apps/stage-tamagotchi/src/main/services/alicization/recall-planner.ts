@@ -638,7 +638,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
   const inwardLine = sanitizeText(
     candidateDeliberation?.inwardLine
     || candidatePlan?.opening
-    || candidateSpeech?.internalLead
     || whyThisMemory
     || '',
     220,
@@ -747,7 +746,7 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         whyNow: whyThisMemory || 'A coherent remembered bundle is shaping the current turn.',
         inwardLine,
         visibleLine: shouldRecall && surfaceMode !== 'internal-only'
-          ? candidateDeliberation?.visibleLine || candidateSpeech?.visibleLead || null
+          ? candidateDeliberation?.visibleLine || null
           : null,
         followUpAffordance: candidateDeliberation?.followUpAffordance ?? null,
       }

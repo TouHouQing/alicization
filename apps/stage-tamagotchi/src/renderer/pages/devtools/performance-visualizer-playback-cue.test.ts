@@ -345,7 +345,7 @@ describe('performance visualizer playback cue authority view', () => {
     ]))
   })
 
-  it('surfaces normalized embodiment closure stage on playback cue authority view when same-her closure is already carried structurally', () => {
+  it('surfaces normalized embodiment closure stage on playback cue authority view when identity-continuity', () => {
     const view = buildPlaybackCueAuthorityView({
       speech: {
         authoritySummary: {
@@ -380,7 +380,7 @@ describe('performance visualizer playback cue authority view', () => {
     }))
   })
 
-  it('extracts structured same-her closure stages from authority lane summaries on playback cue authority view', () => {
+  it('extracts structured identity-continuity', () => {
     const cases = [
       {
         expected: 'body-carried-to-renderer-rejoin',
@@ -525,7 +525,7 @@ describe('performance visualizer playback cue authority view', () => {
     }
   })
 
-  it('keeps quieter face+lipsync+voice and motion+lipsync+voice same-her continuity explicit on playback cue authority view instead of collapsing them into shorter lane-only labels', () => {
+  it('keeps quieter face+lipsync+voice and motion+lipsync+voice identity-continuity', () => {
     const cases = [
       {
         cueId: 'segment-playback-face-lipsync-voice-governance-1',
@@ -537,7 +537,7 @@ describe('performance visualizer playback cue authority view', () => {
         motionSegmentMatched: false,
         lipsyncSegmentMatched: true,
         voiceSegmentMatched: true,
-        expectedLaneTruth: '当前仅剩表情、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线',
+        expectedLaneTruth: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       },
       {
         cueId: 'segment-playback-motion-lipsync-voice-governance-1',
@@ -549,7 +549,7 @@ describe('performance visualizer playback cue authority view', () => {
         motionSegmentMatched: true,
         lipsyncSegmentMatched: true,
         voiceSegmentMatched: true,
-        expectedLaneTruth: '当前仅剩动作、口型、声音维持同一段连续性，可见 same-her continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线',
+        expectedLaneTruth: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
       },
     ] as const
 
@@ -676,7 +676,7 @@ describe('performance visualizer playback cue authority view', () => {
     }
   })
 
-  it('does not infer embodiment closure stage from stale Live2D same-her summary-only evidence when explicit same-her segment ids are absent on playback cue authority view', () => {
+  it('does not infer embodiment closure stage from stale Live2D same-her summary-only evidence when explicit identity-continuity', () => {
     const cueId = 'segment-playback-summary-only-current-body'
     const view = buildPlaybackCueAuthorityView({
       speech: {

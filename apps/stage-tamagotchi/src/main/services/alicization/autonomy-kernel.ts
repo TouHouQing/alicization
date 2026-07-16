@@ -171,14 +171,14 @@ function deriveHabitNarrativeAutonomyBias(habitPolicy?: AlicizationHabitPolicySn
       quieterEmbodimentSettling ? 'quieter-embodiment-settling' : '',
     ].filter(Boolean),
     executionIntentPrefix: correctedSamePersonSettling && quieterEmbodimentSettling
-      ? 'keep corrected same-person continuity settling and embodiment quieter before widening outward'
+      ? 'corrected continuity is still settling and embodiment stays quieter until current evidence supports more direct action'
       : correctedSamePersonSettling
-        ? 'keep corrected same-person continuity settling before widening outward'
-        : 'keep embodiment quieter before widening outward',
+        ? 'corrected continuity is still settling until current evidence supports more direct action'
+        : 'embodiment stays quieter until current evidence supports more direct action',
     personaWhyLine: correctedSamePersonSettling && quieterEmbodimentSettling
       ? 'persona keeps corrected same-person continuity settling visible and keeps embodiment quieter while the return re-settles.'
       : correctedSamePersonSettling
-        ? 'persona keeps corrected same-person continuity settling visible before widening outward.'
+        ? 'persona keeps corrected same-person continuity settling visible while the return re-settles.'
         : 'persona keeps embodiment quieter while the return re-settles.',
   }
 }

@@ -967,7 +967,7 @@ describe('vrm execution diagnostics', () => {
       streamId: 'stream-measured-1',
       segmentId: 'segment-measured-later-living-line',
       ownerId: 'alice',
-      text: '我先沿着这条线轻一点接回来。',
+      text: '我先沿着这条线中性可见占位。',
       special: null,
       continuityHoldMs: 320,
       playbackDurationMs: 260,
@@ -977,7 +977,7 @@ describe('vrm execution diagnostics', () => {
         index: 1,
         startOffset: 0,
         endOffset: 12,
-        text: '我先沿着这条线轻一点接回来。',
+        text: '我先沿着这条线中性可见占位。',
         emotion: 'thinking',
         gestureWeight: 0.24,
         facialWeight: 0.44,
@@ -1230,7 +1230,7 @@ describe('vrm execution diagnostics', () => {
     })
   })
 
-  it('keeps vrm visible voice execution on the same living line even before a structured voice summary exists', () => {
+  it('keeps vrm visible voice execution on the continuity state even before a structured voice summary exists', () => {
     const performanceState = createIdleStageEmbodimentPerformanceState()
     performanceState.phase = 'speaking'
     performanceState.performance.baseEmotion = 'thinking'

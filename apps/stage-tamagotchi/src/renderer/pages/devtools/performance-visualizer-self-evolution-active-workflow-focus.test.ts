@@ -320,7 +320,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })
   })
 
-  it('keeps quieter face+lipsync same-her carry explicit in active workflow focus so repair-session can keep body motion and voice as pending rejoin lanes', () => {
+  it('keeps quieter face+lipsync identity-continuity', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
       activePatternKey: 'pattern-quieter-face-lipsync',
       patternContextByKey: {
@@ -380,7 +380,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })
   })
 
-  it('keeps quieter motion+lipsync same-her carry explicit in active workflow focus so repair-session can keep body face and voice as pending rejoin lanes', () => {
+  it('keeps quieter motion+lipsync identity-continuity', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
       activePatternKey: 'pattern-quieter-motion-lipsync',
       patternContextByKey: {
@@ -440,7 +440,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })
   })
 
-  it('keeps quieter face+lipsync+voice same-her carry explicit in active workflow focus so repair-session can keep body and motion as pending rejoin lanes without dropping voice', () => {
+  it('keeps quieter face+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
       activePatternKey: 'pattern-quieter-face-lipsync-voice',
       patternContextByKey: {
@@ -500,7 +500,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })
   })
 
-  it('keeps quieter motion+lipsync+voice same-her carry explicit in active workflow focus so repair-session can keep body and face as pending rejoin lanes without dropping voice', () => {
+  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
       activePatternKey: 'pattern-quieter-motion-lipsync-voice',
       patternContextByKey: {

@@ -1126,8 +1126,6 @@ function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undef
       criticScores: null,
       closureStatus: turnGraph.surface?.closure?.status ?? null,
       closureReasonCodes: [...(turnGraph.surface?.closure?.reasonCodes ?? [])],
-      closureRewriteAttempted: turnGraph.surface?.closure?.rewriteAttempted ?? null,
-      closureRewriteSucceeded: turnGraph.surface?.closure?.rewriteSucceeded ?? null,
     },
     learning: {
       selfEvolutionKernelVersion: turnGraph.learning.selfEvolutionKernelVersion,
@@ -2402,9 +2400,6 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
               : 'inside-payoff',
       ),
       certainty,
-      internalLead: readString(recall?.inwardLine, 220) || readString(judged?.whyWithheld, 220) || 'The remembered line should contour the answer quietly.',
-      visibleLead: readString(recall?.visibleLine, 220) || null,
-      styleNote: readString(judged?.memoryControlSummary, 220) || readString(judged?.whyWithheld, 220) || 'Let memory shape the answer without turning into a template shell.',
       rationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || readString(input.row.userText, 220),
       confidence: Number(readNumber(recall?.confidence, 0.76).toFixed(2)),
     },
@@ -2749,12 +2744,8 @@ export function evaluateReplayMemoryQuality(input: {
   const systemTexts = input.prepared.messages
     .filter(message => message.role === 'system' && typeof message.content === 'string')
     .map(message => String(message.content))
-  const systemText = systemTexts.join('\n')
   const draftedMemoryLines = [
     readRecollectionPlanFromDerivedMindStateBundle<any>(derivedBundle)?.opening ?? input.prepared.organicMemoryContext?.recollectionPlan?.opening ?? '',
-    readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)?.internalLead ?? input.prepared.organicMemoryContext?.recollectionSpeechPlan?.internalLead ?? '',
-    readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)?.visibleLead ?? input.prepared.organicMemoryContext?.recollectionSpeechPlan?.visibleLead ?? '',
-    readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)?.styleNote ?? input.prepared.organicMemoryContext?.recollectionSpeechPlan?.styleNote ?? '',
     readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)?.inwardLine ?? input.prepared.organicMemoryContext?.memoryDeliberation?.inwardLine ?? '',
     readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)?.visibleLine ?? input.prepared.organicMemoryContext?.memoryDeliberation?.visibleLine ?? '',
   ].map(item => normalizeText(item, 220)).filter(Boolean)
@@ -2795,7 +2786,7 @@ export function evaluateReplayMemoryQuality(input: {
   const procedureApproach = selectedProcedures[0]?.approach ?? ''
   const relationshipLine = selectedRelationshipLines[0] ?? bundle?.relationshipLine ?? chain?.relationshipMeaning ?? ''
   const answerPosture = chain?.answerPosture ?? chain?.currentStance ?? ''
-  const visibleLine = deliberation?.visibleLine ?? speechPlan?.visibleLead ?? ''
+  const visibleLine = deliberation?.visibleLine ?? ''
   const explicitMemoryAsk = explicitMemoryAskPattern.test(input.userText)
   const ambiguousTimeAsk = ambiguousTimeAskPattern.test(input.userText)
   const relationshipRepairAsk = relationshipRepairAskPattern.test(input.userText)
@@ -2960,9 +2951,6 @@ export function evaluateReplayMemoryQuality(input: {
       : speakingFrom === 'task-thread'
         || hasTextOverlap(governingFocus, selectedProcedures[0]?.approach ?? '')
         || hasTextOverlap(openingClaim, selectedProcedures[0]?.approach ?? '')
-        || systemText.includes('recollection_frame_prior_procedure=yes')
-        || systemText.includes('recollection_continuity_role=procedure-carry')
-        || governingFocus.includes('memory_answer_anchor{')
         || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
         ? 'pass'
         : 'fail',
@@ -2970,9 +2958,6 @@ export function evaluateReplayMemoryQuality(input: {
       ? 'not-applicable'
       : deliberation?.ambiguityPosture === 'ambiguous'
         || (deliberation?.conflictVariants ?? []).some((item: { id?: string | null }) => String(item.id ?? '').startsWith('cluster:'))
-        || systemText.includes('recollection_label_uncertainty=yes')
-        || systemText.includes('detail_assertion_budget=guarded')
-        || systemText.includes('detail_assertion_budget=minimal')
         ? 'pass'
         : 'fail',
     replyMemoryCoherence: !deliberation
@@ -2990,10 +2975,6 @@ export function evaluateReplayMemoryQuality(input: {
       : resolutionLedger?.shouldLabelUncertainty === true
         || resolutionLedger?.visibleCarryMode === 'withhold'
         || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
-        || systemText.includes('recollection_label_uncertainty=yes')
-        || systemText.includes('memory_boundary{provenance=')
-        || systemText.includes('detail_assertion_budget=guarded')
-        || systemText.includes('detail_assertion_budget=minimal')
         || mustAvoid.some(item => item.includes('Do not state this remembered detail as settled fact'))
         ? 'pass'
         : 'fail',
@@ -3002,15 +2983,12 @@ export function evaluateReplayMemoryQuality(input: {
       : speakingFrom === 'task-thread'
         || speakingFrom === 'held-memory'
         || visibleMemoryEvidence
-        || systemText.includes('[ALICIZATION_MEMORY_DELIBERATION]')
         ? 'pass'
         : 'fail',
     temporalScopeFlexibility: !ambiguousTimeAsk
       ? 'not-applicable'
       : deliberation?.selectedEras.length
         || selectedPeriods.length
-        || systemText.includes('recollection_selected_periods=')
-        || systemText.includes('recollection_selected_eras=')
         ? 'pass'
         : 'fail',
     recentOnlyDrift: !longHorizonAsk
@@ -3140,7 +3118,12 @@ export function evaluateReplayMemoryQuality(input: {
           (activeClosenessContext === 'focused-work' && Boolean(selfEvolution?.burdenLine || hostPersonModel?.recurrentBurdens?.length))
           || (relationshipRepairAsk && Boolean(selfEvolution?.relationshipDoctrine || mustAvoid.length))
           || mustAvoid.some(item => /warmth|repair|distance|boundary|closeness|pressure/iu.test(item))
-          || /repair before closeness|warmth should not outrun|do not crowd|less pressure/iu.test(systemText)
+          || Boolean(relationshipCadence && (
+            relationshipCadence.cadenceMode === 'measured-return'
+            || relationshipCadence.shouldDelayWarmth
+            || relationshipCadence.distancePosture === 'protect-space'
+            || relationshipCadence.distancePosture === 'measured-room'
+          ))
         )
         ? 'pass'
         : 'fail',
@@ -3190,7 +3173,6 @@ export function evaluateReplayMemoryQuality(input: {
           ? 'pass'
           : 'fail'
         : !visibleCareShell
-          && !/afterglow|余温|warmth|still warm/iu.test(systemText)
             ? 'pass'
             : 'fail',
     templateLeakage: draftedMemoryLines.length === 0
@@ -3654,9 +3636,6 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
     readString(organicMemoryContext?.projectStatePreflightSummary, 240),
     readString(organicMemoryContext?.hostAttitude, 240),
     readString(organicMemoryContext?.recollectionIntent?.rationale, 240),
-    readString(organicMemoryContext?.recollectionSpeechPlan?.internalLead, 240),
-    readString(organicMemoryContext?.recollectionSpeechPlan?.visibleLead, 240),
-    readString(organicMemoryContext?.recollectionSpeechPlan?.styleNote, 240),
     readString(organicMemoryContext?.memoryDeliberation?.whyNow, 240),
     readString(organicMemoryContext?.memoryDeliberation?.inwardLine, 240),
     readString(organicMemoryContext?.memoryDeliberation?.visibleLine, 240),
@@ -5055,10 +5034,6 @@ export async function replayMainChatSession(input: {
   const runtime = createAlicizationMainChatSessionRuntime({
     executionCapabilityChannels: executionChannels,
     buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-    buildOrganicMemorySystemBlocks: context => [
-      context.memoryDeliberation ? '[ALICIZATION_MEMORY_DELIBERATION]' : '',
-      context.recollectionSpeechPlan ? '[ALICIZATION_RECOLLECTION_SPEECH_PLAN]' : '',
-    ].filter(Boolean),
     buildPerformanceManifestSystemBlocks: () => [],
     executeMainGatewayTaskThread: async () => ({
       ok: true,

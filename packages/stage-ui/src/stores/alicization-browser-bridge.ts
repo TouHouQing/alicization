@@ -39,6 +39,7 @@ import type {
 
 import { errorMessageFrom } from '@moeru/std'
 import {
+  alicizationProviderResponseFormat,
   buildAlicizationFinanceSurface,
   buildAlicizationMemoryDecisionTraceRecords,
   buildAlicizationNewsSurface,
@@ -284,52 +285,24 @@ function compactBrowserStringList(value: unknown, limit = 16) {
   return result
 }
 
-function countBrowserArray(value: unknown) {
-  return Array.isArray(value) ? value.length : 0
-}
-
-function readBrowserCount(raw: Record<string, unknown>, key: string, fallback: number) {
-  const value = raw[key]
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-    ? value
-    : fallback
-}
-
 function summarizeBrowserVisibleReplyCritic(
   raw: AlicizationConversationTurnInput['visibleReplyCritic'] | null | undefined,
 ): AlicizationVisibleReplyPublicCriticSummary | null {
   if (!isBrowserRecordPayload(raw))
     return null
 
-  const reasonCodes = compactBrowserStringList(raw.reasonCodes)
-  const summary: AlicizationVisibleReplyPublicCriticSummary = {
+  const status = raw.status === 'pass' || raw.status === 'blocked'
+    ? raw.status
+    : null
+  if (!status)
+    return null
+
+  return {
     version: 'visible-reply-critic-public-summary-v1',
-    reasonCodes: reasonCodes.length > 0 ? reasonCodes : compactBrowserStringList(raw.reasons),
-    repairReasonCodes: compactBrowserStringList(raw.repairReasonCodes),
-    mustPreserveCount: readBrowserCount(raw, 'mustPreserveCount', countBrowserArray(raw.mustPreserve)),
-    mustDropCount: readBrowserCount(raw, 'mustDropCount', countBrowserArray(raw.mustDrop)),
+    status,
+    providerMindRequired: raw.providerMindRequired === true,
+    reasonCodes: compactBrowserStringList(raw.reasonCodes),
   }
-
-  if (typeof raw.providerMindRequired === 'boolean')
-    summary.providerMindRequired = raw.providerMindRequired
-  if (typeof raw.semanticLoopClosed === 'boolean')
-    summary.semanticLoopClosed = raw.semanticLoopClosed
-  if (typeof raw.status === 'string' && raw.status.trim())
-    summary.status = raw.status.trim()
-
-  return summary
-}
-
-function readBrowserCriticPreserveCount(raw: unknown) {
-  return isBrowserRecordPayload(raw)
-    ? readBrowserCount(raw, 'mustPreserveCount', countBrowserArray(raw.mustPreserve))
-    : 0
-}
-
-function readBrowserCriticDropCount(raw: unknown) {
-  return isBrowserRecordPayload(raw)
-    ? readBrowserCount(raw, 'mustDropCount', countBrowserArray(raw.mustDrop))
-    : 0
 }
 
 function summarizeBrowserVisibleReplyClosure(
@@ -338,26 +311,24 @@ function summarizeBrowserVisibleReplyClosure(
   if (!isBrowserRecordPayload(raw))
     return null
 
-  const initialCritic = isBrowserRecordPayload(raw.initialCritic) ? raw.initialCritic : null
-  const finalCritic = isBrowserRecordPayload(raw.finalCritic) ? raw.finalCritic : null
-  const summary: AlicizationVisibleReplyPublicClosureSummary = {
+  const status = raw.status === 'approved' || raw.status === 'blocked'
+    ? raw.status
+    : null
+  if (!status)
+    return null
+
+  const normalizeCriticStatus = (value: unknown) =>
+    value === 'pass' || value === 'blocked'
+      ? value
+      : null
+
+  return {
     version: 'visible-reply-closure-public-summary-v1',
+    status,
     reasonCodes: compactBrowserStringList(raw.reasonCodes),
-    repairReasonCodes: compactBrowserStringList(raw.repairReasonCodes),
-    initialCriticMustPreserveCount: readBrowserCount(raw, 'initialCriticMustPreserveCount', readBrowserCriticPreserveCount(initialCritic)),
-    initialCriticMustDropCount: readBrowserCount(raw, 'initialCriticMustDropCount', readBrowserCriticDropCount(initialCritic)),
-    finalCriticMustPreserveCount: readBrowserCount(raw, 'finalCriticMustPreserveCount', readBrowserCriticPreserveCount(finalCritic)),
-    finalCriticMustDropCount: readBrowserCount(raw, 'finalCriticMustDropCount', readBrowserCriticDropCount(finalCritic)),
+    initialCriticStatus: normalizeCriticStatus(raw.initialCriticStatus),
+    finalCriticStatus: normalizeCriticStatus(raw.finalCriticStatus),
   }
-
-  if (typeof raw.status === 'string' && raw.status.trim())
-    summary.status = raw.status.trim()
-  if (typeof raw.providerMindRequired === 'boolean')
-    summary.providerMindRequired = raw.providerMindRequired
-  if (typeof raw.semanticLoopClosed === 'boolean')
-    summary.semanticLoopClosed = raw.semanticLoopClosed
-
-  return summary
 }
 
 function stageChatText(path: string, params?: Record<string, unknown>) {
@@ -410,6 +381,7 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
   switch (event.type) {
     case 'text-delta':
       return {
+        ...event,
         type: 'text-delta',
         text: typeof event.text === 'string' ? event.text : '',
       }
@@ -451,7 +423,14 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
       }
     case 'finish':
       return {
+        ...event,
         type: 'finish',
+        finishReason: typeof event.finishReason === 'string'
+          ? event.finishReason
+          : undefined,
+        fullText: typeof event.fullText === 'string'
+          ? event.fullText
+          : undefined,
       }
     case 'error':
       throw normalizeServerStreamError(event.error)
@@ -3198,6 +3177,7 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
             body: JSON.stringify({
               cardId: resolveActiveCardId(),
               ...payload,
+              responseFormat: alicizationProviderResponseFormat,
             }),
             signal: controller.signal,
           })

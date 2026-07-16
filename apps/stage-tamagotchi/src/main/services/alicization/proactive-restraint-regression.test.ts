@@ -116,8 +116,9 @@ describe('proactive restraint regression', () => {
 
     expect(decision.shouldInterrupt).toBe(false)
     expect(decision.reasonCodes).toContain('continuity-internal-only')
-    expect(decision.whyNow).toContain('先留在心里')
-    expect(decision.whyNotLater).toContain('留在内在层')
+    expect(decision.whyNow).toContain('timing=continuity_hold_for_later')
+    expect(decision.whyNow).toContain('reason=continuity-internal-only')
+    expect(decision.whyNotLater).toContain('reason=continuity-internal-only')
   })
 
   it('holds an after-payoff continuity mention instead of proactively interrupting early', () => {
@@ -149,7 +150,7 @@ describe('proactive restraint regression', () => {
 
     expect(decision.shouldInterrupt).toBe(false)
     expect(decision.reasonCodes).toContain('continuity-after-payoff')
-    expect(decision.whyNotLater).toContain('当前 payoff 先落地')
+    expect(decision.whyNotLater).toContain('reason=continuity-after-payoff')
   })
 
   it('does not let execution callback continuity steal the opening from the current answer lane', () => {
@@ -181,7 +182,7 @@ describe('proactive restraint regression', () => {
 
     expect(decision.shouldInterrupt).toBe(false)
     expect(decision.reasonCodes).toContain('continuity-execution-callback')
-    expect(decision.whyNotLater).toContain('执行结果或当前主回答')
+    expect(decision.whyNotLater).toContain('reason=continuity-execution-callback')
   })
 
   it('keeps repair scenes from drifting into remembered continuity even under high continuity pressure', () => {
@@ -283,6 +284,6 @@ describe('proactive restraint regression', () => {
     expect(decision.reasonCodes).toContain('continuity-next-open-window')
     expect(decision.reasonCodes).toContain('governor-repair')
     expect(decision.reasonCodes).toContain('relationship-correction-sensitive')
-    expect(decision.whyNotLater).toContain('下一个更自然的 opening')
+    expect(decision.whyNotLater).toContain('reason=continuity-next-open-window')
   })
 })

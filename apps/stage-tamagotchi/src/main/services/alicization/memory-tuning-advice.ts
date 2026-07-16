@@ -2,7 +2,6 @@ import type {
   AlicizationHostPersonModelSnapshot,
   AlicizationRunReplayBenchmarkResult,
 } from '../../../shared/eventa'
-import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 export interface AlicizationMemoryTuningAdvice {
   version: 'memory-tuning-advice-v1'
@@ -36,9 +35,63 @@ export interface AlicizationMemoryTuningAdvice {
 
 export const replayBenchmarkTuningAdviceMetaKey = 'replay_benchmark_tuning_advice_v1'
 const memoryTuningFocusDimensionMaxItems = 24
+const memoryTuningFocusDimensionSchema = new Set([
+  'eraSelectionQuality',
+  'resolutionLedgerQuality',
+  'procedureCarryQuality',
+  'wrongThreadSuppression',
+  'replyMemoryCoherence',
+  'implicitRecallQuality',
+  'temporalScopeFlexibility',
+  'recentOnlyDrift',
+  'surfaceRestraint',
+  'relationshipRepairAdaptation',
+  'closenessLadderDrift',
+  'eventGraphRecallCollapse',
+  'knowledgeCorrectionDiscipline',
+  'repeatedMistakeAvoidance',
+  'hostUnderstandingGrowth',
+  'skillInternalizationGrowth',
+  'selfRevisionGrowth',
+  'learningRevisionDiscipline',
+  'domainInternalizationDiscipline',
+  'worldModelValidationDiscipline',
+  'dialogueRhythmStability',
+  'emptyCareRate',
+  'repairMechanicalRate',
+  'warmthTemplateRisk',
+  'relationshipDistanceJumpRate',
+  'afterglowFalseCarryRate',
+  'templateLeakage',
+  'quietCompanionshipCoverage',
+  'silentPresenceNuisanceRate',
+  'continuityMindCarryRate',
+  'projectStateContinuityDrift',
+  'projectStateIdentityCarry',
+  'projectStateOpenLoopCarry',
+  'projectStateRichAwarenessCarry',
+  'projectStateEmotionalClosureCarry',
+  'preDialogueBriefingDrift',
+  'projectStateLandedProgressCarry',
+  'projectStateNextClosureCarry',
+  'emotionalClosureDrift',
+  'projectStateSameHerSelfLineDrift',
+  'sameHerSelfLineCarry',
+  'avoidGenericProjectShell',
+  'runtimeSameHerRepairTargets',
+  'runtimeSameHerInitiativeExecutionCausality',
+  'runtimeSameHerEmotionalCausality',
+  'runtimeSameHerEmbodimentCausality',
+  'runtimeMemoryClosureLongRun',
+  'runtimeMemoryClosureCausalIdentity',
+  'runtimeMemoryClosureLaneCarry',
+  'runtimeMemoryClosureIdentityContinuity',
+  'internalizeRelationshipCadence',
+])
 
 type AlicizationMemoryClosureLongRunReport = NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['memoryClosureLongRun']>
 type AlicizationMemoryClosureLongRunLane = AlicizationMemoryClosureLongRunReport['turnDiagnostics'][number]['missingLanes'][number]
+type AlicizationReplayEmotionalClosureSummary = NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['emotionalClosureSummary']>
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -331,30 +384,52 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     return item.datasetFeedback.driftSignals?.includes('emotionalClosureDrift') === true
   })
   if (emotionalClosureDriftDetected) {
-    const emotionalClosureSummary = input.results
+    const emotionalClosureDriftResults = input.results.filter((item) => {
+      return item.datasetFeedback.driftSignals?.includes('emotionalClosureDrift') === true
+    })
+    const emotionalClosureSummaries = emotionalClosureDriftResults
       .map(item => item.datasetFeedback.emotionalClosureSummary ?? null)
-      .find(Boolean)
-    advice.focusDimensions = uniqueList([
-      ...advice.focusDimensions,
-      'emotionalClosureDrift',
-      (emotionalClosureSummary?.activeCueTurnCount ?? 0) < Math.max(1, emotionalClosureSummary?.comparedTurnCount ?? 0)
-        ? 'projectEmotionalClosureCarry'
-        : null,
-      (emotionalClosureSummary?.preservedTurnCount ?? 0) < Math.max(1, emotionalClosureSummary?.comparedTurnCount ?? 0)
-        ? 'projectEmotionalClosureRewriteCarry'
-        : null,
-      (emotionalClosureSummary?.lowPressureRequiredTurnCount ?? 0) > 0
-        ? 'projectEmotionalClosureLowPressureCarry'
-        : null,
-      (emotionalClosureSummary?.antiRestartRequiredTurnCount ?? 0) > 0
-        ? 'projectEmotionalClosureAntiRestartCarry'
-        : null,
-    ], memoryTuningFocusDimensionMaxItems)
-    advice.retrievalAdjustments.relationshipBoost += 0.04
-    advice.surfaceAdjustments.inwardCarryBias += 0.08
-    advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.06
-    advice.personStateAdjustments.closenessCapBias += 0.04
-    advice.notes.push('Replay let the emotional continuity closure seam drop out of rewrite carry too often, so the return should stay lower-pressure, do not reopen from scratch, and keep closure cues alive through preserved surface realization.')
+      .filter((summary): summary is AlicizationReplayEmotionalClosureSummary => summary != null)
+    const emotionalClosureAggregate = emotionalClosureSummaries.reduce((aggregate, summary) => {
+      aggregate.comparedTurnCount += Math.max(0, Number(summary.comparedTurnCount) || 0)
+      aggregate.activeCueTurnCount += Math.max(0, Number(summary.activeCueTurnCount) || 0)
+      aggregate.validationKnownTurnCount += Math.max(0, Number(summary.validationStatus?.knownTurnCount) || 0)
+      aggregate.validationApprovedTurnCount += Math.max(0, Number(summary.validationStatus?.approvedTurnCount) || 0)
+      aggregate.validationBlockedTurnCount += Math.max(0, Number(summary.validationStatus?.blockedTurnCount) || 0)
+      aggregate.validationUnknownTurnCount += Math.max(0, Number(summary.validationStatus?.unknownTurnCount) || 0)
+      return aggregate
+    }, {
+      comparedTurnCount: 0,
+      activeCueTurnCount: 0,
+      validationKnownTurnCount: 0,
+      validationApprovedTurnCount: 0,
+      validationBlockedTurnCount: 0,
+      validationUnknownTurnCount: 0,
+    })
+    const summaryCoverageComplete
+      = emotionalClosureSummaries.length === emotionalClosureDriftResults.length
+        && emotionalClosureAggregate.comparedTurnCount > 0
+    const validationFullyApproved
+      = summaryCoverageComplete
+        && emotionalClosureAggregate.validationKnownTurnCount === emotionalClosureAggregate.comparedTurnCount
+        && emotionalClosureAggregate.validationApprovedTurnCount === emotionalClosureAggregate.comparedTurnCount
+        && emotionalClosureAggregate.validationBlockedTurnCount === 0
+        && emotionalClosureAggregate.validationUnknownTurnCount === 0
+    const activeCueComplete
+      = summaryCoverageComplete
+        && emotionalClosureAggregate.activeCueTurnCount >= emotionalClosureAggregate.comparedTurnCount
+
+    if (!validationFullyApproved || !activeCueComplete) {
+      advice.focusDimensions = uniqueList([
+        ...advice.focusDimensions,
+        'emotionalClosureDrift',
+      ], memoryTuningFocusDimensionMaxItems)
+      advice.retrievalAdjustments.relationshipBoost += 0.04
+      advice.surfaceAdjustments.inwardCarryBias += 0.08
+      advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.06
+      advice.personStateAdjustments.closenessCapBias += 0.04
+      advice.notes.push('Emotional closure replay validation is missing, incomplete, unknown, or blocked, so retrieval and surface confidence should remain conservative until the closure evidence is complete.')
+    }
   }
 
   const projectStateSameHerSelfLineDriftDetected = input.results.some((item) => {
@@ -399,16 +474,11 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     advice.focusDimensions = uniqueList([
       ...advice.focusDimensions,
       'runtimeSameHerRepairTargets',
-      hasMemoryGap ? 'runtimeSameHerMemoryCarry' : null,
-      hasInitiativeOrExecutionGap ? 'runtimeSameHerInitiativeExecutionCarry' : null,
       hasInitiativeOrExecutionGap ? 'runtimeSameHerInitiativeExecutionCausality' : null,
-      hasEmotionGap ? 'runtimeSameHerEmotionalCarry' : null,
       hasEmotionGap ? 'runtimeSameHerEmotionalCausality' : null,
-      hasEmbodimentGap ? 'runtimeSameHerEmbodimentCarry' : null,
       hasEmbodimentGap ? 'runtimeSameHerEmbodimentCausality' : null,
       hasMemoryGap || hasEmbodimentGap ? 'sameHerSelfLineCarry' : null,
       hasMemoryGap || hasInitiativeOrExecutionGap || hasEmbodimentGap ? 'projectStateRichAwarenessCarry' : null,
-      hasEmotionGap ? 'projectEmotionalClosureCarry' : null,
       hasEmotionGap ? 'projectStateEmotionalClosureCarry' : null,
     ], memoryTuningFocusDimensionMaxItems)
     if (hasMemoryGap) {
@@ -463,16 +533,11 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
       hasCausalIdentityGap ? 'runtimeMemoryClosureCausalIdentity' : null,
       hasLaneCarryGap ? 'runtimeMemoryClosureLaneCarry' : null,
       hasIdentityContinuityGap ? 'runtimeMemoryClosureIdentityContinuity' : null,
-      hasRecallGap ? 'runtimeSameHerMemoryCarry' : null,
-      hasInitiativeExecutionGap ? 'runtimeSameHerInitiativeExecutionCarry' : null,
       hasInitiativeExecutionGap ? 'runtimeSameHerInitiativeExecutionCausality' : null,
-      hasEmotionGap ? 'runtimeSameHerEmotionalCarry' : null,
       hasEmotionGap ? 'runtimeSameHerEmotionalCausality' : null,
-      hasEmbodimentGap ? 'runtimeSameHerEmbodimentCarry' : null,
       hasEmbodimentGap ? 'runtimeSameHerEmbodimentCausality' : null,
       hasRecallGap || hasEmbodimentGap ? 'sameHerSelfLineCarry' : null,
       hasRecallGap || hasInitiativeExecutionGap || hasEmbodimentGap ? 'projectStateRichAwarenessCarry' : null,
-      hasEmotionGap ? 'projectEmotionalClosureCarry' : null,
       hasEmotionGap ? 'projectStateEmotionalClosureCarry' : null,
     ], memoryTuningFocusDimensionMaxItems)
 
@@ -557,7 +622,12 @@ export function parseMemoryTuningAdvice(raw: string | undefined) {
       source: 'nightly-replay-benchmark',
       updatedAt: Number(parsed.updatedAt ?? 0),
       sourceReportAt: Number(parsed.sourceReportAt ?? 0),
-      focusDimensions: uniqueList(parsed.focusDimensions ?? [], memoryTuningFocusDimensionMaxItems),
+      focusDimensions: uniqueList(
+        (parsed.focusDimensions ?? []).filter((dimension) => {
+          return typeof dimension === 'string' && memoryTuningFocusDimensionSchema.has(dimension)
+        }),
+        memoryTuningFocusDimensionMaxItems,
+      ),
       staleSelfModelVetoRate: clamp01(Number((parsed as any).staleSelfModelVetoRate ?? 0)),
       relationshipEraConfusionRate: clamp01(Number((parsed as any).relationshipEraConfusionRate ?? 0)),
       quietCompanionshipCoverage: clamp01(Number((parsed as any).quietCompanionshipCoverage ?? 0)),
@@ -596,163 +666,20 @@ export function applyMemoryTuningAdviceToHostPersonModel(input: {
   if (!hostPersonModel || !tuningAdvice)
     return hostPersonModel
 
-  const nextRepairTriggers = [...hostPersonModel.repairTriggers]
-  if (tuningAdvice.personStateAdjustments.repairWindowBias >= 0.12)
-    nextRepairTriggers.unshift('If the line still feels unstable, keep repair visibly ahead of closeness and remembered detail.')
-
-  const nextCloseness = [...hostPersonModel.preferredClosenessByContext]
-  if (tuningAdvice.personStateAdjustments.repairWindowBias >= 0.12 && !nextCloseness.some(item => item.context === 'repair-window')) {
-    nextCloseness.unshift({
-      context: 'repair-window',
-      preference: 'Keep recollection and closeness lighter until the repair line has visibly landed.',
-      confidence: clamp01(0.72 + tuningAdvice.personStateAdjustments.repairWindowBias * 0.2),
-    })
-  }
-
-  if (tuningAdvice.personStateAdjustments.closenessCapBias >= 0.12 && !nextCloseness.some(item => item.context === 'focused-work')) {
-    nextCloseness.unshift({
-      context: 'focused-work',
-      preference: 'Keep the answer low-pressure and do not let memory warmth outrun the host’s need for room.',
-      confidence: clamp01(0.7 + tuningAdvice.personStateAdjustments.closenessCapBias * 0.2),
-    })
-  }
-
   return {
     ...hostPersonModel,
-    summary: uniqueList([
-      hostPersonModel.summary,
-      tuningAdvice.notes[0] ?? '',
-    ], 2).join(' '),
-    repairTriggers: uniqueList(nextRepairTriggers, 6),
-    preferredClosenessByContext: nextCloseness.slice(0, 6),
+    preferredClosenessByContext: hostPersonModel.preferredClosenessByContext.map((item) => {
+      const confidenceBias = item.context === 'repair-window'
+        ? tuningAdvice.personStateAdjustments.repairWindowBias
+        : item.context === 'focused-work'
+          ? tuningAdvice.personStateAdjustments.closenessCapBias
+          : 0
+      if (confidenceBias <= 0)
+        return item
+      return {
+        ...item,
+        confidence: clamp01(item.confidence + confidenceBias * 0.2),
+      }
+    }),
   }
-}
-
-export function applyMemoryTuningAdviceToSpeechPlan(input: {
-  speechPlan: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null | undefined
-  memoryDeliberation: OrganicMemoryPromptContext['memoryDeliberation'] | null | undefined
-  tuningAdvice: AlicizationMemoryTuningAdvice | null | undefined
-}) {
-  const speechPlan = input.speechPlan ?? null
-  const memoryDeliberation = input.memoryDeliberation ?? null
-  const tuningAdvice = input.tuningAdvice ?? null
-  if (!speechPlan || !memoryDeliberation || !tuningAdvice)
-    return speechPlan
-
-  let next = { ...speechPlan }
-  const ambiguity = memoryDeliberation.ambiguityPosture ?? 'settled'
-  const conflictSeverity = memoryDeliberation.conflictSeverity ?? 'none'
-  const highConflict = ambiguity === 'ambiguous' || conflictSeverity === 'high'
-  const moderateConflict = highConflict || ambiguity === 'approximate' || conflictSeverity === 'medium'
-
-  if (tuningAdvice.surfaceAdjustments.delayUntilAfterPayoffBias >= 0.12 && next.shouldSurface && next.placement === 'before-payoff' && moderateConflict) {
-    next = {
-      ...next,
-      placement: 'after-payoff',
-      styleNote: uniqueList([
-        next.styleNote,
-        'Let the live payoff land before remembered continuity comes forward.',
-      ], 2).join(' '),
-    }
-  }
-
-  if (tuningAdvice.surfaceAdjustments.inwardCarryBias >= 0.16 && highConflict) {
-    next = {
-      ...next,
-      shouldSurface: false,
-      placement: 'internal-only',
-      visibleLead: null,
-      styleNote: uniqueList([
-        next.styleNote,
-        'recollection_surface=inward_until_competing_memory_pressure_settles',
-      ], 2).join(' '),
-    }
-  }
-
-  if (
-    tuningAdvice.personStateAdjustments.closenessCapBias >= 0.12
-    && tuningAdvice.focusDimensions.includes('learningRevisionDiscipline')
-    && memoryDeliberation.surfacePolicy === 'relationship-continuity'
-    && moderateConflict
-  ) {
-    next = {
-      ...next,
-      shouldSurface: false,
-      placement: 'internal-only',
-      visibleLead: null,
-      styleNote: uniqueList([
-        next.styleNote,
-        'Keep relationship continuity inward until revision-prone distance and closeness cues settle.',
-      ], 2).join(' '),
-    }
-  }
-
-  if (
-    tuningAdvice.focusDimensions.includes('avoidGenericProjectShell')
-    && tuningAdvice.surfaceAdjustments.inwardCarryBias >= 0.1
-    && (
-      memoryDeliberation.surfacePolicy === 'relationship-continuity'
-      || memoryDeliberation.visibleLine?.toLowerCase().includes('project')
-      || memoryDeliberation.whyNow?.toLowerCase().includes('project')
-    )
-    && moderateConflict
-  ) {
-    next = {
-      ...next,
-      shouldSurface: false,
-      placement: 'internal-only',
-      visibleLead: null,
-      certainty: next.certainty === 'firm' ? 'approximate' : next.certainty,
-      styleNote: uniqueList([
-        next.styleNote,
-        'Keep the project continuity line inward until the live payoff lands, so the reply does not slip into a detached project narrator shell.',
-      ], 2).join(' '),
-    }
-  }
-
-  if (
-    tuningAdvice.surfaceAdjustments.inwardCarryBias >= 0.1
-    && tuningAdvice.surfaceAdjustments.delayUntilAfterPayoffBias >= 0.1
-    && memoryDeliberation.surfacePolicy === 'relationship-continuity'
-    && moderateConflict
-    && (
-      tuningAdvice.focusDimensions.includes('projectStateRichAwarenessCarry')
-      || tuningAdvice.focusDimensions.includes('projectStateLandedProgressCarry')
-      || tuningAdvice.focusDimensions.includes('projectStateNextClosureCarry')
-      || tuningAdvice.focusDimensions.includes('projectStateEmotionalClosureCarry')
-      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureCarry')
-      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureRewriteCarry')
-      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureLowPressureCarry')
-      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureAntiRestartCarry')
-    )
-  ) {
-    const styleNote = tuningAdvice.focusDimensions.includes('projectEmotionalClosureCarry')
-      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureRewriteCarry')
-      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureLowPressureCarry')
-      || tuningAdvice.focusDimensions.includes('projectEmotionalClosureAntiRestartCarry')
-      ? 'Keep the emotional continuity closure line inward until the live payoff lands, so the return stays low-pressure and does not reopen from scratch.'
-      : tuningAdvice.focusDimensions.includes('projectStateRichAwarenessCarry')
-        ? 'Keep richer project continuity awareness inward until the live payoff lands, so project identity, landed progress, and still-open closure stay in one continuity context.'
-        : 'Keep the project continuity line inward until the live payoff lands, so pre-dialogue project identity and closure pressure do not spill outward too early.'
-    next = {
-      ...next,
-      shouldSurface: false,
-      placement: 'internal-only',
-      visibleLead: null,
-      certainty: next.certainty === 'firm' ? 'approximate' : next.certainty,
-      styleNote: uniqueList([
-        next.styleNote,
-        styleNote,
-      ], 2).join(' '),
-    }
-  }
-
-  if ((tuningAdvice.surfaceAdjustments.provenanceLabelBias >= 0.1 || tuningAdvice.surfaceAdjustments.specificityClampBias >= 0.1) && next.certainty === 'firm' && moderateConflict) {
-    next = {
-      ...next,
-      certainty: 'approximate',
-    }
-  }
-
-  return next
 }

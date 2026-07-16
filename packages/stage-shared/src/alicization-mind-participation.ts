@@ -56,15 +56,15 @@ export function deriveAlicizationMindParticipationFromSpine(
     + (autonomy?.whyNow ? 0.12 : 0),
   )
   if (runtime?.dominantMode)
-    pushSignal(mindSignals, `mode=${runtime.dominantMode}`)
+    pushSignal(mindSignals, `Mode: ${runtime.dominantMode}.`)
   if (runtime?.dominantDrive)
-    pushSignal(mindSignals, `drive=${runtime.dominantDrive}`)
+    pushSignal(mindSignals, `Drive: ${runtime.dominantDrive}.`)
   if (architecture?.governingFocus)
-    pushSignal(mindSignals, `focus=${architecture.governingFocus}`)
+    pushSignal(mindSignals, `Focus: ${architecture.governingFocus}.`)
   if (motive?.rulingDrive)
-    pushSignal(mindSignals, `motive=${motive.rulingDrive}`)
+    pushSignal(mindSignals, `Motive: ${motive.rulingDrive}.`)
   if (autonomy?.whyNow)
-    pushSignal(mindSignals, `why=${autonomy.whyNow}`)
+    pushSignal(mindSignals, `Why now: ${autonomy.whyNow}.`)
 
   const memoryParticipation = round2(
     (memory?.summary ? 0.16 : 0)

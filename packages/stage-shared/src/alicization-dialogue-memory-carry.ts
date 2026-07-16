@@ -138,14 +138,14 @@ export function deriveAlicizationDialogueMemoryCarryPolicyFromDigest(
   ], 6, 120)
 
   const summary = mode === 'quiet'
-    ? 'mode=quiet'
+    ? 'Mode: quiet.'
     : compactUnique([
-        `mode=${mode}`,
-        recallMode ? `recall=${recallMode}` : '',
-        recollectionSummary ? `recollection=${recollectionSummary}` : '',
-        reflectionPressure != null ? `reflection_pressure=${reflectionPressure.toFixed(2)}` : '',
-        allowMirrorCarry ? 'mirror=carry' : '',
-        leadingGoal ? `goal=${leadingGoal}` : '',
+        `Mode: ${mode}.`,
+        recallMode ? `Recall: ${recallMode}.` : '',
+        recollectionSummary ? `Recollection: ${recollectionSummary}.` : '',
+        reflectionPressure != null ? `Reflection pressure: ${reflectionPressure.toFixed(2)}.` : '',
+        allowMirrorCarry ? 'Mirror carry is allowed.' : '',
+        leadingGoal ? `Goal: ${leadingGoal}.` : '',
       ], 6, 180).join(' | ')
 
   return {
@@ -165,12 +165,12 @@ export function buildAlicizationDialogueMemoryCarrySystemBlock(
     return ''
 
   return [
-    '[ALICIZATION_DIALOGUE_MEMORY_CARRY]',
-    `mode=${policy.mode}`,
-    `summary=${policy.summary}`,
-    `reasons=${policy.reasonTags.join(',') || 'none'}`,
-    policy.recallSeed ? `seed=${policy.recallSeed}` : '',
-    `carry_mirror_memory=${policy.allowMirrorCarry ? 'true' : 'false'}`,
+    'Dialogue memory carry.',
+    `Mode: ${policy.mode}.`,
+    `Summary: ${policy.summary}.`,
+    `Reasons: ${policy.reasonTags.join(', ') || 'none'}.`,
+    policy.recallSeed ? `Seed: ${policy.recallSeed}.` : '',
+    `Carry mirror memory: ${policy.allowMirrorCarry ? 'yes' : 'no'}.`,
     'Treat this as carry-over memory continuity, not a fresh perception sample.',
     'When memory and current observations conflict, current grounded evidence wins.',
   ].filter(Boolean).join('\n')

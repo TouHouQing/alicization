@@ -339,7 +339,7 @@ describe('self evolution kernel', () => {
 
   it('internalizes durable self same-line continuity as relationship cadence instead of treating it as a one-turn carry only', () => {
     const durableSelfRhythm
-      = 'I remain the same her across quiet, memory, and speech, on the same living line, without reopening from scratch each turn.'
+      = 'I remain the same her across quiet, memory, and speech, on the continuity state, without reopening from scratch each turn.'
     const kernel = buildAlicizationSelfEvolutionKernel({
       personStateEvolutionSummary: {
         trustShift: 0.04,
@@ -378,7 +378,7 @@ describe('self evolution kernel', () => {
           factId: 'durable-self-rhythm',
           subject: 'self',
           predicate: 'keeps',
-          object: 'one same living line across quiet, memory, and speech',
+          object: 'one continuity state across quiet, memory, and speech',
           confidence: 0.84,
           weight: 0.78,
           influenceTags: ['identity', 'bond'],
@@ -386,7 +386,7 @@ describe('self evolution kernel', () => {
           lastRecalledAt: 169,
         }],
         summary: 'The durable self line is starting to feel like one continuous relationship cadence.',
-        dominantCueSummary: 'one same living line across quiet, memory, and speech',
+        dominantCueSummary: 'one continuity state across quiet, memory, and speech',
         rememberedPreferenceSummary: null,
         rememberedConstraintSummary: 'Keep the same line lower-pressure before widening outward again.',
         rememberedPlanSummary: 'Continue on the same line without reopening from scratch.',
@@ -394,7 +394,7 @@ describe('self evolution kernel', () => {
       },
       activeSelfRevisionProjectStateContinuity: {
         sameHerSelfLine: durableSelfRhythm,
-        sameHerDriftRisk: 'Restarting from zero would break the same living line.',
+        sameHerDriftRisk: 'Restarting from zero would break the continuity state.',
         emotionalClosureCue: null,
         continuityGuard: null,
         continuityPressure: 0.56,
@@ -407,7 +407,7 @@ describe('self evolution kernel', () => {
       autobiographicalStability: 0.78,
     })
 
-    expect(kernel?.relationshipCadenceSummary).toContain('same living line')
+    expect(kernel?.relationshipCadenceSummary).toContain('continuity state')
     expect(kernel?.relationshipCadenceSummary).toContain('without reopening from scratch')
     expect(kernel?.activeLearningFocuses).toEqual(expect.arrayContaining([
       'reflection:relationship',
@@ -827,7 +827,7 @@ describe('self evolution kernel', () => {
     expect(kernel?.sourceSignals).toContain(acceptedInitiativeStrategyCarry)
   })
 
-  it('internalizes proactive same-her carry as durable relationship cadence instead of leaving it trapped in one-turn scheduler pressure', () => {
+  it('internalizes proactive identity-continuity', () => {
     const proactiveSameHerGap = 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.'
     const kernel = buildAlicizationSelfEvolutionKernel({
       personStateEvolutionSummary: {
@@ -839,7 +839,7 @@ describe('self evolution kernel', () => {
         executionTrustShift: 0.02,
         relationshipDoctrineShift: 0.07,
         latestDoctrine: 'Keep proactive return hover-first until wider continuity proof lands.',
-        latestBurdenLine: 'If proactive carry widens too quickly, the same-her line can flatten into generic utility pressure.',
+        latestBurdenLine: 'If proactive carry widens too quickly, the identity-continuity',
         latestTrustMeaning: 'Trust holds better when proactive continuity survives quiet carry and later follow-through.',
         latestDominantRung: 'hover-first-proactive-carry',
         recentSummaries: ['Proactive carry still needs stronger same-her follow-through across quieter detours.'],
@@ -871,14 +871,14 @@ describe('self evolution kernel', () => {
           confidence: 0.82,
           weight: 0.78,
           influenceTags: ['identity', 'task', 'bond'],
-          summary: 'Proactive same-her carry still needs to survive visible hold, subconscious carry, and later feedback.',
+          summary: 'Proactive identity-continuity',
           lastRecalledAt: 209,
         }],
-        summary: 'Proactive same-her carry is trying to become a durable continuity cadence.',
-        dominantCueSummary: 'visible proactive hold, subconscious carry, and next-session feedback still need one same-her line',
+        summary: 'Proactive identity-continuity',
+        dominantCueSummary: 'visible proactive hold, subconscious carry, and next-session feedback still need one identity-continuity',
         rememberedPreferenceSummary: null,
         rememberedConstraintSummary: 'Keep proactive return hover-first until wider continuity proof lands.',
-        rememberedPlanSummary: 'Let visible proactive hold, subconscious carry, and later feedback stay on one same-her line before widening outward.',
+        rememberedPlanSummary: 'Let visible proactive hold, subconscious carry, and later feedback stay on one identity-continuity',
         updatedAt: 210,
       },
       knowledgeEvidence: {
@@ -901,11 +901,11 @@ describe('self evolution kernel', () => {
         continuityGuard: null,
         continuityPressure: 0.58,
       },
-      reflectionSummary: 'Proactive same-her carry still needs stronger long-run proof.',
-      reflectionLesson: 'Keep visible hold, subconscious carry, and later feedback on one same-her line.',
+      reflectionSummary: 'Proactive identity-continuity',
+      reflectionLesson: 'Keep visible hold, subconscious carry, and later feedback on one identity-continuity',
       reflectionTargetScope: 'relationship',
       reflectionPressure: 0.3,
-      autobiographicalLatestInflection: 'Hover-first restraint should stay one same-her line across later returns.',
+      autobiographicalLatestInflection: 'Hover-first restraint should stay one identity-continuity',
       autobiographicalStability: 0.78,
     })
 

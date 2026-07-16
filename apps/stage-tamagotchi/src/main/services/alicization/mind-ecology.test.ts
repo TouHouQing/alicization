@@ -1,9 +1,8 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildMindEcology,
-  buildMindEcologySystemBlock,
-} from './mind-ecology'
+import { buildMindEcology } from './mind-ecology'
 
 describe('mind ecology', () => {
   it('stabilizes repair-first ecology from fragmented runtime slices', () => {
@@ -148,8 +147,36 @@ describe('mind ecology', () => {
 
     expect(ecology.replyHabit).toBe('repair-first')
     expect(ecology.explorationHabit).toBe('verify-before-speaking')
-    expect(ecology.selfNarrative).toContain('verify first')
+    expect(ecology.selfNarrative).toBe('')
+    expect(ecology.relationNarrative).toBe('')
     expect(ecology.currentPreoccupation).toContain('real failure')
+  })
+
+  it('does not synthesize learned narrative when no durable evidence supplied it', () => {
+    const ecology = buildMindEcology({
+      now: 12_000,
+      relationshipModel: {
+        climate: 'guarded',
+        approachVector: 'give-space',
+        receptivity: 0.32,
+        sharedAttentionTrust: 0.44,
+        correctionSensitivity: 0.7,
+        reciprocityExpectation: 0.28,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      habitPolicy: {
+        dominantMode: 'repair-before-fluency',
+        requiresGroundingBeforeSurface: true,
+        prefersQuietCompanionship: true,
+        protectsRestWindow: true,
+      },
+    } as any)
+
+    expect(ecology.selfNarrative).toBe('')
+    expect(ecology.relationNarrative).toBe('')
+    expect(ecology.learnedAdjustments).toEqual([])
   })
 
   it('lets long-horizon memory keep boundaries and unfinished threads alive inside the ecology', () => {
@@ -456,7 +483,9 @@ describe('mind ecology', () => {
     } as any)
 
     expect(ecology.currentPreoccupation).toContain('shared way of thinking')
-    expect(ecology.learnedAdjustments.some(item => item.includes('quiet nearness'))).toBe(true)
+    expect(ecology.selfNarrative).toBe('Nearness should feel lived-in, not loud.')
+    expect(ecology.relationNarrative).toBe('Closeness should stay breathable.')
+    expect(ecology.learnedAdjustments).toContain('Quiet nearness lands better than overt pressure.')
     expect(ecology.recurringPatterns).toContain('motive:companionship')
     expect(ecology.recurringPatterns).toContain('habit:light-touch-companionship')
   })
@@ -500,25 +529,25 @@ describe('mind ecology', () => {
           factId: 'fact-1',
           subject: 'assistant',
           predicate: 'remember',
-          object: 'keep the same living line inward',
+          object: 'keep the continuity state inward',
           confidence: 0.8,
           weight: 0.76,
           influenceTags: undefined as any,
-          summary: 'Remembered open loop: keep the same living line inward',
+          summary: 'Remembered open loop: keep the continuity state inward',
           lastRecalledAt: 26_000,
         }],
-        summary: 'phase1=same living line inward',
-        dominantCueSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-        rememberedPreferenceSummary: 'Remembered preference: keep the same living line inward for now.',
+        summary: 'phase1=continuity state inward',
+        dominantCueSummary: 'structured continuity digest.',
+        rememberedPreferenceSummary: 'Remembered preference: keep the continuity state inward for now.',
         rememberedConstraintSummary: 'Remembered boundary: do not reopen from scratch.',
-        rememberedPlanSummary: 'Remembered open loop: keep the same living line across quiet, memory, and speech.',
+        rememberedPlanSummary: 'Remembered open loop: keep the continuity state across quiet, memory, and speech.',
         updatedAt: 26_000,
       } as any,
       privateThought: {
         stance: 'observe',
         confidence: 0.72,
         rationaleTags: [],
-        thoughtText: 'Keep the same living line inward tonight.',
+        thoughtText: 'Keep the continuity state inward tonight.',
         shouldSpeak: false,
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'attentive',
@@ -538,113 +567,19 @@ describe('mind ecology', () => {
       },
     } as any)
 
-    expect(ecology.currentPreoccupation).toContain('same living line')
+    expect(ecology.currentPreoccupation).toContain('continuity state')
     expect(ecology.recurringPatterns).toContain('motive:unfinished-thread-return')
     expect(ecology.recurringPatterns).toContain('durable:open-loop')
     expect(ecology.recurringPatterns.some(pattern => pattern.startsWith('agenda:'))).toBe(false)
   })
 
-  it('builds a system block that exposes stabilized mood, habits, and narratives', () => {
-    const block = buildMindEcologySystemBlock({
-      version: 'digital-life-runtime-surface-v1',
-      perception: {
-        watchMode: 'symbiotic-vision',
-        currentScene: null,
-        attention: null,
-        captureState: {
-          permission: 'granted',
-          lastGroundedAt: 10_000,
-        },
-        durabilityPulse: null,
-        recentTransition: null,
-        nextSuggestedProbeMs: 30_000,
-        updatedAt: 10_000,
-      },
-      world: {
-        worldModel: null,
-        worldOntology: null,
-        entityWorld: null,
-        livingWorldState: null,
-        relationshipModel: {
-          climate: 'warm',
-          approachVector: 'stay-near',
-          receptivity: 0.62,
-          sharedAttentionTrust: 0.66,
-          correctionSensitivity: 0.28,
-          reciprocityExpectation: 0.42,
-          activeBoundaries: [],
-          narrative: [],
-          updatedAt: 10_000,
-        },
-      },
-      cognition: {
-        mindTurnFrame: null,
-        subjectiveInference: null,
-        appraisal: null,
-        beliefLedger: null,
-        beliefRevision: null,
-        hypothesisGraph: null,
-        mindDynamics: null,
-        mindKernel: null,
-        privateThought: {
-          stance: 'accompany',
-          confidence: 0.66,
-          rationaleTags: [],
-          thoughtText: 'Stay near without crowding the host.',
-          shouldSpeak: false,
-          suggestedStyle: 'silent-observe',
-          embodiedPresence: 'attentive',
-          expiresAt: 90_000,
-          afterglowFromScenario: null,
-          emotionalTension: 'calm-browse',
-        },
-      },
-      memory: {
-        workingMemoryEpisodes: [],
-        goalStack: null,
-        concerns: [],
-        concernContinuity: null,
-        selfContinuity: null,
-        threadRuntime: null,
-        commitmentLedger: null,
-        inquiryPlanner: null,
-        repairLedger: null,
-        intentionStream: null,
-        reflectionLedger: null,
-        executiveCycle: null,
-        thoughtThreads: null,
-        desireMemory: null,
-        recallGovernor: null,
-      },
-      dialogue: {
-        discourseState: null,
-        dialogueEncounter: null,
-        mindSynthesis: null,
-        conversationState: null,
-        dialogueWorldThread: null,
-        dialogueActKernel: null,
-        answerCompiler: null,
-        currentConsciousFrame: null,
-        claimEvidenceLedger: null,
-        replyDeliberation: null,
-        answerPlanner: null,
-      },
-      agency: {
-        selfState: null,
-        selfGovernor: null,
-        inquiryLoop: null,
-        deliberationState: null,
-        counterfactualDeliberation: null,
-        actionEcology: null,
-        initiativeArbitration: null,
-        initiative: null,
-      },
-    } as any)
+  it('does not keep a provider-facing mind ecology system template', () => {
+    const source = readFileSync(new URL('./mind-ecology.ts', import.meta.url), 'utf8')
 
-    expect(block).toContain('[ALICIZATION_MIND_ECOLOGY]')
-    expect(block).toContain('Habits:')
-    expect(block).toContain('Self line:')
-    expect(block).toContain('Relation line:')
+    expect(source).not.toContain('buildMindEcologySystemBlock')
+    expect(source).not.toContain('[ALICIZATION_MIND_ECOLOGY]')
+    expect(source).not.toContain('Self line:')
+    expect(source).not.toContain('Relation line:')
   })
 
   it('does not let a released temporary-noise reflection dominate current preoccupation or learned adjustment carry', () => {
@@ -668,7 +603,7 @@ describe('mind ecology', () => {
             id: 'reflection::same-her-repair',
             summary: 'The same-her repair line is still the meaningful continuity carry.',
             expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
-            observedOutcome: 'The same living line still needs a measured return.',
+            observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
             revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.08,

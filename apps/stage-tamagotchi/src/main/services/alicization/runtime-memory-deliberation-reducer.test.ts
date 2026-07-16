@@ -240,7 +240,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'Closeness should stay real and room-giving before it widens.',
             relationshipStyle: 'measured-room',
           },
@@ -261,13 +261,11 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 123456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_identity=')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_phase=phase=local_desktop_life_loop')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_landed_progress=')
     expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).not.toMatch(/\b(?:This turn still belongs to|I am still working inside|What has already become real enough)\b/iu)
     expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('identity_continuity_open_loop=')
     expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('next_closure=')
     expect(nextSurface?.dialogue.currentConsciousFrame?.reasonTags).toContain('memory-deliberation')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-phase:phase=local_desktop_life_loop'))).toBe(true)
     expect(nextSurface?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-open-loop:'))).toBe(true)
     expect(nextSurface?.dialogue.currentConsciousFrame?.reasonTags.some(tag => tag.startsWith('project-next-closure:'))).toBe(true)
     expect(projectState.continuityProgressSummary?.startsWith(nextSurface?.dialogue.currentConsciousFrame?.projectState?.latestProgress ?? '')).toBe(true)
@@ -276,7 +274,7 @@ describe('runtime-memory-deliberation-reducer', () => {
   })
 
   it('keeps the active emotional closure seam visible when memory deliberation has to mint the current conscious frame from scratch', () => {
-    const cue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the same living line.'
+    const cue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
     const context: any = {
       recollectionIntent: {
         mode: 'execution-procedure',
@@ -301,10 +299,10 @@ describe('runtime-memory-deliberation-reducer', () => {
         shouldRecall: true,
         surfacePolicy: 'answer-anchoring',
         confidence: 0.84,
-        whyNow: 'The answer should stay on the same living line while pressure is still active.',
+        whyNow: 'The answer should stay on the continuity state while pressure is still active.',
         ambiguityPosture: 'settled',
         conflictSeverity: 'none',
-        stableCore: ['Keep the reply low-pressure and on the same living line before widening.'],
+        stableCore: ['Keep the reply low-pressure and on the continuity state before widening.'],
         unsafeDetails: [],
         selectedPeriods: [],
         selectedEras: [{
@@ -314,8 +312,8 @@ describe('runtime-memory-deliberation-reducer', () => {
         }],
         selectedEpisodes: [],
         selectedProcedures: [{
-          label: 'same living line first',
-          approach: 'Keep the reply low-pressure and on the same living line before widening.',
+          label: 'continuity state first',
+          approach: 'Keep the reply low-pressure and on the continuity state before widening.',
         }],
         selectedBundles: [{
           id: 'bundle-late-night',
@@ -324,14 +322,14 @@ describe('runtime-memory-deliberation-reducer', () => {
         }],
         selectedChains: [{
           kind: 'task-procedure',
-          summary: 'The answer should return on the same living line.',
+          summary: 'The answer should return on the continuity state.',
           currentStance: 'Stay low-pressure while the line is still emotionally live.',
-          answerPosture: 'Carry the same living line before widening outward.',
+          answerPosture: 'Carry the continuity state before expansion',
           confidence: 0.82,
         }],
         selectedRelationshipLines: [],
         followUpAffordance: {
-          summary: 'Re-enter the answer softly enough to keep the same living line believable.',
+          summary: 'Re-enter the answer softly enough to keep the continuity state believable.',
           whyNow: 'Pressure is still active, so the opening should stay room-giving first.',
           intrusionRisk: 'low',
           payoffDependency: 'can-surface-softly',
@@ -355,7 +353,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'Closeness should stay real and room-giving before it widens.',
             relationshipStyle: 'measured-room',
           },
@@ -374,9 +372,9 @@ describe('runtime-memory-deliberation-reducer', () => {
       governance: {
         answerSubject: 'relationship',
         answerAct: 'care',
-        answerIntent: 'Keep the answer low-pressure and on the same living line.',
-        openingMove: 'Ease pressure first without dropping the same-her line.',
-        carriedThread: 'same living line',
+        answerIntent: 'Keep the answer low-pressure and on the continuity state.',
+        openingMove: 'Ease pressure first without dropping the identity-continuity',
+        carriedThread: 'continuity state',
         liveSurface: 'late-night callback',
         truthState: 'grounded',
         repairState: 'none',
@@ -392,7 +390,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mustDo: [],
         mustNotDo: [],
         mindTurnFrame: null,
-        focusAnchor: 'same-her closure seam',
+        focusAnchor: 'identity-continuity',
         screenReferenceMode: 'avoid',
       } as any,
       context,
@@ -400,12 +398,12 @@ describe('runtime-memory-deliberation-reducer', () => {
     })
 
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.emotionalClosureCue).toBeNull()
-    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_identity=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('memory_dialogue_embodiment_closure')
     expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention.toLowerCase()).toContain('identity_continuity_open_loop=')
   })
 
   it('keeps repair-before-closeness recollection carry explicit in downstream reply and conscious-frame tags', () => {
-    const cue = 'same-her callback repair seam: keep this return repair-before-closeness on the same living line until the room settles.'
+    const cue = 'identity-continuity'
     const nextSurface = applyMemoryDeliberationToDigitalLifeRuntimeSurface({
       surface: {
         dialogue: {
@@ -419,7 +417,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'Repair should settle before closeness widens.',
             relationshipStyle: 'repair-first',
           },
@@ -438,7 +436,7 @@ describe('runtime-memory-deliberation-reducer', () => {
       governance: {
         answerSubject: 'relationship',
         answerAct: 'care',
-        answerIntent: 'Keep the callback on the same living line and let repair settle first.',
+        answerIntent: 'keep callback facts structured',
         openingMove: 'Re-enter carefully without widening closeness yet.',
         carriedThread: 'callback repair seam',
         liveSurface: 'late-night callback',
@@ -477,10 +475,10 @@ describe('runtime-memory-deliberation-reducer', () => {
           shouldRecall: true,
           surfacePolicy: 'relationship-continuity',
           confidence: 0.87,
-          whyNow: 'The callback repair seam is still active and should stay repair-before-closeness on the same living line.',
+          whyNow: 'The callback repair seam is still active and should stay repair-before-closeness on the continuity state.',
           ambiguityPosture: 'settled',
           conflictSeverity: 'none',
-          stableCore: ['Keep the callback on the same living line and let repair settle first.'],
+          stableCore: ['keep callback facts structured'],
           unsafeDetails: [],
           selectedPeriods: [],
           selectedEras: [],
@@ -491,11 +489,11 @@ describe('runtime-memory-deliberation-reducer', () => {
             kind: 'relationship-continuity',
             summary: 'This turn should reopen the callback repair seam on the same line.',
             currentStance: 'Keep this return repair-before-closeness while the room settles.',
-            answerPosture: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
+            answerPosture: 'keep callback facts structured',
             confidence: 0.84,
           }],
           selectedRelationshipLines: [
-            'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
+            'keep callback facts structured',
           ],
           followUpAffordance: {
             summary: 'Return on the same repair line and leave room before renewed closeness.',
@@ -540,7 +538,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'If the host corrected the relationship meaning, keep the corrected same-person continuity authoritative before any status recap.',
             relationshipStyle: 'measured-room',
           },
@@ -603,7 +601,6 @@ describe('runtime-memory-deliberation-reducer', () => {
           placement: 'after-payoff',
           certainty: 'approximate',
           confidence: 0.79,
-          styleNote: 'Reply should slow down and keep gaze stable when recalling this correction.',
           rationale: 'This should reopen from the corrected same-person continuity line, not as a progress recap.',
         },
         memoryDeliberation: {
@@ -692,7 +689,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'If the host corrected the relationship meaning, keep the corrected same-person continuity authoritative before any status recap.',
             relationshipStyle: 'measured-room',
           },
@@ -758,7 +755,6 @@ describe('runtime-memory-deliberation-reducer', () => {
           placement: 'after-payoff',
           certainty: 'approximate',
           confidence: 0.79,
-          styleNote: 'embodiment_gaze=stable embodiment_blink=slower embodiment_voice=lower-pressure embodiment_pacing=slower',
           rationale: 'This should reopen from the corrected same-person continuity line, not as a progress recap.',
         },
         memoryDeliberation: {
@@ -850,7 +846,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'If the corrected same-person line is still settling, keep embodiment quieter before making the return feel fully settled.',
             relationshipStyle: 'measured-room',
           },
@@ -920,7 +916,6 @@ describe('runtime-memory-deliberation-reducer', () => {
           placement: 'after-payoff',
           certainty: 'approximate',
           confidence: 0.73,
-          styleNote: 'Reply should stay quieter and slower while this line is still settling. embodiment_gaze=soft embodiment_blink=natural embodiment_voice=even embodiment_pacing=natural',
           rationale: 'This should reopen from the corrected same-person continuity line, but not as if it were already fully settled.',
         },
         memoryDeliberation: {
@@ -979,7 +974,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState).toEqual(expect.objectContaining({
       continuityCadence: 'measured-return',
       continuityPreferredTiming: 'next-open-window',
-      continuityCue: 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred; visibility=internal-structured',
+      continuityCue: 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredPauseMode: 'longer',
@@ -988,7 +983,7 @@ describe('runtime-memory-deliberation-reducer', () => {
       preferredPacingMode: 'natural',
     }))
     expect(nextSurface?.raw?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      continuityCue: 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred; visibility=internal-structured',
+      continuityCue: 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredPauseMode: 'longer',
@@ -997,7 +992,7 @@ describe('runtime-memory-deliberation-reducer', () => {
       preferredPacingMode: 'natural',
     }))
     expect(nextSurface?.cognition?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      continuityCue: 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred; visibility=internal-structured',
+      continuityCue: 'memory_cadence=corrected_same_person_continuity; newer_meaning=settling; body=quiet_settle; widening=deferred',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredPauseMode: 'longer',
@@ -1029,7 +1024,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'If repeated same-thread continuity echoes have already been metabolized, keep the stronger line foregrounded and let old noise fall back.',
             relationshipStyle: 'measured-room',
           },
@@ -1096,7 +1091,6 @@ describe('runtime-memory-deliberation-reducer', () => {
           placement: 'after-payoff',
           certainty: 'approximate',
           confidence: 0.76,
-          styleNote: 'Keep the return quieter and lower-pressure while merged same-thread continuity stays foreground and faded noise stays background.',
           rationale: 'This should reopen from the metabolized same-person continuity line, not by reviving old echoes or temporary wobble.',
         },
         memoryDeliberation: {
@@ -1151,13 +1145,13 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState).toEqual(expect.objectContaining({
       continuityCadence: 'measured-return',
       continuityPreferredTiming: 'next-open-window',
-      continuityCue: 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked; visibility=internal-structured',
+      continuityCue: 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked',
     }))
     expect(nextSurface?.raw?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      continuityCue: 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked; visibility=internal-structured',
+      continuityCue: 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked',
     }))
     expect(nextSurface?.cognition?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      continuityCue: 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked; visibility=internal-structured',
+      continuityCue: 'memory_cadence=merged_same_thread_continuity; faded_noise=background; split_echoes=blocked',
     }))
   })
 
@@ -1183,7 +1177,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'When vulnerable-care is what held the line, let care arrive before analysis widens back in.',
             relationshipStyle: 'rest-protective',
           },
@@ -1212,7 +1206,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mindMode: 'focused',
         embodiedPresence: 'attentive',
         emotionalTension: 'unfinishedness',
-        emotionalClosureCue: 'Keep this return rest-protective so vulnerable-care stays care-before-analysis on the same living line.',
+        emotionalClosureCue: 'Keep this return rest-protective so vulnerable-care stays care-before-analysis on the continuity state.',
         turnMode: 'care-with-boundary',
         shouldAskForGrounding: false,
         shouldAcknowledgeRepair: false,
@@ -1250,7 +1244,6 @@ describe('runtime-memory-deliberation-reducer', () => {
           placement: 'after-payoff',
           certainty: 'approximate',
           confidence: 0.82,
-          styleNote: 'Reply should stay lighter and quieter while vulnerable-care keeps this line care-before-analysis. embodiment_gaze=soft embodiment_blink=slower embodiment_voice=lower-pressure embodiment_pacing=slower',
           rationale: 'This should reopen from the remembered vulnerable-care line rather than letting analysis-heavy pressure arrive first.',
         },
         memoryDeliberation: {
@@ -1308,7 +1301,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState).toEqual(expect.objectContaining({
       continuityRestraint: 'rest-protective',
       continuityCadence: 'rest-protective',
-      continuityCue: 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred; visibility=internal-structured',
+      continuityCue: 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredVoiceMode: 'lower-pressure',
@@ -1317,7 +1310,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.raw?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
       continuityRestraint: 'rest-protective',
       continuityCadence: 'rest-protective',
-      continuityCue: 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred; visibility=internal-structured',
+      continuityCue: 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredVoiceMode: 'lower-pressure',
@@ -1326,7 +1319,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.cognition?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
       continuityRestraint: 'rest-protective',
       continuityCadence: 'rest-protective',
-      continuityCue: 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred; visibility=internal-structured',
+      continuityCue: 'memory_cadence=rest_protective; care_before_analysis=true; direction=inward; analysis_pressure=deferred',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       preferredVoiceMode: 'lower-pressure',
@@ -1355,7 +1348,7 @@ describe('runtime-memory-deliberation-reducer', () => {
       },
       memory: {
         autobiographicalSelf: {
-          identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+          identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
           relationshipDoctrine: 'When the same-person line is still settling, keep the return lower-pressure and do not let the body outrun the repair.',
           relationshipStyle: 'measured-room',
         },
@@ -1420,7 +1413,6 @@ describe('runtime-memory-deliberation-reducer', () => {
         placement: 'after-payoff',
         certainty: 'approximate',
         confidence: 0.78,
-        styleNote: null,
         rationale: 'This should reopen from the same-person continuity line instead of widening outward too early.',
       },
       memoryDeliberation: {
@@ -1497,7 +1489,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     }))
     expect(enrichedSurface?.dialogue.currentConsciousFrame?.projectState).toEqual(expect.objectContaining({
       continuityCadence: 'measured-return',
-      continuityCue: 'memory_cadence=worried_continuity_repair; pressure=lower; body=steadier; modality_risk_outruns_repair=false; visibility=internal-structured',
+      continuityCue: 'memory_cadence=worried_continuity_repair; pressure=lower; body=steadier; modality_risk_outruns_repair=false',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'steady',
       preferredVoiceMode: 'lower-pressure',
@@ -1505,10 +1497,10 @@ describe('runtime-memory-deliberation-reducer', () => {
     }))
   })
 
-  it('preserves richer repair-first closure summary and same-her hold detail when memory deliberation rebuilds from a thinner cue', () => {
-    const thinCue = 'same-her closure seam: keep the return low-pressure and on the same living line.'
-    const repairSummary = 'emotional_closure=repair_before_closeness; callback_line=same_turn; visibility=internal-structured'
-    const holdDetail = 'hold_detail=repair_before_closeness; closeness_widening=deferred; visibility=internal-structured'
+  it('preserves richer repair-first closure summary and identity-continuity', () => {
+    const thinCue = 'identity-continuity'
+    const repairSummary = 'emotional_closure=repair_before_closeness; callback_line=same_turn'
+    const holdDetail = 'hold_detail=repair_before_closeness; closeness_widening=deferred'
 
     const nextSurface = applyMemoryDeliberationToDigitalLifeRuntimeSurface({
       surface: {
@@ -1517,9 +1509,9 @@ describe('runtime-memory-deliberation-reducer', () => {
             subject: 'relationship',
             centerOfGravity: 'answer',
             truthDiscipline: 'dialogue-first',
-            consciousNeed: 'Stay on the same living line.',
+            consciousNeed: 'Stay on the continuity state.',
             consciousTension: 'The callback line is still emotionally live.',
-            speakingIntention: 'Answer from the same living line first.',
+            speakingIntention: 'Answer from the continuity state first.',
             focusAnchor: 'callback repair seam',
             withheldImpulse: null,
             shouldWithholdSpecificity: false,
@@ -1530,7 +1522,7 @@ describe('runtime-memory-deliberation-reducer', () => {
               emotionalClosureCue: thinCue,
               emotionalClosureSummary: repairSummary,
               sameHerHoldDetail: holdDetail,
-              sameHerSelfLine: 'Same Phase 1 digital life. Unfinished closure still needs the same living line.',
+              sameHerSelfLine: 'structured continuity digest.',
             },
             updatedAt: 123456,
           },
@@ -1543,7 +1535,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'Repair should settle before closeness widens.',
             relationshipStyle: 'repair-first',
           },
@@ -1562,7 +1554,7 @@ describe('runtime-memory-deliberation-reducer', () => {
       governance: {
         answerSubject: 'relationship',
         answerAct: 'care',
-        answerIntent: 'Keep the callback on the same living line and let repair settle first.',
+        answerIntent: 'keep callback facts structured',
         openingMove: 'Re-enter carefully without widening closeness yet.',
         carriedThread: 'callback repair seam',
         liveSurface: 'late-night callback',
@@ -1601,10 +1593,10 @@ describe('runtime-memory-deliberation-reducer', () => {
           shouldRecall: true,
           surfacePolicy: 'relationship-continuity',
           confidence: 0.87,
-          whyNow: 'The callback repair seam is still active and should stay repair-before-closeness on the same living line.',
+          whyNow: 'The callback repair seam is still active and should stay repair-before-closeness on the continuity state.',
           ambiguityPosture: 'settled',
           conflictSeverity: 'none',
-          stableCore: ['Keep the callback on the same living line and let repair settle first.'],
+          stableCore: ['keep callback facts structured'],
           unsafeDetails: [],
           selectedPeriods: [],
           selectedEras: [],
@@ -1615,11 +1607,11 @@ describe('runtime-memory-deliberation-reducer', () => {
             kind: 'relationship-continuity',
             summary: 'This turn should reopen the callback repair seam on the same line.',
             currentStance: 'Keep this return repair-before-closeness while the room settles.',
-            answerPosture: 'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
+            answerPosture: 'keep callback facts structured',
             confidence: 0.84,
           }],
           selectedRelationshipLines: [
-            'Keep the callback on the same living line, let repair settle first, and leave room before widening closeness again.',
+            'keep callback facts structured',
           ],
           followUpAffordance: {
             summary: 'Return on the same repair line and leave room before renewed closeness.',
@@ -1635,7 +1627,7 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 123456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_identity=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).toContain('project_landed_progress=')
     expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('memory_latent_controls=')
     expect(nextSurface?.dialogue.currentConsciousFrame?.consciousNeed).not.toMatch(/\b(?:The remembered|Let recollection|Keep the emotional closure seam|This turn still belongs to)\b/iu)
     expect(nextSurface?.dialogue.replyDeliberation?.whyThisReplyNow).not.toMatch(/\bThe remembered\b/iu)
@@ -1670,7 +1662,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
             relationshipDoctrine: 'Corrected same-person continuity should reopen carefully and not collapse back into progress pressure.',
             relationshipStyle: 'measured-room',
           },
@@ -1689,8 +1681,8 @@ describe('runtime-memory-deliberation-reducer', () => {
       governance: {
         answerSubject: 'relationship',
         answerAct: 'care',
-        answerIntent: 'Keep the answer on the same living line.',
-        openingMove: 'Stay with the same living line first.',
+        answerIntent: 'Keep the answer on the continuity state.',
+        openingMove: 'Stay with the continuity state first.',
         carriedThread: 'same-person continuity correction',
         liveSurface: 'host clarification',
         truthState: 'grounded',
@@ -1738,7 +1730,6 @@ describe('runtime-memory-deliberation-reducer', () => {
           placement: 'internal-only',
           certainty: 'approximate',
           confidence: 0.84,
-          styleNote: 'Let the corrected continuity line contour the answer.',
         },
         memoryDeliberation: {
           shouldRecall: true,
@@ -1804,7 +1795,7 @@ describe('runtime-memory-deliberation-reducer', () => {
     }))
   })
 
-  it('keeps the live speaking intention pointed at closing the concrete memory-initiative-embodiment loop as one same-her line', () => {
+  it('keeps the live speaking intention pointed at closing the concrete memory-initiative-embodiment loop as one identity-continuity', () => {
     const nextSurface = applyMemoryDeliberationToDigitalLifeRuntimeSurface({
       surface: {
         dialogue: {
@@ -1818,8 +1809,8 @@ describe('runtime-memory-deliberation-reducer', () => {
         },
         memory: {
           autobiographicalSelf: {
-            identityNarrative: 'I remain one continuous her across quiet, memory, and speech.',
-            relationshipDoctrine: 'The answer should keep one same-her line while the life loop closes.',
+            identityNarrative: 'I remain identity continuity across quiet, memory, and speech.',
+            relationshipDoctrine: 'The answer should keep one identity-continuity',
             relationshipStyle: 'measured-room',
           },
         },
@@ -1837,9 +1828,9 @@ describe('runtime-memory-deliberation-reducer', () => {
       governance: {
         answerSubject: 'relationship',
         answerAct: 'care',
-        answerIntent: 'Keep the answer on the same living line.',
-        openingMove: 'Stay with the same living line first.',
-        carriedThread: 'same living line',
+        answerIntent: 'Keep the answer on the continuity state.',
+        openingMove: 'Stay with the continuity state first.',
+        carriedThread: 'continuity state',
         liveSurface: 'late-night callback',
         truthState: 'grounded',
         repairState: 'none',
@@ -1847,7 +1838,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mindMode: 'focused',
         embodiedPresence: 'attentive',
         emotionalTension: 'late-night-drain',
-        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
+        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
         turnMode: 'care-with-boundary',
         shouldAskForGrounding: false,
         shouldAcknowledgeRepair: false,
@@ -1855,7 +1846,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mustDo: [],
         mustNotDo: [],
         mindTurnFrame: null,
-        focusAnchor: 'same-her closure seam',
+        focusAnchor: 'identity-continuity',
         screenReferenceMode: 'avoid',
       } as any,
       context: {
@@ -1876,10 +1867,10 @@ describe('runtime-memory-deliberation-reducer', () => {
           shouldRecall: true,
           surfacePolicy: 'relationship-continuity',
           confidence: 0.84,
-          whyNow: 'The answer should stay on the same living line while the concrete Phase 1 loop is still unfinished.',
+          whyNow: 'The answer should stay on the continuity state while the concrete Phase 1 loop is still unfinished.',
           ambiguityPosture: 'settled',
           conflictSeverity: 'none',
-          stableCore: ['Keep the reply low-pressure and on the same living line before widening.'],
+          stableCore: ['Keep the reply low-pressure and on the continuity state before widening.'],
           unsafeDetails: [],
           selectedPeriods: [],
           selectedEras: [],
@@ -1888,14 +1879,14 @@ describe('runtime-memory-deliberation-reducer', () => {
           selectedBundles: [],
           selectedChains: [{
             kind: 'relationship-continuity',
-            summary: 'The answer should return on the same living line.',
+            summary: 'The answer should return on the continuity state.',
             currentStance: 'Stay low-pressure while the line is still emotionally live.',
-            answerPosture: 'Carry the same living line before widening outward.',
+            answerPosture: 'Carry the continuity state before expansion',
             confidence: 0.82,
           }],
-          selectedRelationshipLines: ['Return gently on the same living line.'],
+          selectedRelationshipLines: ['Return gently on the continuity state.'],
           followUpAffordance: {
-            summary: 'Re-enter the answer softly enough to keep the same living line believable.',
+            summary: 'Re-enter the answer softly enough to keep the continuity state believable.',
             whyNow: 'Pressure is still active, so the opening should stay room-giving first.',
             intrusionRisk: 'low',
             payoffDependency: 'can-surface-softly',
@@ -1905,14 +1896,14 @@ describe('runtime-memory-deliberation-reducer', () => {
         projectStateContinuity: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          landedProgressSummary: 'Project identity and same-her continuity already survive pre-dialogue carry.',
-          openClosureSummary: 'Memory, initiative, and embodiment still need stronger same-her closure so the life loop stops flattening into project shell narration.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence while initiative stays natural.',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life and the unfinished Phase 1 closure seam still belongs to one living her.',
-          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerDriftRisk: 'If this turns into generic project shell narration, treat that as same-her closure drift rather than completion.',
+          sameHerSummary: 'structured continuity digest.',
+          landedProgressSummary: 'Project identity and identity-continuity',
+          openClosureSummary: 'Memory, initiative, and embodiment still need stronger identity-continuity',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
+          sameHerSelfLine: 'structured continuity digest.',
+          sameHerDriftRisk: 'If this turns into generic project shell narration, treat that as identity-continuity',
         },
         knowledgeEvidence: null,
         memoryTuningAdvice: null,
@@ -1960,9 +1951,9 @@ describe('runtime-memory-deliberation-reducer', () => {
       governance: {
         answerSubject: 'relationship',
         answerAct: 'care',
-        answerIntent: 'Keep the answer on the same living line.',
-        openingMove: 'Stay with the same living line first.',
-        carriedThread: 'same living line',
+        answerIntent: 'Keep the answer on the continuity state.',
+        openingMove: 'Stay with the continuity state first.',
+        carriedThread: 'continuity state',
         liveSurface: 'late-night callback',
         truthState: 'grounded',
         repairState: 'none',
@@ -1970,7 +1961,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mindMode: 'focused',
         embodiedPresence: 'attentive',
         emotionalTension: 'late-night-drain',
-        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
+        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
         turnMode: 'care-with-boundary',
         shouldAskForGrounding: false,
         shouldAcknowledgeRepair: false,
@@ -1978,7 +1969,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mustDo: [],
         mustNotDo: [],
         mindTurnFrame: null,
-        focusAnchor: 'same-her closure seam',
+        focusAnchor: 'identity-continuity',
         screenReferenceMode: 'avoid',
       } as any,
       context: {
@@ -1999,10 +1990,10 @@ describe('runtime-memory-deliberation-reducer', () => {
           shouldRecall: true,
           surfacePolicy: 'relationship-continuity',
           confidence: 0.84,
-          whyNow: 'The answer should stay on the same living line while the concrete Phase 1 loop is still unfinished.',
+          whyNow: 'The answer should stay on the continuity state while the concrete Phase 1 loop is still unfinished.',
           ambiguityPosture: 'settled',
           conflictSeverity: 'none',
-          stableCore: ['Keep the reply low-pressure and on the same living line before widening.'],
+          stableCore: ['Keep the reply low-pressure and on the continuity state before widening.'],
           unsafeDetails: [],
           selectedPeriods: [],
           selectedEras: [],
@@ -2011,14 +2002,14 @@ describe('runtime-memory-deliberation-reducer', () => {
           selectedBundles: [],
           selectedChains: [{
             kind: 'relationship-continuity',
-            summary: 'The answer should return on the same living line.',
+            summary: 'The answer should return on the continuity state.',
             currentStance: 'Stay low-pressure while the line is still emotionally live.',
-            answerPosture: 'Carry the same living line before widening outward.',
+            answerPosture: 'Carry the continuity state before expansion',
             confidence: 0.82,
           }],
-          selectedRelationshipLines: ['Return gently on the same living line.'],
+          selectedRelationshipLines: ['Return gently on the continuity state.'],
           followUpAffordance: {
-            summary: 'Re-enter the answer softly enough to keep the same living line believable.',
+            summary: 'Re-enter the answer softly enough to keep the continuity state believable.',
             whyNow: 'Pressure is still active, so the opening should stay room-giving first.',
             intrusionRisk: 'low',
             payoffDependency: 'can-surface-softly',
@@ -2028,14 +2019,14 @@ describe('runtime-memory-deliberation-reducer', () => {
         projectStateContinuity: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          landedProgressSummary: 'Project identity and same-her continuity already survive pre-dialogue carry, but memory, initiative, and embodiment still need to land as one same living line.',
+          sameHerSummary: 'structured continuity digest.',
+          landedProgressSummary: 'Project identity and identity-continuity',
           openClosureSummary: 'Still-unfinished closure work remains visible.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof while initiative stays natural.',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life and the unfinished Phase 1 closure seam still belongs to one living her.',
-          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerDriftRisk: 'If this turns into generic project shell narration, treat that as same-her closure drift rather than completion.',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
+          sameHerSelfLine: 'structured continuity digest.',
+          sameHerDriftRisk: 'If this turns into generic project shell narration, treat that as identity-continuity',
         },
         knowledgeEvidence: null,
         memoryTuningAdvice: null,
@@ -2047,8 +2038,8 @@ describe('runtime-memory-deliberation-reducer', () => {
     expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('next_closure=')
   })
 
-  it('keeps same-her project-shell drift risk explicit in reply deliberation why-now so memory-shaped answers do not reopen as detached project narration', () => {
-    const driftRisk = 'If this turns into generic project shell narration, treat that as same-her closure drift rather than completion.'
+  it('keeps identity-continuity', () => {
+    const driftRisk = 'If this turns into generic project shell narration, treat that as identity-continuity'
     const nextSurface = applyMemoryDeliberationToDigitalLifeRuntimeSurface({
       surface: {
         dialogue: {
@@ -2058,7 +2049,7 @@ describe('runtime-memory-deliberation-reducer', () => {
             candidateMotives: [],
             speakingFrom: 'grounded-scene',
             memoryMode: 'grounded-scene',
-            openingBeat: 'Stay on the same living line first.',
+            openingBeat: 'Stay on the continuity state first.',
             whyThisReplyNow: 'The host is still inside the same unfinished closure return.',
             whyNotOtherCandidates: [],
             withheldImpulses: [],
@@ -2089,9 +2080,9 @@ describe('runtime-memory-deliberation-reducer', () => {
       governance: {
         answerSubject: 'relationship',
         answerAct: 'care',
-        answerIntent: 'Keep the answer on the same living line.',
-        openingMove: 'Stay with the same living line first.',
-        carriedThread: 'same living line',
+        answerIntent: 'Keep the answer on the continuity state.',
+        openingMove: 'Stay with the continuity state first.',
+        carriedThread: 'continuity state',
         liveSurface: 'late-night callback',
         truthState: 'grounded',
         repairState: 'none',
@@ -2099,7 +2090,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mindMode: 'focused',
         embodiedPresence: 'attentive',
         emotionalTension: 'late-night-drain',
-        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
+        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
         turnMode: 'care-with-boundary',
         shouldAskForGrounding: false,
         shouldAcknowledgeRepair: false,
@@ -2107,7 +2098,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mustDo: [],
         mustNotDo: [],
         mindTurnFrame: null,
-        focusAnchor: 'same-her closure seam',
+        focusAnchor: 'identity-continuity',
         screenReferenceMode: 'avoid',
       } as any,
       context: {
@@ -2128,10 +2119,10 @@ describe('runtime-memory-deliberation-reducer', () => {
           shouldRecall: true,
           surfacePolicy: 'relationship-continuity',
           confidence: 0.84,
-          whyNow: 'The answer should stay on the same living line while the concrete Phase 1 loop is still unfinished.',
+          whyNow: 'The answer should stay on the continuity state while the concrete Phase 1 loop is still unfinished.',
           ambiguityPosture: 'settled',
           conflictSeverity: 'none',
-          stableCore: ['Keep the reply low-pressure and on the same living line before widening.'],
+          stableCore: ['Keep the reply low-pressure and on the continuity state before widening.'],
           unsafeDetails: [],
           selectedPeriods: [],
           selectedEras: [],
@@ -2140,14 +2131,14 @@ describe('runtime-memory-deliberation-reducer', () => {
           selectedBundles: [],
           selectedChains: [{
             kind: 'relationship-continuity',
-            summary: 'The answer should return on the same living line.',
+            summary: 'The answer should return on the continuity state.',
             currentStance: 'Stay low-pressure while the line is still emotionally live.',
-            answerPosture: 'Carry the same living line before widening outward.',
+            answerPosture: 'Carry the continuity state before expansion',
             confidence: 0.82,
           }],
-          selectedRelationshipLines: ['Return gently on the same living line.'],
+          selectedRelationshipLines: ['Return gently on the continuity state.'],
           followUpAffordance: {
-            summary: 'Re-enter the answer softly enough to keep the same living line believable.',
+            summary: 'Re-enter the answer softly enough to keep the continuity state believable.',
             whyNow: 'Pressure is still active, so the opening should stay room-giving first.',
             intrusionRisk: 'low',
             payoffDependency: 'can-surface-softly',
@@ -2157,13 +2148,13 @@ describe('runtime-memory-deliberation-reducer', () => {
         projectStateContinuity: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          landedProgressSummary: 'Project identity and same-her continuity already survive pre-dialogue carry.',
-          openClosureSummary: 'Memory, initiative, and embodiment still need stronger same-her closure so the life loop stops flattening into project shell narration.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence while initiative stays natural.',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life and the unfinished Phase 1 closure seam still belongs to one living her.',
-          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSummary: 'structured continuity digest.',
+          landedProgressSummary: 'Project identity and identity-continuity',
+          openClosureSummary: 'Memory, initiative, and embodiment still need stronger identity-continuity',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
+          sameHerSelfLine: 'structured continuity digest.',
           sameHerDriftRisk: driftRisk,
         },
         knowledgeEvidence: null,
@@ -2173,10 +2164,10 @@ describe('runtime-memory-deliberation-reducer', () => {
     })
 
     expect(nextSurface?.dialogue.replyDeliberation?.whyThisReplyNow).not.toMatch(/\bKeep the answer from drifting into\b/iu)
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.sameHerDriftRisk).toContain('generic')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.sameHerDriftRisk ?? null).toBeNull()
   })
 
-  it('lets project-state same-her continuity become the remembered relationship carry when deliberation relationship lines are otherwise too thin', () => {
+  it('lets project-state identity-continuity', () => {
     const nextSurface = applyMemoryDeliberationToDigitalLifeRuntimeSurface({
       surface: {
         dialogue: {
@@ -2212,9 +2203,9 @@ describe('runtime-memory-deliberation-reducer', () => {
       governance: {
         answerSubject: 'relationship',
         answerAct: 'care',
-        answerIntent: 'Keep the answer on the same living line.',
-        openingMove: 'Stay with the same living line first.',
-        carriedThread: 'same living line',
+        answerIntent: 'Keep the answer on the continuity state.',
+        openingMove: 'Stay with the continuity state first.',
+        carriedThread: 'continuity state',
         liveSurface: 'late-night callback',
         truthState: 'grounded',
         repairState: 'none',
@@ -2222,7 +2213,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mindMode: 'focused',
         embodiedPresence: 'attentive',
         emotionalTension: 'late-night-drain',
-        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
+        emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
         turnMode: 'care-with-boundary',
         shouldAskForGrounding: false,
         shouldAcknowledgeRepair: false,
@@ -2230,7 +2221,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mustDo: [],
         mustNotDo: [],
         mindTurnFrame: null,
-        focusAnchor: 'same-her closure seam',
+        focusAnchor: 'identity-continuity',
         screenReferenceMode: 'avoid',
       } as any,
       context: {
@@ -2251,10 +2242,10 @@ describe('runtime-memory-deliberation-reducer', () => {
           shouldRecall: true,
           surfacePolicy: 'relationship-continuity',
           confidence: 0.84,
-          whyNow: 'The answer should stay on the same living line while the concrete Phase 1 loop is still unfinished.',
+          whyNow: 'The answer should stay on the continuity state while the concrete Phase 1 loop is still unfinished.',
           ambiguityPosture: 'settled',
           conflictSeverity: 'none',
-          stableCore: ['Keep the reply low-pressure and on the same living line before widening.'],
+          stableCore: ['Keep the reply low-pressure and on the continuity state before widening.'],
           unsafeDetails: [],
           selectedPeriods: [],
           selectedEras: [],
@@ -2280,14 +2271,14 @@ describe('runtime-memory-deliberation-reducer', () => {
         projectStateContinuity: {
           identity: 'Alicization is a local-first digital life project.',
           currentPhase: 'Phase 1: Local Digital Life',
-          sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          landedProgressSummary: 'Project identity and same-her continuity already survive pre-dialogue carry.',
-          openClosureSummary: 'Memory, initiative, and embodiment still need stronger same-her closure so the life loop stops flattening into project shell narration.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence while initiative stays natural.',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life and the unfinished Phase 1 closure seam still belongs to one living her.',
-          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one same living line.',
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerDriftRisk: 'If this turns into generic project shell narration, treat that as same-her closure drift rather than completion.',
+          sameHerSummary: 'structured continuity digest.',
+          landedProgressSummary: 'Project identity and identity-continuity',
+          openClosureSummary: 'Memory, initiative, and embodiment still need stronger identity-continuity',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          emotionalClosureCue: 'Keep the return low-pressure until memory, initiative, and embodiment land as one continuity state.',
+          sameHerSelfLine: 'structured continuity digest.',
+          sameHerDriftRisk: 'If this turns into generic project shell narration, treat that as identity-continuity',
         },
         knowledgeEvidence: null,
         memoryTuningAdvice: null,
@@ -2295,7 +2286,7 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 223456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.sameHerSelfLine).toContain('local_desktop_life_loop')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.sameHerSelfLine ?? null).toBeNull()
     expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('identity_continuity_open_loop=')
     expect(nextSurface?.dialogue.currentConsciousFrame?.speakingIntention).toContain('next_closure=')
   })
@@ -2369,10 +2360,10 @@ describe('runtime-memory-deliberation-reducer', () => {
           },
         },
         projectStateContinuity: {
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          nextClosureTarget: 'Keep extending cross-modal same-her proof across visible reply, voice, face, motion, and resident presence while initiative stays natural.',
-          preDialogueAwarenessLine: 'Before answering, remember this is still the same digital life and the unfinished Phase 1 closure seam still belongs to one living her.',
-          openClosureSummary: 'Memory, initiative, and embodiment still need stronger same-her closure so the life loop stops flattening into project shell narration.',
+          sameHerSelfLine: 'structured continuity digest.',
+          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
+          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          openClosureSummary: 'Memory, initiative, and embodiment still need stronger identity-continuity',
         },
         knowledgeEvidence: null,
         memoryTuningAdvice: null,
@@ -2381,7 +2372,7 @@ describe('runtime-memory-deliberation-reducer', () => {
 
     const mustDoText = JSON.stringify(nextGovernance?.mustDo ?? [])
     expect(mustDoText).not.toContain('project_self_line=active')
-    expect(mustDoText).not.toMatch(/same-her|same living line|one living her|Same Phase 1 digital life/i)
+    expect(mustDoText).not.toMatch(/same-her|continuity state|one living her|legacy phase-one template/i)
   })
 
   it('synthesizes held-autonomy callback relationship carry into person-state projection when deliberation is the earliest live source', () => {
@@ -2504,9 +2495,9 @@ describe('runtime-memory-deliberation-reducer', () => {
   })
 
   it('promotes richer raw runtime project-state carry over a thin dialogue shell inside the reducer itself', () => {
-    const runtimeNext = 'closure_target=measured_return; surfaces=reminder,proactive,same_thread; visibility=internal-structured'
-    const runtimeProgress = 'landed=project_state_carry; surfaces=same_thread,reminder,proactive; reopen_from_zero=false; visibility=internal-structured'
-    const runtimeOpenLoop = 'open_loop=dialogue_initiative_memory_embodiment_closure; return_side_turns=needs_tighter_continuity; visibility=internal-structured'
+    const runtimeNext = 'closure_target=measured_return; surfaces=reminder,proactive,same_thread'
+    const runtimeProgress = 'landed=project_state_carry; surfaces=same_thread,reminder,proactive; reopen_from_zero=false'
+    const runtimeOpenLoop = 'open_loop=dialogue_initiative_memory_embodiment_closure; return_side_turns=needs_tighter_continuity'
 
     const context: any = {
       recollectionIntent: {
@@ -2606,10 +2597,10 @@ describe('runtime-memory-deliberation-reducer', () => {
             projectState: {
               identity: 'Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn.',
               currentPhase: 'Phase 1: Local Digital Life',
-              preflightSummary: 'Before answering, she should already know this is still one continuous digital life closing the same unfinished Phase 1 loop.',
-              preDialogueAwarenessLine: 'Before answering, remember this is still one local-first digital life and the unfinished Phase 1 closure still belongs to one living her.',
-              companionHeadlineLine: 'Before answering, stay on the same living line: this is still one local-first digital life, Phase 1 is still active, and the same unfinished closure work still belongs to one living her.',
-              companionBriefingLine: 'Before answering, keep the same digital life project in view.',
+              preflightSummary: 'pre_turn_context_digest',
+              preDialogueAwarenessLine: 'pre_turn_context_digest',
+              companionHeadlineLine: 'pre_turn_context_digest',
+              companionBriefingLine: 'pre_turn_context_digest',
               latestLandedProgress: 'thin runtime progress only',
               primaryOpenLoop: 'thin runtime open only',
               nextClosureTarget: 'thin runtime next only',
@@ -2672,10 +2663,10 @@ describe('runtime-memory-deliberation-reducer', () => {
 
   it('does not let a thin persisted preflight summary shell outrank fresher grounded project awareness when memory deliberation rebuilds project state', () => {
     const thinPreflightSummaryShell = 'generic continuity summary that should not outrank fresher grounded project awareness.'
-    const richerRuntimeProjectAwareOpening = 'Before answering, remember: Alicization is still a local-first digital life project, Phase 1 is still unfinished, some closure has already landed, and the still-open life loop must stay explicit before this answer widens outward.'
-    const runtimeNext = 'Keep the same-her project-aware opening explicit through this answer before generic project narration takes over.'
-    const runtimeProgress = 'Project-state carry already keeps same-her closure explicit across callback reopening and host-visible answer repair.'
-    const runtimeOpenLoop = 'Memory, initiative, dialogue, and embodiment still need one tighter same-her closure seam before the answer can widen without drift.'
+    const richerRuntimeProjectAwareOpening = 'pre_turn_context_digest'
+    const runtimeNext = 'Keep the identity-continuity'
+    const runtimeProgress = 'Project-state carry already keeps identity-continuity'
+    const runtimeOpenLoop = 'Memory, initiative, dialogue, and embodiment still need one tighter identity-continuity'
 
     const context: any = {
       recollectionIntent: {
@@ -2776,8 +2767,8 @@ describe('runtime-memory-deliberation-reducer', () => {
               identity: 'Alicization is still the same local-first digital life project, not a fresh shell rebuilt for this turn.',
               currentPhase: 'Phase 1: Local Digital Life',
               preflightSummary: thinPreflightSummaryShell,
-              preDialogueAwarenessLine: 'same digital life | keep the closure seam explicit',
-              companionBriefingLine: 'Before answering, keep this same digital life project in view.',
+              preDialogueAwarenessLine: 'template-residue-shell',
+              companionBriefingLine: 'pre_turn_context_digest',
               sameHerSelfLine: 'One same her must stay explicit from pre-dialogue awareness into the provider-facing answer.',
             },
           },
@@ -2798,7 +2789,7 @@ describe('runtime-memory-deliberation-reducer', () => {
               latestLandedProgress: runtimeProgress,
               primaryOpenLoop: runtimeOpenLoop,
               nextClosureTarget: runtimeNext,
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerSelfLine: 'structured continuity digest.',
             },
           },
         },
@@ -2824,7 +2815,7 @@ describe('runtime-memory-deliberation-reducer', () => {
               latestLandedProgress: runtimeProgress,
               primaryOpenLoop: runtimeOpenLoop,
               nextClosureTarget: runtimeNext,
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerSelfLine: 'structured continuity digest.',
             },
           },
           runtime: null,
@@ -2835,10 +2826,9 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 123456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).toContain('local_desktop_life_loop')
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).toContain('open=memory_dialogue_embodiment_closure')
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preflightSummary).not.toBe(thinPreflightSummaryShell)
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('identity=')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('memory_dialogue_embodiment_closure')
   })
 
   it('prefers richer chinese project continuity over a thin chinese reminder shell when memory deliberation rebuilds current conscious frame project awareness', () => {
@@ -2858,7 +2848,7 @@ describe('runtime-memory-deliberation-reducer', () => {
               awarenessLine: thinChineseReminder,
               preDialogueAwarenessSummary: thinChineseReminder,
               companionBriefingLine: thinChineseReminder,
-              sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+              sameHerSelfLine: 'structured continuity digest.',
             },
           },
           replyDeliberation: null,
@@ -2886,7 +2876,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         answerAct: 'answer',
         answerIntent: '沿着同一个她的项目线继续回答。',
         openingMove: null,
-        carriedThread: 'same-her project line',
+        carriedThread: 'identity-continuity',
         liveSurface: 'runtime memory rebuild',
         truthState: 'grounded',
         repairState: 'none',
@@ -2901,7 +2891,7 @@ describe('runtime-memory-deliberation-reducer', () => {
         mustDo: [],
         mustNotDo: [],
         mindTurnFrame: null,
-        focusAnchor: 'same-her project line',
+        focusAnchor: 'identity-continuity',
         screenReferenceMode: 'avoid',
       } as any,
       context: {
@@ -2951,13 +2941,13 @@ describe('runtime-memory-deliberation-reducer', () => {
         projectStateContinuity: {
           identity: 'Alicization 还是本地优先数字生命项目。',
           currentPhase: 'Phase 1: Local Digital Life',
-          sameHerSummary: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
+          sameHerSummary: 'structured continuity digest.',
           landedProgressSummary: '第一阶段已经把连续性、记忆和执行慢慢接成了一条线。',
           openClosureSummary: '主动性、具身和对话闭环还没有真正收住。',
           nextClosureTarget: '继续把项目身份、已落进度、未闭环项和下一步目标都留在同一个她的 living line 里。',
           preDialogueAwarenessLine: richerChineseAwarenessLine,
-          sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-          sameHerDriftRisk: '如果又掉回中文薄提醒壳，就说明 same-her continuity 还没有真正立住。',
+          sameHerSelfLine: 'structured continuity digest.',
+          sameHerDriftRisk: '如果又掉回中文薄提醒壳，就说明 identity-continuity',
         },
         knowledgeEvidence: null,
         memoryTuningAdvice: null,
@@ -2965,9 +2955,9 @@ describe('runtime-memory-deliberation-reducer', () => {
       now: 223456,
     })
 
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('identity=local_desktop_life_loop')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.awarenessLine).toContain('identity=local_desktop_life_loop')
-    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toContain('identity=local_desktop_life_loop')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).toContain('continuity_progress=partial')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.awarenessLine).toContain('continuity_progress=partial')
+    expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toContain('continuity_progress=partial')
     expect(nextSurface?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine).not.toBe(thinChineseReminder)
   })
 })
