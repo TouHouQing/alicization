@@ -266,7 +266,9 @@ import { createAlicizationRuntimeDialogueFeedback } from './runtime-dialogue-fee
 import { createAlicizationDreamRuntime } from './runtime-dream'
 import {
   alicizationCoreIncarnationReforgeResponseFormat,
+  alicizationDreamAutobiographicalSummariesResponseFormat,
   alicizationDreamMetabolismResponseFormat,
+  alicizationMemoryConsolidationRefinementResponseFormat,
 } from './runtime-dream-provider-contract'
 import { createAlicizationRuntimeExecutionDelivery } from './runtime-execution-delivery'
 import { createAlicizationRuntimeExecutionFeedback } from './runtime-execution-feedback'
@@ -6306,32 +6308,78 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     } satisfies AlicizationCoreIncarnationReforgePayload
   }
 
-  function parseMemoryConsolidationRefinementPayload(raw: string) {
+  function parseDreamMemoryCues(raw: unknown) {
+    if (!Array.isArray(raw) || raw.some(value => typeof value !== 'string'))
+      return null
+
+    const cues: string[] = []
+    for (const value of raw) {
+      const cue = sanitizeBriefText(value, 120)
+      if (!cue || cues.some(candidate => candidate.toLowerCase() === cue.toLowerCase()))
+        continue
+      cues.push(cue)
+      if (cues.length >= 5)
+        break
+    }
+    return cues
+  }
+
+  function parseMemoryConsolidationRefinementPayload(
+    raw: string,
+    allowedIds: ReadonlySet<string>,
+  ) {
     const parsed = parseJsonObjectFromText(raw)
     if (!parsed || !Array.isArray(parsed.consolidations))
       return null
 
-    const consolidations = parsed.consolidations
-      .map((item) => {
-        if (!item || typeof item !== 'object')
-          return null
-        const candidate = item as Record<string, unknown>
-        const id = sanitizeBriefText(String(candidate.id ?? ''), 120)
-        const summary = sanitizeBriefText(String(candidate.summary ?? ''), 320)
-        if (!id || !summary)
-          return null
-        return {
-          id,
-          summary,
-          lesson: sanitizeBriefText(String(candidate.lesson ?? ''), 220) || null,
-          cues: Array.isArray(candidate.cues)
-            ? candidate.cues.map(value => sanitizeBriefText(String(value ?? ''), 120)).filter(Boolean).slice(0, 5)
-            : [],
-          confidence: clamp01(Number(candidate.confidence ?? 0.68)),
-        }
+    const consolidations: Array<{
+      id: string
+      summary: string
+      lesson: string | null
+      cues: string[]
+      confidence: number
+    }> = []
+    const seenIds = new Set<string>()
+    for (const item of parsed.consolidations) {
+      if (!item || typeof item !== 'object')
+        continue
+      const candidate = item as Record<string, unknown>
+      const id = typeof candidate.id === 'string' ? candidate.id.trim() : ''
+      const summary = typeof candidate.summary === 'string'
+        ? sanitizeBriefText(candidate.summary, 320)
+        : ''
+      const lesson = candidate.lesson === null
+        ? null
+        : typeof candidate.lesson === 'string'
+          ? sanitizeBriefText(candidate.lesson, 220) || null
+          : undefined
+      const confidence = candidate.confidence
+      const cues = parseDreamMemoryCues(candidate.cues)
+      if (
+        !id
+        || !allowedIds.has(id)
+        || seenIds.has(id)
+        || !summary
+        || lesson === undefined
+        || cues === null
+        || typeof confidence !== 'number'
+        || !Number.isFinite(confidence)
+        || confidence < 0
+        || confidence > 1
+      ) {
+        continue
+      }
+      seenIds.add(id)
+      consolidations.push({
+        id,
+        summary,
+        lesson,
+        cues,
+        confidence,
       })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item))
-
+      if (consolidations.length >= Math.min(8, allowedIds.size))
+        break
+    }
     return consolidations
   }
 
@@ -6340,33 +6388,66 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (!parsed || !Array.isArray(parsed.summaries))
       return null
 
-    const summaries = parsed.summaries
-      .map((item) => {
-        if (!item || typeof item !== 'object')
-          return null
-        const candidate = item as Record<string, unknown>
-        const summary = sanitizeBriefText(String(candidate.summary ?? ''), 320)
-        if (!summary)
-          return null
-        const facet: NonNullable<AlicizationMemoryConsolidationRecord['facet']> | null = candidate.facet === 'phase'
-          || candidate.facet === 'relationship-era'
-          || candidate.facet === 'task-era'
-          || candidate.facet === 'self-era'
-          ? candidate.facet
-          : null
-        return {
-          periodKey: sanitizeBriefText(String(candidate.periodKey ?? ''), 96) || '',
-          facet,
-          summary,
-          lesson: sanitizeBriefText(String(candidate.lesson ?? ''), 220) || null,
-          cues: Array.isArray(candidate.cues)
-            ? candidate.cues.map(value => sanitizeBriefText(String(value ?? ''), 120)).filter(Boolean).slice(0, 5)
-            : [],
-          confidence: clamp01(Number(candidate.confidence ?? 0.68)),
-        }
+    const summaries: Array<{
+      periodKey: string
+      facet: NonNullable<AlicizationMemoryConsolidationRecord['facet']>
+      summary: string
+      lesson: string | null
+      cues: string[]
+      confidence: number
+    }> = []
+    const seenPeriods = new Set<string>()
+    for (const item of parsed.summaries) {
+      if (!item || typeof item !== 'object')
+        continue
+      const candidate = item as Record<string, unknown>
+      const periodKey = typeof candidate.periodKey === 'string'
+        ? sanitizeBriefText(candidate.periodKey, 96)
+        : ''
+      const facet = candidate.facet
+      const summary = typeof candidate.summary === 'string'
+        ? sanitizeBriefText(candidate.summary, 320)
+        : ''
+      const lesson = candidate.lesson === null
+        ? null
+        : typeof candidate.lesson === 'string'
+          ? sanitizeBriefText(candidate.lesson, 220) || null
+          : undefined
+      const confidence = candidate.confidence
+      const cues = parseDreamMemoryCues(candidate.cues)
+      if (
+        !periodKey
+        || (
+          facet !== 'phase'
+          && facet !== 'relationship-era'
+          && facet !== 'task-era'
+          && facet !== 'self-era'
+        )
+        || !summary
+        || lesson === undefined
+        || cues === null
+        || typeof confidence !== 'number'
+        || !Number.isFinite(confidence)
+        || confidence < 0
+        || confidence > 1
+      ) {
+        continue
+      }
+      const periodIdentity = `${facet}:${periodKey}`
+      if (seenPeriods.has(periodIdentity))
+        continue
+      seenPeriods.add(periodIdentity)
+      summaries.push({
+        periodKey,
+        facet,
+        summary,
+        lesson,
+        cues,
+        confidence,
       })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item))
-
+      if (summaries.length >= 4)
+        break
+    }
     return summaries
   }
 
@@ -6384,35 +6465,51 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (input.serializedTurns.length === 0 || input.consolidations.length === 0)
       return null
 
-    const raw = await mainGatewayTextProvider({
-      system: [
-        '[ALICIZATION_MEMORY_CONSOLIDATION_REFINEMENT]',
-        'provider_role=dream_memory_consolidation; user_facing_dialogue=false',
-        'task=refine_deterministic_consolidation_summaries',
-        'invented_events=false; period_anchor_policy=preserve',
-        'allowed_edits=gist,emotional_meaning,lesson',
-        'faithfulness_sources=candidate_summaries,recent_dialogue_context',
-        'output_format=json_only; keys=consolidations',
-        'schema.consolidations=array:id,summary,lesson,cues,confidence',
-        'new_ids=false; max_items=provided_count',
-      ].join('\n'),
-      user: `Dream consolidation candidate JSON: ${JSON.stringify({
-        recentDialogue: input.serializedTurns.slice(-20),
+    const consolidationCandidates = input.consolidations.slice(0, 8).map(item => ({
+      id: item.id,
+      kind: item.kind,
+      facet: item.facet ?? null,
+      periodKey: item.periodKey,
+      summary: sanitizeBriefText(item.summary, 220),
+      lesson: sanitizeBriefText(item.lesson ?? '', 180) || null,
+      confidence: item.confidence,
+      cues: item.cues.slice(0, 5),
+    }))
+    const allowedIds = new Set(
+      consolidationCandidates.map(item => item.id),
+    )
+    const system = buildAlicizationProviderFactBlock('alicization-memory-consolidation-context', {
+      version: 'alicization-memory-consolidation-context-v1',
+      currentSelf: {
         hostAttitude: sanitizeBriefText(input.hostAttitude, 120),
         coreIncarnation: sanitizeBriefText(input.coreIncarnation, 220),
-        consolidations: input.consolidations.slice(0, 8).map(item => ({
-          id: item.id,
-          kind: item.kind,
-          facet: item.facet ?? undefined,
-          periodKey: item.periodKey,
-          summary: sanitizeBriefText(item.summary, 220),
-          lesson: sanitizeBriefText(item.lesson ?? '', 180) || undefined,
-          confidence: item.confidence,
-          cues: item.cues.slice(0, 5),
-        })),
-      })}`,
+      },
+      dialogueEvidence: input.serializedTurns.slice(-20),
+      consolidationCandidates,
+      sourcePolicy: {
+        consolidationCandidatesConfirmedLongTermMemory: true,
+        inventedEventsAllowed: false,
+        newConsolidationIdsAllowed: false,
+        rawTranscriptPersonaTrainingEligible: false,
+        reviewCandidatesConfirmedLongTermMemory: false,
+        toolLogsEligible: false,
+        providerFailureArtifactsEligible: false,
+        localFallbackArtifactsEligible: false,
+      },
+    })
+    const user = buildAlicizationProviderFactBlock('alicization-memory-consolidation-request', {
+      version: 'alicization-memory-consolidation-request-v1',
+      operation: 'refine-memory-consolidations',
+      responseSchema: 'alicization_memory_consolidation_refinement',
+      allowedIds: [...allowedIds],
+    })
+
+    const raw = await mainGatewayTextProvider({
+      system,
+      user,
       timeoutMs: 8_000,
       source: 'dream',
+      responseFormat: alicizationMemoryConsolidationRefinementResponseFormat,
       cardId: activeCardId,
       agentTurn: input.agentTurn,
       agentTurnInput: input.agentTurnInput,
@@ -6422,7 +6519,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     if (!raw)
       return null
-    return parseMemoryConsolidationRefinementPayload(raw)
+    return parseMemoryConsolidationRefinementPayload(raw, allowedIds)
   }
 
   async function generateDreamAutobiographicalSummariesWithGateway(input: {
@@ -6438,42 +6535,52 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       decisionTraceId?: string | null
     }
   }) {
-    if (input.serializedTurns.length === 0)
+    if (input.serializedTurns.length === 0 || input.consolidations.length === 0)
       return null
 
-    const raw = await mainGatewayTextProvider({
-      system: [
-        '[ALICIZATION_DREAM_AUTOBIOGRAPHICAL_SUMMARIES]',
-        'provider_role=dream_autobiographical_memory_synthesis; user_facing_dialogue=false',
-        'task=period_autobiographical_summary',
-        'memory_kind=life_period,bond_history,task_era,self_shift',
-        'log_storage=false; invented_events=false',
-        'faithfulness_sources=recent_dialogue,consolidation_candidates',
-        'output_format=json_only; keys=summaries',
-        'schema.summaries=max4:periodKey,facet,summary,lesson,cues,confidence',
-        'enum.facet=phase,relationship-era,task-era,self-era',
-        'summary_scope=period_meaning_for_ongoing_continuity',
-        'inward_lower_pressure_period=quiet_continuity; flatten_to_generic_helper_state=false',
-        'selection_bias=broad_phase_first; narrower_era_if_material=true',
-      ].join('\n'),
-      user: `Dream autobiographical synthesis JSON: ${JSON.stringify({
-        periodStartedAt: input.periodStartedAt,
-        periodEndedAt: input.periodEndedAt,
+    const system = buildAlicizationProviderFactBlock('alicization-autobiographical-synthesis-context', {
+      version: 'alicization-autobiographical-synthesis-context-v1',
+      period: {
+        startedAt: input.periodStartedAt,
+        endedAt: input.periodEndedAt,
+      },
+      currentSelf: {
         hostAttitude: sanitizeBriefText(input.hostAttitude, 120),
         coreIncarnation: sanitizeBriefText(input.coreIncarnation, 220),
-        recentDialogue: input.serializedTurns.slice(-20),
-        consolidations: input.consolidations.slice(0, 8).map(item => ({
-          id: item.id,
-          kind: item.kind,
-          periodKey: item.periodKey,
-          summary: sanitizeBriefText(item.summary, 220),
-          lesson: sanitizeBriefText(item.lesson ?? '', 180) || undefined,
-          confidence: item.confidence,
-          cues: item.cues.slice(0, 5),
-        })),
-      })}`,
+      },
+      dialogueEvidence: input.serializedTurns.slice(-20),
+      consolidationEvidence: input.consolidations.slice(0, 8).map(item => ({
+        id: item.id,
+        kind: item.kind,
+        facet: item.facet ?? null,
+        periodKey: item.periodKey,
+        summary: sanitizeBriefText(item.summary, 220),
+        lesson: sanitizeBriefText(item.lesson ?? '', 180) || null,
+        confidence: item.confidence,
+        cues: item.cues.slice(0, 5),
+      })),
+      sourcePolicy: {
+        consolidationEvidenceConfirmedLongTermMemory: true,
+        inventedEventsAllowed: false,
+        rawTranscriptPersonaTrainingEligible: false,
+        reviewCandidatesConfirmedLongTermMemory: false,
+        toolLogsEligible: false,
+        providerFailureArtifactsEligible: false,
+        localFallbackArtifactsEligible: false,
+      },
+    })
+    const user = buildAlicizationProviderFactBlock('alicization-autobiographical-synthesis-request', {
+      version: 'alicization-autobiographical-synthesis-request-v1',
+      operation: 'synthesize-dream-autobiographical-summaries',
+      responseSchema: 'alicization_dream_autobiographical_summaries',
+    })
+
+    const raw = await mainGatewayTextProvider({
+      system,
+      user,
       timeoutMs: 8_000,
       source: 'dream',
+      responseFormat: alicizationDreamAutobiographicalSummariesResponseFormat,
       cardId: activeCardId,
       agentTurn: input.agentTurn,
       agentTurnInput: input.agentTurnInput,

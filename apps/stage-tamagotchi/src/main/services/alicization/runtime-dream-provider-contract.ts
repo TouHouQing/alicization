@@ -127,3 +127,114 @@ export const alicizationCoreIncarnationReforgeResponseFormat = {
     schema: alicizationCoreIncarnationReforgeJsonSchema,
   },
 } as const
+
+const memoryConsolidationCueSchema = {
+  type: 'string',
+  minLength: 1,
+  maxLength: 120,
+} as const
+
+const memoryConsolidationLessonSchema = {
+  type: ['string', 'null'],
+  maxLength: 220,
+} as const
+
+const memoryConsolidationConfidenceSchema = {
+  type: 'number',
+  minimum: 0,
+  maximum: 1,
+} as const
+
+export const alicizationMemoryConsolidationRefinementJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['consolidations'],
+  properties: {
+    consolidations: {
+      type: 'array',
+      maxItems: 8,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'summary', 'lesson', 'cues', 'confidence'],
+        properties: {
+          id: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 120,
+          },
+          summary: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 320,
+          },
+          lesson: memoryConsolidationLessonSchema,
+          cues: {
+            type: 'array',
+            maxItems: 5,
+            items: memoryConsolidationCueSchema,
+          },
+          confidence: memoryConsolidationConfidenceSchema,
+        },
+      },
+    },
+  },
+} as const
+
+export const alicizationMemoryConsolidationRefinementResponseFormat = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'alicization_memory_consolidation_refinement',
+    strict: true,
+    schema: alicizationMemoryConsolidationRefinementJsonSchema,
+  },
+} as const
+
+export const alicizationDreamAutobiographicalSummariesJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summaries'],
+  properties: {
+    summaries: {
+      type: 'array',
+      maxItems: 4,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['periodKey', 'facet', 'summary', 'lesson', 'cues', 'confidence'],
+        properties: {
+          periodKey: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 96,
+          },
+          facet: {
+            type: 'string',
+            enum: ['phase', 'relationship-era', 'task-era', 'self-era'],
+          },
+          summary: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 320,
+          },
+          lesson: memoryConsolidationLessonSchema,
+          cues: {
+            type: 'array',
+            maxItems: 5,
+            items: memoryConsolidationCueSchema,
+          },
+          confidence: memoryConsolidationConfidenceSchema,
+        },
+      },
+    },
+  },
+} as const
+
+export const alicizationDreamAutobiographicalSummariesResponseFormat = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'alicization_dream_autobiographical_summaries',
+    strict: true,
+    schema: alicizationDreamAutobiographicalSummariesJsonSchema,
+  },
+} as const

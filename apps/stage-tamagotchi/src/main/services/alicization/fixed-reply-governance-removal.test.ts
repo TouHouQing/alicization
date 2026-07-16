@@ -292,6 +292,45 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('keeps dream memory refinement and autobiographical synthesis on typed facts and native schemas', () => {
+    const runtimeSource = readServiceSource('./runtime.ts')
+    const dreamContractSource = readServiceSource('./runtime-dream-provider-contract.ts')
+
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-memory-consolidation-context\'',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-memory-consolidation-request\'',
+    )
+    expect(runtimeSource).toContain(
+      'responseFormat: alicizationMemoryConsolidationRefinementResponseFormat',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-autobiographical-synthesis-context\'',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-autobiographical-synthesis-request\'',
+    )
+    expect(runtimeSource).toContain(
+      'responseFormat: alicizationDreamAutobiographicalSummariesResponseFormat',
+    )
+    expect(runtimeSource).toContain('const allowedIds = new Set(')
+    expect(
+      runtimeSource.match(
+        /if \(input\.serializedTurns\.length === 0 \|\| input\.consolidations\.length === 0\)/gu,
+      ),
+    ).toHaveLength(2)
+    expect(dreamContractSource).toMatch(
+      /name:\s*'alicization_memory_consolidation_refinement'[\s\S]*strict:\s*true/u,
+    )
+    expect(dreamContractSource).toMatch(
+      /name:\s*'alicization_dream_autobiographical_summaries'[\s\S]*strict:\s*true/u,
+    )
+    expect(runtimeSource).not.toMatch(
+      /\[ALICIZATION_MEMORY_CONSOLIDATION_REFINEMENT\]|\[ALICIZATION_DREAM_AUTOBIOGRAPHICAL_SUMMARIES\]|provider_role=dream_|task=refine_deterministic_consolidation_summaries|task=period_autobiographical_summary|output_format=json_only|Dream consolidation candidate JSON|Dream autobiographical synthesis JSON/u,
+    )
+  })
+
   it('removes second-pass repair vocabulary and rewrite carry fields from the validation transport', () => {
     const sources = [
       readServiceSource('./visible-reply/critic.ts'),

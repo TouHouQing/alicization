@@ -14192,21 +14192,23 @@ describe('alicization runtime project-state audit helpers', () => {
     ]))
   })
 
-  it('keeps dream autobiographical synthesis prompts task-scoped without project-state governance prose', async () => {
+  it('keeps dream autobiographical synthesis on typed facts and native schema', async () => {
     const runtimeSource = await readFile(runtimeModulePath, 'utf8')
-    expect(runtimeSource).toContain('[ALICIZATION_DREAM_AUTOBIOGRAPHICAL_SUMMARIES]')
-    expect(runtimeSource).toContain('task=period_autobiographical_summary')
-    expect(runtimeSource).toContain('output_format=json_only; keys=summaries')
-    expect(runtimeSource).not.toContain('[ALICIZATION_DREAM_SELF_BRIEF]')
-    expect(runtimeSource).not.toContain('buildDreamProjectSelfBriefSystemBlock')
+    expect(runtimeSource).toContain('alicization-autobiographical-synthesis-context')
+    expect(runtimeSource).toContain('alicization-autobiographical-synthesis-request')
+    expect(runtimeSource).toContain('alicizationDreamAutobiographicalSummariesResponseFormat')
+    expect(runtimeSource).not.toMatch(
+      /\[ALICIZATION_DREAM_AUTOBIOGRAPHICAL_SUMMARIES\]|task=period_autobiographical_summary|output_format=json_only; keys=summaries/u,
+    )
   })
 
-  it('keeps memory consolidation refinement prompts task-scoped without project-state governance prose', async () => {
+  it('keeps memory consolidation refinement on typed facts and native schema', async () => {
     const runtimeSource = await readFile(runtimeModulePath, 'utf8')
-    expect(runtimeSource).toContain('[ALICIZATION_MEMORY_CONSOLIDATION_REFINEMENT]')
-    expect(runtimeSource).toContain('task=refine_deterministic_consolidation_summaries')
-    expect(runtimeSource).toContain('output_format=json_only; keys=consolidations')
-    expect(runtimeSource).not.toContain('[ALICIZATION_MEMORY_CONSOLIDATION_SELF_BRIEF]')
-    expect(runtimeSource).not.toContain('buildMemoryConsolidationProjectSelfBriefSystemBlock')
+    expect(runtimeSource).toContain('alicization-memory-consolidation-context')
+    expect(runtimeSource).toContain('alicization-memory-consolidation-request')
+    expect(runtimeSource).toContain('alicizationMemoryConsolidationRefinementResponseFormat')
+    expect(runtimeSource).not.toMatch(
+      /\[ALICIZATION_MEMORY_CONSOLIDATION_REFINEMENT\]|task=refine_deterministic_consolidation_summaries|output_format=json_only; keys=consolidations/u,
+    )
   })
 })
