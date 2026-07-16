@@ -6831,29 +6831,33 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     },
     agentTurn?: AlicizationAgentTurnRuntime | null,
   ) {
-    const system = [
-      '[SYSTEM OVERRIDE: 备忘录触发]',
-      'You are Alicization and must proactively deliver a due reminder now.',
-      `Reminder trigger delay: ${reminder.minutes.toFixed(1)} minutes.`,
-      reminder.tier === 'severe'
-        ? 'Delay tier: severe. Mention this reminder is late because the system was offline/suspended, then still deliver the reminder immediately.'
-        : 'Delay tier: mild. Mention a short delay/catch-up and deliver the reminder immediately.',
-      `Reminder content: "${reminder.message}".`,
-      `Personality parameters: obedience ${personality.obedience.toFixed(2)}, liveliness ${personality.liveliness.toFixed(2)}, sensibility ${personality.sensibility.toFixed(2)}.`,
-      'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
-      'enum.emotion=neutral,happy,sad,angry,concerned,tired,apologetic,surprised,thinking',
-      'emotion must exactly mirror performance.baseEmotion.',
-      'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
-      'reply must contain the reminder content and match emotion/personality.',
-      'No markdown, no extra keys.',
-    ].join('\n')
-    const user = 'Deliver this reminder to the Host now.'
+    const system = buildAlicizationProviderFactBlock('alicization-reminder-turn-context', {
+      version: 'alicization-reminder-turn-context-v1',
+      generatedAt: Date.now(),
+      reminder: {
+        status: 'due',
+        delayMinutes: reminder.minutes,
+        message: reminder.message,
+        tier: reminder.tier,
+      },
+      personality: {
+        obedience: personality.obedience,
+        liveliness: personality.liveliness,
+        sensibility: personality.sensibility,
+      },
+    })
+    const user = buildAlicizationProviderFactBlock('alicization-reminder-generation-request', {
+      version: 'alicization-reminder-generation-request-v1',
+      turnId: agentTurnInput?.turnId ?? null,
+      decisionTraceId: agentTurnInput?.decisionTraceId ?? null,
+    })
 
     const raw = await mainGatewayTextProvider({
       system,
       user,
       timeoutMs: 15_000,
       source: 'reminder',
+      responseFormat: alicizationProviderResponseFormat,
       cardId: activeCardId,
       agentTurn,
       agentTurnInput,
@@ -6862,7 +6866,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return null
 
     const parsed = parseJsonObjectFromText(raw)
-    if (!parsed)
+    if (!parsed || parsed.format !== 'mind-turn-v1')
       return null
 
     const thought = sanitizeText(parsed.thought)

@@ -7,7 +7,10 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
+import {
+  alicizationProviderResponseFormat,
+  resolveAlicizationChatFailureSurface,
+} from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -9493,7 +9496,95 @@ describe('alicization runtime project-state audit helpers', () => {
       sourceTurnId: 'turn-reminder-fallback',
     }))
   })
+
+  it('delivers due reminders through typed Provider facts and native schema', async () => {
+    mockGenerateTextFromStreamText()
+    const sandboxPath = await createSandboxPath()
+    let reminderSystemText = ''
+    let reminderResponseFormat: unknown = null
+    streamTextMock.mockImplementation(async ({ messages, onEvent, responseFormat }: {
+      messages?: Array<{ role?: string, content?: unknown }>
+      onEvent?: (event: any) => Promise<void> | void
+      responseFormat?: unknown
+    }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+
+      if (systemText.includes('"type":"alicization-reminder-turn-context"')) {
+        reminderSystemText = systemText
+        reminderResponseFormat = responseFormat
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify(buildRuntimeMindTurnReply({
+            thought: 'The scheduled reminder is due.',
+            emotion: 'thinking',
+            reply: '该喝水了。',
+          })),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    const nowMs = Date.now()
+    dbStub.claimDueScheduledTasks.mockResolvedValueOnce([
+      {
+        id: 'row-reminder-typed-provider',
+        taskId: 'task-reminder-typed-provider',
+        triggerAt: nowMs - 2 * 60_000,
+        message: '喝水',
+        status: 'running',
+        createdAt: nowMs - 3 * 60_000,
+        claimedAt: nowMs,
+        completedAt: null,
+        sourceTurnId: null,
+        firedTurnId: null,
+        lastError: null,
+      },
+    ])
+
+    await invokeHandlers.get(electronAlicizationSubconsciousForceTick)!({ cardId: 'default' })
+
+    expect(reminderSystemText).toContain('"type":"alicization-reminder-turn-context"')
+    expect(reminderSystemText).toContain('"message":"喝水"')
+    expect(reminderResponseFormat).toBe(alicizationProviderResponseFormat)
+    expect(dbStub.completeScheduledTask).toHaveBeenCalledWith(
+      'task-reminder-typed-provider',
+      expect.stringMatching(/^reminder:/),
+      expect.any(Number),
+    )
+    const persistedReminderTurn = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0]
+    expect(persistedReminderTurn).toEqual(expect.objectContaining({
+      assistantText: '该喝水了。',
+      structured: expect.objectContaining({
+        format: 'subconscious-reminder-v1',
+      }),
+    }))
+  }, 15_000)
+
   it('requeues reminder task when llm reminder generation fails', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(async () => {
       throw new Error('main gateway unavailable')

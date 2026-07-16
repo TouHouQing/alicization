@@ -230,6 +230,20 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('keeps reminder Provider generation on typed facts and native schema only', () => {
+    const runtimeSource = readServiceSource('./runtime.ts')
+
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-reminder-turn-context\'',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-reminder-generation-request\'',
+    )
+    expect(runtimeSource).not.toMatch(
+      /\[SYSTEM OVERRIDE: 备忘录触发\]|must proactively deliver a due reminder|Reminder trigger delay:|reply must contain the reminder content|Deliver this reminder to the Host now/u,
+    )
+  })
+
   it('removes second-pass repair vocabulary and rewrite carry fields from the validation transport', () => {
     const sources = [
       readServiceSource('./visible-reply/critic.ts'),
