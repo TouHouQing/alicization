@@ -4,8 +4,124 @@ import { createDefaultProactiveLoopState } from './proactive-feedback'
 import { createAlicizationDreamRuntime } from './runtime-dream'
 
 describe('runtime dream', () => {
-  it('feeds refined consolidation summaries into autobiographical synthesis so same-her memory refinement stays on one life line', async () => {
-    const refinedSummary = 'structured continuity digest.'
+  it('preserves personality and memory when the dream Provider is unavailable', async () => {
+    const appendAuditLog = vi.fn(async () => undefined)
+    const appendRelationshipDynamics = vi.fn(async () => undefined)
+    const appendEpisodicEvents = vi.fn(async () => undefined)
+    const replaceActiveThoughts = vi.fn(async () => undefined)
+    const appendSubconsciousFragments = vi.fn(async () => undefined)
+    const queueSoulMutation = vi.fn(async () => undefined)
+    const persistSubconsciousState = vi.fn(async () => undefined)
+    const persistProactiveLoopState = vi.fn(async () => undefined)
+    const runtime = createAlicizationDreamRuntime({
+      ensureSubconsciousState: vi.fn(async () => ({
+        boredom: 10,
+        loneliness: 10,
+        fatigue: 40,
+        lastTickAt: 0,
+        lastInteractionAt: 0,
+        lastDreamedAt: 0,
+        lastSavedAt: 0,
+        updatedAt: 0,
+      })),
+      ensureProactiveLoopState: vi.fn(async () => createDefaultProactiveLoopState(0)),
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => [{
+          turnId: 'turn-provider-unavailable',
+          sessionId: 'session-provider-unavailable',
+          userText: '闭嘴，别再问了。',
+          assistantText: 'Provider request failed.',
+          structuredJson: JSON.stringify({ emotion: 'angry' }),
+          createdAt: 1_700_000_000_000,
+        }]),
+        listActiveThoughts: vi.fn(async () => [{ text: '保留已有活跃思绪' }]),
+        appendRelationshipDynamics,
+        appendEpisodicEvents,
+        listMemoryConsolidations: vi.fn(async () => []),
+        replaceActiveThoughts,
+        appendSubconsciousFragments,
+      }),
+      getSoulSnapshot: () => ({
+        content: '',
+        frontmatter: {
+          host_attitude: '保留当前关系理解。',
+          core_incarnation: '保留当前人格基座。',
+          personality: {
+            obedience: 0.5,
+            liveliness: 0.5,
+            sensibility: 0.5,
+          },
+        },
+      }) as any,
+      bootstrap: vi.fn(async () => {
+        throw new Error('bootstrap should not run')
+      }),
+      buildMainGatewayAgentTurnId: (...segments: Array<unknown>) => segments.join(':'),
+      getActiveCardId: () => 'default',
+      openAgentTurn: vi.fn(async () => ({
+        getSessionSnapshot: () => ({
+          id: 'agent-session-provider-unavailable',
+          conversationSessionId: 'session-provider-unavailable',
+          continuitySignals: [],
+        }),
+      }) as any),
+      generateDreamMetabolismWithGateway: vi.fn(async () => null),
+      generateCoreIncarnationReforgeWithGateway: vi.fn(async () => {
+        throw new Error('reforge should not run')
+      }),
+      generateMemoryConsolidationRefinementWithGateway: vi.fn(async () => {
+        throw new Error('consolidation refinement should not run')
+      }),
+      generateDreamAutobiographicalSummariesWithGateway: vi.fn(async () => {
+        throw new Error('autobiographical synthesis should not run')
+      }),
+      appendAuditLog,
+      buildAgentRuntimeAuditSnapshot: vi.fn(() => null),
+      hydrateAgentTurnFromCurrentCardState: vi.fn(async () => undefined),
+      buildAgentTurnContinuitySystemMessages: vi.fn(() => []),
+      truncateForDream: (value: string | null | undefined) => value ?? '',
+      clampSoulDelta: (value: number) => value,
+      normalizeOrganicMemoryItemText: (raw: unknown) => typeof raw === 'string' ? raw : '',
+      normalizeOrganicMemoryItemArray: (raw: unknown) => Array.isArray(raw)
+        ? raw
+            .map(item => ({ text: typeof (item as { text?: unknown })?.text === 'string' ? (item as { text: string }).text : '' }))
+            .filter(item => item.text)
+        : [],
+      sanitizeBriefText: (raw: string) => raw,
+      queueSoulMutation,
+      snapshotFromContent: vi.fn((content: string) => ({ content }) as any),
+      persistSubconsciousState,
+      persistProactiveLoopState,
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => undefined),
+      recoverProactiveRhythmAfterDream: vi.fn(state => state),
+      clampNeed: (value: number) => value,
+      dreamMaxTurns: 8,
+      dreamMaxCharsPerAssistantTurn: 400,
+      dreamMaxCharsPerUserTurn: 400,
+      dreamMaxTotalChars: 8_000,
+    })
+
+    const result = await runtime.runDreamForCurrentCard('unit-provider-unavailable')
+
+    expect(result).toEqual({
+      processed: false,
+      skippedReason: 'provider-unavailable',
+    })
+    expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.dream',
+      action: 'metabolism-provider-unavailable',
+    }))
+    expect(appendRelationshipDynamics).not.toBeCalled()
+    expect(appendEpisodicEvents).not.toBeCalled()
+    expect(replaceActiveThoughts).not.toBeCalled()
+    expect(appendSubconsciousFragments).not.toBeCalled()
+    expect(queueSoulMutation).not.toBeCalled()
+    expect(persistSubconsciousState).not.toBeCalled()
+    expect(persistProactiveLoopState).not.toBeCalled()
+  })
+
+  it('feeds refined consolidation summaries into autobiographical synthesis', async () => {
+    const refinedSummary = '她记住了今晚一起整理书桌的约定。'
     const autobiographicalGateway = vi.fn(async () => [])
     const runtime = createAlicizationDreamRuntime({
       ensureSubconsciousState: vi.fn(async () => ({
@@ -100,8 +216,8 @@ describe('runtime dream', () => {
       generateMemoryConsolidationRefinementWithGateway: vi.fn(async () => [{
         id: 'consolidation-phase1-1',
         summary: refinedSummary,
-        lesson: 'Keep autobiographical memory on one identity-continuity',
-        cues: ['same-her', 'phase1'],
+        lesson: '下次继续询问书桌整理后的感受。',
+        cues: ['书桌', '今晚'],
         confidence: 0.84,
       }]),
       generateDreamAutobiographicalSummariesWithGateway: autobiographicalGateway,
@@ -110,7 +226,6 @@ describe('runtime dream', () => {
       hydrateAgentTurnFromCurrentCardState: vi.fn(async () => undefined),
       buildAgentTurnContinuitySystemMessages: vi.fn(() => []),
       truncateForDream: (value: string | null | undefined) => value ?? '',
-      parseStructuredHint: (raw: string | null | undefined) => raw ? JSON.parse(raw) : {},
       clampSoulDelta: (value: number) => value,
       normalizeOrganicMemoryItemText: (raw: unknown) => typeof raw === 'string' ? raw : '',
       normalizeOrganicMemoryItemArray: (raw: unknown) => Array.isArray(raw)

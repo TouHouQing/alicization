@@ -21,7 +21,6 @@ import {
   normalizeCoreIncarnation,
   normalizeHostAttitude,
   parseSoul,
-  sanitizeText,
   syncPersonalityBaselineInBody,
   toSoulContent,
 } from './runtime-soul'
@@ -75,7 +74,6 @@ interface CreateAlicizationDreamRuntimeOptions {
     cardId: string
   }) => Message[]
   truncateForDream: (value: string | null | undefined, maxChars: number) => string
-  parseStructuredHint: (raw: string | null | undefined) => Record<string, unknown>
   clampSoulDelta: (value: number, maxAbs?: number) => number
   normalizeOrganicMemoryItemText: (raw: unknown, maxChars: number) => string
   normalizeOrganicMemoryItemArray: (
@@ -126,7 +124,6 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     hydrateAgentTurnFromCurrentCardState,
     buildAgentTurnContinuitySystemMessages,
     truncateForDream,
-    parseStructuredHint,
     clampSoulDelta,
     normalizeOrganicMemoryItemText,
     normalizeOrganicMemoryItemArray,
@@ -164,15 +161,10 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     const serializedTurns: string[] = []
     let firstSampledAt: number | null = null
     let lastSampledAt: number | null = null
-    let hostDenySignals = 0
-    let hostilitySignals = 0
-    let warmthSignals = 0
 
     for (const row of sampledAscending) {
       const userText = truncateForDream(row.userText, dreamMaxCharsPerUserTurn)
       const assistantText = truncateForDream(row.assistantText, dreamMaxCharsPerAssistantTurn)
-      const structuredHint = parseStructuredHint(row.structuredJson)
-      const emotion = sanitizeText((structuredHint as { emotion?: unknown }).emotion)
       const rowSerialized = [
         `[${new Date(row.createdAt).toISOString()}]`,
         userText ? `U: ${userText}` : '',
@@ -189,18 +181,6 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       sampledCount += 1
       firstSampledAt = firstSampledAt == null ? row.createdAt : Math.min(firstSampledAt, row.createdAt)
       lastSampledAt = lastSampledAt == null ? row.createdAt : Math.max(lastSampledAt, row.createdAt)
-
-      const combinedUser = userText.toLowerCase()
-      const combinedAssistant = assistantText.toLowerCase()
-      const denialMatch = /denied|拒绝|不允许|权限|intercepted/.test(combinedAssistant)
-      if (denialMatch)
-        hostDenySignals += 1
-      if (/烦|闭嘴|滚|命令|stupid|useless|shut up|idiot/.test(combinedUser))
-        hostilitySignals += 1
-      if (/谢谢|辛苦|感谢|thank|appreciate|love/.test(combinedUser))
-        warmthSignals += 1
-      if (emotion === 'angry')
-        hostilitySignals += 0.5
     }
 
     if (rawTurns.length > sampledCount || truncatedByChars) {
@@ -253,30 +233,25 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         turnId: dreamTurnId,
       },
     })
-    const attitudeScore = hostilitySignals + hostDenySignals * 1.5 - warmthSignals
-    const fallbackHostAttitude = normalizeHostAttitude(
-      attitudeScore >= 3
-        ? '明显戒备并带有不满，我需要谨慎收束边界'
-        : attitudeScore <= -1
-          ? '愿意亲近并逐渐信任我，关系正在升温'
-          : dreamSoul.frontmatter.host_attitude,
-    )
-    const fallbackMetabolism: AlicizationDreamMetabolismPayload = {
-      host_attitude: fallbackHostAttitude,
-      soul_shift: {
-        obedience_delta: attitudeScore >= 3 ? -0.03 : attitudeScore <= -1 ? 0.01 : 0,
-        liveliness_delta: attitudeScore >= 3 ? -0.01 : 0,
-        sensibility_delta: attitudeScore <= -1 ? 0.01 : 0,
-      },
-      next_active_thoughts: currentActiveThoughts
-        .map((item: { text?: string }) => ({ text: normalizeOrganicMemoryItemText(item.text, 120) }))
-        .filter((item: { text: string }) => item.text),
-      explicit_demoted_thoughts: [],
-      new_sediment_fragments: [],
-      shattering_event: null,
+    if (!llmMetabolism) {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'alicization.dream',
+        action: 'metabolism-provider-unavailable',
+        message: 'Dream metabolism was skipped because the Provider returned no valid structured result.',
+        payload: {
+          reason,
+          sampledTurns: sampledCount,
+          agentRuntime: buildAgentRuntimeAuditSnapshot(dreamAgentTurn),
+        },
+      })
+      return {
+        processed: false,
+        skippedReason: 'provider-unavailable',
+      }
     }
-    const metabolism = llmMetabolism ?? fallbackMetabolism
-    const hostAttitude = normalizeHostAttitude(metabolism.host_attitude || fallbackMetabolism.host_attitude)
+    const metabolism = llmMetabolism
+    const hostAttitude = normalizeHostAttitude(metabolism.host_attitude)
     const obedienceDelta = clampSoulDelta(metabolism.soul_shift.obedience_delta)
     const livelinessDelta = clampSoulDelta(metabolism.soul_shift.liveliness_delta)
     const sensibilityDelta = clampSoulDelta(metabolism.soul_shift.sensibility_delta)
@@ -294,9 +269,6 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     })
     const shatteringEventText = normalizeOrganicMemoryItemText(metabolism.shattering_event?.text, 280)
     const normalizedPreviousHostAttitude = normalizeHostAttitude(dreamSoul.frontmatter.host_attitude)
-    const attitudeShiftFragment = normalizedPreviousHostAttitude !== hostAttitude
-      ? `[态度演变记录：从"${normalizedPreviousHostAttitude}"转变为"${hostAttitude}"]`
-      : ''
 
     let reforgedCoreIncarnation = ''
     let reforgeFailureReason = ''
@@ -326,7 +298,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         message: 'Dream metabolism generated from bounded context.',
         payload: {
           reason,
-          source: llmMetabolism ? 'llm' : 'heuristic',
+          source: 'llm',
           hostAttitude,
           obedienceDelta,
           livelinessDelta,
@@ -362,7 +334,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       obedienceDelta,
       livelinessDelta,
       sensibilityDelta,
-      source: llmMetabolism ? 'dream-llm' : 'dream-heuristic',
+      source: 'dream-llm',
       createdAt: Date.now(),
     }).catch(async (error: unknown) => {
       await appendAuditLog({
@@ -378,6 +350,10 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
 
     const previousCoreIncarnation = normalizeCoreIncarnation(dreamSoul.frontmatter.core_incarnation)
     const nextCoreIncarnation = reforgedCoreIncarnation || previousCoreIncarnation
+    const dreamEventText = shatteringEventText
+      || newSedimentFragments[0]?.text
+      || nextActiveThoughts[0]?.text
+      || hostAttitude
     const dreamEvents: AlicizationEpisodicEventInput[] = [{
       cardId: dreamCardId,
       turnId: dreamTurnId,
@@ -385,52 +361,24 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       sourceKind: 'dream',
       provenance: 'dreamt',
       occurredAt: Date.now(),
-      whereSummary: 'sleep consolidation',
+      whereSummary: null,
       withWhom: ['host', 'self'],
-      threadAnchor: sanitizeHumanlikeMemoryText(serializedTurns.at(-1) ?? '', 140) || reason,
-      whatHappened: sanitizeHumanlikeMemoryText(
-        [
-          llmMetabolism ? 'Dream metabolism consolidated recent dialogue.' : 'Heuristic dream metabolism consolidated recent dialogue.',
-          shatteringEventText ? `Shattering cue: ${shatteringEventText}` : '',
-          attitudeShiftFragment || '',
-        ].filter(Boolean).join(' '),
-        320,
-      ),
-      felt: sanitizeHumanlikeMemoryText(
-        shatteringEventText
-          ? 'The dream pulled a high-tension memory back up and forced a deeper rewrite.'
-          : 'The dream quietly settled lingering threads, fatigue, and bond pressure.',
-        220,
-      ),
+      threadAnchor: sanitizeHumanlikeMemoryText(dreamEventText, 140),
+      whatHappened: sanitizeHumanlikeMemoryText(dreamEventText, 320),
+      felt: null,
       emotionTags: [
         shatteringEventText ? 'shattering' : 'consolidation',
         hostAttitude !== normalizedPreviousHostAttitude ? 'attitude-shift' : 'continuity',
       ],
-      whatChanged: sanitizeHumanlikeMemoryText(
-        [
-          attitudeShiftFragment || '',
-          obedienceDelta !== 0 ? `obedience ${obedienceDelta >= 0 ? '+' : ''}${obedienceDelta.toFixed(2)}` : '',
-          livelinessDelta !== 0 ? `liveliness ${livelinessDelta >= 0 ? '+' : ''}${livelinessDelta.toFixed(2)}` : '',
-          sensibilityDelta !== 0 ? `sensibility ${sensibilityDelta >= 0 ? '+' : ''}${sensibilityDelta.toFixed(2)}` : '',
-        ].filter(Boolean).join(', '),
-        220,
-      ) || null,
-      relationshipMeaning: sanitizeHumanlikeMemoryText(
-        hostAttitude !== normalizedPreviousHostAttitude
-          ? `My sense of the host shifted from "${normalizedPreviousHostAttitude}" toward "${hostAttitude}".`
-          : 'The dream mainly consolidated ongoing bond pressure and unfinished feeling.',
-        220,
-      ),
-      lesson: sanitizeHumanlikeMemoryText(
-        shatteringEventText
-          ? 'Strong dream tension should consolidate first because it can rewrite the bond line.'
-          : 'Dream time should consolidate the unresolved line before it turns into stale residue.',
-        220,
-      ),
-      sourceSummary: llmMetabolism ? 'dream metabolism via main gateway' : 'heuristic dream metabolism',
-      confidence: llmMetabolism ? 0.72 : 0.58,
+      whatChanged: hostAttitude !== normalizedPreviousHostAttitude
+        ? sanitizeHumanlikeMemoryText(hostAttitude, 220)
+        : null,
+      relationshipMeaning: sanitizeHumanlikeMemoryText(hostAttitude, 220),
+      lesson: null,
+      sourceSummary: null,
+      confidence: 0.72,
       salience: computeEpisodicEventSalience({
-        confidence: llmMetabolism ? 0.72 : 0.58,
+        confidence: 0.72,
         sourceKind: 'dream',
         emotionalWeight: shatteringEventText ? 1 : 0.4,
         existing: shatteringEventText ? 0.86 : 0.62,
@@ -442,7 +390,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       ],
       tags: [
         'dream',
-        llmMetabolism ? 'llm' : 'heuristic',
+        'llm',
         shatteringEventText ? 'shattering' : 'quiet-consolidation',
       ],
     }]
@@ -454,16 +402,16 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         sourceKind: 'dream-reforge',
         provenance: 'reconstructed',
         occurredAt: Date.now(),
-        whereSummary: 'core-incarnation reforge',
+        whereSummary: null,
         withWhom: ['self'],
-        threadAnchor: shatteringEventText || 'core incarnation reforge',
-        whatHappened: 'A strong dream event forced a reforge of the core incarnation.',
-        felt: 'The self-line had to be rewritten instead of merely archived.',
+        threadAnchor: shatteringEventText,
+        whatHappened: shatteringEventText,
+        felt: null,
         emotionTags: ['dream-reforge', 'identity-rewrite'],
-        whatChanged: 'Core incarnation was rewritten after a shattering dream event.',
-        relationshipMeaning: 'The bond history became strong enough to alter the enduring self-line.',
-        lesson: 'Severe dream pressure should be allowed to rewrite the stable self narrative.',
-        sourceSummary: 'dream reforge',
+        whatChanged: reforgedCoreIncarnation,
+        relationshipMeaning: hostAttitude,
+        lesson: null,
+        sourceSummary: null,
         confidence: 0.64,
         salience: 0.92,
         sceneAttachment: 0.08,
@@ -595,9 +543,6 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     const subconsciousFragments = [
       ...explicitDemotedThoughts.map(item => ({ text: item.text, sourceKind: 'active-demotion' as const })),
       ...newSedimentFragments.map(item => ({ text: item.text, sourceKind: 'dream-fragment' as const })),
-      ...(attitudeShiftFragment
-        ? [{ text: attitudeShiftFragment, sourceKind: 'attitude-shift' as const }]
-        : []),
       ...(
         reforgedCoreIncarnation && previousCoreIncarnation && previousCoreIncarnation !== reforgedCoreIncarnation
           ? [{ text: previousCoreIncarnation, sourceKind: 'former-core-incarnation' as const }]

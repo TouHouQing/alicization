@@ -3199,6 +3199,7 @@ describe('alicization runtime project-state audit helpers', () => {
   })
 
   it('feeds task planning continuity into the next dream prompt', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     const dreamSystemTexts: string[] = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
@@ -3209,7 +3210,7 @@ describe('alicization runtime project-state audit helpers', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]')) {
+      if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
         dreamSystemTexts.push(systemText)
         await onEvent?.({
           type: 'text-delta',
@@ -3305,10 +3306,21 @@ describe('alicization runtime project-state audit helpers', () => {
     })
 
     expect(dreamSystemTexts).toHaveLength(1)
-    expect(dreamSystemTexts[0]).toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
-    expect(dreamSystemTexts[0]).toContain('conversation_session_id=session-task-planning-dream')
-    expect(dreamSystemTexts[0]).toContain('tooling=source=task-planning')
-    expect(dreamSystemTexts[0]).toContain('execution=recent=plan:codex:pending')
+    const dreamAgentSessionFact = findAlicizationProviderFactInSystemText(
+      dreamSystemTexts[0]!,
+      'alicization-agent-session',
+    )
+    expect(dreamAgentSessionFact?.data.session).toMatchObject({
+      conversationSessionId: 'session-task-planning-dream',
+    })
+    expect(dreamAgentSessionFact?.data.recentActions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'executor',
+        label: 'plan:codex',
+        status: 'pending',
+      }),
+    ]))
+    expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
     expect(dreamSystemTexts[0]).not.toContain('女仆')
   })
 
@@ -5523,7 +5535,10 @@ describe('alicization runtime project-state audit helpers', () => {
     )
 
     const result = await forceDream!({ cardId: 'default', reason: 'unit-test' })
-    expect(result.processedCards.length).toBeGreaterThan(0)
+    expect(result.skippedCards).toContainEqual({
+      cardId: 'default',
+      reason: 'provider-unavailable',
+    })
 
     const truncationAudit = dbStub.appendAuditLog.mock.calls
       .map(call => call[0])
@@ -7610,16 +7625,18 @@ describe('alicization runtime project-state audit helpers', () => {
     await new Promise(resolve => setTimeout(resolve, 40))
     dbStub.listConversationTurnsSince.mockReset()
     streamTextMock.mockReset()
+    mockGenerateTextFromStreamText()
 
     let releaseDream: (() => void) | undefined
     const dreamGate = new Promise<void>((resolve) => {
       releaseDream = resolve
     })
 
-    let callCount = 0
-    streamTextMock.mockImplementation(async ({ onEvent }: { onEvent?: (event: any) => Promise<void> | void }) => {
-      callCount += 1
-      if (callCount === 1) {
+    streamTextMock.mockImplementation(async ({ onEvent, responseFormat }: {
+      onEvent?: (event: any) => Promise<void> | void
+      responseFormat?: { json_schema?: { name?: string } }
+    }) => {
+      if (responseFormat?.json_schema?.name === 'alicization_dream_metabolism') {
         await dreamGate
         await onEvent?.({
           type: 'text-delta',
@@ -7629,7 +7646,12 @@ describe('alicization runtime project-state audit helpers', () => {
         return
       }
 
-      await onEvent?.({ type: 'text-delta', text: 'chat survived queue starvation' })
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify(buildRuntimeMindTurnReply({
+          reply: 'chat survived queue starvation',
+        })),
+      })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
 
@@ -7668,7 +7690,9 @@ describe('alicization runtime project-state audit helpers', () => {
     })
 
     await vi.waitFor(() => {
-      expect(streamTextMock).toBeCalledTimes(1)
+      expect(streamTextMock.mock.calls.some(([input]) =>
+        input?.responseFormat?.json_schema?.name === 'alicization_dream_metabolism',
+      )).toBe(true)
     })
 
     const startOutcome = await Promise.race([
@@ -7699,7 +7723,7 @@ describe('alicization runtime project-state audit helpers', () => {
         .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === 'turn-chat-not-blocked-by-dream')
       expect(finishEvents).toHaveLength(1)
     })
-  })
+  }, 15_000)
 
   it('binds async stream events to the original invoke sender raw context', async () => {
     const sandboxPath = await createSandboxPath()
@@ -9937,7 +9961,7 @@ describe('alicization runtime project-state audit helpers', () => {
         return
       }
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]')) {
+      if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
@@ -10024,13 +10048,12 @@ describe('alicization runtime project-state audit helpers', () => {
       .find((messages: any[]) => messages.some(message => String(message.content ?? '').includes('"type":"alicization-proactive-turn-context"'))) ?? []
     const dreamPromptMessages = generateTextMock.mock.calls
       .map(call => call[0]?.messages ?? [])
-      .find((messages: any[]) => messages.some(message => String(message.content ?? '').includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]'))) ?? []
+      .find((messages: any[]) => messages.some(message => String(message.content ?? '').includes('"type":"alicization-dream-metabolism-context"'))) ?? []
     const proactivePromptText = proactivePromptMessages
       .filter((message: any) => message.role === 'system')
       .map((message: any) => String(message.content ?? ''))
       .join('\n\n')
     const dreamPromptText = dreamPromptMessages
-      .filter((message: any) => message.role === 'system')
       .map((message: any) => String(message.content ?? ''))
       .join('\n\n')
 
@@ -10038,7 +10061,8 @@ describe('alicization runtime project-state audit helpers', () => {
     expect(proactivePromptText).toContain('"type":"alicization-persona-directives"')
     expect(proactivePromptText).toContain('严厉但克制的监督者')
     expect(proactivePromptText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
-    expect(dreamPromptText).toContain('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]')
+    expect(dreamPromptText).toContain('"type":"alicization-dream-metabolism-context"')
+    expect(dreamPromptText).toContain('"type":"alicization-dream-metabolism-request"')
     expect(dreamPromptText).toContain('"type":"alicization-persona-directives"')
     expect(dreamPromptText).toContain('严厉但克制的监督者')
     expect(dreamPromptText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|DREAM_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
@@ -10058,6 +10082,7 @@ describe('alicization runtime project-state audit helpers', () => {
     expect(runtimeSource).toContain('organicPromptContext.learningExecutionState.activeLearningFocuses')
   })
   it('feeds dream one-shot continuity back into the next dream prompt', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     foregroundWindowSample = {
       appName: 'Cursor',
@@ -10073,7 +10098,7 @@ describe('alicization runtime project-state audit helpers', () => {
         .map(message => String(message.content ?? ''))
         .join('\n\n')
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]')) {
+      if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
         dreamSystemTexts.push(systemText)
         await onEvent?.({
           type: 'text-delta',
@@ -10146,15 +10171,37 @@ describe('alicization runtime project-state audit helpers', () => {
     })
 
     expect(dreamSystemTexts).toHaveLength(2)
-    expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
-    expect(dreamSystemTexts[1]).toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
-    expect(dreamSystemTexts[1]).toContain('conversation_session_id=session-dream-loop')
-    expect(dreamSystemTexts[1]).toContain('session_phases=')
-    expect(dreamSystemTexts[1]).toContain('main_gateway:dream')
-    expect(dreamSystemTexts[1]).toContain('source=dream')
+    const firstDreamAgentSessionFact = findAlicizationProviderFactInSystemText(
+      dreamSystemTexts[0]!,
+      'alicization-agent-session',
+    )
+    const secondDreamAgentSessionFact = findAlicizationProviderFactInSystemText(
+      dreamSystemTexts[1]!,
+      'alicization-agent-session',
+    )
+    expect(firstDreamAgentSessionFact?.data.session).toMatchObject({
+      conversationSessionId: 'session-dream-loop',
+    })
+    expect(firstDreamAgentSessionFact?.data.recentActions).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: 'main_gateway:dream',
+      }),
+    ]))
+    expect(secondDreamAgentSessionFact?.data.session).toMatchObject({
+      conversationSessionId: 'session-dream-loop',
+    })
+    expect(secondDreamAgentSessionFact?.data.recentActions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'runtime',
+        label: 'main_gateway:dream',
+        status: 'completed',
+      }),
+    ]))
+    expect(dreamSystemTexts.join('\n')).not.toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
   })
 
-  it('persists explicit dream demotions and attitude-shift without cloning untouched tier2 thoughts', async () => {
+  it('persists Provider-selected dream demotions without authoring a local attitude-shift fragment', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -10183,8 +10230,10 @@ describe('alicization runtime project-state audit helpers', () => {
             .map(message => String(message.content ?? ''))
             .join('\n\n')
         : ''
-      expect(systemText).toContain('[ALICIZATION_HOST_ATTITUDE]')
-      expect(systemText).toContain('[ALICIZATION_ACTIVE_THOUGHTS]')
+      expect(systemText).toContain('"type":"alicization-organic-self-context"')
+      expect(systemText).toContain('"type":"alicization-dream-metabolism-context"')
+      expect(systemText).toContain('继续观察宿主晚间作息')
+      expect(systemText).not.toMatch(/\[ALICIZATION_(?:HOST_ATTITUDE|ACTIVE_THOUGHTS)\]/u)
       await onEvent?.({
         type: 'text-delta',
         text: JSON.stringify({
@@ -10295,10 +10344,9 @@ describe('alicization runtime project-state audit helpers', () => {
         text: '宿主今天嘴上说没事，但停顿明显变多。',
         sourceKind: 'dream-fragment',
       }),
-      expect.objectContaining({
-        sourceKind: 'attitude-shift',
-      }),
     ]))
+    const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
+    expect(appendedFragments.some((item: any) => item.sourceKind === 'attitude-shift')).toBe(false)
     expect(dbStub.appendSubconsciousFragments).not.toBeCalledWith(expect.arrayContaining([
       expect.objectContaining({
         text: '继续观察宿主晚间作息',
@@ -10307,59 +10355,10 @@ describe('alicization runtime project-state audit helpers', () => {
     ]))
   })
 
-  it('does not append attitude-shift fragment when dream host attitude stays unchanged', async () => {
+  it('does not run the nightly replay benchmark when scheduled dream generation is unavailable', async () => {
     const sandboxPath = await createSandboxPath()
-    await setupAlicizationRuntime({
-      userDataPathOverride: sandboxPath,
-    })
-
-    await new Promise(resolve => setTimeout(resolve, 40))
-    dbStub.listConversationTurnsSince.mockReset()
-    dbStub.listActiveThoughts.mockResolvedValueOnce([])
-    streamTextMock.mockImplementationOnce(async ({ onEvent }: { onEvent?: (event: any) => Promise<void> | void }) => {
-      await onEvent?.({
-        type: 'text-delta',
-        text: JSON.stringify({
-          host_attitude: '礼貌而克制，保持观察',
-          soul_shift: {
-            obedience_delta: 0,
-            liveliness_delta: 0,
-            sensibility_delta: 0,
-          },
-          next_active_thoughts: [],
-          explicit_demoted_thoughts: [],
-          new_sediment_fragments: [],
-          shattering_event: null,
-        }),
-      })
-      await onEvent?.({ type: 'finish', finishReason: 'stop' })
-    })
-
-    dbStub.listConversationTurnsSince.mockResolvedValueOnce([
-      {
-        turnId: 'turn-neutral-1',
-        sessionId: 'session-dream',
-        userText: '今天就这样吧。',
-        assistantText: '我会继续观察。',
-        structuredJson: JSON.stringify({ emotion: 'neutral' }),
-        createdAt: Date.now() - 30_000,
-      },
-    ])
-
-    const forceDream = invokeHandlers.get(electronAlicizationSubconsciousForceDream)
-    expect(forceDream).toBeTypeOf('function')
-
-    await forceDream!({
-      cardId: 'default',
-      reason: 'unit-no-attitude-shift',
-    })
-
-    const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
-    expect(appendedFragments.some((item: any) => item.sourceKind === 'attitude-shift')).toBe(false)
-  })
-
-  it('runs nightly replay benchmark gate during scheduled dream runs and persists the latest report', async () => {
-    const sandboxPath = await createSandboxPath()
+    metaStore.delete('replay_benchmark_last_nightly_run_day_v1')
+    metaStore.delete('replay_benchmark_latest_report_v1')
     metaStore.set('replay_benchmark_dataset_backlog_v1', JSON.stringify([
       {
         id: 'nightly-backlog-1',
@@ -10554,28 +10553,19 @@ describe('alicization runtime project-state audit helpers', () => {
       reason: 'schedule-03:00',
     })
 
-    expect(result.processedCards).toContain('default')
-    expect(metaStore.get('replay_benchmark_last_nightly_run_day_v1')).toBeTruthy()
-    const latestReport = String(metaStore.get('replay_benchmark_latest_report_v1') ?? '')
-    expect(latestReport).toContain('sampled-humanlike-memory-v1')
-    expect(latestReport).toContain('backlog-humanlike-memory-v1')
-    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
-      category: 'alicization.memory-benchmark',
+    expect(result.skippedCards).toContainEqual({
+      cardId: 'default',
+      reason: 'provider-unavailable',
+    })
+    expect(metaStore.get('replay_benchmark_last_nightly_run_day_v1')).toBeUndefined()
+    expect(metaStore.get('replay_benchmark_latest_report_v1')).toBeUndefined()
+    expect(dbStub.appendAuditLog).not.toBeCalledWith(expect.objectContaining({
       action: 'replay-benchmark-nightly-ran',
-      payload: expect.objectContaining({
-        packs: expect.arrayContaining([
-          expect.objectContaining({
-            packId: 'sampled-humanlike-memory-v1',
-          }),
-          expect.objectContaining({
-            packId: 'backlog-humanlike-memory-v1',
-          }),
-        ]),
-      }),
     }))
-  }, 20_000)
+  })
 
   it('archives previous core incarnation when shattering event triggers successful reforge', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -10631,8 +10621,14 @@ describe('alicization runtime project-state audit helpers', () => {
       ),
     })
 
+    let reforgePromptText = ''
     let reforgeSystemText = ''
-    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+    let reforgeResponseFormat: unknown = null
+    streamTextMock.mockImplementation(async ({ messages, onEvent, responseFormat }: {
+      messages?: Array<{ role?: string, content?: unknown }>
+      onEvent?: (event: any) => Promise<void> | void
+      responseFormat?: unknown
+    }) => {
       const systemText = Array.isArray(messages)
         ? messages
             .filter(message => message.role === 'system')
@@ -10640,7 +10636,7 @@ describe('alicization runtime project-state audit helpers', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]')) {
+      if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
@@ -10662,8 +10658,12 @@ describe('alicization runtime project-state audit helpers', () => {
         return
       }
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 摇光心意重铸]')) {
+      if (systemText.includes('"type":"alicization-core-reforge-context"')) {
+        reforgePromptText = Array.isArray(messages)
+          ? messages.map(message => String(message.content ?? '')).join('\n\n')
+          : ''
         reforgeSystemText = systemText
+        reforgeResponseFormat = responseFormat
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
@@ -10694,8 +10694,16 @@ describe('alicization runtime project-state audit helpers', () => {
     const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
 
     expect(afterSoul.frontmatter.core_incarnation).toBe('我不再只是隔岸观望的旁观者，而是会在宿主坠落前伸手的人。')
-    expect(reforgeSystemText).toContain('[SYSTEM OVERRIDE: 摇光心意重铸]')
-    expect(reforgeSystemText).toContain('Output must be valid JSON only with key: core_incarnation.')
+    expect(reforgeSystemText).toContain('"type":"alicization-core-reforge-context"')
+    expect(reforgePromptText).toContain('"type":"alicization-core-reforge-request"')
+    expect(reforgeSystemText).toContain('"kind":"cleaned-dream-reflection"')
+    expect(reforgeResponseFormat).toMatchObject({
+      type: 'json_schema',
+      json_schema: {
+        name: 'alicization_core_incarnation_reforge',
+        strict: true,
+      },
+    })
     expect(reforgeSystemText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|CORE_INCARNATION_REFORGE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
     expect(appendedFragments).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -10706,6 +10714,7 @@ describe('alicization runtime project-state audit helpers', () => {
   })
 
   it('archives unforged shattering event when core reforge output is invalid', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -13688,7 +13697,7 @@ describe('alicization runtime project-state audit helpers', () => {
               .join('\n\n')
           : ''
 
-        if (systemText.includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]')) {
+        if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
           dreamSystemTexts.push(systemText)
           await onEvent?.({
             type: 'text-delta',

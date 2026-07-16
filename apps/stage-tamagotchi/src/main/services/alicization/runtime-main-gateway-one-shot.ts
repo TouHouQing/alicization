@@ -1,4 +1,3 @@
-import type { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import type { CommonContentPart, Message } from '@xsai/shared-chat'
 
 import type {
@@ -50,6 +49,15 @@ import {
   sanitizeText,
 } from './runtime-soul'
 
+export interface AlicizationMainGatewayResponseFormat {
+  readonly type: 'json_schema'
+  readonly json_schema: {
+    readonly name: string
+    readonly strict: boolean
+    readonly schema: Readonly<Record<string, unknown>>
+  }
+}
+
 export interface AlicizationMainGatewayTextProviderOptions extends AlicizationMainGatewayGenerateTextProviderOptions<AlicizationMainGatewaySource, Message['content']> {
   cardId?: string
   extraSystemBlocks?: string[]
@@ -62,7 +70,7 @@ export interface AlicizationMainGatewayTextProviderOptions extends AlicizationMa
   }
   captureAgentSensorySnapshot?: boolean
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
-  responseFormat?: typeof alicizationProviderResponseFormat
+  responseFormat?: AlicizationMainGatewayResponseFormat
 }
 
 export interface AlicizationMainGatewayTextProvider {

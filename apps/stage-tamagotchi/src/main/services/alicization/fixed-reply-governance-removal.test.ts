@@ -244,6 +244,54 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('keeps dream metabolism and core reforge on typed facts and native schemas only', () => {
+    const runtimeSource = readServiceSource('./runtime.ts')
+    const dreamContractSource = readServiceSource('./runtime-dream-provider-contract.ts')
+    const oneShotSource = readServiceSource('./runtime-main-gateway-one-shot.ts')
+
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-dream-metabolism-context\'',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-dream-metabolism-request\'',
+    )
+    expect(runtimeSource).toContain(
+      'responseFormat: alicizationDreamMetabolismResponseFormat',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-core-reforge-context\'',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-core-reforge-request\'',
+    )
+    expect(runtimeSource).toContain(
+      'responseFormat: alicizationCoreIncarnationReforgeResponseFormat',
+    )
+    expect(dreamContractSource).toMatch(
+      /name:\s*'alicization_dream_metabolism'[\s\S]*strict:\s*true/u,
+    )
+    expect(dreamContractSource).toMatch(
+      /name:\s*'alicization_core_incarnation_reforge'[\s\S]*strict:\s*true/u,
+    )
+    expect(oneShotSource).not.toContain(
+      'responseFormat?: typeof alicizationProviderResponseFormat',
+    )
+    expect(runtimeSource).not.toMatch(
+      /\[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑\]|\[SYSTEM OVERRIDE: 摇光心意重铸\]|你的任务是阅读今天的对话记录|你的任务是根据一次强烈的破碎事件|Output must be valid JSON only|No markdown, no extra prose/u,
+    )
+  })
+
+  it('does not author personality or memory locally when dream Provider generation is unavailable', () => {
+    const dreamRuntimeSource = readServiceSource('./runtime-dream.ts')
+
+    expect(dreamRuntimeSource).toContain(
+      'skippedReason: \'provider-unavailable\'',
+    )
+    expect(dreamRuntimeSource).not.toMatch(
+      /fallbackMetabolism|fallbackHostAttitude|attitudeScore|hostilitySignals|warmthSignals|hostDenySignals|dream-heuristic|Heuristic dream metabolism|Dream metabolism consolidated recent dialogue|The dream pulled a high-tension memory|The dream quietly settled lingering threads|Dream time should consolidate the unresolved line|态度演变记录/u,
+    )
+  })
+
   it('removes second-pass repair vocabulary and rewrite carry fields from the validation transport', () => {
     const sources = [
       readServiceSource('./visible-reply/critic.ts'),

@@ -264,6 +264,10 @@ import { createAlicizationDeliveryReminderRuntime } from './runtime-delivery-rem
 import { createAlicizationRuntimeDialogueDelivery } from './runtime-dialogue-delivery'
 import { createAlicizationRuntimeDialogueFeedback } from './runtime-dialogue-feedback'
 import { createAlicizationDreamRuntime } from './runtime-dream'
+import {
+  alicizationCoreIncarnationReforgeResponseFormat,
+  alicizationDreamMetabolismResponseFormat,
+} from './runtime-dream-provider-contract'
 import { createAlicizationRuntimeExecutionDelivery } from './runtime-execution-delivery'
 import { createAlicizationRuntimeExecutionFeedback } from './runtime-execution-feedback'
 import { buildAlicizationChatStreamEmbodimentMeta, buildCompressedNativeImageDataUrl, buildDefaultDialoguePerformancePayload, buildMindTurnTraceEvents, coerceConversationTurnToMindGovernedPayload, isAbortError, latestUserMessageContainsVisualInput, normalizeDialogueRespondedPayload, readStringValue } from './runtime-governance'
@@ -6178,10 +6182,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const zhMatches = sample.match(/[\u4E00-\u9FFF]/g)?.length ?? 0
     const enMatches = sample.match(/[A-Z]/gi)?.length ?? 0
     if (zhMatches > enMatches * 1.2)
-      return '中文'
+      return 'zh-Hans'
     if (enMatches > zhMatches * 1.2)
-      return 'English'
-    return 'Mixed'
+      return 'en'
+    return 'mixed'
   }
 
   function normalizeOrganicMemoryItemText(raw: unknown, maxChars: number) {
@@ -6222,9 +6226,42 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (!parsed)
       return null
 
+    const hostAttitude = sanitizeText(parsed.host_attitude)
     const soulShift = parsed.soul_shift && typeof parsed.soul_shift === 'object'
       ? parsed.soul_shift as Record<string, unknown>
-      : {}
+      : null
+    if (
+      !hostAttitude
+      || !soulShift
+      || !Array.isArray(parsed.next_active_thoughts)
+      || !Array.isArray(parsed.explicit_demoted_thoughts)
+      || !Array.isArray(parsed.new_sediment_fragments)
+      || !Object.hasOwn(parsed, 'shattering_event')
+    ) {
+      return null
+    }
+
+    const obedienceDelta = Number(soulShift.obedience_delta)
+    const livelinessDelta = Number(soulShift.liveliness_delta)
+    const sensibilityDelta = Number(soulShift.sensibility_delta)
+    if (
+      !Number.isFinite(obedienceDelta)
+      || !Number.isFinite(livelinessDelta)
+      || !Number.isFinite(sensibilityDelta)
+    ) {
+      return null
+    }
+
+    if (
+      parsed.shattering_event !== null
+      && (
+        typeof parsed.shattering_event !== 'object'
+        || !sanitizeText((parsed.shattering_event as { text?: unknown }).text)
+      )
+    ) {
+      return null
+    }
+
     const shatteringEventText = normalizeOrganicMemoryItemText(
       parsed.shattering_event && typeof parsed.shattering_event === 'object'
         ? (parsed.shattering_event as { text?: unknown }).text
@@ -6233,11 +6270,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     )
 
     return {
-      host_attitude: normalizeHostAttitude(parsed.host_attitude),
+      host_attitude: normalizeHostAttitude(hostAttitude),
       soul_shift: {
-        obedience_delta: clampSoulDelta(Number(soulShift.obedience_delta ?? 0)),
-        liveliness_delta: clampSoulDelta(Number(soulShift.liveliness_delta ?? 0)),
-        sensibility_delta: clampSoulDelta(Number(soulShift.sensibility_delta ?? 0)),
+        obedience_delta: clampSoulDelta(obedienceDelta),
+        liveliness_delta: clampSoulDelta(livelinessDelta),
+        sensibility_delta: clampSoulDelta(sensibilityDelta),
       },
       next_active_thoughts: normalizeOrganicMemoryItemArray(parsed.next_active_thoughts, {
         maxItems: 5,
@@ -6707,38 +6744,43 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (input.serializedTurns.length === 0)
       return null
     const primaryLanguage = inferDreamPrimaryLanguage(input.serializedTurns)
-    const system = [
-      '[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]',
-      '你的任务是阅读今天的对话记录，并结合已注入的当前有机记忆状态，产出下一轮记忆代谢结果。',
-      `【语言一致性】输出语言应与主要交流语言一致（${primaryLanguage}）。`,
-      `【人格参数】obedience ${input.personality.obedience.toFixed(2)}，liveliness ${input.personality.liveliness.toFixed(2)}，sensibility ${input.personality.sensibility.toFixed(2)}。`,
-      '【拒绝流水账】不要记录工具调用、MCP、JSON、系统报错、执行日志或一次性事务。',
-      '【活跃思绪】next_active_thoughts 只保留未来几天仍值得持续关注的 1-5 条短句。',
-      '【显式下沉】explicit_demoted_thoughts 只能填写当前活跃思绪里你明确决定沉入潜层的旧条目。',
-      '【潜层碎片】new_sediment_fragments 用于沉淀今天新产生、但不值得进入活跃思绪的历史碎片。',
-      '【破碎事件】只有当今天出现极强情感张力极值或关系结构突变时，shattering_event 才允许非空。',
-      '活跃思绪和潜层碎片优先记录未完成的意义、仍在牵挂的问题、修正过的误读、做出的承诺，以及和宿主一起经历过的场景变化。',
-      '不要把表演化称谓、角色扮演式服从、撒娇语气或软化话术本身写进活跃思绪；那是措辞风格，不是心智连续性。',
-      'Output must be valid JSON only with keys: host_attitude, soul_shift, next_active_thoughts, explicit_demoted_thoughts, new_sediment_fragments, shattering_event.',
-      'host_attitude must be a concise natural-language string, not an enum.',
-      'soul_shift must include numeric deltas: obedience_delta, liveliness_delta, sensibility_delta in range [-0.08, 0.08].',
-      'next_active_thoughts / explicit_demoted_thoughts / new_sediment_fragments must each be an array of objects with only the key "text".',
-      'shattering_event must be null or {"text":"..."}',
-      'No markdown, no extra prose.',
-    ].join('\n')
-    const user = [
-      '请基于以下对话片段完成本次梦境代谢：',
-      input.serializedTurns.join('\n\n'),
-    ].join('\n\n')
+    const system = buildAlicizationProviderFactBlock('alicization-dream-metabolism-context', {
+      version: 'alicization-dream-metabolism-context-v1',
+      primaryLanguage,
+      currentSelf: {
+        personality: input.personality,
+        hostAttitude: input.hostAttitude,
+        coreIncarnation: input.coreIncarnation,
+      },
+      activeThoughts: input.activeThoughts
+        .slice(0, 8)
+        .map(item => normalizeOrganicMemoryItemText(item.text, 120))
+        .filter(Boolean),
+      dialogueEvidence: input.serializedTurns,
+      sourcePolicy: {
+        rawTranscriptPersonaTrainingEligible: false,
+        reviewCandidatesConfirmedLongTermMemory: false,
+        toolLogsEligible: false,
+        providerFailureArtifactsEligible: false,
+        localFallbackArtifactsEligible: false,
+      },
+    })
+    const user = buildAlicizationProviderFactBlock('alicization-dream-metabolism-request', {
+      version: 'alicization-dream-metabolism-request-v1',
+      operation: 'derive-dream-memory-metabolism',
+      responseSchema: 'alicization_dream_metabolism',
+    })
 
     const raw = await mainGatewayTextProvider({
       system,
       user,
       timeoutMs: 20_000,
       source: 'dream',
+      responseFormat: alicizationDreamMetabolismResponseFormat,
       cardId: activeCardId,
       agentTurn: input.agentTurn,
       agentTurnInput: input.agentTurnInput,
+      injectPerformanceManifest: false,
       extraSystemBlocks: buildOrganicMemoryProviderFactBlocks({
         hostAttitude: input.hostAttitude,
         coreIncarnation: input.coreIncarnation,
@@ -6765,28 +6807,38 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
     agentTurn?: AlicizationAgentTurnRuntime | null
   }) {
-    const system = [
-      '[SYSTEM OVERRIDE: 摇光心意重铸]',
-      '你的任务是根据一次强烈的破碎事件，重铸一段新的摇光心意。',
-      '新心意必须是稳定、长期、可持续注入的人格基底，不是流水账，也不是行为指令列表。',
-      '避免输出工具调用、系统日志、JSON 字段说明、执行结果、提醒事项。',
-      'Output must be valid JSON only with key: core_incarnation.',
-      'core_incarnation must be a concise natural-language text within 500 characters.',
-      'No markdown, no extra prose.',
-    ].join('\n')
-    const user = [
-      '请根据这次破碎事件重铸新的摇光心意：',
-      input.shatteringEventText,
-    ].join('\n\n')
+    const system = buildAlicizationProviderFactBlock('alicization-core-reforge-context', {
+      version: 'alicization-core-reforge-context-v1',
+      currentCoreIncarnation: input.coreIncarnation,
+      hostAttitude: input.hostAttitude,
+      sourceReflection: {
+        kind: 'cleaned-dream-reflection',
+        text: input.shatteringEventText,
+        rawTranscript: false,
+      },
+      sourcePolicy: {
+        rawTranscriptPersonaTrainingEligible: false,
+        reviewCandidatesConfirmedLongTermMemory: false,
+        providerFailureArtifactsEligible: false,
+        localFallbackArtifactsEligible: false,
+      },
+    })
+    const user = buildAlicizationProviderFactBlock('alicization-core-reforge-request', {
+      version: 'alicization-core-reforge-request-v1',
+      operation: 'reforge-core-incarnation',
+      responseSchema: 'alicization_core_incarnation_reforge',
+    })
 
     const raw = await mainGatewayTextProvider({
       system,
       user,
       timeoutMs: 20_000,
       source: 'dream',
+      responseFormat: alicizationCoreIncarnationReforgeResponseFormat,
       cardId: activeCardId,
       agentTurn: input.agentTurn,
       agentTurnInput: input.agentTurnInput,
+      injectPerformanceManifest: false,
       extraSystemBlocks: buildOrganicMemoryProviderFactBlocks({
         hostAttitude: input.hostAttitude,
         coreIncarnation: input.coreIncarnation,
@@ -7322,7 +7374,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     hydrateAgentTurnFromCurrentCardState,
     buildAgentTurnContinuitySystemMessages,
     truncateForDream,
-    parseStructuredHint,
     clampSoulDelta,
     normalizeOrganicMemoryItemText,
     normalizeOrganicMemoryItemArray,
