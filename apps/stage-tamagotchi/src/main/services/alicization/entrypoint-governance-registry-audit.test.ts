@@ -407,11 +407,6 @@ describe('entrypoint governance registry audit', () => {
       'async function generateProactiveStructuredWithGateway(',
       'async function generateDreamMetabolismWithGateway(',
     )
-    const deterministicProactiveBlock = sliceByMarkers(
-      runtimeSource,
-      'function buildProactiveStructured(',
-      'async function generateCoreIncarnationReforgeWithGateway(',
-    )
     const reminderGatewayBlock = sliceByMarkers(
       runtimeSource,
       'async function generateReminderStructuredWithGateway(',
@@ -426,8 +421,7 @@ describe('entrypoint governance registry audit', () => {
     expect(proactiveGatewayBlock).toContain('resolveAlicizationAutonomousDialogueStructuredFormat(\'subconscious-proactive-llm\')')
     expect(proactiveGatewayBlock).not.toContain('format: \'subconscious-proactive-llm-v1\'')
 
-    expect(deterministicProactiveBlock).toContain('resolveAlicizationAutonomousDialogueStructuredFormat(\'subconscious-proactive\')')
-    expect(deterministicProactiveBlock).not.toContain('format: \'subconscious-proactive-v1\'')
+    expect(runtimeSource).not.toContain('function buildProactiveStructured(')
 
     expect(reminderGatewayBlock).toContain('resolveAlicizationAutonomousDialogueStructuredFormat(\'subconscious-reminder\')')
     expect(reminderGatewayBlock).not.toContain('format: \'subconscious-reminder-v1\'')

@@ -203,6 +203,19 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('does not synthesize a local proactive mind when the Provider is unavailable', () => {
+    const runtimeSource = readServiceSource('./runtime.ts')
+    const subconsciousTickSource = readServiceSource('./runtime-subconscious-tick.ts')
+
+    expect(runtimeSource).not.toMatch(
+      /function buildProactiveStructured|inferFallbackPersonaTone|Persona tone:|Provider mind unavailable; visible reply held\./u,
+    )
+    expect(subconsciousTickSource).not.toContain('buildProactiveStructured')
+    expect(subconsciousTickSource).not.toMatch(
+      /llmStructured\s*\?\?\s*buildProactiveStructured/u,
+    )
+  })
+
   it('removes second-pass repair vocabulary and rewrite carry fields from the validation transport', () => {
     const sources = [
       readServiceSource('./visible-reply/critic.ts'),

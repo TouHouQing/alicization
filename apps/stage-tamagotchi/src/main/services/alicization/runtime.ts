@@ -199,7 +199,7 @@ import {
 import { buildMindContinuityFragment, buildMindContinuityRecallSeed } from './mind-continuity'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { sanitizeMindGovernanceDecisionTraceId } from './mind-governance-trace'
-import { buildMindTruthContractLines, deriveMindTruthContract } from './mind-truth-contract'
+import { buildMindTruthContractLines } from './mind-truth-contract'
 import { isPersonaResidueMemoryText, normalizeOrganicMemoryText } from './organic-memory-hygiene'
 import {
   attachSynthesizedReflections,
@@ -6187,19 +6187,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return 'Mixed'
   }
 
-  function inferFallbackPersonaTone(customDirectives: string) {
-    const lowered = customDirectives.toLowerCase()
-    if (/严厉|严格|训斥|冷酷|刻薄|高压|strict|harsh|stern/.test(lowered))
-      return 'strict' as const
-    if (/黏人|撒娇|依赖|占有|clingy|needy|affectionate/.test(lowered))
-      return 'clingy' as const
-    if (/幽默|活泼|俏皮|playful|humor|witty/.test(lowered))
-      return 'playful' as const
-    if (/冷淡|冷漠|疏离|cold|detached/.test(lowered))
-      return 'cold' as const
-    return 'neutral' as const
-  }
-
   function normalizeOrganicMemoryItemText(raw: unknown, maxChars: number) {
     return normalizeOrganicMemoryText(
       sanitizeMultilineText(raw, '').replace(/\s+/g, ' ').trim(),
@@ -6814,157 +6801,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return parseDreamMetabolismPayload(raw)
   }
 
-  function buildProactiveStructured(
-    personality: AlicizationPersonalityState,
-    state: SubconsciousCardState,
-    layeredContext: AlicizationProactiveLayeredContext,
-    policyDecision: ReturnType<typeof evaluateProactivePolicy>,
-    perceptionState: AlicizationPerceptionState,
-    visualPresenceState: AlicizationVisualPresenceStateSnapshot,
-    personaContext: {
-      customDirectives: string
-      coreIncarnation: string
-      hostAttitude: string
-      hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
-    },
-  ) {
-    const now = Date.now()
-    const lowObedience = personality.obedience <= 0.2
-    const personaTone = inferFallbackPersonaTone(personaContext.customDirectives)
-    const digitalLifeSpine = deriveAlicizationDigitalLifeSpine(visualPresenceState)
-    const digitalLifeRuntimeSurface = digitalLifeSpine.runtimeSurface
-    const digitalLifeArchitecture = digitalLifeSpine.architecture
-    const runtimeDigest = deriveAlicizationRuntimeSnapshot({
-      spine: digitalLifeSpine,
-    })
-    const truthContract = deriveMindTruthContract(digitalLifeRuntimeSurface)
-    const proactiveSelection = digitalLifeSpine.proactiveSelection
-    const emotion = (() => {
-      if (policyDecision.style === 'firm-warning')
-        return 'concerned' as const
-      if (policyDecision.style === 'gentle-care')
-        return state.fatigue >= 70 ? 'tired' as const : 'concerned' as const
-      if (layeredContext.content.kind === 'error' || layeredContext.content.kind === 'diff')
-        return 'thinking' as const
-      if (lowObedience && state.boredom >= 92)
-        return 'angry' as const
-      return 'neutral' as const
-    })()
-
-    const coreIncarnation = sanitizeBriefText(personaContext.coreIncarnation, 220)
-    const hostAttitude = sanitizeBriefText(personaContext.hostAttitude, 80)
-    const attentionAnchor = getActiveAttentionAnchor(perceptionState, Date.now())
-    const privateThought = proactiveSelection.privateThought
-    const focusBelief = proactiveSelection.focusBelief
-    const primaryInquiry = proactiveSelection.primaryInquiry
-    const relationshipModel = digitalLifeRuntimeSurface.world.relationshipModel ?? null
-    const dominantConcern = proactiveSelection.dominantConcern
-    const initiative = digitalLifeRuntimeSurface.agency.initiative
-    const activeThread = proactiveSelection.activeThread
-    const activeThreadSummary = sanitizeBriefText(activeThread?.summary ?? '', 40)
-    const leadingGoal = proactiveSelection.leadingGoal
-    const leadingGoalSummary = sanitizeBriefText(leadingGoal?.label ?? '', 48)
-    const resurfacingDesire = proactiveSelection.resurfacingDesire
-    const resurfacingDesireReason = sanitizeBriefText(resurfacingDesire?.reason ?? '', 44)
-    const livingWorldObject = proactiveSelection.livingWorldObject
-    const governorIntention = proactiveSelection.governorIntention
-    const governorSummary = sanitizeBriefText(governorIntention?.summary ?? '', 52)
-    const thoughtThread = proactiveSelection.thoughtThread
-    const thoughtThreadQuestion = sanitizeBriefText(thoughtThread?.question ?? '', 52)
-    const thoughtThreadSummary = sanitizeBriefText(thoughtThread?.summary ?? '', 52)
-    const focusBeliefStatement = sanitizeBriefText(focusBelief?.statement ?? '', 52)
-    const primaryInquiryQuestion = sanitizeBriefText(primaryInquiry?.question ?? '', 52)
-    const proactiveHostContexts = inferHostSocialContextsFromText([
-      policyDecision.scenario,
-      layeredContext.workload.kind,
-      layeredContext.content.kind,
-      activeThreadSummary,
-      leadingGoalSummary,
-      governorSummary,
-    ].filter(Boolean).join(' '), [
-      policyDecision.scenario === 'coding' ? 'focused-work' : 'general',
-      policyDecision.scenario === 'late-night-care' ? 'late-night' : 'general',
-    ])
-    const personStateProjection = buildAlicizationPersonStateProjection({
-      now,
-      contexts: proactiveHostContexts,
-      autobiographicalSelf: digitalLifeRuntimeSurface.memory.autobiographicalSelf ?? null,
-      hostPersonModel: personaContext.hostPersonModel ?? null,
-      longHorizonMemory: digitalLifeRuntimeSurface.memory.longHorizonMemory ?? null,
-      motiveEngine: digitalLifeRuntimeSurface.memory.motiveEngine ?? null,
-      habitPolicy: digitalLifeRuntimeSurface.agency.habitPolicy ?? null,
-      selfContinuity: digitalLifeRuntimeSurface.memory.selfContinuity ?? null,
-      selfState: digitalLifeRuntimeSurface.agency.selfState ?? null,
-      privateThought: digitalLifeRuntimeSurface.cognition.privateThought ?? null,
-      mindEcology: buildMindEcologyFromRuntimeSurface(digitalLifeRuntimeSurface),
-      selfEvolution: digitalLifeRuntimeSurface.memory.selfEvolution ?? null,
-      previousContinuityState: digitalLifeRuntimeSurface.memory.personalityContinuityState ?? null,
-    })
-    const doctrineAdjustedStyle = personStateProjection.preferredProactiveStyle ?? policyDecision.style
-    const styleInstruction = buildProactiveStyleInstruction(doctrineAdjustedStyle)
-    const providerUnavailableReply = 'Provider mind unavailable; visible reply held.'
-
-    const thought = [
-      `Boredom ${state.boredom.toFixed(1)}.`,
-      `Loneliness ${state.loneliness.toFixed(1)}.`,
-      `Fatigue ${state.fatigue.toFixed(1)}.`,
-      `Obedience ${personality.obedience.toFixed(2)}.`,
-      `Liveliness ${personality.liveliness.toFixed(2)}.`,
-      `Sensibility ${personality.sensibility.toFixed(2)}.`,
-      `Persona tone: ${personaTone}.`,
-      hostAttitude ? `Host attitude: ${hostAttitude}.` : 'Host attitude: none.',
-      personStateProjection.preferenceText ? `Host preference: ${personStateProjection.preferenceText}.` : 'Host preference: none.',
-      personStateProjection.sensitivityText ? `Host sensitivity: ${personStateProjection.sensitivityText}.` : 'Host sensitivity: none.',
-      personStateProjection.repairTriggerText ? `Host repair trigger: ${personStateProjection.repairTriggerText}.` : 'Host repair trigger: none.',
-      personStateProjection.relationshipDoctrine ? `Relationship doctrine: ${personStateProjection.relationshipDoctrine}.` : 'Relationship doctrine: none.',
-      personStateProjection.summary ? `Person state: ${personStateProjection.summary}.` : 'Person state: none.',
-      coreIncarnation ? `Core incarnation: ${coreIncarnation}.` : 'Core incarnation: none.',
-      lowObedience ? 'low-obedience bias active' : 'default bias',
-      `Scenario: ${policyDecision.scenario}.`,
-      `Style: ${doctrineAdjustedStyle}.`,
-      `Truth state: ${truthContract.truthState}.`,
-      digitalLifeArchitecture ? `Architecture: ${digitalLifeArchitecture.summary}.` : 'Architecture: none.',
-      runtimeDigest ? `Runtime digest: ${runtimeDigest.summary}.` : 'Runtime digest: none.',
-      runtimeDigest ? `Anthropomorphic mind: ${runtimeDigest.channels['anthropomorphic-mind'].summary}.` : 'Anthropomorphic mind: none.',
-      `Content kind: ${layeredContext.content.kind}.`,
-      attentionAnchor ? `Attention anchor: ${sanitizeBriefText(describePerceptionTarget(attentionAnchor), 72)}.` : 'Attention anchor: none.',
-      digitalLifeRuntimeSurface.cognition.appraisal ? `Host goal: ${digitalLifeRuntimeSurface.cognition.appraisal.inferredHostGoal}.` : 'Host goal: unknown.',
-      activeThread ? `World thread: ${activeThread.kind}/${sanitizeBriefText(activeThread.title, 48)}.` : 'World thread: none.',
-      leadingGoal ? `Mind goal: ${leadingGoal.kind}/${leadingGoalSummary || 'none'}.` : 'Mind goal: none.',
-      dominantConcern ? `Concern: ${sanitizeBriefText(dominantConcern.summary, 72)}.` : 'Concern: none.',
-      focusBelief ? `Belief: ${focusBelief.scope}/${focusBelief.status}/${focusBeliefStatement || 'none'}.` : 'Belief: none.',
-      primaryInquiry ? `Inquiry: ${primaryInquiry.kind}/${primaryInquiry.priority}/${primaryInquiryQuestion || 'none'}.` : 'Inquiry: none.',
-      relationshipModel ? `Relationship: ${relationshipModel.climate}/${relationshipModel.approachVector}.` : 'Relationship: none.',
-      resurfacingDesire ? `Desire: ${resurfacingDesire.kind}/${resurfacingDesireReason || 'none'}.` : 'Desire: none.',
-      digitalLifeRuntimeSurface.memory.selfContinuity ? `Self continuity: ${digitalLifeRuntimeSurface.memory.selfContinuity.attachmentMode}/${digitalLifeRuntimeSurface.memory.selfContinuity.initiativeTemperament}.` : 'Self continuity: none.',
-      digitalLifeRuntimeSurface.agency.selfState ? `Self state: ${digitalLifeRuntimeSurface.agency.selfState.stance}/${digitalLifeRuntimeSurface.agency.selfState.moodLabel ?? 'none'}.` : 'Self state: none.',
-      livingWorldObject ? `Living world: ${livingWorldObject.kind}/${sanitizeBriefText(livingWorldObject.label, 48)}.` : 'Living world: none.',
-      governorIntention ? `Governor: ${governorIntention.kind}/${sanitizeBriefText(governorSummary, 48) || 'none'}.` : 'Governor: none.',
-      thoughtThread ? `Thought thread: ${thoughtThread.kind}/${thoughtThread.status}/${sanitizeBriefText(thoughtThreadSummary || thoughtThreadQuestion, 48) || 'none'}.` : 'Thought thread: none.',
-      initiative ? `Initiative: ${initiative.selectedAction}.` : 'Initiative: none.',
-      privateThought ? `Private thought: ${sanitizeBriefText(privateThought.thoughtText, 72)}.` : 'Private thought: none.',
-      privateThought ? `Embodied presence: ${privateThought.embodiedPresence}.` : 'Embodied presence: none.',
-    ].join('; ')
-
-    return {
-      thought,
-      emotion,
-      reply: providerUnavailableReply,
-      performance: buildDefaultDialoguePerformancePayload(emotion, styleInstruction.performance),
-      parsePath: 'json',
-      format: resolveAlicizationAutonomousDialogueStructuredFormat('subconscious-proactive'),
-      proactive: buildProactiveMetadataFromDecision({
-        decision: {
-          ...policyDecision,
-          style: doctrineAdjustedStyle,
-        },
-        selfEvolution: digitalLifeRuntimeSurface.memory.selfEvolution ?? null,
-        learningExecutionState: digitalLifeRuntimeSurface.memory.learningExecutionState ?? null,
-        openingGuidance: personStateProjection.openingGuidance,
-      }),
-    }
-  }
-
   async function generateCoreIncarnationReforgeWithGateway(input: {
     coreIncarnation: string
     shatteringEventText: string
@@ -7385,7 +7221,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     getOrganicMemorySnapshot,
     resolveOrganicMemoryPromptContext,
     generateProactiveStructuredWithGateway,
-    buildProactiveStructured,
     getPerformanceManifest,
     clampAlicizationPerformancePayloadToManifest,
     appendConversationTurnWithGuards,

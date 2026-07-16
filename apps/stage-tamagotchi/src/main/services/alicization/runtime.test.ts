@@ -12978,6 +12978,7 @@ describe('alicization runtime project-state audit helpers', () => {
   }, 20_000)
 
   it('does not fabricate proactive dialogue when the one-shot Provider fails', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     let proactiveSystemText = ''
     foregroundWindowSample = {
@@ -13049,8 +13050,8 @@ describe('alicization runtime project-state audit helpers', () => {
         }),
       }),
       expect.objectContaining({
-        action: 'proactive-llm-fallback',
-        message: expect.stringContaining('deterministic visible proactive text was deferred'),
+        action: 'proactive-provider-failed',
+        message: 'Provider proactive generation failed; no local mind result was created.',
       }),
     ]))
   })

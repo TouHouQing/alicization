@@ -163,14 +163,14 @@ function containsPresenceOnlyFixedTemplateCue(raw: unknown) {
     || /\bStay on the same (?:callback|remembered|relationship|line|thread)\b/iu.test(normalized)
     || /\bKeep this callback\b/iu.test(normalized)
     || /\bcadence=(?:measured_return|repair_before_closeness|rest_protective)\b/iu.test(normalized)
-	    || /\brelationship_cadence=remembered_boundary\b/iu.test(normalized)
-	    || /\bcontinuity_(?:hold|mode|cue|scope|context)=/iu.test(normalized)
-	    || /\b(?:landed|evidence|remaining|dialogue_entry_governance|memory_dialogue_loop|execution_safety|template_cleanup|provider_authored_reply_required|allowed_failures|memory_workbench|owner_boundary)=/iu.test(normalized)
-	    || /\breopen_from_scratch=false\b/iu.test(normalized)
-	    || /\bfixed_template=excluded\b/iu.test(normalized)
-	    || /\bgeneric_shell=blocked\b/iu.test(normalized)
-	    || /\bcover=visible_reply\b/iu.test(normalized)
-	    || /\bvalidation=noisy_desktop_runs\b/iu.test(normalized)
+    || /\brelationship_cadence=remembered_boundary\b/iu.test(normalized)
+    || /\bcontinuity_(?:hold|mode|cue|scope|context)=/iu.test(normalized)
+    || /\b(?:landed|evidence|remaining|dialogue_entry_governance|memory_dialogue_loop|execution_safety|template_cleanup|provider_authored_reply_required|allowed_failures|memory_workbench|owner_boundary)=/iu.test(normalized)
+    || /\breopen_from_scratch=false\b/iu.test(normalized)
+    || /\bfixed_template=excluded\b/iu.test(normalized)
+    || /\bgeneric_shell=blocked\b/iu.test(normalized)
+    || /\bcover=visible_reply\b/iu.test(normalized)
+    || /\bvalidation=noisy_desktop_runs\b/iu.test(normalized)
     || /\btiming=measured_return_or_repair_before_closeness\b/iu.test(normalized)
     || /\blocal_desktop_life_loop\b/iu.test(normalized)
 }
@@ -1681,7 +1681,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     getOrganicMemorySnapshot,
     resolveOrganicMemoryPromptContext,
     generateProactiveStructuredWithGateway,
-    buildProactiveStructured,
     getPerformanceManifest,
     clampAlicizationPerformancePayloadToManifest,
     appendConversationTurnWithGuards,
@@ -2489,32 +2488,18 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             },
             backgroundAgentTurn,
           )
-          const rawStructured = llmStructured ?? buildProactiveStructured(
-            personality,
-            nextState,
-            layeredContext,
-            memoryBoundaryAdjustedDecision,
-            perceptionState,
-            visualPresenceState,
-            {
-              customDirectives: personaContext.customDirectives,
-              coreIncarnation: organicPromptContext.coreIncarnation,
-              hostAttitude: organicPromptContext.hostAttitude,
-              hostPersonModel: organicPromptContext.hostPersonModel ?? null,
-            },
-          )
-          const performanceManifest = await getPerformanceManifest()
-          const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
-            rawStructured.performance,
-            performanceManifest,
-            rawStructured.emotion,
-          ).performance
-          structured = {
-            ...rawStructured,
-            emotion: structuredPerformance.baseEmotion,
-            performance: structuredPerformance,
-          }
           if (llmStructured) {
+            const performanceManifest = await getPerformanceManifest()
+            const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
+              llmStructured.performance,
+              performanceManifest,
+              llmStructured.emotion,
+            ).performance
+            structured = {
+              ...llmStructured,
+              emotion: structuredPerformance.baseEmotion,
+              performance: structuredPerformance,
+            }
             await appendAuditLog({
               level: 'notice',
               category: 'alicization.subconscious',
@@ -2545,8 +2530,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             await appendAuditLog({
               level: 'warning',
               category: 'alicization.subconscious',
-              action: 'proactive-llm-fallback',
-              message: 'Main gateway proactive generation unavailable; deterministic visible proactive text was deferred.',
+              action: 'proactive-provider-failed',
+              message: 'Provider proactive generation failed; no local mind result was created.',
               payload: {
                 decision: {
                   scenario: decision.scenario,
