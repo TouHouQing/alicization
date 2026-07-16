@@ -1,3 +1,4 @@
+import type { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import type { CommonContentPart, Message } from '@xsai/shared-chat'
 
 import type {
@@ -61,6 +62,7 @@ export interface AlicizationMainGatewayTextProviderOptions extends AlicizationMa
   }
   captureAgentSensorySnapshot?: boolean
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+  responseFormat?: typeof alicizationProviderResponseFormat
 }
 
 export interface AlicizationMainGatewayTextProvider {
@@ -768,6 +770,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
           ...config.provider.chat(config.model),
           maxSteps: 1,
           messages: generationMessages,
+          responseFormat: generateOptions.responseFormat,
           headers: config.headers,
           abortSignal: controller.signal,
         })

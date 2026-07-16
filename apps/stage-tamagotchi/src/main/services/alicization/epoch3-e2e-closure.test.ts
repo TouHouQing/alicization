@@ -292,10 +292,11 @@ describe('epoch3 proactive closure e2e', () => {
             .map(message => String(message.content ?? ''))
             .join('\n\n')
         : ''
-      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+      if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
+            format: 'mind-turn-v1',
             thought: 'coding proactive nudge should be short and grounded',
             emotion: 'thinking',
             reply: '这个错误先别放过去，我轻轻提醒你看一眼。',
@@ -305,6 +306,10 @@ describe('epoch3 proactive closure e2e', () => {
               actionCue: null,
               delivery: 'calm',
               emphasis: 0,
+            },
+            memoryUsage: {
+              workingMemoryVersion: null,
+              longTermEvidenceIds: [],
             },
           }),
         })
@@ -535,9 +540,12 @@ describe('epoch3 proactive closure e2e', () => {
       }),
     }))
     expect(proactiveEvent?.structured.projectState).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('local-first digital life project'),
-      currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-      sameHerSelfLine: expect.stringContaining('legacy phase-one template'),
+      identity: '',
+      currentPhase: '',
+      latestLandedProgress: expect.any(String),
+      primaryOpenLoop: expect.any(String),
+      sameHerSelfLine: '',
+      nextClosureTarget: expect.any(String),
     }))
 
     dbStub.appendEpisodicEvents.mockClear()
@@ -578,5 +586,5 @@ describe('epoch3 proactive closure e2e', () => {
     expect(policyAudit?.payload?.cooldownMs).toEqual(expect.any(Number))
     expect(policyAudit?.payload?.feedbackBias).toEqual(expect.any(Number))
     expect(suppressedAudit?.payload?.reasonCodes).toContain('global-cooldown-active')
-  })
+  }, 15_000)
 })

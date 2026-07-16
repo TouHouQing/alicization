@@ -216,6 +216,20 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('keeps proactive Provider generation on typed facts and native schema only', () => {
+    const runtimeSource = readServiceSource('./runtime.ts')
+    const oneShotSource = readServiceSource('./runtime-main-gateway-one-shot.ts')
+
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-proactive-turn-context\'',
+    )
+    expect(runtimeSource).toContain('responseFormat: alicizationProviderResponseFormat')
+    expect(oneShotSource).toContain('responseFormat: generateOptions.responseFormat')
+    expect(runtimeSource).not.toMatch(
+      /\[SYSTEM OVERRIDE: 内部动机触发\]|策略层已经完成|style_constraint=|reply_max_chars=|reply_policy=|Long-horizon learning is currently|Use the person-state projection as the single social authority|This is Alicization short-lived perceptual continuity|When wording a proactive utterance/u,
+    )
+  })
+
   it('removes second-pass repair vocabulary and rewrite carry fields from the validation transport', () => {
     const sources = [
       readServiceSource('./visible-reply/critic.ts'),

@@ -9830,14 +9830,17 @@ describe('alicization runtime project-state audit helpers', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+      if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
         await onEvent?.({
           type: 'text-delta',
-          text: JSON.stringify({
+          text: JSON.stringify(buildRuntimeMindTurnReply({
             thought: 'tension overflow',
             emotion: 'tired',
             reply: '我等你很久了，现在总算有空了吗？',
-          }),
+            performance: {
+              baseEmotion: 'tired',
+            },
+          })),
         })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
         return
@@ -9927,7 +9930,7 @@ describe('alicization runtime project-state audit helpers', () => {
 
     const proactivePromptMessages = generateTextMock.mock.calls
       .map(call => call[0]?.messages ?? [])
-      .find((messages: any[]) => messages.some(message => String(message.content ?? '').includes('[SYSTEM OVERRIDE: 内部动机触发]'))) ?? []
+      .find((messages: any[]) => messages.some(message => String(message.content ?? '').includes('"type":"alicization-proactive-turn-context"'))) ?? []
     const dreamPromptMessages = generateTextMock.mock.calls
       .map(call => call[0]?.messages ?? [])
       .find((messages: any[]) => messages.some(message => String(message.content ?? '').includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]'))) ?? []
@@ -9940,7 +9943,7 @@ describe('alicization runtime project-state audit helpers', () => {
       .map((message: any) => String(message.content ?? ''))
       .join('\n\n')
 
-    expect(proactivePromptText).toContain('[SYSTEM OVERRIDE: 内部动机触发]')
+    expect(proactivePromptText).toContain('"type":"alicization-proactive-turn-context"')
     expect(proactivePromptText).toContain('"type":"alicization-persona-directives"')
     expect(proactivePromptText).toContain('严厉但克制的监督者')
     expect(proactivePromptText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
@@ -9955,12 +9958,13 @@ describe('alicization runtime project-state audit helpers', () => {
     expect(dreamAudit?.payload?.agentRuntime?.recentContinuity?.length ?? 0).toBeGreaterThan(0)
   }, 15_000)
 
-  it('injects long-horizon learning authority into proactive llm prompts as an explicit constraint', async () => {
+  it('carries long-horizon learning state into the typed proactive context without reply constraints', async () => {
     const runtimeSource = await readFile(runtimeModulePath, 'utf8')
-    expect(runtimeSource).toContain('Long-horizon learning JSON')
-    expect(runtimeSource).toContain('organicPromptContext.selfEvolution?.nextLearningAction === \'verify\'')
-    expect(runtimeSource).toContain('activeLearningFocuses: organicPromptContext.selfEvolution.activeLearningFocuses.slice(0, 4)')
-    expect(runtimeSource).toContain('activeLearningFocuses: organicPromptContext.learningExecutionState.activeLearningFocuses.slice(0, 6)')
+    expect(runtimeSource).toContain('learningState: {')
+    expect(runtimeSource).toContain('selfEvolution: providerSelfEvolution')
+    expect(runtimeSource).toContain('execution: providerLearningExecutionState')
+    expect(runtimeSource).toContain('organicPromptContext.selfEvolution.activeLearningFocuses')
+    expect(runtimeSource).toContain('organicPromptContext.learningExecutionState.activeLearningFocuses')
   })
   it('feeds dream one-shot continuity back into the next dream prompt', async () => {
     const sandboxPath = await createSandboxPath()
@@ -11097,11 +11101,14 @@ describe('alicization runtime project-state audit helpers', () => {
     streamTextMock.mockImplementation(async ({ onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
       await onEvent?.({
         type: 'text-delta',
-        text: JSON.stringify({
+        text: JSON.stringify(buildRuntimeMindTurnReply({
           thought: 'phantom prompt recalled cursor debug memory',
           emotion: 'concerned',
           reply: '这个报错你之前也卡过很久，先回头看看 main.ts 那里。',
-        }),
+          performance: {
+            baseEmotion: 'concerned',
+          },
+        })),
       })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -11123,7 +11130,7 @@ describe('alicization runtime project-state audit helpers', () => {
     expect(proactiveRecallText).toContain('"type":"alicization-long-term-memory-recall"')
     expect(proactiveRecallText).toContain('"owner":"LongTermMemoryRecall"')
     expect(proactiveRecallText).toContain('main.ts')
-    expect(proactiveRecallText).toContain('[SYSTEM OVERRIDE: 内部动机触发]')
+    expect(proactiveRecallText).toContain('"type":"alicization-proactive-turn-context"')
     expect(proactiveRecallText).not.toMatch(/\[ALICIZATION_(?:ASSOCIATIVE_RECALL|PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY|same_her_/u)
   })
 
@@ -13004,7 +13011,7 @@ describe('alicization runtime project-state audit helpers', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+      if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
         proactiveSystemText = systemText
         throw new Error('proactive provider unavailable')
       }
@@ -13037,7 +13044,7 @@ describe('alicization runtime project-state audit helpers', () => {
     expect(tickResult.processedCards).toContain('default')
     expect(tickResult.proactiveTriggered).toHaveLength(0)
     expect(getDialogueRespondedEvents().filter(event => event.origin === 'subconscious-proactive')).toHaveLength(0)
-    expect(proactiveSystemText).toContain('[SYSTEM OVERRIDE: 内部动机触发]')
+    expect(proactiveSystemText).toContain('"type":"alicization-proactive-turn-context"')
     expect(proactiveSystemText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
 
     const audits = dbStub.appendAuditLog.mock.calls.map(call => call[0])
@@ -13057,6 +13064,7 @@ describe('alicization runtime project-state audit helpers', () => {
   })
 
   it('applies explicit dismiss feedback and suppresses the next same-scenario proactive tick', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     foregroundWindowSample = {
       appName: 'Cursor',
@@ -13148,10 +13156,10 @@ describe('alicization runtime project-state audit helpers', () => {
             .map(message => String(message.content ?? ''))
             .join('\n\n')
         : ''
-      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+      if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
         await onEvent?.({
           type: 'text-delta',
-          text: JSON.stringify({
+          text: JSON.stringify(buildRuntimeMindTurnReply({
             thought: 'coding proactive nudge should be short and grounded',
             emotion: 'thinking',
             reply: '这个错误先别放过去，我轻轻提醒你看一眼。',
@@ -13162,26 +13170,7 @@ describe('alicization runtime project-state audit helpers', () => {
               delivery: 'calm',
               emphasis: 0,
             },
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-      if (JSON.stringify(messages).includes('Generate one proactive utterance now. Avoid robotic greetings and avoid generic caring platitudes.')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            thought: 'coding proactive nudge should be short and grounded',
-            emotion: 'thinking',
-            reply: '这个错误先别放过去，我轻轻提醒你看一眼。',
-            performance: {
-              baseEmotion: 'thinking',
-              facialCue: null,
-              actionCue: null,
-              delivery: 'calm',
-              emphasis: 0,
-            },
-          }),
+          })),
         })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
         return
@@ -13240,8 +13229,10 @@ describe('alicization runtime project-state audit helpers', () => {
         reasonCodes: expect.arrayContaining(['global-cooldown-active']),
       }),
     }))
-  })
+  }, 15_000)
+
   it('treats a user turn within 120 seconds as positive proactive feedback', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     foregroundWindowSample = {
       appName: 'Cursor',
@@ -13264,10 +13255,10 @@ describe('alicization runtime project-state audit helpers', () => {
             .map(message => String(message.content ?? ''))
             .join('\n\n')
         : ''
-      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+      if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
         await onEvent?.({
           type: 'text-delta',
-          text: JSON.stringify({
+          text: JSON.stringify(buildRuntimeMindTurnReply({
             thought: 'positive feedback window starts after mind-authored proactive utterance',
             emotion: 'thinking',
             reply: '这个错误先看一下，我会说得很短。',
@@ -13278,7 +13269,7 @@ describe('alicization runtime project-state audit helpers', () => {
               delivery: 'calm',
               emphasis: 0,
             },
-          }),
+          })),
         })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
         return
@@ -13353,6 +13344,7 @@ describe('alicization runtime project-state audit helpers', () => {
   })
 
   it('settles unanswered proactive turns as ignored after 10 minutes', async () => {
+    mockGenerateTextFromStreamText()
     vi.useFakeTimers()
     try {
       const now = new Date('2026-03-21T14:00:00.000Z')
@@ -13379,10 +13371,10 @@ describe('alicization runtime project-state audit helpers', () => {
               .map(message => String(message.content ?? ''))
               .join('\n\n')
           : ''
-        if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
           await onEvent?.({
             type: 'text-delta',
-            text: JSON.stringify({
+            text: JSON.stringify(buildRuntimeMindTurnReply({
               thought: 'mind-authored proactive utterance opens ignored feedback window',
               emotion: 'thinking',
               reply: '这个 diff 我轻轻提醒你看一眼。',
@@ -13393,7 +13385,7 @@ describe('alicization runtime project-state audit helpers', () => {
                 delivery: 'calm',
                 emphasis: 0,
               },
-            }),
+            })),
           })
           await onEvent?.({ type: 'finish', finishReason: 'stop' })
           return
@@ -13468,9 +13460,10 @@ describe('alicization runtime project-state audit helpers', () => {
     finally {
       vi.useRealTimers()
     }
-  })
+  }, 15_000)
 
   it('feeds timeout proactive ignored feedback into the next dream prompt', async () => {
+    mockGenerateTextFromStreamText()
     vi.useFakeTimers()
     try {
       const now = new Date('2026-03-21T15:00:00.000Z')
@@ -13498,10 +13491,10 @@ describe('alicization runtime project-state audit helpers', () => {
               .map(message => String(message.content ?? ''))
               .join('\n\n')
           : ''
-        if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
           await onEvent?.({
             type: 'text-delta',
-            text: JSON.stringify({
+            text: JSON.stringify(buildRuntimeMindTurnReply({
               thought: 'mind-authored proactive utterance opens ignored dream feedback window',
               emotion: 'thinking',
               reply: '这个 diff 我先轻轻提醒你一下。',
@@ -13512,7 +13505,7 @@ describe('alicization runtime project-state audit helpers', () => {
                 delivery: 'calm',
                 emphasis: 0,
               },
-            }),
+            })),
           })
           await onEvent?.({ type: 'finish', finishReason: 'stop' })
           return

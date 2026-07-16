@@ -79,8 +79,9 @@ import { errorMessageFrom } from '@moeru/std'
 import { getScreenCaptureDiagnosticsForWebContentsId } from '@proj-alicization/electron-screen-capture/main'
 import {
   alicizationExecutionCapabilityChannels,
-
+  alicizationProviderResponseFormat,
   buildAlicizationMemoryDecisionTraceRecords,
+  buildAlicizationProviderFactBlock,
   containsAlicizationFixedTemplateResidue,
   inferAlicizationInspectionIntent,
   isWeakAlicizationScreenSurfaceCue,
@@ -88,7 +89,6 @@ import {
   normalizeAlicizationDerivedMindStateBundle,
   normalizeAlicizationExecutionRuntimeContext,
   sanitizeAlicizationProviderFacingText,
-
 } from '@proj-alicization/stage-shared'
 import { app, desktopCapturer, globalShortcut, ipcMain, powerMonitor, systemPreferences, webContents } from 'electron'
 
@@ -115,7 +115,6 @@ import { onAppBeforeQuit } from '../../libs/bootkit/lifecycle'
 import { invokeAlicizationMcpCallToolFromMain, invokeAlicizationMcpListToolsFromMain } from '../airi/mcp-servers'
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import {
-  buildAlicizationRuntimeSystemBlock,
   deriveAlicizationAgentRuntimeTelemetryFromSession,
   deriveAlicizationRuntimeSnapshot,
 } from './alicization-runtime-architecture'
@@ -199,7 +198,6 @@ import {
 import { buildMindContinuityFragment, buildMindContinuityRecallSeed } from './mind-continuity'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { sanitizeMindGovernanceDecisionTraceId } from './mind-governance-trace'
-import { buildMindTruthContractLines } from './mind-truth-contract'
 import { isPersonaResidueMemoryText, normalizeOrganicMemoryText } from './organic-memory-hygiene'
 import {
   attachSynthesizedReflections,
@@ -290,7 +288,6 @@ import {
 import {
   buildInspectionSceneResidue,
   buildProactivePerceptionSignals,
-  buildProactivePerceptionSystemBlock,
   buildScreenSemanticSummaryFromResidue,
   describePerceptionTarget,
   getUsablePerceptionSceneResidue,
@@ -6452,47 +6449,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return parseDreamAutobiographicalSummariesPayload(raw)
   }
 
-  function buildProactiveStyleInstruction(style: AlicizationProactiveMetadata['style']) {
-    if (style === 'firm-warning') {
-      return {
-        maxReplyChars: 72,
-        performance: {
-          delivery: 'firm' as const,
-          emphasis: 2 as const,
-        },
-        instruction: 'Use one or two short sentences. Be direct, protective, and serious without sounding hostile.',
-      }
-    }
-    if (style === 'gentle-care') {
-      return {
-        maxReplyChars: 64,
-        performance: {
-          delivery: 'gentle' as const,
-          emphasis: 1 as const,
-        },
-        instruction: 'Use one or two soft sentences. Sound caring, low-pressure, and emotionally close.',
-      }
-    }
-    if (style === 'light-nudge') {
-      return {
-        maxReplyChars: 48,
-        performance: {
-          delivery: 'calm' as const,
-          emphasis: 0 as const,
-        },
-        instruction: 'Use a single low-intrusion sentence. Be brief, relevant, and avoid emotional overreach.',
-      }
-    }
-    return {
-      maxReplyChars: 36,
-      performance: {
-        delivery: 'hesitant' as const,
-        emphasis: 0 as const,
-      },
-      instruction: 'Do not interrupt. Only produce a silent observation placeholder if forced.',
-    }
-  }
-
   function buildProactiveMetadataFromDecision(input: {
     decision: ReturnType<typeof evaluateProactivePolicy>
     selfEvolution?: OrganicMemoryPromptContext['selfEvolution'] | null
@@ -6557,18 +6513,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     },
     agentTurn?: AlicizationAgentTurnRuntime | null,
   ) {
-    const styleInstruction = buildProactiveStyleInstruction(policyDecision.style)
+    const now = Date.now()
     const digitalLifeSpine = deriveAlicizationDigitalLifeSpine(visualPresenceState)
     const digitalLifeRuntimeSurface = digitalLifeSpine.runtimeSurface
-    const digitalLifeArchitecture = digitalLifeSpine.architecture
-    const runtimeDigest = deriveAlicizationRuntimeSnapshot({
-      spine: digitalLifeSpine,
-      agentRuntime: deriveAlicizationAgentRuntimeTelemetryFromSession(
-        agentTurn?.getSessionSnapshot(),
-      ),
-    })
-    const runtimeDigestSystemBlock = buildAlicizationRuntimeSystemBlock(runtimeDigest)
-    const truthContract = buildMindTruthContractLines(digitalLifeRuntimeSurface)
     const hostPersonModel = organicPromptContext.hostPersonModel ?? null
     const proactivePersonContexts = inferHostSocialContextsFromText([
       policyDecision.scenario,
@@ -6590,16 +6537,86 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       selfEvolution: digitalLifeRuntimeSurface.memory.selfEvolution ?? null,
       previousContinuityState: digitalLifeRuntimeSurface.memory.personalityContinuityState ?? null,
     })
-    const system = [
-      '[SYSTEM OVERRIDE: 内部动机触发]',
-      '策略层已经完成是否打断的判断。你不能重新决定该不该打断，只能负责把既定策略措辞成一句自然对白。',
-      ...truthContract.lines,
-      `Current subconscious tensions: boredom ${state.boredom.toFixed(1)}/100, loneliness ${state.loneliness.toFixed(1)}/100, fatigue ${state.fatigue.toFixed(1)}/100.`,
-      `Personality parameters: obedience ${personality.obedience.toFixed(2)}, liveliness ${personality.liveliness.toFixed(2)}, sensibility ${personality.sensibility.toFixed(2)}.`,
-      `Layered context JSON: ${JSON.stringify(layeredContext)}`,
-      `Digital life architecture JSON: ${JSON.stringify(digitalLifeArchitecture)}`,
-      `Visual presence JSON: ${JSON.stringify(digitalLifeRuntimeSurface)}`,
-      `Policy decision JSON: ${JSON.stringify({
+    const providerHostPersonModel = hostPersonModel
+      ? {
+          summary: sanitizeAlicizationProviderFacingText(hostPersonModel.summary, 180) || null,
+          trustStage: hostPersonModel.trustLadder.stage,
+          trustRationale: sanitizeAlicizationProviderFacingText(hostPersonModel.trustLadder.rationale, 160) || null,
+          sensitivities: hostPersonModel.sensitivities
+            .slice(0, 3)
+            .map(value => sanitizeAlicizationProviderFacingText(value, 160))
+            .filter(Boolean),
+          repairTriggers: hostPersonModel.repairTriggers
+            .slice(0, 3)
+            .map(value => sanitizeAlicizationProviderFacingText(value, 160))
+            .filter(Boolean),
+          preferredClosenessByContext: hostPersonModel.preferredClosenessByContext
+            .slice(0, 3)
+            .map(item => ({
+              context: sanitizeAlicizationProviderFacingText(item.context, 100) || null,
+              preference: sanitizeAlicizationProviderFacingText(item.preference, 160) || null,
+              confidence: item.confidence,
+            })),
+          recurrentBurdens: hostPersonModel.recurrentBurdens
+            .slice(0, 3)
+            .map(value => sanitizeAlicizationProviderFacingText(value, 160))
+            .filter(Boolean),
+        }
+      : null
+    const providerSelfEvolution = organicPromptContext.selfEvolution
+      ? {
+          dominantTrajectory: sanitizeAlicizationProviderFacingText(
+            organicPromptContext.selfEvolution.dominantTrajectory,
+            180,
+          ) || null,
+          nextLearningAction: organicPromptContext.selfEvolution.nextLearningAction ?? null,
+          nextLearningReason: sanitizeAlicizationProviderFacingText(
+            organicPromptContext.selfEvolution.nextLearningReason,
+            180,
+          ) || null,
+          contradictionPressure: organicPromptContext.selfEvolution.contradictionPressure,
+          activeLearningFocuses: organicPromptContext.selfEvolution.activeLearningFocuses
+            .slice(0, 4)
+            .map(value => sanitizeAlicizationProviderFacingText(value, 140))
+            .filter(Boolean),
+          summary: sanitizeAlicizationProviderFacingText(organicPromptContext.selfEvolution.summary, 220) || null,
+        }
+      : null
+    const providerLearningExecutionState = organicPromptContext.learningExecutionState
+      ? {
+          nextLearningAction: organicPromptContext.learningExecutionState.nextLearningAction ?? null,
+          activeLearningFocuses: organicPromptContext.learningExecutionState.activeLearningFocuses
+            .slice(0, 6)
+            .map(value => sanitizeAlicizationProviderFacingText(value, 140))
+            .filter(Boolean),
+        }
+      : null
+    const system = buildAlicizationProviderFactBlock('alicization-proactive-turn-context', {
+      version: 'alicization-proactive-turn-context-v1',
+      generatedAt: now,
+      personality: {
+        obedience: personality.obedience,
+        liveliness: personality.liveliness,
+        sensibility: personality.sensibility,
+      },
+      subconsciousState: {
+        boredom: state.boredom,
+        loneliness: state.loneliness,
+        fatigue: state.fatigue,
+        lastInteractionAt: state.lastInteractionAt,
+        updatedAt: state.updatedAt,
+      },
+      layeredContext: {
+        ...layeredContext,
+        relationship: {
+          ...layeredContext.relationship,
+          hostAttitude: sanitizeAlicizationProviderFacingText(
+            layeredContext.relationship.hostAttitude,
+            180,
+          ) || null,
+        },
+      },
+      policyDecision: {
         shouldInterrupt: policyDecision.shouldInterrupt,
         confidence: policyDecision.confidence,
         scenario: policyDecision.scenario,
@@ -6608,105 +6625,42 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         reasonCodes: policyDecision.reasonCodes,
         cooldownMs: policyDecision.cooldownMs,
         policyVersion: policyDecision.policyVersion,
-      })}`,
-      hostPersonModel
-        ? `Host person model JSON: ${JSON.stringify({
-          summary: sanitizeBriefText(hostPersonModel.summary, 180),
-          trustStage: hostPersonModel.trustLadder.stage,
-          trustRationale: sanitizeBriefText(hostPersonModel.trustLadder.rationale, 160),
-          sensitivities: hostPersonModel.sensitivities.slice(0, 3),
-          repairTriggers: hostPersonModel.repairTriggers.slice(0, 3),
-          preferredClosenessByContext: hostPersonModel.preferredClosenessByContext.slice(0, 3),
-          recurrentBurdens: hostPersonModel.recurrentBurdens.slice(0, 3),
-        })}`
-        : '',
-      organicPromptContext.knowledgeEvidence
-        ? `Knowledge evidence JSON: ${JSON.stringify(organicPromptContext.knowledgeEvidence)}`
-        : '',
-      organicPromptContext.selfEvolution
-        ? `Long-horizon learning JSON: ${JSON.stringify({
-          dominantTrajectory: sanitizeBriefText(organicPromptContext.selfEvolution.dominantTrajectory ?? '', 180) || null,
-          nextLearningAction: organicPromptContext.selfEvolution.nextLearningAction ?? null,
-          nextLearningReason: sanitizeBriefText(organicPromptContext.selfEvolution.nextLearningReason ?? '', 180) || null,
-          contradictionPressure: organicPromptContext.selfEvolution.contradictionPressure,
-          activeLearningFocuses: organicPromptContext.selfEvolution.activeLearningFocuses.slice(0, 4),
-          summary: sanitizeBriefText(organicPromptContext.selfEvolution.summary ?? '', 220) || null,
-        })}`
-        : '',
-      organicPromptContext.learningExecutionState
-        ? `Learning execution state JSON: ${JSON.stringify({
-          nextLearningAction: organicPromptContext.learningExecutionState.nextLearningAction ?? null,
-          activeLearningFocuses: organicPromptContext.learningExecutionState.activeLearningFocuses.slice(0, 6),
-        })}`
-        : '',
-      personStateProjection.relationshipDoctrine
-        ? `Relationship doctrine JSON: ${JSON.stringify({
-          doctrine: personStateProjection.relationshipDoctrine,
-          cautious: personStateProjection.cautious,
-          restrained: personStateProjection.restrained,
-          openingGuidance: personStateProjection.openingGuidance,
-          preferredProactiveStyle: personStateProjection.preferredProactiveStyle,
-        })}`
-        : '',
-      personStateProjection.summary
-        ? `Person-state projection JSON: ${JSON.stringify({
-          contexts: personStateProjection.contexts,
-          summary: personStateProjection.summary,
-          regime: personStateProjection.personalityContinuityState.currentRegime,
-          closenessPosture: personStateProjection.personalityContinuityState.closenessPosture,
-          repairPosture: personStateProjection.personalityContinuityState.repairPosture,
-          relationshipPosture: personStateProjection.relationshipPosture,
-          preference: personStateProjection.preferenceText,
-          sensitivity: personStateProjection.sensitivityText,
-          repairTrigger: personStateProjection.repairTriggerText,
-          burden: personStateProjection.burdenText,
-          trustRationale: personStateProjection.trustRationale,
-        })}`
-        : '',
-      `style_constraint=${styleInstruction.instruction}`,
-      `reply_max_chars=${styleInstruction.maxReplyChars}`,
-      'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
-      'Emotion values: neutral, happy, sad, angry, concerned, tired, apologetic, surprised, thinking.',
-      'emotion must exactly mirror performance.baseEmotion.',
-      'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
-      'reply_policy=concise,context_relevant,non_generic',
-      'markdown=false; extra_keys=false',
-      'If truth state is remembered, imagined, or uncertain, do not present screen details as current facts. Phrase them as carried memory, tentative hypothesis, residual impression, or unfinished regrounding.',
-      organicPromptContext.selfEvolution?.nextLearningAction === 'verify'
-        ? 'Long-horizon learning is currently in verify-first posture. Keep the proactive line cautious, provisional, and light; do not phrase uncertain understanding as settled companionship truth.'
-        : '',
-      organicPromptContext.learningExecutionState?.nextLearningAction === 'internalize'
-        ? 'Long-horizon learning is currently moving into internalize posture. You may let the proactive line sound slightly steadier, but still keep it brief and non-intrusive.'
-        : '',
-      personStateProjection.summary
-        ? 'Use the person-state projection as the single social authority for tone, distance, and timing. Do not invent a second relationship posture beside it.'
-        : '',
-    ].join('\n')
-    const user = 'proactive_generation_request=true; robotic_greeting=false; generic_caring_platitude=false'
+      },
+      perception: buildProactivePerceptionSignals({
+        now,
+        state: perceptionState,
+        currentForeground: layeredContext.system.foregroundWindow,
+      }),
+      hostPersonModel: providerHostPersonModel,
+      learningState: {
+        selfEvolution: providerSelfEvolution,
+        execution: providerLearningExecutionState,
+      },
+    })
+    const user = buildAlicizationProviderFactBlock('alicization-proactive-generation-request', {
+      version: 'alicization-proactive-generation-request-v1',
+      turnId: agentTurnInput?.turnId ?? null,
+      decisionTraceId: agentTurnInput?.decisionTraceId ?? null,
+    })
 
     const raw = await mainGatewayTextProvider({
       system,
       user,
       timeoutMs: 15_000,
       source: 'proactive',
+      responseFormat: alicizationProviderResponseFormat,
       cardId: activeCardId,
       agentTurn,
       agentTurnInput,
       extraSystemBlocks: [
         ...buildOrganicMemoryProviderFactBlocks(organicPromptContext),
-        buildProactivePerceptionSystemBlock({
-          now: Date.now(),
-          state: perceptionState,
-        }),
-        runtimeDigestSystemBlock,
       ],
-      digitalLifeRuntimeSurface,
     })
     if (!raw)
       return null
 
     const parsed = parseJsonObjectFromText(raw)
-    if (!parsed)
+    if (!parsed || parsed.format !== 'mind-turn-v1')
       return null
 
     const thought = sanitizeText(parsed.thought)

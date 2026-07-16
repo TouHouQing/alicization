@@ -1,3 +1,4 @@
+import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -222,6 +223,33 @@ describe('runtime main gateway one-shot', () => {
     expect(systemText).not.toMatch(
       /latest_landed_progress|primary_open_loop|next_closure_target|canonical project-state/iu,
     )
+  })
+
+  it('forwards a caller-owned native response format to the Provider', async () => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: '{"format":"mind-turn-v1"}',
+    } as any)
+
+    await runtime.generateMainGatewayText({
+      system: JSON.stringify({
+        type: 'alicization-proactive-turn-context',
+        data: {},
+      }),
+      user: JSON.stringify({
+        type: 'alicization-proactive-generation-request',
+        data: {},
+      }),
+      source: 'proactive',
+      cardId: 'card-native-schema',
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      responseFormat: alicizationProviderResponseFormat,
+    })
+
+    expect(vi.mocked(generateText)).toHaveBeenCalledWith(expect.objectContaining({
+      responseFormat: alicizationProviderResponseFormat,
+    }))
   })
 
   it('keeps explicit extra system facts but does not append project governance blocks', async () => {
