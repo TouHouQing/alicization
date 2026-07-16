@@ -2357,9 +2357,16 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }) ?? turnDigitalLife
       turnDigitalLifeSpine = event.digitalLifeSpine ?? turnDigitalLifeSpine
       turnRuntimeDigest = event.runtimeDigest ?? turnRuntimeDigest
-      turnProjectState = normalizeStructuredProjectStatePayload(
-        ((event.projectState ?? event.runtimeDigest?.projectState ?? turnProjectState ?? null) as Record<string, unknown> | null),
-      ) ?? turnProjectState
+      if (Object.hasOwn(event, 'projectState')) {
+        turnProjectState = normalizeStructuredProjectStatePayload(
+          (event.projectState ?? null) as Record<string, unknown> | null,
+        ) ?? null
+      }
+      else {
+        turnProjectState = normalizeStructuredProjectStatePayload(
+          (event.runtimeDigest?.projectState ?? turnProjectState ?? null) as Record<string, unknown> | null,
+        ) ?? turnProjectState
+      }
       turnPreDialogueAwareness = normalizeStructuredPreDialogueAwarenessPayload(
         (event.preDialogueAwareness ?? turnPreDialogueAwareness ?? null) as Record<string, unknown> | null,
       ) ?? turnPreDialogueAwareness

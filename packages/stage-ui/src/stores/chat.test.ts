@@ -388,6 +388,61 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
+  it('keeps accepted-start runtime digest without promoting its project state', async () => {
+    const reply = '我会根据当前对话和记忆继续回应。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'meta',
+        projectState: null,
+        preDialogueAwareness: null,
+        preDialogueClosure: null,
+        runtimeDigest: {
+          version: 'alicization-runtime-digest-v1',
+          dominantChannel: 'dialogue',
+          shouldProactivelySpeak: false,
+          shouldProactivelyAct: false,
+          continuityPressure: 0.2,
+          companionshipPressure: 0.4,
+          projectState: {
+            identity: 'typed accepted-start runtime state',
+            latestLandedProgress: 'typed accepted-start progress',
+          },
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('继续聊聊我们的记忆', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persistedStructured = appendConversationTurnMock.mock.calls.at(-1)?.[0]?.structured
+    expect(persistedStructured?.runtimeDigest?.projectState).toEqual({
+      identity: 'typed accepted-start runtime state',
+      latestLandedProgress: 'typed accepted-start progress',
+    })
+    expect(persistedStructured?.projectState).toBeNull()
+  })
+
   it('persists a transported failure surface without reclassifying or rewriting it', async () => {
     const failureSurface = {
       kind: 'provider-auth',

@@ -2363,6 +2363,7 @@ export interface AlicizationChatStartResult {
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  runtimeDigest?: AlicizationRuntimeDigest | null
 }
 
 export interface AlicizationChatAbortPayload extends AlicizationCardScope {

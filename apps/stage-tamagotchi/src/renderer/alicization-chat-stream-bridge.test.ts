@@ -5,6 +5,7 @@ import {
   bridgeAlicizationChatErrorEventToStreamEvent,
   bridgeAlicizationChatFinishEventToStreamEvent,
   bridgeAlicizationChatMetaEventToStreamEvent,
+  bridgeAlicizationChatStartResultToStreamEvent,
 } from './alicization-chat-stream-bridge'
 
 const failureSurface = {
@@ -131,5 +132,34 @@ describe('alicization chat stream bridge', () => {
         summary: null,
       },
     })
+  })
+
+  it('does not promote project-state governance from accepted-start runtime metadata', () => {
+    const event = bridgeAlicizationChatStartResultToStreamEvent('default', {
+      accepted: true,
+      turnId: 'turn-start-runtime',
+      state: 'accepted',
+      governance: null,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        shouldProactivelySpeak: false,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.2,
+        companionshipPressure: 0.4,
+        projectState: {
+          identity: 'typed runtime project state',
+          latestLandedProgress: 'typed runtime progress',
+        },
+      } as any,
+    })
+
+    expect(event.projectState).toBeNull()
+    expect(event.preDialogueAwareness).toBeNull()
+    expect(event.preDialogueClosure).toBeNull()
+    expect(event.runtimeDigest?.projectState).toEqual(expect.objectContaining({
+      identity: 'typed runtime project state',
+      latestLandedProgress: 'typed runtime progress',
+    }))
   })
 })

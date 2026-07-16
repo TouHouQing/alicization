@@ -3714,8 +3714,6 @@ export interface AlicizationChatStartResult {
   state?: 'accepted' | 'duplicate-running' | 'duplicate-finished' | 'missing-config' | 'start-failed'
   reason?: string
   governance?: AlicizationMindTurnGovernance | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
-  preDialogueAwareness?: AlicizationChatMetaEvent['preDialogueAwareness']
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   embodimentScript?: AlicizationEmbodimentScriptV1 | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null

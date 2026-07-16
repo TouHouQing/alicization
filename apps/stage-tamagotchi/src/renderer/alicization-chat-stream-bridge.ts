@@ -400,22 +400,22 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
 }
 
 export function bridgeAlicizationChatStartResultToStreamEvent(
-  cardId: string,
+  _cardId: string,
   payload: AlicizationChatStartResult,
 ): Extract<AlicizationBridgeChatStreamEvent, { type: 'meta' }> {
-  return bridgeAlicizationChatMetaEventToStreamEvent({
-    cardId,
-    turnId: payload.turnId,
+  return {
+    type: 'meta',
     governance: payload.governance ?? null,
-    projectState: payload.projectState ?? null,
-    preDialogueAwareness: payload.preDialogueAwareness ?? null,
+    projectState: null,
+    preDialogueAwareness: null,
+    preDialogueClosure: null,
     embodiment: payload.embodiment ?? null,
     embodimentScript: payload.embodimentScript ?? null,
     speechTimeline: payload.speechTimeline ?? null,
-    digitalLife: payload.digitalLife ?? null,
+    digitalLife: resolveBridgedChatMetaDigitalLifeAuthority(payload),
     digitalLifeSpine: payload.digitalLifeSpine ?? null,
-    runtimeDigest: payload.runtimeDigest ?? null,
-  })
+    runtimeDigest: sanitizeBridgeRuntimeDigest(payload.runtimeDigest),
+  }
 }
 
 export function bridgeAlicizationChatChunkEventToStreamEvent(
