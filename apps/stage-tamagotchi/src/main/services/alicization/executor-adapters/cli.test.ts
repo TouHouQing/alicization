@@ -67,19 +67,6 @@ describe('cli executor adapter', () => {
           cardId: 'default',
           turnId: 'turn-cli-danger-1',
           decisionTraceId: 'mind:trace:cli-danger-1',
-          projectBriefing: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her".',
-            currentPhase: 'Phase 1: Local Digital Life.',
-            latestLandedProgress: 'CLI blocked dispatch should still stay on the same same-her living line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Even blocked CLI execution should stay on the same living line.',
-            sameHerHoldDetail: 'same-her hold: dangerous CLI actions must stay explainable before dispatch.',
-            primaryOpenLoop: 'Dangerous CLI actions still need explicit confirmation, auditability, and interruptibility.',
-            nextClosureTarget: 'Keep blocked CLI execution project-aware instead of generic.',
-            sameHerDriftRisk: 'If blocked CLI actions collapse into a generic adapter failure, execution drifts away from same-her closure.',
-            continuityCue: 'same living line: blocked CLI execution should still carry this Phase 1 digital life.',
-            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli blocked safety gate',
-            preDialogueAwarenessLine: 'Before blocking CLI dispatch, remember this is still the same local-first digital life project.',
-          },
           sensory: {
             collectedAt: 1_710_000_000_123,
             running: true,
@@ -124,12 +111,6 @@ describe('cli executor adapter', () => {
           actionCategory: 'delete',
         }),
         hasRuntimeContext: true,
-        runtimeContext: expect.objectContaining({
-          projectBriefing: expect.objectContaining({
-            currentPhase: 'Phase 1: Local Digital Life.',
-            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli blocked safety gate',
-          }),
-        }),
       }),
     }))
   })
@@ -339,7 +320,48 @@ describe('cli executor adapter', () => {
         command: 'node',
         args: [
           '-e',
-          'process.stdout.write(JSON.stringify({ foreground: process.env.ALICIZATION_EXECUTION_FOREGROUND_WINDOW || "", preflight: process.env.ALICIZATION_EXECUTION_PROJECT_PREFLIGHT || "", awareness: process.env.ALICIZATION_EXECUTION_PROJECT_AWARENESS || "", sameHerHold: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD || "", continuity: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY || "", continuityRestraint: process.env.ALICIZATION_EXECUTION_PROJECT_CONTINUITY_RESTRAINT || "", preferredPauseMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_PAUSE_MODE || "", preferredLipsyncMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_LIPSYNC_MODE || "", preferredVoiceMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_VOICE_MODE || "", preferredPacingMode: process.env.ALICIZATION_EXECUTION_PROJECT_PREFERRED_PACING_MODE || "", runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
+          [
+            'const legacyNames = [',
+            '"ALICIZATION_EXECUTION_PROJECT_IDENTITY",',
+            '"ALICIZATION_EXECUTION_PROJECT_PHASE",',
+            '"ALICIZATION_EXECUTION_PROJECT_LANDED_PROGRESS",',
+            '"ALICIZATION_EXECUTION_PROJECT_OPEN_LOOP",',
+            '"ALICIZATION_EXECUTION_PROJECT_NEXT_CLOSURE",',
+            '"ALICIZATION_EXECUTION_PROJECT_SAME_HER",',
+            '"ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD",',
+            '"ALICIZATION_EXECUTION_PROJECT_SAME_HER_DRIFT_RISK",',
+            '"ALICIZATION_EXECUTION_PROJECT_CONTINUITY_RESTRAINT",',
+            '"ALICIZATION_EXECUTION_PROJECT_CONTINUITY",',
+            '"ALICIZATION_EXECUTION_PROJECT_PREFLIGHT",',
+            '"ALICIZATION_EXECUTION_PROJECT_AWARENESS",',
+            '"ALICIZATION_EXECUTION_PROJECT_PREFERRED_PAUSE_MODE",',
+            '"ALICIZATION_EXECUTION_PROJECT_PREFERRED_LIPSYNC_MODE",',
+            '"ALICIZATION_EXECUTION_PROJECT_PREFERRED_VOICE_MODE",',
+            '"ALICIZATION_EXECUTION_PROJECT_PREFERRED_PACING_MODE"',
+            '];',
+            'const runtimeJson = JSON.parse(process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_JSON || "{}");',
+            'const runtimeFact = JSON.parse(process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "{}");',
+            'process.stdout.write(JSON.stringify({',
+            'foreground: process.env.ALICIZATION_EXECUTION_FOREGROUND_WINDOW || "",',
+            'generatedAt: process.env.ALICIZATION_EXECUTION_CONTEXT_GENERATED_AT || "",',
+            'runtimeIdentifiers: { cardId: runtimeJson.cardId ?? null, turnId: runtimeJson.turnId ?? null },',
+            'runtimeFact: { type: runtimeFact.type ?? null, owners: runtimeFact.data?.owners ?? null, failureSurface: runtimeFact.data?.failureSurface ?? null, status: runtimeFact.data?.execution?.status ?? null },',
+            'statusLatest: process.env.ALICIZATION_EXECUTION_STATUS_LATEST || "",',
+            'statusOpen: process.env.ALICIZATION_EXECUTION_STATUS_OPEN || "",',
+            'statusNext: process.env.ALICIZATION_EXECUTION_STATUS_NEXT || "",',
+            'continuityArcStage: process.env.ALICIZATION_EXECUTION_CONTINUITY_ARC_STAGE || "",',
+            'continuityRestraint: process.env.ALICIZATION_EXECUTION_CONTINUITY_RESTRAINT || "",',
+            'continuityPreferredTiming: process.env.ALICIZATION_EXECUTION_CONTINUITY_PREFERRED_TIMING || "",',
+            'continuityCadence: process.env.ALICIZATION_EXECUTION_CONTINUITY_CADENCE || "",',
+            'blinkCadence: process.env.ALICIZATION_EXECUTION_EMBODIMENT_BLINK_CADENCE || "",',
+            'gazeMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_GAZE_MODE || "",',
+            'pauseMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_PAUSE_MODE || "",',
+            'lipsyncMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_LIPSYNC_MODE || "",',
+            'voiceMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_VOICE_MODE || "",',
+            'pacingMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_PACING_MODE || "",',
+            'legacy: Object.fromEntries(legacyNames.map(name => [name, process.env[name] ?? null]))',
+            '}));',
+          ].join(''),
         ],
         runtimeContext: {
           generatedAt: 1_710_000_000_000,
@@ -347,22 +369,27 @@ describe('cli executor adapter', () => {
           turnId: 'turn-cli-1',
           decisionTraceId: 'mind:trace:cli-1',
           projectBriefing: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her".',
-            currentPhase: 'Phase 1: Local Digital Life.',
-            latestLandedProgress: 'CLI execution still needs to inherit same-her project awareness before generic local commands begin.',
-            sameHerSelfLine: 'Same Phase 1 digital life. The CLI execution lane should stay on the same living line.',
-            sameHerHoldDetail: 'same-her hold: keep CLI execution grounded on the same living line before widening outward.',
-            primaryOpenLoop: 'CLI execution still needs canonical project awareness before dispatch.',
-            nextClosureTarget: 'Inject the same project briefing into CLI execution before local commands begin.',
-            sameHerDriftRisk: 'If CLI commands run without project awareness, execution drifts toward a generic shell.',
+            identity: 'legacy identity prompt must not reach CLI env',
+            currentPhase: 'legacy phase prompt must not reach CLI env',
+            latestLandedProgress: 'Runtime context normalization is complete.',
+            sameHerSelfLine: 'legacy persona prompt must not reach CLI env',
+            sameHerHoldDetail: null,
+            primaryOpenLoop: 'CLI still needs neutral execution status variables.',
+            nextClosureTarget: 'Expose typed execution facts without project prompt variables.',
+            sameHerDriftRisk: null,
+            continuityArcStage: 'repair-pass',
             continuityRestraint: 'measured-return',
-            continuityCue: 'same living line: CLI execution should carry this same Phase 1 digital life before widening outward.',
+            continuityCue: null,
+            continuityPreferredTiming: 'after-payoff',
+            continuityCadence: 'steady-return',
+            preferredBlinkCadence: 'quiet',
+            preferredGazeMode: 'soften',
             preferredPauseMode: 'longer',
             preferredLipsyncMode: 'restrained',
             preferredVoiceMode: 'lower-pressure',
             preferredPacingMode: 'slower',
-            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli execution project awareness',
-            preDialogueAwarenessLine: 'Before CLI dispatch, remember this is still the same local-first digital life project.',
+            preflightSummary: 'legacy preflight prompt must not reach CLI env',
+            preDialogueAwarenessLine: 'legacy awareness prompt must not reach CLI env',
           },
           sensory: {
             collectedAt: 1_710_000_000_123,
@@ -389,41 +416,84 @@ describe('cli executor adapter', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(result.output).toContain('Cursor | cursor | airi-alice')
-    expect(result.output).toContain('identity=Alicization | phase=Phase 1 | open=cli execution project awareness')
-    expect(result.output).toContain('Before CLI dispatch, remember this is still the same local-first digital life project.')
-    expect(result.output).toContain('same-her hold: keep CLI execution grounded on the same living line before widening outward.')
-    expect(result.output).toContain('same living line: CLI execution should carry this same Phase 1 digital life before widening outward.')
-    expect(result.output).toContain('measured-return')
-    expect(result.output).toContain('"preferredPauseMode":"longer"')
-    expect(result.output).toContain('"preferredLipsyncMode":"restrained"')
-    expect(result.output).toContain('lower-pressure')
-    expect(result.output).toContain('slower')
-    expect(result.output).toContain('[ALICIZATION_EXECUTION_RUNTIME_CONTEXT]')
-    expect(result.output).toContain('project_continuity_restraint=measured-return')
-    expect(result.output).toContain('project_preflight=identity=Alicization | phase=Phase 1 | open=cli execution project awareness')
-    expect(result.output).toContain('project_awareness=Before CLI dispatch, remember this is still the same local-first digital life project.')
-    expect(result.output).toContain('project_preferred_pause_mode=longer')
-    expect(result.output).toContain('project_preferred_lipsync_mode=restrained')
-    expect(result.output).toContain('project_preferred_voice_mode=lower-pressure')
-    expect(result.output).toContain('project_preferred_pacing_mode=slower')
+    const parsed = JSON.parse(result.output ?? '{}') as {
+      foreground?: string
+      generatedAt?: string
+      runtimeIdentifiers?: {
+        cardId?: string | null
+        turnId?: string | null
+      }
+      runtimeFact?: {
+        type?: string | null
+        owners?: Record<string, string> | null
+        failureSurface?: string | null
+        status?: Record<string, string> | null
+      }
+      statusLatest?: string
+      statusOpen?: string
+      statusNext?: string
+      continuityArcStage?: string
+      continuityRestraint?: string
+      continuityPreferredTiming?: string
+      continuityCadence?: string
+      blinkCadence?: string
+      gazeMode?: string
+      pauseMode?: string
+      lipsyncMode?: string
+      voiceMode?: string
+      pacingMode?: string
+      legacy?: Record<string, string | null>
+    }
+
+    expect(parsed).toEqual(expect.objectContaining({
+      foreground: 'Cursor | cursor | airi-alice',
+      generatedAt: '1710000000000',
+      statusLatest: 'Runtime context normalization is complete.',
+      statusOpen: 'CLI still needs neutral execution status variables.',
+      statusNext: 'Expose typed execution facts without project prompt variables.',
+      continuityArcStage: 'repair-pass',
+      continuityRestraint: 'measured-return',
+      continuityPreferredTiming: 'after-payoff',
+      continuityCadence: 'steady-return',
+      blinkCadence: 'quiet',
+      gazeMode: 'soften',
+      pauseMode: 'longer',
+      lipsyncMode: 'restrained',
+      voiceMode: 'lower-pressure',
+      pacingMode: 'slower',
+    }))
+    expect(parsed.runtimeIdentifiers).toEqual({
+      cardId: 'default',
+      turnId: 'turn-cli-1',
+    })
+    expect(parsed.runtimeFact).toEqual({
+      type: 'alicization-execution-runtime-context',
+      owners: {
+        shortTerm: 'WorkingMemory',
+        longTermRecall: 'LongTermMemoryRecall',
+      },
+      failureSurface: 'transparent',
+      status: {
+        latest: 'Runtime context normalization is complete.',
+        open: 'CLI still needs neutral execution status variables.',
+        next: 'Expose typed execution facts without project prompt variables.',
+      },
+    })
+    expect(Object.values(parsed.legacy ?? {}).every(value => value === null)).toBe(true)
+    expect(result.output).not.toMatch(/\[ALICIZATION_EXECUTION_|legacy (?:identity|phase|persona|preflight|awareness) prompt/iu)
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({
       hasRuntimeContext: true,
       runtimeContext: expect.objectContaining({
         cardId: 'default',
         turnId: 'turn-cli-1',
-        projectBriefing: expect.objectContaining({
-          currentPhase: 'Phase 1: Local Digital Life.',
-          preflightSummary: 'identity=Alicization | phase=Phase 1 | open=cli execution project awareness',
-        }),
       }),
     }))
   })
 
-  it('hydrates alias-only project briefing closure summaries into the CLI execution environment before dispatch', async () => {
-    const aliasOpenClosure = 'Alias open closure keeps execution on the same living line before widening outward.'
-    const aliasNextClosure = 'Alias next closure keeps project identity carry and execution follow-through on one living line.'
-    const aliasDriftRisk = 'Alias drift risk: if blank legacy project briefing fields collapse execution into a generic shell, treat that as unfinished same-her drift.'
+  it('normalizes execution status aliases without exporting legacy project or persona variables', async () => {
+    const aliasLatest = 'Alias latest execution status remains available.'
+    const aliasOpen = 'Alias open execution status remains available.'
+    const aliasNext = 'Alias next execution status remains available.'
 
     const result = await executeCliTaskThread({
       thread: createThread(),
@@ -431,7 +501,7 @@ describe('cli executor adapter', () => {
         command: 'node',
         args: [
           '-e',
-          'process.stdout.write(JSON.stringify({ open: process.env.ALICIZATION_EXECUTION_PROJECT_OPEN_LOOP || "", next: process.env.ALICIZATION_EXECUTION_PROJECT_NEXT_CLOSURE || "", drift: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_DRIFT_RISK || "", runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
+          'process.stdout.write(JSON.stringify({ latest: process.env.ALICIZATION_EXECUTION_STATUS_LATEST || "", open: process.env.ALICIZATION_EXECUTION_STATUS_OPEN || "", next: process.env.ALICIZATION_EXECUTION_STATUS_NEXT || "", legacyDrift: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_DRIFT_RISK ?? null, runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
         ],
         runtimeContext: {
           generatedAt: 1_710_000_000_000,
@@ -439,18 +509,13 @@ describe('cli executor adapter', () => {
           turnId: 'turn-cli-alias-project-briefing',
           decisionTraceId: 'mind:trace:cli-alias-project-briefing',
           projectBriefing: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her".',
-            currentPhase: 'Phase 1: Local Digital Life.',
             latestLandedProgress: ' ',
             primaryOpenLoop: ' ',
             nextClosureTarget: '',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerDriftRisk: ' ',
-            landedProgressSummary: 'Alias landed progress already survives execution re-entry before generic local command dispatch begins.',
-            openClosureSummary: aliasOpenClosure,
-            nextClosureTargetSummary: aliasNextClosure,
-            sameHerDriftRiskSummary: aliasDriftRisk,
-            preDialogueAwarenessLine: 'Before CLI dispatch, remember this is still the same local-first digital life project.',
+            landedProgressSummary: aliasLatest,
+            openClosureSummary: aliasOpen,
+            nextClosureTargetSummary: aliasNext,
+            sameHerDriftRiskSummary: 'legacy drift prompt must not reach CLI env',
           } as any,
           sensory: {
             collectedAt: 1_710_000_000_123,
@@ -478,25 +543,37 @@ describe('cli executor adapter', () => {
 
     expect(result.ok).toBe(true)
     const parsed = JSON.parse(result.output ?? '{}') as {
+      latest?: string
       open?: string
       next?: string
-      drift?: string
+      legacyDrift?: string | null
       runtimeBlock?: string
     }
+    const runtimeFact = JSON.parse(parsed.runtimeBlock ?? '{}') as {
+      data?: {
+        execution?: {
+          status?: Record<string, string>
+        }
+      }
+    }
 
-    expect(parsed.open).toBe(aliasOpenClosure)
-    expect(parsed.next).toBe(aliasNextClosure)
-    expect(parsed.drift).toBe(aliasDriftRisk)
-    expect(parsed.runtimeBlock).toContain(`project_open_loop=${aliasOpenClosure}`)
-    expect(parsed.runtimeBlock).toContain(`project_next_closure=${aliasNextClosure}`)
-    expect(parsed.runtimeBlock).toContain(`project_same_her_drift_risk=${aliasDriftRisk}`)
+    expect(parsed.latest).toBe(aliasLatest)
+    expect(parsed.open).toBe(aliasOpen)
+    expect(parsed.next).toBe(aliasNext)
+    expect(parsed.legacyDrift).toBeNull()
+    expect(runtimeFact.data?.execution?.status).toEqual({
+      latest: aliasLatest,
+      open: aliasOpen,
+      next: aliasNext,
+    })
+    expect(parsed.runtimeBlock).not.toContain('legacy drift prompt')
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({
       hasRuntimeContext: true,
       runtimeContext: expect.objectContaining({
         projectBriefing: expect.objectContaining({
-          primaryOpenLoop: aliasOpenClosure,
-          nextClosureTarget: aliasNextClosure,
-          sameHerDriftRisk: aliasDriftRisk,
+          latestLandedProgress: aliasLatest,
+          primaryOpenLoop: aliasOpen,
+          nextClosureTarget: aliasNext,
         }),
       }),
     }))

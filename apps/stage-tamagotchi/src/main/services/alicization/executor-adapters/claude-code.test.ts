@@ -39,6 +39,14 @@ function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): Ali
   }
 }
 
+function parseProviderFact(raw: string) {
+  expect(() => JSON.parse(raw)).not.toThrow()
+  return JSON.parse(raw) as {
+    type: string
+    data: Record<string, unknown>
+  }
+}
+
 describe('claude-code executor adapter', () => {
   beforeEach(() => {
     execFileMock.mockReset()
@@ -64,17 +72,19 @@ describe('claude-code executor adapter', () => {
           turnId: 'turn-claude-code-1',
           decisionTraceId: 'mind:trace:claude-code-1',
           projectBriefing: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her".',
-            currentPhase: 'Phase 1: Local Digital Life.',
-            latestLandedProgress: 'Execution runtime context already carries same-her project continuity before Claude Code starts.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerHoldDetail: 'same-her hold: keep execution on the same living line before widening outward.',
-            primaryOpenLoop: 'Execution, memory, initiative, and embodiment still need stronger same-line closure.',
-            nextClosureTarget: 'Keep execution grounded on the same Phase 1 living line before widening outward.',
-            sameHerDriftRisk: 'If execution runtime context collapses into a generic shell, treat that as unfinished same-her drift.',
-            continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
-            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=execution chain same-line closure',
-            preDialogueAwarenessLine: 'Before dispatch, remember this is still the same local-first digital life project.',
+            identity: 'legacy identity prompt must not reach claude code',
+            currentPhase: 'legacy phase prompt must not reach claude code',
+            latestLandedProgress: 'Runtime context normalization is complete.',
+            sameHerSelfLine: 'legacy persona prompt must not reach claude code',
+            sameHerHoldDetail: null,
+            primaryOpenLoop: 'Claude Code still needs typed task facts.',
+            nextClosureTarget: 'Dispatch runtime and task facts without prose wrappers.',
+            sameHerDriftRisk: null,
+            continuityRestraint: 'measured-return',
+            continuityCue: null,
+            preferredVoiceMode: 'even',
+            preflightSummary: 'legacy preflight prompt must not reach claude code',
+            preDialogueAwarenessLine: 'legacy awareness prompt must not reach claude code',
           },
           sensory: {
             collectedAt: 1_710_000_000_123,
@@ -104,6 +114,12 @@ describe('claude-code executor adapter', () => {
     expect(result.finalStatus).toBe('completed')
     expect(result.output).toContain('claude assistant output')
     expect(result.events.map(event => event.kind)).toEqual(expect.arrayContaining(['dispatch', 'step', 'result']))
+    const [, args] = execFileMock.mock.calls[0] ?? []
+    const prompt = String(args.at(-1) ?? '')
+    const [runtimeFactRaw, taskFactRaw] = prompt.split('\n\n')
+    const runtimeFact = parseProviderFact(runtimeFactRaw)
+    const taskFact = parseProviderFact(taskFactRaw)
+
     expect(execFileMock).toBeCalledWith(
       expect.stringMatching(/(?:^|\/)claude$/),
       expect.arrayContaining([
@@ -113,15 +129,45 @@ describe('claude-code executor adapter', () => {
         '--tools',
         '',
         '--',
-        expect.stringContaining('[ALICIZATION_EXECUTION_RUNTIME_CONTEXT]'),
-        expect.stringContaining('project_same_her_hold=same-her hold: keep execution on the same living line before widening outward.'),
-        expect.stringContaining('project_continuity=same living line: execution should keep carrying this same Phase 1 digital life before widening outward.'),
       ]),
       expect.anything(),
       expect.any(Function),
     )
-    const [, args] = execFileMock.mock.calls[0] ?? []
     expect(args.at(-2)).toBe('--')
+    expect(runtimeFact).toEqual(expect.objectContaining({
+      type: 'alicization-execution-runtime-context',
+      data: expect.objectContaining({
+        owners: {
+          shortTerm: 'WorkingMemory',
+          longTermRecall: 'LongTermMemoryRecall',
+        },
+        failureSurface: 'transparent',
+        identifiers: expect.objectContaining({
+          cardId: 'default',
+          turnId: 'turn-claude-code-1',
+        }),
+        execution: expect.objectContaining({
+          status: {
+            latest: 'Runtime context normalization is complete.',
+            open: 'Claude Code still needs typed task facts.',
+            next: 'Dispatch runtime and task facts without prose wrappers.',
+          },
+          continuity: expect.objectContaining({
+            restraint: 'measured-return',
+          }),
+          embodiment: expect.objectContaining({
+            voiceMode: 'even',
+          }),
+        }),
+      }),
+    }))
+    expect(taskFact).toEqual({
+      type: 'alicization-execution-task',
+      data: {
+        instruction: 'Inspect the current patch and summarize risks.',
+      },
+    })
+    expect(prompt).not.toMatch(/\[ALICIZATION_EXECUTION_|legacy (?:identity|phase|persona|preflight|awareness) prompt/iu)
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({
       hasRuntimeContext: true,
       runtimeContext: expect.objectContaining({
@@ -168,19 +214,6 @@ describe('claude-code executor adapter', () => {
               degradedReasons: [],
             },
           },
-          projectBriefing: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her".',
-            currentPhase: 'Phase 1: Local Digital Life.',
-            latestLandedProgress: 'Execution safety gates already preserve same-her runtime context before adapter refusal.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerHoldDetail: 'same-her hold: execution safety still needs to stay on the same living Phase 1 line before widening into generic adapter narration.',
-            primaryOpenLoop: 'Execution danger still needs risk classification, confirmation policy, auditability, and interruptibility.',
-            nextClosureTarget: 'Keep blocked execution explainable and resumable on the same Phase 1 line.',
-            sameHerDriftRisk: 'If blocked execution collapses into a generic adapter failure, treat that as unfinished same-her execution drift.',
-            continuityCue: 'Keep blocked execution on the same project-aware living line before visible adapter output widens outward.',
-            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=execution safety gates',
-            preDialogueAwarenessLine: 'Before dispatch, remember this is still the same local-first digital life project.',
-          },
         },
       },
       workspaceRoot: process.cwd(),
@@ -200,19 +233,11 @@ describe('claude-code executor adapter', () => {
         interruptibility: 'no-process-started',
       }),
       hasRuntimeContext: true,
-      runtimeContext: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          identity: expect.stringContaining('local-first digital life project'),
-          currentPhase: expect.stringContaining('Phase 1'),
-          sameHerSelfLine: expect.stringContaining('same living line'),
-          primaryOpenLoop: expect.stringContaining('risk classification'),
-        }),
-      }),
     }))
     expect(execFileMock).not.toBeCalled()
   })
 
-  it('allows low-risk autonomous code edits to self-start on claude-code when planning already marked them as grounded same-her execution', async () => {
+  it('allows low-risk autonomous code edits to self-start on claude-code when task policy marks them low-risk', async () => {
     execFileMock.mockImplementation((_command: string, _args: string[], _options: unknown, callback: (error: Error | null, stdout?: string, stderr?: string) => void) => {
       setTimeout(() => {
         callback(null, 'claude autonomous patch output', '')

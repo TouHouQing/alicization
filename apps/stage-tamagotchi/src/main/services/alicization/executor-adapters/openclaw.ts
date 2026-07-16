@@ -13,6 +13,7 @@ import { env } from 'node:process'
 
 import {
   buildAlicizationExecutionRuntimeContextBlock,
+  buildAlicizationProviderFactBlock,
   normalizeAlicizationExecutionRuntimeContext,
 } from '@proj-alicization/stage-shared'
 
@@ -508,14 +509,13 @@ function buildOpenClawCommandSpec(input: AlicizationOpenClawAdapterInput) {
     ?? input.thread.id
   const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
   const runtimeContextBlock = buildAlicizationExecutionRuntimeContextBlock(runtimeContext)
-  const instructionBody = rawInstruction
-    ? [
-        '[ALICIZATION_EXECUTION_TASK]',
-        rawInstruction,
-      ].join('\n')
+  const taskBlock = rawInstruction
+    ? buildAlicizationProviderFactBlock('alicization-execution-task', {
+        instruction: rawInstruction,
+      })
     : ''
   const instruction = runtimeContextBlock
-    ? [runtimeContextBlock, instructionBody].filter(Boolean).join('\n\n')
+    ? [runtimeContextBlock, taskBlock].filter(Boolean).join('\n\n')
     : rawInstruction
   const sessionId = buildOpenClawSessionId({
     explicitSessionId: input.command.sessionId ?? normalizeOptionalText(governorSessionResume?.externalSessionId, 160),

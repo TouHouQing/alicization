@@ -13,6 +13,7 @@ import { cwd as processCwd } from 'node:process'
 import { errorMessageFrom } from '@moeru/std'
 import {
   buildAlicizationExecutionRuntimeContextBlock,
+  buildAlicizationProviderFactBlock,
   normalizeAlicizationExecutionRuntimeContext,
 } from '@proj-alicization/stage-shared'
 
@@ -244,13 +245,14 @@ function buildClaudeCodeCommandSpec(input: AlicizationClaudeCodeAdapterInput) {
     : 'plan'
   const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
   const runtimeContextBlock = buildAlicizationExecutionRuntimeContextBlock(runtimeContext)
+  const taskBlock = buildAlicizationProviderFactBlock('alicization-execution-task', {
+    instruction: rawPrompt,
+  })
   const prompt = runtimeContextBlock
     ? [
         runtimeContextBlock,
-        '',
-        '[ALICIZATION_EXECUTION_TASK]',
-        rawPrompt,
-      ].join('\n')
+        taskBlock,
+      ].join('\n\n')
     : rawPrompt
 
   return {

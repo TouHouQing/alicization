@@ -33,6 +33,14 @@ function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): Ali
   }
 }
 
+function parseProviderFact(raw: string) {
+  expect(() => JSON.parse(raw)).not.toThrow()
+  return JSON.parse(raw) as {
+    type: string
+    data: Record<string, unknown>
+  }
+}
+
 describe('openclaw executor adapter', () => {
   beforeEach(() => {
     fetchMock.mockReset()
@@ -95,17 +103,19 @@ describe('openclaw executor adapter', () => {
           turnId: 'turn-openclaw-1',
           decisionTraceId: 'mind:trace:openclaw-1',
           projectBriefing: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her".',
-            currentPhase: 'Phase 1: Local Digital Life.',
-            latestLandedProgress: 'Execution runtime context already carries same-her project continuity before OpenClaw starts.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.',
-            sameHerHoldDetail: 'same-her hold: keep execution on the same living line before widening outward.',
-            primaryOpenLoop: 'Execution, memory, initiative, and embodiment still need stronger same-line closure.',
-            nextClosureTarget: 'Keep execution grounded on the same Phase 1 living line before widening outward.',
-            sameHerDriftRisk: 'If execution runtime context collapses into a generic shell, treat that as unfinished same-her drift.',
-            continuityCue: 'same living line: execution should keep carrying this same Phase 1 digital life before widening outward.',
-            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=execution chain same-line closure',
-            preDialogueAwarenessLine: 'Before dispatch, remember this is still the same local-first digital life project.',
+            identity: 'legacy identity prompt must not reach openclaw',
+            currentPhase: 'legacy phase prompt must not reach openclaw',
+            latestLandedProgress: 'Runtime context normalization is complete.',
+            sameHerSelfLine: 'legacy persona prompt must not reach openclaw',
+            sameHerHoldDetail: null,
+            primaryOpenLoop: 'OpenClaw still needs typed task facts.',
+            nextClosureTarget: 'Dispatch runtime and task facts without prose wrappers.',
+            sameHerDriftRisk: null,
+            continuityCue: null,
+            continuityPreferredTiming: 'after-payoff',
+            preferredGazeMode: 'soften',
+            preflightSummary: 'legacy preflight prompt must not reach openclaw',
+            preDialogueAwarenessLine: 'legacy awareness prompt must not reach openclaw',
           },
           sensory: {
             collectedAt: 1_710_000_000_123,
@@ -143,15 +153,48 @@ describe('openclaw executor adapter', () => {
           'Authorization': 'Bearer test-token',
           'x-openclaw-token': 'test-token',
         }),
-        body: expect.stringContaining('[ALICIZATION_EXECUTION_RUNTIME_CONTEXT]'),
       }),
     )
-    const rawBody = String(fetchMock.mock.calls[0]?.[1]?.body ?? '')
-    expect(rawBody).toContain('project_preflight=identity=Alicization | phase=Phase 1 | open=execution chain same-line closure')
-    expect(rawBody).toContain('project_awareness=Before dispatch, remember this is still the same local-first digital life project.')
-    expect(rawBody).toContain('project_same_her_hold=same-her hold: keep execution on the same living line before widening outward.')
-    expect(rawBody).toContain('project_continuity=same living line: execution should keep carrying this same Phase 1 digital life before widening outward.')
     const sentBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)
+    const prompt = String(sentBody.text ?? '')
+    const [runtimeFactRaw, taskFactRaw] = prompt.split('\n\n')
+    const runtimeFact = parseProviderFact(runtimeFactRaw)
+    const taskFact = parseProviderFact(taskFactRaw)
+
+    expect(runtimeFact).toEqual(expect.objectContaining({
+      type: 'alicization-execution-runtime-context',
+      data: expect.objectContaining({
+        owners: {
+          shortTerm: 'WorkingMemory',
+          longTermRecall: 'LongTermMemoryRecall',
+        },
+        failureSurface: 'transparent',
+        identifiers: expect.objectContaining({
+          cardId: 'default',
+          turnId: 'turn-openclaw-1',
+        }),
+        execution: expect.objectContaining({
+          status: {
+            latest: 'Runtime context normalization is complete.',
+            open: 'OpenClaw still needs typed task facts.',
+            next: 'Dispatch runtime and task facts without prose wrappers.',
+          },
+          continuity: expect.objectContaining({
+            preferredTiming: 'after-payoff',
+          }),
+          embodiment: expect.objectContaining({
+            gazeMode: 'soften',
+          }),
+        }),
+      }),
+    }))
+    expect(taskFact).toEqual({
+      type: 'alicization-execution-task',
+      data: {
+        instruction: 'Inspect the active window and dismiss the visible blocking modal.',
+      },
+    })
+    expect(prompt).not.toMatch(/\[ALICIZATION_EXECUTION_|legacy (?:identity|phase|persona|preflight|awareness) prompt/iu)
     expect(sentBody.meta.alicization_runtime_context).toEqual(expect.objectContaining({
       cardId: 'default',
       turnId: 'turn-openclaw-1',
@@ -311,19 +354,6 @@ describe('openclaw executor adapter', () => {
           cardId: 'default',
           turnId: 'turn-openclaw-blocked-1',
           decisionTraceId: 'mind:trace:openclaw-blocked-1',
-          projectBriefing: {
-            identity: 'Alicization is a local-first digital life project building one continuous "her".',
-            currentPhase: 'Phase 1: Local Digital Life.',
-            latestLandedProgress: 'Blocked OpenClaw dispatch should still stay on the same same-her living line.',
-            sameHerSelfLine: 'Same Phase 1 digital life. Even blocked embodied execution should stay on the same living line.',
-            sameHerHoldDetail: 'same-her hold: dangerous embodied execution must stay explainable before dispatch.',
-            primaryOpenLoop: 'High-impact embodied actions still need explicit confirmation, auditability, and interruptibility.',
-            nextClosureTarget: 'Keep blocked OpenClaw execution project-aware instead of generic.',
-            sameHerDriftRisk: 'If blocked OpenClaw actions collapse into a generic adapter failure, execution drifts away from same-her closure.',
-            continuityCue: 'same living line: blocked OpenClaw execution should still carry this Phase 1 digital life.',
-            preflightSummary: 'identity=Alicization | phase=Phase 1 | open=openclaw blocked safety gate',
-            preDialogueAwarenessLine: 'Before blocking OpenClaw dispatch, remember this is still the same local-first digital life project.',
-          },
           sensory: {
             collectedAt: 1_710_000_000_123,
             running: true,
@@ -363,12 +393,6 @@ describe('openclaw executor adapter', () => {
         interruptibility: 'no-network-request-started',
       }),
       hasRuntimeContext: true,
-      runtimeContext: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          currentPhase: 'Phase 1: Local Digital Life.',
-          preflightSummary: 'identity=Alicization | phase=Phase 1 | open=openclaw blocked safety gate',
-        }),
-      }),
     }))
     expect(fetchMock).not.toBeCalled()
   })
