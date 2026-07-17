@@ -1739,7 +1739,6 @@ function deriveSessionMirrorRecollectionState(
     deliberation?.inwardLine
     ?? plan?.opening
     ?? narrative?.recallCenter
-    ?? narrative?.opening
     ?? '',
     180,
   )

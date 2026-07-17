@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { buildMemoryRecollectionNarratives } from './memory-recollection-narratives'
 
 describe('memory recollection narratives', () => {
-  it('turns recollected windows into structured recall pressure without fixed visible wording', () => {
+  it('returns only structured recall evidence without wording fields', () => {
     const narratives = buildMemoryRecollectionNarratives({
       intent: {
         mode: 'conversation-history',
@@ -27,14 +27,14 @@ describe('memory recollection narratives', () => {
       }],
     })
 
-    expect(narratives).toHaveLength(1)
-    expect(narratives[0]?.recallCenter).toBe('we were aligning proactive closure and runtime continuity')
-    expect(narratives[0]?.opening).toBe(narratives[0]?.recallCenter)
-    expect(narratives[0]?.opening).not.toContain('What I first remember us circling around is')
-    expect(narratives[0]?.speakerInstruction).toContain('not as a copied opening line')
-    expect(narratives[0]?.certainty).toBe('fragmentary')
-    expect(narratives[0]?.evidenceCues).toContain('runtime continuity')
-    expect(narratives[0]?.supportCues).toEqual(narratives[0]?.evidenceCues)
-    expect(narratives[0]?.provenancePosture).toBe('reconstructed')
+    expect(narratives).toEqual([{
+      mode: 'conversation-history',
+      certainty: 'fragmentary',
+      recallCenter: 'we were aligning proactive closure and runtime continuity',
+      recallPressure: 'medium',
+      evidenceCues: ['runtime continuity', 'proactive closure'],
+      provenancePosture: 'reconstructed',
+      confidence: 0.74,
+    }])
   })
 })

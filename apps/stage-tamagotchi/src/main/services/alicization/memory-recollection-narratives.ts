@@ -10,15 +10,6 @@ export interface AlicizationMemoryRecollectionNarrative {
   recallPressure: 'low' | 'medium' | 'high'
   evidenceCues: string[]
   provenancePosture: 'lived' | 'reconstructed' | 'inferred-or-dreamt'
-  speakerInstruction: string
-  /**
-   * @deprecated Compatibility only. Do not treat as visible wording.
-   */
-  opening: string
-  /**
-   * @deprecated Use evidenceCues.
-   */
-  supportCues: string[]
   confidence: number
 }
 
@@ -79,18 +70,6 @@ function provenancePostureFromWindow(window: AlicizationMemoryRecollectionWindow
   return 'inferred-or-dreamt'
 }
 
-function speakerInstructionForMode(mode: AlicizationMemoryRecollectionIntentSnapshot['mode']) {
-  if (mode === 'relationship-history')
-    return 'Let the relationship era shape stance only after the current answer has room for it.'
-  if (mode === 'autobiographical-history')
-    return 'Let self-continuity shape the answer without reciting a fixed memory opener.'
-  if (mode === 'conversation-history')
-    return 'Use the remembered conversation as context, not as a copied opening line.'
-  if (mode === 'execution-procedure')
-    return 'Use the remembered procedure to guide the payoff, not to announce a memory template.'
-  return 'Use the experience pattern as inward context and let the LLM author the visible wording.'
-}
-
 export function buildMemoryRecollectionNarratives(input: {
   intent: AlicizationMemoryRecollectionIntentSnapshot | null | undefined
   recollectedWindows?: OrganicMemoryPromptContext['recollectedWindows']
@@ -111,9 +90,6 @@ export function buildMemoryRecollectionNarratives(input: {
         recallPressure: recallPressureFromWindow({ intent, window }),
         evidenceCues,
         provenancePosture: provenancePostureFromWindow(window),
-        speakerInstruction: speakerInstructionForMode(intent.mode),
-        opening: recallCenter,
-        supportCues: evidenceCues,
         confidence: clamp01((window.confidence * 0.72) + (intent.confidence * 0.28)),
       } satisfies AlicizationMemoryRecollectionNarrative
     })

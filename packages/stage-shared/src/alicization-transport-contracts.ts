@@ -551,17 +551,6 @@ export interface AlicizationRecollectionNarrativeSnapshot {
   recallPressure: 'low' | 'medium' | 'high'
   evidenceCues: string[]
   provenancePosture: 'lived' | 'reconstructed' | 'inferred-or-dreamt'
-  speakerInstruction: string
-  /**
-   * @deprecated Phase 11 keeps this field only for compatibility with older
-   * replay/browser payloads. Runtime helpers must not generate fixed visible
-   * wording here; use recallCenter/evidenceCues as LLM mind inputs instead.
-   */
-  opening: string
-  /**
-   * @deprecated Use evidenceCues. Kept until all older consumers migrate.
-   */
-  supportCues: string[]
   confidence: number
 }
 
