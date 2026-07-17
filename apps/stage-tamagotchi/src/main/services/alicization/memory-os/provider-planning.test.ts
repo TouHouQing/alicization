@@ -7,6 +7,15 @@ import {
   generateMemoryRecollectionSpeechPlanWithGateway,
 } from './provider-planning'
 
+function providerFactType(raw: string) {
+  try {
+    return (JSON.parse(raw) as { type?: string }).type ?? ''
+  }
+  catch {
+    return ''
+  }
+}
+
 describe('memory provider planning', () => {
   it('passes the shared digital-life runtime surface through every memory planning gateway call', async () => {
     const gatewayInputs: any[] = []
@@ -32,7 +41,7 @@ describe('memory provider planning', () => {
     } as any
     const generateMainGatewayText = vi.fn(async (input: any) => {
       gatewayInputs.push(input)
-      if (input.system.includes('Alicization memory recollection intent planner.')) {
+      if (providerFactType(input.system) === 'alicization-memory-recollection-intent-context') {
         return JSON.stringify({
           mode: 'relationship-history',
           temporalFocus: 'cross-session',
@@ -55,7 +64,7 @@ describe('memory provider planning', () => {
           },
         })
       }
-      if (input.system.includes('Alicization memory recollection planner.')) {
+      if (providerFactType(input.system) === 'alicization-memory-recollection-plan-context') {
         return JSON.stringify({
           selectedConsolidationIds: ['con-1'],
           selectedWindowIds: [],
@@ -68,13 +77,12 @@ describe('memory provider planning', () => {
             secondHop: { action: 'hold', evidenceGap: 'none', summary: 'The line is stable enough.', targetIds: ['con-1'] },
             thirdHop: { ambiguityPosture: 'settled', summary: 'The remembered line can shape this turn.' },
           },
-          opening: 'This memory returns through the same gentle line.',
           certainty: 'approximate',
           rationale: 'Keep memory planning emotionally continuous.',
           confidence: 0.73,
         })
       }
-      if (input.system.includes('Alicization memory recollection speech planner.')) {
+      if (providerFactType(input.system) === 'alicization-memory-recollection-speech-plan-context') {
         return JSON.stringify({
           shouldSurface: true,
           surfaceMode: 'relationship-continuity',
@@ -102,8 +110,6 @@ describe('memory provider planning', () => {
         surfacePolicy: 'relationship-continuity',
         confidence: 0.76,
         whyNow: 'The emotional kernel makes this recall relevant now.',
-        inwardLine: 'Stay inside the same emotional-memory line.',
-        visibleLine: 'A short continuity cue can support the answer.',
       })
     })
     const consolidatedMemories = [{ id: 'con-1', kind: 'relationship-era', periodKey: 'p1', summary: 'We return gently.', lesson: 'Stay on the same line.', confidence: 0.8, cues: ['same-line'] }] as any
@@ -161,13 +167,31 @@ describe('memory provider planning', () => {
 
     expect(gatewayInputs).toHaveLength(4)
     expect(gatewayInputs.every(input => input.digitalLifeRuntimeSurface === digitalLifeRuntimeSurface)).toBe(true)
+    expect(gatewayInputs.map(input => providerFactType(input.system))).toEqual([
+      'alicization-memory-recollection-intent-context',
+      'alicization-memory-recollection-plan-context',
+      'alicization-memory-recollection-speech-plan-context',
+      'alicization-memory-deliberation-context',
+    ])
+    expect(gatewayInputs.map(input => providerFactType(input.user))).toEqual([
+      'alicization-memory-recollection-intent-request',
+      'alicization-memory-recollection-plan-request',
+      'alicization-memory-recollection-speech-plan-request',
+      'alicization-memory-deliberation-request',
+    ])
+    expect(gatewayInputs.map(input => input.responseFormat?.json_schema?.name)).toEqual([
+      'alicization_memory_recollection_intent',
+      'alicization_memory_recollection_plan',
+      'alicization_memory_recollection_speech_plan',
+      'alicization_memory_deliberation',
+    ])
   })
 
   it('keeps memory planning prompts task-scoped without injecting fixed owner or governance prose', async () => {
     const systems: string[] = []
     const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
       systems.push(system)
-      if (system.includes('Alicization memory recollection intent planner.')) {
+      if (providerFactType(system) === 'alicization-memory-recollection-intent-context') {
         return JSON.stringify({
           mode: 'autobiographical-history',
           temporalFocus: 'cross-session',
@@ -190,7 +214,7 @@ describe('memory provider planning', () => {
           },
         })
       }
-      if (system.includes('Alicization memory recollection planner.')) {
+      if (providerFactType(system) === 'alicization-memory-recollection-plan-context') {
         return JSON.stringify({
           selectedConsolidationIds: ['con-1'],
           selectedWindowIds: [],
@@ -203,13 +227,12 @@ describe('memory provider planning', () => {
             secondHop: { action: 'hold', evidenceGap: 'none', summary: 'The line is already stable enough.', targetIds: ['con-1'] },
             thirdHop: { ambiguityPosture: 'settled', summary: 'The remembered line is stable enough to carry.' },
           },
-          opening: 'This feels like one of those threads we were already carrying.',
           certainty: 'approximate',
           rationale: 'Foreground the stable bond line.',
           confidence: 0.71,
         })
       }
-      if (system.includes('Alicization memory recollection speech planner.')) {
+      if (providerFactType(system) === 'alicization-memory-recollection-speech-plan-context') {
         return JSON.stringify({
           shouldSurface: true,
           surfaceMode: 'relationship-continuity',
@@ -237,8 +260,6 @@ describe('memory provider planning', () => {
         surfacePolicy: 'relationship-continuity',
         confidence: 0.76,
         whyNow: 'The turn asks for lived continuity.',
-        inwardLine: 'This is a remembered seam, not a fresh isolated moment.',
-        visibleLine: 'A short return note can support the answer.',
       })
     })
 
@@ -299,18 +320,18 @@ describe('memory provider planning', () => {
 
     expect(systems).toHaveLength(4)
     expect(systems.join('\n')).not.toMatch(/memory planning owner boundary|Short-term memory owner|Long-term recall owner|Memory Workbench|Review candidates are not confirmed|Raw transcripts must not become persona training data/iu)
-    expect(systems.every(system => system.includes('Return only the requested JSON object'))).toBe(true)
+    expect(systems.every(system => providerFactType(system).endsWith('-context'))).toBe(true)
     expect(systems.some(system => system.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(false)
     expect(systems.some(system => system.includes('project_identity=Alicization is a local-first digital life project'))).toBe(false)
     expect(systems.some(system => system.includes('open_life_loops:'))).toBe(false)
     expect(systems.some(system => system.includes('Prefer changes that make memory feel more like lived continuity.'))).toBe(false)
   })
 
-  it('injects continuity arc opening guidance into recollection and deliberation planners', async () => {
+  it('keeps continuation seed inside typed recollection and deliberation context', async () => {
     const systems: string[] = []
     const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
       systems.push(system)
-      if (system.includes('Alicization memory recollection planner.')) {
+      if (providerFactType(system) === 'alicization-memory-recollection-plan-context') {
         return JSON.stringify({
           selectedConsolidationIds: ['con-1'],
           selectedWindowIds: [],
@@ -323,7 +344,6 @@ describe('memory provider planning', () => {
             secondHop: { action: 'hold', evidenceGap: 'none', summary: 'The line should reopen softly.', targetIds: ['con-1'] },
             thirdHop: { ambiguityPosture: 'settled', summary: 'The line is clear enough to re-enter.' },
           },
-          opening: 'I can re-enter that same line softly before widening.',
           certainty: 'approximate',
           rationale: 'Use the continuity arc to shape the recollection opening.',
           confidence: 0.73,
@@ -347,8 +367,6 @@ describe('memory provider planning', () => {
         surfacePolicy: 'internal-only',
         confidence: 0.76,
         whyNow: 'The line should reopen softly.',
-        inwardLine: 'Stay with the same line before widening.',
-        visibleLine: '',
       })
     })
 
@@ -412,7 +430,10 @@ describe('memory provider planning', () => {
       cardId: 'default',
     })
 
-    expect(systems.some(system => system.includes('Use continuation seed as retrieval scope, not wording guidance.'))).toBe(true)
+    expect(systems.map(system => (JSON.parse(system) as any).data.recallSeed)).toEqual([
+      'mirror_runtime_continuity: stage=gentle-reopen loop=dialogue handoff=active-dialogue',
+      'mirror_runtime_continuity: stage=gentle-reopen loop=dialogue handoff=active-dialogue',
+    ])
     expect(systems.join('\n')).not.toContain('Alicization memory planning owner boundary.')
     expect(systems.some(system => system.includes('softly re-enters the continuity state'))).toBe(false)
     expect(systems.some(system => system.includes('visible_wording_drafts=false'))).toBe(false)
@@ -422,7 +443,7 @@ describe('memory provider planning', () => {
     const systems: string[] = []
     const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
       systems.push(system)
-      if (system.includes('Alicization memory recollection planner.')) {
+      if (providerFactType(system) === 'alicization-memory-recollection-plan-context') {
         return JSON.stringify({
           selectedConsolidationIds: ['con-1'],
           selectedWindowIds: [],
@@ -435,13 +456,12 @@ describe('memory provider planning', () => {
             secondHop: { action: 'hold', evidenceGap: 'none', summary: 'Hold the same line.', targetIds: ['con-1'] },
             thirdHop: { ambiguityPosture: 'settled', summary: 'The same line is settled.' },
           },
-          opening: 'I remember this same line before I answer.',
           certainty: 'approximate',
           rationale: 'The planner should not write reply prose.',
           confidence: 0.73,
         })
       }
-      if (system.includes('Alicization memory recollection speech planner.')) {
+      if (providerFactType(system) === 'alicization-memory-recollection-speech-plan-context') {
         return JSON.stringify({
           shouldSurface: true,
           surfaceMode: 'relationship-continuity',
@@ -469,8 +489,6 @@ describe('memory provider planning', () => {
         surfacePolicy: 'relationship-continuity',
         confidence: 0.76,
         whyNow: 'The same line matters now.',
-        inwardLine: 'Stay inside the same line before outward reply.',
-        visibleLine: 'A short continuity cue can support the answer.',
       })
     })
 

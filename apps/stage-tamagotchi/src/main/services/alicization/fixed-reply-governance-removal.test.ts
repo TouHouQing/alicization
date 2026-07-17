@@ -385,6 +385,38 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('keeps long-term memory planning on typed facts and native schemas', () => {
+    const planningSource = readServiceSource('./memory-os/provider-planning.ts')
+    const contractSource = readServiceSource('./memory-os/provider-contract.ts')
+
+    for (const type of [
+      'alicization-memory-recollection-intent',
+      'alicization-memory-recollection-plan',
+      'alicization-memory-recollection-speech-plan',
+      'alicization-memory-deliberation',
+    ]) {
+      expect(planningSource).toContain(
+        `buildAlicizationProviderFactBlock('${type}-context'`,
+      )
+      expect(planningSource).toContain(
+        `buildAlicizationProviderFactBlock('${type}-request'`,
+      )
+    }
+    for (const schemaName of [
+      'alicization_memory_recollection_intent',
+      'alicization_memory_recollection_plan',
+      'alicization_memory_recollection_speech_plan',
+      'alicization_memory_deliberation',
+    ]) {
+      expect(contractSource).toMatch(
+        new RegExp(`name:\\s*'${schemaName}'[\\s\\S]*strict:\\s*true`, 'u'),
+      )
+    }
+    expect(planningSource).not.toMatch(
+      /Alicization memory recollection intent planner|Alicization memory recollection planner|Alicization memory recollection speech planner|Alicization memory deliberation|Return only the requested JSON object|Use continuation seed as retrieval scope|Recollection intent candidate JSON|Memory recollection candidate JSON|Recollection speech candidate JSON|Memory deliberation candidate JSON/u,
+    )
+  })
+
   it('removes second-pass repair vocabulary and rewrite carry fields from the validation transport', () => {
     const sources = [
       readServiceSource('./visible-reply/critic.ts'),

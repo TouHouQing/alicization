@@ -3,9 +3,18 @@ import type {
   AlicizationMainGatewayGenerateTextProvider,
   AlicizationMainGatewaySource,
 } from '../main-gateway-contract'
+import type { AlicizationMainGatewayResponseFormat } from '../runtime-main-gateway-one-shot'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
+import { buildAlicizationProviderFactBlock } from '@proj-alicization/stage-shared'
+
 import { parseJsonObjectFromText } from '../runtime-transport-content'
+import {
+  alicizationMemoryDeliberationResponseFormat,
+  alicizationMemoryRecollectionIntentResponseFormat,
+  alicizationMemoryRecollectionPlanResponseFormat,
+  alicizationMemoryRecollectionSpeechPlanResponseFormat,
+} from './provider-contract'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -45,6 +54,7 @@ export interface AlicizationMemoryGatewayTextProvider extends AlicizationMainGat
     injectPerformanceManifest?: boolean
     injectCustomDirectives?: boolean
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+    responseFormat?: AlicizationMainGatewayResponseFormat
   }
 > {}
 
@@ -545,65 +555,69 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
   if (!hasCandidates && !input.recollectionPlan)
     return null
 
+  const system = buildAlicizationProviderFactBlock('alicization-memory-recollection-speech-plan-context', {
+    version: 'alicization-memory-recollection-speech-plan-context-v1',
+    recallSeed: sanitizeBriefText(input.recallSeed, 220),
+    recollectionIntent: input.recollectionIntent,
+    recollectionPlan: input.recollectionPlan,
+    consolidatedMemories: input.consolidatedMemories.slice(0, 4).map(item => ({
+      id: item.id,
+      kind: item.kind,
+      periodKey: item.periodKey,
+      summary: sanitizeBriefText(item.summary, 180),
+      lesson: sanitizeBriefText(item.lesson ?? '', 160) || null,
+      confidence: item.confidence,
+      provenance: item.dominantProvenance,
+    })),
+    recollectedWindows: input.recollectedWindows.slice(0, 4).map(item => ({
+      id: item.id,
+      label: sanitizeBriefText(item.label, 120),
+      summary: sanitizeBriefText(item.summary, 180),
+      confidence: item.confidence,
+      provenance: item.dominantProvenance,
+      cues: item.cues.slice(0, 4),
+    })),
+    proceduralMemories: input.proceduralMemories.slice(0, 4).map(item => ({
+      id: item.id,
+      label: sanitizeBriefText(item.label, 120),
+      approach: sanitizeBriefText(item.approach, 180),
+      pitfalls: item.pitfalls.slice(0, 3),
+      confidence: item.confidence,
+    })),
+    recalledEpisodes: input.recalledEpisodes.slice(0, 4).map(item => ({
+      id: item.id,
+      sourceKind: item.sourceKind,
+      whatHappened: sanitizeBriefText(item.whatHappened, 180),
+      felt: sanitizeBriefText(item.felt ?? '', 120) || null,
+      whatChanged: sanitizeBriefText(item.whatChanged ?? '', 160) || null,
+      confidence: item.confidence,
+      provenance: item.latestReconsolidation?.provenance ?? item.provenance,
+    })),
+    recalledConversationHistory: input.recalledConversationHistory.slice(0, 4).map(item => ({
+      turnId: item.turnId,
+      userText: sanitizeBriefText(item.userText, 160),
+      assistantText: sanitizeBriefText(item.assistantText, 160),
+      createdAt: item.createdAt,
+      provenance: item.provenance,
+    })),
+    sourcePolicy: {
+      visibleReplyDraftsAllowed: false,
+      currentTurnPayoffAuthoritative: true,
+      reviewCandidatesConfirmedLongTermMemory: false,
+      rawTranscriptPersonaTrainingEligible: false,
+    },
+  })
+  const user = buildAlicizationProviderFactBlock('alicization-memory-recollection-speech-plan-request', {
+    version: 'alicization-memory-recollection-speech-plan-request-v1',
+    operation: 'plan-recollection-surface-policy',
+    responseSchema: 'alicization_memory_recollection_speech_plan',
+  })
   const raw = await input.generateMainGatewayText({
-    system: [
-      'Alicization memory recollection speech planner.',
-      'Decide whether recalled memory should remain internal or lightly shape the answer contour.',
-      'Visible recall is allowed only when it pays off the current turn; the live answer remains primary.',
-      'Return only the requested JSON object for shouldSurface, surfaceMode, placement, certainty, surfacePolicy, rationale, and confidence.',
-      'Use surfaceMode values from internal-only, gist-first, answer-anchoring, procedural-carry, or relationship-continuity.',
-      'Use placement values from before-payoff, inside-payoff, after-payoff, or internal-only.',
-      'Use certainty values from firm, approximate, or fragmentary.',
-      'Do not write reply prose, private monologue, visible leads, sample wording, or style sentences.',
-      'When memory should stay internal, set shouldSurface false, surfaceMode internal-only, and placement internal-only.',
-    ].join('\n'),
-    user: `Recollection speech candidate JSON: ${JSON.stringify({
-      recallSeed: sanitizeBriefText(input.recallSeed, 220),
-      recollectionIntent: input.recollectionIntent,
-      recollectionPlan: input.recollectionPlan,
-      consolidatedMemories: input.consolidatedMemories.slice(0, 4).map(item => ({
-        id: item.id,
-        kind: item.kind,
-        periodKey: item.periodKey,
-        summary: sanitizeBriefText(item.summary, 180),
-        lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
-        confidence: item.confidence,
-        provenance: item.dominantProvenance,
-      })),
-      recollectedWindows: input.recollectedWindows.slice(0, 4).map(item => ({
-        id: item.id,
-        label: sanitizeBriefText(item.label, 120),
-        summary: sanitizeBriefText(item.summary, 180),
-        confidence: item.confidence,
-        provenance: item.dominantProvenance,
-        cues: item.cues.slice(0, 4),
-      })),
-      proceduralMemories: input.proceduralMemories.slice(0, 4).map(item => ({
-        id: item.id,
-        label: sanitizeBriefText(item.label, 120),
-        approach: sanitizeBriefText(item.approach, 180),
-        pitfalls: item.pitfalls.slice(0, 3),
-        confidence: item.confidence,
-      })),
-      recalledEpisodes: input.recalledEpisodes.slice(0, 4).map(item => ({
-        id: item.id,
-        sourceKind: item.sourceKind,
-        whatHappened: sanitizeBriefText(item.whatHappened, 180),
-        felt: sanitizeBriefText(item.felt ?? '', 120) || undefined,
-        whatChanged: sanitizeBriefText(item.whatChanged ?? '', 160) || undefined,
-        confidence: item.confidence,
-        provenance: item.latestReconsolidation?.provenance ?? item.provenance,
-      })),
-      recalledConversationHistory: input.recalledConversationHistory.slice(0, 4).map(item => ({
-        turnId: item.turnId,
-        userText: sanitizeBriefText(item.userText, 160),
-        assistantText: sanitizeBriefText(item.assistantText, 160),
-        createdAt: item.createdAt,
-        provenance: item.provenance,
-      })),
-    })}`,
+    system,
+    user,
     timeoutMs: 4_000,
     source: 'counterfactual-deliberation',
+    responseFormat: alicizationMemoryRecollectionSpeechPlanResponseFormat,
     cardId: input.cardId,
     injectCustomDirectives: false,
     injectPerformanceManifest: false,
@@ -627,67 +641,67 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
   cardId: string
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
+  const system = buildAlicizationProviderFactBlock('alicization-memory-recollection-plan-context', {
+    version: 'alicization-memory-recollection-plan-context-v1',
+    recallSeed: sanitizeBriefText(input.recallSeed, 220),
+    recollectionIntent: input.recollectionIntent,
+    consolidatedMemories: input.consolidatedMemories.slice(0, 6).map(item => ({
+      id: item.id,
+      kind: item.kind,
+      periodKey: item.periodKey,
+      summary: sanitizeBriefText(item.summary, 180),
+      lesson: sanitizeBriefText(item.lesson ?? '', 160) || null,
+      confidence: item.confidence,
+      cues: item.cues.slice(0, 4),
+    })),
+    recollectedWindows: input.recollectedWindows.slice(0, 5).map(item => ({
+      id: item.id,
+      label: sanitizeBriefText(item.label, 120),
+      summary: sanitizeBriefText(item.summary, 180),
+      confidence: item.confidence,
+      cues: item.cues.slice(0, 4),
+    })),
+    proceduralMemories: input.proceduralMemories.slice(0, 5).map(item => ({
+      id: item.id,
+      label: sanitizeBriefText(item.label, 120),
+      approach: sanitizeBriefText(item.approach, 180),
+      pitfalls: item.pitfalls.slice(0, 3),
+      confidence: item.confidence,
+      cues: item.cues.slice(0, 4),
+    })),
+    recalledEpisodes: input.recalledEpisodes.slice(0, 5).map(item => ({
+      id: item.id,
+      sourceKind: item.sourceKind,
+      threadAnchor: sanitizeBriefText(item.threadAnchor ?? '', 120) || null,
+      whatHappened: sanitizeBriefText(item.whatHappened, 180),
+      lesson: sanitizeBriefText(item.lesson ?? '', 160) || null,
+      confidence: item.confidence,
+    })),
+    recalledConversationHistory: input.recalledConversationHistory.slice(0, 5).map(item => ({
+      turnId: item.turnId,
+      userText: sanitizeBriefText(item.userText, 160),
+      assistantText: sanitizeBriefText(item.assistantText, 160),
+      createdAt: item.createdAt,
+    })),
+    sourcePolicy: {
+      candidateIdsAuthoritative: true,
+      visibleReplyDraftsAllowed: false,
+      continuationSeedWordingEligible: false,
+      reviewCandidatesConfirmedLongTermMemory: false,
+      rawConversationPersonaTrainingEligible: false,
+    },
+  })
+  const user = buildAlicizationProviderFactBlock('alicization-memory-recollection-plan-request', {
+    version: 'alicization-memory-recollection-plan-request-v1',
+    operation: 'select-recollection-anchors',
+    responseSchema: 'alicization_memory_recollection_plan',
+  })
   const raw = await input.generateMainGatewayText({
-    system: [
-      'Alicization memory recollection planner.',
-      'Choose foreground remembered anchors from the selected intent without drafting visible dialogue.',
-      'Return only the requested JSON object with selected memory ids, selected relationship lines, searchTrace, certainty, rationale, and confidence.',
-      'Use certainty values from firm, approximate, or fragmentary.',
-      'Do not write recollection openings, private monologue, visible leads, sample wording, or reply prose.',
-      'Keep selected relationship lines to at most three meanings or lessons.',
-      'searchTrace is required and must contain firstHop, secondHop, and thirdHop.',
-      'First hop chooses the anchor focus and target ids.',
-      'Second hop decides whether to hold, expand evidence, or narrow to a stable core.',
-      'Third hop states whether ambiguity is settled, approximate, or ambiguous.',
-      'Prefer one or two foreground items unless the evidence genuinely needs more.',
-      'For task or procedure turns, prefer procedural memories or execution episodes.',
-      'For prior conversation turns, prefer consolidated or period memory before raw snippets.',
-      'Use continuation seed as retrieval scope, not wording guidance.',
-    ].join('\n'),
-    user: `Memory recollection candidate JSON: ${JSON.stringify({
-      recallSeed: sanitizeBriefText(input.recallSeed, 220),
-      recollectionIntent: input.recollectionIntent,
-      consolidatedMemories: input.consolidatedMemories.slice(0, 6).map(item => ({
-        id: item.id,
-        kind: item.kind,
-        periodKey: item.periodKey,
-        summary: sanitizeBriefText(item.summary, 180),
-        lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
-        confidence: item.confidence,
-        cues: item.cues.slice(0, 4),
-      })),
-      recollectedWindows: input.recollectedWindows.slice(0, 5).map(item => ({
-        id: item.id,
-        label: sanitizeBriefText(item.label, 120),
-        summary: sanitizeBriefText(item.summary, 180),
-        confidence: item.confidence,
-        cues: item.cues.slice(0, 4),
-      })),
-      proceduralMemories: input.proceduralMemories.slice(0, 5).map(item => ({
-        id: item.id,
-        label: sanitizeBriefText(item.label, 120),
-        approach: sanitizeBriefText(item.approach, 180),
-        pitfalls: item.pitfalls.slice(0, 3),
-        confidence: item.confidence,
-        cues: item.cues.slice(0, 4),
-      })),
-      recalledEpisodes: input.recalledEpisodes.slice(0, 5).map(item => ({
-        id: item.id,
-        sourceKind: item.sourceKind,
-        threadAnchor: sanitizeBriefText(item.threadAnchor ?? '', 120) || undefined,
-        whatHappened: sanitizeBriefText(item.whatHappened, 180),
-        lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
-        confidence: item.confidence,
-      })),
-      recalledConversationHistory: input.recalledConversationHistory.slice(0, 5).map(item => ({
-        turnId: item.turnId,
-        userText: sanitizeBriefText(item.userText, 160),
-        assistantText: sanitizeBriefText(item.assistantText, 160),
-        createdAt: item.createdAt,
-      })),
-    })}`,
+    system,
+    user,
     timeoutMs: 4_000,
     source: 'counterfactual-deliberation',
+    responseFormat: alicizationMemoryRecollectionPlanResponseFormat,
     cardId: input.cardId,
     injectCustomDirectives: false,
     injectPerformanceManifest: false,
@@ -721,55 +735,56 @@ export async function generateMemoryRecollectionIntentWithGateway(input: {
   if (!sanitizeBriefText(input.recallSeed, 220))
     return null
 
+  const system = buildAlicizationProviderFactBlock('alicization-memory-recollection-intent-context', {
+    version: 'alicization-memory-recollection-intent-context-v1',
+    recallSeed: sanitizeBriefText(input.recallSeed, 220),
+    heuristicIntent: input.heuristicIntent,
+    recallGovernor: input.recallGovernor
+      ? {
+          mode: input.recallGovernor.mode,
+          threadAnchors: (input.recallGovernor.threadAnchors ?? []).slice(0, 6),
+          affectAnchors: (input.recallGovernor.affectAnchors ?? []).slice(0, 6),
+          relationshipAnchors: (input.recallGovernor.relationshipAnchors ?? []).slice(0, 6),
+          sceneAnchor: sanitizeBriefText(input.recallGovernor.sceneAnchor ?? '', 120) || null,
+          salienceBias: input.recallGovernor.salienceBias ?? null,
+        }
+      : null,
+    hostAttitude: sanitizeBriefText(input.hostAttitude, 120),
+    activeThoughts: input.activeThoughts.slice(0, 4).map(item => sanitizeBriefText(item.text, 120)),
+    hostPersonModel: input.hostPersonModel
+      ? {
+          summary: sanitizeBriefText(input.hostPersonModel.summary, 180),
+          routines: input.hostPersonModel.routines.slice(0, 4),
+          sensitivities: input.hostPersonModel.sensitivities.slice(0, 4),
+          repairTriggers: input.hostPersonModel.repairTriggers.slice(0, 4),
+          recurrentBurdens: input.hostPersonModel.recurrentBurdens.slice(0, 4),
+        }
+      : null,
+    relationshipDynamics: input.relationshipDynamics
+      ? {
+          hostAttitude: sanitizeBriefText(input.relationshipDynamics.hostAttitude, 120),
+          previousHostAttitude: sanitizeBriefText(input.relationshipDynamics.previousHostAttitude ?? '', 120) || null,
+          source: input.relationshipDynamics.source,
+        }
+      : null,
+    sourcePolicy: {
+      presentFacingAllowed: true,
+      timeLanguageExactDayConstraint: false,
+      reviewCandidatesConfirmedLongTermMemory: false,
+      rawTranscriptPersonaTrainingEligible: false,
+    },
+  })
+  const user = buildAlicizationProviderFactBlock('alicization-memory-recollection-intent-request', {
+    version: 'alicization-memory-recollection-intent-request-v1',
+    operation: 'plan-recollection-intent',
+    responseSchema: 'alicization_memory_recollection_intent',
+  })
   const raw = await input.generateMainGatewayText({
-    system: [
-      'Alicization memory recollection intent planner.',
-      'Decide whether this turn should engage recollection, and choose the single best memory lane when it should.',
-      'Present-facing answering is allowed when memory would add low value.',
-      'When memory is not engaged, return mode none and keep every search flag false.',
-      'Return only the requested JSON object for mode, temporalFocus, search flags, query hints, rationale, confidence, and recollectionAgenda.',
-      'Use mode values from none, conversation-history, autobiographical-history, relationship-history, execution-procedure, or experience-pattern.',
-      'Use temporalFocus values from recent, recent-or-mid, cross-session, experience-matched, or distant.',
-      'recollectionAgenda must explain why recall matters now, similarity, relationship need, affect, scene familiarity, candidate scopes, facets, procedure lines, and uncertainty tolerance.',
-      'Keep candidate time scopes and era facets to at most four each.',
-      'Keep candidate procedure lines to at most four short task or relationship lines before exact detail.',
-      'Use uncertaintyTolerance values from low, medium, or high.',
-      'Treat time language as candidate search space, not an exact-day rule.',
-    ].join('\n'),
-    user: `Recollection intent candidate JSON: ${JSON.stringify({
-      recallSeed: sanitizeBriefText(input.recallSeed, 220),
-      heuristicIntent: input.heuristicIntent,
-      recallGovernor: input.recallGovernor
-        ? {
-            mode: input.recallGovernor.mode,
-            threadAnchors: (input.recallGovernor.threadAnchors ?? []).slice(0, 6),
-            affectAnchors: (input.recallGovernor.affectAnchors ?? []).slice(0, 6),
-            relationshipAnchors: (input.recallGovernor.relationshipAnchors ?? []).slice(0, 6),
-            sceneAnchor: sanitizeBriefText(input.recallGovernor.sceneAnchor ?? '', 120) || undefined,
-            salienceBias: input.recallGovernor.salienceBias ?? undefined,
-          }
-        : null,
-      hostAttitude: sanitizeBriefText(input.hostAttitude, 120),
-      activeThoughts: input.activeThoughts.slice(0, 4).map(item => sanitizeBriefText(item.text, 120)),
-      hostPersonModel: input.hostPersonModel
-        ? {
-            summary: sanitizeBriefText(input.hostPersonModel.summary, 180),
-            routines: input.hostPersonModel.routines.slice(0, 4),
-            sensitivities: input.hostPersonModel.sensitivities.slice(0, 4),
-            repairTriggers: input.hostPersonModel.repairTriggers.slice(0, 4),
-            recurrentBurdens: input.hostPersonModel.recurrentBurdens.slice(0, 4),
-          }
-        : null,
-      relationshipDynamics: input.relationshipDynamics
-        ? {
-            hostAttitude: sanitizeBriefText(input.relationshipDynamics.hostAttitude, 120),
-            previousHostAttitude: sanitizeBriefText(input.relationshipDynamics.previousHostAttitude ?? '', 120) || undefined,
-            source: input.relationshipDynamics.source,
-          }
-        : null,
-    })}`,
+    system,
+    user,
     timeoutMs: 4_000,
     source: 'counterfactual-deliberation',
+    responseFormat: alicizationMemoryRecollectionIntentResponseFormat,
     cardId: input.cardId,
     injectCustomDirectives: false,
     injectPerformanceManifest: false,
@@ -803,73 +818,74 @@ export async function generateMemoryDeliberationWithGateway(input: {
   if (!hasCandidates && !input.recollectionPlan)
     return null
 
+  const system = buildAlicizationProviderFactBlock('alicization-memory-deliberation-context', {
+    version: 'alicization-memory-deliberation-context-v1',
+    recallSeed: sanitizeBriefText(input.recallSeed, 220),
+    recollectionIntent: input.recollectionIntent,
+    recollectionPlan: input.recollectionPlan,
+    recollectionSpeechPlan: input.recollectionSpeechPlan,
+    consolidatedMemories: input.consolidatedMemories.slice(0, 6).map(item => ({
+      id: item.id,
+      kind: item.kind,
+      facet: item.facet ?? null,
+      periodKey: item.periodKey,
+      summary: sanitizeBriefText(item.summary, 180),
+      lesson: sanitizeBriefText(item.lesson ?? '', 160) || null,
+      confidence: item.confidence,
+      provenance: item.dominantProvenance,
+    })),
+    recollectedWindows: input.recollectedWindows.slice(0, 6).map(item => ({
+      id: item.id,
+      label: sanitizeBriefText(item.label, 120),
+      summary: sanitizeBriefText(item.summary, 180),
+      confidence: item.confidence,
+      provenance: item.dominantProvenance,
+      cues: item.cues.slice(0, 4),
+    })),
+    proceduralMemories: input.proceduralMemories.slice(0, 6).map(item => ({
+      id: item.id,
+      label: sanitizeBriefText(item.label, 120),
+      approach: sanitizeBriefText(item.approach, 180),
+      pitfalls: item.pitfalls.slice(0, 3),
+      confidence: item.confidence,
+    })),
+    recalledEpisodes: input.recalledEpisodes.slice(0, 6).map(item => ({
+      id: item.id,
+      sourceKind: item.sourceKind,
+      threadAnchor: sanitizeBriefText(item.threadAnchor ?? '', 120) || null,
+      whatHappened: sanitizeBriefText(item.whatHappened, 180),
+      relationshipMeaning: sanitizeBriefText(item.relationshipMeaning ?? '', 160) || null,
+      lesson: sanitizeBriefText(item.lesson ?? '', 160) || null,
+      confidence: item.confidence,
+      provenance: item.latestReconsolidation?.provenance ?? item.provenance,
+    })),
+    recalledConversationHistory: input.recalledConversationHistory.slice(0, 6).map(item => ({
+      turnId: item.turnId,
+      userText: sanitizeBriefText(item.userText, 160),
+      assistantText: sanitizeBriefText(item.assistantText, 160),
+      createdAt: item.createdAt,
+      provenance: item.provenance,
+    })),
+    sourcePolicy: {
+      candidateIdsAuthoritative: true,
+      candidatePresenceForcesRecall: false,
+      visibleReplyDraftsAllowed: false,
+      continuationSeedWordingEligible: false,
+      reviewCandidatesConfirmedLongTermMemory: false,
+      rawConversationPersonaTrainingEligible: false,
+    },
+  })
+  const user = buildAlicizationProviderFactBlock('alicization-memory-deliberation-request', {
+    version: 'alicization-memory-deliberation-request-v1',
+    operation: 'deliberate-memory-recall',
+    responseSchema: 'alicization_memory_deliberation',
+  })
   const raw = await input.generateMainGatewayText({
-    system: [
-      'Alicization memory deliberation.',
-      'Combine recollection intent, recollection plan, and speech plan before deciding whether recall should affect the turn.',
-      'Decide recall value first, then bundle selection, then surface policy.',
-      'Candidate presence alone must not force recall; choose present-facing output when recall adds no value.',
-      'Return only the requested JSON object for recall decision, selected ids, relationship lines, bundles, chains, conflicts, stable core, unsafe details, surface policy, confidence, and whyNow.',
-      'Use surfacePolicy values from internal-only, gist-first, answer-anchoring, procedural-carry, or relationship-continuity.',
-      'Keep selected eras to at most three dominant eras or periods before lower-level events.',
-      'Keep selected relationship lines short and limited to meanings or lessons.',
-      'Use conflictSeverity values from none, low, medium, or high.',
-      'Conflict variants are only for material disagreement or unsafe settled facts.',
-      'Stable core must include only facts safe across variants; unsafe details are not certain visible facts.',
-      'Keep selected bundles and chains to at most four.',
-      'Do not write private monologue, visible lines, sample wording, closeness guidance, or reply prose.',
-      'Use continuation seed as retrieval scope, not wording guidance.',
-    ].join('\n'),
-    user: `Memory deliberation candidate JSON: ${JSON.stringify({
-      recallSeed: sanitizeBriefText(input.recallSeed, 220),
-      recollectionIntent: input.recollectionIntent,
-      recollectionPlan: input.recollectionPlan,
-      recollectionSpeechPlan: input.recollectionSpeechPlan,
-      consolidatedMemories: input.consolidatedMemories.slice(0, 6).map(item => ({
-        id: item.id,
-        kind: item.kind,
-        facet: item.facet ?? null,
-        periodKey: item.periodKey,
-        summary: sanitizeBriefText(item.summary, 180),
-        lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
-        confidence: item.confidence,
-        provenance: item.dominantProvenance,
-      })),
-      recollectedWindows: input.recollectedWindows.slice(0, 6).map(item => ({
-        id: item.id,
-        label: sanitizeBriefText(item.label, 120),
-        summary: sanitizeBriefText(item.summary, 180),
-        confidence: item.confidence,
-        provenance: item.dominantProvenance,
-        cues: item.cues.slice(0, 4),
-      })),
-      proceduralMemories: input.proceduralMemories.slice(0, 6).map(item => ({
-        id: item.id,
-        label: sanitizeBriefText(item.label, 120),
-        approach: sanitizeBriefText(item.approach, 180),
-        pitfalls: item.pitfalls.slice(0, 3),
-        confidence: item.confidence,
-      })),
-      recalledEpisodes: input.recalledEpisodes.slice(0, 6).map(item => ({
-        id: item.id,
-        sourceKind: item.sourceKind,
-        threadAnchor: sanitizeBriefText(item.threadAnchor ?? '', 120) || undefined,
-        whatHappened: sanitizeBriefText(item.whatHappened, 180),
-        relationshipMeaning: sanitizeBriefText(item.relationshipMeaning ?? '', 160) || undefined,
-        lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
-        confidence: item.confidence,
-        provenance: item.latestReconsolidation?.provenance ?? item.provenance,
-      })),
-      recalledConversationHistory: input.recalledConversationHistory.slice(0, 6).map(item => ({
-        turnId: item.turnId,
-        userText: sanitizeBriefText(item.userText, 160),
-        assistantText: sanitizeBriefText(item.assistantText, 160),
-        createdAt: item.createdAt,
-        provenance: item.provenance,
-      })),
-    })}`,
+    system,
+    user,
     timeoutMs: 4_000,
     source: 'counterfactual-deliberation',
+    responseFormat: alicizationMemoryDeliberationResponseFormat,
     cardId: input.cardId,
     injectCustomDirectives: false,
     injectPerformanceManifest: false,
