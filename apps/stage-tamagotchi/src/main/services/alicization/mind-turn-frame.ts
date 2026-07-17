@@ -19,10 +19,8 @@ import type {
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import {
-  alicizationFixedTemplateReplacement,
   buildAlicizationScreenSurfaceCue,
   isWeakAlicizationScreenSurfaceCue,
-  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { anchorsMateriallyAlign, anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
@@ -51,26 +49,6 @@ function uniqueList(values: Array<unknown>, maxItems = 8) {
       break
   }
   return items
-}
-
-function formatPromptValue(value: unknown, maxChars = 220) {
-  const normalized = sanitizeText(value, maxChars)
-  return normalized || 'none'
-}
-
-function looksProviderFacingStructuredControl(value: string) {
-  const normalized = value.trim().replace(/[.。]+$/u, '')
-  return /^[\w.:-]+=[^!?。！？]*?(?:[;|,]\s*[\w.:-]+=[^!?。！？]*?)*$/iu.test(normalized)
-    || /^[\w.:-]+$/iu.test(normalized)
-}
-
-function formatProviderFacingControl(value: unknown) {
-  const normalized = sanitizeAlicizationProviderFacingText(value, 360, '')
-  if (!normalized || normalized === alicizationFixedTemplateReplacement)
-    return 'provider_instruction_status=withheld; reason=non_structured_source_text'
-  if (looksProviderFacingStructuredControl(normalized))
-    return normalized
-  return 'provider_instruction_status=withheld; reason=non_structured_source_text'
 }
 
 function pickText(...values: Array<unknown>) {
@@ -632,56 +610,6 @@ export function normalizeMindTurnFrame(raw: unknown): AlicizationMindTurnFrameSn
     narrative: uniqueList(Array.isArray(candidate.narrative) ? candidate.narrative : [], 10),
     updatedAt: Number.isFinite(updatedAt) ? Math.max(0, Math.floor(updatedAt)) : Date.now(),
   }
-}
-
-export function buildMindTurnFrameSystemBlock(frame: AlicizationMindTurnFrameSnapshot | null | undefined) {
-  if (!frame)
-    return ''
-
-  const worldTruthLine = (() => {
-    switch (frame.world.truthState) {
-      case 'live-grounded':
-        return 'Truth state: live grounded.'
-      case 'live-observed':
-        return 'Truth state: live observed.'
-      case 'remembered':
-        return 'Truth state: remembered; continuity source is memory.'
-      case 'imagined':
-        return 'Truth state: imagined; do not present it as direct observation.'
-      default:
-        return 'Truth state: uncertain; keep the truth boundary explicit.'
-    }
-  })()
-
-  return [
-    '[ALICIZATION_MIND_TURN_FRAME]',
-    'Frame scope: turn-local convergence.',
-    'Frame authority: primary.',
-    'Supporting blocks should verify or sharpen this frame.',
-    worldTruthLine,
-    frame.world.visibleSurface ? `Visible surface: ${formatPromptValue(frame.world.visibleSurface)}.` : '',
-    frame.world.activeThread ? `Active thread: ${formatPromptValue(frame.world.activeThread)}.` : '',
-    frame.world.truthBoundary ? `Truth boundary: ${formatPromptValue(frame.world.truthBoundary)}.` : '',
-    frame.relation.subject ? `Answer subject: ${formatPromptValue(frame.relation.subject, 80)}.` : '',
-    frame.relation.hostMove ? `Host move: ${formatPromptValue(frame.relation.hostMove)}.` : '',
-    frame.relation.hostGoal ? `Host goal: ${formatPromptValue(frame.relation.hostGoal, 120)}.` : '',
-    frame.relation.relationNeed ? `Relationship need: ${formatPromptValue(frame.relation.relationNeed, 120)}.` : '',
-    frame.memory.carriedThread ? `Carried thread: ${formatPromptValue(frame.memory.carriedThread)}.` : '',
-    frame.memory.carriedFacts.length > 0 ? `Carried facts: ${frame.memory.carriedFacts.map(fact => formatPromptValue(fact)).join(' | ')}.` : '',
-    frame.memory.labelCarryAsMemory ? 'Label carried material as memory, not present fact.' : '',
-    frame.self.stance ? `Inner stance: ${formatPromptValue(frame.self.stance, 80)}.` : '',
-    frame.self.embodiedPresence && frame.self.embodiedPresence !== 'none' ? `Embodied presence: ${formatPromptValue(frame.self.embodiedPresence, 80)}.` : '',
-    frame.self.emotionalTension ? `Emotional tension: ${formatPromptValue(frame.self.emotionalTension, 80)}.` : '',
-    frame.self.thought ? `Inner line: ${formatPromptValue(frame.self.thought)}. Keep it internal.` : '',
-    frame.obligation.turnMode ? `Turn mode: ${formatPromptValue(frame.obligation.turnMode, 80)}.` : '',
-    frame.obligation.answerAct ? `Answer act: ${formatPromptValue(frame.obligation.answerAct, 80)}.` : '',
-    frame.obligation.answerIntent ? `Answer intent: ${formatPromptValue(frame.obligation.answerIntent)}.` : '',
-    frame.obligation.openingMove ? `Opening move: ${formatPromptValue(frame.obligation.openingMove)}.` : '',
-    frame.obligation.whyNow ? `Why now: ${formatPromptValue(frame.obligation.whyNow)}.` : '',
-    frame.focusAnchor ? `Focus anchor: ${formatProviderFacingControl(frame.focusAnchor)}.` : '',
-    frame.mustDo.length > 0 ? `Required controls: ${frame.mustDo.map(item => formatProviderFacingControl(item)).join(' | ')}.` : '',
-    frame.mustNotDo.length > 0 ? `Blocked controls: ${frame.mustNotDo.map(item => formatProviderFacingControl(item)).join(' | ')}.` : '',
-  ].filter(Boolean).join('\n')
 }
 
 export function resolveMindTurnFrameAnchor(governance?: AlicizationMindTurnGovernance | null) {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildMindTurnFrame,
-  buildMindTurnFrameSystemBlock,
   normalizeMindTurnFrame,
 } from './mind-turn-frame'
 
@@ -916,57 +915,8 @@ describe('normalizeMindTurnFrame', () => {
     expect(frame?.relation.subject).toBe('task-knot')
     expect(frame?.memory.carriedFacts).toEqual(['a', 'b'])
     expect(frame?.mustDo).toEqual(['stay current'])
-    const block = buildMindTurnFrameSystemBlock(frame)
-    expect(block).toContain('[ALICIZATION_MIND_TURN_FRAME]')
-    expect(block).toContain('frame_scope=turn_local_convergence')
-    expect(block).not.toContain('{"')
-  })
-
-  it('withholds non-structured fixed template controls from the provider-facing frame system block', () => {
-    const frame = normalizeMindTurnFrame({
-      world: {
-        truthState: 'remembered',
-        staleRisk: 0.2,
-      },
-      relation: {
-        subject: 'general',
-        hostMove: '继续',
-        hostGoal: 'chat',
-        relationNeed: 'companionship',
-      },
-      memory: {
-        carriedFacts: [],
-        labelCarryAsMemory: false,
-      },
-      self: {},
-      obligation: {
-        turnMode: 'answer',
-        repairState: 'none',
-        answerAct: 'answer',
-        answerIntent: '继续回答',
-        openingMove: '继续回答',
-        whyNow: 'host asked',
-      },
-      focusAnchor: 'identity-continuity',
-      confidence: 0.7,
-      mustDo: [
-        'Keep this on identity continuity line instead of restarting.',
-        'continuity_constraint=anti_restart; timing=before_widening',
-      ],
-      mustNotDo: [
-        'Do not rewrite the still-live line as a fresh opening.',
-      ],
-      narrative: [],
-      updatedAt: 123,
-    })
-
-    const block = buildMindTurnFrameSystemBlock(frame)
-
-    expect(block).toContain('required_controls=')
-    expect(block).toContain('provider_instruction_status=withheld; reason=non_structured_source_text; visibility=redacted_internal')
-    expect(block).toContain('continuity_constraint=anti_restart; timing=before_widening')
-    expect(block).not.toContain('identity continuity')
-    expect(block).not.toContain('Do not rewrite the still-live line')
-    expect(block).not.toContain('identity-continuity')
+    expect(frame?.obligation.turnMode).toBe('guide-current-knot')
+    expect(frame?.world.truthState).toBe('live-grounded')
+    expect(frame?.narrative).toEqual(['frame'])
   })
 })

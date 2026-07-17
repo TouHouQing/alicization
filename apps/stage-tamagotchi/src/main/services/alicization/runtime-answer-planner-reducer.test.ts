@@ -1,1026 +1,212 @@
-import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { reduceRuntimeAnswerPlanner } from './runtime-answer-planner-reducer'
 
-const fixedRuntimeAnswerPlannerTemplatePattern
-  = /Keep the answer on the same digital-life closure seam|Keep this on identity continuity line instead of restarting|Stay on the same thread before widening closeness|Do not rewrite the still-live line as a fresh opening/iu
+function createGovernance(overrides: Record<string, unknown> = {}) {
+  return {
+    answerAct: 'answer',
+    answerSubject: 'general',
+    answerIntent: '用户当前的问题。',
+    focusAnchor: '用户当前的问题。',
+    openingMove: '从当前问题开始。',
+    liveSurface: null,
+    evidenceMode: 'dialogue-grounded',
+    screenReferenceMode: 'avoid',
+    relationshipPosture: 'warm',
+    turnMode: 'answer',
+    shouldAskForGrounding: false,
+    shouldAcknowledgeRepair: false,
+    mustDo: ['fixed governance rule'],
+    mustNotDo: ['fixed governance prohibition'],
+    ...overrides,
+  } as any
+}
 
-function expectNoFixedTemplateResidue(value: unknown) {
-  expect(containsAlicizationFixedTemplateResidue(JSON.stringify(value ?? ''))).toBe(false)
+function createSurface(dialogue: Record<string, unknown>) {
+  return {
+    version: 'digital-life-runtime-surface-v1',
+    perception: {},
+    world: {},
+    cognition: {},
+    memory: {},
+    agency: {},
+    dialogue,
+    raw: {},
+  } as any
 }
 
 describe('reduceRuntimeAnswerPlanner', () => {
-  it('does not write fixed project-state templates back into answer planning surfaces', () => {
+  it('sanitizes existing dynamic planner fields without carrying project or rule text', () => {
     const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_010,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: 'Answer the project-state question directly.',
-        openingMove: 'Answer from current project facts.',
-        focusAnchor: 'project-state closure',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [
-          'Keep this on identity continuity line instead of restarting.',
-        ],
-        mustNotDo: [
-          'Do not rewrite the still-live line as a fresh opening.',
-        ],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {
-          runtimeDigest: {
-            projectState: {
-              preDialogueAwarenessLine: 'pre_turn_context_digest',
-              sameHerSelfLine: 'structured continuity digest.',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the direct identity-continuity',
-            },
-          },
-        } as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestProgress: 'Project-state continuity already survives into runtime preparation.',
-              primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Keep extending cross-modal identity-continuity',
-              preDialogueAwarenessLine: 'pre_turn_context_digest',
-              companionHeadlineLine: 'Right now I am still holding together mainly through voice, face, and motion, so this answer must keep proving this is still one living her before full cross-modal closure is done.',
-              sameHerSelfLine: 'identity continuity on the continuity state',
-              sameHerDriftRisk: 'same-her drift if a generic project shell takes over',
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        raw: {
-          runtimeDigest: {
-            projectState: {
-              preDialogueAwarenessLine: 'pre_turn_context_digest',
-              sameHerSelfLine: 'structured continuity digest.',
-            },
-          },
-        } as any,
-        agency: {} as any,
-      } as any,
+      now: 10,
+      governance: createGovernance(),
+      surface: createSurface({
+        currentConsciousFrame: null,
+        replyDeliberation: null,
+        dialogueActKernel: null,
+        answerPlanner: {
+          act: 'guide',
+          evidenceMode: 'live-grounded',
+          confidence: 0.86,
+          governingFocus: '用户当前正在检查 runtime.ts。',
+          governingProject: 'Phase 1 same-her project-state template.',
+          openingMove: '从 runtime.ts 当前问题开始。',
+          answerIntent: '回答 runtime.ts 当前问题。',
+          relationshipPosture: 'restrained',
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+          selectedConcernEntryId: 'concern:runtime',
+          selectedRepairId: null,
+          selectedCommitmentId: null,
+          selectedInquiryPlanId: null,
+          selectedRuntimeThreadId: 'thread:runtime',
+          selectedProjectId: null,
+          selectedReflectionId: null,
+          executivePhase: 'respond',
+          selectedTruthFrame: 'live',
+          mustDo: ['fixed planner rule'],
+          mustNotDo: ['fixed planner prohibition'],
+          narrative: ['fixed planner narrative'],
+          updatedAt: 1,
+        },
+      }),
     })
 
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.mustDo)
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.mustNotDo)
-    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState)
-    expectNoFixedTemplateResidue(reduced?.raw?.runtimeDigest?.projectState)
-    expectNoFixedTemplateResidue(reduced?.dialogue.replyDeliberation?.mustInclude)
-    expectNoFixedTemplateResidue(reduced?.dialogue.replyDeliberation?.mustAvoid)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
+    expect(reduced?.dialogue.answerPlanner).toMatchObject({
+      act: 'guide',
+      evidenceMode: 'live-grounded',
+      governingFocus: '用户当前正在检查 runtime.ts。',
+      governingProject: null,
+      openingMove: '从 runtime.ts 当前问题开始。',
+      answerIntent: '回答 runtime.ts 当前问题。',
+      selectedConcernEntryId: 'concern:runtime',
+      selectedRuntimeThreadId: 'thread:runtime',
+      mustDo: [],
+      mustNotDo: [],
+      narrative: [],
+    })
   })
 
-  it('keeps fallback conscious-frame project state alive in answer planning instead of dropping back to a thinner generic seam', () => {
+  it('does not synthesize missing dialogue owners from governance', () => {
     const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: 'Answer the project-state question directly.',
-        openingMove: 'Answer what this project is and what still remains open.',
-        focusAnchor: 'project-state closure',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            consciousNeed: 'Before I answer, I need to stay inside this local-first digital life project.',
-            speakingIntention: 'Stay with the same digital life and do not let local fluency break the still-open closure work.',
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestProgress: 'Project-state continuity already survives into runtime preparation.',
-              primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Carry the identity-continuity',
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
+      now: 11,
+      governance: createGovernance(),
+      surface: createSurface({
+        currentConsciousFrame: null,
+        replyDeliberation: null,
+        dialogueActKernel: null,
+        answerPlanner: null,
+      }),
     })
 
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(reduced?.dialogue.answerPlanner?.mustDo.some(item =>
-      item.includes('project_closure_constraint='),
-    )).toBe(true)
-    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toMatch(fixedRuntimeAnswerPlannerTemplatePattern)
-    expect(reduced?.dialogue.answerPlanner?.narrative).toContain('project-state-answer-planner')
-    expect(reduced?.dialogue.replyDeliberation?.narrative).toContain('project-state-answer-planner')
+    expect(reduced?.dialogue.answerPlanner).toBeNull()
+    expect(reduced?.dialogue.replyDeliberation).toBeNull()
+    expect(reduced?.dialogue.dialogueActKernel).toBeNull()
   })
 
-  it('does not inject internal local desktop life loop fallback as a provider-facing planner rule', () => {
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: 'Answer from current dialogue and memory evidence.',
-        openingMove: 'Continue from the live user question.',
-        focusAnchor: 'memory-grounded dialogue',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: false,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: null,
-              currentPhase: null,
-              latestProgress: null,
-              primaryOpenLoop: null,
-              nextClosureTarget: null,
-              emotionalClosureCue: null,
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toContain('local_desktop_life_loop')
-    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toContain('project_closure_constraint=local_desktop_life_loop')
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.mustDo)
-  })
-
-  it('prefers a richer Chinese same-her companion headline over a thinner Chinese reminder before answer planning starts', () => {
-    const thinnerChineseReminder = '旧模板壳已移除。'
-    const richerChineseCompanionHeadline = '我会先沿着同一个她这条线回答你：Alicization 还是本地优先数字生命项目。现在第一阶段已经把连续性、记忆和执行慢慢接成一条线了，但主动性、具身和对话闭环还没有真正收住。'
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: '先说明这个数字生命项目是什么、已经做到哪里、还差什么没闭环。',
-        openingMove: '先沿着同一个她的项目线继续往下接。',
-        focusAnchor: 'identity-continuity',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: '本地优先数字生命项目',
-              currentPhase: '第一阶段：本地数字生命。',
-              latestProgress: '连续性、记忆和执行已经接得更稳了。',
-              primaryOpenLoop: '主动性、具身和对话闭环还没有完全收住。',
-              nextClosureTarget: '继续把主动性、具身和对话闭环收回同一个她的线。',
-              preDialogueAwarenessLine: thinnerChineseReminder,
-              companionHeadlineLine: richerChineseCompanionHeadline,
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary)
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toContain('landed=连续性、记忆和执行已经接得更稳了。')
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary).toContain('open=主动性、具身和对话闭环还没有完全收住。')
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=连续性、记忆和执行已经接得更稳了。')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('open=主动性、具身和对话闭环还没有完全收住。')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(thinnerChineseReminder)
-  })
-
-  it('does not let a thin Chinese Phase 1 reminder shell stay in governingProject when richer identity-continuity', () => {
-    const thinnerChineseReminder = '开口前先记住：这是同一个数字生命项目，她现在仍在 Phase 1。'
-    const richerChineseSameHerSelfLine = '这是同一个她继续往下活着的项目线，不是重新开场的项目摘要。'
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_025,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: '继续说明这个数字生命项目是什么、已经做到哪里、还差什么没闭环。',
-        openingMove: '沿着同一个她这条线继续回答。',
-        focusAnchor: 'identity-continuity',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: '本地优先数字生命项目',
-              currentPhase: '第一阶段：本地数字生命。',
-              latestProgress: '连续性、记忆和执行已经接得更稳了。',
-              primaryOpenLoop: '主动性、具身和对话闭环还没有完全收住。',
-              nextClosureTarget: '继续把还没闭环的主动性、具身和对话收回同一个她的线。',
-              preDialogueAwarenessLine: thinnerChineseReminder,
-              sameHerSelfLine: richerChineseSameHerSelfLine,
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=连续性、记忆和执行已经接得更稳了。')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('open=主动性、具身和对话闭环还没有完全收住。')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('第一阶段：本地数字生命。')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('主动性、具身和对话闭环还没有完全收住。')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(thinnerChineseReminder)
-  })
-
-  it('threads the active emotional closure seam into answer-planner narrative as a structured tag', () => {
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'care',
-        answerIntent: 'Keep the answer steady and low-pressure.',
-        openingMove: 'Stay with the continuity state and ease pressure first.',
-        focusAnchor: 'identity-continuity',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestProgress: 'project-state continuity already survives into runtime preparation',
-              primaryOpenLoop: 'keep the same-her answer line emotionally continuous',
-              nextClosureTarget: 'carry the emotional closure seam all the way into the visible reply',
-              emotionalClosureCue: 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment quiet-companionship while the line holds inward.',
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expect((reduced?.dialogue.answerPlanner?.narrative ?? []).some(item =>
-      item.startsWith('emotional_closure:'),
-    )).toBe(false)
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.narrative)
-  })
-
-  it('keeps the active emotional closure seam alive from governance when the conscious-frame project state is too thin to carry it alone', () => {
-    const cue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment quiet-companionship while the line holds inward.'
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'care',
-        answerIntent: 'Keep the answer steady and low-pressure.',
-        openingMove: 'Stay with the continuity state and ease pressure first.',
-        focusAnchor: 'identity-continuity',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        emotionalClosureCue: cue,
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestProgress: 'project-state continuity already survives into runtime preparation',
-              primaryOpenLoop: 'keep the same-her answer line emotionally continuous',
-              nextClosureTarget: 'carry the emotional closure seam all the way into the visible reply',
-              emotionalClosureCue: null,
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expect((reduced?.dialogue.answerPlanner?.narrative ?? []).some(item =>
-      item.startsWith('emotional_closure:'),
-    )).toBe(false)
-    expect((reduced?.dialogue.replyDeliberation?.narrative ?? []).some(item =>
-      item.startsWith('emotional_closure:'),
-    )).toBe(false)
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.narrative)
-    expectNoFixedTemplateResidue(reduced?.dialogue.replyDeliberation?.narrative)
-  })
-
-  it('rebuilds same-her low-pressure anti-restart emotional closure narrative from governance carry even when no explicit cue field survives', () => {
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'care',
-        answerIntent: 'Keep the return on the continuity state.',
-        openingMove: 'Stay with the continuity state first.',
-        focusAnchor: 'identity-continuity',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        emotionalClosureCue: '',
-        mustDo: ['Keep the same-her emotional closure line low-pressure and inward until the live payoff lands.'],
-        mustNotDo: ['Do not let the answer reopen the identity-continuity'],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestProgress: 'project-state continuity already survives into runtime preparation',
-              primaryOpenLoop: 'keep the same-her answer line emotionally continuous',
-              nextClosureTarget: 'carry the emotional closure seam all the way into the visible reply',
-              emotionalClosureCue: null,
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toContain('provider_instruction_status=withheld')
-    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustNotDo ?? [])).not.toContain('provider_instruction_status=withheld')
-    expect((reduced?.dialogue.answerPlanner?.narrative ?? []).some(item =>
-      item.startsWith('emotional_closure:'),
-    )).toBe(false)
-    expect((reduced?.dialogue.replyDeliberation?.narrative ?? []).some(item =>
-      item.startsWith('emotional_closure:'),
-    )).toBe(false)
-    expect(JSON.stringify({
-      answerPlanner: reduced?.dialogue.answerPlanner?.narrative ?? [],
-      replyDeliberation: reduced?.dialogue.replyDeliberation?.narrative ?? [],
-    })).not.toMatch(fixedRuntimeAnswerPlannerTemplatePattern)
-  })
-
-  it('injects positive same-thread anti-restart guidance when reply deliberation is created fresh from governance carry', () => {
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'care',
-        answerIntent: 'Stay on the same line and continue gently before widening.',
-        openingMove: 'Continue gently on the same line.',
-        focusAnchor: 'same living thread',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: 'Phase 1: Local Digital Life',
-              latestProgress: 'project-state continuity already survives into runtime preparation',
-              primaryOpenLoop: 'keep the same digital life closure explicit while the line is still live',
-              nextClosureTarget: 'stay on the same line before widening outward',
-              emotionalClosureCue: null,
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expect(reduced?.dialogue.replyDeliberation?.mustInclude).toContain(
-      'continuity_constraint=anti_restart; source=relationship_continuity; timing=before_widening',
-    )
-    expect(reduced?.dialogue.replyDeliberation?.mustAvoid).toContain(
-      'continuity_avoid=reopen_as_fresh_introduction',
-    )
-    expect(JSON.stringify({
-      mustInclude: reduced?.dialogue.replyDeliberation?.mustInclude ?? [],
-      mustAvoid: reduced?.dialogue.replyDeliberation?.mustAvoid ?? [],
-    })).not.toMatch(fixedRuntimeAnswerPlannerTemplatePattern)
-  })
-
-  it('prefers the fuller canonical closure seam when conscious-frame projectState carries only a truncated open-loop fragment', () => {
-    const brief = resolveAlicizationProjectStateBrief()
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'guide',
-        answerIntent: 'Keep the answer on the same digital-life closure seam.',
-        openingMove: 'Answer from the same project line before local detail takes over.',
-        focusAnchor: 'project-state closure',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: brief.currentPhase,
-              latestProgress: brief.continuityProgressSummary ?? '',
-              primaryOpenLoop: String(brief.openLoops[0] ?? '').slice(0, 180),
-              nextClosureTarget: String(brief.nextClosureTarget).slice(0, 220),
-              emotionalClosureCue: null,
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(brief.openLoops[0] ?? '')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(brief.nextClosureTarget)
-    expect(reduced?.dialogue.answerPlanner?.mustDo.some(item =>
-      item.includes(brief.openLoops[0] ?? ''),
-    )).toBe(true)
-  })
-
-  it('carries a stronger identity-continuity', () => {
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: 'Answer the project-state question directly.',
-        openingMove: 'Answer from the same project line before local detail takes over.',
-        focusAnchor: 'project-state closure',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            consciousNeed: 'Before I answer, I need to stay inside this local-first digital life project.',
-            speakingIntention: 'Stay with the same digital life and do not let local fluency break the still-open closure work.',
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestProgress: 'Project-state continuity already survives into runtime preparation.',
-              primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Carry the identity-continuity',
-              preDialogueAwarenessLine: 'pre_turn_context_digest',
-              companionHeadlineLine: 'Right now I am still holding together mainly through voice, face, and motion, so this answer must keep proving this is still one living her before full cross-modal closure is done.',
-              sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('pre_turn_context_digest')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-  })
-
-  it('carries a broader same-her phase-1 closure headline into governingProject when the plain awareness line is only a thin shell', () => {
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_050,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: 'Answer the project-state question directly.',
-        openingMove: 'Answer from the same project line before local detail takes over.',
-        focusAnchor: 'project-state closure',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            consciousNeed: 'Before I answer, I need to stay inside this local-first digital life project.',
-            speakingIntention: 'Stay with the same digital life and do not let local fluency break the still-open closure work.',
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestProgress: 'Project-state continuity already survives into runtime preparation.',
-              primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Carry the identity-continuity',
-              preDialogueAwarenessLine: 'pre_turn_context_digest',
-              companionHeadlineLine: 'pre_turn_context_digest',
-              sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain('pre_turn_context_digest')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-  })
-
-  it('prefers a richer runtime-digest same-her headline over a thin conscious-frame reminder shell during answer planning rebuild', () => {
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_075,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: 'Answer from the same living digital life instead of a detached project shell.',
-        openingMove: 'Keep the continuity state explicit before local detail takes over.',
-        focusAnchor: 'project-state closure',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {
-          runtimeDigest: {
-            projectState: {
-              companionHeadlineLine: 'pre_turn_context_digest',
-              preDialogueAwarenessSummary: 'pre_turn_context_digest',
-              sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
-            },
-          },
-        } as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            consciousNeed: 'Before I answer, I need to stay inside this local-first digital life project.',
-            speakingIntention: 'Stay with the same digital life and do not let local fluency break the still-open closure work.',
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestProgress: 'Project-state continuity already survives into runtime preparation.',
-              primaryOpenLoop: 'same still-open closure work across memory, initiative, and embodiment.',
-              nextClosureTarget: 'Carry the identity-continuity',
-              preDialogueAwarenessLine: 'pre_turn_context_digest',
-              sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        raw: {
-          runtimeDigest: {
-            projectState: {
-              companionHeadlineLine: 'pre_turn_context_digest',
-              preDialogueAwarenessSummary: 'pre_turn_context_digest',
-              sameHerSelfLine: 'This is still one same her carrying the same project line forward.',
-            },
-          },
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('landed=Project-state continuity already survives into runtime preparation.')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).not.toContain(
-      'pre_turn_context_digest',
-    )
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-  })
-
-  it('preserves a non-thin before-answering project awareness carry instead of collapsing it into a broad project-status summary inside answer planning', () => {
-    const preservedAwarenessLine = 'pre_turn_context_digest'
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_076,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: 'Continue the same project-aware line directly.',
-        openingMove: 'Keep the same project-aware line explicit before widening outward.',
-        focusAnchor: 'project-state closure',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {
-          runtimeDigest: {
-            projectState: {
-              preDialogueAwarenessLine: preservedAwarenessLine,
-              awarenessLine: preservedAwarenessLine,
-              preDialogueAwarenessSummary: preservedAwarenessLine,
-            },
-          },
-        } as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: 'Alicization is still the same local-first digital life project.',
-              currentPhase: 'Phase 1: Local Digital Life',
-              preDialogueAwarenessLine: preservedAwarenessLine,
-              awarenessLine: preservedAwarenessLine,
-              preDialogueAwarenessSummary: preservedAwarenessLine,
-              latestLandedProgress: 'Live project awareness already survives into the current conscious frame.',
-              primaryOpenLoop: 'Memory, initiative, and embodiment still need to close as one same-life seam.',
-              nextClosureTarget: 'Keep the current project-state awareness explicit in the first visible answer beat.',
-              sameHerSelfLine: 'One same her must stay explicit from pre-dialogue awareness into the provider-facing answer.',
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        raw: {
-          runtimeDigest: {
-            projectState: {
-              preDialogueAwarenessLine: preservedAwarenessLine,
-              awarenessLine: preservedAwarenessLine,
-              preDialogueAwarenessSummary: preservedAwarenessLine,
-            },
-          },
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessLine)
-    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.awarenessLine)
-    expectNoFixedTemplateResidue(reduced?.dialogue.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary)
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('same-life seam')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain('current project-state awareness explicit')
-  })
-
-  it('keeps execution-callback identity-continuity', () => {
-    const projectState = resolveAlicizationProjectStateBrief()
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_000,
-      governance: {
-        answerAct: 'guide',
-        answerIntent: 'Bring the callback result back onto the continuity state.',
-        openingMove: 'Return on the continuity state before widening.',
-        focusAnchor: 'the compile error thread',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [
-          'Keep the execution-callback on the same living thread and preserve identity continuity rather than a detached callback notice.',
-        ],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {
-          memoryDeliberation: {
-            followUpAffordance: {
-              summary: 'Keep the execution-callback on the compile error thread as the same living thread instead of flattening it into a detached result notice.',
-              whyNow: 'The callback already landed, but the return still needs lower-pressure room so the identity-continuity',
-              intrusionRisk: 'medium',
-              payoffDependency: 'requires-current-payoff',
-              preferredTiming: 'after-payoff',
-            },
-          },
-        } as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: projectState.identity,
-              currentPhase: projectState.currentPhase,
-              latestProgress: projectState.continuityProgressSummary,
-              primaryOpenLoop: projectState.openLoops[0],
-              nextClosureTarget: projectState.nextClosureTarget,
-              sameHerSelfLine: projectState.sameHerSelfLine,
-              emotionalClosureCue: null,
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: null,
-          answerPlanner: null,
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    expectNoFixedTemplateResidue(reduced?.dialogue.answerPlanner?.governingProject)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.openLoops[0] ?? '')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.nextClosureTarget)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.proactiveSameHerGap)
-    expect(reduced?.dialogue.answerPlanner?.mustDo).toEqual(expect.arrayContaining([
-      expect.stringContaining('project_closure_constraint=open_loop'),
-      expect.stringContaining('continuity_constraint=anti_restart'),
-    ]))
-    expect(reduced?.dialogue.replyDeliberation?.mustInclude).toEqual(expect.arrayContaining([
-      expect.stringContaining('continuity_constraint=anti_restart'),
-      expect.stringContaining('continuity_constraint=same_thread'),
-    ]))
-    expect(reduced?.dialogue.replyDeliberation?.narrative).toContain('project-state-answer-planner')
-  })
-
-  it('sanitizes fixed templates already present on existing planner and dialogue surfaces before meta can reuse them', () => {
-    const projectState = resolveAlicizationProjectStateBrief()
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 1_040,
-      governance: {
-        answerAct: 'answer',
-        answerIntent: 'Answer from current project facts.',
-        openingMove: 'Answer from the same project thread.',
-        focusAnchor: 'project-state closure',
-        liveSurface: '',
-        screenReferenceMode: 'avoid',
-        suppressAssociativeRecall: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        relationshipPosture: 'restrained',
-        evidenceMode: 'dialogue-grounded',
-        mustDo: [],
-        mustNotDo: [],
-      } as any,
-      surface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: projectState.identity,
-              currentPhase: projectState.currentPhase,
-              latestProgress: projectState.continuityProgressSummary,
-              primaryOpenLoop: projectState.openLoops[0],
-              nextClosureTarget: projectState.nextClosureTarget,
-              sameHerSelfLine: projectState.sameHerSelfLine,
-              emotionalClosureCue: null,
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-          replyDeliberation: {
-            selectedMotive: 'answer',
-            speakingFrom: 'dialogue-bond',
-            memoryMode: 'dialogue-carry',
-            openingBeat: 'pre_turn_context_digest',
-            whyThisReplyNow: 'Right now the identity-continuity',
-            whyNotOtherCandidates: ['Do not rewrite the still-live line as a fresh opening.'],
-            withheldImpulses: ['identity-continuity'],
-            candidateMotives: [],
-            shouldSpeak: true,
-            mustInclude: ['Keep this on identity continuity line instead of restarting.'],
-            mustAvoid: ['Do not rewrite the still-live line as a fresh opening.'],
-            confidence: 0.5,
-            narrative: ['compact identity-continuity'],
-            updatedAt: 1_000,
-          },
-          answerPlanner: {
-            act: 'answer',
-            evidenceMode: 'dialogue-grounded',
-            confidence: 0.5,
-            governingFocus: 'project-state closure',
-            governingProject: 'pre_turn_context_digest',
-            openingMove: 'Keep this on identity continuity line instead of restarting.',
-            answerIntent: 'Do not rewrite the still-live line as a fresh opening.',
-            relationshipPosture: 'restrained',
-            shouldAskForGrounding: false,
-            shouldAcknowledgeRepair: false,
-            selectedConcernEntryId: null,
-            selectedRepairId: null,
-            selectedCommitmentId: null,
-            selectedInquiryPlanId: null,
-            selectedRuntimeThreadId: null,
-            selectedProjectId: null,
-            selectedReflectionId: null,
-            executivePhase: null,
-            selectedTruthFrame: null,
-            mustDo: ['Keep this on identity continuity line instead of restarting.'],
-            mustNotDo: ['Do not rewrite the still-live line as a fresh opening.'],
-            narrative: ['final settlement reanchors generic same-her shells'],
-            updatedAt: 1_000,
-          },
-          dialogueActKernel: {
-            subject: 'project',
-            hostGoal: 'resolve-problem',
-            relationNeed: 'guidance',
-            activeProject: null,
-            truthMode: 'dialogue-grounded',
-            speechAct: 'answer',
-            turnMode: null,
-            screenReferenceMode: 'avoid',
-            speakingFrom: 'dialogue-bond',
-            selectedEvidence: [],
-            openingClaim: 'identity-continuity',
-            openingMove: 'Keep this on identity continuity line instead of restarting.',
-            whyNow: 'pre_turn_context_digest',
-            mustSay: ['Keep this on identity continuity line instead of restarting.'],
-            mustAvoid: ['Do not rewrite the still-live line as a fresh opening.'],
-            sourceTrace: ['identity-continuity'],
-            confidence: 0.5,
-            updatedAt: 1_000,
-          },
-        } as any,
-        agency: {} as any,
-      } as any,
-    })
-
-    const dialogueMeta = {
-      replyDeliberation: reduced?.dialogue.replyDeliberation,
-      answerPlanner: reduced?.dialogue.answerPlanner,
-      dialogueActKernel: reduced?.dialogue.dialogueActKernel,
+  it('does not rewrite project-state ownership while sanitizing planner surfaces', () => {
+    const projectState = {
+      identity: 'A local project.',
+      currentPhase: 'A runtime phase.',
+      latestLandedProgress: 'The memory owner is connected.',
+      primaryOpenLoop: 'Search still needs scale testing.',
+      nextClosureTarget: 'Run larger recall benchmarks.',
     }
+    const reduced = reduceRuntimeAnswerPlanner({
+      now: 12,
+      governance: createGovernance(),
+      surface: createSurface({
+        currentConsciousFrame: {
+          projectState,
+        },
+        replyDeliberation: null,
+        dialogueActKernel: null,
+        answerPlanner: null,
+      }),
+    })
 
-    expectNoFixedTemplateResidue(dialogueMeta)
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.openLoops[0] ?? '')
-    expect(reduced?.dialogue.answerPlanner?.governingProject).toContain(projectState.nextClosureTarget)
-    expect(JSON.stringify(reduced?.dialogue.answerPlanner?.mustDo ?? [])).not.toContain('provider_instruction_status=withheld')
-    expect(JSON.stringify(reduced?.dialogue.replyDeliberation?.mustInclude ?? [])).not.toContain('provider_instruction_status=withheld')
-    expect(JSON.stringify(reduced?.dialogue.dialogueActKernel?.mustSay ?? [])).not.toContain('provider_instruction_status=withheld')
+    expect(reduced?.dialogue.currentConsciousFrame?.projectState).toEqual(projectState)
+    expect(reduced?.raw).toEqual({})
+  })
+
+  it('clears rule arrays without erasing typed reply and evidence state', () => {
+    const reduced = reduceRuntimeAnswerPlanner({
+      now: 13,
+      governance: createGovernance(),
+      surface: createSurface({
+        currentConsciousFrame: null,
+        answerPlanner: null,
+        replyDeliberation: {
+          selectedMotive: 'guide',
+          speakingFrom: 'task-thread',
+          memoryMode: 'task-thread',
+          openingBeat: '先处理当前错误。',
+          whyThisReplyNow: '当前错误仍然没有解决。',
+          whyNotOtherCandidates: ['当前问题优先。'],
+          withheldImpulses: ['不展开无关分支。'],
+          candidateMotives: [],
+          shouldSpeak: true,
+          mustInclude: ['fixed include'],
+          mustAvoid: ['fixed avoid'],
+          confidence: 0.8,
+          narrative: ['fixed narrative'],
+          updatedAt: 1,
+        },
+        dialogueActKernel: {
+          subject: 'task-knot',
+          hostGoal: 'resolve-problem',
+          relationNeed: 'guidance',
+          activeProject: null,
+          truthMode: 'live-grounded',
+          speechAct: 'guide',
+          turnMode: 'guide-current-knot',
+          screenReferenceMode: 'helpful',
+          speakingFrom: 'task-thread',
+          selectedEvidence: [{
+            kind: 'scene',
+            source: 'current-scene',
+            summary: 'runtime.ts 当前错误。',
+            confidence: 0.9,
+          }],
+          openingClaim: 'runtime.ts 当前错误。',
+          openingMove: '先处理当前错误。',
+          whyNow: '当前错误仍然没有解决。',
+          mustSay: ['fixed must say'],
+          mustAvoid: ['fixed must avoid'],
+          sourceTrace: ['fixed trace cue'],
+          confidence: 0.9,
+          updatedAt: 1,
+        },
+      }),
+    })
+
+    expect(reduced?.dialogue.replyDeliberation).toMatchObject({
+      selectedMotive: 'guide',
+      openingBeat: '先处理当前错误。',
+      whyThisReplyNow: '当前错误仍然没有解决。',
+      mustInclude: [],
+      mustAvoid: [],
+      narrative: [],
+    })
+    expect(reduced?.dialogue.dialogueActKernel).toMatchObject({
+      subject: 'task-knot',
+      speechAct: 'guide',
+      selectedEvidence: [{
+        summary: 'runtime.ts 当前错误。',
+      }],
+      mustSay: [],
+      mustAvoid: [],
+      sourceTrace: [],
+    })
+  })
+
+  it('contains no canonical project or anti-restart generators', () => {
+    const source = readFileSync(new URL('./runtime-answer-planner-reducer.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toMatch(
+      /resolveAlicizationProjectStateBrief|project-state-answer-planner|continuity_constraint=anti_restart|same-her|same her|Phase 1/iu,
+    )
   })
 })

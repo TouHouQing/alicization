@@ -22,9 +22,7 @@ import type {
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import {
-  alicizationFixedTemplateReplacement,
   buildAlicizationScreenSurfaceCue,
-  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { anchorsMateriallyAlign, anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
@@ -40,21 +38,6 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function looksProviderFacingStructuredControl(value: string) {
-  const normalized = value.trim().replace(/[.。]+$/u, '')
-  return /^[\w.:-]+=[^!?。！？]*?(?:[;|,]\s*[\w.:-]+=[^!?。！？]*?)*$/iu.test(normalized)
-    || /^[\w.:-]+$/iu.test(normalized)
-}
-
-function formatProviderFacingControl(value: unknown) {
-  const normalized = sanitizeAlicizationProviderFacingText(value, 360, '')
-  if (!normalized || normalized === alicizationFixedTemplateReplacement)
-    return 'provider_instruction_status=withheld; reason=non_structured_source_text'
-  if (looksProviderFacingStructuredControl(normalized))
-    return normalized
-  return 'provider_instruction_status=withheld; reason=non_structured_source_text'
 }
 
 function sanitizeKernelAnchor(raw: unknown, maxChars = 220) {
@@ -689,35 +672,4 @@ export function buildDialogueActKernel(input: {
     ),
     updatedAt: input.now,
   } satisfies AlicizationDialogueActKernelSnapshot
-}
-
-export function buildDialogueActKernelSystemBlock(kernel: AlicizationDialogueActKernelSnapshot | null | undefined) {
-  if (!kernel)
-    return ''
-
-  return [
-    'Alicization dialogue act kernel.',
-    'This is dialogue-owned context; it does not author visible wording.',
-    'Subject, truth posture, and motive are governed upstream.',
-    `Subject: ${kernel.subject}.`,
-    `Host goal: ${kernel.hostGoal}.`,
-    `Relationship need: ${kernel.relationNeed}.`,
-    `Active project: ${kernel.activeProject ?? 'none'}.`,
-    `Truth mode: ${kernel.truthMode}.`,
-    `Speech act: ${kernel.speechAct}.`,
-    `Turn mode: ${kernel.turnMode}.`,
-    `Screen reference mode: ${kernel.screenReferenceMode}.`,
-    `Speaking from: ${kernel.speakingFrom}.`,
-    `Opening claim: ${formatProviderFacingControl(kernel.openingClaim)}.`,
-    `Opening move: ${formatProviderFacingControl(kernel.openingMove)}.`,
-    `Why now: ${formatProviderFacingControl(kernel.whyNow)}.`,
-    'Evidence selected by dialogue governance:',
-    ...(kernel.selectedEvidence.length > 0
-      ? kernel.selectedEvidence.map(item => `- [${item.source}/${item.kind}] ${formatProviderFacingControl(item.summary)}`)
-      : ['- none']),
-    'Required signals from governance:',
-    ...(kernel.mustSay.length > 0 ? kernel.mustSay.map(item => `- ${formatProviderFacingControl(item)}`) : ['- none']),
-    'Signals excluded by governance:',
-    ...(kernel.mustAvoid.length > 0 ? kernel.mustAvoid.map(item => `- ${formatProviderFacingControl(item)}`) : ['- none']),
-  ].join('\n')
 }

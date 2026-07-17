@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildDialogueActKernel, buildDialogueActKernelSystemBlock, normalizeDialogueActKernel } from './dialogue-act-kernel'
+import { buildDialogueActKernel, normalizeDialogueActKernel } from './dialogue-act-kernel'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
@@ -199,7 +199,7 @@ describe('dialogue-act-kernel', () => {
     expect(kernel?.mustAvoid).toContain('Do not broaden into a checklist.')
   })
 
-  it('normalizes and renders persisted kernel snapshots', () => {
+  it('normalizes persisted kernel snapshots without a provider-facing renderer', () => {
     const kernel = normalizeDialogueActKernel({
       subject: 'task-knot',
       hostGoal: 'resolve-problem',
@@ -226,49 +226,11 @@ describe('dialogue-act-kernel', () => {
       updatedAt: 1,
     })
 
-    const block = buildDialogueActKernelSystemBlock(kernel)
     expect(kernel?.subject).toBe('task-knot')
-    expect(block).toContain('[ALICIZATION_DIALOGUE_ACT_KERNEL]')
-    expect(block).toContain('speech_act=guide')
-    expect(block).toContain('provider_instruction_status=withheld; reason=non_structured_source_text; visibility=redacted_internal')
-    expect(block).not.toContain('Do not answer from stale residue.')
-  })
-
-  it('withholds non-structured fixed template signals from the provider-facing kernel system block', () => {
-    const kernel = normalizeDialogueActKernel({
-      subject: 'general',
-      hostGoal: 'chat',
-      relationNeed: 'companionship',
-      activeProject: null,
-      truthMode: 'dialogue-grounded',
-      speechAct: 'answer',
-      turnMode: 'answer',
-      screenReferenceMode: 'avoid',
-      speakingFrom: 'dialogue-bond',
-      selectedEvidence: [],
-      openingClaim: 'Continue the current answer.',
-      openingMove: '继续回答',
-      whyNow: 'host asked',
-      mustSay: [
-        'Keep this on identity continuity line instead of restarting.',
-        'continuity_constraint=anti_restart; timing=before_widening',
-      ],
-      mustAvoid: [
-        'Do not rewrite the still-live line as a fresh opening.',
-      ],
-      sourceTrace: [],
-      confidence: 0.7,
-      updatedAt: 123,
-    })
-
-    const block = buildDialogueActKernelSystemBlock(kernel)
-
-    expect(block).toContain('required_signals=')
-    expect(block).toContain('provider_instruction_status=withheld; reason=non_structured_source_text; visibility=redacted_internal')
-    expect(block).toContain('continuity_constraint=anti_restart; timing=before_widening')
-    expect(block).not.toContain('identity continuity')
-    expect(block).not.toContain('Do not rewrite the still-live line')
-    expect(block).not.toContain('identity-continuity')
+    expect(kernel?.speechAct).toBe('guide')
+    expect(kernel?.selectedEvidence[0]?.summary).toBe('VS Code diff with missing guard')
+    expect(kernel?.mustSay).toEqual(['Answer the current diff directly.'])
+    expect(kernel?.mustAvoid).toEqual(['Do not answer from stale residue.'])
   })
 
   it('does not turn dialogue-first host turns into fake project evidence', () => {
