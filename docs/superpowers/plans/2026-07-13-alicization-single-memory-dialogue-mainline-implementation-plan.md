@@ -1,10 +1,12 @@
 # Alicization Single Memory-Owned Dialogue Mainline Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **Current status (2026-07-16):** 单一 Provider 主链路已落地。本计划中曾保留的 Provider 候选重写重试与本地 mind renderer 已被后续实现明确删除；下文按现行边界更新。
 
 **Goal:** 把 Alicization 的普通对话收敛为唯一 Provider 主链路，让正常可见回复只由 Provider 基于动态 SOUL、WorkingMemory、LongTermMemoryRecall 和真实工具事实生成，同时保留可审计的透明失败面与记忆学习排除。
 
-**Architecture:** 在 `packages/stage-shared` 建立严格 Provider JSON Schema、可见 artifact 来源与失败排除合同；在 `apps/stage-tamagotchi` 将短期记忆和长期召回保存为 typed turn context，并以中性 JSON envelope 注入同一 Provider 请求；在 main process 和 renderer 删除 fast-path、固定自然语言 prompt、本地普通回复 repair 与 deterministic tool-success 台词。所有 Provider 候选在 Schema 校验和污染检测通过前保持 provisional，second-pass 只接收 typed reason code、原始动态事实和同一 Schema，失败 artifact 贯穿 settlement、WorkingMemory 和 persona learning gate。
+**Architecture:** 在 `packages/stage-shared` 建立严格 Provider JSON Schema、可见 artifact 来源与失败排除合同；在 `apps/stage-tamagotchi` 将短期记忆和长期召回保存为 typed turn context，并以中性 JSON envelope 注入同一 Provider 请求；在 main process 和 renderer 删除 fast-path、固定自然语言 prompt、本地普通回复 repair 与 deterministic tool-success 台词。所有 Provider 候选在 Schema、来源与污染检测通过前保持 provisional；校验失败直接进入透明 FailureSurface，不发起回复重写请求。失败 artifact 贯穿 settlement、WorkingMemory 和 persona learning gate。
 
 **Tech Stack:** TypeScript、Electron、Vue 3、Pinia、Eventa、xsAI `streamText` / `generateText`、Vitest、AJV、pnpm workspace
 
@@ -38,10 +40,8 @@
   - 删除 ordinary fast-path、execution-first deterministic visible payoff 和 compact timeout recovery。
 - `apps/stage-tamagotchi/src/main/services/alicization/main-chat-run-lifecycle.ts`
   - timeout 直接落透明失败面，不恢复人格化正常回复。
-- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts`
-  - 只使用 typed reason code、原始 turn context 和同一 Schema，最多重试一次。
 - `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/settlement.ts`
-  - 校验 artifact origin、Schema、memory usage claim 与污染状态，不扩写可见文本。
+  - 校验 artifact origin、Schema、memory usage claim 与污染状态；失败直接落透明 FailureSurface，不扩写或重写可见文本。
 - `packages/stage-ui/src/composables/alicization-structured-output.ts`
   - 只解析/校验 Provider JSON，不再本地创作 thought/reply。
 - `packages/stage-ui/src/stores/chat.ts`
@@ -556,8 +556,8 @@ expect(prepared.messages.some(message =>
   && typeof message.content === 'string'
   && JSON.parse(message.content).type === 'alicization-turn-memory-context',
 )).toBe(true)
-expect(prepared.messages.join('\n')).not.toMatch(
-  /WorkingMemory is the authoritative|Do not replace WorkingMemory|Recalled long-term memory/i,
+expect(prepared.messages.join('\n')).toContain(
+  '"type":"alicization-turn-memory-context"',
 )
 ```
 
@@ -812,7 +812,7 @@ expect(emitResolved).toHaveBeenCalledWith(expect.objectContaining({
 }))
 ```
 
-无效 JSON second-pass 也失败时：
+无效 JSON 被 settlement 阻断时：
 
 ```ts
 expect(emitResolved).not.toHaveBeenCalledWith(
@@ -872,7 +872,7 @@ export function validateAlicizationProviderMemoryUsage(input: {
 }
 ```
 
-无效 claim 触发一次 typed second-pass；再次失败进入 `structured-contract` failure surface。settlement 不得改写 `reply`。
+无效 claim 直接进入 `structured-contract` failure surface。settlement 不得改写 `reply`，也不得发起回复重写请求。
 
 - [ ] **Step 5: 运行测试并确认 GREEN**
 
@@ -987,8 +987,7 @@ git commit -m "refactor(alicization): remove fixed provider dialogue prompts"
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/execution-delivery-surface.test.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts`
-- Modify: `apps/stage-tamagotchi/src/main/services/alicization/mind-surface-renderer.ts`
-- Modify: `apps/stage-tamagotchi/src/main/services/alicization/mind-surface-renderer.test.ts`
+- Delete: 静态审计确认无生产调用的 local mind authoring、compat、shared fallback 和对应测试文件
 
 - [ ] **Step 1: 写 execution fact 失败测试**
 
@@ -1028,8 +1027,7 @@ Run:
 PATH=/opt/homebrew/Cellar/node/24.2.0/lib/node_modules/corepack/shims:/opt/homebrew/Cellar/node/24.2.0/bin:$PATH \
 pnpm exec vitest run \
   apps/stage-tamagotchi/src/main/services/alicization/execution-delivery-surface.test.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/mind-surface-renderer.test.ts
+  apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts
 ```
 
 Expected: FAIL，当前仍生成 deterministic reply 并使用 `llm-repaired`。
@@ -1067,13 +1065,14 @@ export function buildAlicizationExecutionDeliveryFact(
 
 callback runtime 不再把 `llm-repaired` 当 mind-authored。没有 Provider settlement 时 requeue；超过重试预算进入 `tool-failure` 或 `structured-contract` failure surface。
 
-- [ ] **Step 4: 删除 mind renderer 普通台词**
+- [ ] **Step 4: 删除 dead local mind authoring stack**
 
-删除 capability、execution listing/detail、greeting、identity、presence、follow-up 的可见文本 builder。保留：
+物理删除无生产调用的 local mind authoring、compat 与 shared/stage-ui reply authoring 文件。保留：
 
 - time/date 真实事实对象
 - tool/permission/timeout 的 typed failure 或 authorization object
 - emotion/performance 的非可见具身数据
+- 独立的 `normalizeExecutionFirstGovernance` agency 路由 owner
 
 - [ ] **Step 5: 运行测试并确认 GREEN**
 
@@ -1088,9 +1087,8 @@ git add \
   apps/stage-tamagotchi/src/main/services/alicization/execution-delivery-surface.ts \
   apps/stage-tamagotchi/src/main/services/alicization/execution-delivery-surface.test.ts \
   apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/mind-surface-renderer.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/mind-surface-renderer.test.ts
+  apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts
+# 将静态审计确认的删除逐文件加入暂存区。
 git commit -m "refactor(alicization): return tool facts to provider dialogue"
 ```
 
@@ -1220,42 +1218,27 @@ git rm \
 git commit -m "refactor(alicization): remove ordinary dialogue fast paths"
 ```
 
-### Task 9: 将 second-pass 收敛为 typed reason code 与原始 memory context
+### Task 9: 删除 Provider 候选重写链路并直接落透明协议失败
 
 **Files:**
-- Modify: `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts`
-- Modify: `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts`
-- Delete: `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite-project-state-guidance.test.ts`
-- Delete: `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite-project-state-provider.test.ts`
+- Delete: `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/` 下所有 Provider 候选重写模块与对应测试
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/closure-orchestrator.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/closure-orchestrator.test.ts`
+- Modify: `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/settlement.ts`
+- Modify: `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/settlement.test.ts`
 
-- [ ] **Step 1: 写 typed second-pass 失败测试**
+- [ ] **Step 1: 写“失败后不再请求改写”的测试**
 
 ```ts
-expect(secondPassRequest).toMatchObject({
-  responseFormat: alicizationProviderResponseFormat,
+expect(generateText).not.toHaveBeenCalled()
+expect(settlement).toMatchObject({
+  origin: 'failure-surface',
+  kind: 'structured-contract',
 })
-expect(secondPassRequest.messages).toEqual([
-  expect.objectContaining({
-    role: 'system',
-    content: JSON.stringify(expect.objectContaining({
-      type: 'alicization-second-pass-context',
-      reasonCodes: ['schema_parse_failed'],
-      memoryContext: prepared.memoryContext,
-    })),
-  }),
-  expect.objectContaining({
-    role: 'user',
-    content: firstProviderCandidate,
-  }),
-])
-expect(JSON.stringify(secondPassRequest.messages)).not.toMatch(
-  /rewrite|must preserve|same-her|project-state|reply posture|开场|结尾/i,
-)
+expect(settlement).not.toHaveProperty('visibleText')
 ```
 
-再次失败断言只返回 `structured-contract` failure surface。
+针对 `schema_parse_failed`、`required_field_missing`、`internal_protocol_leak`、`legacy_template_contamination`、`tool_result_not_settled` 和 `memory_usage_claim_invalid` 都执行同样断言。
 
 - [ ] **Step 2: 运行测试并确认 RED**
 
@@ -1264,54 +1247,38 @@ Run:
 ```bash
 PATH=/opt/homebrew/Cellar/node/24.2.0/lib/node_modules/corepack/shims:/opt/homebrew/Cellar/node/24.2.0/bin:$PATH \
 pnpm exec vitest run \
-  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/closure-orchestrator.test.ts
+  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/closure-orchestrator.test.ts \
+  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/settlement.test.ts
 ```
 
-Expected: FAIL，旧 second-pass 仍从 messages 解析 marker 并追加固定 rewrite guidance。
+Expected: FAIL，旧实现仍可能创建第二个 Provider 请求或保留本地候选改写分支。
 
-- [ ] **Step 3: 定义有限 reason code**
+- [ ] **Step 3: 删除改写 authority**
 
-```ts
-export type AlicizationSecondPassReasonCode
-  = | 'schema_parse_failed'
-    | 'required_field_missing'
-    | 'internal_protocol_leak'
-    | 'legacy_template_contamination'
-    | 'tool_result_not_settled'
-    | 'memory_usage_claim_invalid'
-```
+删除：
 
-second-pass input 只接收：
+- 候选重写 request/response DTO。
+- 候选重写 Provider 调用。
+- `rewriteAttempted`、`rewriteSucceeded`、`preservedIntoRewrite`、`rewriteClosureApplied`。
+- 从 messages 反向解析 WorkingMemory/LTM marker 的代码。
+- project-state、persona、continuity 或 reply posture 改写规则。
+
+settlement 只保留：
 
 ```ts
 {
-  candidate: string
-  reasonCodes: AlicizationSecondPassReasonCode[]
-  prepared: AlicizationPreparedMainChatExecutionResult
-  toolFacts: unknown[]
+  status: 'approved' | 'blocked'
+  reasonCodes: string[]
+  initialCriticStatus: 'pass' | 'blocked' | null
+  finalCriticStatus: 'pass' | 'blocked' | null
 }
 ```
 
-系统 context 使用 JSON：
-
-```ts
-JSON.stringify({
-  type: 'alicization-second-pass-context',
-  reasonCodes: input.reasonCodes,
-  memoryContext: input.prepared.memoryContext,
-  identityFacts: readDynamicIdentityFacts(input.prepared),
-  relationshipFacts: readDynamicRelationshipFacts(input.prepared),
-  emotionFacts: readDynamicEmotionFacts(input.prepared),
-  toolFacts: input.toolFacts,
-})
-```
-
-删除从 messages 反向解析 WorkingMemory/LTM marker 的代码，删除 project-state/same-her/continuity rewrite rules，最多调用 Provider 一次。
+被阻断候选不进入普通可见 reply、WorkingMemory 正常 assistant turn、长期凝练或 persona learning。
 
 - [ ] **Step 4: 运行测试并确认 GREEN**
 
-Run: 使用 Step 2 同一命令。
+Run: 使用 Step 2 同一命令，并运行 `fixed-reply-governance-removal.test.ts`。
 
 Expected: PASS。
 
@@ -1319,14 +1286,12 @@ Expected: PASS。
 
 ```bash
 git add \
-  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts \
   apps/stage-tamagotchi/src/main/services/alicization/visible-reply/closure-orchestrator.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/closure-orchestrator.test.ts
-git rm \
-  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite-project-state-guidance.test.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite-project-state-provider.test.ts
-git commit -m "refactor(alicization): make reply retry context data-only"
+  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/closure-orchestrator.test.ts \
+  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/settlement.ts \
+  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/settlement.test.ts \
+  apps/stage-tamagotchi/src/main/services/alicization/fixed-reply-governance-removal.test.ts
+git commit -m "refactor(alicization): remove provider reply rewrite authority"
 ```
 
 ### Task 10: 删除 renderer 本地普通回复、retry prompt 与 local repair
@@ -1558,7 +1523,6 @@ const productionDialogueFiles = [
   'main-chat-session-runtime.ts',
   'main-chat-runtime-surface.ts',
   'execution-delivery-surface.ts',
-  'visible-reply/second-pass-rewrite.ts',
   'visible-reply/settlement.ts',
   '../../../../../../packages/stage-ui/src/stores/chat.ts',
   '../../../../../../packages/stage-ui/src/composables/alicization-structured-output.ts',
@@ -1646,7 +1610,7 @@ pnpm exec vitest run \
 
 Expected: PASS。
 
-- [ ] **Step 2: 运行主链路、second-pass、失败面与 renderer 测试**
+- [ ] **Step 2: 运行主链路、协议失败面与 renderer 测试**
 
 ```bash
 PATH=/opt/homebrew/Cellar/node/24.2.0/lib/node_modules/corepack/shims:/opt/homebrew/Cellar/node/24.2.0/bin:$PATH \
@@ -1657,7 +1621,6 @@ pnpm exec vitest run \
   apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts \
   apps/stage-tamagotchi/src/main/services/alicization/main-chat-run-lifecycle.test.ts \
   apps/stage-tamagotchi/src/main/services/alicization/execution-delivery-surface.test.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts \
   apps/stage-tamagotchi/src/main/services/alicization/visible-reply/settlement.test.ts \
   packages/stage-ui/src/composables/alicization-structured-output.test.ts \
   packages/stage-ui/src/stores/chat.test.ts \

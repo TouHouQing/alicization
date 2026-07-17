@@ -2646,12 +2646,6 @@ export interface AlicizationAnswerCompilerSnapshot {
   nextMove?: string | null
   suppressAssociativeRecall: boolean
   labelCarryAsMemory: boolean
-  memoryShouldStayInward?: boolean | null
-  memoryWhyNow?: string | null
-  memoryWhyWithheld?: string | null
-  memoryFollowUpAffordanceSummary?: string | null
-  memoryStableCore?: string[] | null
-  memoryUnsafeDetails?: string[] | null
   maxSentences: number
   mustDo: string[]
   mustNotDo: string[]

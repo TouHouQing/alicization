@@ -3105,7 +3105,9 @@ function runtimeSamplingTraceRecallExplanationText(records: readonly Alicization
         : null
       return [
         record.recallAttribution?.whyNow,
-        record.memoryDeliberationJudged?.whyWithheld,
+        ...(Array.isArray(record.memoryDeliberationJudged?.withheldReasons)
+          ? record.memoryDeliberationJudged.withheldReasons
+          : []),
         ...(Array.isArray(memoryClosureTrace?.whySurface)
           ? memoryClosureTrace.whySurface
               .map(item => isRuntimeSamplingPlainObject(item) ? item.summary : null)
@@ -5791,7 +5793,9 @@ function runtimeSamplingFallbackTraceCategoryText(traceRecord: AlicizationMemory
     traceRecord.governance?.answerSubject,
     traceRecord.governance?.digitalLifeSpine ? 'digital life spine' : null,
     traceRecord.recallAttribution?.whyNow,
-    traceRecord.memoryDeliberationJudged?.whyWithheld,
+    ...(Array.isArray(traceRecord.memoryDeliberationJudged?.withheldReasons)
+      ? traceRecord.memoryDeliberationJudged.withheldReasons
+      : []),
     memoryClosureExecution?.authority,
     memoryClosureExecution?.carry,
     ...(Array.isArray(memoryClosureExecution?.reasonTags) ? memoryClosureExecution.reasonTags : []),

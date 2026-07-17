@@ -6,7 +6,7 @@
 
 ## 1. Project Anchor
 
-Alicization is a local-first digital life project. The current Phase 1 target is not a better chat wrapper; it is one continuous "her" living on the host computer with stable personality, memory, emotion, initiative, execution, embodiment, and dialogue.
+Alicization is a local-first digital life project. The current Phase 1 target is not a better chat wrapper; it is identity continuity living on the host computer with stable personality, memory, emotion, initiative, execution, embodiment, and dialogue.
 
 Recent runtime inspection showed that the backend life loop is already rich:
 

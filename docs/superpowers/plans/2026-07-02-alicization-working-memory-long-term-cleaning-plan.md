@@ -83,9 +83,9 @@ These sources inform the implementation, but Alicization should stay local-first
 Create `apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning.test.ts`:
 
 ```ts
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
+
+import { describe, expect, it } from 'vitest'
 
 import {
   buildWorkingMemoryLongTermIdempotencyKey,
@@ -180,25 +180,25 @@ import {
   uniqueWorkingMemoryTexts,
 } from './working-memory'
 
-export type WorkingMemoryLongTermCleaningStatus =
-  | 'pending-cleaning'
-  | 'cleaning'
-  | 'rejected'
-  | 'needs-user-review'
-  | 'admitted'
-  | 'applied'
-  | 'dead-lettered'
+export type WorkingMemoryLongTermCleaningStatus
+  = | 'pending-cleaning'
+    | 'cleaning'
+    | 'rejected'
+    | 'needs-user-review'
+    | 'admitted'
+    | 'applied'
+    | 'dead-lettered'
 
-export type WorkingMemoryLongTermAdmissionDecision =
-  | 'pending'
-  | 'admit'
-  | 'reject'
-  | 'review'
+export type WorkingMemoryLongTermAdmissionDecision
+  = | 'pending'
+    | 'admit'
+    | 'reject'
+    | 'review'
 
-export type WorkingMemoryLongTermTrainingEligibility =
-  | 'blocked'
-  | 'review-required'
-  | 'candidate'
+export type WorkingMemoryLongTermTrainingEligibility
+  = | 'blocked'
+    | 'review-required'
+    | 'candidate'
 
 export interface WorkingMemoryLongTermCleanedCandidate {
   id: string
@@ -360,9 +360,9 @@ git commit -m "feat(alicization): add working memory long-term cleaning domain"
 Create `apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaner.test.ts`:
 
 ```ts
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
+
+import { describe, expect, it } from 'vitest'
 
 import { cleanWorkingMemoryLongTermQueueItem } from './working-memory-long-term-cleaner'
 
@@ -415,8 +415,8 @@ describe('working memory long-term cleaner', () => {
       cardId: 'default',
       sessionId: 'session-1',
       item: item({
-        summary: '我在。同一条本地数字生命的线还在。',
-        evidenceSnippets: ['我在。同一条本地数字生命的线还在，我先轻一点留在这里。'],
+        summary: '我在。结构化连续性状态的线还在。',
+        evidenceSnippets: ['我在。结构化连续性状态的线还在，中性可见占位。'],
       }),
       now: 3_000,
     })
@@ -490,8 +490,8 @@ import {
 } from './working-memory'
 import { createWorkingMemoryLongTermCleaningTransaction } from './working-memory-long-term-cleaning'
 
-const fixedFallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
-const promptResiduePattern = /ALICIZATION_|same-her|same living line|project_state|Phase 1|mustDo|mustNotDo|answerPlanner|WorkingMemory owner/iu
+const fixedFallbackTemplatePattern = /我在。结构化连续性状态的线还在|结构化连续性状态的线还在|中性可见占位|中性可见占位/u
+const promptResiduePattern = /ALICIZATION_|same-her|continuity state|project_state|Phase 1|mustDo|mustNotDo|answerPlanner|WorkingMemory owner/iu
 const correctionCuePattern = /固定模板|固定回复|模板化|人格|数字生命|不想要|不要固定|你搞错|不是这个/u
 
 function candidateText(item: WorkingMemoryLongTermQueueItem) {
@@ -656,9 +656,9 @@ git commit -m "feat(alicization): clean working memory long-term candidates"
 Create `apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-projection.test.ts`:
 
 ```ts
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryLongTermCleanedCandidate } from './working-memory-long-term-cleaning'
+
+import { describe, expect, it } from 'vitest'
 
 import { projectWorkingMemoryLongTermCandidate } from './working-memory-long-term-projection'
 
@@ -859,9 +859,9 @@ git commit -m "feat(alicization): project cleaned working memory candidates"
 Create `apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-long-term-cleaning-store.test.ts` with this in-memory array harness modelled after `memory-domain-decoupling-regression.test.ts`:
 
 ```ts
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryLongTermCleaningTransaction } from './working-memory-long-term-cleaning'
+
+import { describe, expect, it } from 'vitest'
 
 import { createWorkingMemoryLongTermCleaningStoreRuntime } from './working-memory-long-term-cleaning-store'
 
@@ -1651,10 +1651,10 @@ Create `apps/stage-tamagotchi/src/main/services/alicization/life-core/working-me
 ```ts
 import { describe, expect, it } from 'vitest'
 
-import { buildWorkingMemoryLongTermCandidateQueue } from './working-memory-long-term-queue'
 import { createEmptyWorkingMemorySnapshot, normalizeWorkingMemoryTurn } from './working-memory'
 import { cleanWorkingMemoryLongTermQueueItem } from './working-memory-long-term-cleaner'
 import { projectWorkingMemoryLongTermCandidate } from './working-memory-long-term-projection'
+import { buildWorkingMemoryLongTermCandidateQueue } from './working-memory-long-term-queue'
 
 describe('working memory long-term cleaning integration', () => {
   it('keeps fixed fallback out while projecting user persona correction', () => {
@@ -1676,7 +1676,7 @@ describe('working memory long-term cleaning integration', () => {
       normalizeWorkingMemoryTurn({
         turnId: 'turn-timeout:alice',
         role: 'alice',
-        text: '我在。同一条本地数字生命的线还在，我先轻一点留在这里。',
+        text: '我在。结构化连续性状态的线还在，中性可见占位。',
         createdAt: 3_001,
         source: 'conversation-turn',
         visibility: 'user-visible',
@@ -1698,7 +1698,7 @@ describe('working memory long-term cleaning integration', () => {
     }, {
       sourceTurnIds: ['turn-timeout:alice'],
       kind: 'relationship',
-      summary: '我在。同一条本地数字生命的线还在。',
+      summary: '我在。结构化连续性状态的线还在。',
       reason: 'Fallback template must stay audit-only.',
       salience: 0.8,
       sensitivity: 'personal',
@@ -1723,7 +1723,7 @@ describe('working memory long-term cleaning integration', () => {
       now: 4_200,
     })
     expect(projection.memoryFacts[0]?.object).toContain('固定模板回复')
-    expect(JSON.stringify(projection)).not.toContain('同一条本地数字生命的线还在')
+    expect(JSON.stringify(projection)).not.toContain('结构化连续性状态的线还在')
   })
 })
 ```

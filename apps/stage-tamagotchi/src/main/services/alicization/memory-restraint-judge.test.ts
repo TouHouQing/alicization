@@ -2,124 +2,97 @@ import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationMemoryRestraintJudge } from './memory-restraint-judge'
 
+function createMemoryControl(overrides: Record<string, unknown> = {}) {
+  return {
+    memoryPressure: 'medium',
+    certaintyPosture: 'firm',
+    certaintyFloor: 'firm',
+    relationshipVector: 'procedural',
+    procedureCarryStrength: 0.78,
+    conflictBurden: 'none',
+    dominantProvenance: 'remembered',
+    provenancePosture: 'remembered-memory',
+    detailAssertionBudget: 'open',
+    surfacePermission: 'explicit-surface',
+    retrospectiveDepth: 'thread',
+    openingStrategy: 'brief-procedure-carry',
+    answerStrategy: 'procedure-anchor',
+    visibilityDiscipline: 'brief-visible-memory',
+    labelUncertainty: false,
+    frameAsPriorProcedure: true,
+    avoidArchiveDump: true,
+    avoidDateRecital: true,
+    avoidExecutionImpersonation: false,
+    stableCore: ['The verified outcome remains supported.'],
+    unsafeDetails: [],
+    ...overrides,
+  } as any
+}
+
 describe('memory-restraint-judge', () => {
-  it('keeps inward-only recollection fully internal when pressure is intrusive', () => {
+  it('represents an inward owner decision with typed reason codes', () => {
     const judge = buildAlicizationMemoryRestraintJudge({
       shouldRecall: true,
       shouldStayInward: true,
-      memoryControl: {
-        memoryPressure: 'medium',
-        certaintyPosture: 'approximate',
-        certaintyFloor: 'approximate',
-        relationshipVector: 'threaded',
-        procedureCarryStrength: 0.72,
-        conflictBurden: 'medium',
-        dominantProvenance: 'remembered',
-        provenancePosture: 'remembered-memory',
-        detailAssertionBudget: 'guarded',
+      memoryControl: createMemoryControl({
         surfacePermission: 'inward-only',
-        retrospectiveDepth: 'thread',
-        openingStrategy: 'payoff-first-inward-carry',
-        answerStrategy: 'stance-first',
-        visibilityDiscipline: 'internal-influence-only',
-        labelUncertainty: true,
-        frameAsPriorProcedure: false,
-        avoidArchiveDump: true,
-        avoidDateRecital: true,
-        avoidExecutionImpersonation: false,
-        stableCore: ['Return to the same seam before branching.'],
-        unsafeDetails: ['Do not assert which exact wording belonged to that old seam.'],
-      },
+      }),
       followUpAffordance: {
         intrusionRisk: 'high',
         payoffDependency: 'requires-current-payoff',
       },
-      truthDiscipline: {
-        shouldLabelHypothesis: true,
-        forbidUnsupportedSpecificity: true,
-      },
     })
 
-    expect(judge.surfaceMode).toBe('inward-only')
-    expect(judge.shouldOnlySurfaceStableCore).toBe(false)
-    expect(judge.whyWithheld).toContain('too intrusive')
-    expect(judge.mustDo.some(item => item.includes('keep recollection inward'))).toBe(true)
-    expect(judge.mustNotDo.some(item => item.includes('Do not outrun this recollection boundary'))).toBe(true)
+    expect(judge).toMatchObject({
+      surfaceMode: 'inward-only',
+      shouldStayInward: true,
+      shouldOnlySurfaceStableCore: false,
+      shouldDelayUntilAfterPayoff: true,
+    })
+    expect(judge.withheldReasons).toEqual(expect.arrayContaining([
+      'owner-inward-policy',
+      'intrusion-risk-high',
+      'payoff-required',
+    ]))
+    expect(judge).not.toHaveProperty('whyWithheld')
+    expect(judge).not.toHaveProperty('summary')
+    expect(judge).not.toHaveProperty('mustDo')
+    expect(judge).not.toHaveProperty('mustNotDo')
   })
 
-  it('forces stable-core-only surface and provenance/hypothesis labeling when remembered detail is unsafe', () => {
+  it('limits unsafe reconstructed evidence to the stable core', () => {
     const judge = buildAlicizationMemoryRestraintJudge({
       shouldRecall: true,
       shouldStayInward: false,
-      memoryControl: {
-        memoryPressure: 'high',
-        certaintyPosture: 'approximate',
-        certaintyFloor: 'approximate',
-        relationshipVector: 'procedural',
-        procedureCarryStrength: 0.86,
-        conflictBurden: 'high',
+      memoryControl: createMemoryControl({
         dominantProvenance: 'reconstructed',
         provenancePosture: 'reconstructed-memory',
         detailAssertionBudget: 'minimal',
-        surfacePermission: 'explicit-surface',
-        retrospectiveDepth: 'period',
-        openingStrategy: 'brief-procedure-carry',
-        answerStrategy: 'procedure-anchor',
-        visibilityDiscipline: 'brief-visible-memory',
         labelUncertainty: true,
-        frameAsPriorProcedure: true,
-        avoidArchiveDump: true,
-        avoidDateRecital: true,
-        avoidExecutionImpersonation: true,
-        stableCore: ['Return to the same seam before branching.'],
-        unsafeDetails: ['A nearby competing thread cluster still matches the current recall cue.'],
-      },
+        unsafeDetails: ['The exact sequence remains unsupported.'],
+      }),
       followUpAffordance: {
         intrusionRisk: 'low',
         payoffDependency: 'can-surface-softly',
       },
-      truthDiscipline: {
-        shouldLabelHypothesis: false,
-        forbidUnsupportedSpecificity: false,
-      },
     })
 
-    expect(judge.surfaceMode).toBe('stable-core-only')
-    expect(judge.shouldOnlySurfaceStableCore).toBe(true)
-    expect(judge.shouldLabelProvenance).toBe(true)
-    expect(judge.shouldLabelHypothesis).toBe(true)
-    expect(judge.shouldSuppressSpecificity).toBe(true)
-    expect(judge.whyWithheld).toContain('stable remembered core')
-    expect(judge.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+    expect(judge).toMatchObject({
+      surfaceMode: 'stable-core-only',
+      provenanceMode: 'reconstructed-memory',
+      shouldOnlySurfaceStableCore: true,
+      shouldLabelProvenance: true,
+      shouldLabelHypothesis: true,
+      shouldSuppressSpecificity: true,
+    })
+    expect(judge.withheldReasons).toContain('unstable-detail')
   })
 
-  it('tightens surface when contradiction-heavy knowledge evidence outruns validation relief', () => {
+  it('records contradiction pressure without translating it into prose', () => {
     const judge = buildAlicizationMemoryRestraintJudge({
       shouldRecall: true,
       shouldStayInward: false,
-      memoryControl: {
-        memoryPressure: 'medium',
-        certaintyPosture: 'approximate',
-        certaintyFloor: 'approximate',
-        relationshipVector: 'procedural',
-        procedureCarryStrength: 0.78,
-        conflictBurden: 'medium',
-        dominantProvenance: 'remembered',
-        provenancePosture: 'remembered-memory',
-        detailAssertionBudget: 'open',
-        surfacePermission: 'explicit-surface',
-        retrospectiveDepth: 'thread',
-        openingStrategy: 'brief-procedure-carry',
-        answerStrategy: 'procedure-anchor',
-        visibilityDiscipline: 'brief-visible-memory',
-        labelUncertainty: false,
-        frameAsPriorProcedure: true,
-        avoidArchiveDump: true,
-        avoidDateRecital: true,
-        avoidExecutionImpersonation: false,
-        stableCore: ['Return to the same seam before branching.'],
-        unsafeDetails: [],
-      },
+      memoryControl: createMemoryControl(),
       knowledgeEvidence: {
         validationCount: 1,
         contradictionCount: 4,
@@ -130,73 +103,46 @@ describe('memory-restraint-judge', () => {
         intrusionRisk: 'low',
         payoffDependency: 'can-surface-softly',
       },
-      truthDiscipline: {
-        shouldLabelHypothesis: false,
-        forbidUnsupportedSpecificity: false,
-      },
     })
 
     expect(judge.surfaceMode).toBe('stable-core-only')
-    expect(judge.whyWithheld).toContain('contradiction-heavy')
+    expect(judge.withheldReasons).toContain('contradiction-pressure')
   })
 
-  it('keeps room-first repair-sensitive recollection compressed even when recall is otherwise allowed', () => {
-    const judge = buildAlicizationMemoryRestraintJudge({
+  it('uses typed follow-up dependency without reading host-model wording', () => {
+    const baseline = buildAlicizationMemoryRestraintJudge({
       shouldRecall: true,
       shouldStayInward: false,
-      memoryControl: {
-        memoryPressure: 'medium',
-        certaintyPosture: 'approximate',
-        certaintyFloor: 'approximate',
-        relationshipVector: 'relational',
-        procedureCarryStrength: 0.68,
-        conflictBurden: 'low',
-        dominantProvenance: 'remembered',
-        provenancePosture: 'remembered-memory',
-        detailAssertionBudget: 'open',
-        surfacePermission: 'soft-surface',
-        retrospectiveDepth: 'thread',
-        openingStrategy: 'brief-relationship-carry',
-        answerStrategy: 'relationship-anchor',
-        visibilityDiscipline: 'embedded-visible-memory',
-        labelUncertainty: false,
-        frameAsPriorProcedure: false,
-        avoidArchiveDump: true,
-        avoidDateRecital: true,
-        avoidExecutionImpersonation: false,
-        stableCore: ['Give the host room first, then let repair land before widening the bond line.'],
-        unsafeDetails: [],
+      memoryControl: createMemoryControl(),
+      followUpAffordance: {
+        intrusionRisk: 'low',
+        payoffDependency: 'requires-current-payoff',
       },
+    })
+    const withOpaqueHostContext = buildAlicizationMemoryRestraintJudge({
+      shouldRecall: true,
+      shouldStayInward: false,
+      memoryControl: createMemoryControl(),
       hostPersonModel: {
-        summary: 'The host needs room-first repair-sensitive continuity.',
+        summary: 'Opaque host context.',
         routines: [],
         sensitivities: [],
         repairTriggers: [],
         recurrentBurdens: [],
-        preferredClosenessByContext: [
-          { context: 'work', preference: 'room-first and work-focus before warmth' },
-        ],
+        preferredClosenessByContext: [],
         trustLadder: {
           stage: 'warming',
-          rationale: 'Respect boundaries, leave room, and land specific repair before widening the bond line.',
+          rationale: 'Opaque trust context.',
         },
       } as any,
       followUpAffordance: {
         intrusionRisk: 'low',
-        payoffDependency: 'can-surface-softly',
-      },
-      truthDiscipline: {
-        shouldLabelHypothesis: false,
-        forbidUnsupportedSpecificity: false,
+        payoffDependency: 'requires-current-payoff',
       },
     })
 
-    expect(judge.surfaceMode).toBe('stable-core-only')
-    expect(judge.shouldOnlySurfaceStableCore).toBe(true)
-    expect(judge.shouldDelayUntilAfterPayoff).toBe(true)
-    expect(judge.whyWithheld).toContain('repair line')
-    expect(judge.summary).toContain('host_room_first=yes')
-    expect(judge.mustDo.some(item => item.includes('repair payoff'))).toBe(true)
-    expect(judge.mustNotDo.some(item => item.includes('room and boundary respect'))).toBe(true)
+    expect(withOpaqueHostContext).toEqual(baseline)
+    expect(baseline.shouldDelayUntilAfterPayoff).toBe(true)
+    expect(baseline.withheldReasons).toContain('payoff-required')
   })
 })

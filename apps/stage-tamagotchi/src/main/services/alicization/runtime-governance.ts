@@ -3618,7 +3618,7 @@ export interface AlicizationMindTraceMemorySnapshot {
   inwardLine: string
   visibleLine?: string | null
   ambiguityPosture?: 'settled' | 'approximate' | 'ambiguous'
-  whyWithheld?: string | null
+  withheldReasons?: string[]
   shouldStayInward?: boolean
   restraintSurfaceMode?: 'inward-only' | 'stable-core-only' | 'provenance-labeled' | 'free' | null
   restraintProvenanceMode?: 'none' | 'memory' | 'dream-residue' | 'inferred-pattern' | 'reconstructed-memory' | 'mixed-memory' | null
@@ -3627,7 +3627,17 @@ export interface AlicizationMindTraceMemorySnapshot {
   shouldLabelHypothesis?: boolean
   shouldSuppressSpecificity?: boolean
   shouldDelayUntilAfterPayoff?: boolean
-  memoryControlSummary?: string | null
+  memoryControl?: {
+    memoryPressure: 'low' | 'medium' | 'high'
+    certaintyFloor: 'firm' | 'approximate' | 'fragmentary'
+    relationshipVector: 'neutral' | 'threaded' | 'procedural' | 'relational'
+    conflictBurden: 'none' | 'low' | 'medium' | 'high'
+    provenancePosture: string
+    detailAssertionBudget: 'open' | 'guarded' | 'minimal'
+    surfacePermission: 'inward-only' | 'soft-surface' | 'explicit-surface'
+    retrospectiveDepth: 'fragment' | 'thread' | 'period'
+    labelUncertainty: boolean
+  } | null
   activeClosenessContext?: string | null
   activeClosenessRung?: string | null
   relationshipPosture?: string | null
@@ -3728,6 +3738,33 @@ function sanitizeMindTraceTelemetryText(raw: unknown, maxChars = 180) {
   return sanitizeText(raw).slice(0, maxChars)
 }
 
+function sanitizeMindTraceReasonCodes(raw: unknown) {
+  if (!Array.isArray(raw))
+    return []
+  return [...new Set(raw
+    .map(item => sanitizeMindTraceTelemetryText(item, 64))
+    .filter(Boolean))]
+    .slice(0, 12)
+}
+
+function summarizeMindTraceMemoryControl(
+  control: AlicizationMindTraceMemorySnapshot['memoryControl'],
+) {
+  if (!control)
+    return null
+  return {
+    memoryPressure: control.memoryPressure,
+    certaintyFloor: control.certaintyFloor,
+    relationshipVector: control.relationshipVector,
+    conflictBurden: control.conflictBurden,
+    provenancePosture: sanitizeMindTraceTelemetryText(control.provenancePosture, 64),
+    detailAssertionBudget: control.detailAssertionBudget,
+    surfacePermission: control.surfacePermission,
+    retrospectiveDepth: control.retrospectiveDepth,
+    labelUncertainty: control.labelUncertainty,
+  }
+}
+
 function extractMindTraceTokens(raw: string) {
   const normalized = sanitizeMindTraceTelemetryText(raw, 220).toLowerCase()
   if (!normalized)
@@ -3760,7 +3797,7 @@ function summarizeRecallAttributionPayload(snapshot: AlicizationMindTraceMemoryS
     whyNow: sanitizeMindTraceTelemetryText(snapshot.whyNow, 240) || null,
     inwardLine: sanitizeMindTraceTelemetryText(snapshot.inwardLine, 220) || null,
     visibleLine: sanitizeMindTraceTelemetryText(snapshot.visibleLine, 220) || null,
-    whyWithheld: sanitizeMindTraceTelemetryText(snapshot.whyWithheld, 220) || null,
+    withheldReasons: sanitizeMindTraceReasonCodes(snapshot.withheldReasons),
     shouldStayInward: snapshot.shouldStayInward ?? false,
     restraintSurfaceMode: sanitizeMindTraceTelemetryText(snapshot.restraintSurfaceMode, 64) || null,
     restraintProvenanceMode: sanitizeMindTraceTelemetryText(snapshot.restraintProvenanceMode, 64) || null,
@@ -3769,7 +3806,7 @@ function summarizeRecallAttributionPayload(snapshot: AlicizationMindTraceMemoryS
     shouldLabelHypothesis: snapshot.shouldLabelHypothesis ?? false,
     shouldSuppressSpecificity: snapshot.shouldSuppressSpecificity ?? false,
     shouldDelayUntilAfterPayoff: snapshot.shouldDelayUntilAfterPayoff ?? false,
-    memoryControlSummary: sanitizeMindTraceTelemetryText(snapshot.memoryControlSummary, 240) || null,
+    memoryControl: summarizeMindTraceMemoryControl(snapshot.memoryControl),
     personState: {
       activeClosenessContext: sanitizeMindTraceTelemetryText(snapshot.activeClosenessContext, 64) || null,
       activeClosenessRung: sanitizeMindTraceTelemetryText(snapshot.activeClosenessRung, 64) || null,
@@ -3926,7 +3963,7 @@ function summarizeReplyMemoryCoherencePayload(input: {
     explicitSurfaceObserved: strongestCueOverlap >= 0.45 || visibleLeadOverlap >= 0.45,
     strongestCueOverlap: Number(strongestCueOverlap.toFixed(2)),
     visibleLeadOverlap: Number(visibleLeadOverlap.toFixed(2)),
-    whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+    withheldReasons: sanitizeMindTraceReasonCodes(input.snapshot.withheldReasons),
     followUpSummary: sanitizeMindTraceTelemetryText(input.snapshot.followUpAffordance?.summary, 220) || null,
     followUpWhyNow: sanitizeMindTraceTelemetryText(input.snapshot.followUpAffordance?.whyNow, 220) || null,
     followUpPreferredTiming: input.snapshot.followUpAffordance?.preferredTiming ?? null,
@@ -3947,7 +3984,7 @@ function summarizeMemoryDeliberationJudgedPayload(snapshot: AlicizationMindTrace
     surfacePolicy: snapshot.surfacePolicy,
     confidence: Number(clamp01(snapshot.confidence).toFixed(2)),
     whyNow: sanitizeMindTraceTelemetryText(snapshot.whyNow, 240) || null,
-    whyWithheld: sanitizeMindTraceTelemetryText(snapshot.whyWithheld, 220) || null,
+    withheldReasons: sanitizeMindTraceReasonCodes(snapshot.withheldReasons),
     ambiguityPosture: snapshot.ambiguityPosture ?? 'settled',
     conflictSeverity: snapshot.conflictSeverity ?? 'none',
     restraint: {
@@ -3979,7 +4016,7 @@ function summarizeMemoryDeliberationJudgedPayload(snapshot: AlicizationMindTrace
           thirdHopAmbiguity: snapshot.searchTrace.thirdHop.ambiguityPosture,
         }
       : null,
-    memoryControlSummary: sanitizeMindTraceTelemetryText(snapshot.memoryControlSummary, 240) || null,
+    memoryControl: summarizeMindTraceMemoryControl(snapshot.memoryControl),
     personState: {
       activeClosenessContext: sanitizeMindTraceTelemetryText(snapshot.activeClosenessContext, 64) || null,
       activeClosenessRung: sanitizeMindTraceTelemetryText(snapshot.activeClosenessRung, 64) || null,
@@ -4015,7 +4052,7 @@ function buildMemoryDeliberationTraceEvents(input: {
     createdAt: input.createdAt,
   }]
 
-  if (input.snapshot.whyWithheld || input.snapshot.shouldStayInward || input.snapshot.restraintSurfaceMode === 'inward-only') {
+  if ((input.snapshot.withheldReasons?.length ?? 0) > 0 || input.snapshot.shouldStayInward || input.snapshot.restraintSurfaceMode === 'inward-only') {
     events.push({
       decisionTraceId: input.decisionTraceId,
       turnId: input.turnId,
@@ -4023,7 +4060,7 @@ function buildMemoryDeliberationTraceEvents(input: {
       origin: input.origin,
       kind: 'memory-recall-withheld',
       payload: {
-        whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+        withheldReasons: sanitizeMindTraceReasonCodes(input.snapshot.withheldReasons),
         shouldStayInward: input.snapshot.shouldStayInward ?? false,
         surfaceMode: sanitizeMindTraceTelemetryText(input.snapshot.restraintSurfaceMode, 64) || null,
         stableCore: (input.snapshot.stableCore ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
@@ -4048,7 +4085,7 @@ function buildMemoryDeliberationTraceEvents(input: {
       payload: {
         stableCore: (input.snapshot.stableCore ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
         unsafeDetails: (input.snapshot.unsafeDetails ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
-        whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+        withheldReasons: sanitizeMindTraceReasonCodes(input.snapshot.withheldReasons),
         surfaceMode: sanitizeMindTraceTelemetryText(input.snapshot.restraintSurfaceMode, 64) || null,
         shouldOnlySurfaceStableCore: input.snapshot.shouldOnlySurfaceStableCore ?? false,
       },
@@ -4069,7 +4106,7 @@ function buildMemoryDeliberationTraceEvents(input: {
         payoffDependency: input.snapshot.followUpAffordance?.payoffDependency ?? null,
         preferredTiming: input.snapshot.followUpAffordance?.preferredTiming ?? null,
         intrusionRisk: input.snapshot.followUpAffordance?.intrusionRisk ?? null,
-        whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+        withheldReasons: sanitizeMindTraceReasonCodes(input.snapshot.withheldReasons),
       },
       createdAt: input.createdAt,
     })
@@ -4086,7 +4123,7 @@ function buildMemoryDeliberationTraceEvents(input: {
         ambiguityPosture: input.snapshot.ambiguityPosture ?? 'settled',
         conflictSeverity: input.snapshot.conflictSeverity ?? 'none',
         evidenceGap: input.snapshot.searchTrace?.secondHop.evidenceGap ?? null,
-        whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+        withheldReasons: sanitizeMindTraceReasonCodes(input.snapshot.withheldReasons),
         stableCore: (input.snapshot.stableCore ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
         unsafeDetails: (input.snapshot.unsafeDetails ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
         conflictVariants: (input.snapshot.conflictVariants ?? []).map(item => ({

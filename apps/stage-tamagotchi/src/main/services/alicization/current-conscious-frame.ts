@@ -2258,88 +2258,6 @@ function buildSelfAuthoritySpeakingCue(selfContinuityAuthority?: {
   return `The self authority stays continuous: ${lowerFirst(stripTrailingPunctuation(authoritySummary))}.`
 }
 
-function deriveInwardRecollectionConsciousCue(input: {
-  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
-  answerCompiler?: AlicizationAnswerCompilerSnapshot | null
-}) {
-  const runtimeSurface = input.runtimeSurface ?? null
-  const memoryDeliberation = (
-    runtimeSurface?.memory?.memoryDeliberation ?? null
-  ) as (NonNullable<AlicizationDigitalLifeRuntimeSurface['memory']>['memoryDeliberation'] & {
-    shouldStayInward?: boolean | null
-    whyWithheld?: string | null
-    inwardLine?: string | null
-  }) | null
-  const recollectionSpeechPlan = runtimeSurface?.memory?.recollectionSpeechPlan ?? null
-  const compilerMemory = (input.answerCompiler ?? null) as AlicizationAnswerCompilerSnapshot & {
-    memoryShouldStayInward?: boolean | null
-    memoryWhyWithheld?: string | null
-    memoryFollowUpAffordanceSummary?: string | null
-  }
-  const resolvedSurfacePolicy = sanitizeText(
-    memoryDeliberation?.surfacePolicy
-    ?? recollectionSpeechPlan?.surfaceMode
-    ?? recollectionSpeechPlan?.placement
-    ?? '',
-    64,
-  ).toLowerCase()
-  const recollectionPlacement = sanitizeText(recollectionSpeechPlan?.placement ?? '', 64).toLowerCase()
-  const shouldStayInward = compilerMemory.memoryShouldStayInward === true
-    || memoryDeliberation?.shouldStayInward === true
-    || resolvedSurfacePolicy === 'internal-only'
-    || recollectionPlacement === 'internal-only'
-  if (!shouldStayInward) {
-    return {
-      consciousNeed: null,
-      speakingIntention: null,
-    }
-  }
-
-  const whyWithheld = sanitizeText(
-    compilerMemory.memoryWhyWithheld
-    ?? memoryDeliberation?.whyWithheld
-    ?? memoryDeliberation?.inwardLine
-    ?? recollectionSpeechPlan?.rationale
-    ?? '',
-    220,
-  )
-  const canonicalInwardLine = sanitizeText(memoryDeliberation?.inwardLine ?? '', 220)
-  const followUpSummary = sanitizeText(
-    compilerMemory.memoryFollowUpAffordanceSummary
-    ?? memoryDeliberation?.followUpAffordance?.summary
-    ?? '',
-    220,
-  )
-  const preferredTiming = sanitizeText(memoryDeliberation?.followUpAffordance?.preferredTiming ?? '', 64).toLowerCase()
-  const inwardNeed = whyWithheld
-    && (
-      (canonicalInwardLine && whyWithheld === canonicalInwardLine)
-      || /current payoff still needs the foreground|keep recollection inward|host has (?:more )?room|live payoff|remembered seam inward|live reunion/u.test(whyWithheld.toLowerCase())
-    )
-    ? whyWithheld
-    : 'Recollection is internal until the live payoff lands; host room remains protected.'
-  const followUpNeed = followUpSummary
-    ? `Follow-up stays payoff-first: ${lowerFirst(stripTrailingPunctuation(followUpSummary))}.`
-    : 'Follow-up stays payoff-first, and remembered continuity widening is deferred.'
-  const followUpTimingCue = preferredTiming === 'next-open-window'
-    ? 'The follow-up timing is next open window, and recollection waits.'
-    : preferredTiming === 'after-payoff'
-      ? 'The follow-up timing is after payoff, and recollection waits.'
-      : null
-
-  return {
-    consciousNeed: weaveDistinctText([
-      inwardNeed,
-      followUpNeed,
-      followUpTimingCue,
-    ], 320),
-    speakingIntention: weaveDistinctText([
-      'Recollection remains internal until the live payoff lands; remembered continuity stays deferred.',
-      followUpTimingCue,
-    ], 220),
-  }
-}
-
 export function buildCurrentConsciousFrame(input: {
   now: number
   discourseState?: AlicizationDiscourseStateSnapshot | null
@@ -2530,10 +2448,10 @@ export function buildCurrentConsciousFrame(input: {
         selfContinuityAuthority?.habitLine,
       ], 420, 220)
     : consciousNeed
-  const inwardRecollectionConsciousCue = deriveInwardRecollectionConsciousCue({
-    runtimeSurface,
-    answerCompiler,
-  })
+  const inwardRecollectionConsciousCue = {
+    consciousNeed: null,
+    speakingIntention: null,
+  }
   const doctrineShapedConsciousNeed = executionCallbackDoctrineCue
     ? executionCallbackDoctrineCue === 'lower-pressure'
       ? 'Execution callback return needs lower pressure and preserved host room.'

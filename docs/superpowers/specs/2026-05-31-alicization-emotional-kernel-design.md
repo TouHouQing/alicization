@@ -68,7 +68,7 @@ Ownership stays unchanged:
 - `self-state` still owns immediate stance math
 - `affectiveResidue` still owns longer-lived emotional carry
 - `personStateProjection` still owns relational/closeness doctrine
-- `projectState` still owns same-her Phase 1 closure carry
+- `projectState` still owns structured Phase 1 boundary/status facts
 - `emotional-kernel` owns only the shared runtime interpretation those systems now imply together
 
 ## Initial Emotional Vocabulary
@@ -178,7 +178,7 @@ This slice counts as real progress when:
 1. one emotional kernel is built in the desktop runtime
 2. recall, initiative, and embodiment all consume that same kernel
 3. tests prove a single emotional line can align memory, initiative, and embodiment
-4. project-state / same-her continuity still survives through that emotional line rather than degrading into generic assistant carry
+4. project-state boundary facts and identity continuity stay coherent through that emotional line rather than degrading into generic assistant carry
 
 This does not finish Phase 1. It closes a specific open loop:
 

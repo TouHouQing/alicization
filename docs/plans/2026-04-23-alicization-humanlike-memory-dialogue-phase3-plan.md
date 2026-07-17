@@ -119,7 +119,7 @@ evidence: `main-chat-session-runtime.ts` now derives and consumes `memoryPressur
 - [x] 建立“去半模板提示依赖”的回归
 说明：
 验证删掉 `visibleLine` 具体措辞后，LLM 仍然能在心智链下生成自然的 remembered answer，而不是退回壳子。
-evidence: `main-chat-session-runtime.test.ts` and `response-surface-contract.test.ts` now assert `visibleLine / visibleLead` text is not copied into planner/contract visible surface guidance.
+evidence: `main-chat-session-runtime.test.ts` and `response-surface-contract.test.ts` now assert memory-authored visible wording is not copied into planner/contract visible-surface guidance.
 
 ## P0：先想起“哪段时期”，再想起“什么事”
 

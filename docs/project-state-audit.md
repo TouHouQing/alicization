@@ -6,7 +6,7 @@ or internal cue strings.
 ## Required Invariants
 
 - Project-state code may carry governance facts, but it must not author the visible reply.
-- Provider-facing project-state blocks may mention memory ownership and failure transparency only.
+- Only explicit project-status lanes may attach project-state context, and it must be serialized typed facts rather than reply prose.
 - `WorkingMemory` owns short-term carry.
 - `LongTermMemoryRecall` owns long-term recall.
 - Dialogue, short-term memory, long-term recall, and embodiment must not depend on fixed project-state wording.
@@ -14,11 +14,11 @@ or internal cue strings.
 
 ## Current Coverage
 
-- `project-state-brief.test.ts` verifies canonical project-state output is free of old template markers.
-- `project-state-docs-sync.test.ts` verifies docs stay short and free of old template markers.
-- `quick-reply-project-awareness-audit.test.ts` verifies quick-reply surfaces hide internal project-state residue while preserving real failure messages.
-- host-visible inward-carry audit ties reopen-persistence handoff, speech-boundary pre-dialogue awareness rebuilding, front-stage quick-reply closure, and the dialogue-panel hidden diagnostic boundary without leaking diagnostic closure markers into the main dialogue bubble.
-- quick-reply visible surfaces now hide fixed templates and internal diagnostic fields.
+- `project-state-brief.test.ts` verifies project-state output is typed data and free of reply templates.
+- `execution-runtime-context.test.ts` verifies provider-facing execution context uses typed facts.
+- `memory-workbench-dialogue-loop.test.ts` verifies memory UI aggregation does not replace memory owners.
+- `long-term-memory-recall.test.ts` verifies durable recall stays evidence-backed.
+- `main-chat-timeout-fallback.test.ts` verifies failures remain visible.
 - clean provider/tool failure hints remain visible.
 - This still does not prove fully sustained noisy-desktop convergence.
 

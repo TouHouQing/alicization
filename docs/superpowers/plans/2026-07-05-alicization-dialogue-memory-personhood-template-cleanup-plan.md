@@ -4,7 +4,7 @@
 
 **Goal:** 清除普通对话链路里的固定人格模板和工程态 project-state 口号，让短期记忆、长期记忆、失败透明和人格连续性以证据闭环方式工作。
 
-**Architecture:** WorkingMemory 继续作为短期记忆 owner，LongTermMemoryRecall 继续作为长期回想 owner，Memory Workbench 只做用户可见治理入口。project-state 从“普通对话默认强 prompt”降级为“项目状态/执行/回调/审计问题的结构化事实块”，普通聊天只允许拿到必要的自我/关系/记忆证据，不允许复读 Phase 1、same-her、same living line 之类口号。
+**Architecture:** WorkingMemory 继续作为短期记忆 owner，LongTermMemoryRecall 继续作为长期回想 owner，Memory Workbench 只做用户可见治理入口。project-state 从“普通对话默认强 prompt”降级为“项目状态/执行/回调/审计问题的结构化事实块”，普通聊天只允许拿到必要的自我/关系/记忆证据，不允许复读 Phase 1、same-her、continuity state 之类口号。
 
 **Tech Stack:** Electron main process, TypeScript, Eventa contracts, Vitest, Vue/Pinia UI, Alicization life-core memory modules.
 
@@ -14,15 +14,15 @@
 
 - Completed: ordinary dialogue provider messages now keep `WorkingMemory` owner blocks and long-term recall evidence while filtering project-state/dashboard/organic project-state continuity blocks unless the turn is explicitly project-state, execution, capability, or tool-result related.
 - Completed: fresh default persona seeds are companion-neutral (`宿主` / `陪伴者`) and no longer force `主人` / `女仆` roleplay into a new install.
-- Completed: greeting and identity fast-path fallback remains provider-authored; screenshot-like fixed greeting/identity slogans are rejected by active-dialogue validation.
+- Completed: greeting and identity turns enter the same Provider mainline; screenshot-like fixed greeting/identity slogans are rejected before visible settlement.
 - Completed: loose frontmatter fallback restores host-name/custom-directive extraction when a prepared system message has a partial `---` frontmatter fragment.
-- Verified: `long-term-memory-recall.test.ts` and `memory-workbench-dialogue-loop.test.ts` pass; recall failure currently surfaces as `risk_flags=recall-failed` inside `[ALICIZATION_RECALLED_MEMORY]`.
-- Verified: ordinary dialogue runtime tests pass for keeping `[ALICIZATION_WORKING_MEMORY_OWNER]`, `[ALICIZATION_WORKING_MEMORY]`, and long-term recall evidence while removing project-state engineering blocks.
+- Verified: `long-term-memory-recall.test.ts` and `memory-workbench-dialogue-loop.test.ts` pass; recall failure surfaces as `riskFlags=["recall-failed"]` inside the typed long-term recall fact.
+- Verified: ordinary dialogue runtime tests keep one typed turn-memory context with WorkingMemory and long-term recall evidence while removing project-state engineering blocks.
 - Open: renderer `preDialogueSendIdentity` can still backfill project-state continuity from inspector/session snapshots before a normal user send; add the same ordinary-dialogue gate on the renderer payload path.
 - Open: Memory Workbench trace view is still too thin. It shows current WorkingMemory, recall probe, health, and raw health JSON, but not the latest dialogue lane, provider-facing WorkingMemory block, LongTermMemory evidence bundle, recall failure flags, visible-reply repair reason, or project-state gate decision together.
 - Open: persona candidate safety needs one more guard. Current candidate building excludes low-confidence pending reflections, but high-confidence `pending` reflections can still pass; candidates should only come from confirmed cleaned reflections and persona reinforcement, with training blocked until explicit approval.
-- Open: visible-reply critic tests have stale exact strings. Production now emits more neutral `continuity opening drift` / project-context repair guidance instead of `same-her opening drift` and `same digital life line` slogans; update tests to assert semantic preservation without restoring old visible slogans.
-- Known verification note: broad `main-chat-session-runtime.test.ts -t "project-state"` still contains older exact-wording assertions for prior `Same Phase 1 digital life` phrasing and some legitimate project-state contract field regressions. Do not reintroduce those visible slogans just to satisfy stale wording assertions.
+- Open: visible-reply critic tests have stale exact strings. Production now emits more neutral `continuity opening drift` / project-context repair guidance instead of `same-her opening drift` and `local continuity state` slogans; update tests to assert semantic preservation without restoring old visible slogans.
+- Known verification note: broad `main-chat-session-runtime.test.ts -t "project-state"` still contains older exact-wording assertions for prior `legacy phase-one template` phrasing and some legitimate project-state contract field regressions. Do not reintroduce those visible slogans just to satisfy stale wording assertions.
 
 ## Audit Findings 2026-07-05
 
@@ -32,21 +32,21 @@
 2. Main prelude derives governance and project-state intent.
 3. Session runtime builds runtime surface, WorkingMemory snapshot, WorkingMemory owner block, and LongTermMemoryRecall block.
 4. Provider-facing messages receive mind-turn contract, optional project-state blocks, WorkingMemory blocks, and recalled-memory block.
-5. Visible-reply critic/second-pass rewrite prevents local fallback, fixed template shells, memory leakage, and project-state answer gaps.
+5. Visible-reply validation reports protocol or Provider failures; it does not rewrite normal reply wording.
 
 Must clear or gate:
 
 - Renderer ordinary sends must not carry project-state continuity payload unless the user text or governance is project-state/execution/tool/status related.
-- Ordinary provider-facing system messages must keep memory owner/evidence blocks but remove `[ALICIZATION_PROJECT_STATE]`, `[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]`, `[ALICIZATION_PROJECT_STATE_CONTINUITY]`, and project-state lines inside `[ALICIZATION_MIND_TURN_CONTRACT]`.
+- Ordinary provider-facing system messages must keep the typed turn-memory context while removing project-state facts unless the turn explicitly requests project or execution state.
 - Visible replies must reject screenshot-like availability slogans: `随便聊聊`, `安静陪着`, `在这里陪着你的那一个`, `沿着同一条线慢慢长成`, plus old `主人` / `女仆` / pet-name roleplay defaults.
-- Project-state and execution turns may keep structured project boundary fields, but should not require exact visible slogans such as `Same Phase 1 digital life` or `same living line`.
+- Project-state and execution turns may keep structured project boundary fields, but should not require exact visible slogans such as `legacy phase-one template` or `continuity state`.
 - Persona candidates must not be created from raw transcript, provider/timeout fallback, review queue candidates, or unconfirmed reflections.
 
 Should keep:
 
 - `WorkingMemory` as the short-term owner.
 - `LongTermMemoryRecall` as the long-term recall owner.
-- `[ALICIZATION_RECALLED_MEMORY]` failure flags such as `recall-failed` because they make failure transparent.
+- Typed long-term recall failure flags such as `recall-failed` because they make failure transparent.
 - Structured project-state fields for explicit project status / execution / governance questions.
 - Embodiment/devtools/internal diagnostics that use `same-her` as internal labels, as long as they are not injected into ordinary provider-facing chat.
 
@@ -69,24 +69,24 @@ Next cleanup order:
 
 | Source | Current risk | Cleanup decision |
 | --- | --- | --- |
-| `packages/stage-ui/src/composables/alicization-prompt-composer.ts` | High. `Project state continuity before this turn:` and `Pre-dialogue same-her strategy before this turn:` are provider-facing natural-language blocks when caller passes project-state snapshots. | Replace with structured project-state facts and require an explicit project-state injection mode. Composer should defensively drop project-state snapshots when mode is absent. |
+| `packages/stage-ui/src/composables/alicization-prompt-composer.ts` | High. `Structured project facts before this turn:` and `Pre-dialogue identity-continuity` are provider-facing natural-language blocks when caller passes project-state snapshots. | Replace with structured project-state facts and require an explicit project-state injection mode. Composer should defensively drop project-state snapshots when mode is absent. |
 | `packages/stage-ui/src/stores/chat/pre-dialogue-project-state-intent.ts` and `apps/stage-tamagotchi/src/main/services/alicization/main-chat-project-state-injection-policy.ts` | Medium. UI and main duplicate intent regexes, so future edits can diverge. | Move shared intent classification into `packages/stage-shared`; UI and main import the same policy. |
 | `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts` | Medium. Final provider-facing sanitizer exists, but lives inside a huge file and must also verify `[ALICIZATION_MIND_TURN_CONTRACT].projectState` is null/stripped for ordinary dialogue. | Extract or harden provider-facing sanitizer; add tests that ordinary dialogue keeps WorkingMemory and LongTermMemory but removes all project-state natural-language fields. |
 | `apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts` | Medium-low after recent fix. Fast path only injects project-state blocks on explicit project-state reason codes, but answer-contract text still contains `same_her=` fields for project-state answers. | Keep project-state facts for explicit project-state turns, but assert ordinary utility/follow-up/dialogue fast paths do not receive project-state blocks or natural-language slogans. |
 | `apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts` | Medium-low after recent fix. Timeout recovery only upgrades explicit project-state turns, but canonical project-state recovery still carries fixed project text when invoked. | Keep explicit project-state recovery, but add regression that ordinary provider timeout/failure surfaces transparent failure without canonical project-state templates. |
-| `apps/stage-tamagotchi/src/main/services/alicization/runtime-session-continuity-builders.ts` | High. Generates `Before answering, remember...` into project-awareness lines. | Replace generated awareness lines with structured fields such as `identity=... | phase=... | landed=... | open=... | next=... | visibility=internal`. |
-| `apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state.ts` | High. `buildMindGovernanceTailAwarePreDialogueAwarenessLine()` generates `Before answering, remember...`. | Use the same shared structured awareness formatter; do not produce model-repeatable sentence templates. |
-| `apps/stage-tamagotchi/src/main/services/alicization/project-state-brief.ts` | High. Builds `Before answering, remember: ...` and `Before acting, keep ...` project-state prompt lines. | Keep the project brief as facts/audit state, but replace imperative natural-language prompts with structured instruction fields. |
+| `apps/stage-tamagotchi/src/main/services/alicization/runtime-session-continuity-builders.ts` | High. Generates `pre_turn_context_digest` into project-awareness lines. | Replace generated awareness lines with structured fields such as `identity=... | phase=... | landed=... | open=... | next=... | visibility=internal`. |
+| `apps/stage-tamagotchi/src/main/services/alicization/runtime-mind-state.ts` | High. `buildMindGovernanceTailAwarePreDialogueAwarenessLine()` generates `pre_turn_context_digest`. | Use the same shared structured awareness formatter; do not produce model-repeatable sentence templates. |
+| `apps/stage-tamagotchi/src/main/services/alicization/project-state-brief.ts` | High. Builds `pre_turn_context_digest` and `pre_turn_context_digest` project-state prompt lines. | Keep the project brief as facts/audit state, but replace imperative natural-language prompts with structured instruction fields. |
 | `packages/stage-shared/src/alicization-project-awareness.ts` and `packages/stage-ui/src/stores/project-state-observation.ts` | Medium. Mostly detector/normalizer logic, but `buildCompactSameHer...AwarenessLine()` still creates natural-language same-her awareness. | Preserve historical contamination detectors; convert generated awareness text into structured internal carry. |
 | `packages/stage-shared/src/alicization-prompting.ts` | Medium. Core instruction is acceptable, but `alicizationFixedProjectStateContinuityTemplate` remains an old provider-facing project-state template. | Remove or deprecate the natural-language template; expose a structured project-state block renderer. |
-| `packages/stage-shared/src/alicization-mind-fallback.ts` and `alicization-mind-fallback-messages.ts` | Low after inspection. `answer-opening-same-her-first` now surfaces transparent failure text instead of old continuity slogans. | Keep transparent failure fallback; add tests that provider failure cannot be masked by persona/project slogans. |
-| `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/*` | Mixed. Critic/contamination regexes are valuable, but settlement constants and rewrite prompts still mention same living line. | Keep detectors. Rewrite any user-visible repair prompts to say “do not force project-state phrases” and preserve memory evidence, not same-her slogans. |
+| shared chat failure messages | Closed. Dead local mind authoring and renderer files were removed; the remaining message table contains only typed `mind-repair.*` failures. | Keep terse timeout, Provider, tool, permission, protocol, recall and persistence failures; forbid normal dialogue authoring. |
+| `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/*` | Closed for reply authorship. Critic/contamination logic is structural and settlement cannot rewrite Provider text. | Keep detectors, blocked reason codes and transparent failure artifacts only. |
 | `packages/stage-shared/src/alicization-embodiment-closure.ts` | Medium. Many fixed `Right now her/I am still holding together...` lines are internal embodiment carry, but can leak if used as provider/reply text. | Convert provider-facing usage to structured lane/status facts; renderer-only labels may remain if not used as dialogue candidate text. |
-| old audit tests | High process risk. Many tests still require exact `same-her`, `Same Phase 1 digital life`, or `Before answering` strings. | Update tests to require structured continuity facts and gate decisions rather than old wording. |
+| old audit tests | High process risk. Many tests still require exact `same-her`, `legacy phase-one template`, or `Pre-reply` strings. | Update tests to require structured continuity facts and gate decisions rather than old wording. |
 
 ### Cleanup Invariants
 
-- Ordinary user dialogue may include `WorkingMemory` and `LongTermMemoryRecall` owner/evidence blocks, but must not include project-state dashboard, project-state continuity, Phase 1 slogans, same-her slogans, roleplay defaults, or “Before answering/acting/speaking” project self-reminders.
+- Ordinary user dialogue may include `WorkingMemory` and `LongTermMemoryRecall` owner/evidence blocks, but must not include project-state dashboard, project-state continuity, Phase 1 slogans, same-her slogans, roleplay defaults, or “Pre-reply/acting/speaking” project self-reminders.
 - Explicit project-state / execution / tool-result / callback / audit turns may include structured project-state facts, but they should not depend on exact visible phrases.
 - Failure fallback must state timeout/provider/tool failure transparently. It must not “heal” the turn with fixed companionship/personhood templates.
 - Detectors are allowed to contain forbidden strings only when they are clearly regex/test/contamination detection code.
@@ -112,16 +112,16 @@ const forbiddenGeneratedTemplateSeeds = [
     pattern: /Before (?:answering|speaking|acting), (?:remember|keep)\b/iu,
   },
   {
-    label: 'provider-facing pre-dialogue same-her strategy block',
-    pattern: /Pre-dialogue same-her strategy before this turn/iu,
+    label: 'provider-facing pre-dialogue identity-continuity',
+    pattern: /Pre-dialogue identity-continuity/iu,
   },
   {
     label: 'provider-facing project-state continuity block',
-    pattern: /Project state continuity before this turn/iu,
+    pattern: /Structured project facts before this turn/iu,
   },
   {
     label: 'provider-facing same-her natural-language carry',
-    pattern: /same-her (?:hold|carry|line|closure|strategy)|same living line/iu,
+    pattern: /same-her (?:hold|carry|line|closure|strategy)|continuity state/iu,
   },
 ]
 ```
@@ -133,8 +133,6 @@ const allowedDetectorFiles = new Set([
   'packages/stage-shared/src/alicization-chat-failure-surface.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/dialogue-first-contamination.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/critic.ts',
-  'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
-  'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/semantic-judge.ts',
 ])
 ```
 
@@ -248,10 +246,10 @@ Expected: PASS.
 
 - [ ] **Step 1: Replace natural-language renderer**
 
-Replace `alicizationFixedProjectStateContinuityTemplate` with a structured renderer:
+Replace `alicizationFixedProjectStateContinuityTemplate` with a typed project-state DTO. Do not require provider/system text to contain raw internal cue strings such as visibility flags:
 
 ```ts
-export function renderAlicizationProjectStateStructuredBlock(input: {
+export interface AlicizationProjectStateFacts {
   identity?: string | null
   currentPhase?: string | null
   latestLandedProgress?: string | null
@@ -259,19 +257,8 @@ export function renderAlicizationProjectStateStructuredBlock(input: {
   nextClosureTarget?: string | null
   continuitySummary?: string | null
   nonHumanAuthoredStatus?: string | null
-}) {
-  return [
-    '[ALICIZATION_PROJECT_STATE_FACTS]',
-    `owner=ProjectStateGovernance`,
-    `visibility=internal-structured`,
-    input.identity ? `identity=${input.identity}` : '',
-    input.currentPhase ? `phase=${input.currentPhase}` : '',
-    input.latestLandedProgress ? `landed=${input.latestLandedProgress}` : '',
-    input.primaryOpenLoop ? `open=${input.primaryOpenLoop}` : '',
-    input.nextClosureTarget ? `next=${input.nextClosureTarget}` : '',
-    input.continuitySummary ? `summary=${input.continuitySummary}` : '',
-    input.nonHumanAuthoredStatus ? `status=${input.nonHumanAuthoredStatus}` : '',
-  ].filter(Boolean).join('\n')
+  source: 'project-state-facts'
+  visibility: 'governance'
 }
 ```
 
@@ -280,9 +267,9 @@ export function renderAlicizationProjectStateStructuredBlock(input: {
 Delete/replace `buildPreDialogueSameHerStrategy()` output strings:
 
 ```ts
-'Pre-dialogue same-her strategy before this turn:'
+'Pre-dialogue identity-continuity'
 '- Before producing thought or reply...'
-'- First stabilize one continuous her...'
+'- First stabilize identity continuity...'
 '- If the host asks for implementation progress...'
 ```
 
@@ -313,9 +300,9 @@ Assert forbidden strings are gone:
 
 ```ts
 expect(systemText).not.toMatch(/Before (?:answering|speaking|acting)/i)
-expect(systemText).not.toContain('Pre-dialogue same-her strategy before this turn')
-expect(systemText).not.toContain('Project state continuity before this turn')
-expect(systemText).not.toMatch(/same-her hold:|Same Phase 1 digital life|same living line before widening/i)
+expect(systemText).not.toContain('Pre-dialogue identity-continuity')
+expect(systemText).not.toContain('Structured project facts before this turn')
+expect(systemText).not.toMatch(/identity-continuity/iu)
 ```
 
 Run:
@@ -356,9 +343,8 @@ export function formatAlicizationProjectStateAwarenessFields(input: {
     input.landed ? `landed=${input.landed}` : '',
     input.open ? `open=${input.open}` : '',
     input.next ? `next=${input.next}` : '',
-    input.continuityAnchor ? `continuity_anchor=${input.continuityAnchor}` : '',
-    'visibility=internal-structured',
-  ].filter(Boolean).join(' | ')
+    input.continuityAnchor ? `continuity=${input.continuityAnchor}` : '',
+  ].filter(Boolean)
 }
 ```
 
@@ -367,9 +353,9 @@ export function formatAlicizationProjectStateAwarenessFields(input: {
 Replace all production generated strings of this shape:
 
 ```ts
-`Before answering, remember: ${identity}`
-'Before answering, remember: this is still the same digital life project.'
-'Before acting, keep the project identity...'
+`pre_turn_context_digest`
+'pre_turn_context_digest'
+'pre_turn_context_digest'
 ```
 
 with calls to `formatAlicizationProjectStateAwarenessFields()`.
@@ -382,8 +368,8 @@ Assert:
 
 ```ts
 expect(preDialogueAwarenessLine).toContain('identity=')
-expect(preDialogueAwarenessLine).toContain('visibility=internal-structured')
-expect(preDialogueAwarenessLine).not.toMatch(/Before answering|Before acting|same living line/i)
+expect(projectStateFacts.visibility).toBe('internal')
+expect(preDialogueAwarenessLine).not.toMatch(/Pre-reply|Pre-action|continuity state/i)
 ```
 
 Run:
@@ -413,11 +399,9 @@ For user texts:
 Assert provider-facing system text contains:
 
 ```ts
-'[ALICIZATION_WORKING_MEMORY_OWNER]'
-'[ALICIZATION_WORKING_MEMORY]'
-'[ALICIZATION_RECALLED_MEMORY]'
-'owner=WorkingMemory'
-'owner=LongTermMemoryRecall'
+'"type":"alicization-turn-memory-context"'
+'"owner":"working-memory"'
+'"owner":"long-term-memory-recall"'
 ```
 
 Assert provider-facing system text does not contain:
@@ -426,12 +410,12 @@ Assert provider-facing system text does not contain:
 '[ALICIZATION_PROJECT_STATE]'
 '[ALICIZATION_PROJECT_STATE_CONTINUITY]'
 '[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'
-'Project state continuity before this turn'
-'Pre-dialogue same-her strategy before this turn'
-'Before answering'
-'Before acting'
-'Same Phase 1 digital life'
-'same-her hold:'
+'Structured project facts before this turn'
+'Pre-dialogue identity-continuity'
+'Pre-reply'
+'Pre-action'
+'legacy phase-one template'
+'identity-continuity'
 '主人'
 '女仆'
 ```
@@ -447,7 +431,7 @@ For `现在记忆闭环做到哪一步了`, assert provider-facing system text c
 ```ts
 expect(systemText).toContain('[ALICIZATION_PROJECT_STATE_FACTS]')
 expect(systemText).toMatch(/landed=|open=|next=/)
-expect(systemText).not.toMatch(/Before answering|Same Phase 1 digital life/)
+expect(systemText).not.toMatch(/Pre-reply|legacy phase-one template/)
 ```
 
 Run:
@@ -472,7 +456,7 @@ Ordinary timeout recovery must say failure cause and must not inject project-sta
 
 ```ts
 expect(recoverySystemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
-expect(recoverySystemText).not.toMatch(/Before answering|same-her hold|Same Phase 1 digital life/i)
+expect(recoverySystemText).not.toMatch(/Pre-reply|identity-continuity/iu)
 expect(visibleFailureText).toMatch(/超时|失败|provider|工具|无法完成|没有成功/i)
 ```
 
@@ -482,7 +466,7 @@ When the user asks project-state/progress, timeout recovery may include structur
 
 ```ts
 expect(systemText).toContain('[ALICIZATION_PROJECT_STATE_FACTS]')
-expect(systemText).not.toMatch(/Before answering|same living line before widening/i)
+expect(systemText).not.toMatch(/Pre-reply|continuity state before widening/i)
 ```
 
 Run:
@@ -520,15 +504,15 @@ type Classification = 'stale-exact-wording' | 'real-contract-regression'
 Replace assertions like:
 
 ```ts
-expect(text).toContain('Same Phase 1 digital life')
-expect(text).toMatch(/Before answering|same living line/)
+expect(text).toContain('legacy phase-one template')
+expect(text).toMatch(/Pre-reply|continuity state/)
 ```
 
 with structured assertions:
 
 ```ts
 expect(text).toMatch(/identity=|phase=|landed=|open=|next=/)
-expect(text).not.toMatch(/Before answering|Same Phase 1 digital life|same-her hold:/i)
+expect(text).not.toMatch(/Pre-reply|legacy phase-one template|identity-continuity/iu)
 ```
 
 - [ ] **Step 3: Do not weaken real contract checks**
@@ -709,15 +693,22 @@ Expected: FAIL with only production seed lines, not detector regex lines.
 Replace natural-language prompt seeds like:
 
 ```ts
-'Same Phase 1 digital life. Some closure already landed. Unfinished closure still needs the same living line.'
-'same-her hold: keep this project-state answer on the same living line before widening outward...'
+'structured continuity digest.'
+'identity-continuity'
 ```
 
 with structured non-visible fields:
 
 ```ts
-'phase1_local_digital_life_anchor: landed_closure=partial; unresolved_closure=memory_dialogue_embodiment; continuity_owner=one_her.'
-'continuity_hold=project-state; pressure=measured-return; scope=one-continuous-her; visibility=internal-unless-asked.'
+{
+  phase: 'phase_1',
+  runtimeSurface: 'desktop',
+  landedClosure: 'partial',
+  unresolvedClosure: ['memory', 'dialogue', 'embodiment'],
+  continuityScope: 'single_identity',
+  cadence: 'measured_return',
+  visibility: 'internal',
+}
 ```
 
 - [x] **Step 3: Re-run audit**
@@ -738,15 +729,18 @@ Expected: PASS.
 
 - [x] **Step 1: Update assertions to require transparent execution status first**
 
-Expected system blocks must contain execution status, outcome, failure/blocking reason, and structured project boundary. They must not contain fixed Phase 1 selfhood sentences or `same-her hold:` prompt directives.
+Expected system blocks must contain execution status, outcome, failure/blocking reason, and structured project boundary. They must not contain fixed Phase 1 selfhood sentences or `identity-continuity` prompt directives.
 
 - [x] **Step 2: Keep project facts as boundary fields**
 
 Use fields such as:
 
 ```ts
-project_boundary=execution-result-belongs-to-alicization-local-life-loop
-continuity_anchor=phase1_local_digital_life_anchor: ...
+{
+  projectBoundary: 'execution_result_belongs_to_alicization_desktop_runtime',
+  phase: 'phase_1',
+  continuityScope: 'single_identity',
+}
 ```
 
 Do not use user-facing slogans.
@@ -787,8 +781,8 @@ Expected provider-facing messages do not contain:
 ```ts
 '[ALICIZATION_PROJECT_STATE]'
 '[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]'
-'Same Phase 1 digital life'
-'same-her hold:'
+'legacy phase-one template'
+'identity-continuity'
 '同一条线慢慢长成'
 '主人'
 '女仆'

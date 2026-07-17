@@ -5,7 +5,7 @@ inside Alicization visible-reply realization.
 
 The goal is not to decide whether Alicization internally knows project identity,
 Phase 1 progress, and still-open closure work. She should always carry that
-internally before answering.
+internally before reply.
 
 This policy only decides when that internal re-anchor should become a
 host-visible summary line in `projectStateAudit.preDialogueAwarenessSummary`.
@@ -45,8 +45,8 @@ Use `preDialogueAwarenessSummary` when at least one of these is true:
 
 Examples:
 
-- thin shell: `same digital life | keep the closure seam explicit`
-- fuller project line: `Before answering, remember: Alicization is a local-first digital life project...`
+- thin shell: `template-residue-shell`
+- fuller project line: `pre_turn_context_digest`
 
 ### `embodiment-headline`
 

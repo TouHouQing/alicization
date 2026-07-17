@@ -232,15 +232,15 @@ Modify `apps/stage-tamagotchi/src/shared/eventa.ts` near existing memory contrac
 
 ```ts
 export type AlicizationMemoryWorkbenchStatus = 'ok' | 'degraded' | 'error'
-export type AlicizationMemoryWorkbenchKind =
-  | 'fact'
-  | 'episode'
-  | 'reflection'
-  | 'consolidation'
-  | 'procedure'
-  | 'relationship'
-  | 'preference'
-  | 'candidate'
+export type AlicizationMemoryWorkbenchKind
+  = | 'fact'
+    | 'episode'
+    | 'reflection'
+    | 'consolidation'
+    | 'procedure'
+    | 'relationship'
+    | 'preference'
+    | 'candidate'
 
 export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'private' | 'secret'
 export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
@@ -556,7 +556,7 @@ Create one store before `createAlicizationMainChatSessionRuntime`:
   const mainChatSessionRuntime = createAlicizationMainChatSessionRuntime({
     workingMemoryStore,
     buildMainRuntimeCorePromptBlocks,
-    buildOrganicMemorySystemBlocks,
+    buildOrganicMemoryProviderFactBlocks,
 ```
 
 When registering memory invoke handlers in the same file, pass:
@@ -1009,45 +1009,45 @@ runMemoryWorkbenchRecallProbe: (input: {
 Implement using existing methods:
 
 ```ts
-  async function listMemoryWorkbenchReviewItems(input: { cardId: string, limit?: number }) {
-    return (await listLongTermMemoryReviewItems(input)).map(item => ({
-      id: item.id,
-      transactionId: item.transactionId,
-      status: item.status,
-      kind: item.kind,
-      summary: item.summary,
-      evidenceSnippets: item.evidenceSnippets,
-      reviewReasons: item.reviewReasons,
-      sensitivity: item.sensitivity,
-      visibleMode: item.visibleMode,
-      allowTraining: item.allowTraining,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-    }))
-  }
+async function listMemoryWorkbenchReviewItems(input: { cardId: string, limit?: number }) {
+  return (await listLongTermMemoryReviewItems(input)).map(item => ({
+    id: item.id,
+    transactionId: item.transactionId,
+    status: item.status,
+    kind: item.kind,
+    summary: item.summary,
+    evidenceSnippets: item.evidenceSnippets,
+    reviewReasons: item.reviewReasons,
+    sensitivity: item.sensitivity,
+    visibleMode: item.visibleMode,
+    allowTraining: item.allowTraining,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }))
+}
 
-  async function applyMemoryWorkbenchReviewAction(input: {
-    cardId: string
-    reviewItemId: string
-    decision: AlicizationMemoryWorkbenchReviewDecision
-    reason?: string | null
-  }) {
-    if (input.decision === 'inward-only' || input.decision === 'no-training') {
-      const [item] = (await listMemoryWorkbenchReviewItems({ cardId: input.cardId, limit: 64 }))
-        .filter(row => row.id === input.reviewItemId)
-      return item ?? null
-    }
-    const decision = input.decision === 'approve'
-      ? 'approve'
-      : input.decision === 'tombstone'
-        ? 'tombstone'
-        : 'reject'
-    return await applyLongTermMemoryReviewDecision({
-      cardId: input.cardId,
-      reviewItemId: input.reviewItemId,
-      decision,
-    })
+async function applyMemoryWorkbenchReviewAction(input: {
+  cardId: string
+  reviewItemId: string
+  decision: AlicizationMemoryWorkbenchReviewDecision
+  reason?: string | null
+}) {
+  if (input.decision === 'inward-only' || input.decision === 'no-training') {
+    const [item] = (await listMemoryWorkbenchReviewItems({ cardId: input.cardId, limit: 64 }))
+      .filter(row => row.id === input.reviewItemId)
+    return item ?? null
   }
+  const decision = input.decision === 'approve'
+    ? 'approve'
+    : input.decision === 'tombstone'
+      ? 'tombstone'
+      : 'reject'
+  return await applyLongTermMemoryReviewDecision({
+    cardId: input.cardId,
+    reviewItemId: input.reviewItemId,
+    decision,
+  })
+}
 ```
 
 For `listMemoryWorkbenchLongTermItems`, project existing facts/reflections/episodes/consolidations into `AlicizationMemoryWorkbenchItem`; respect `limit`, `query`, `kind`, and tombstone filtering. Use conservative defaults:
@@ -1059,80 +1059,80 @@ const safeLimit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 50)))
 For `runMemoryWorkbenchRecallProbe`, wrap existing `retrieveLongTermMemoryEvidence`:
 
 ```ts
-  async function runMemoryWorkbenchRecallProbe(input: {
-    cardId: string
-    query: string
-    sessionId?: string | null
-    includeWorkingMemory?: boolean
-    limit?: number
-  }): Promise<AlicizationMemoryRecallProbeResult> {
-    const startedAt = now()
-    const query = normalizeOrganicMemoryText(input.query, 600)
-    if (!query) {
-      return {
-        query: '',
-        intent: {
-          mode: 'none',
-          shouldRecall: false,
-          confidence: 0,
-          rationale: 'empty-query',
-          temporalFocus: 'unspecified',
-          riskFlags: ['empty-query'],
-        },
-        plan: {
-          keywordQueries: [],
-          phraseQueries: [],
-          charGramQueries: [],
-          semanticQueries: [],
-          episodicQueries: [],
-          threadHints: [],
-          negativeCues: [],
-          confidencePolicy: 'direct',
-        },
-        evidence: [],
-        latencyMs: now() - startedAt,
-        errors: [],
-      }
-    }
-    const bundle = await retrieveLongTermMemoryEvidence({
-      cardId: input.cardId,
-      currentUserText: query,
-      limit: input.limit,
-    })
+async function runMemoryWorkbenchRecallProbe(input: {
+  cardId: string
+  query: string
+  sessionId?: string | null
+  includeWorkingMemory?: boolean
+  limit?: number
+}): Promise<AlicizationMemoryRecallProbeResult> {
+  const startedAt = now()
+  const query = normalizeOrganicMemoryText(input.query, 600)
+  if (!query) {
     return {
-      query,
+      query: '',
       intent: {
-        mode: bundle.intent.mode,
-        shouldRecall: bundle.intent.shouldRecall,
-        confidence: bundle.intent.confidence,
-        rationale: bundle.intent.rationale,
-        temporalFocus: bundle.intent.temporalFocus,
-        riskFlags: bundle.intent.riskFlags,
+        mode: 'none',
+        shouldRecall: false,
+        confidence: 0,
+        rationale: 'empty-query',
+        temporalFocus: 'unspecified',
+        riskFlags: ['empty-query'],
       },
       plan: {
-        keywordQueries: bundle.plan.keywordQueries,
-        phraseQueries: bundle.plan.phraseQueries,
-        charGramQueries: bundle.plan.charGramQueries,
-        semanticQueries: bundle.plan.semanticQueries,
-        episodicQueries: bundle.plan.episodicQueries,
-        threadHints: bundle.plan.threadHints,
-        negativeCues: bundle.plan.negativeCues,
-        confidencePolicy: bundle.plan.confidencePolicy,
+        keywordQueries: [],
+        phraseQueries: [],
+        charGramQueries: [],
+        semanticQueries: [],
+        episodicQueries: [],
+        threadHints: [],
+        negativeCues: [],
+        confidencePolicy: 'direct',
       },
-      evidence: bundle.evidence.map(item => ({
-        id: item.candidate.id,
-        kind: item.candidate.kind,
-        summary: item.candidate.summary,
-        source: item.candidate.source,
-        score: item.score,
-        visibleMode: item.visibleMode,
-        queryMatches: item.queryMatches,
-        rankReasons: item.rankReasons,
-      })),
+      evidence: [],
       latencyMs: now() - startedAt,
       errors: [],
     }
   }
+  const bundle = await retrieveLongTermMemoryEvidence({
+    cardId: input.cardId,
+    currentUserText: query,
+    limit: input.limit,
+  })
+  return {
+    query,
+    intent: {
+      mode: bundle.intent.mode,
+      shouldRecall: bundle.intent.shouldRecall,
+      confidence: bundle.intent.confidence,
+      rationale: bundle.intent.rationale,
+      temporalFocus: bundle.intent.temporalFocus,
+      riskFlags: bundle.intent.riskFlags,
+    },
+    plan: {
+      keywordQueries: bundle.plan.keywordQueries,
+      phraseQueries: bundle.plan.phraseQueries,
+      charGramQueries: bundle.plan.charGramQueries,
+      semanticQueries: bundle.plan.semanticQueries,
+      episodicQueries: bundle.plan.episodicQueries,
+      threadHints: bundle.plan.threadHints,
+      negativeCues: bundle.plan.negativeCues,
+      confidencePolicy: bundle.plan.confidencePolicy,
+    },
+    evidence: bundle.evidence.map(item => ({
+      id: item.candidate.id,
+      kind: item.candidate.kind,
+      summary: item.candidate.summary,
+      source: item.candidate.source,
+      score: item.score,
+      visibleMode: item.visibleMode,
+      queryMatches: item.queryMatches,
+      rankReasons: item.rankReasons,
+    })),
+    latencyMs: now() - startedAt,
+    errors: [],
+  }
+}
 ```
 
 - [ ] **Step 4: Return new facade methods**
@@ -1219,13 +1219,14 @@ In `runtime-invoke-handlers-memory.ts`, import new invoke contracts and `buildMe
 
 ```ts
 import type { WorkingMemoryStore } from './life-core/working-memory-store'
+
 import { buildMemoryWorkbenchSnapshot } from './memory-workbench'
 ```
 
 Extend `RegisterAlicizationMemoryInvokeHandlersOptions`:
 
 ```ts
-  workingMemoryStore: WorkingMemoryStore
+workingMemoryStore: WorkingMemoryStore
 ```
 
 Import Eventa invokes:
@@ -1242,72 +1243,72 @@ Import Eventa invokes:
 Inside `registerAlicizationMemoryInvokeHandlers`, add:
 
 ```ts
-  registerInvokeHandler(electronAlicizationMemoryWorkbenchGetSnapshot, async payload => await withCardScope(payload.cardId, async () => {
-    const cardId = cardIdFrom(payload)
-    const sessionId = normalizeSessionId(payload.sessionId) || null
-    const alicizationDb = getAlicizationDb()
-    return await buildMemoryWorkbenchSnapshot({
-      cardId,
-      sessionId,
-      now: () => Date.now(),
-      getWorkingMemory: () => sessionId
-        ? workingMemoryStore.get(cardId, sessionId)
-        : workingMemoryStore.latest(cardId),
-      listLongTermItems: async () => (await alicizationDb.listMemoryWorkbenchLongTermItems({ cardId, limit: 24 })).items,
-      listReviewItems: async () => await alicizationDb.listMemoryWorkbenchReviewItems({ cardId, limit: 24 }),
-      getQueueHealth: async () => await alicizationDb.getMemoryWorkbenchQueueHealth?.({ cardId }) ?? {
-        pending: 0,
-        review: 0,
-        applied: 0,
-        failed: 0,
-        deadLettered: 0,
-      },
-      getRecallHealth: async () => await alicizationDb.getMemoryWorkbenchRecallHealth?.({ cardId }) ?? {
-        lastLatencyMs: null,
-        p95LatencyMs: null,
-        lastError: null,
-      },
-      getEmbeddingHealth: async () => await alicizationDb.getMemoryWorkbenchEmbeddingHealth?.({ cardId }) ?? {
-        providerConfigured: false,
-        modelId: null,
-        dimensions: null,
-        reindexRequired: false,
-      },
-    })
-  }))
+registerInvokeHandler(electronAlicizationMemoryWorkbenchGetSnapshot, async payload => await withCardScope(payload.cardId, async () => {
+  const cardId = cardIdFrom(payload)
+  const sessionId = normalizeSessionId(payload.sessionId) || null
+  const alicizationDb = getAlicizationDb()
+  return await buildMemoryWorkbenchSnapshot({
+    cardId,
+    sessionId,
+    now: () => Date.now(),
+    getWorkingMemory: () => sessionId
+      ? workingMemoryStore.get(cardId, sessionId)
+      : workingMemoryStore.latest(cardId),
+    listLongTermItems: async () => (await alicizationDb.listMemoryWorkbenchLongTermItems({ cardId, limit: 24 })).items,
+    listReviewItems: async () => await alicizationDb.listMemoryWorkbenchReviewItems({ cardId, limit: 24 }),
+    getQueueHealth: async () => await alicizationDb.getMemoryWorkbenchQueueHealth?.({ cardId }) ?? {
+      pending: 0,
+      review: 0,
+      applied: 0,
+      failed: 0,
+      deadLettered: 0,
+    },
+    getRecallHealth: async () => await alicizationDb.getMemoryWorkbenchRecallHealth?.({ cardId }) ?? {
+      lastLatencyMs: null,
+      p95LatencyMs: null,
+      lastError: null,
+    },
+    getEmbeddingHealth: async () => await alicizationDb.getMemoryWorkbenchEmbeddingHealth?.({ cardId }) ?? {
+      providerConfigured: false,
+      modelId: null,
+      dimensions: null,
+      reindexRequired: false,
+    },
+  })
+}))
 
-  registerInvokeHandler(electronAlicizationMemoryWorkbenchListLongTerm, async payload => await withCardScope(payload.cardId, async () => {
-    return await getAlicizationDb().listMemoryWorkbenchLongTermItems({
-      cardId: cardIdFrom(payload),
-      kind: payload.kind,
-      query: payload.query,
-      sensitivity: payload.sensitivity,
-      visibility: payload.visibility,
-      training: payload.training,
-      source: payload.source,
-      limit: payload.limit,
-      cursor: payload.cursor,
-    })
-  }))
+registerInvokeHandler(electronAlicizationMemoryWorkbenchListLongTerm, async payload => await withCardScope(payload.cardId, async () => {
+  return await getAlicizationDb().listMemoryWorkbenchLongTermItems({
+    cardId: cardIdFrom(payload),
+    kind: payload.kind,
+    query: payload.query,
+    sensitivity: payload.sensitivity,
+    visibility: payload.visibility,
+    training: payload.training,
+    source: payload.source,
+    limit: payload.limit,
+    cursor: payload.cursor,
+  })
+}))
 
-  registerInvokeHandler(electronAlicizationMemoryWorkbenchApplyReviewAction, async payload => await withCardScope(payload.cardId, async () => {
-    return await getAlicizationDb().applyMemoryWorkbenchReviewAction({
-      cardId: cardIdFrom(payload),
-      reviewItemId: sanitizeText(payload.reviewItemId),
-      decision: payload.decision,
-      reason: sanitizeText(payload.reason),
-    })
-  }))
+registerInvokeHandler(electronAlicizationMemoryWorkbenchApplyReviewAction, async payload => await withCardScope(payload.cardId, async () => {
+  return await getAlicizationDb().applyMemoryWorkbenchReviewAction({
+    cardId: cardIdFrom(payload),
+    reviewItemId: sanitizeText(payload.reviewItemId),
+    decision: payload.decision,
+    reason: sanitizeText(payload.reason),
+  })
+}))
 
-  registerInvokeHandler(electronAlicizationMemoryWorkbenchRecallProbe, async payload => await withCardScope(payload.cardId, async () => {
-    return await getAlicizationDb().runMemoryWorkbenchRecallProbe({
-      cardId: cardIdFrom(payload),
-      query: sanitizeText(payload.query),
-      sessionId: normalizeSessionId(payload.sessionId) || null,
-      includeWorkingMemory: payload.includeWorkingMemory === true,
-      limit: payload.limit,
-    })
-  }))
+registerInvokeHandler(electronAlicizationMemoryWorkbenchRecallProbe, async payload => await withCardScope(payload.cardId, async () => {
+  return await getAlicizationDb().runMemoryWorkbenchRecallProbe({
+    cardId: cardIdFrom(payload),
+    query: sanitizeText(payload.query),
+    sessionId: normalizeSessionId(payload.sessionId) || null,
+    includeWorkingMemory: payload.includeWorkingMemory === true,
+    limit: payload.limit,
+  })
+}))
 ```
 
 Add the health facade methods in Task 4 so this handler does not depend on optional DB properties:
@@ -1863,95 +1864,95 @@ Expected: FAIL because page does not exist.
 Modify `packages/i18n/src/locales/zh-Hans/settings.yaml` under `pages.memory`:
 
 ```yaml
-    workbench:
-      title: 记忆中心
-      description: 查看、审核、测试和清理 Alicization 的短期记忆与长期记忆。
-      tabs:
-        working: 当前短期记忆
-        long_term: 长期记忆
-        review: 待审核
-        probe: 召回测试
-        persona: 人格候选
-        health: 健康与审计
-      actions:
-        refresh: 刷新
-        approve: 批准
-        reject: 拒绝
-        tombstone: 删除并屏蔽
-        inward_only: 只内在使用
-        no_training: 禁止训练
-        run_probe: 运行召回测试
-      states:
-        empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
-        empty_long_term: 还没有匹配的长期记忆。
-        empty_review: 当前没有需要你审核的记忆。
-        empty_probe: 输入一句话，查看她会回想起什么。
-        loading: 正在读取记忆状态...
-      fields:
-        health: 记忆健康
-        pending_review: 待审核
-        recall_latency: 召回延迟
-        queue: 队列
-        embedding: 向量模型
-        thread: 当前线程
-        active_task: 活跃任务
-        corrections: 用户纠正
-        commitments: 承诺
-        questions: 未解决问题
-        query_hints: 查询提示
-        evidence: 证据
-        rank_reasons: 排名理由
-        sensitivity: 敏感度
-        visibility: 可见策略
-        training: 训练
-        errors: 错误
+workbench:
+  title: 记忆中心
+  description: 查看、审核、测试和清理 Alicization 的短期记忆与长期记忆。
+  tabs:
+    working: 当前短期记忆
+    long_term: 长期记忆
+    review: 待审核
+    probe: 召回测试
+    persona: 人格候选
+    health: 健康与审计
+  actions:
+    refresh: 刷新
+    approve: 批准
+    reject: 拒绝
+    tombstone: 删除并屏蔽
+    inward_only: 只内在使用
+    no_training: 禁止训练
+    run_probe: 运行召回测试
+  states:
+    empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
+    empty_long_term: 还没有匹配的长期记忆。
+    empty_review: 当前没有需要你审核的记忆。
+    empty_probe: 输入一句话，查看她会回想起什么。
+    loading: 正在读取记忆状态...
+  fields:
+    health: 记忆健康
+    pending_review: 待审核
+    recall_latency: 召回延迟
+    queue: 队列
+    embedding: 向量模型
+    thread: 当前线程
+    active_task: 活跃任务
+    corrections: 用户纠正
+    commitments: 承诺
+    questions: 未解决问题
+    query_hints: 查询提示
+    evidence: 证据
+    rank_reasons: 排名理由
+    sensitivity: 敏感度
+    visibility: 可见策略
+    training: 训练
+    errors: 错误
 ```
 
 Modify `packages/i18n/src/locales/en/settings.yaml` under `pages.memory` with matching keys:
 
 ```yaml
-    workbench:
-      title: Memory Center
-      description: Inspect, review, test, and clean Alicization short-term and long-term memory.
-      tabs:
-        working: Current Working Memory
-        long_term: Long-Term Memory
-        review: Review Queue
-        probe: Recall Probe
-        persona: Persona Candidates
-        health: Health & Audit
-      actions:
-        refresh: Refresh
-        approve: Approve
-        reject: Reject
-        tombstone: Delete and Block
-        inward_only: Inward Only
-        no_training: No Training
-        run_probe: Run Probe
-      states:
-        empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
-        empty_long_term: No matching long-term memory yet.
-        empty_review: No memories currently need your review.
-        empty_probe: Enter a sentence to see what she would recall.
-        loading: Loading memory state...
-      fields:
-        health: Memory Health
-        pending_review: Pending Review
-        recall_latency: Recall Latency
-        queue: Queue
-        embedding: Embedding
-        thread: Thread
-        active_task: Active Task
-        corrections: User Corrections
-        commitments: Commitments
-        questions: Open Questions
-        query_hints: Query Hints
-        evidence: Evidence
-        rank_reasons: Rank Reasons
-        sensitivity: Sensitivity
-        visibility: Visibility
-        training: Training
-        errors: Errors
+workbench:
+  title: Memory Center
+  description: Inspect, review, test, and clean Alicization short-term and long-term memory.
+  tabs:
+    working: Current Working Memory
+    long_term: Long-Term Memory
+    review: Review Queue
+    probe: Recall Probe
+    persona: Persona Candidates
+    health: Health & Audit
+  actions:
+    refresh: Refresh
+    approve: Approve
+    reject: Reject
+    tombstone: Delete and Block
+    inward_only: Inward Only
+    no_training: No Training
+    run_probe: Run Probe
+  states:
+    empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
+    empty_long_term: No matching long-term memory yet.
+    empty_review: No memories currently need your review.
+    empty_probe: Enter a sentence to see what she would recall.
+    loading: Loading memory state...
+  fields:
+    health: Memory Health
+    pending_review: Pending Review
+    recall_latency: Recall Latency
+    queue: Queue
+    embedding: Embedding
+    thread: Thread
+    active_task: Active Task
+    corrections: User Corrections
+    commitments: Commitments
+    questions: Open Questions
+    query_hints: Query Hints
+    evidence: Evidence
+    rank_reasons: Rank Reasons
+    sensitivity: Sensitivity
+    visibility: Visibility
+    training: Training
+    errors: Errors
 ```
 
 - [ ] **Step 4: Implement page**
@@ -1960,8 +1961,8 @@ Create `apps/stage-tamagotchi/src/renderer/pages/settings/memory/index.vue`:
 
 ```vue
 <script setup lang="ts">
-import { Button } from '@proj-alicization/ui'
 import { useAlicizationMemoryWorkbenchStore } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
+import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -2033,20 +2034,36 @@ onMounted(() => {
 
     <section :class="['grid', 'grid-cols-2', 'gap-3', 'lg:grid-cols-4']">
       <div :class="['border', 'border-neutral-200', 'bg-white/80', 'p-3', 'dark:border-neutral-800', 'dark:bg-neutral-950/50']">
-        <div :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.health') }}</div>
-        <div :class="['mt-1', 'text-sm', 'font-semibold', healthStatusClass]">{{ health?.status ?? '—' }}</div>
+        <div :class="['text-xs', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.fields.health') }}
+        </div>
+        <div :class="['mt-1', 'text-sm', 'font-semibold', healthStatusClass]">
+          {{ health?.status ?? '—' }}
+        </div>
       </div>
       <div :class="['border', 'border-neutral-200', 'bg-white/80', 'p-3', 'dark:border-neutral-800', 'dark:bg-neutral-950/50']">
-        <div :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.pending_review') }}</div>
-        <div :class="['mt-1', 'text-sm', 'font-semibold']">{{ pendingReviewCount }}</div>
+        <div :class="['text-xs', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.fields.pending_review') }}
+        </div>
+        <div :class="['mt-1', 'text-sm', 'font-semibold']">
+          {{ pendingReviewCount }}
+        </div>
       </div>
       <div :class="['border', 'border-neutral-200', 'bg-white/80', 'p-3', 'dark:border-neutral-800', 'dark:bg-neutral-950/50']">
-        <div :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.recall_latency') }}</div>
-        <div :class="['mt-1', 'text-sm', 'font-semibold']">{{ health?.recall.lastLatencyMs ?? '—' }} ms</div>
+        <div :class="['text-xs', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.fields.recall_latency') }}
+        </div>
+        <div :class="['mt-1', 'text-sm', 'font-semibold']">
+          {{ health?.recall.lastLatencyMs ?? '—' }} ms
+        </div>
       </div>
       <div :class="['border', 'border-neutral-200', 'bg-white/80', 'p-3', 'dark:border-neutral-800', 'dark:bg-neutral-950/50']">
-        <div :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.queue') }}</div>
-        <div :class="['mt-1', 'text-sm', 'font-semibold']">{{ health?.queue.pending ?? 0 }} / {{ health?.queue.failed ?? 0 }}</div>
+        <div :class="['text-xs', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.fields.queue') }}
+        </div>
+        <div :class="['mt-1', 'text-sm', 'font-semibold']">
+          {{ health?.queue.pending ?? 0 }} / {{ health?.queue.failed ?? 0 }}
+        </div>
       </div>
     </section>
 
@@ -2078,16 +2095,32 @@ onMounted(() => {
       </div>
       <template v-else>
         <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
-          <div :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.thread') }}</div>
-          <div :class="['mt-1', 'text-sm', 'font-medium']">{{ workingMemory.threadTitle ?? '—' }}</div>
-          <div :class="['mt-3', 'text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.active_task') }}</div>
-          <div :class="['mt-1', 'text-sm']">{{ workingMemory.activeTask ?? '—' }}</div>
+          <div :class="['text-xs', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.fields.thread') }}
+          </div>
+          <div :class="['mt-1', 'text-sm', 'font-medium']">
+            {{ workingMemory.threadTitle ?? '—' }}
+          </div>
+          <div :class="['mt-3', 'text-xs', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.fields.active_task') }}
+          </div>
+          <div :class="['mt-1', 'text-sm']">
+            {{ workingMemory.activeTask ?? '—' }}
+          </div>
         </div>
         <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
-          <div :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.corrections') }}</div>
-          <div :class="['mt-1', 'text-sm']">{{ listText(workingMemory.userCorrections) }}</div>
-          <div :class="['mt-3', 'text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.query_hints') }}</div>
-          <div :class="['mt-1', 'text-sm']">{{ listText(workingMemory.queryHints) }}</div>
+          <div :class="['text-xs', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.fields.corrections') }}
+          </div>
+          <div :class="['mt-1', 'text-sm']">
+            {{ listText(workingMemory.userCorrections) }}
+          </div>
+          <div :class="['mt-3', 'text-xs', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.fields.query_hints') }}
+          </div>
+          <div :class="['mt-1', 'text-sm']">
+            {{ listText(workingMemory.queryHints) }}
+          </div>
         </div>
       </template>
     </section>
@@ -2110,8 +2143,12 @@ onMounted(() => {
           <span>{{ item.visibility }}</span>
           <span>{{ item.training }}</span>
         </div>
-        <div :class="['mt-2', 'text-sm', 'font-medium']">{{ item.summary }}</div>
-        <div :class="['mt-2', 'text-xs', 'text-neutral-500']">{{ listText(item.evidenceSnippets) }}</div>
+        <div :class="['mt-2', 'text-sm', 'font-medium']">
+          {{ item.summary }}
+        </div>
+        <div :class="['mt-2', 'text-xs', 'text-neutral-500']">
+          {{ listText(item.evidenceSnippets) }}
+        </div>
       </article>
     </section>
 
@@ -2120,8 +2157,12 @@ onMounted(() => {
         {{ t('settings.pages.memory.workbench.states.empty_review') }}
       </div>
       <article v-for="item in reviewItems" :key="item.id" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
-        <div :class="['text-sm', 'font-medium']">{{ item.summary }}</div>
-        <div :class="['mt-2', 'text-xs', 'text-neutral-500']">{{ listText(item.reviewReasons) }}</div>
+        <div :class="['text-sm', 'font-medium']">
+          {{ item.summary }}
+        </div>
+        <div :class="['mt-2', 'text-xs', 'text-neutral-500']">
+          {{ listText(item.reviewReasons) }}
+        </div>
         <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
           <Button size="xs" :label="t('settings.pages.memory.workbench.actions.approve')" :loading="reviewActionLoadingId === item.id" @click="store.applyReviewAction(item.id, 'approve')" />
           <Button size="xs" variant="secondary" :label="t('settings.pages.memory.workbench.actions.reject')" :loading="reviewActionLoadingId === item.id" @click="store.applyReviewAction(item.id, 'reject')" />
@@ -2134,7 +2175,7 @@ onMounted(() => {
 
     <section v-else-if="activeTab === 'probe'" :class="['flex', 'flex-col', 'gap-3']">
       <div :class="['flex', 'gap-2']">
-        <input v-model="recallQuery" :class="['min-w-0', 'flex-1', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']" @keydown.enter.prevent="store.runRecallProbe()" >
+        <input v-model="recallQuery" :class="['min-w-0', 'flex-1', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']" @keydown.enter.prevent="store.runRecallProbe()">
         <Button :label="t('settings.pages.memory.workbench.actions.run_probe')" icon="i-solar:magnifer-bold-duotone" :loading="probeLoading" @click="store.runRecallProbe()" />
       </div>
       <div v-if="!recallProbe" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
@@ -2142,14 +2183,22 @@ onMounted(() => {
       </div>
       <div v-else :class="['grid', 'grid-cols-1', 'gap-3', 'xl:grid-cols-[320px_minmax(0,1fr)]']">
         <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
-          <div :class="['text-xs', 'text-neutral-500']">intent</div>
+          <div :class="['text-xs', 'text-neutral-500']">
+            intent
+          </div>
           <pre :class="['mt-2', 'whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(recallProbe.intent, null, 2) }}</pre>
         </div>
         <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
-          <div :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.evidence') }}</div>
+          <div :class="['text-xs', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.fields.evidence') }}
+          </div>
           <article v-for="item in recallProbe.evidence" :key="item.id" :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
-            <div :class="['text-sm', 'font-medium']">{{ item.summary }}</div>
-            <div :class="['mt-1', 'text-xs', 'text-neutral-500']">{{ listText(item.rankReasons) }}</div>
+            <div :class="['text-sm', 'font-medium']">
+              {{ item.summary }}
+            </div>
+            <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
+              {{ listText(item.rankReasons) }}
+            </div>
           </article>
         </div>
       </div>
@@ -2277,9 +2326,8 @@ describe('memory workbench dialogue loop acceptance', () => {
       },
     })
 
-    expect(block).toContain('[ALICIZATION_RECALLED_MEMORY]')
+    expect(JSON.parse(block).type).toBe('alicization-long-term-memory-recall')
     expect(block).toContain('Minecraft')
-    expect(block).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
   })
 
   it('keeps recall failure explicit instead of producing a fixed persona fallback', () => {
@@ -2319,7 +2367,7 @@ describe('memory workbench dialogue loop acceptance', () => {
     })
 
     expect(block).toContain('recall-failed')
-    expect(block).not.toContain('我在。同一条本地数字生命的线还在')
+    expect(block).not.toContain('我在。结构化连续性状态的线还在')
   })
 })
 ```
@@ -2394,8 +2442,8 @@ it('injects WorkingMemory and long-term recall blocks in the same provider messa
   }))
 
   const text = capturedMessages.map(message => String(message.content)).join('\n')
-  expect(text).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
-  expect(text).toContain('[ALICIZATION_RECALLED_MEMORY]')
+  expect(text).toContain('"type":"alicization-turn-memory-context"')
+  expect(text).toContain('"owner":"long-term-memory-recall"')
 })
 ```
 
@@ -2408,8 +2456,8 @@ rg -n "onProviderMessages|prepareExecution|retrieveLongTermMemoryEvidence|create
 Use the discovered hook/helper names in the setup. The final assertions must remain exactly:
 
 ```ts
-expect(text).toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
-expect(text).toContain('[ALICIZATION_RECALLED_MEMORY]')
+expect(text).toContain('"type":"alicization-turn-memory-context"')
+expect(text).toContain('"owner":"long-term-memory-recall"')
 ```
 
 - [ ] **Step 4: Run focused main chat tests**

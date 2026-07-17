@@ -1761,19 +1761,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
             recollectionIntent: activeRecollectionIntent ?? null,
           })
           return finalSurfaceKernel?.followUpAffordance
-            ?? (
-              derivedFollowUpAffordance
-              && finalSurfaceKernel?.shouldStayInward
-              && finalSurfaceKernel.whyWithheld
-                ? {
-                    ...derivedFollowUpAffordance,
-                    whyNow:
-                      /crowd the host|flatten a self line|world-model detail is still under validation pressure|present task is already being carried|repair or payoff fully lands|low-pressure|reopen from scratch|same-her closure line|identity continuity closure line/u.test(finalSurfaceKernel.whyWithheld)
-                        ? finalSurfaceKernel.whyWithheld
-                        : derivedFollowUpAffordance.whyNow,
-                  }
-                : derivedFollowUpAffordance
-            )
+            ?? derivedFollowUpAffordance
         })()
       : null
     const resolvedMemoryDeliberation = finalMemoryDeliberation

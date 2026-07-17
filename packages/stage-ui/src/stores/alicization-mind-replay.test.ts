@@ -803,7 +803,7 @@ describe('alicization mind replay store', () => {
         memoryFactsUpserted: null,
         replyMemoryCoherence: {
           coherenceState: 'inward-only',
-          whyWithheld: 'Relationship continuity should stay inward until the host has room.',
+          withheldReasons: ['owner-inward-policy'],
           followUpSummary: 'Keep the relation line inward until the host has room for it.',
           followUpPreferredTiming: 'next-open-window',
           followUpIntrusionRisk: 'high',
@@ -929,7 +929,7 @@ describe('alicization mind replay store', () => {
         followUpPreferredTiming: 'next-open-window',
         followUpIntrusionRisk: 'high',
       }),
-      diagnosisSummary: expect.stringContaining('Relationship learning is still revising this line'),
+      diagnosisSummary: 'owner-inward-policy',
     }))
     expect(listMindTurnEvents).toBeCalledWith({
       decisionTraceId: 'mind:failing:1',
@@ -2492,7 +2492,7 @@ describe('alicization mind replay store', () => {
         },
         replyMemoryCoherence: {
           coherenceState: 'inward-only',
-          whyWithheld: 'The older self-story is still being revised and should not surface as settled continuity yet.',
+          withheldReasons: ['uncertainty-required'],
           followUpSummary: 'Keep the self line inward until the newer pattern stabilizes.',
           followUpPreferredTiming: 'next-open-window',
           followUpIntrusionRisk: 'high',
@@ -2587,12 +2587,11 @@ describe('alicization mind replay store', () => {
     await store.drillDownBenchmarkTurn('turn-self-model-1')
 
     expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
-      diagnosisSummary: expect.stringContaining('Self-model learning is still revising'),
+      diagnosisSummary: 'uncertainty-required',
       replyMemoryCoherenceSummary: expect.objectContaining({
         followUpPreferredTiming: 'next-open-window',
       }),
     }))
-    expect(store.selectedBenchmarkTurn?.diagnosisSummary).toContain('next open window')
   })
 
   it('prefers explicit suppression-tag diagnosis when stale self-model continuity was vetoed in the resolution ledger', async () => {
@@ -2694,7 +2693,7 @@ describe('alicization mind replay store', () => {
     await store.runReplayBenchmark()
 
     expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
-      diagnosisSummary: expect.stringContaining('Older self-model continuity was vetoed'),
+      diagnosisSummary: 'self-model-stale',
       resolutionLedgerSummary: expect.objectContaining({
         suppressionTags: ['self-model-stale'],
       }),
@@ -2800,7 +2799,7 @@ describe('alicization mind replay store', () => {
     await store.runReplayBenchmark()
 
     expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
-      diagnosisSummary: expect.stringContaining('Competing relationship eras were vetoed'),
+      diagnosisSummary: 'relationship-era-confusion',
       resolutionLedgerSummary: expect.objectContaining({
         suppressionTags: ['relationship-era-confusion'],
       }),
@@ -3306,7 +3305,7 @@ describe('alicization mind replay store', () => {
       }],
     } as any
 
-    expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).toContain('Older self-model continuity was vetoed')
+    expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).toBe('self-model-stale')
     expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).not.toContain('可见回复校验已通过')
   })
 
@@ -3347,7 +3346,7 @@ describe('alicization mind replay store', () => {
       }],
     } as any
 
-    expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).toContain('Older self-model continuity was vetoed')
+    expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).toBe('self-model-stale')
     expect(store.benchmarkFailingTurns[0]?.diagnosisSummary).not.toContain('校验与证据状态已知，但该维度仍有内容差异')
   })
 

@@ -34,7 +34,7 @@ describe('response-surface-truth-dialogue-rules', () => {
         shouldOnlySurfaceMemoryStableCore: false,
         shouldLabelMemoryProvenance: false,
         shouldDelayMemoryUntilAfterPayoff: false,
-        memoryWhyWithheld: null,
+        memoryWithheldReasons: [],
         reasonTags: ['dialogue-first-turn'],
       },
       executionReplyObligation: null,

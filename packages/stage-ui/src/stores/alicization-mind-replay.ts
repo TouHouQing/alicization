@@ -103,21 +103,6 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return result
 }
 
-function describeFollowUpTiming(raw: string | null | undefined) {
-  switch (raw) {
-    case 'next-open-window':
-      return 'the next open window'
-    case 'after-payoff':
-      return 'after the current payoff'
-    case 'same-turn-if-invited':
-      return 'an invited same-turn opening'
-    case 'internal-only':
-      return 'a strictly inward lane'
-    default:
-      return null
-  }
-}
-
 function buildMindReplayDiagnosisSummary(input: {
   failingDimensions: string[]
   learningEvidenceSummary: AlicizationMindReplayBenchmarkTurnDiagnosis['learningEvidenceSummary']
@@ -169,38 +154,20 @@ function buildMindReplayDiagnosisSummary(input: {
         : null,
     ].filter((value): value is string => Boolean(value)).join('；')
   }
-  if (input.resolutionLedgerSummary?.suppressionTags?.includes('self-model-stale') && input.replyMemoryCoherenceSummary?.whyWithheld) {
-    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary.followUpPreferredTiming)
-    return `Older self-model continuity was vetoed${timing ? ` until ${timing}` : ''} because the newer self line still needed room: ${input.replyMemoryCoherenceSummary.whyWithheld}`
+  if ((input.replyMemoryCoherenceSummary?.withheldReasons.length ?? 0) > 0)
+    return input.replyMemoryCoherenceSummary?.withheldReasons.join(', ') ?? null
+  if ((input.resolutionLedgerSummary?.suppressionTags.length ?? 0) > 0)
+    return input.resolutionLedgerSummary?.suppressionTags.join(', ') ?? null
+  if (input.learningEvidenceSummary?.domain && input.replyMemoryCoherenceSummary?.followUpPreferredTiming) {
+    return [
+      input.learningEvidenceSummary.domain,
+      input.replyMemoryCoherenceSummary.followUpPreferredTiming,
+    ].join(', ')
   }
-  if (input.resolutionLedgerSummary?.suppressionTags?.includes('self-model-stale')) {
-    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary?.followUpPreferredTiming)
-    return `Older self-model continuity was vetoed${timing ? ` until ${timing}` : ''} because the newer self line still needed room.`
-  }
-  if (input.resolutionLedgerSummary?.suppressionTags?.includes('relationship-era-confusion') && input.replyMemoryCoherenceSummary?.whyWithheld) {
-    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary.followUpPreferredTiming)
-    return `Competing relationship eras were vetoed${timing ? ` until ${timing}` : ''} because the recalled bond line was still too easy to confuse: ${input.replyMemoryCoherenceSummary.whyWithheld}`
-  }
-  if (input.resolutionLedgerSummary?.suppressionTags?.includes('relationship-era-confusion')) {
-    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary?.followUpPreferredTiming)
-    return `Competing relationship eras were vetoed${timing ? ` until ${timing}` : ''} because the recalled bond line was still too easy to confuse.`
-  }
-  if (input.learningEvidenceSummary?.domain === 'relationship' && input.replyMemoryCoherenceSummary?.whyWithheld) {
-    return `Relationship learning is still revising this line, so the memory stayed inward: ${input.replyMemoryCoherenceSummary.whyWithheld}`
-  }
-  if (input.learningEvidenceSummary?.domain === 'self-model' && input.replyMemoryCoherenceSummary?.whyWithheld) {
-    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary.followUpPreferredTiming)
-    return `Self-model learning is still revising how Alicization understands herself here, so the older self-story stayed compressed${timing ? ` until ${timing}` : ''}: ${input.replyMemoryCoherenceSummary.whyWithheld}`
-  }
-  if (input.learningEvidenceSummary?.domain === 'world-model' && input.replyMemoryCoherenceSummary?.followUpPreferredTiming) {
-    return `World-model knowledge stayed validation-first, so follow-up timing moved to ${input.replyMemoryCoherenceSummary.followUpPreferredTiming}.`
-  }
-  if (input.replyMemoryCoherenceSummary?.whyWithheld)
-    return input.replyMemoryCoherenceSummary.whyWithheld
   if (input.resolutionLedgerSummary?.shouldDelayUntilAfterPayoff)
-    return 'Memory stayed behind the current payoff because competing or unstable details still needed to wait.'
+    return 'payoff-required'
   if (input.failingDimensions.length > 0)
-    return `Failing dimensions: ${input.failingDimensions.join(', ')}.`
+    return input.failingDimensions.join(', ')
   return null
 }
 
@@ -273,7 +240,7 @@ export interface AlicizationMindReplayBenchmarkTurnDiagnosis {
   } | null
   replyMemoryCoherenceSummary: {
     coherenceState: string | null
-    whyWithheld: string | null
+    withheldReasons: string[]
     followUpSummary: string | null
     followUpPreferredTiming: string | null
     followUpIntrusionRisk: string | null
@@ -530,7 +497,9 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
           return null
         return {
           coherenceState: pickString(payload.coherenceState) || null,
-          whyWithheld: pickString(payload.whyWithheld) || null,
+          withheldReasons: Array.isArray(payload.withheldReasons)
+            ? payload.withheldReasons.map(item => pickString(item)).filter(Boolean)
+            : [],
           followUpSummary: pickString(payload.followUpSummary) || null,
           followUpPreferredTiming: pickString(payload.followUpPreferredTiming) || null,
           followUpIntrusionRisk: pickString(payload.followUpIntrusionRisk) || null,

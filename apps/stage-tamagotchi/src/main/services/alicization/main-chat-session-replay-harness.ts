@@ -2077,7 +2077,6 @@ function buildTraceDerivedHostPersonModel(input: {
   const rung = readString(input.activeClosenessRung, 64) || 'measured-room'
   const posture = readString(input.relationshipPosture, 64) || 'warm'
   const guidance = readString(input.openingGuidance, 220)
-    || readString(asObject(input.trace.memoryDeliberationJudged)?.whyWithheld, 220)
     || readString(asObject(input.trace.recallAttribution)?.whyNow, 220)
   if (!guidance && context === 'general' && posture === 'warm')
     return null
@@ -2280,8 +2279,8 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
   const followUpAffordanceSource = asObject(recall?.followUpAffordance) ?? followUpDeferred
   const followUpAffordance = followUpAffordanceSource
     ? {
-        summary: readString(followUpAffordanceSource.summary, 220) || 'Keep recollection behind the current payoff.',
-        whyNow: readString(followUpAffordanceSource.whyNow, 220) || readString(judged?.whyWithheld, 220) || readString(recall?.whyNow, 220),
+        summary: readString(followUpAffordanceSource.summary, 220) || stableCore[0] || '',
+        whyNow: readString(followUpAffordanceSource.whyNow, 220) || readString(recall?.whyNow, 220),
         intrusionRisk: normalizeIntrusionRisk(followUpAffordanceSource.intrusionRisk),
         payoffDependency: normalizePayoffDependency(followUpAffordanceSource.payoffDependency),
         preferredTiming: normalizePreferredTiming(followUpAffordanceSource.preferredTiming),
@@ -2358,7 +2357,7 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
               : 'tone-carry' as const,
           conflictPressure: 'high' as const,
           retrievalQuality: selectedEpisodes.length > 0 || selectedPeriodEntries.length > 0 || selectedProcedureEntries.length > 0 ? 'low' as const : 'insufficient' as const,
-          finalRationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || null,
+          finalRationale: readString(recall?.whyNow, 220) || null,
         } satisfies NonNullable<OrganicMemoryPromptContext['memoryResolutionLedger']>
         : null
     )
@@ -2366,7 +2365,6 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
   return {
     projectStatePreflightSummary: memoryClosureExecutionContext?.projectStatePreflightSummary ?? null,
     hostAttitude: readString(personState?.openingGuidance, 220)
-      || readString(judged?.whyWithheld, 220)
       || '',
     coreIncarnation: '',
     activeThoughts: [],
@@ -2383,7 +2381,7 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
         judged?.whyNow,
         recall?.whyNow,
       ], 4, 120),
-      rationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || readString(input.row.userText, 220),
+      rationale: readString(recall?.whyNow, 220) || readString(input.row.userText, 220),
       confidence: Number(readNumber(recall?.confidence, 0.76).toFixed(2)),
     },
     recollectionSpeechPlan: {
@@ -2400,7 +2398,7 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
               : 'inside-payoff',
       ),
       certainty,
-      rationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || readString(input.row.userText, 220),
+      rationale: readString(recall?.whyNow, 220) || readString(input.row.userText, 220),
       confidence: Number(readNumber(recall?.confidence, 0.76).toFixed(2)),
     },
     memoryDeliberation: {
@@ -2492,7 +2490,7 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
       surfacePolicy,
       confidence: Number(readNumber(recall?.confidence, 0.76).toFixed(2)),
       whyNow: readString(recall?.whyNow, 220) || readString(input.row.userText, 220),
-      inwardLine: readString(recall?.inwardLine, 220) || readString(judged?.whyWithheld, 220) || 'The remembered line is still active inwardly.',
+      inwardLine: readString(recall?.inwardLine, 220) || stableCore[0] || '',
       visibleLine: readString(recall?.visibleLine, 220) || null,
       followUpAffordance,
     },
@@ -2773,9 +2771,48 @@ export function evaluateReplayMemoryQuality(input: {
     || (deliberation?.selectedBundles ?? []).some((item: { procedureId?: string | null }) => Boolean(item.procedureId))
     || (deliberation?.selectedChains ?? []).some((item: { kind?: string | null }) => item.kind === 'task-procedure-relationship-stance')
     || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
+  const hasEraGroundedTypedEvidence = Boolean(
+    periodSummary
+    || bundle?.periodId
+    || chain?.periodSummary
+    || hasTextOverlap(bundle?.summary ?? '', eraSummary)
+    || hasTextOverlap(chain?.summary ?? '', eraSummary),
+  )
+  const hasTypedRecallEvidence = Boolean(
+    deliberation?.selectedEras.length
+    || selectedPeriods.length
+    || selectedEpisodes.length
+    || selectedProcedures.length
+    || selectedRelationshipLines.length
+    || deliberation?.selectedBundles.length
+    || deliberation?.selectedChains.length
+    || deliberation?.stableCore.length
+    || deliberation?.whyNow,
+  )
+  const speechMatchesOwnerSurfacePolicy = (() => {
+    if (!deliberation || !speechPlan)
+      return true
+    if (deliberation.surfacePolicy === 'internal-only') {
+      return speechPlan.shouldSurface === false
+        || speechPlan.placement === 'internal-only'
+        || speechPlan.surfaceMode === 'internal-only'
+    }
+    if (speechPlan.surfaceMode === deliberation.surfacePolicy)
+      return true
+    return deliberation.surfacePolicy === 'answer-anchoring'
+      && speechPlan.surfaceMode === 'procedural-carry'
+      && hasProcedureCarry
+  })()
   const hasConflict = (deliberation?.conflictSeverity ?? 'none') !== 'none'
   const hasUncertainProvenance = selectedEpisodes.some((item: { provenance?: string | null }) =>
     item.provenance === 'dreamt' || item.provenance === 'inferred' || item.provenance === 'reconstructed')
+  const hasTypedUncertaintyBoundary = Boolean(
+    resolutionLedger?.shouldLabelUncertainty
+    || resolutionLedger?.visibleCarryMode === 'withhold'
+    || speechPlan?.certainty === 'approximate'
+    || (deliberation?.ambiguityPosture && deliberation.ambiguityPosture !== 'settled')
+    || (deliberation?.unsafeDetails?.length ?? 0) > 0,
+  )
   const templateLeakDetected = draftedMemoryLines.some(line => (
     mustDo.some((item: string) => hasTemplatePhraseLeak(item, line))
     || governanceMustDo.some((item: string) => hasTemplatePhraseLeak(item, line))
@@ -2882,10 +2919,7 @@ export function evaluateReplayMemoryQuality(input: {
     userText: input.userText,
     eraFirst: !deliberation || deliberation.selectedEras.length === 0
       ? 'not-applicable'
-      : hasTextOverlap(governingFocus, eraSummary)
-        || hasTextOverlap(openingClaim, eraSummary)
-        || hasTextOverlap(selectedEvidence, eraSummary)
-        || hasTextOverlap(selectedEvidence, periodSummary)
+      : hasEraGroundedTypedEvidence
         ? 'pass'
         : 'fail',
     bundleCoherence: !bundle && !chain
@@ -2962,8 +2996,8 @@ export function evaluateReplayMemoryQuality(input: {
         : 'fail',
     replyMemoryCoherence: !deliberation
       ? 'not-applicable'
-      : runtimeSurface?.dialogue.dialogueActKernel?.sourceTrace?.includes('memory-deliberation')
-        && runtimeSurface?.dialogue.replyDeliberation?.whyThisReplyNow?.length
+      : hasTypedRecallEvidence
+        && speechMatchesOwnerSurfacePolicy
         ? 'pass'
         : 'fail',
     reconsolidationEffect: selectedEpisodes.some((item: { reconsolidatedFromTraceId?: string | null }) => item.reconsolidatedFromTraceId)
@@ -2972,10 +3006,7 @@ export function evaluateReplayMemoryQuality(input: {
       : 'not-applicable',
     uncertaintyDiscipline: !hasConflict && !hasUncertainProvenance
       ? 'not-applicable'
-      : resolutionLedger?.shouldLabelUncertainty === true
-        || resolutionLedger?.visibleCarryMode === 'withhold'
-        || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
-        || mustAvoid.some(item => item.includes('Do not state this remembered detail as settled fact'))
+      : hasTypedUncertaintyBoundary
         ? 'pass'
         : 'fail',
     implicitRecallQuality: !deliberation?.shouldRecall || explicitMemoryAsk

@@ -2041,7 +2041,7 @@ describe('alicization runtime project-state audit helpers', () => {
         kind: 'memory-deliberation-judged',
         payload: {
           shouldRecall: true,
-          whyWithheld: 'Only the stable remembered core should surface; unstable remembered detail stays inward.',
+          withheldReasons: ['unstable-detail', 'payoff-required'],
           restraint: {
             surfaceMode: 'stable-core-only',
             shouldOnlySurfaceStableCore: true,
@@ -2127,7 +2127,7 @@ describe('alicization runtime project-state audit helpers', () => {
           }),
         }),
         memoryDeliberationJudged: expect.objectContaining({
-          whyWithheld: expect.stringContaining('stable remembered core'),
+          withheldReasons: expect.arrayContaining(['unstable-detail']),
           restraint: expect.objectContaining({
             surfaceMode: 'stable-core-only',
             shouldOnlySurfaceStableCore: true,
@@ -10512,7 +10512,7 @@ describe('alicization runtime project-state audit helpers', () => {
           kind: 'memory-deliberation-judged',
           payload: {
             shouldRecall: true,
-            whyWithheld: null,
+            withheldReasons: [],
             ambiguityPosture: 'settled',
             conflictSeverity: 'none',
             restraint: {

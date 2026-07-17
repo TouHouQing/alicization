@@ -27,7 +27,7 @@ export interface AlicizationTruthDisciplineFlags {
   shouldOnlySurfaceMemoryStableCore: boolean
   shouldLabelMemoryProvenance: boolean
   shouldDelayMemoryUntilAfterPayoff: boolean
-  memoryWhyWithheld: string | null
+  memoryWithheldReasons: AlicizationMemoryRestraintJudge['withheldReasons']
   reasonTags: string[]
 }
 
@@ -114,7 +114,7 @@ export function deriveAlicizationTruthDiscipline(input: {
     | 'shouldLabelHypothesis'
     | 'shouldSuppressSpecificity'
     | 'shouldDelayUntilAfterPayoff'
-    | 'whyWithheld'
+    | 'withheldReasons'
   > | null
 }): AlicizationTruthDisciplineFlags {
   const mode = resolveMode({
@@ -166,7 +166,7 @@ export function deriveAlicizationTruthDiscipline(input: {
     shouldOnlySurfaceMemoryStableCore,
     shouldLabelMemoryProvenance,
     shouldDelayMemoryUntilAfterPayoff,
-    memoryWhyWithheld: memoryRestraint?.whyWithheld ?? null,
+    memoryWithheldReasons: memoryRestraint?.withheldReasons ?? [],
     reasonTags: uniqueTags([
       `mode:${mode}`,
       dialogueFirst ? 'dialogue-first-turn' : '',

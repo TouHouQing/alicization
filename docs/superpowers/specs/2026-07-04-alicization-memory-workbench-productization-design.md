@@ -28,7 +28,7 @@ Alicization 当前处于 Phase 1: Local Digital Life。记忆系统的目标不�
 - WorkingMemory 能产出长期记忆候选队列。
 - `working_memory_long_term_transactions` 已承接清洗、投影、应用状态。
 - LongTermMemoryRecall owner 已能生成 recall intent、query plan、evidence bundle。
-- 主对话链路已经能注入 `[ALICIZATION_RECALLED_MEMORY]` block。
+- 主对话链路已经能注入 `alicization-long-term-memory-recall` JSON fact。
 - Memory Workbench 已有设置页、Eventa 合同、renderer bridge、Pinia store、main invoke handler 和 DB facade。
 
 当前仍未产品化的缺口：

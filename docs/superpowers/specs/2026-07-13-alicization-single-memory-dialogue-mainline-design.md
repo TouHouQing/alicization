@@ -1,6 +1,6 @@
 # Alicization 记忆归属的单一对话主链路设计
 
-> 状态：设计方向已确认，等待用户审阅书面规范
+> 状态：现行边界。2026-07-16 已落实单一 Provider 主链路，并删除本地回复重写、普通 fallback authoring 与 dead renderer。
 > 日期：2026-07-13
 > 范围：删除普通对话的固定自然语言 system prompt、固定回复模板、固定回复治理和 fast-path，让所有正常回复统一由 Provider 基于动态人格、短期记忆、长期记忆和工具事实生成。
 > 主要落点：`apps/stage-tamagotchi` 桌面主对话运行时、`packages/stage-shared` 的对话协议与失败面、`packages/stage-ui` 的 renderer 对话入口。
@@ -19,7 +19,7 @@ Alicization 已经具备可用的记忆骨架：
 - 固定自然语言 system instruction 会在动态人格和记忆之外再次规定她应该怎样说话。
 - greeting、identity、utility、tool result 等 fast-path 可以绕过统一 Provider 主链路。
 - 本地 fallback、repair 和 renderer composer 会在 Provider 回复之外生成普通用户可见台词。
-- second-pass rewrite 会用固定自然语言规则重新塑造回复，并可能丢失短期或长期记忆证据。
+- Provider 候选失败后仍存在本地重写思路，会再次塑造回复并可能丢失短期或长期记忆证据。
 - compact timeout recovery 会尝试恢复一段像正常人格表达的回复，而不是直接暴露基础设施失败。
 
 这些路径让用户无法判断一句话究竟来自人格与记忆，还是来自预制模板。它们也会让失败文本、工程态口号和修复台词污染长期记忆与人格学习。
@@ -57,7 +57,7 @@ Alicization 已经具备可用的记忆骨架：
 - 要求回复体现 `same-her`、Phase 1、continuity、project-state 等工程口号的自然语言规则。
 - greeting、identity、date/time、utility、tool-success 的本地 deterministic 普通回复。
 - Provider 失败后伪装成正常人格表达的 fallback。
-- second-pass 中用于重写人格、情绪、记忆、连续性或项目状态的固定自然语言指导。
+- Provider 候选失败后用于重写人格、情绪、记忆、连续性或项目状态的任何本地指导。
 - renderer 侧用于补写、重试、修补或替换普通回复的固定自然语言文本。
 - 测试中要求普通回复包含指定人格台词、指定工程口号或指定句式的断言。
 
@@ -93,8 +93,7 @@ flowchart TD
   Envelope --> Provider["Provider + 原生 JSON Schema"]
   Provider --> Validate["Schema 校验与污染检测"]
   Validate -->|有效| Settle["visible-reply settlement"]
-  Validate -->|可重试的结构错误| SecondPass["结构化 second-pass"]
-  SecondPass --> Provider
+  Validate -->|无效| Failure
   Settle --> Visible["用户可见回复"]
   Settle --> WriteBack["对话、WorkingMemory 与长期候选写回"]
   Provider -->|超时或 Provider 失败| Failure["透明 FailureSurface"]
@@ -131,7 +130,7 @@ flowchart TD
 - 当前情绪残留和关系姿态。
 - 当前 turn 的长期记忆候选队列。
 
-主链路必须在调用 Provider 前读取本 turn 的 WorkingMemory snapshot，并在 settlement 后用真实结果更新它。second-pass 不得重新创建另一份短期记忆摘要，也不得只截取最近几条消息而丢弃 owner block。
+主链路必须在调用 Provider 前读取本 turn 的 WorkingMemory snapshot，并在 settlement 后用真实结果更新它。任何失败处理都不得重新创建另一份短期记忆摘要，也不得只截取最近几条消息而丢弃 owner block。
 
 ### LongTermMemoryRecall
 
@@ -142,7 +141,7 @@ flowchart TD
 - keyword、FTS、semantic/vector 和 episodic 检索计划。
 - 证据选择、排序理由、可见策略和风险标记。
 
-主对话运行时只能消费其结构化召回结果，不能在 fast-path、second-pass 或 renderer 中另做一套长期搜索。
+主对话运行时只能消费其结构化召回结果，不能在 fast-path、失败处理或 renderer 中另做一套长期搜索。
 
 待审核候选不是已确认长期记忆，不得进入正常召回证据。tombstone、inward-only、no-training 和敏感度策略继续在长期记忆 owner 边界执行。
 
@@ -238,7 +237,7 @@ Provider 请求应优先使用其原生 structured output 或 response format �
 
 如果 `main-chat-active-dialogue-loop.ts` 中仍有执行回调共享能力，应先将最小、无台词的 typed builder 和类型迁到独立模块，再删除 fast-path 文件。迁出的模块不得保留普通回复生成能力。
 
-## Settlement、检测与 second-pass
+## Settlement、检测与协议失败
 
 ### Settlement
 
@@ -282,29 +281,20 @@ detector/sanitizer 不可以：
 - 用固定人格话术“修好”Provider 回复。
 - 为了连续性强行插入记忆、身份或关系表述。
 
-### Second-pass
+### 结构、来源与污染失败
 
-只有可恢复的 Provider 输出结构问题可以触发 second-pass，例如：
+以下任一情况都必须阻止 Provider 候选成为普通用户可见回复：
 
 - `schema_parse_failed`
 - `required_field_missing`
 - `internal_protocol_leak`
 - `legacy_template_contamination`
 - `tool_result_not_settled`
+- `memory_usage_claim_invalid`
 
-second-pass 输入只包含：
+失败处理只记录 typed reason code、原始候选摘要、WorkingMemory/LongTermMemoryRecall 证据引用和真实工具事实，不再次请求模型重写，也不调用本地 renderer 补写。
 
-- 当前用户原文。
-- 第一轮 Provider 候选输出。
-- typed reason code。
-- 原始 WorkingMemory owner block。
-- 原始 LongTermMemoryRecall 证据 block。
-- 原始动态身份、关系、情绪和工具事实。
-- 同一份 Provider 原生 JSON Schema。
-
-second-pass 不得包含固定自然语言 rewrite 指令。它也不得只保留最近四条消息或构建另一份压缩摘要。
-
-second-pass 最多执行一次。再次失败时直接进入透明协议失败面，不允许本地补写普通回复。
+该 turn 直接进入 `structured-contract` 或更具体的 FailureSurface。原始候选保持 provisional/blocked，不进入对话正文、WorkingMemory 正常 assistant turn、长期凝练或 persona learning。
 
 ## 透明失败面
 
@@ -315,7 +305,7 @@ second-pass 最多执行一次。再次失败时直接进入透明协议失败�
 - 对话 Provider 超时。
 - 对话 Provider HTTP、鉴权、配额或模型错误。
 - Provider 不支持 Schema。
-- Provider 返回无法解析或 second-pass 再次失败。
+- Provider 返回无法解析、缺少必填字段或污染检测失败。
 - 工具执行失败。
 - 工具超时。
 - 权限被拒绝或危险操作等待确认。
@@ -390,7 +380,7 @@ renderer 不得：
 4. 将结构化输出约束收敛为 Provider 原生 JSON Schema。
 5. 删除 `alicization-prompting.ts`、runtime prompt composer、guardrails 和 chat store 中的固定自然语言 system instruction。
 6. 删除共享层、main process 和 renderer 中的本地普通回复 fallback/repair。
-7. 将 second-pass 改为 typed reason code、动态证据和同一 Schema，并保证 WorkingMemory/LongTermMemoryRecall 不丢失。
+7. 删除本地回复重写链路；结构、来源或污染失败直接记录 typed reason code 并进入 FailureSurface。
 8. 保留并强化透明 FailureSurface、失败分类和训练排除。
 9. 更新旧测试，从精确台词断言改为数据来源、owner、Schema、失败透明和无本地回复权威的行为断言。
 
@@ -407,7 +397,7 @@ renderer 不得：
 - greeting、identity、utility、tool-success 本地回复生成器。
 - ordinary fast-path 分支。
 - compact timeout 人格恢复分支。
-- second-pass 固定 rewrite 指导。
+- Provider 失败后的本地重写、重试或 renderer 补写指导。
 - renderer 本地普通回复 fallback。
 
 检测器文件可以在明确 allowlist 中保留旧污染字符串，但其导出 API 必须只有检测、删除、拒绝和 reason code。
@@ -427,14 +417,14 @@ renderer 不得：
 - 待审核长期候选不进入召回。
 - tombstone/no-training/inward-only 策略仍生效。
 
-### second-pass 测试
+### 协议失败测试
 
 至少覆盖：
 
-- 第一轮 Schema 失败后只携带 typed reason code、动态事实、完整记忆 owner blocks 和同一 Schema。
-- second-pass 不包含固定自然语言 rewrite 指令。
-- second-pass 仍能看到原始 WorkingMemory 和 LongTermMemoryRecall。
-- second-pass 再次失败后显示透明协议错误，不生成本地普通回复。
+- Schema、来源或 memory usage claim 失败后不再发起回复重写请求。
+- 原始 Provider 候选保持 blocked，不生成普通可见 artifact。
+- FailureSurface 保留 typed reason code 与 WorkingMemory/LongTermMemoryRecall 证据引用。
+- renderer 不生成本地普通回复。
 
 ### 失败面测试
 
@@ -482,7 +472,7 @@ renderer 不得：
 8. 每个正常 turn 都能追踪 WorkingMemory 是否参与。
 9. 需要长期回想的 turn 能追踪 LongTermMemoryRecall 证据、排序理由和风险标记。
 10. Provider 声明的 memory usage 只能引用本 turn 实际提供的 owner 证据。
-11. second-pass 保留完整短期和长期记忆输入，且不含固定 rewrite 指导。
+11. 结构、来源或污染失败不触发任何本地或 Provider 回复重写，并保留完整审计证据。
 12. timeout、Provider、工具、权限和协议失败只显示透明失败面或授权状态。
 13. 失败 turn、raw transcript、待审核候选和模板污染不能进入 persona learning。
 14. renderer、浏览器和其他 surface 不存在第二套本地普通回复权威。

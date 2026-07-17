@@ -17,13 +17,13 @@ This matrix now records governance boundaries, not fixed dialogue wording.
 - Placeholder project-state tokens.
 - Claims that memory closure is complete without runtime evidence.
 
-## Proof Anchors
+## Behavior Anchors
 
-- `project-state-brief.test.ts`: shared pre-dialogue awareness/closure structures keep explicit `initiative_gap=` carry inside `reasonPreview` / `reasons`.
-- `same-living-self-host-visible-inward-carry-bridge-audit.test.ts`: host-visible inward-carry audit keeps diagnostic boundaries traceable without moving cue text into visible replies.
-- `reopen-persistence-project-awareness-audit.test.ts`: restored-session and browser-local recovery remain covered by route-level proof.
-- `quick-reply-project-awareness-audit.test.ts`: quick-reply visible surfaces now hide fixed templates and internal diagnostic fields.
-- The old project-brief proof surface has been removed.
+- `execution-runtime-context.test.ts`: execution context is serialized as typed facts with transparent failure semantics.
+- `memory-workbench-dialogue-loop.test.ts`: the visible memory workbench remains an aggregate entry rather than a memory owner.
+- `long-term-memory-recall.test.ts`: long-term recall keeps evidence and retrieval behavior in its owning subsystem.
+- `main-chat-timeout-fallback.test.ts`: timeout failures remain explicit instead of becoming a persona reply.
+- Source-snippet proof tests have been removed.
 
 ## Next Audit Pass
 

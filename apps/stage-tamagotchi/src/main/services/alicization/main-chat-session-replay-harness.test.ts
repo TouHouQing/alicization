@@ -1328,11 +1328,13 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
       ],
     })
 
-    expect(turns[0]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).not.toBe(
-      turns[1]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent,
+    expect(turns[0]?.runtimeSurface.digitalLifeRuntimeSurface?.memory.memoryDeliberation?.selectedBundles).not.toEqual(
+      turns[1]?.runtimeSurface.digitalLifeRuntimeSurface?.memory.memoryDeliberation?.selectedBundles,
     )
-    expect(turns[0]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.memoryMode).toBe('task-thread')
-    expect(turns[1]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.memoryMode).toBe('dialogue-carry')
+    expect(turns[0]?.runtimeSurface.digitalLifeRuntimeSurface?.memory.memoryDeliberation?.selectedProcedures).toHaveLength(1)
+    expect(turns[1]?.runtimeSurface.digitalLifeRuntimeSurface?.memory.memoryDeliberation?.selectedRelationshipLines).toContain(
+      'Back off first, then reopen with a lighter touch.',
+    )
   })
 
   it('keeps provider-available remembered turns on the mind-driven LLM path instead of a deterministic fallback reply', async () => {
@@ -2877,7 +2879,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           },
           memoryDeliberationJudged: {
             shouldRecall: true,
-            whyWithheld: 'Only the stable remembered core should surface; unstable remembered detail stays inward.',
+            withheldReasons: ['unstable-detail', 'payoff-required'],
             ambiguityPosture: 'ambiguous',
             conflictSeverity: 'high',
             restraint: {
@@ -3161,7 +3163,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           },
           memoryDeliberationJudged: {
             shouldRecall: true,
-            whyWithheld: null,
+            withheldReasons: [],
             ambiguityPosture: 'settled',
             conflictSeverity: 'none',
             restraint: {
@@ -3220,7 +3222,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           },
           memoryDeliberationJudged: {
             shouldRecall: true,
-            whyWithheld: 'The recollection should contour the answer from the inside instead of becoming visible.',
+            withheldReasons: ['owner-inward-policy'],
             ambiguityPosture: 'approximate',
             conflictSeverity: 'medium',
             restraint: {
@@ -3476,7 +3478,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           },
           memoryDeliberationJudged: {
             shouldRecall: true,
-            whyWithheld: 'newest thin memory context should not erase sibling full closure proof',
+            withheldReasons: ['retrieval-insufficient'],
           },
         } as any,
         {
@@ -3989,7 +3991,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           },
           memoryDeliberationJudged: {
             shouldRecall: true,
-            whyWithheld: null,
+            withheldReasons: [],
             ambiguityPosture: 'settled',
             conflictSeverity: 'none',
             restraint: {
@@ -4123,7 +4125,7 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
           },
           memoryDeliberationJudged: {
             shouldRecall: true,
-            whyWithheld: null,
+            withheldReasons: [],
             ambiguityPosture: 'settled',
             conflictSeverity: 'none',
             restraint: {

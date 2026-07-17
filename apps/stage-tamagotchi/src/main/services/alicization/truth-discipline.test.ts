@@ -71,7 +71,7 @@ describe('truth-discipline', () => {
         shouldLabelHypothesis: true,
         shouldSuppressSpecificity: true,
         shouldDelayUntilAfterPayoff: true,
-        whyWithheld: 'The recollection should not outrun the live payoff.',
+        withheldReasons: ['owner-inward-policy', 'payoff-required'],
       },
     })
 
@@ -85,7 +85,10 @@ describe('truth-discipline', () => {
     expect(flags.shouldLabelHypothesis).toBe(true)
     expect(flags.forbidUnsupportedSpecificity).toBe(true)
     expect(flags.shouldSuppressAssociativeRecall).toBe(true)
-    expect(flags.memoryWhyWithheld).toContain('live payoff')
+    expect(flags.memoryWithheldReasons).toEqual([
+      'owner-inward-policy',
+      'payoff-required',
+    ])
     expect(flags.reasonTags).toEqual(expect.arrayContaining([
       'memory-surface:inward-only',
       'memory-provenance:reconstructed-memory',

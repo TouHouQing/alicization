@@ -374,9 +374,9 @@ git commit -m "feat(alicization): add working memory core types"
 Create `apps/stage-tamagotchi/src/main/services/alicization/life-core/working-memory-policy.test.ts`:
 
 ```ts
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryTurn } from './working-memory'
+
+import { describe, expect, it } from 'vitest'
 
 import {
   createLongTermCandidatesFromWorkingTurns,
@@ -428,7 +428,7 @@ describe('working memory policy', () => {
       turn({
         turnId: 'turn-fallback',
         role: 'alice',
-        text: '我在。同一条本地数字生命的线还在。',
+        text: '我在。结构化连续性状态的线还在。',
       }),
     ])
 
@@ -469,7 +469,7 @@ import {
 
 const correctionPattern = /不是这个|不想要|不要固定|固定模板|我需要|你搞错|你错了|别这样|不要这样/u
 const commitmentPattern = /我会|我先|我已经|接下来|继续|开始|完成|修复|提交|commit|push|编译/u
-const fallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
+const fallbackTemplatePattern = /我在。结构化连续性状态的线还在|结构化连续性状态的线还在|中性可见占位|中性可见占位/u
 
 export function shouldExcludeTurnFromLongTermCandidate(turn: WorkingMemoryTurn) {
   if (turn.failureKind)
@@ -665,8 +665,8 @@ import type {
   AlicizationDialogueWorldThreadSnapshot,
 } from '../../../../shared/eventa'
 import type {
-  WorkingMemoryQuestion,
   WorkingMemoryFailureKind,
+  WorkingMemoryQuestion,
   WorkingMemorySnapshot,
   WorkingMemoryTurn,
 } from './working-memory'
@@ -701,7 +701,7 @@ export interface BuildWorkingMemorySnapshotInput {
 function detectCorrectionScope(text: string) {
   if (/人格|固定回复|固定模板|数字生命|persona|same-her/iu.test(text))
     return 'persona' as const
-  if (/记忆|回想|长期|短期/iu.test(text))
+  if (/记忆|回想|长期|短期/u.test(text))
     return 'memory' as const
   if (/任务|执行|工具|commit|push|编译/iu.test(text))
     return 'task' as const
@@ -1471,7 +1471,7 @@ In `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtim
 ```ts
 function readWorkingMemoryRecentTurnsFromContextualString(contextualString: string) {
   const chunks = contextualString
-    .split(/\n\n+/u)
+    .split(/\n{2,}/u)
     .map(chunk => chunk.trim())
     .filter(Boolean)
 
@@ -1493,49 +1493,49 @@ function readWorkingMemoryRecentTurnsFromContextualString(contextualString: stri
 In `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`, find this block:
 
 ```ts
-    messages = injectProviderFacingMindTurnContractSystemMessage({
-      contract: finalizedReturnedMindTurnContract,
-      messages: runtimeSurface.messages,
-    })
-    if (!carriesAlicizationCanonicalProjectState(messages)) {
-      messages = [
-        ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
-        ...messages,
-      ]
-    }
-    runtimeSurface.messages = messages
+messages = injectProviderFacingMindTurnContractSystemMessage({
+  contract: finalizedReturnedMindTurnContract,
+  messages: runtimeSurface.messages,
+})
+if (!carriesAlicizationCanonicalProjectState(messages)) {
+  messages = [
+    ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
+    ...messages,
+  ]
+}
+runtimeSurface.messages = messages
 ```
 
 Replace it with:
 
 ```ts
-    messages = injectProviderFacingMindTurnContractSystemMessage({
-      contract: finalizedReturnedMindTurnContract,
-      messages: runtimeSurface.messages,
-    })
-    if (!carriesAlicizationCanonicalProjectState(messages)) {
-      messages = [
-        ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
-        ...messages,
-      ]
-    }
+messages = injectProviderFacingMindTurnContractSystemMessage({
+  contract: finalizedReturnedMindTurnContract,
+  messages: runtimeSurface.messages,
+})
+if (!carriesAlicizationCanonicalProjectState(messages)) {
+  messages = [
+    ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
+    ...messages,
+  ]
+}
 
-    const workingMemorySnapshot = buildWorkingMemorySnapshot({
-      cardId: payload.cardId,
-      sessionId: agentTurn.conversationSessionId ?? payload.cardId,
-      now,
-      currentUserText: readLatestUserTextFromMessages(payload.messages),
-      recentTurns: readWorkingMemoryRecentTurnsFromContextualString(contextualString),
-      conversationState: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.conversationState ?? null,
-      dialogueWorldThread: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.dialogueWorldThread ?? null,
-      currentConsciousFrame: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null,
-      executionCarry: executionCallbackContext.recallText || executionLedgerContext.recallText || null,
-    })
-    const workingMemorySystemBlock = buildWorkingMemorySystemBlock(
-      buildWorkingMemoryPromptView(workingMemorySnapshot),
-    )
-    messages = injectWorkingMemorySystemBlock(messages, workingMemorySystemBlock)
-    runtimeSurface.messages = messages
+const workingMemorySnapshot = buildWorkingMemorySnapshot({
+  cardId: payload.cardId,
+  sessionId: agentTurn.conversationSessionId ?? payload.cardId,
+  now,
+  currentUserText: readLatestUserTextFromMessages(payload.messages),
+  recentTurns: readWorkingMemoryRecentTurnsFromContextualString(contextualString),
+  conversationState: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.conversationState ?? null,
+  dialogueWorldThread: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.dialogueWorldThread ?? null,
+  currentConsciousFrame: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null,
+  executionCarry: executionCallbackContext.recallText || executionLedgerContext.recallText || null,
+})
+const workingMemorySystemBlock = buildWorkingMemorySystemBlock(
+  buildWorkingMemoryPromptView(workingMemorySnapshot),
+)
+messages = injectWorkingMemorySystemBlock(messages, workingMemorySystemBlock)
+runtimeSurface.messages = messages
 ```
 
 Add this helper near `readWorkingMemoryRecentTurnsFromContextualString`:
@@ -1615,7 +1615,7 @@ Expected: PASS, unless the known MediaPipe asset postinstall failure blocks the 
 - [ ] Confirm there is no fallback/persona contamination in the new tests:
 
 ```bash
-rg -n "我在。同一条本地数字生命的线还在|我先轻一点留在这里" apps/stage-tamagotchi/src/main/services/alicization/life-core
+rg -n "我在。结构化连续性状态的线还在|中性可见占位" apps/stage-tamagotchi/src/main/services/alicization/life-core
 ```
 
 Expected: only the policy test fixture should match.

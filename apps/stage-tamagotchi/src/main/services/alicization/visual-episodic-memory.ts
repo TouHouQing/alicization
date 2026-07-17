@@ -1782,18 +1782,6 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
     nextMove: sanitizeText(candidate.nextMove, 180) || null,
     suppressAssociativeRecall: candidate.suppressAssociativeRecall === true,
     labelCarryAsMemory: candidate.labelCarryAsMemory === true,
-    memoryShouldStayInward: typeof candidate.memoryShouldStayInward === 'boolean'
-      ? candidate.memoryShouldStayInward
-      : null,
-    memoryWhyNow: sanitizeText(candidate.memoryWhyNow, 220) || null,
-    memoryWhyWithheld: sanitizeText(candidate.memoryWhyWithheld, 220) || null,
-    memoryFollowUpAffordanceSummary: sanitizeText(candidate.memoryFollowUpAffordanceSummary, 220) || null,
-    memoryStableCore: Array.isArray(candidate.memoryStableCore)
-      ? candidate.memoryStableCore.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 6)
-      : null,
-    memoryUnsafeDetails: Array.isArray(candidate.memoryUnsafeDetails)
-      ? candidate.memoryUnsafeDetails.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 6)
-      : null,
     maxSentences: Number.isFinite(Number(candidate.maxSentences))
       ? Math.max(1, Math.floor(Number(candidate.maxSentences)))
       : 4,

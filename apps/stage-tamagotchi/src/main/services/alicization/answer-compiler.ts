@@ -19,25 +19,19 @@ import type { AlicizationPersonaKernelMode } from './dialogue-obligation'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
-import type { OrganicMemoryProjectStateContinuitySnapshot } from './runtime-soul'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 import {
   buildAlicizationScreenSurfaceCue,
   readActiveContinuityGovernanceFromDerivedMindStateBundle,
   readHostPersonModelFromDerivedMindStateBundle,
-  readKnowledgeEvidenceFromDerivedMindStateBundle,
   readLearningExecutionStateFromDerivedMindStateBundle,
-  readMemoryDeliberationFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
-  readRecollectionIntentFromDerivedMindStateBundle,
-  readRecollectionSpeechPlanFromDerivedMindStateBundle,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
-import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { deriveMindTruthContract } from './mind-truth-contract'
 import {
@@ -224,15 +218,6 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
-function pinPriorityConstraint(list: string[], constraint: string | null | undefined, maxItems = 8) {
-  const normalized = typeof constraint === 'string' ? constraint.trim() : ''
-  if (!normalized)
-    return list
-
-  const filtered = list.filter(existing => !normalized.startsWith(existing) && !existing.startsWith(normalized))
-  return [normalized, ...filtered].slice(0, maxItems)
-}
-
 function preferProjectStateClosureCarryText(input: {
   current?: unknown
   candidate?: unknown
@@ -403,167 +388,6 @@ function readVisibleReplyProjectStateAudit(runtimeSurface?: AlicizationDigitalLi
       } | null
     } | null
   } | null)?.visibleReplyRealization?.projectStateAudit ?? null
-}
-
-function resolveAnswerCompilerProjectStateContinuity(
-  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null,
-): OrganicMemoryProjectStateContinuitySnapshot | null {
-  if (!runtimeSurface)
-    return null
-
-  const currentProjectState = runtimeSurface.dialogue?.currentConsciousFrame?.projectState as Record<string, unknown> | null | undefined
-  const runtimeDigestProjectState = readRuntimeDigestProjectState(runtimeSurface)
-  const runtimeProjectStateAudit = buildProjectStateAwarenessSummary(readVisibleReplyProjectStateAudit(runtimeSurface))
-  const hasExplicitRuntimeProjectStateSignal = [
-    currentProjectState?.identity,
-    currentProjectState?.currentPhase,
-    currentProjectState?.preflightSummary,
-    currentProjectState?.preDialogueAwarenessLine,
-    currentProjectState?.awarenessLine,
-    currentProjectState?.landedProgressSummary,
-    currentProjectState?.latestLandedProgress,
-    currentProjectState?.latestProgress,
-    currentProjectState?.openClosureSummary,
-    currentProjectState?.primaryOpenLoop,
-    currentProjectState?.proactiveSameHerGap,
-    currentProjectState?.nextClosureTarget,
-    currentProjectState?.emotionalClosureCue,
-    currentProjectState?.sameHerSummary,
-    currentProjectState?.sameHerSelfLine,
-    currentProjectState?.sameHerHoldDetail,
-    currentProjectState?.sameHerDriftRisk,
-    runtimeDigestProjectState?.identity,
-    runtimeDigestProjectState?.currentPhase,
-    runtimeDigestProjectState?.preflightSummary,
-    runtimeDigestProjectState?.preDialogueAwarenessLine,
-    runtimeDigestProjectState?.awarenessLine,
-    runtimeDigestProjectState?.latestLandedProgress,
-    runtimeDigestProjectState?.latestProgress,
-    runtimeDigestProjectState?.landedProgressSummary,
-    runtimeDigestProjectState?.primaryOpenLoop,
-    runtimeDigestProjectState?.openClosureSummary,
-    runtimeDigestProjectState?.proactiveSameHerGap,
-    runtimeDigestProjectState?.proactiveSameHerGapSummary,
-    runtimeDigestProjectState?.nextClosureTarget,
-    runtimeDigestProjectState?.nextClosureTargetSummary,
-    runtimeDigestProjectState?.emotionalClosureCue,
-    runtimeDigestProjectState?.emotionalClosureSummary,
-    runtimeDigestProjectState?.sameHerSummary,
-    runtimeDigestProjectState?.sameHerSelfLine,
-    runtimeDigestProjectState?.sameHerHoldDetail,
-    runtimeDigestProjectState?.sameHerDriftRisk,
-    runtimeDigestProjectState?.sameHerDriftRiskSummary,
-    runtimeProjectStateAudit.preDialogueAwarenessSummary,
-    runtimeProjectStateAudit.landedProgressSummary,
-    runtimeProjectStateAudit.openClosureSummary,
-    runtimeProjectStateAudit.nextClosureTarget,
-    runtimeProjectStateAudit.emotionalClosureSummary,
-    runtimeProjectStateAudit.sameHerHoldDetail,
-    runtimeProjectStateAudit.sameHerDriftRiskSummary,
-    runtimeProjectStateAudit.proactiveSameHerGapSummary,
-  ].some(value => sanitizeDialogueSurfaceText(value, 320))
-  if (!hasExplicitRuntimeProjectStateSignal)
-    return null
-
-  const normalizedProjectState = resolveAlicizationProjectStateSnapshot({
-    runtimeProjectState: {
-      identity: currentProjectState?.identity ?? runtimeDigestProjectState?.identity,
-      currentPhase: currentProjectState?.currentPhase ?? runtimeDigestProjectState?.currentPhase,
-      preflightSummary: currentProjectState?.preflightSummary ?? runtimeDigestProjectState?.preflightSummary,
-      preDialogueAwarenessLine:
-        currentProjectState?.preDialogueAwarenessLine
-        ?? currentProjectState?.awarenessLine
-        ?? runtimeDigestProjectState?.preDialogueAwarenessLine
-        ?? runtimeDigestProjectState?.awarenessLine,
-      awarenessLine:
-        currentProjectState?.awarenessLine
-        ?? currentProjectState?.preDialogueAwarenessLine
-        ?? runtimeDigestProjectState?.awarenessLine
-        ?? runtimeDigestProjectState?.preDialogueAwarenessLine,
-      companionHeadlineLine: currentProjectState?.companionHeadlineLine ?? runtimeDigestProjectState?.companionHeadlineLine,
-      companionBriefingLine: currentProjectState?.companionBriefingLine ?? runtimeDigestProjectState?.companionBriefingLine,
-      preDialogueAwarenessSummary: runtimeProjectStateAudit.preDialogueAwarenessSummary,
-      latestLandedProgress:
-        runtimeProjectStateAudit.landedProgressSummary
-        ?? currentProjectState?.latestLandedProgress
-        ?? currentProjectState?.latestProgress
-        ?? currentProjectState?.landedProgressSummary
-        ?? runtimeDigestProjectState?.latestLandedProgress
-        ?? runtimeDigestProjectState?.latestProgress
-        ?? runtimeDigestProjectState?.landedProgressSummary,
-      latestProgress:
-        currentProjectState?.latestProgress
-        ?? currentProjectState?.latestLandedProgress
-        ?? currentProjectState?.landedProgressSummary
-        ?? runtimeDigestProjectState?.latestProgress
-        ?? runtimeDigestProjectState?.latestLandedProgress
-        ?? runtimeDigestProjectState?.landedProgressSummary,
-      primaryOpenLoop:
-        runtimeProjectStateAudit.openClosureSummary
-        ?? currentProjectState?.primaryOpenLoop
-        ?? currentProjectState?.openClosureSummary
-        ?? runtimeDigestProjectState?.primaryOpenLoop
-        ?? runtimeDigestProjectState?.openClosureSummary,
-      proactiveSameHerGap:
-        runtimeProjectStateAudit.proactiveSameHerGapSummary
-        ?? currentProjectState?.proactiveSameHerGap
-        ?? currentProjectState?.proactiveSameHerGapSummary
-        ?? runtimeDigestProjectState?.proactiveSameHerGap
-        ?? runtimeDigestProjectState?.proactiveSameHerGapSummary,
-      nextClosureTarget:
-        runtimeProjectStateAudit.nextClosureTarget
-        ?? currentProjectState?.nextClosureTarget
-        ?? currentProjectState?.nextClosureTargetSummary
-        ?? runtimeDigestProjectState?.nextClosureTarget
-        ?? runtimeDigestProjectState?.nextClosureTargetSummary,
-      sameHerSelfLine:
-        currentProjectState?.sameHerSelfLine
-        ?? currentProjectState?.sameHerSummary
-        ?? runtimeDigestProjectState?.sameHerSelfLine
-        ?? runtimeDigestProjectState?.sameHerSummary,
-      sameHerHoldDetail:
-        runtimeProjectStateAudit.sameHerHoldDetail
-        ?? currentProjectState?.sameHerHoldDetail
-        ?? runtimeDigestProjectState?.sameHerHoldDetail,
-      sameHerDriftRisk:
-        runtimeProjectStateAudit.sameHerDriftRiskSummary
-        ?? currentProjectState?.sameHerDriftRisk
-        ?? currentProjectState?.sameHerDriftRiskSummary
-        ?? runtimeDigestProjectState?.sameHerDriftRisk
-        ?? runtimeDigestProjectState?.sameHerDriftRiskSummary,
-      emotionalClosureCue:
-        runtimeProjectStateAudit.emotionalClosureSummary
-        ?? currentProjectState?.emotionalClosureCue
-        ?? currentProjectState?.emotionalClosureSummary
-        ?? runtimeDigestProjectState?.emotionalClosureCue
-        ?? runtimeDigestProjectState?.emotionalClosureSummary,
-      continuityCue: currentProjectState?.continuityCue ?? runtimeDigestProjectState?.continuityCue,
-      continuityArcStage: currentProjectState?.continuityArcStage ?? runtimeDigestProjectState?.continuityArcStage,
-    },
-  })
-  const sameHerSelfLine = sanitizeDialogueSurfaceText(normalizedProjectState.sameHerSelfLine, 220) || null
-  const continuity: OrganicMemoryProjectStateContinuitySnapshot = {
-    identity: sanitizeDialogueSurfaceText(normalizedProjectState.identity, 220) || null,
-    currentPhase: sanitizeDialogueSurfaceText(normalizedProjectState.currentPhase, 160) || null,
-    sameHerSummary: sameHerSelfLine,
-    landedProgressSummary:
-      sanitizeDialogueSurfaceText(normalizedProjectState.latestLandedProgress ?? normalizedProjectState.latestProgress, 220)
-      || null,
-    openClosureSummary: sanitizeDialogueSurfaceText(normalizedProjectState.primaryOpenLoop, 220) || null,
-    proactiveSameHerGap: sanitizeDialogueSurfaceText(normalizedProjectState.proactiveSameHerGap, 220) || null,
-    nextClosureTarget: sanitizeDialogueSurfaceText(normalizedProjectState.nextClosureTarget, 220) || null,
-    preDialogueAwarenessLine:
-      sanitizeDialogueSurfaceText(normalizedProjectState.preDialogueAwarenessLine ?? normalizedProjectState.awarenessLine, 320)
-      || null,
-    emotionalClosureCue:
-      sanitizeDialogueSurfaceText(normalizedProjectState.emotionalClosureCue ?? normalizedProjectState.emotionalClosureSummary, 220)
-      || null,
-    sameHerSelfLine,
-    sameHerHoldDetail: sanitizeDialogueSurfaceText(normalizedProjectState.sameHerHoldDetail, 220) || null,
-    sameHerDriftRisk: sanitizeDialogueSurfaceText(normalizedProjectState.sameHerDriftRisk, 220) || null,
-  }
-
-  return Object.values(continuity).some(Boolean) ? continuity : null
 }
 
 function resolveProjectPreDialogueAwarenessLine(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
@@ -1617,23 +1441,6 @@ export function buildAnswerCompiler(input: {
   const selfEvolution = ((derivedBundle as { selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null } | null)?.selfEvolution)
     ?? runtimeSurface?.memory.selfEvolution
     ?? null
-  const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
-    deliberation: readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)
-      ?? runtimeSurface?.memory.memoryDeliberation
-      ?? null,
-    speech: readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)
-      ?? runtimeSurface?.memory.recollectionSpeechPlan
-      ?? null,
-    recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle<any>(derivedBundle)
-      ?? null,
-    knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(derivedBundle)
-      ?? runtimeSurface?.memory.knowledgeEvidence
-      ?? null,
-    hostPersonModel: readHostPersonModelFromDerivedMindStateBundle(derivedBundle)
-      ?? runtimeSurface?.memory.hostPersonModel
-      ?? null,
-    projectStateContinuity: resolveAnswerCompilerProjectStateContinuity(runtimeSurface),
-  })
   const personalityContinuityState = explicitPersonalityContinuityState
     ?? personStateProjection?.personalityContinuityState
     ?? buildAlicizationPersonalityContinuityState({
@@ -1929,7 +1736,7 @@ export function buildAnswerCompiler(input: {
     ? 'Avoid warmth callbacks, enthusiasm, or remembered closeness that would crowd the available room.'
     : null
 
-  let mustDo = uniqueList([
+  const mustDo = uniqueList([
     'Prioritize the compiled answer spine; lower routine persona moves, residue, and decorative helpfulness.',
     sameHerAntiShellAnswerConstraint?.mustDo ?? null,
     effectiveOpeningDirective,
@@ -1995,14 +1802,9 @@ export function buildAnswerCompiler(input: {
     callbackClosureCarryDisciplineRequired
       ? 'Keep callback context visible and avoid detached tool notification.'
       : null,
-    memoryDeliberationKernel?.surfacePolicy === 'procedural-carry'
-      ? 'Label procedural carry as a remembered prior procedure.'
-      : null,
   ], 10)
-  for (const constraint of [...(memoryDeliberationKernel?.restraint.mustDo ?? [])].reverse())
-    mustDo = pinPriorityConstraint(mustDo, constraint, 10)
 
-  let mustNotDo = uniqueList([
+  const mustNotDo = uniqueList([
     'Do not let pet names, coy prefaces, or roleplay become the reply spine.',
     'Do not present stale scene residue as live present evidence.',
     sameHerAntiShellAnswerConstraint?.mustNotDo ?? null,
@@ -2062,12 +1864,7 @@ export function buildAnswerCompiler(input: {
     activeClosenessContext === 'open-companionship'
       ? 'Avoid theatrical intimacy or stock affection.'
       : null,
-    memoryDeliberationKernel?.surfacePolicy === 'procedural-carry'
-      ? 'Avoid turning procedural carry into retrospective narration or execution impersonation.'
-      : null,
   ], 10)
-  for (const constraint of [...(memoryDeliberationKernel?.restraint.mustNotDo ?? [])].reverse())
-    mustNotDo = pinPriorityConstraint(mustNotDo, constraint, 10)
 
   const providerSafeOpeningDirective = naturalizeAnswerCompilerControlText(effectiveOpeningDirective, 620)
   const providerSafeOpeningClaim = naturalizeAnswerCompilerControlText(openingClaim, 260)
@@ -2075,9 +1872,6 @@ export function buildAnswerCompiler(input: {
   const providerSafeUncertaintyBoundary = naturalizeAnswerCompilerControlText(uncertaintyBoundary, 260)
   const providerSafeCareVector = naturalizeAnswerCompilerControlText(careVector, 260)
   const providerSafeNextMove = naturalizeAnswerCompilerControlText(nextMove, 260)
-  const providerSafeMemoryWhyNow = naturalizeAnswerCompilerControlText(memoryDeliberationKernel?.rationale, 260)
-  const providerSafeMemoryWhyWithheld = naturalizeAnswerCompilerControlText(memoryDeliberationKernel?.whyWithheld, 260)
-  const providerSafeMemoryFollowUp = naturalizeAnswerCompilerControlText(memoryDeliberationKernel?.followUpAffordance?.summary, 260)
   const providerSafeMustDo = naturalizeAnswerCompilerControlList(mustDo, 10)
   const providerSafeMustNotDo = naturalizeAnswerCompilerControlList(mustNotDo, 10)
 
@@ -2105,12 +1899,6 @@ export function buildAnswerCompiler(input: {
     nextMove: providerSafeNextMove,
     suppressAssociativeRecall,
     labelCarryAsMemory,
-    memoryShouldStayInward: memoryDeliberationKernel?.shouldStayInward ?? null,
-    memoryWhyNow: providerSafeMemoryWhyNow || null,
-    memoryWhyWithheld: providerSafeMemoryWhyWithheld || null,
-    memoryFollowUpAffordanceSummary: providerSafeMemoryFollowUp || null,
-    memoryStableCore: naturalizeAnswerCompilerControlList(memoryDeliberationKernel?.stableCore ?? [], 12),
-    memoryUnsafeDetails: naturalizeAnswerCompilerControlList(memoryDeliberationKernel?.unsafeDetails ?? [], 12),
     maxSentences,
     mustDo: providerSafeMustDo,
     mustNotDo: providerSafeMustNotDo,
@@ -2152,8 +1940,6 @@ export function buildAnswerCompilerSystemBlock(state: AlicizationAnswerCompilerS
     return normalized ? `- ${normalized}` : ''
   }
   const supportingReality = providerList(state.supportingReality, 220)
-  const memoryStableCore = providerList(state.memoryStableCore ?? [], 220)
-  const memoryUnsafeDetails = providerList(state.memoryUnsafeDetails ?? [], 220)
 
   return [
     'Answer compiler guidance for this turn.',
@@ -2164,13 +1950,6 @@ export function buildAnswerCompilerSystemBlock(state: AlicizationAnswerCompilerS
     line(state.uncertaintyBoundary),
     line(state.careVector),
     line(state.nextMove),
-    state.memoryShouldStayInward === true ? '- Let active memory shape stance inwardly unless surfacing it materially helps the answer.' : '',
-    state.memoryShouldStayInward === false ? '- Memory may surface only as relevant remembered context, not as an archive dump.' : '',
-    line(state.memoryWhyNow),
-    line(state.memoryWhyWithheld),
-    line(state.memoryFollowUpAffordanceSummary),
-    memoryStableCore.length ? `- Stable memory core available: ${memoryStableCore.join(' ')}` : '',
-    memoryUnsafeDetails.length ? `- Avoid unsafe or uncertain memory detail: ${memoryUnsafeDetails.join(' ')}` : '',
     state.suppressAssociativeRecall ? '- Suppress associative recall noise for this turn.' : '',
     state.labelCarryAsMemory ? '- Label carried context as memory, residue, or held thread instead of present-tense ground truth.' : '',
   ].filter(Boolean).join('\n')

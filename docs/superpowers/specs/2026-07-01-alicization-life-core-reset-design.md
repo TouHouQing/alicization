@@ -676,7 +676,7 @@ MemoryEpisode:
 
 ```ts
 interface EmbeddingProvider {
-  embed(text: string): Promise<number[]>
+  embed: (text: string) => Promise<number[]>
   modelId: string
   dimensions: number
   locality: 'local' | 'cloud'
@@ -1088,8 +1088,7 @@ model returned invalid JSON → "模型输出格式无效，这轮没有形成�
 
 - `main-chat-session-runtime.ts`：只做编排。
 - `runtime-governance.ts`：临时兼容 facade。
-- `visible-reply/semantic-judge.ts`：只做评测，不再作为正常回复塑形权威。
-- `visible-reply/second-pass-rewrite.ts`：作为临时修复层，之后从 happy path 移除。
+- 可见回复只保留结构校验、来源校验、settlement 与透明失败面；旧内容评分层和回复重写层已经删除。
 - `runtime-organic-memory-prompt.ts`：拆成记忆检索、记忆审议和 prompt 组装适配器。
 - 浏览器 fallback stores：只做本地投影 / 缓存，绝不能成为独立人格权威。
 

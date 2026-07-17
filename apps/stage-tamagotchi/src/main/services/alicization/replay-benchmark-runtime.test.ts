@@ -3253,7 +3253,7 @@ describe('replay benchmark runtime', { timeout: 60_000 }, () => {
           confidence: 0.84,
         },
         memoryDeliberationJudged: {
-          whyWithheld: 'Only the corrected callback carry should shape this turn; stale status recap stays downranked.',
+          withheldReasons: ['owner-inward-policy'],
           restraint: {
             surfaceMode: 'procedural-carry',
             shouldStayInward: false,
@@ -3746,7 +3746,7 @@ describe('replay benchmark runtime', { timeout: 60_000 }, () => {
             confidence: 0.82,
           },
           memoryDeliberationJudged: {
-            whyWithheld: 'thin memory context exists, but the runtime bundle owns the event role proof',
+            withheldReasons: ['retrieval-insufficient'],
             personState: {
               activeClosenessContext: 'execution-callback',
               openingGuidance: 'Keep the callback return low-pressure.',
@@ -4069,7 +4069,7 @@ describe('replay benchmark runtime', { timeout: 60_000 }, () => {
           confidence: 0.82,
         },
         memoryDeliberationJudged: {
-          whyWithheld: 'thin memory context exists, but a sibling runtime trace owns the event role proof',
+          withheldReasons: ['retrieval-insufficient'],
           personState: {
             activeClosenessContext: 'execution-callback',
             openingGuidance: 'Keep the callback return low-pressure.',
@@ -10051,7 +10051,7 @@ describe('replay benchmark runtime', { timeout: 60_000 }, () => {
         kind: 'memory-deliberation-judged' as const,
         payload: {
           shouldRecall: true,
-          whyWithheld: 'Only the stable remembered core should surface; unstable remembered detail stays inward.',
+          withheldReasons: ['unstable-detail', 'payoff-required'],
           ambiguityPosture: 'ambiguous',
           conflictSeverity: 'high',
           restraint: {

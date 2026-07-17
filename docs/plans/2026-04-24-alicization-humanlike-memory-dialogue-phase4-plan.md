@@ -142,7 +142,7 @@ evidence: `db.ts` now gives maintenance/session-mirror/dream continuity episodes
 - [x] 清点 runtime / governance / response-surface 中残留的固定 recall 句式注入点
 说明：
 保留结构化约束，继续删掉会直接牵引措辞的半句文本 authority。
-evidence: `response-surface-contract.ts`, `main-chat-session-runtime.ts`, `runtime-organic-memory-prompt.ts` no longer surface `styleNote / visibleLead / internalLead / opening / visible_line` into visible-surface governance or prompt blocks; tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-organic-memory-prompt.test.ts`
+evidence: `response-surface-contract.ts`, `main-chat-session-runtime.ts`, `runtime-organic-memory-prompt.ts` no longer carry memory-authored reply drafts or opening/style cues into visible-surface governance or prompt blocks; tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-organic-memory-prompt.test.ts`
 
 - [x] 让 reply planner 只消费记忆控制量、证据 ledger、provenance posture、relationship posture
 说明：
