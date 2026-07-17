@@ -3,6 +3,7 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 import {
   alicizationFixedTemplateReplacement,
   buildAlicizationProviderFactBlock,
+  sanitizeAlicizationMemoryEvidenceText,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
@@ -30,6 +31,21 @@ function sanitizeOrganicMemoryProviderList(
     .filter(Boolean)
 }
 
+function sanitizeOrganicMemoryEvidenceText(raw: unknown, maxChars = 220) {
+  return sanitizeAlicizationMemoryEvidenceText(raw, maxChars)
+}
+
+function sanitizeOrganicMemoryEvidenceList(
+  values: Array<unknown> | null | undefined,
+  maxItems: number,
+  maxChars = 180,
+) {
+  return (values ?? [])
+    .slice(0, maxItems)
+    .map(value => sanitizeOrganicMemoryEvidenceText(value, maxChars))
+    .filter(Boolean)
+}
+
 function projectMemorySelection(context: OrganicMemoryPromptContext) {
   const deliberation = context.memoryDeliberation
   const speech = context.recollectionSpeechPlan
@@ -50,27 +66,27 @@ function projectMemorySelection(context: OrganicMemoryPromptContext) {
           selectedEras: deliberation.selectedEras.slice(0, 6).map(item => ({
             id: item.id,
             facet: item.facet,
-            summary: sanitizeOrganicMemoryProviderText(item.summary, 260) || null,
+            summary: sanitizeOrganicMemoryEvidenceText(item.summary, 260) || null,
           })),
           selectedPeriods: deliberation.selectedPeriods.slice(0, 6).map(item => ({
             id: item.id,
             kind: item.kind,
-            summary: sanitizeOrganicMemoryProviderText(item.summary, 260) || null,
+            summary: sanitizeOrganicMemoryEvidenceText(item.summary, 260) || null,
           })),
           selectedEpisodes: deliberation.selectedEpisodes.slice(0, 8).map(item => ({
             id: item.id,
-            summary: sanitizeOrganicMemoryProviderText(item.summary, 280) || null,
+            summary: sanitizeOrganicMemoryEvidenceText(item.summary, 280) || null,
             provenance: item.provenance,
             reconsolidatedFromTraceId: item.reconsolidatedFromTraceId ?? null,
           })),
           selectedProcedures: deliberation.selectedProcedures.slice(0, 6).map(item => ({
             id: item.id,
-            label: sanitizeOrganicMemoryProviderText(item.label, 140) || null,
-            approach: sanitizeOrganicMemoryProviderText(item.approach, 280) || null,
+            label: sanitizeOrganicMemoryEvidenceText(item.label, 140) || null,
+            approach: sanitizeOrganicMemoryEvidenceText(item.approach, 280) || null,
           })),
           selectedBundles: deliberation.selectedBundles.slice(0, 4).map(item => ({
             id: item.id,
-            summary: sanitizeOrganicMemoryProviderText(item.summary, 320) || null,
+            summary: sanitizeOrganicMemoryEvidenceText(item.summary, 320) || null,
             confidence: item.confidence,
             periodId: item.periodId ?? null,
             episodeId: item.episodeId ?? null,
@@ -80,18 +96,18 @@ function projectMemorySelection(context: OrganicMemoryPromptContext) {
           selectedChains: deliberation.selectedChains.slice(0, 4).map(item => ({
             id: item.id,
             kind: item.kind,
-            summary: sanitizeOrganicMemoryProviderText(item.summary, 320) || null,
+            summary: sanitizeOrganicMemoryEvidenceText(item.summary, 320) || null,
             confidence: item.confidence,
-            taskCue: sanitizeOrganicMemoryProviderText(item.taskCue, 140) || null,
-            periodSummary: sanitizeOrganicMemoryProviderText(item.periodSummary, 220) || null,
-            eventSummary: sanitizeOrganicMemoryProviderText(item.eventSummary, 220) || null,
-            procedureSummary: sanitizeOrganicMemoryProviderText(item.procedureSummary, 220) || null,
-            relationshipMeaning: sanitizeOrganicMemoryProviderText(item.relationshipMeaning, 220) || null,
-            lesson: sanitizeOrganicMemoryProviderText(item.lesson, 220) || null,
+            taskCue: sanitizeOrganicMemoryEvidenceText(item.taskCue, 140) || null,
+            periodSummary: sanitizeOrganicMemoryEvidenceText(item.periodSummary, 220) || null,
+            eventSummary: sanitizeOrganicMemoryEvidenceText(item.eventSummary, 220) || null,
+            procedureSummary: sanitizeOrganicMemoryEvidenceText(item.procedureSummary, 220) || null,
+            relationshipMeaning: sanitizeOrganicMemoryEvidenceText(item.relationshipMeaning, 220) || null,
+            lesson: sanitizeOrganicMemoryEvidenceText(item.lesson, 220) || null,
           })),
           ambiguityPosture: deliberation.ambiguityPosture ?? null,
           conflictSeverity: deliberation.conflictSeverity ?? 'none',
-          stableCore: sanitizeOrganicMemoryProviderList(deliberation.stableCore, 6, 220),
+          stableCore: sanitizeOrganicMemoryEvidenceList(deliberation.stableCore, 6, 220),
           surfacePolicy: deliberation.surfacePolicy,
           confidence: deliberation.confidence,
           followUp: deliberation.followUpAffordance
@@ -276,20 +292,20 @@ export function buildOrganicMemoryProviderFactBlocks(
     .slice(0, 12)
     .map(fact => ({
       id: fact.id,
-      subject: sanitizeOrganicMemoryProviderText(fact.subject, 120) || null,
-      predicate: sanitizeOrganicMemoryProviderText(fact.predicate, 120) || null,
-      object: sanitizeOrganicMemoryProviderText(fact.object, 260) || null,
+      subject: sanitizeOrganicMemoryEvidenceText(fact.subject, 120) || null,
+      predicate: sanitizeOrganicMemoryEvidenceText(fact.predicate, 120) || null,
+      object: sanitizeOrganicMemoryEvidenceText(fact.object, 260) || null,
       confidence: fact.confidence,
       memoryTier: fact.memoryTier ?? null,
       provenance: fact.provenance ?? 'remembered',
-      source: sanitizeOrganicMemoryProviderText(fact.source, 120) || null,
+      source: sanitizeOrganicMemoryEvidenceText(fact.source, 120) || null,
     }))
     .filter(fact => fact.subject || fact.predicate || fact.object)
   const recalledFragments = context.recalledFragments
     .slice(0, 10)
     .map(fragment => ({
       id: fragment.id,
-      text: sanitizeOrganicMemoryProviderText(fragment.text, 320) || null,
+      text: sanitizeOrganicMemoryEvidenceText(fragment.text, 320) || null,
       sourceKind: fragment.sourceKind,
       provenance: fragment.provenance ?? 'remembered',
       createdAt: fragment.createdAt,
@@ -300,9 +316,9 @@ export function buildOrganicMemoryProviderFactBlocks(
     .map(episode => ({
       id: episode.id,
       occurredAt: episode.occurredAt,
-      whatHappened: sanitizeOrganicMemoryProviderText(episode.whatHappened, 320) || null,
-      felt: sanitizeOrganicMemoryProviderText(episode.felt ?? '', 180) || null,
-      whatChanged: sanitizeOrganicMemoryProviderText(episode.whatChanged ?? '', 220) || null,
+      whatHappened: sanitizeOrganicMemoryEvidenceText(episode.whatHappened, 320) || null,
+      felt: sanitizeOrganicMemoryEvidenceText(episode.felt ?? '', 180) || null,
+      whatChanged: sanitizeOrganicMemoryEvidenceText(episode.whatChanged ?? '', 220) || null,
       confidence: episode.confidence,
       memoryTier: episode.memoryTier ?? null,
       provenance: episode.latestReconsolidation?.provenance ?? episode.provenance,
@@ -316,9 +332,9 @@ export function buildOrganicMemoryProviderFactBlocks(
       kind: memory.kind,
       facet: memory.facet ?? null,
       periodKey: memory.periodKey,
-      summary: sanitizeOrganicMemoryProviderText(memory.summary, 280) || null,
-      lesson: sanitizeOrganicMemoryProviderText(memory.lesson ?? '', 220) || null,
-      cues: sanitizeOrganicMemoryProviderList(memory.cues, 6, 100),
+      summary: sanitizeOrganicMemoryEvidenceText(memory.summary, 280) || null,
+      lesson: sanitizeOrganicMemoryEvidenceText(memory.lesson ?? '', 220) || null,
+      cues: sanitizeOrganicMemoryEvidenceList(memory.cues, 6, 100),
       confidence: memory.confidence,
       memoryTier: memory.memoryTier ?? null,
       provenance: memory.dominantProvenance,
@@ -328,11 +344,11 @@ export function buildOrganicMemoryProviderFactBlocks(
     .slice(0, 8)
     .map(memory => ({
       id: memory.id,
-      label: sanitizeOrganicMemoryProviderText(memory.label, 140) || null,
-      approach: sanitizeOrganicMemoryProviderText(memory.approach, 280) || null,
-      pitfalls: sanitizeOrganicMemoryProviderList(memory.pitfalls, 5, 140),
+      label: sanitizeOrganicMemoryEvidenceText(memory.label, 140) || null,
+      approach: sanitizeOrganicMemoryEvidenceText(memory.approach, 280) || null,
+      pitfalls: sanitizeOrganicMemoryEvidenceList(memory.pitfalls, 5, 140),
       confidence: memory.confidence,
-      cues: sanitizeOrganicMemoryProviderList(memory.cues, 6, 100),
+      cues: sanitizeOrganicMemoryEvidenceList(memory.cues, 6, 100),
     }))
     .filter(memory => memory.label || memory.approach)
   const recollectionIntent = context.recollectionIntent

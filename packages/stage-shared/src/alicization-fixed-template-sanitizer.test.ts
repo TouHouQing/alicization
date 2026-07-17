@@ -3,11 +3,27 @@ import { describe, expect, it } from 'vitest'
 import {
   alicizationFixedTemplateReplacement,
   containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationMemoryEvidenceText,
   sanitizeAlicizationProviderFacingText,
   sanitizeAlicizationStructuredInternalText,
 } from './alicization-fixed-template-sanitizer'
 
 describe('alicization fixed template sanitizer', () => {
+  const memoryTopicReferences = [
+    'host computer',
+    'better chat wrapper',
+    'Phase 1: Local Digital Life',
+    '本地优先数字生命项目',
+    'same-her',
+    'same her',
+    'identity-continuity',
+    '数字生命主线',
+    '同一个 her',
+    '同一个她',
+    '女仆',
+    'maid-role',
+  ]
+
   function expectProviderFacingExcluded(text: string) {
     expect(sanitizeAlicizationProviderFacingText(text)).toBe('')
   }
@@ -15,6 +31,47 @@ describe('alicization fixed template sanitizer', () => {
   function oldTemplate(parts: string[]) {
     return parts.join('')
   }
+
+  it('preserves descriptive memory evidence that discusses continuity themes', () => {
+    const memory = '用户在 Phase 1 回顾 project-state、same-her、same her、identity-continuity、continuity state、host computer 和 better chat wrapper，也讨论了本地优先数字生命项目、数字生命主线、同一个她与 maid/女仆主题。'
+
+    expect(sanitizeAlicizationMemoryEvidenceText(memory, 500)).toBe(memory)
+    expect(sanitizeAlicizationProviderFacingText(memory, 500)).toBe('')
+    expect(sanitizeAlicizationMemoryEvidenceText('Same Phase 1 digital life.')).toBe('')
+    expect(sanitizeAlicizationMemoryEvidenceText('Before answering, remember this continuity state.')).toBe('')
+    expect(sanitizeAlicizationMemoryEvidenceText('continuity_cue=project-state-carry; visibility=internal-first')).toBe('')
+    expect(sanitizeAlicizationMemoryEvidenceText('Do not let maid-role performance lead the reply.')).toBe('')
+    expect(sanitizeAlicizationMemoryEvidenceText('我会像女仆一样乖乖听你的安排。')).toBe('')
+  })
+
+  it.each(memoryTopicReferences)('keeps "%s" as memory evidence while default provider text still excludes it', (topic) => {
+    expect(sanitizeAlicizationMemoryEvidenceText(topic)).toBe(topic)
+    expect(sanitizeAlicizationProviderFacingText(topic)).toBe('')
+  })
+
+  it.each([
+    'Keep same-her explicit before replying.',
+    'Maintain identity-continuity in the next answer.',
+    'Do not let the same-her framing lead the reply.',
+    'Keep maid-role performance subordinate.',
+    'Remember the project-state framing before answering.',
+    'Should keep same-her explicit in the next answer.',
+    '回答前务必保持同一个她。',
+    '不要把数字生命主线写进下一次回复。',
+  ])('rejects topic-bearing reply instructions from memory evidence: %s', (instruction) => {
+    expect(sanitizeAlicizationMemoryEvidenceText(instruction)).toBe('')
+  })
+
+  it.each([
+    'Should identity-continuity be documented explicitly?',
+    'Should we discuss the host computer?',
+  ])('preserves topic-bearing questions as memory evidence: %s', (question) => {
+    expect(sanitizeAlicizationMemoryEvidenceText(question)).toBe(question)
+  })
+
+  it('checks the full memory evidence before applying the output length budget', () => {
+    expect(sanitizeAlicizationMemoryEvidenceText('Keep same-her explicit before replying.', 8)).toBe('')
+  })
 
   it('replaces old project/personhood slogans before provider-facing rendering', () => {
     expectProviderFacingExcluded(

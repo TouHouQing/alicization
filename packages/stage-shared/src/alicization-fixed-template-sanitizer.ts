@@ -16,9 +16,6 @@ const fixedTemplateResiduePatterns: RegExp[] = [
   /\bsame digital life line\b/iu,
   /\bAlicization is (?:still )?(?:the same )?(?:a )?local-first digital life project\b/iu,
   /\b(?:this|the) local-first digital life project\b/iu,
-  /\bhost computer\b/iu,
-  /\bbetter chat wrapper\b/iu,
-  /\bPhase\s*1\s*:\s*Local Digital Life\b/iu,
   /\bgeneric Phase\s*1 shell\b/iu,
   /\bphase1-route=desktop-life-loop\b/iu,
   /\bgeneric guidance\b[^.?!]+(?:detached project shell|project shell)/iu,
@@ -28,7 +25,6 @@ const fixedTemplateResiduePatterns: RegExp[] = [
   /\bone living digital life project\b/iu,
   /\bone living segment\b/iu,
   /Alicization\s*还是(?:同一个)?本地优先数字生命项目/iu,
-  /本地优先数字生命项目/u,
   /\blocal-first digital life project\b[^.?!]+(?:one continuous "?her"?|better chat wrapper)/iu,
   /\blocal-first digital life project with one persistent host-resident identity\b/iu,
   /\bkeep (?:(?:this|the) )?same digital life project in view\b/iu,
@@ -36,8 +32,6 @@ const fixedTemplateResiduePatterns: RegExp[] = [
   /\bsame digital life\s*\|\s*keep the closure seam explicit\b/iu,
   /\bsame-her (?:hold|carry|line|closure|strategy)\s*[:=]/iu,
   /\bsame-her (?:digital life line|closure seam|strategy|carry|continuity|line|baseline|shells?|emotional line)\b/iu,
-  /\bsame-her\b/iu,
-  /\bsame her\b/iu,
   /\bsame-her closure across\b/iu,
   /\bsame-her callback continuity\b/iu,
   /\bcross-modal same-her proof\b/iu,
@@ -65,7 +59,6 @@ const fixedTemplateResiduePatterns: RegExp[] = [
   /\bif project-state continuity survives only as generic guidance\b/iu,
   /\bsame-her=/iu,
   /\bsame_her(?:\b|_)/iu,
-  /\bidentity[-_ ]continuity\b/iu,
   /\bcontinuity_owner\s*=\s*one_her\b/iu,
   /\bcontinuity_anchor\s*=\s*phase1_local_digital_life\b/iu,
   /\bphase1_local_digital_life_anchor\b/iu,
@@ -103,16 +96,13 @@ const fixedTemplateResiduePatterns: RegExp[] = [
   /直接回答[:：][^。.!?]*Phase\s*1[^。.!?]*(?:还没做完|继续推进)/iu,
   /(?:回答前|开口前|行动前)先记住/u,
   /(?:先别|不要|别)(?:飘回|退回|掉回|压回)[^。.!?]*(?:同一个她|同一个 her|same-her|数字生命主线)/iu,
-  /数字生命主线/u,
-  /同一个\s*her/iu,
-  /同一个她/u,
   /(?:沿着|接住)[^。.!?]*(?:同一个她|同一个 her)[^。.!?]*(?:这条线|数字生命项目|接住)/iu,
   /(?:沿着|继续|接住)[^。.!?]*(?:同一个她|同一个 her)[^。.!?]*(?:继续|闭环|主线|眼前|收住|收拢)/iu,
   /(?:守住|沿着|继续|接住|收住)[^。.!?]*(?:同一个她|同一个\s*her|数字生命主线)[^。.!?]*(?:下一轮|继续|闭环|主线|收住|带进)/iu,
   /(?:好，)?我(?:直接回这句|就贴着这句回|现在看到的是|记得上一条线|还带着上一条线|记着上一条线)/u,
   /(?:这句我直接接住|这句我就沿这点正面说|先把这点抓稳|先把这根线钉住|先把焦点收在这点上)/u,
-  /女仆/u,
-  /\bmaid(?:[-\s]?role)?\b/iu,
+  /我会像女仆一样[^。.!?]*/u,
+  /\bDo not let maid-role performance lead the reply\b/iu,
   /\bAll right\.\s+I will answer this turn directly\b/iu,
   /\bWhat I can honestly see is\b/iu,
   /\bI still (?:remember|carry)\b/iu,
@@ -123,6 +113,27 @@ const fixedTemplateResiduePatterns: RegExp[] = [
   /\bgeneric (?:continuity fallback|continuity reminder|awareness reminder|awareness summary|same-her reminder|next target|next closure|closure shell|closure summary)\b/iu,
 ]
 
+const fixedTemplateTopicReferencePatterns: RegExp[] = [
+  /\bhost computer\b/iu,
+  /\bbetter chat wrapper\b/iu,
+  /\bPhase\s*1\s*:\s*Local Digital Life\b/iu,
+  /本地优先数字生命项目/u,
+  /\bsame-her\b/iu,
+  /\bsame her\b/iu,
+  /\bidentity[-_ ]continuity\b/iu,
+  /数字生命主线/u,
+  /同一个\s*her/iu,
+  /同一个她/u,
+  /女仆/u,
+  /\bmaid(?:[-\s]?role)?\b/iu,
+]
+
+const fixedTemplateInstructionLeadPattern
+  = /^(?:["'“”‘’()[\]（）]\s*)?(?:before (?:answering|replying|speaking|acting)\b|keep\b|maintain\b|remember\b|do not\b|don't\b|avoid\b|must\b|should\s+(?:keep|maintain|remember|avoid)\b|let\b|回答前|回复前|开口前|行动前|保持|记住|不要|别|务必|必须|应该|请)/iu
+
+const fixedTemplateInstructionTopicPattern
+  = /\b(?:host computer|better chat wrapper|phase\s*1(?:\s*:\s*local digital life)?|same-her|same her|identity[-_ ]continuity|continuity state|project[-_ ]state|runtime_personhood|maid(?:[-\s]?role)?)\b|本地优先数字生命项目|数字生命主线|同一个\s*her|同一个她|女仆/iu
+
 const replacementTemplateTokenPattern
   = /\b(?:local_desktop_life_loop|phase1_local_digital_life(?:_anchor)?|content=excluded|visibility=internal[-_](?:structured|first))\b/iu
 
@@ -132,12 +143,24 @@ function normalizeFixedTemplateText(raw: unknown, maxChars: number) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
 }
 
+function containsFixedTemplateTopicInstruction(text: string) {
+  return text
+    .split(/[.!?。！？]+/u)
+    .some((segment) => {
+      const normalized = segment.trim()
+      return fixedTemplateInstructionLeadPattern.test(normalized)
+        && fixedTemplateInstructionTopicPattern.test(normalized)
+    })
+}
+
 export function containsAlicizationFixedTemplateResidue(raw: unknown) {
   const normalized = normalizeFixedTemplateText(raw, 2400)
   return Boolean(normalized)
     && (
       replacementTemplateTokenPattern.test(normalized)
       || fixedTemplateResiduePatterns.some(pattern => pattern.test(normalized))
+      || fixedTemplateTopicReferencePatterns.some(pattern => pattern.test(normalized))
+      || containsFixedTemplateTopicInstruction(normalized)
     )
 }
 
@@ -163,6 +186,22 @@ export function sanitizeAlicizationProviderFacingText(
     || containsProviderFacingStructuredTemplateResidue(normalized)
     ? replacement
     : normalized
+}
+
+export function sanitizeAlicizationMemoryEvidenceText(
+  raw: unknown,
+  maxChars = 360,
+) {
+  const normalized = normalizeFixedTemplateText(raw, 2400)
+  if (!normalized)
+    return ''
+
+  return replacementTemplateTokenPattern.test(normalized)
+    || fixedTemplateResiduePatterns.some(pattern => pattern.test(normalized))
+    || containsProviderFacingStructuredTemplateResidue(normalized)
+    || containsFixedTemplateTopicInstruction(normalized)
+    ? ''
+    : normalized.slice(0, Math.max(0, maxChars)).trim()
 }
 
 export function sanitizeAlicizationStructuredInternalText(
