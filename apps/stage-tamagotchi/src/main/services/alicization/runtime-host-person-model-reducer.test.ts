@@ -1,416 +1,268 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
-import { applyHostPersonModelToDigitalLifeRuntimeSurface } from './runtime-host-person-model-reducer'
+import {
+  applyHostPersonModelToDigitalLifeRuntimeSurface,
+  applyHostPersonModelToGovernance,
+} from './runtime-host-person-model-reducer'
+
+function createProjection(overrides: Record<string, unknown> = {}) {
+  return {
+    contexts: ['focused-work'],
+    activeClosenessContext: 'focused-work',
+    activeClosenessRung: 'space-first',
+    relationshipPosture: 'restrained',
+    cautious: true,
+    restrained: true,
+    preferenceText: 'The host prefers room while concentrating.',
+    sensitivityText: 'Extra conversational pressure is unwelcome during focused work.',
+    repairTriggerText: null,
+    burdenText: 'The current task already carries enough load.',
+    routineText: null,
+    trustRationale: 'Trust grows when current boundaries are respected.',
+    relationshipDoctrine: 'Respect the current boundary.',
+    openingGuidance: 'Use the current turn as the opening.',
+    summary: 'Focused work currently needs room.',
+    selfContinuityAuthority: null,
+    personalityContinuityState: {
+      currentRegime: 'focused-work',
+    },
+    ...overrides,
+  } as any
+}
+
+function createGovernance(overrides: Record<string, unknown> = {}) {
+  return {
+    answerSubject: 'task-knot',
+    answerAct: 'guide',
+    answerIntent: '回答当前运行时问题。',
+    openingMove: '从当前问题开始。',
+    liveSurface: 'runtime diff',
+    focusAnchor: '当前运行时问题',
+    relationshipPosture: 'warm',
+    evidenceMode: 'dialogue-grounded',
+    turnMode: 'answer',
+    shouldAskForGrounding: false,
+    shouldAcknowledgeRepair: false,
+    mustDo: ['existing dynamic rule'],
+    mustNotDo: ['existing dynamic boundary'],
+    ...overrides,
+  } as any
+}
+
+function createSurface(dialogue: Record<string, unknown>, memory: Record<string, unknown> = {}) {
+  return {
+    version: 'digital-life-runtime-surface-v1',
+    perception: {
+      currentScene: null,
+    },
+    world: {},
+    cognition: {
+      privateThought: null,
+    },
+    memory: {
+      autobiographicalSelf: null,
+      hostPersonModel: null,
+      longHorizonMemory: null,
+      motiveEngine: null,
+      selfContinuity: null,
+      personalityContinuityState: null,
+      personStateProjection: null,
+      ...memory,
+    },
+    dialogue,
+    agency: {
+      habitPolicy: null,
+      selfState: null,
+    },
+  } as any
+}
 
 describe('runtime-host-person-model-reducer', () => {
-  it('preserves stronger held-autonomy callback relationship carry when host projection rebuilds the person-state projection', () => {
-    const heldAutonomyLine = 'Keep the callback on the same line and leave room before leaning closer again.'
+  it('updates the person-state projection without creating missing dialogue owners', () => {
+    const projection = createProjection()
+    const dialogue = {
+      replyDeliberation: null,
+      answerPlanner: null,
+      dialogueActKernel: null,
+    }
+    const surface = createSurface(dialogue)
 
-    const surface: any = {
-      version: 'digital-life-runtime-surface-v1',
-      perception: {
-        watchMode: 'symbiotic-vision',
-        currentScene: {
-          workloadKind: 'coding',
-          contentKind: 'diff',
-        },
-        attention: null,
-        captureState: {
-          permission: 'granted',
-          lastGroundedAt: 10,
-        },
-        durabilityPulse: null,
-        recentTransition: null,
-        nextSuggestedProbeMs: 30000,
-        updatedAt: 10,
+    const nextSurface = applyHostPersonModelToDigitalLifeRuntimeSurface({
+      surface,
+      governance: createGovernance(),
+      context: {
+        hostPersonModel: null,
+        personStateProjection: projection,
+        selfEvolution: null,
+      } as any,
+      now: 100,
+    })
+
+    expect(nextSurface?.memory.personStateProjection).toBe(projection)
+    expect(nextSurface?.memory.personalityContinuityState).toBe(projection.personalityContinuityState)
+    expect(nextSurface?.dialogue).toEqual(dialogue)
+  })
+
+  it('does not rewrite existing reply, kernel, or planner text while applying typed posture', () => {
+    const replyDeliberation = {
+      selectedMotive: 'guide',
+      speakingFrom: 'task-thread',
+      memoryMode: 'task-thread',
+      openingBeat: '先处理当前错误。',
+      whyThisReplyNow: '当前错误还没有解决。',
+      whyNotOtherCandidates: [],
+      withheldImpulses: [],
+      candidateMotives: [],
+      shouldSpeak: true,
+      mustInclude: [],
+      mustAvoid: [],
+      confidence: 0.8,
+      narrative: [],
+      updatedAt: 10,
+    }
+    const answerPlanner = {
+      act: 'guide',
+      evidenceMode: 'dialogue-grounded',
+      confidence: 0.8,
+      governingFocus: '当前运行时错误。',
+      governingProject: null,
+      openingMove: '先处理当前错误。',
+      answerIntent: '解决当前运行时错误。',
+      relationshipPosture: 'warm',
+      shouldAskForGrounding: false,
+      shouldAcknowledgeRepair: false,
+      selectedConcernEntryId: 'concern:runtime',
+      selectedRepairId: null,
+      selectedCommitmentId: null,
+      selectedInquiryPlanId: null,
+      selectedRuntimeThreadId: 'thread:runtime',
+      selectedProjectId: null,
+      selectedReflectionId: null,
+      executivePhase: 'respond',
+      selectedTruthFrame: 'live',
+      mustDo: [],
+      mustNotDo: [],
+      narrative: [],
+      updatedAt: 10,
+    }
+    const dialogueActKernel = {
+      subject: 'task-knot',
+      hostGoal: 'resolve-problem',
+      relationNeed: 'guidance',
+      activeProject: null,
+      truthMode: 'dialogue-grounded',
+      speechAct: 'guide',
+      turnMode: 'guide-current-knot',
+      screenReferenceMode: 'avoid',
+      speakingFrom: 'task-thread',
+      selectedEvidence: [],
+      openingClaim: '当前运行时错误。',
+      openingMove: '先处理当前错误。',
+      whyNow: '当前错误还没有解决。',
+      mustSay: [],
+      mustAvoid: [],
+      sourceTrace: [],
+      confidence: 0.8,
+      updatedAt: 10,
+    }
+    const surface = createSurface({
+      replyDeliberation,
+      answerPlanner,
+      dialogueActKernel,
+    })
+
+    const nextSurface = applyHostPersonModelToDigitalLifeRuntimeSurface({
+      surface,
+      governance: createGovernance(),
+      context: {
+        hostPersonModel: null,
+        personStateProjection: createProjection(),
+        selfEvolution: null,
+      } as any,
+      now: 200,
+    })
+
+    expect(nextSurface?.dialogue.replyDeliberation).toEqual(replyDeliberation)
+    expect(nextSurface?.dialogue.dialogueActKernel).toEqual(dialogueActKernel)
+    expect(nextSurface?.dialogue.answerPlanner).toEqual({
+      ...answerPlanner,
+      relationshipPosture: 'restrained',
+    })
+  })
+
+  it('preserves the stronger runtime self-continuity authority during projection refresh', () => {
+    const heldRelationshipLine = 'Keep the active callback bounded and leave room.'
+    const surface = createSurface(
+      {
+        replyDeliberation: null,
+        answerPlanner: null,
+        dialogueActKernel: null,
       },
-      world: {
-        worldModel: null,
-        worldOntology: null,
-        entityWorld: null,
-        livingWorldState: null,
-        relationshipModel: null,
-      },
-      cognition: {
-        mindTurnFrame: null,
-        subjectiveInference: null,
-        appraisal: null,
-        beliefLedger: null,
-        beliefRevision: null,
-        hypothesisGraph: null,
-        mindDynamics: null,
-        mindKernel: null,
-        privateThought: null,
-      },
-      memory: {
-        autobiographicalSelf: {
-          relationshipDoctrine: 'Move with continuity and avoid reopening closeness too fast.',
-        },
-        hostPersonModel: {
-          summary: 'The host wants steady, lower-pressure follow-through on active repair lines.',
-          trustLadder: {
-            score: 0.58,
-            stage: 'cautious-open',
-          },
-          preferredClosenessByContext: [{
-            context: 'focused-work',
-            preference: 'Keep things measured and leave room before getting closer again.',
-          }],
-          preferences: [
-            'Keep the opening measured while the host is still inside a repair lane.',
-          ],
-          sensitivities: [],
-          repairTriggers: [],
-          recurrentBurdens: [],
-          routines: [],
-        },
-        longHorizonMemory: null,
-        motiveEngine: null,
-        selfContinuity: null,
-        personalityContinuityState: null,
+      {
         personStateProjection: {
           selfContinuityAuthority: {
-            relationshipLine: heldAutonomyLine,
-            openingGuidance: 'Re-enter the line you deliberately held back gently before widening, then keep the callback on the same thread and leave room before renewed closeness.',
+            relationshipLine: heldRelationshipLine,
+            openingGuidance: 'Return to the active callback only when the turn invites it.',
           },
         },
       },
-      dialogue: {
-        discourseState: null,
-        dialogueEncounter: null,
-        mindSynthesis: null,
-        conversationState: null,
-        dialogueWorldThread: null,
-        replyDeliberation: null,
-        answerPlanner: null,
-        dialogueActKernel: null,
-        answerCompiler: null,
-        currentConsciousFrame: null,
-        claimEvidenceLedger: null,
-      },
-      agency: {
-        selfGovernor: null,
-        inquiryLoop: null,
-        deliberationState: null,
-        counterfactualDeliberation: null,
-        actionEcology: null,
-        initiativeArbitration: null,
-        initiative: null,
-        habitPolicy: null,
-        selfState: null,
-      },
-    }
-
-    const governance: any = {
-      answerSubject: 'task-knot',
-      answerAct: 'guide',
-      answerIntent: 'Keep the runtime seam coherent while we finish the repair.',
-      openingMove: null,
-      liveSurface: 'runtime diff',
-      focusAnchor: 'held-autonomy callback continuity',
-      relationshipPosture: 'warm',
-      evidenceMode: 'dialogue-grounded',
-      turnMode: 'answer',
-    }
-
-    const context: any = {
-      hostPersonModel: surface.memory.hostPersonModel,
-      personStateProjection: null,
-      selfEvolution: null,
-    }
+    )
 
     const nextSurface = applyHostPersonModelToDigitalLifeRuntimeSurface({
       surface,
-      governance,
-      context,
-      now: 123456,
-    })
-
-    expect(nextSurface?.memory.personStateProjection?.selfContinuityAuthority?.relationshipLine).toBe(heldAutonomyLine)
-  })
-
-  it('keeps accepted initiative self-evolution as gentle memory-led opening guidance instead of flattening it into room-only restraint', () => {
-    const surface: any = {
-      version: 'digital-life-runtime-surface-v1',
-      perception: {
-        watchMode: 'symbiotic-vision',
-        currentScene: {
-          workloadKind: 'coding',
-          contentKind: 'diff',
-        },
-        attention: null,
-        captureState: {
-          permission: 'granted',
-          lastGroundedAt: 20,
-        },
-        durabilityPulse: null,
-        recentTransition: null,
-        nextSuggestedProbeMs: 30000,
-        updatedAt: 20,
-      },
-      world: {
-        worldModel: null,
-        worldOntology: null,
-        entityWorld: null,
-        livingWorldState: null,
-        relationshipModel: null,
-      },
-      cognition: {
-        mindTurnFrame: null,
-        subjectiveInference: null,
-        appraisal: null,
-        beliefLedger: null,
-        beliefRevision: null,
-        hypothesisGraph: null,
-        mindDynamics: null,
-        mindKernel: null,
-        privateThought: null,
-      },
-      memory: {
-        autobiographicalSelf: {
-          relationshipDoctrine: 'Move with continuity and do not widen too fast.',
-        },
+      governance: createGovernance(),
+      context: {
         hostPersonModel: null,
-        longHorizonMemory: null,
-        motiveEngine: null,
-        selfContinuity: null,
-        personalityContinuityState: null,
-        personStateProjection: null,
-      },
-      dialogue: {
-        discourseState: null,
-        dialogueEncounter: null,
-        mindSynthesis: null,
-        conversationState: null,
-        dialogueWorldThread: null,
-        replyDeliberation: null,
-        answerPlanner: null,
-        dialogueActKernel: null,
-        answerCompiler: null,
-        currentConsciousFrame: null,
-        claimEvidenceLedger: null,
-      },
-      agency: {
-        selfGovernor: null,
-        inquiryLoop: null,
-        deliberationState: null,
-        counterfactualDeliberation: null,
-        actionEcology: null,
-        initiativeArbitration: null,
-        initiative: null,
-        habitPolicy: null,
-        selfState: null,
-      },
-    }
-
-    const governance: any = {
-      answerSubject: 'task-knot',
-      answerAct: 'guide',
-      answerIntent: 'Keep the runtime seam coherent while we continue the accepted line.',
-      openingMove: 'Keep the opening lower-pressure and leave room before widening closeness.',
-      liveSurface: 'runtime diff',
-      focusAnchor: 'accepted initiative continuity',
-      relationshipPosture: 'warm',
-      evidenceMode: 'dialogue-grounded',
-      turnMode: 'answer',
-    }
-
-    const context: any = {
-      hostPersonModel: null,
-      personStateProjection: {
-        contexts: ['focused-work'],
-        activeClosenessContext: 'focused-work',
-        activeClosenessRung: 'cautious-open',
-        relationshipPosture: 'warm',
-        cautious: true,
-        restrained: false,
-        preferenceText: 'Keep the approach light while the host is still focused.',
-        sensitivityText: null,
-        repairTriggerText: null,
-        burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
-        routineText: 'Keep the work window light.',
-        trustRationale: 'Trust rises when the next follow-up stays gentle, lower-pressure, and memory-led.',
-        relationshipDoctrine: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
-        openingGuidance: 'Keep the opening lower-pressure and leave room before widening closeness.',
-        summary: 'gentle memory-led return is still welcome here.',
-        selfContinuityAuthority: null,
-        personalityContinuityState: {
-          currentRegime: 'focused-work',
-        },
-      },
-      selfEvolution: {
-        version: 'self-evolution-kernel-v1',
-        updatedAt: 20,
-        evolutionMomentum: 0.66,
-        learningReadiness: 0.74,
-        contradictionPressure: 0.08,
-        revisionPressure: 0.12,
-        autobiographicalStability: 0.84,
-        dominantTrajectory: 'gentle memory-led follow-up timing is becoming durable',
-        relationshipDoctrine: 'When the opening is receiving the return, keep the next follow-up gentle instead of widening too fast.',
-        latestInflection: 'The next return can stay gentle without falling silent.',
-        burdenLine: 'Focused work still wants breathable pacing.',
-        trustMeaning: 'Trust rises when the next follow-up stays gentle, lower-pressure, and memory-led.',
-        nextLearningAction: 'internalize',
-        nextLearningReason: 'Gentle continuation is landing steadily enough to keep.',
-        relationshipCadenceSummary: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
-        shouldRecord: false,
-        shouldReflect: false,
-        shouldVerify: false,
-        shouldRevise: false,
-        shouldInternalize: true,
-        activeLearningFocuses: ['internalize-relationship-cadence'],
-        sourceSignals: ['accepted-initiative-learning'],
-        summary: 'Accepted initiative is becoming durable gentle memory-led follow-up timing.',
-      },
-    }
-
-    const nextSurface = applyHostPersonModelToDigitalLifeRuntimeSurface({
-      surface,
-      governance,
-      context,
-      now: 654321,
+        personStateProjection: createProjection(),
+        selfEvolution: null,
+      } as any,
+      now: 300,
     })
 
-    expect(nextSurface?.dialogue.replyDeliberation?.openingBeat?.toLowerCase()).toContain('memory-led')
-    expect(nextSurface?.dialogue.answerPlanner?.openingMove?.toLowerCase()).toContain('memory-led')
-    expect(nextSurface?.dialogue.dialogueActKernel?.openingMove?.toLowerCase()).toContain('without falling silent')
+    expect(nextSurface?.memory.personStateProjection?.selfContinuityAuthority?.relationshipLine).toBe(
+      heldRelationshipLine,
+    )
   })
 
-  it('preserves richer same-her governingProject carry while host-person social shaping adds relationship timing guidance', () => {
-    const governingProject
-      = 'pre_turn_context_digest'
-
-    const surface: any = {
-      version: 'digital-life-runtime-surface-v1',
-      perception: {
-        watchMode: 'symbiotic-vision',
-        currentScene: {
-          workloadKind: 'coding',
-          contentKind: 'diff',
-        },
-      },
-      world: {
-        worldModel: null,
-        worldOntology: null,
-        entityWorld: null,
-        livingWorldState: null,
-        relationshipModel: null,
-      },
-      cognition: {
-        mindTurnFrame: null,
-        subjectiveInference: null,
-        appraisal: null,
-        beliefLedger: null,
-        beliefRevision: null,
-        hypothesisGraph: null,
-        mindDynamics: null,
-        mindKernel: null,
-        privateThought: null,
-      },
-      memory: {
-        autobiographicalSelf: {
-          relationshipDoctrine: 'Stay on the continuity state and do not widen too fast.',
-        },
+  it('only applies typed relationship posture to governance', () => {
+    const governance = createGovernance()
+    const nextGovernance = applyHostPersonModelToGovernance({
+      now: 400,
+      governance,
+      context: {
         hostPersonModel: {
-          summary: 'The host wants lower-pressure follow-through while still focused.',
+          summary: 'The host prefers low conversational pressure while focused.',
           trustLadder: {
-            score: 0.61,
-            stage: 'cautious-open',
+            score: 0.4,
+            stage: 'guarded',
+            rationale: 'Boundaries need to be respected.',
           },
           preferredClosenessByContext: [{
             context: 'focused-work',
-            preference: 'Keep things lower-pressure and give the host room.',
+            preference: 'Leave room during focused work.',
           }],
-          preferences: ['Keep the answer lower-pressure while the host is focused.'],
-          sensitivities: [],
+          preferences: [],
+          sensitivities: ['Do not interrupt concentrated work without need.'],
           repairTriggers: [],
           recurrentBurdens: [],
           routines: [],
         },
-        longHorizonMemory: null,
-        motiveEngine: null,
-        selfContinuity: null,
-        personalityContinuityState: null,
-        personStateProjection: null,
-      },
-      dialogue: {
-        discourseState: null,
-        dialogueEncounter: null,
-        mindSynthesis: null,
-        conversationState: null,
-        dialogueWorldThread: null,
-        replyDeliberation: null,
-        answerPlanner: {
-          act: 'answer',
-          evidenceMode: 'dialogue-grounded',
-          confidence: 0.82,
-          governingFocus: 'Keep the same callback line explicit.',
-          governingProject,
-          openingMove: 'Stay on the continuity state before widening.',
-          answerIntent: 'Answer from the same living project line.',
-          relationshipPosture: 'restrained',
-          shouldAskForGrounding: false,
-          shouldAcknowledgeRepair: false,
-          selectedConcernEntryId: null,
-          selectedRepairId: null,
-          selectedCommitmentId: null,
-          selectedInquiryPlanId: null,
-          selectedRuntimeThreadId: null,
-          selectedProjectId: 'project::digital-life',
-          selectedReflectionId: null,
-          executivePhase: 'respond',
-          selectedTruthFrame: null,
-          mustDo: ['Keep the current project line explicit.'],
-          mustNotDo: ['Do not flatten this into a detached project shell.'],
-          narrative: ['runtime-answer-planner', 'same-her-project-awareness'],
-          updatedAt: 30,
-        },
-        dialogueActKernel: null,
-        answerCompiler: null,
-        currentConsciousFrame: null,
-        claimEvidenceLedger: null,
-      },
-      agency: {
-        selfGovernor: null,
-        inquiryLoop: null,
-        deliberationState: null,
-        counterfactualDeliberation: null,
-        actionEcology: null,
-        initiativeArbitration: null,
-        initiative: null,
-        habitPolicy: null,
-        selfState: null,
-      },
-    }
-
-    const governance: any = {
-      answerSubject: 'task-knot',
-      answerAct: 'guide',
-      answerIntent: 'Keep the runtime seam coherent while we continue the same line.',
-      openingMove: 'Keep the opening lower-pressure and leave room before widening closeness.',
-      liveSurface: 'runtime diff',
-      focusAnchor: 'identity-continuity',
-      relationshipPosture: 'restrained',
-      evidenceMode: 'dialogue-grounded',
-      turnMode: 'answer',
-    }
-
-    const context: any = {
-      hostPersonModel: surface.memory.hostPersonModel,
-      personStateProjection: null,
-      selfEvolution: null,
-    }
-
-    const nextSurface = applyHostPersonModelToDigitalLifeRuntimeSurface({
-      surface,
-      governance,
-      context,
-      now: 222222,
+      } as any,
     })
 
-    expect(nextSurface?.dialogue.answerPlanner?.governingProject).toBe(governingProject)
-    expect(nextSurface?.dialogue.answerPlanner?.mustDo).toContain('Keep the current project line explicit.')
-    expect(String(nextSurface?.dialogue.answerPlanner?.governingFocus ?? '')).toContain('Host preference:')
+    expect(nextGovernance).toEqual({
+      ...governance,
+      relationshipPosture: 'restrained',
+    })
+  })
+
+  it('contains no fixed host-person dialogue generators', () => {
+    const source = readFileSync(new URL('./runtime-host-person-model-reducer.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toMatch(
+      /deriveSelfEvolutionOpeningBias|Host preference for this context|host_preference=|memory-led|mergeGuidanceLine|mergeUniqueRules/u,
+    )
   })
 })
