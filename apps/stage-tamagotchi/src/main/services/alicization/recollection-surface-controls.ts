@@ -13,7 +13,6 @@ export interface AlicizationRecollectionSurfaceControls {
     | 'procedure-carry'
     | 'relationship-carry'
   certainty: 'firm' | 'approximate' | 'fragmentary'
-  templateBoundary: 'guard-against-drafted-wording'
 }
 
 export function deriveRecollectionSurfaceControls(
@@ -49,6 +48,5 @@ export function deriveRecollectionSurfaceControls(
     visibility,
     continuityRole,
     certainty: speechPlan.certainty,
-    templateBoundary: 'guard-against-drafted-wording',
   }
 }

@@ -479,7 +479,6 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
         `visibility=${speechControls.visibility}`,
         `continuity_role=${speechControls.continuityRole}`,
         `certainty=${speechControls.certainty}`,
-        `template_boundary=${speechControls.templateBoundary}`,
       ].join(' | ')
     : null
 

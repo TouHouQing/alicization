@@ -259,9 +259,15 @@ describe('memory-deliberation-kernel', () => {
     })
 
     expect(kernel?.surfacePolicy).toBe('procedural-carry')
-    expect(kernel?.speechControls?.continuityRole).toBe('procedure-carry')
+    expect(kernel?.speechControls).toEqual({
+      shouldSurface: true,
+      visibility: 'embedded-payoff',
+      continuityRole: 'procedure-carry',
+      certainty: 'approximate',
+    })
+    expect(kernel?.speechLatentSummary).not.toContain('template_boundary')
     expect(kernel?.selectedChainPosture).toContain('active dialogue seam')
-    expect(kernel?.memoryControlSummary).toContain('relationship_vector=procedural')
+    expect(kernel?.memoryControl?.relationshipVector).toBe('procedural')
   })
 
   it('does not let nightly replay tuning override dynamic recollection surface decisions', () => {
