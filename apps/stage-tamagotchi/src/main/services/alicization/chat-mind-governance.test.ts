@@ -1,1369 +1,314 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationMindTurnGovernance } from './chat-mind-governance'
 
+function createInput() {
+  return {
+    brief: {
+      turnMode: 'answer',
+      liveSurface: null,
+      carriedThread: null,
+      truthState: 'dialogue-grounded',
+      separateCarryFromSurface: false,
+      shouldCompactHistory: false,
+      maxRecentUserTurns: 4,
+      mustDo: [],
+      mustNotDo: [],
+    },
+    charter: {
+      epistemicMode: 'dialogue-grounded',
+      responseMode: 'answer-naturally',
+      governingFocus: null,
+      governingConcern: null,
+      governingCommitment: null,
+      governingInquiry: null,
+      governingProject: null,
+      emotionalClosureCue: null,
+      activeClosenessContext: null,
+      activeClosenessRung: null,
+      relationshipPosture: 'warm',
+    },
+    surfaceContract: {
+      openingStyle: 'direct-answer',
+      maxParagraphs: 2,
+      maxSentences: 4,
+      personaKernelMode: 'backgrounded',
+      allowAffectionatePreface: false,
+      allowStageDirections: false,
+      allowBodyNarration: false,
+      labelCarryAsMemory: false,
+      suppressAssociativeRecall: false,
+      mustDo: [],
+      mustNotDo: [],
+    },
+  } as any
+}
+
 describe('buildAlicizationMindTurnGovernance', () => {
-  it('renders project continuity controls as structured governance instead of fixed persona templates', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'answer',
-        liveSurface: 'Memory workbench dialogue loop',
-        carriedThread: null,
+  it('returns no textual governance rules from any upstream source', () => {
+    const input = createInput()
+    input.brief.mustDo = ['brief rule']
+    input.brief.mustNotDo = ['brief prohibition']
+    input.surfaceContract.mustDo = ['surface rule']
+    input.surfaceContract.mustNotDo = ['surface prohibition']
+    input.mindTurnContract = {
+      mustDo: ['contract rule'],
+      mustNotDo: ['contract prohibition'],
+      emotionalClosureCue: 'A dynamic emotional state.',
+    }
+    input.mindTurnFrame = {
+      world: {
         truthState: 'dialogue-grounded',
-        separateCarryFromSurface: false,
-        shouldCompactHistory: false,
-        maxRecentUserTurns: 4,
-        mustDo: [],
-        mustNotDo: [],
+        staleRisk: 0,
       },
-      charter: {
-        epistemicMode: 'dialogue-grounded',
-        responseMode: 'answer-naturally',
-        governingFocus: 'memory dialogue loop',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: 'project_context=local_desktop_life_loop; next closure target: make memory recall visible without fixed persona templates',
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'restrained',
+      relation: {
+        subject: 'general',
+        relationshipPosture: 'warm',
       },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: false,
+      memory: {
+        carriedFacts: [],
+        recallKeys: [],
         suppressAssociativeRecall: false,
-        mustDo: [],
-        mustNotDo: [],
       },
-      mindTurnContract: {
-        version: 'mind-turn-contract-v1',
-        responseMode: 'answer-naturally',
-        answerAct: 'answer',
+      self: {},
+      obligation: {
         turnMode: 'answer',
-        evidenceMode: 'dialogue-grounded',
-        openingStyle: 'direct-answer',
-        expectedVisibleReplyAuthority: 'llm-mind',
-        replyRealizationMode: 'provider-mind-required',
-        personaKernelMode: 'backgrounded',
-        activeClosenessContext: 'general',
-        activeClosenessRung: 'space-first',
-        relationshipPosture: 'restrained',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        answerIntent: 'explain what memory still needs',
-        emotionalClosureCue: 'memory continuity should stay low-pressure while recall evidence lands',
-        suppressAssociativeRecall: false,
-        labelCarryAsMemory: false,
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        mustDo: [],
-        mustNotDo: [],
-        governingFocus: 'memory dialogue loop',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: 'project_context=local_desktop_life_loop; next closure target: make memory recall visible without fixed persona templates',
-        projectState: null,
-        preDialogueClosure: null,
-        reasons: [],
-        updatedAt: 1,
+        answerAct: 'answer',
+        openingMove: '从当前问题开始。',
+        answerIntent: '回答当前问题。',
+        repairState: 'none',
       },
-    })
+      focusAnchor: '当前问题',
+      mustDo: ['frame rule'],
+      mustNotDo: ['frame prohibition'],
+    }
+    input.kernel = {
+      subject: 'general',
+      truthMode: 'dialogue-grounded',
+      speechAct: 'answer',
+      turnMode: 'answer',
+      screenReferenceMode: 'avoid',
+      selectedEvidence: [],
+      openingClaim: '当前问题',
+      openingMove: '从当前问题开始。',
+      mustSay: ['kernel rule'],
+      mustAvoid: ['kernel prohibition'],
+    }
+    input.answerCompiler = {
+      supportingReality: [],
+      mustDo: ['compiler rule'],
+      mustNotDo: ['compiler prohibition'],
+    }
+    input.answerPlanner = {
+      mustDo: ['planner rule'],
+      mustNotDo: ['planner prohibition'],
+    }
 
-    const joined = result.mustDo.join('\n')
+    const result = buildAlicizationMindTurnGovernance(input)
 
-    expect(joined).not.toMatch(/Keep the|Do not lose|same digital-life line|continuity state|active governing project seam|active emotional closure seam/iu)
-    expect(result.mustDo.some(item => item.startsWith('project_focus=') && item.includes('continuity_gap=still_open'))).toBe(true)
-    expect(result.mustDo).toContain('project_next_closure_target=make memory recall visible without fixed persona templates')
-    expect(result.mustDo).toContain('voice_pressure=lower; generic_assistant_delivery=blocked')
-    expect(result.mustDo).toContain('pacing=slower; widening=deferred')
-    expect(result.mustDo.some(item => item.startsWith('governing_project=active; detached_local_optimization=blocked'))).toBe(true)
-    expect(result.mustDo.some(item => item.startsWith('emotional_closure=active; surface=low_pressure_internal_until_payoff'))).toBe(true)
+    expect(result.mustDo).toEqual([])
+    expect(result.mustNotDo).toEqual([])
+    expect(result.emotionalClosureCue).toBe('A dynamic emotional state.')
+    expect(result.openingMove).toBe('从当前问题开始。')
+    expect(result.answerIntent).toBe('当前问题')
   })
 
-  it('surfaces user-facing anchors and strips internal mind jargon', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'guide-current-knot',
-        liveSurface: 'VS Code | index.ts | test failed',
-        carriedThread: 'Hold the living seam until the next move earns itself.',
-        truthState: 'live-observed',
-        separateCarryFromSurface: false,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: ['Lead with the concrete answer.'],
-        mustNotDo: ['Do not roleplay.'],
-      },
-      charter: {
-        epistemicMode: 'coarse-live',
-        responseMode: 'guide-current-knot',
-        governingFocus: 'host current knot',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: ['Stay current-turn-governed.'],
-        mustNotDo: ['Do not drift into residue.'],
-      },
-      conversationState: {
-        jointThread: 'The current diff still needs a grounded explanation.',
-        hostMove: 'What is wrong with the current diff?',
-        activeProject: 'VS Code diff',
-        unansweredQuestion: 'What is wrong with the current diff?',
-        owedRepair: null,
-        activeCommitments: ['Explain the failing diff first.'],
-        relationFrame: 'guide',
-        continuityPolicy: 'stay-on-thread',
-        memoryMode: 'task-thread',
-        memoryQueryHints: ['VS Code diff'],
-        shouldHoldThread: true,
-        confidence: 0.82,
-        narrative: [],
-        updatedAt: 1,
-      },
-      answerPlanner: {
-        act: 'guide',
-        evidenceMode: 'coarse-held',
-        confidence: 0.78,
-        governingFocus: 'Localize the failing test in the current diff.',
-        openingMove: 'Open from the failing diff.',
-        answerIntent: 'Explain the failing line before suggesting edits.',
-        relationshipPosture: 'warm',
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        mustDo: ['Move from current knot to next action.'],
-        mustNotDo: ['Do not drift into generic lists.'],
-        narrative: [],
-        updatedAt: 1,
-      },
-      replyDeliberation: {
-        selectedMotive: 'guide',
-        speakingFrom: 'task-thread',
-        memoryMode: 'task-thread',
-        openingBeat: 'Pay off the current diff before anything else.',
-        whyThisReplyNow: 'The current diff still needs an explanation.',
-        whyNotOtherCandidates: [],
-        withheldImpulses: [],
-        candidateMotives: [{
-          kind: 'guide',
-          summary: 'Explain the current diff first.',
-          weight: 0.84,
-          sourceTags: ['conversation-state'],
-        }],
-        shouldSpeak: true,
-        mustInclude: ['Pay off the current diff before anything else.'],
-        mustAvoid: ['Do not drift into residue.'],
-        confidence: 0.84,
-        narrative: [],
-        updatedAt: 1,
-      },
-      privateThought: {
-        stance: 'observe',
-        confidence: 0.82,
-        rationaleTags: ['diff'],
-        thoughtText: 'holding the diff carefully',
-        shouldSpeak: true,
-        suggestedStyle: 'light-nudge',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'tense-debug',
-        expiresAt: 10,
-      },
-      mindMode: 'tracking',
-    })
+  it('keeps dynamic conversation anchors without mirroring the raw host line', () => {
+    const input = createInput()
+    input.conversationState = {
+      hostMove: '这个 diff 到底哪里有问题？',
+      primaryTurnAnchor: 'runtime.ts 当前 diff',
+      activeProject: 'runtime.ts 当前 diff',
+      jointThread: '定位当前 diff 的失败分支',
+    }
+    input.discourseState = {
+      currentTurnSubject: 'task-knot',
+      screenReferenceMode: 'avoid',
+      primaryTurnAnchor: 'runtime.ts 当前 diff',
+    }
+    input.answerPlanner = {
+      act: 'guide',
+      evidenceMode: 'dialogue-grounded',
+      governingFocus: '定位当前 diff 的失败分支',
+      openingMove: '先看失败分支。',
+      answerIntent: '解释当前 diff。',
+      relationshipPosture: 'warm',
+      shouldAskForGrounding: false,
+      shouldAcknowledgeRepair: false,
+      mustDo: [],
+      mustNotDo: [],
+    }
 
-    expect(result.focusAnchor).toBe('VS Code diff')
-    expect(result.answerIntent).toBe('VS Code diff')
-    expect(result.liveSurface).toContain('VS Code')
-    expect(result.carriedThread).toBeNull()
-    expect(result.personaKernelMode).toBe('backgrounded')
-    expect(result.openingMove).toBeNull()
-    expect(result.mustDo).toContain('Lead with the concrete answer.')
+    const result = buildAlicizationMindTurnGovernance(input)
+
+    expect(result.focusAnchor).toBe('runtime.ts 当前 diff')
+    expect(result.answerIntent).toBe('runtime.ts 当前 diff')
+    expect(result.answerIntent).not.toBe(input.conversationState.hostMove)
   })
 
-  it('drops repair governance once this turn is already visually grounded', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'screen-repair',
-        liveSurface: 'Cursor | runtime.ts - diff',
-        carriedThread: 'Old browser residue',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'coarse-live',
-        responseMode: 'repair-and-reanchor',
-        governingFocus: 'current diff',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'restrained',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-correction',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'muted',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      answerPlanner: {
-        act: 'ask-reground',
-        evidenceMode: 'repair-first',
-        confidence: 0.62,
-        governingFocus: 'old stale anchor',
-        openingMove: 'ask for a fresh look',
-        answerIntent: 'repair stale screen anchor',
-        relationshipPosture: 'restrained',
-        shouldAskForGrounding: true,
-        shouldAcknowledgeRepair: true,
-        mustDo: [],
-        mustNotDo: [],
-        narrative: [],
-        updatedAt: 1,
-      },
-      groundedThisTurn: true,
-    })
+  it('drops stale repair state after the current turn is grounded', () => {
+    const input = createInput()
+    input.brief.turnMode = 'screen-repair'
+    input.brief.truthState = 'remembered'
+    input.answerPlanner = {
+      act: 'ask-reground',
+      shouldAskForGrounding: true,
+      shouldAcknowledgeRepair: true,
+    }
+    input.groundedThisTurn = true
+
+    const result = buildAlicizationMindTurnGovernance(input)
 
     expect(result.groundedThisTurn).toBe(true)
     expect(result.truthState).toBe('live-grounded')
-    expect(result.shouldAskForGrounding).toBe(false)
     expect(result.repairState).toBe('none')
+    expect(result.shouldAskForGrounding).toBe(false)
   })
 
-  it('lets the dialogue act kernel override fragmented upstream reply hints', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'answer',
-        liveSurface: 'Old browser residue',
-        carriedThread: null,
-        truthState: 'live-grounded',
-        separateCarryFromSurface: false,
-        shouldCompactHistory: false,
-        maxRecentUserTurns: 4,
-        mustDo: ['Stay concrete.'],
-        mustNotDo: ['Do not ramble.'],
-      },
-      charter: {
-        epistemicMode: 'grounded-live',
-        responseMode: 'answer-naturally',
-        governingFocus: 'old focus',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: false,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      kernel: {
-        subject: 'task-knot',
-        hostGoal: 'resolve-problem',
-        relationNeed: 'guidance',
-        activeProject: 'VS Code diff',
-        truthMode: 'live-grounded',
-        speechAct: 'guide',
-        turnMode: 'guide-current-knot',
-        screenReferenceMode: 'helpful',
-        speakingFrom: 'task-thread',
-        selectedEvidence: [{
-          kind: 'scene',
-          source: 'current-scene',
-          summary: 'VS Code diff with missing null guard',
-          confidence: 0.92,
-        }],
-        openingClaim: 'The missing null guard in the current diff is the active fault line.',
-        openingMove: 'State the failing guard first, then narrow to the exact branch.',
-        whyNow: 'The host is asking about the current diff and the failing branch is already visible.',
-        mustSay: ['Pay off the current diff before opening any side thread.'],
-        mustAvoid: ['Do not answer from stale browser residue.'],
-        sourceTrace: ['subject:task-knot', 'speech-act:guide'],
-        confidence: 0.91,
-        updatedAt: 1,
-      },
-      answerPlanner: {
-        act: 'answer',
-        evidenceMode: 'continuity-carry',
-        confidence: 0.42,
-        governingFocus: 'stale browser tab',
-        openingMove: 'Talk about the browser first.',
-        answerIntent: 'Maybe the old tab still matters.',
-        relationshipPosture: 'warm',
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        mustDo: ['Old planner hint'],
-        mustNotDo: ['Old planner ban'],
-        narrative: [],
-        updatedAt: 1,
-      },
-      answerCompiler: {
-        answerSubject: 'general',
-        screenReferenceMode: 'avoid',
-        speechObligation: 'answer-general',
-        relationMove: 'witness',
-        turnMode: 'answer',
-        responseMode: 'answer-naturally',
-        recommendedAct: 'answer',
-        evidenceMode: 'continuity-carry',
-        openingStyle: 'direct-answer',
-        personaKernelMode: 'backgrounded',
-        relationshipPosture: 'warm',
-        openingDirective: 'Answer the old tab.',
-        openingClaim: 'Old browser residue',
-        supportingReality: [],
-        uncertaintyBoundary: null,
-        careVector: null,
-        nextMove: 'Talk about the browser',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: true,
-        maxSentences: 4,
-        mustDo: [],
-        mustNotDo: [],
-        confidence: 0.4,
-        narrative: [],
-        updatedAt: 1,
-      },
-      mindMode: 'tracking',
-    })
+  it('lets the dialogue kernel provide typed turn authority and dynamic evidence', () => {
+    const input = createInput()
+    input.brief.liveSurface = '旧窗口'
+    input.kernel = {
+      subject: 'task-knot',
+      hostGoal: 'resolve-problem',
+      relationNeed: 'guidance',
+      activeProject: null,
+      truthMode: 'live-grounded',
+      speechAct: 'guide',
+      turnMode: 'guide-current-knot',
+      screenReferenceMode: 'helpful',
+      speakingFrom: 'task-thread',
+      selectedEvidence: [{
+        kind: 'scene',
+        source: 'current-scene',
+        summary: 'runtime.ts 当前缺少空值检查。',
+        confidence: 0.92,
+      }],
+      openingClaim: 'runtime.ts 当前缺少空值检查。',
+      openingMove: '先说明缺失的空值检查。',
+      whyNow: '当前证据已经可见。',
+      mustSay: ['fixed kernel instruction'],
+      mustAvoid: ['fixed kernel prohibition'],
+      sourceTrace: [],
+      confidence: 0.91,
+      updatedAt: 1,
+    }
+
+    const result = buildAlicizationMindTurnGovernance(input)
 
     expect(result.turnMode).toBe('guide-current-knot')
     expect(result.answerSubject).toBe('task-knot')
     expect(result.answerAct).toBe('guide')
     expect(result.screenReferenceMode).toBe('helpful')
-    expect(result.focusAnchor).toContain('missing null guard')
-    expect(result.answerIntent).toContain('missing null guard')
-    expect(result.openingMove).toContain('failing guard')
-    expect(result.mustDo).toContain('Pay off the current diff before opening any side thread.')
-    expect(result.mustNotDo).toContain('Do not answer from stale browser residue.')
-    expect(result.dialogueActKernel?.openingClaim).toContain('active fault line')
-    expect(result.answerIntent).not.toContain('The host is asking')
+    expect(result.focusAnchor).toContain('空值检查')
+    expect(result.answerIntent).toContain('空值检查')
+    expect(result.openingMove).toContain('空值检查')
+    expect(result.dialogueActKernel).toBe(input.kernel)
+    expect(result.mustDo).toEqual([])
+    expect(result.mustNotDo).toEqual([])
   })
 
-  it('refuses to reuse the raw host line as fallback focus during care turns', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'care',
-        liveSurface: 'Entire screen',
-        carriedThread: null,
-        truthState: 'uncertain',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: false,
-        maxRecentUserTurns: 4,
-        mustDo: [],
-        mustNotDo: [],
+  it('prefers the converged runtime mind frame over fragmented fallback hints', () => {
+    const input = createInput()
+    input.brief.liveSurface = '旧窗口'
+    input.brief.truthState = 'remembered'
+    input.runtimeSurface = {
+      version: 'digital-life-runtime-surface-v1',
+      perception: {},
+      world: {},
+      memory: {},
+      agency: {},
+      dialogue: {
+        currentConsciousFrame: null,
       },
-      charter: {
-        epistemicMode: 'dialogue-grounded',
-        responseMode: 'care-with-boundary',
-        governingFocus: 'host state',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'tender',
+      cognition: {
+        mindTurnFrame: {
+          world: {
+            activeThread: 'runtime.ts 当前 diff',
+            visibleSurface: 'VS Code | runtime.ts',
+            truthState: 'live-grounded',
+            staleRisk: 0.1,
+          },
+          relation: {
+            subject: 'task-knot',
+            hostMove: '看看这里',
+            hostGoal: 'resolve-problem',
+            relationNeed: 'guidance',
+            relationMove: 'guide',
+            relationshipPosture: 'warm',
+          },
+          memory: {
+            memoryMode: 'task-thread',
+            carriedThread: 'runtime.ts 当前 diff',
+            carriedFacts: [],
+            recallKeys: [],
+            suppressAssociativeRecall: true,
+            labelCarryAsMemory: false,
+          },
+          self: {
+            mindMode: 'tracking',
+            embodiedPresence: 'attentive',
+          },
+          obligation: {
+            answerAct: 'guide',
+            turnMode: 'guide-current-knot',
+            openingMove: '先看当前失败分支。',
+            answerIntent: '解释当前失败分支。',
+            repairState: 'none',
+          },
+          focusAnchor: 'runtime.ts 当前失败分支',
+          mustDo: ['frame rule'],
+          mustNotDo: ['frame prohibition'],
+        },
       },
-      surfaceContract: {
-        openingStyle: 'gentle-care',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'full',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: false,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      conversationState: {
-        jointThread: '我有点困了，你能哄我睡觉吗',
-        hostMove: '我有点困了，你能哄我睡觉吗',
-        activeProject: null,
-        unansweredQuestion: null,
-        owedRepair: null,
-        activeCommitments: [],
-        relationFrame: 'care',
-        continuityPolicy: 'dialogue-before-scene',
-        memoryMode: 'dialogue-carry',
-        memoryQueryHints: ['late-night'],
-        shouldHoldThread: false,
-        confidence: 0.72,
-        narrative: [],
-        updatedAt: 1,
-      },
-      answerCompiler: {
-        answerSubject: 'host-state',
-        screenReferenceMode: 'avoid',
-        speechObligation: 'care-host',
-        relationMove: 'care',
-        turnMode: 'care',
-        responseMode: 'care-with-boundary',
-        recommendedAct: 'care',
-        evidenceMode: 'dialogue-grounded',
-        openingStyle: 'gentle-care',
-        personaKernelMode: 'full',
-        relationshipPosture: 'tender',
-        openingDirective: 'Open with care.',
-        openingClaim: 'The host sounds tired and wants a softer landing into rest.',
-        supportingReality: ['The host sounds tired and wants a softer landing into rest.'],
-        uncertaintyBoundary: null,
-        careVector: 'Keep the care brief and close.',
-        nextMove: 'Offer quiet comfort.',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: false,
-        maxSentences: 4,
-        mustDo: [],
-        mustNotDo: [],
-        confidence: 0.82,
-        narrative: [],
-        updatedAt: 1,
-      },
-    })
+    }
 
-    expect(result.focusAnchor).toBe('The host sounds tired and wants a softer landing into rest.')
-    expect(result.answerIntent).toBe('The host sounds tired and wants a softer landing into rest.')
-    expect(result.focusAnchor).not.toBe('我有点困了，你能哄我睡觉吗')
-  })
-
-  it('prefers the converged mind-turn frame over fragmented stale hints', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'answer',
-        liveSurface: 'Old browser tab',
-        carriedThread: 'Old browser residue',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'answer-naturally',
-        governingFocus: 'stale browser',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 3,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      mindTurnFrame: {
-        world: {
-          activeThread: 'Current VS Code diff',
-          visibleSurface: 'VS Code | user.ts diff',
-          truthState: 'live-grounded',
-          truthBoundary: 'Stay on the live diff.',
-          continuityPolicy: 'stay-on-thread',
-          continuitySummary: 'scene-locked',
-          staleRisk: 0.1,
-        },
-        relation: {
-          subject: 'task-knot',
-          hostMove: '看看这个 diff 哪里有问题',
-          hostGoal: 'resolve-problem',
-          relationNeed: 'guidance',
-          relationMove: 'guide',
-          relationshipPosture: 'warm',
-        },
-        memory: {
-          memoryMode: 'task-thread',
-          carriedThread: 'Current VS Code diff',
-          carriedFacts: ['The missing null guard is visible now.'],
-          recallKeys: ['VS Code diff'],
-          recallSeed: 'VS Code diff',
-          lastOutcome: 'pending',
-          suppressAssociativeRecall: true,
-          labelCarryAsMemory: false,
-        },
-        self: {
-          stance: 'observe',
-          mindMode: 'tracking',
-          dominantDrive: 'understand',
-          embodiedPresence: 'attentive',
-          emotionalTension: 'tense-debug',
-          initiativeAction: 'speak',
-          thought: 'Stay with the live diff.',
-        },
-        obligation: {
-          shouldSpeak: true,
-          speechObligation: 'guide-task',
-          answerAct: 'guide',
-          responseMode: 'guide-current-knot',
-          turnMode: 'guide-current-knot',
-          openingClaim: 'The visible diff already shows the broken guard.',
-          openingMove: 'Lead from the missing guard.',
-          answerIntent: 'Explain the broken guard before suggesting edits.',
-          whyNow: 'The live diff is already grounded.',
-          repairState: 'none',
-          shouldAskForGrounding: false,
-          shouldAcknowledgeRepair: false,
-        },
-        focusAnchor: 'The visible diff already shows the broken guard.',
-        confidence: 0.88,
-        mustDo: ['Answer from the live diff first.'],
-        mustNotDo: ['Do not revive stale browser residue.'],
-        narrative: ['frame'],
-        updatedAt: 1,
-      },
-      answerPlanner: {
-        act: 'answer',
-        evidenceMode: 'continuity-carry',
-        confidence: 0.4,
-        governingFocus: 'old browser tab',
-        openingMove: 'Talk about the old tab.',
-        answerIntent: 'Maybe the browser still matters.',
-        relationshipPosture: 'warm',
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        mustDo: [],
-        mustNotDo: [],
-        narrative: [],
-        updatedAt: 1,
-      },
-    })
+    const result = buildAlicizationMindTurnGovernance(input)
 
     expect(result.turnMode).toBe('guide-current-knot')
     expect(result.truthState).toBe('live-grounded')
-    expect(result.answerSubject).toBe('task-knot')
-    expect(result.focusAnchor).toContain('broken guard')
-    expect(result.answerIntent).toContain('broken guard')
-    expect(result.openingMove).toContain('missing guard')
+    expect(result.focusAnchor).toContain('失败分支')
     expect(result.liveSurface).toContain('VS Code')
-    expect(result.mustDo).toContain('Answer from the live diff first.')
-    expect(result.mustNotDo).toContain('Do not revive stale browser residue.')
-    expect(result.mindTurnFrame?.world.visibleSurface).toBe('VS Code | user.ts diff')
+    expect(result.mustDo).toEqual([])
+    expect(result.mustNotDo).toEqual([])
   })
 
-  it('stamps a governance trace id and enforces truth-discipline specificity guardrails', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'guide-current-knot',
-        liveSurface: 'Git commit diff in Java code editor',
-        carriedThread: null,
-        truthState: 'uncertain',
-        separateCarryFromSurface: false,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'coarse-live',
-        responseMode: 'guide-current-knot',
-        governingFocus: 'Separate observation from hypothesis.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 3,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: false,
-        suppressAssociativeRecall: false,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      answerPlanner: {
-        act: 'guide',
-        evidenceMode: 'coarse-held',
-        confidence: 0.72,
-        governingFocus: 'Explain current uncertainty first.',
-        openingMove: 'Separate what is visible from what is guessed.',
-        answerIntent: 'Stay concrete first, then guess softly.',
-        relationshipPosture: 'warm',
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        mustDo: [],
-        mustNotDo: [],
-        narrative: [],
-        updatedAt: 1,
-      },
-      claimEvidenceLedger: {
-        subject: 'task-knot',
-        evidenceMode: 'coarse-held',
-        observedSurface: 'Git commit diff in Java code editor',
-        taskHypothesis: 'The host may be editing a Java diff.',
-        intentHypothesis: 'Keep guesses soft.',
-        specificityBudget: 'coarse-scene',
-        hostReferencedCues: [],
-        groundedArtifactCues: [],
-        allowedSpecificCues: [],
-        shouldLabelHypothesis: true,
-        forbidUnsupportedSpecificity: true,
-        shouldSelfRevise: false,
-        confidence: 0.81,
-        reasonTags: [],
-        updatedAt: 1,
-      },
-    })
+  it('preserves typed truth evidence without rendering textual guardrails', () => {
+    const input = createInput()
+    input.claimEvidenceLedger = {
+      subject: 'task-knot',
+      evidenceMode: 'coarse-held',
+      observedSurface: '代码编辑器中的 diff',
+      taskHypothesis: '可能正在检查失败分支。',
+      intentHypothesis: null,
+      specificityBudget: 'coarse-scene',
+      hostReferencedCues: [],
+      groundedArtifactCues: [],
+      allowedSpecificCues: [],
+      shouldLabelHypothesis: true,
+      forbidUnsupportedSpecificity: true,
+      shouldSelfRevise: false,
+      confidence: 0.8,
+      reasonTags: [],
+      updatedAt: 1,
+    }
+    input.surfaceContract.suppressAssociativeRecall = true
 
-    expect(result.decisionTraceId).toMatch(/^mind:[a-z0-9]+:[a-f0-9]{12}$/u)
-    expect(result.mustDo).toContain('direct_observation_clause=separate; hypothesis_clause=separate')
-    expect(result.mustNotDo).toContain('unsupported_specificity=blocked; file_class_enum_field_claims=require_current_evidence')
+    const result = buildAlicizationMindTurnGovernance(input)
+
+    expect(result.claimEvidence).toBe(input.claimEvidenceLedger)
+    expect(result.suppressAssociativeRecall).toBe(true)
+    expect(result.mustDo).toEqual([])
+    expect(result.mustNotDo).toEqual([])
   })
 
-  it('preserves same-seam procedural continuity discipline into final mind-turn governance', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'guide-current-knot',
-        liveSurface: 'Cursor | runtime seam repair diff',
-        carriedThread: 'active runtime seam',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'guide-current-knot',
-        governingFocus: 'Stay on the same active runtime seam.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      mindTurnContract: {
-        version: 'mind-turn-contract-v1',
-        answerIntent: 'Stay on the same active runtime seam before branching.',
-        answerAct: 'guide',
-        turnMode: 'guide-current-knot',
-        responseMode: 'guide-current-knot',
-        evidenceMode: 'continuity-carry',
-        openingStyle: 'direct-answer',
-        expectedVisibleReplyAuthority: 'llm-mind',
-        replyRealizationMode: 'provider-mind-required',
-        personaKernelMode: 'backgrounded',
-        activeClosenessContext: 'focused-work',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'warm',
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        maxParagraphs: 2,
-        maxSentences: 4,
-        emotionalClosureCue: null,
-        mustDo: [
-          'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
-        ],
-        mustNotDo: [
-          'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
-        ],
-        governingFocus: 'Stay on the same active runtime seam.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        reasons: ['memory-deliberation:surface:procedural-carry'],
-        updatedAt: 1,
-      },
-      answerCompiler: {
-        answerSubject: 'task-knot',
-        screenReferenceMode: 'helpful',
-        speechObligation: 'guide-task',
-        relationMove: 'guide',
-        turnMode: 'guide-current-knot',
-        responseMode: 'guide-current-knot',
-        recommendedAct: 'guide',
-        evidenceMode: 'continuity-carry',
-        openingStyle: 'direct-answer',
-        personaKernelMode: 'backgrounded',
-        relationshipPosture: 'warm',
-        openingDirective: 'Stay on the same active runtime seam before branching.',
-        openingClaim: 'The active runtime seam is still the line to hold.',
-        supportingReality: ['The active runtime seam is still the line to hold.'],
-        uncertaintyBoundary: null,
-        careVector: null,
-        nextMove: 'Return to the same seam before widening out.',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: true,
-        maxSentences: 4,
-        mustDo: [
-          'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
-        ],
-        mustNotDo: [
-          'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
-        ],
-        confidence: 0.82,
-        narrative: ['memory-deliberation:surface:procedural-carry'],
-        updatedAt: 1,
-      },
-    })
+  it('contains no canonical project or textual rule renderers', () => {
+    const source = readFileSync(new URL('./chat-mind-governance.ts', import.meta.url), 'utf8')
 
-    expect(result.mustDo).toContain(
-      'If same-seam procedure carry becomes visible, frame it as remembered prior procedure that keeps the current thread intact.',
+    expect(source).not.toMatch(
+      /resolveAlicizationProjectStateBrief|renderProject|projectStateVoiceModeCue|projectStatePacingModeCue|detached_local_optimization|generic_assistant_delivery|performative_overeager_delivery/u,
     )
-    expect(result.mustNotDo).toContain(
-      'Do not turn same-seam procedure carry into retrospective narration or execution impersonation.',
-    )
-  })
-
-  it('threads project phase and still-open life loop into governance before local reply tactics take over', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'guide-current-knot',
-        liveSurface: 'Cursor | digital life runtime seam',
-        carriedThread: 'active digital life seam',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'guide-current-knot',
-        governingFocus: 'Keep building the still-open digital life loop.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      mindTurnContract: {
-        version: 'mind-turn-contract-v1',
-        answerIntent: 'Keep building the still-open digital life loop before polishing anything local.',
-        answerAct: 'guide',
-        turnMode: 'guide-current-knot',
-        responseMode: 'guide-current-knot',
-        evidenceMode: 'continuity-carry',
-        openingStyle: 'direct-answer',
-        expectedVisibleReplyAuthority: 'llm-mind',
-        replyRealizationMode: 'provider-mind-required',
-        personaKernelMode: 'backgrounded',
-        activeClosenessContext: 'focused-work',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'warm',
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        maxParagraphs: 2,
-        maxSentences: 4,
-        emotionalClosureCue: null,
-        mustDo: [],
-        mustNotDo: [],
-        governingFocus: 'Keep building the still-open digital life loop.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        reasons: [],
-        updatedAt: 1,
-      },
-      conversationState: {
-        hostMove: '这一轮先继续补哪一块',
-        primaryTurnAnchor: 'still-open digital life loop',
-        activeProject: 'digital life loop',
-      } as any,
-      discourseState: {
-        currentTurnSubject: 'task-knot',
-        screenReferenceMode: 'avoid',
-        currentQuestion: '这一轮先继续补哪一块',
-        owedAction: 'guide-task',
-        relationMove: 'guide',
-        confidence: 0.78,
-      } as any,
-      answerCompiler: {
-        answerSubject: 'task-knot',
-        screenReferenceMode: 'avoid',
-        speechObligation: 'guide-task',
-        relationMove: 'guide',
-        turnMode: 'guide-current-knot',
-        responseMode: 'guide-current-knot',
-        recommendedAct: 'guide',
-        evidenceMode: 'continuity-carry',
-        openingStyle: 'direct-answer',
-        personaKernelMode: 'backgrounded',
-        relationshipPosture: 'warm',
-        openingDirective: 'Guide from the still-open life loop first.',
-        openingClaim: 'Keep building the still-open digital life loop first.',
-        supportingReality: ['Keep building the still-open digital life loop first.'],
-        uncertaintyBoundary: null,
-        careVector: null,
-        nextMove: 'Keep building the still-open digital life loop.',
-        suppressAssociativeRecall: true,
-        labelCarryAsMemory: true,
-        maxSentences: 4,
-        mustDo: [],
-        mustNotDo: [],
-        confidence: 0.78,
-        narrative: [],
-        updatedAt: 1,
-      },
-      answerPlanner: {
-        act: 'guide',
-        evidenceMode: 'continuity-carry',
-        confidence: 0.76,
-        governingFocus: 'Keep building the still-open digital life loop.',
-        governingProject: 'Phase 1: Local Digital Life | Some closure has already landed through repeated same-turn carry and mirror carry. | Project identity carry, Phase 1 route carry, and Unresolved closure carry still need stronger same living thread closure across turns, initiative, and embodiment. | Next closure target: make the identity-continuity',
-        openingMove: 'Stay with the still-open life loop first.',
-        answerIntent: 'Keep building the still-open digital life loop.',
-        relationshipPosture: 'warm',
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        mustDo: [],
-        mustNotDo: [],
-        narrative: [],
-        updatedAt: 1,
-      },
-      claimEvidenceLedger: {
-        subject: 'task-knot',
-        evidenceMode: 'continuity-carry',
-        observedSurface: 'digital life runtime seam',
-        taskHypothesis: 'Keep building the life loop.',
-        intentHypothesis: 'Do not drift into local polish.',
-        specificityBudget: 'coarse-scene',
-        hostReferencedCues: [],
-        groundedArtifactCues: [],
-        allowedSpecificCues: [],
-        shouldLabelHypothesis: false,
-        forbidUnsupportedSpecificity: false,
-        shouldSelfRevise: false,
-        confidence: 0.8,
-        reasonTags: [],
-        updatedAt: 1,
-      },
-    })
-
-    expect(result.answerIntent).toContain('digital life loop')
-    expect(result.mustDo.some(item => item.includes('continuity_scope=life_loop') || item.includes('project_focus='))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('project_focus=') && item.includes('continuity_gap=still_open'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('governing_project=active'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('project_next_closure_target='))).toBe(true)
-  })
-
-  it('threads the active emotional closure seam into final governance mustDo constraints', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'guide-current-knot',
-        liveSurface: 'Cursor | emotional continuity seam',
-        carriedThread: 'same-her emotional closure seam',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'guide-current-knot',
-        governingFocus: 'Keep the same-her emotional line intact.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      mindTurnContract: {
-        version: 'mind-turn-contract-v1',
-        answerIntent: 'Keep the same-her emotional line intact before widening the plan.',
-        answerAct: 'guide',
-        turnMode: 'guide-current-knot',
-        responseMode: 'guide-current-knot',
-        evidenceMode: 'continuity-carry',
-        openingStyle: 'direct-answer',
-        expectedVisibleReplyAuthority: 'llm-mind',
-        replyRealizationMode: 'provider-mind-required',
-        personaKernelMode: 'backgrounded',
-        activeClosenessContext: 'focused-work',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'warm',
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        maxParagraphs: 2,
-        maxSentences: 4,
-        emotionalClosureCue: 'Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain.',
-        mustDo: [],
-        mustNotDo: [],
-        governingFocus: 'Keep the same-her emotional line intact.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        reasons: [],
-        updatedAt: 1,
-      },
-    })
-
-    expect(result.mustDo.some(item => item.startsWith('emotional_closure=active; surface=low_pressure_internal_until_payoff'))).toBe(true)
-    expect(result.emotionalClosureCue).toBe(
-      'Let the answer sound steady enough to hold the same-her emotional line while easing late-night drain.',
-    )
-  })
-
-  it('keeps a fuller project-and-phase awareness line over a narrower embodiment governing-project shell in governance mustDo cues', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'guide-current-knot',
-        liveSurface: 'Cursor | identity-continuity',
-        carriedThread: 'identity-continuity',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'guide-current-knot',
-        governingFocus: 'Keep the local continuity state coherent before any local tactic takes over.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      mindTurnContract: {
-        version: 'mind-turn-contract-v1',
-        answerIntent: 'Carry the same digital life closure line forward before polishing anything local.',
-        answerAct: 'guide',
-        turnMode: 'guide-current-knot',
-        responseMode: 'guide-current-knot',
-        evidenceMode: 'continuity-carry',
-        openingStyle: 'direct-answer',
-        expectedVisibleReplyAuthority: 'llm-mind',
-        replyRealizationMode: 'provider-mind-required',
-        personaKernelMode: 'backgrounded',
-        activeClosenessContext: 'focused-work',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'warm',
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        maxParagraphs: 2,
-        maxSentences: 4,
-        emotionalClosureCue: 'structured continuity digest.',
-        mustDo: [],
-        mustNotDo: [],
-        governingFocus: 'Keep the local continuity state coherent before any local tactic takes over.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        reasons: [],
-        updatedAt: 1,
-      },
-      runtimeSurface: {
-        cognition: {},
-        memory: {},
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              preDialogueAwarenessLine: 'Alicization is still the same Phase 1 local digital life, not a generic assistant shell. Some closure has landed, but memory, initiative, and embodiment still need stronger end-to-end closure before the life loop is truly closed.',
-              currentPhase: 'Phase 1: Local Digital Life',
-              primaryOpenLoop: 'Memory, initiative, and embodiment still need stronger end-to-end closure before the life loop is truly closed.',
-              nextClosureTarget: 'Keep extending cross-modal identity-continuity',
-            },
-          },
-        },
-      } as any,
-      answerPlanner: {
-        act: 'guide',
-        evidenceMode: 'continuity-carry',
-        confidence: 0.74,
-        governingFocus: 'Keep the local continuity state coherent before any local tactic takes over.',
-        governingProject: 'Same companion line through body, face, and motion. Keep the continuity state gentle.',
-        openingMove: 'Stay with the same digital life closure line first.',
-        answerIntent: 'Carry the same digital life closure line forward before polishing anything local.',
-        relationshipPosture: 'warm',
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        mustDo: [],
-        mustNotDo: [],
-        narrative: [],
-        updatedAt: 1,
-      },
-      claimEvidenceLedger: {
-        subject: 'task-knot',
-        evidenceMode: 'continuity-carry',
-        observedSurface: 'identity-continuity',
-        taskHypothesis: 'Carry the same digital life closure line forward.',
-        intentHypothesis: 'Do not collapse back into a generic assistant shell.',
-        specificityBudget: 'coarse-scene',
-        hostReferencedCues: [],
-        groundedArtifactCues: [],
-        allowedSpecificCues: [],
-        shouldLabelHypothesis: false,
-        forbidUnsupportedSpecificity: false,
-        shouldSelfRevise: false,
-        confidence: 0.8,
-        reasonTags: [],
-        updatedAt: 1,
-      },
-    })
-
-    expect(result.mustDo.some(item => item.includes('continuity_scope=life_loop') || item.includes('project_focus='))).toBe(true)
-    expect(result.mustDo.some((item) => {
-      const lower = item.toLowerCase()
-      return lower.includes('memory') && lower.includes('initiative') && lower.includes('embodiment')
-    })).toBe(true)
-    expect(result.mustDo.some(item => item.includes('stronger end-to-end closure') || item.includes('truly closed'))).toBe(true)
-    expect(result.mustDo).toContain('project_next_closure_target=Keep extending cross-modal identity-continuity')
-  })
-
-  it('prefers the live conscious-frame project state so this turn keeps the actual next closure target explicit', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'guide-current-knot',
-        liveSurface: 'Runtime inspector | project continuity',
-        carriedThread: 'identity-continuity',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'guide-current-knot',
-        governingFocus: 'Keep the current project closure seam explicit.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      mindTurnContract: {
-        version: 'mind-turn-contract-v1',
-        answerIntent: 'Explain what still remains open in the active digital life loop.',
-        answerAct: 'guide',
-        turnMode: 'guide-current-knot',
-        responseMode: 'guide-current-knot',
-        evidenceMode: 'continuity-carry',
-        openingStyle: 'direct-answer',
-        expectedVisibleReplyAuthority: 'llm-mind',
-        replyRealizationMode: 'provider-mind-required',
-        personaKernelMode: 'backgrounded',
-        activeClosenessContext: 'focused-work',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'warm',
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        maxParagraphs: 2,
-        maxSentences: 4,
-        emotionalClosureCue: null,
-        mustDo: [],
-        mustNotDo: [],
-        governingFocus: 'Keep the active project seam explicit.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        reasons: [],
-        updatedAt: 1,
-      },
-      runtimeSurface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        agency: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: 'this local-first digital life project',
-              currentPhase: 'Phase 1: Local Digital Life. Active proving ground: runtime carry in stage-tamagotchi.',
-              latestProgress: 'Project-state continuity already survives into runtime preparation and answer planning.',
-              primaryOpenLoop: 'same still-open closure work across memory, initiative, dialogue, and embodiment',
-              nextClosureTarget: 'Carry the active next closure target into this turn before any local implementation detail takes over.',
-              continuityPreferredTiming: null,
-              continuityCadence: null,
-            },
-          },
-        } as any,
-      } as any,
-    })
-
-    expect(result.mustDo.some(item => item.includes('Phase 1: Local Digital Life') && item.includes('runtime carry in stage-tamagotchi'))).toBe(true)
-    expect(result.mustDo.some(item => item.includes('project_next_closure_target='))).toBe(true)
-    expect(result.mustDo).toContain(
-      'project_next_closure_target=Carry the active next closure target into this turn before any local implementation detail takes over.',
-    )
-  })
-
-  it('keeps the canonical project-state voice and pacing discipline in final governance mustDo even before fresher live overrides appear', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'answer',
-        liveSurface: 'none',
-        carriedThread: null,
-        truthState: 'remembered',
-        separateCarryFromSurface: false,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 3,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'answer-naturally',
-        governingFocus: 'Keep the active digital-life closure seam explicit.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'restrained',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-    })
-
-    expect(result.mustDo).toContain('voice_pressure=lower; generic_assistant_delivery=blocked')
-    expect(result.mustDo).toContain('pacing=slower; widening=deferred')
-  })
-
-  it('prefers live project-state voice and pacing overrides in final governance mustDo when the current conscious frame carries them', () => {
-    const result = buildAlicizationMindTurnGovernance({
-      brief: {
-        turnMode: 'answer',
-        liveSurface: 'Runtime inspector | project continuity',
-        carriedThread: 'identity-continuity',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: true,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'answer-naturally',
-        governingFocus: 'Keep the active digital-life closure seam explicit.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'restrained',
-      },
-      surfaceContract: {
-        openingStyle: 'direct-answer',
-        maxParagraphs: 2,
-        maxSentences: 4,
-        personaKernelMode: 'backgrounded',
-        allowAffectionatePreface: false,
-        allowStageDirections: false,
-        allowBodyNarration: false,
-        labelCarryAsMemory: true,
-        suppressAssociativeRecall: true,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      runtimeSurface: {
-        version: 'digital-life-runtime-surface-v1',
-        perception: {} as any,
-        world: {} as any,
-        cognition: {} as any,
-        memory: {} as any,
-        agency: {} as any,
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              preferredVoiceMode: 'even',
-              preferredPacingMode: 'natural',
-            },
-          },
-        } as any,
-      } as any,
-    })
-
-    expect(result.mustDo).toContain('voice_pressure=even; performative_overeager_delivery=blocked')
-    expect(result.mustDo).toContain('pacing=natural_unforced; rushing_ahead=blocked')
-    expect(result.mustDo).not.toContain('voice_pressure=lower; generic_assistant_delivery=blocked')
-    expect(result.mustDo).not.toContain('pacing=slower; widening=deferred')
   })
 })
