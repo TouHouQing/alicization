@@ -38,7 +38,7 @@ function sanitizeReplyDeliberation(
     whyThisReplyNow: sanitizeRuntimeDialogueText(state.whyThisReplyNow),
     whyNotOtherCandidates: sanitizeRuntimeDialogueTextList(state.whyNotOtherCandidates),
     withheldImpulses: sanitizeRuntimeDialogueTextList(state.withheldImpulses),
-    candidateMotives: state.candidateMotives
+    candidateMotives: (state.candidateMotives ?? [])
       .map(candidate => ({
         ...candidate,
         summary: sanitizeRuntimeDialogueText(candidate.summary),
@@ -59,7 +59,7 @@ function sanitizeDialogueActKernel(
   return {
     ...state,
     activeProject: sanitizeRuntimeDialogueText(state.activeProject, 800) || null,
-    selectedEvidence: state.selectedEvidence
+    selectedEvidence: (state.selectedEvidence ?? [])
       .map(evidence => ({
         ...evidence,
         summary: sanitizeRuntimeDialogueText(evidence.summary, 800),

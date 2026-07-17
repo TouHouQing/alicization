@@ -149,6 +149,8 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
     ...surface,
     memory: {
       ...surface.memory,
+      hostPersonModel: input.context.hostPersonModel ?? surface.memory.hostPersonModel ?? null,
+      selfEvolution: input.context.selfEvolution ?? surface.memory.selfEvolution ?? null,
       personalityContinuityState: continuityAwareProjection.personalityContinuityState,
       personStateProjection: continuityAwareProjection,
     },

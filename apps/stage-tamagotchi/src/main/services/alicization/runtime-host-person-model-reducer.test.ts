@@ -105,6 +105,48 @@ describe('runtime-host-person-model-reducer', () => {
     expect(nextSurface?.dialogue).toEqual(dialogue)
   })
 
+  it('persists typed host and self-evolution memory without turning them into dialogue text', () => {
+    const dialogue = {
+      replyDeliberation: null,
+      answerPlanner: null,
+      dialogueActKernel: null,
+    }
+    const surface = createSurface(dialogue)
+    const hostPersonModel = {
+      summary: 'The host prefers room while focused.',
+      trustLadder: {
+        score: 0.4,
+        stage: 'guarded',
+        rationale: 'Current boundaries need to be respected.',
+      },
+      preferredClosenessByContext: [],
+      preferences: [],
+      sensitivities: [],
+      repairTriggers: [],
+      recurrentBurdens: [],
+      routines: [],
+    }
+    const selfEvolution = {
+      version: 'self-evolution-kernel-v1',
+      relationshipDoctrine: 'Respect the current boundary.',
+    }
+
+    const nextSurface = applyHostPersonModelToDigitalLifeRuntimeSurface({
+      surface,
+      governance: createGovernance(),
+      context: {
+        hostPersonModel,
+        personStateProjection: createProjection(),
+        selfEvolution,
+      } as any,
+      now: 150,
+    })
+
+    expect(nextSurface?.memory.hostPersonModel).toBe(hostPersonModel)
+    expect(nextSurface?.memory.selfEvolution).toBe(selfEvolution)
+    expect(nextSurface?.dialogue).toEqual(dialogue)
+  })
+
   it('does not rewrite existing reply, kernel, or planner text while applying typed posture', () => {
     const replyDeliberation = {
       selectedMotive: 'guide',

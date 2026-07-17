@@ -202,6 +202,43 @@ describe('reduceRuntimeAnswerPlanner', () => {
     })
   })
 
+  it('accepts sparse replay snapshots without fabricating missing collections', () => {
+    const reduced = reduceRuntimeAnswerPlanner({
+      now: 14,
+      governance: createGovernance(),
+      surface: createSurface({
+        currentConsciousFrame: null,
+        answerPlanner: null,
+        replyDeliberation: {
+          selectedMotive: 'guide',
+          speakingFrom: 'task-thread',
+          memoryMode: 'task-thread',
+          openingBeat: '先处理当前问题。',
+          whyThisReplyNow: '当前问题仍然存在。',
+          shouldSpeak: true,
+          confidence: 0.8,
+          updatedAt: 1,
+        },
+        dialogueActKernel: {
+          subject: 'task-knot',
+          truthMode: 'dialogue-grounded',
+          speechAct: 'guide',
+          turnMode: 'guide-current-knot',
+          screenReferenceMode: 'avoid',
+          speakingFrom: 'task-thread',
+          openingClaim: '当前问题。',
+          openingMove: '先处理当前问题。',
+          whyNow: '当前问题仍然存在。',
+          confidence: 0.8,
+          updatedAt: 1,
+        },
+      }),
+    })
+
+    expect(reduced?.dialogue.replyDeliberation?.candidateMotives).toEqual([])
+    expect(reduced?.dialogue.dialogueActKernel?.selectedEvidence).toEqual([])
+  })
+
   it('contains no canonical project or anti-restart generators', () => {
     const source = readFileSync(new URL('./runtime-answer-planner-reducer.ts', import.meta.url), 'utf8')
 
