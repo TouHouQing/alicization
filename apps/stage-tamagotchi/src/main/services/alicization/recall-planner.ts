@@ -3,6 +3,12 @@ import type { AlicizationMemoryRetrievalHealth } from '@proj-alicization/stage-s
 import type { AlicizationRelationshipLineCandidate } from './memory-search-retrieval-operators'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import {
+  buildUniqueMemoryPlanningOwnerIdIndex,
+  normalizeMemoryPlanningId,
+  resolveMemoryPlanningOwnerIds,
+} from './memory-os/planning-identifiers'
+
 type RecollectionIntentSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
 type RecollectionPlanSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionPlan']>
 type RecollectionSpeechPlanSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']>
@@ -124,12 +130,10 @@ function mergeSelectedIds(input: {
   tertiary?: string[] | null
   maxItems?: number
 }) {
-  const primary = uniqueIds(input.primary ?? [], input.maxItems ?? 6)
-  if (primary.length > 0)
-    return primary
-  const secondary = uniqueIds(input.secondary ?? [], input.maxItems ?? 6)
-  if (secondary.length > 0)
-    return secondary
+  if (input.primary !== undefined && input.primary !== null)
+    return uniqueIds(input.primary, input.maxItems ?? 6)
+  if (input.secondary !== undefined && input.secondary !== null)
+    return uniqueIds(input.secondary, input.maxItems ?? 6)
   return uniqueIds(input.tertiary ?? [], input.maxItems ?? 6)
 }
 
@@ -187,19 +191,26 @@ function deriveCertainty(input: {
 }
 
 function deriveRelationshipLines(input: {
-  memoryDeliberationCandidate: MemoryDeliberationSnapshot | null
-  recollectionPlanCandidate: RecollectionPlanSnapshot | null
   relationshipLineCandidates: AlicizationRelationshipLineCandidate[]
   consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
   selectedConsolidationIds: Set<string>
   selectedEpisodeIds: Set<string>
+  selectedConversationTurnIds: Set<string>
 }) {
+  const selectedConsolidationIds = new Set([...input.selectedConsolidationIds].map(normalizeMemoryPlanningId))
+  const selectedEpisodeIds = new Set([...input.selectedEpisodeIds].map(normalizeMemoryPlanningId))
+  const selectedConversationTurnIds = new Set([...input.selectedConversationTurnIds].map(normalizeMemoryPlanningId))
   return uniqueList([
-    ...(input.memoryDeliberationCandidate?.selectedRelationshipLines ?? []),
-    ...(input.recollectionPlanCandidate?.selectedRelationshipLines ?? []),
     ...input.relationshipLineCandidates
-      .filter(item => input.selectedEpisodeIds.has(item.sourceId) || input.selectedConsolidationIds.has(item.sourceId))
+      .filter((item) => {
+        const sourceId = normalizeMemoryPlanningId(item.sourceId)
+        if (item.sourceKind === 'consolidation')
+          return selectedConsolidationIds.has(sourceId)
+        if (item.sourceKind === 'episode')
+          return selectedEpisodeIds.has(sourceId)
+        return selectedConversationTurnIds.has(sourceId)
+      })
       .map(item => item.line),
     ...input.recalledEpisodes
       .filter(item => input.selectedEpisodeIds.has(item.id))
@@ -290,14 +301,12 @@ function deriveEvidenceSurfacePressure(input: {
 }
 
 function deriveStableCore(input: {
-  memoryDeliberationCandidate: MemoryDeliberationSnapshot | null
   reconstructionContext?: AlicizationRecallPlannerReconstructionContext | null
   selectedRelationshipLines: string[]
   selectedPeriods: Array<{ summary: string }>
   selectedProcedures: Array<{ label: string, approach: string }>
 }) {
   return uniqueList([
-    ...(input.memoryDeliberationCandidate?.stableCore ?? []),
     ...(input.reconstructionContext?.stableCore ?? []),
     ...input.selectedRelationshipLines,
     ...input.selectedPeriods.map(item => item.summary),
@@ -306,12 +315,10 @@ function deriveStableCore(input: {
 }
 
 function deriveUnsafeDetails(input: {
-  memoryDeliberationCandidate: MemoryDeliberationSnapshot | null
   reconstructionContext?: AlicizationRecallPlannerReconstructionContext | null
   clusterContext?: AlicizationRecallPlannerClusterContext | null
 }) {
   return uniqueList([
-    ...(input.memoryDeliberationCandidate?.unsafeDetails ?? []),
     ...(input.reconstructionContext?.unsafeDetails ?? []),
     ...(input.clusterContext?.competingVariants ?? []).flatMap(item => [item.summary, item.reason]),
   ], 6)
@@ -319,8 +326,6 @@ function deriveUnsafeDetails(input: {
 
 function deriveSuppressionReasons(input: {
   recollectionIntent: RecollectionIntentSnapshot | null
-  recollectionPlanCandidate: RecollectionPlanSnapshot | null
-  memoryDeliberationCandidate: MemoryDeliberationSnapshot | null
   selectedConsolidationIds: string[]
   selectedEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
   consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
@@ -332,14 +337,10 @@ function deriveSuppressionReasons(input: {
       input.selectedConsolidationIds.includes(item.id) && item.facet === 'self-era')
   if (selfModelTurn) {
     const selfTexts = [
-      input.recollectionPlanCandidate?.rationale,
-      input.memoryDeliberationCandidate?.whyNow,
       ...input.selectedEpisodes.flatMap(item => [item.whatHappened, item.whatChanged, item.lesson ?? '']),
       ...input.consolidatedMemories
         .filter(item => input.selectedConsolidationIds.includes(item.id))
         .flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
-      ...(input.memoryDeliberationCandidate?.stableCore ?? []),
-      ...(input.memoryDeliberationCandidate?.unsafeDetails ?? []),
     ]
       .filter(Boolean)
       .join(' ')
@@ -349,7 +350,7 @@ function deriveSuppressionReasons(input: {
       const provenance = item.latestReconsolidation?.provenance ?? item.provenance
       return provenance === 'reconstructed' || provenance === 'dreamt' || provenance === 'inferred'
     })
-    const staleSelfCue = /older self|old self|older self-story|old self-story|newer self|identity revision|revise|stale identity|自我|旧理解|旧叙事|修正|新自我|身份/u.test(selfTexts)
+    const staleSelfCue = /older self|old self|newer self|identity revision|revise|stale identity|自我|旧理解|旧叙事|修正|新自我|身份/u.test(selfTexts)
     const shouldSuppressStaleSelfModel = reconstructedSelfEpisode && staleSelfCue
 
     if (shouldSuppressStaleSelfModel)
@@ -361,15 +362,11 @@ function deriveSuppressionReasons(input: {
       input.selectedConsolidationIds.includes(item.id) && item.facet === 'relationship-era')
   if (relationshipTurn) {
     const relationshipTexts = [
-      input.recollectionPlanCandidate?.rationale,
-      input.memoryDeliberationCandidate?.whyNow,
       ...input.selectedEpisodes.flatMap(item => [item.whatHappened, item.whatChanged, item.relationshipMeaning ?? '', item.lesson ?? '']),
       ...input.consolidatedMemories
         .filter(item => input.selectedConsolidationIds.includes(item.id))
         .flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
       ...input.selectedRelationshipLines,
-      ...(input.memoryDeliberationCandidate?.stableCore ?? []),
-      ...(input.memoryDeliberationCandidate?.unsafeDetails ?? []),
     ]
       .filter(Boolean)
       .join(' ')
@@ -389,9 +386,6 @@ function deriveSuppressionReasons(input: {
 
 function deriveSuppressionConflictVariants(input: {
   suppressionReasons: string[]
-  recollectionIntent: RecollectionIntentSnapshot | null
-  recollectionPlanCandidate: RecollectionPlanSnapshot | null
-  memoryDeliberationCandidate: MemoryDeliberationSnapshot | null
   selectedConsolidationIds: string[]
   consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
 }) {
@@ -399,31 +393,27 @@ function deriveSuppressionConflictVariants(input: {
   if (input.suppressionReasons.includes('stale-self-model')) {
     const selfEra = input.consolidatedMemories.find(item =>
       input.selectedConsolidationIds.includes(item.id) && item.facet === 'self-era')
-    const summary = selfEra?.summary
-      ?? input.memoryDeliberationCandidate?.whyNow
-      ?? input.recollectionPlanCandidate?.rationale
-      ?? 'Older self-story remained active while the newer self line was still being revised.'
-    variants.push({
-      id: 'suppression:self-model-stale',
-      summary,
-      provenance: 'reconstructed',
-      reason: 'Older self-story remained revision-prone, so stale self-model continuity was vetoed before visible surfacing.',
-    })
+    if (selfEra) {
+      variants.push({
+        id: selfEra.id,
+        summary: selfEra.summary,
+        provenance: selfEra.dominantProvenance,
+        reason: null,
+      })
+    }
   }
 
   if (input.suppressionReasons.includes('relationship-era-confusion')) {
     const relationshipEra = input.consolidatedMemories.find(item =>
       input.selectedConsolidationIds.includes(item.id) && item.facet === 'relationship-era')
-    const summary = relationshipEra?.summary
-      ?? input.memoryDeliberationCandidate?.whyNow
-      ?? input.recollectionPlanCandidate?.rationale
-      ?? 'Competing relationship eras remained too easy to confuse.'
-    variants.push({
-      id: 'suppression:relationship-era-confusion',
-      summary,
-      provenance: 'reconstructed',
-      reason: 'Competing relationship eras remained too easy to confuse, so the recalled bond line was vetoed before visible surfacing.',
-    })
+    if (relationshipEra) {
+      variants.push({
+        id: relationshipEra.id,
+        summary: relationshipEra.summary,
+        provenance: relationshipEra.dominantProvenance,
+        reason: null,
+      })
+    }
   }
   return variants
 }
@@ -439,9 +429,9 @@ function buildNormalizedRecollectionPlan(input: {
   certainty: RecollectionPlanSnapshot['certainty']
   confidence: number
   whyThisMemory: string | null
-  inwardLine: string
   recollectionPlanCandidate: RecollectionPlanSnapshot | null
   ambiguityPosture: NonNullable<MemoryDeliberationSnapshot['ambiguityPosture']>
+  targetIdIndex: ReadonlyMap<string, string>
 }): RecollectionPlanSnapshot | null {
   if (!input.shouldRecall)
     return null
@@ -450,6 +440,20 @@ function buildNormalizedRecollectionPlan(input: {
   const searchTrace = candidate?.searchTrace
     ? {
         ...candidate.searchTrace,
+        firstHop: {
+          ...candidate.searchTrace.firstHop,
+          targetIds: resolveMemoryPlanningOwnerIds(
+            candidate.searchTrace.firstHop.targetIds,
+            input.targetIdIndex,
+          ),
+        },
+        secondHop: {
+          ...candidate.searchTrace.secondHop,
+          targetIds: resolveMemoryPlanningOwnerIds(
+            candidate.searchTrace.secondHop.targetIds,
+            input.targetIdIndex,
+          ),
+        },
         thirdHop: {
           ...candidate.searchTrace.thirdHop,
           ambiguityPosture: input.ambiguityPosture,
@@ -465,9 +469,9 @@ function buildNormalizedRecollectionPlan(input: {
     selectedConversationTurnIds: input.selectedConversationTurnIds,
     selectedRelationshipLines: input.selectedRelationshipLines,
     searchTrace,
-    opening: candidate?.opening || input.inwardLine,
+    opening: '',
     certainty: input.certainty,
-    rationale: input.whyThisMemory || candidate?.rationale || 'A coherent remembered bundle should shape this turn.',
+    rationale: input.whyThisMemory || candidate?.rationale || '',
     confidence: input.confidence,
   }
 }
@@ -488,55 +492,119 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
   const evidenceSurfacePressure = deriveEvidenceSurfacePressure({
     knowledgeEvidence: input.knowledgeEvidence ?? null,
   })
-  const baseShouldRecall = candidateDeliberation?.shouldRecall
+  const recallRequested = candidateDeliberation?.shouldRecall
     ?? Boolean(candidatePlan)
+  const consolidationIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.consolidatedMemories,
+    item => item.id,
+  )
+  const windowIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.recollectedWindows,
+    item => item.id,
+  )
+  const procedureIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.proceduralMemories,
+    item => item.id,
+  )
+  const episodeIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.recalledEpisodes,
+    item => item.id,
+  )
+  const conversationTurnIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.recalledConversationHistory,
+    item => item.turnId,
+  )
+  const eraIdIndex = buildUniqueMemoryPlanningOwnerIdIndex([
+    ...input.consolidatedMemories.map(item => ({ id: item.id })),
+    ...input.recollectedWindows.map(item => ({ id: item.id })),
+  ], item => item.id)
+  const targetIdIndex = buildUniqueMemoryPlanningOwnerIdIndex([
+    ...input.consolidatedMemories.map(item => ({ id: item.id })),
+    ...input.recollectedWindows.map(item => ({ id: item.id })),
+    ...input.proceduralMemories.map(item => ({ id: item.id })),
+    ...input.recalledEpisodes.map(item => ({ id: item.id })),
+    ...input.recalledConversationHistory.map(item => ({ id: item.turnId })),
+  ], item => item.id)
+
+  const resolvedConsolidationIds = recallRequested
+    ? resolveMemoryPlanningOwnerIds(
+        mergeSelectedIds({
+          primary: candidateDeliberation?.selectedConsolidationIds,
+          secondary: candidatePlan?.selectedConsolidationIds,
+        }),
+        consolidationIdIndex,
+      )
+    : []
+  const resolvedWindowIds = recallRequested
+    ? resolveMemoryPlanningOwnerIds(
+        mergeSelectedIds({
+          primary: candidateDeliberation?.selectedWindowIds,
+          secondary: candidatePlan?.selectedWindowIds,
+        }),
+        windowIdIndex,
+      )
+    : []
+  const resolvedProcedureIds = recallRequested
+    ? resolveMemoryPlanningOwnerIds(
+        mergeSelectedIds({
+          primary: candidateDeliberation?.selectedProcedureIds,
+          secondary: candidatePlan?.selectedProceduralIds,
+        }),
+        procedureIdIndex,
+      )
+    : []
+  const resolvedEpisodeIds = recallRequested
+    ? resolveMemoryPlanningOwnerIds(
+        mergeSelectedIds({
+          primary: candidateDeliberation?.selectedEpisodeIds,
+          secondary: candidatePlan?.selectedEpisodeIds,
+        }),
+        episodeIdIndex,
+      )
+    : []
+  const resolvedConversationTurnIds = recallRequested
+    ? resolveMemoryPlanningOwnerIds(
+        mergeSelectedIds({
+          primary: candidateDeliberation?.selectedConversationTurnIds,
+          secondary: candidatePlan?.selectedConversationTurnIds,
+        }),
+        conversationTurnIdIndex,
+      )
+    : []
+  const resolvedEraIds = recallRequested
+    ? resolveMemoryPlanningOwnerIds(
+        mergeSelectedIds({
+          primary: candidateDeliberation?.selectedEraIds,
+          secondary: [...resolvedConsolidationIds, ...resolvedWindowIds],
+          maxItems: 3,
+        }),
+        eraIdIndex,
+        3,
+      )
+    : []
+  const hasSelectedOwner = resolvedConsolidationIds.length > 0
+    || resolvedWindowIds.length > 0
+    || resolvedProcedureIds.length > 0
+    || resolvedEpisodeIds.length > 0
+    || resolvedConversationTurnIds.length > 0
+    || resolvedEraIds.length > 0
+  const baseShouldRecall = recallRequested && hasSelectedOwner
   const weakRecallCandidate = !candidateDeliberation
     && (candidatePlan?.confidence ?? 0) < 0.72
     && (candidateSpeech?.confidence ?? 0) < 0.72
   const shouldRecall = reliabilityPressure >= 0.64 && weakRecallCandidate
     ? false
     : baseShouldRecall
-
-  const selectedConsolidationIds = shouldRecall
-    ? mergeSelectedIds({
-        primary: candidateDeliberation?.selectedConsolidationIds,
-        secondary: candidatePlan?.selectedConsolidationIds,
-      })
-    : []
-  const selectedWindowIds = shouldRecall
-    ? mergeSelectedIds({
-        primary: candidateDeliberation?.selectedWindowIds,
-        secondary: candidatePlan?.selectedWindowIds,
-      })
-    : []
-  const selectedProcedureIds = shouldRecall
-    ? mergeSelectedIds({
-        primary: candidateDeliberation?.selectedProcedureIds,
-        secondary: candidatePlan?.selectedProceduralIds,
-      })
-    : []
-  const selectedEpisodeIds = shouldRecall
-    ? mergeSelectedIds({
-        primary: candidateDeliberation?.selectedEpisodeIds,
-        secondary: candidatePlan?.selectedEpisodeIds,
-      })
-    : []
-  const selectedConversationTurnIds = shouldRecall
-    ? mergeSelectedIds({
-        primary: candidateDeliberation?.selectedConversationTurnIds,
-        secondary: candidatePlan?.selectedConversationTurnIds,
-      })
-    : []
-  const selectedEraIds = shouldRecall
-    ? mergeSelectedIds({
-        primary: candidateDeliberation?.selectedEraIds,
-        secondary: [...selectedConsolidationIds, ...selectedWindowIds],
-        maxItems: 3,
-      })
-    : []
+  const selectedConsolidationIds = shouldRecall ? resolvedConsolidationIds : []
+  const selectedWindowIds = shouldRecall ? resolvedWindowIds : []
+  const selectedProcedureIds = shouldRecall ? resolvedProcedureIds : []
+  const selectedEpisodeIds = shouldRecall ? resolvedEpisodeIds : []
+  const selectedConversationTurnIds = shouldRecall ? resolvedConversationTurnIds : []
+  const selectedEraIds = shouldRecall ? resolvedEraIds : []
 
   const selectedEpisodeIdSet = new Set(selectedEpisodeIds)
   const selectedConsolidationIdSet = new Set(selectedConsolidationIds)
+  const selectedConversationTurnIdSet = new Set(selectedConversationTurnIds)
   const selectedEpisodes = input.recalledEpisodes.filter(item => selectedEpisodeIdSet.has(item.id))
   const selectedPeriods = [
     ...input.recollectedWindows
@@ -555,19 +623,16 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
 
   const selectedRelationshipLines = shouldRecall
     ? deriveRelationshipLines({
-        memoryDeliberationCandidate: candidateDeliberation,
-        recollectionPlanCandidate: candidatePlan,
         relationshipLineCandidates: input.relationshipLineCandidates,
         consolidatedMemories: input.consolidatedMemories,
         recalledEpisodes: input.recalledEpisodes,
         selectedConsolidationIds: selectedConsolidationIdSet,
         selectedEpisodeIds: selectedEpisodeIdSet,
+        selectedConversationTurnIds: selectedConversationTurnIdSet,
       })
     : []
   const suppressionReasons = deriveSuppressionReasons({
     recollectionIntent: input.recollectionIntent,
-    recollectionPlanCandidate: candidatePlan,
-    memoryDeliberationCandidate: candidateDeliberation,
     selectedConsolidationIds,
     selectedEpisodes,
     consolidatedMemories: input.consolidatedMemories,
@@ -575,9 +640,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
   })
   const suppressionConflictVariants = deriveSuppressionConflictVariants({
     suppressionReasons,
-    recollectionIntent: input.recollectionIntent,
-    recollectionPlanCandidate: candidatePlan,
-    memoryDeliberationCandidate: candidateDeliberation,
     selectedConsolidationIds,
     consolidatedMemories: input.consolidatedMemories,
   })
@@ -635,22 +697,16 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     || '',
     220,
   ) || null
-  const inwardLine = sanitizeText(
-    candidateDeliberation?.inwardLine
-    || candidatePlan?.opening
-    || whyThisMemory
-    || '',
-    220,
-  )
-  const stableCore = deriveStableCore({
-    memoryDeliberationCandidate: candidateDeliberation,
-    reconstructionContext: input.reconstructionContext ?? null,
-    selectedRelationshipLines,
-    selectedPeriods,
-    selectedProcedures,
-  })
+  const inwardLine = ''
+  const stableCore = shouldRecall
+    ? deriveStableCore({
+        reconstructionContext: input.reconstructionContext ?? null,
+        selectedRelationshipLines,
+        selectedPeriods,
+        selectedProcedures,
+      })
+    : []
   const unsafeDetails = deriveUnsafeDetails({
-    memoryDeliberationCandidate: candidateDeliberation,
     reconstructionContext: input.reconstructionContext ?? null,
     clusterContext: input.clusterContext ?? null,
   })
@@ -697,9 +753,9 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     certainty,
     confidence,
     whyThisMemory,
-    inwardLine,
     recollectionPlanCandidate: candidatePlan,
     ambiguityPosture,
+    targetIdIndex,
   })
 
   const memoryDeliberation: MemoryDeliberationSnapshot | null = candidateDeliberation || recollectionPlan || candidatePlan || candidateSpeech
@@ -713,10 +769,10 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         selectedConversationTurnIds,
         selectedRelationshipLines,
         ambiguityPosture,
-        searchTrace: candidateDeliberation?.searchTrace ?? recollectionPlan?.searchTrace ?? null,
-        selectedEras: candidateDeliberation?.selectedEras ?? [],
-        selectedPeriods: candidateDeliberation?.selectedPeriods ?? [],
-        selectedEpisodes: candidateDeliberation?.selectedEpisodes ?? [],
+        searchTrace: recollectionPlan?.searchTrace ?? null,
+        selectedEras: [],
+        selectedPeriods: [],
+        selectedEpisodes: [],
         conflictSeverity: suppressionConflictVariants.length > 0
           ? (
               candidateDeliberation?.conflictSeverity && candidateDeliberation.conflictSeverity !== 'none'
@@ -724,30 +780,17 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
                 : 'medium'
             )
           : candidateDeliberation?.conflictSeverity,
-        conflictVariants: [
-          ...(candidateDeliberation?.conflictVariants ?? []),
-          ...suppressionConflictVariants,
-        ],
+        conflictVariants: suppressionConflictVariants,
         stableCore,
-        unsafeDetails: [
-          ...unsafeDetails,
-          ...(suppressionReasons.includes('stale-self-model')
-            ? ['older_self_story_as_settled_identity=blocked_until_newer_self_line_stabilizes']
-            : []),
-          ...(suppressionReasons.includes('relationship-era-confusion')
-            ? ['competing_relationship_eras_as_same_repair_phase=blocked']
-            : []),
-        ],
-        selectedProcedures: candidateDeliberation?.selectedProcedures ?? [],
-        selectedBundles: candidateDeliberation?.selectedBundles ?? [],
-        selectedChains: candidateDeliberation?.selectedChains ?? [],
+        unsafeDetails,
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
         surfacePolicy: shouldRecall ? surfaceMode : 'internal-only',
         confidence,
-        whyNow: whyThisMemory || 'A coherent remembered bundle is shaping the current turn.',
+        whyNow: whyThisMemory || '',
         inwardLine,
-        visibleLine: shouldRecall && surfaceMode !== 'internal-only'
-          ? candidateDeliberation?.visibleLine || null
-          : null,
+        visibleLine: null,
         followUpAffordance: candidateDeliberation?.followUpAffordance ?? null,
       }
     : null

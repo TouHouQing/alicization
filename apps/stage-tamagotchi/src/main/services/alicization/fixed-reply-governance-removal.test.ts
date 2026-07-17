@@ -98,6 +98,14 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('does not let project-preflight narrative rank memory candidates', () => {
+    const source = readServiceSource('./memory-candidate-ranking.ts')
+
+    expect(source).not.toContain('rankByProjectPreflightContinuityBias')
+    expect(source).not.toContain('hasProjectPreflightContinuityAuthority')
+    expect(source).not.toContain('project-preflight:')
+  })
+
   it('drops fixed-template residue instead of replacing it with another internal cue', () => {
     const sources = [
       readServiceSource('./digital-life-spine.ts'),

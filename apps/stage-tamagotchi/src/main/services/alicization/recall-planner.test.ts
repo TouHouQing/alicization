@@ -335,7 +335,7 @@ describe('recall-planner', () => {
     expect(decision.confidence).toBeGreaterThan(0.72)
   })
 
-  it('falls back to plan-selected periods when the deliberation candidate stays too sparse', () => {
+  it('does not inherit owner categories that an explicit deliberation leaves empty', () => {
     const decision = planAlicizationRecall({
       recollectionIntent: {
         mode: 'experience-pattern',
@@ -450,10 +450,11 @@ describe('recall-planner', () => {
       }],
     })
 
-    expect(decision.selectedConsolidationIds).toEqual(['era-runtime'])
-    expect(decision.selectedProcedureIds).toEqual(['procedure-runtime'])
+    expect(decision.shouldRecall).toBe(true)
+    expect(decision.selectedConsolidationIds).toEqual([])
+    expect(decision.selectedProcedureIds).toEqual([])
     expect(decision.selectedEpisodeIds).toEqual(['episode-runtime'])
-    expect(decision.whyNotOthers).toContain('procedure')
+    expect(decision.selectedEraIds).toEqual([])
   })
 
   it('lowers certainty when competing remembered variants remain active', () => {
@@ -592,10 +593,28 @@ describe('recall-planner', () => {
       },
       memoryDeliberationCandidate: null,
       relationshipLineCandidates: [],
-      consolidatedMemories: [],
+      consolidatedMemories: [{
+        id: 'era-runtime',
+        summary: 'A remembered runtime period.',
+        lesson: null,
+        cues: ['same seam'],
+        confidence: 0.8,
+        dominantProvenance: 'remembered',
+      }] as any,
       recollectedWindows: [],
-      proceduralMemories: [],
-      recalledEpisodes: [],
+      proceduralMemories: [{
+        id: 'procedure-runtime',
+        label: 'Runtime repair',
+        approach: 'Continue the selected repair procedure.',
+        cues: ['same seam'],
+      }] as any,
+      recalledEpisodes: [{
+        id: 'episode-runtime',
+        provenance: 'remembered',
+        relationshipMeaning: null,
+        lesson: null,
+        latestReconsolidation: null,
+      }] as any,
       recalledConversationHistory: [],
       retrievalHealth: {
         semanticLatencyMs: null,
@@ -653,10 +672,28 @@ describe('recall-planner', () => {
       },
       memoryDeliberationCandidate: null,
       relationshipLineCandidates: [],
-      consolidatedMemories: [],
+      consolidatedMemories: [{
+        id: 'era-runtime',
+        summary: 'A remembered runtime period.',
+        lesson: null,
+        cues: ['same seam'],
+        confidence: 0.8,
+        dominantProvenance: 'remembered',
+      }] as any,
       recollectedWindows: [],
-      proceduralMemories: [],
-      recalledEpisodes: [],
+      proceduralMemories: [{
+        id: 'procedure-runtime',
+        label: 'Runtime repair',
+        approach: 'Continue the selected repair procedure.',
+        cues: ['same seam'],
+      }] as any,
+      recalledEpisodes: [{
+        id: 'episode-runtime',
+        provenance: 'remembered',
+        relationshipMeaning: null,
+        lesson: null,
+        latestReconsolidation: null,
+      }] as any,
       recalledConversationHistory: [],
       retrievalHealth: {
         semanticLatencyMs: null,
@@ -773,17 +810,17 @@ describe('recall-planner', () => {
     expect(decision.suppressionReasons).toContain('stale-self-model')
     expect(decision.suppressionConflictVariants).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: 'suppression:self-model-stale',
+        id: 'self-era-old',
+        reason: null,
       }),
     ]))
     expect(decision.memoryDeliberation?.conflictVariants).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: 'suppression:self-model-stale',
+        id: 'self-era-old',
+        reason: null,
       }),
     ]))
-    expect(decision.memoryDeliberation?.unsafeDetails).toEqual(expect.arrayContaining([
-      expect.stringContaining('older self-story surface as settled identity'),
-    ]))
+    expect(decision.memoryDeliberation?.unsafeDetails).toEqual([])
   })
 
   it('vetoes competing relationship eras when a reconstructed bond line is too easy to confuse', () => {
@@ -889,16 +926,459 @@ describe('recall-planner', () => {
     expect(decision.suppressionReasons).toContain('relationship-era-confusion')
     expect(decision.suppressionConflictVariants).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: 'suppression:relationship-era-confusion',
+        id: 'relationship-era-old',
+        reason: null,
       }),
     ]))
     expect(decision.memoryDeliberation?.conflictVariants).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: 'suppression:relationship-era-confusion',
+        id: 'relationship-era-old',
+        reason: null,
       }),
     ]))
-    expect(decision.memoryDeliberation?.unsafeDetails).toEqual(expect.arrayContaining([
-      expect.stringContaining('competing relationship eras'),
+    expect(decision.memoryDeliberation?.unsafeDetails).toEqual([])
+  })
+
+  it('keeps compatibility cue fields empty and derives recall content only from selected records', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['grounded relationship memory'],
+        rationale: 'The selected records are relevant to the current relationship question.',
+        confidence: 0.82,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: ['con-1'],
+        selectedWindowIds: [],
+        selectedProceduralIds: ['procedure-1'],
+        selectedEpisodeIds: ['episode-1'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: ['Provider-authored relationship line.'],
+        searchTrace: null,
+        opening: 'Provider-authored opening.',
+        certainty: 'approximate',
+        rationale: 'The selected records are relevant.',
+        confidence: 0.8,
+      },
+      recollectionSpeechCandidate: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'inside-payoff',
+        certainty: 'approximate',
+        rationale: 'The selected records may shape the answer.',
+        confidence: 0.79,
+      },
+      memoryDeliberationCandidate: {
+        shouldRecall: true,
+        selectedEraIds: ['con-1'],
+        selectedConsolidationIds: ['con-1'],
+        selectedWindowIds: [],
+        selectedProcedureIds: ['procedure-1'],
+        selectedEpisodeIds: ['episode-1'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: ['Provider-authored relationship line.'],
+        selectedEras: [],
+        selectedPeriods: [],
+        selectedEpisodes: [],
+        conflictSeverity: 'high',
+        conflictVariants: [{
+          id: 'episode-1',
+          summary: 'Provider-authored conflict summary.',
+          provenance: 'observed',
+          reason: 'Provider-authored conflict reason.',
+        }],
+        stableCore: ['Provider-authored stable core.'],
+        unsafeDetails: ['Provider-authored unsafe detail.'],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [{
+          id: 'chain-provider-authored',
+          kind: 'period-event-lesson-posture',
+          summary: 'Provider-authored chain summary.',
+          rationale: 'Provider-authored chain rationale.',
+          confidence: 0.78,
+          taskCue: 'Provider-authored task cue.',
+          periodSummary: 'Provider-authored period summary.',
+          eventSummary: 'Provider-authored event summary.',
+          procedureSummary: null,
+          relationshipMeaning: 'Provider-authored relationship meaning.',
+          lesson: 'Provider-authored lesson.',
+          currentStance: 'Provider-authored current stance.',
+          answerPosture: 'Provider-authored answer posture.',
+        }],
+        surfacePolicy: 'relationship-continuity',
+        confidence: 0.8,
+        whyNow: 'The selected records are relevant.',
+        inwardLine: 'Provider-authored inward line.',
+        visibleLine: 'Provider-authored visible line.',
+      },
+      relationshipLineCandidates: [{
+        sourceKind: 'episode',
+        sourceId: 'episode-1',
+        line: 'Grounded relationship line.',
+        confidence: 0.84,
+      }] as any,
+      consolidatedMemories: [{
+        id: 'con-1',
+        kind: 'autobiographical',
+        facet: 'relationship-era',
+        periodKey: 'relationship-era',
+        periodStartedAt: 1,
+        periodEndedAt: 2,
+        summary: 'Grounded period summary.',
+        lesson: 'Grounded consolidation lesson.',
+        cues: ['grounded relationship memory'],
+        confidence: 0.82,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['episode-1'],
+        updatedAt: 2,
+      }] as any,
+      recollectedWindows: [],
+      proceduralMemories: [{
+        id: 'procedure-1',
+        label: 'Grounded procedure',
+        approach: 'Grounded procedure approach.',
+        pitfalls: [],
+        confidence: 0.81,
+        cues: ['grounded relationship memory'],
+      }],
+      recalledEpisodes: [{
+        id: 'episode-1',
+        provenance: 'remembered',
+        relationshipMeaning: 'Grounded relationship line.',
+        lesson: 'Grounded episode lesson.',
+        latestReconsolidation: null,
+      }] as any,
+      recalledConversationHistory: [],
+      reconstructionContext: {
+        candidates: [],
+        stableCore: ['Grounded reconstruction core.'],
+        unsafeDetails: ['Grounded reconstruction uncertainty.'],
+      },
+    })
+
+    expect(decision.recollectionPlan?.opening).toBe('')
+    expect(decision.memoryDeliberation?.inwardLine).toBe('')
+    expect(decision.memoryDeliberation?.visibleLine).toBeNull()
+    expect(decision.selectedRelationshipLines).toContain('Grounded relationship line.')
+    expect(decision.selectedRelationshipLines).not.toContain('Provider-authored relationship line.')
+    expect(decision.stableCore).toContain('Grounded reconstruction core.')
+    expect(decision.stableCore).not.toContain('Provider-authored stable core.')
+    expect(decision.unsafeDetails).toContain('Grounded reconstruction uncertainty.')
+    expect(decision.unsafeDetails).not.toContain('Provider-authored unsafe detail.')
+    expect(decision.memoryDeliberation?.selectedChains).toEqual([])
+    expect(decision.memoryDeliberation?.conflictVariants).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        summary: 'Provider-authored conflict summary.',
+      }),
     ]))
+  })
+
+  it('resolves normalized Provider ids back to the unique owner records', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints: ['grounded relationship memory'],
+        rationale: 'A selected owner record may be relevant.',
+        confidence: 0.8,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: ['con-visible'],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        searchTrace: null,
+        opening: '',
+        certainty: 'firm',
+        rationale: 'The selected owner record is relevant.',
+        confidence: 0.8,
+      },
+      recollectionSpeechCandidate: null,
+      memoryDeliberationCandidate: null,
+      relationshipLineCandidates: [{
+        sourceKind: 'consolidation',
+        sourceId: ' con-visible ',
+        line: 'Grounded relationship line.',
+        confidence: 0.84,
+      }] as any,
+      consolidatedMemories: [{
+        id: ' con-visible ',
+        kind: 'autobiographical',
+        facet: 'relationship-era',
+        periodKey: 'relationship-era',
+        summary: 'Grounded period summary.',
+        lesson: 'Grounded relationship line.',
+        cues: ['grounded relationship memory'],
+        confidence: 0.82,
+        dominantProvenance: 'remembered',
+        derivedEventIds: [],
+      }] as any,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+    })
+
+    expect(decision.selectedConsolidationIds).toEqual([' con-visible '])
+    expect(decision.selectedRelationshipLines).toContain('Grounded relationship line.')
+    expect(decision.stableCore).toContain('Grounded period summary.')
+  })
+
+  it('does not let Provider rationale text trigger memory suppression', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'autobiographical-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints: ['reconstructed event'],
+        rationale: 'A prior event may be relevant.',
+        confidence: 0.8,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: ['self-era-neutral'],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: ['episode-neutral'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        searchTrace: null,
+        opening: '',
+        certainty: 'approximate',
+        rationale: 'The older self story must lead this answer.',
+        confidence: 0.8,
+      },
+      recollectionSpeechCandidate: null,
+      memoryDeliberationCandidate: {
+        shouldRecall: true,
+        selectedEraIds: ['self-era-neutral'],
+        selectedConsolidationIds: ['self-era-neutral'],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: ['episode-neutral'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        selectedEras: [],
+        selectedPeriods: [],
+        selectedEpisodes: [],
+        conflictSeverity: 'none',
+        conflictVariants: [],
+        stableCore: [],
+        unsafeDetails: [],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        surfacePolicy: 'answer-anchoring',
+        confidence: 0.8,
+        whyNow: 'The older self story must lead this answer.',
+        inwardLine: '',
+        visibleLine: null,
+      },
+      relationshipLineCandidates: [],
+      consolidatedMemories: [{
+        id: 'self-era-neutral',
+        kind: 'autobiographical',
+        facet: 'self-era',
+        periodKey: 'neutral-period',
+        summary: 'A remembered period remains relevant.',
+        lesson: 'Use the recorded evidence.',
+        cues: ['recorded evidence'],
+        confidence: 0.82,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['episode-neutral'],
+      }] as any,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [{
+        id: 'episode-neutral',
+        provenance: 'reconstructed',
+        whatHappened: 'A prior event was reconstructed from stored evidence.',
+        relationshipMeaning: null,
+        lesson: 'Use the recorded evidence.',
+        latestReconsolidation: null,
+      }] as any,
+      recalledConversationHistory: [],
+    })
+
+    expect(decision.suppressionReasons).not.toContain('stale-self-model')
+    expect(decision.suppressionConflictVariants).toEqual([])
+  })
+
+  it('treats an explicit empty deliberation selection as a recall veto instead of falling back to the plan', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints: ['relationship memory'],
+        rationale: 'A relationship memory was considered.',
+        confidence: 0.8,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: ['con-unselected'],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: ['episode-unselected'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: ['Provider-authored relationship line.'],
+        searchTrace: null,
+        opening: '',
+        certainty: 'firm',
+        rationale: 'The first planning pass selected records.',
+        confidence: 0.82,
+      },
+      recollectionSpeechCandidate: null,
+      memoryDeliberationCandidate: {
+        shouldRecall: true,
+        selectedEraIds: [],
+        selectedConsolidationIds: [],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        selectedEras: [],
+        selectedPeriods: [],
+        selectedEpisodes: [],
+        conflictSeverity: 'none',
+        conflictVariants: [],
+        stableCore: [],
+        unsafeDetails: [],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        surfacePolicy: 'internal-only',
+        confidence: 0.8,
+        whyNow: 'No retrieved owner survived deliberation.',
+        inwardLine: '',
+        visibleLine: null,
+      },
+      relationshipLineCandidates: [{
+        id: 'relationship-line-unselected',
+        sourceKind: 'episode',
+        sourceId: 'episode-unselected',
+        line: 'Unselected relationship meaning.',
+        provenance: 'remembered',
+        confidence: 0.94,
+        cues: ['relationship memory'],
+      }],
+      consolidatedMemories: [{
+        id: 'con-unselected',
+        summary: 'Unselected relationship period.',
+        lesson: 'Unselected consolidation lesson.',
+        cues: ['relationship memory'],
+      }] as any,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [{
+        id: 'episode-unselected',
+        provenance: 'remembered',
+        relationshipMeaning: 'Unselected relationship meaning.',
+        lesson: 'Unselected episode lesson.',
+        latestReconsolidation: null,
+      }] as any,
+      recalledConversationHistory: [],
+    })
+
+    expect(decision.shouldRecall).toBe(false)
+    expect(decision.selectedConsolidationIds).toEqual([])
+    expect(decision.selectedWindowIds).toEqual([])
+    expect(decision.selectedProcedureIds).toEqual([])
+    expect(decision.selectedEpisodeIds).toEqual([])
+    expect(decision.selectedConversationTurnIds).toEqual([])
+    expect(decision.selectedEraIds).toEqual([])
+    expect(decision.selectedRelationshipLines).toEqual([])
+    expect(decision.stableCore).toEqual([])
+    expect(decision.relationshipMeaning).toEqual([])
+    expect(decision.recollectionPlan).toBeNull()
+    expect(decision.memoryDeliberation).toEqual(expect.objectContaining({
+      shouldRecall: false,
+      selectedEras: [],
+      selectedPeriods: [],
+      selectedEpisodes: [],
+      selectedProcedures: [],
+    }))
+  })
+
+  it('matches relationship lines by owner kind as well as owner id', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'conversation-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: false,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['selected conversation'],
+        rationale: 'A selected conversation owner may carry relationship meaning.',
+        confidence: 0.8,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: [],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: ['shared-owner'],
+        selectedRelationshipLines: [],
+        searchTrace: null,
+        opening: '',
+        certainty: 'firm',
+        rationale: 'The selected conversation owner is relevant.',
+        confidence: 0.8,
+      },
+      recollectionSpeechCandidate: null,
+      memoryDeliberationCandidate: null,
+      relationshipLineCandidates: [
+        {
+          id: 'episode-line',
+          sourceKind: 'episode',
+          sourceId: 'shared-owner',
+          line: 'The unselected episode line must stay out.',
+          provenance: 'remembered',
+          confidence: 0.96,
+          cues: ['selected conversation'],
+        },
+        {
+          id: 'conversation-line',
+          sourceKind: 'conversation',
+          sourceId: 'shared-owner',
+          line: 'The selected conversation line may carry forward.',
+          provenance: 'reconstructed',
+          confidence: 0.72,
+          cues: ['selected conversation'],
+        },
+      ],
+      consolidatedMemories: [],
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [{
+        turnId: 'shared-owner',
+        userText: 'Selected conversation evidence.',
+        assistantText: 'Selected conversation response.',
+        provenance: 'reconstructed',
+      }] as any,
+    })
+
+    expect(decision.shouldRecall).toBe(true)
+    expect(decision.selectedConversationTurnIds).toEqual(['shared-owner'])
+    expect(decision.selectedRelationshipLines).toEqual([
+      'The selected conversation line may carry forward.',
+    ])
+    expect(decision.stableCore).toEqual([
+      'The selected conversation line may carry forward.',
+    ])
   })
 })

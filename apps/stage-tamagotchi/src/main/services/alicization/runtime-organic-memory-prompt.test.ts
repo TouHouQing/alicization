@@ -1574,10 +1574,28 @@ describe('runtime-organic-memory-prompt', () => {
       planMemoryRecollection: vi.fn(async () => ({
         selectedConsolidationIds: ['task-era-runtime'],
         selectedWindowIds: [],
-        selectedProceduralIds: [],
-        selectedEpisodeIds: [],
+        selectedProceduralIds: ['runtime seam'],
+        selectedEpisodeIds: ['episode-runtime'],
         selectedConversationTurnIds: [],
-        opening: 'What comes back first is that runtime seam period.',
+        selectedRelationshipLines: [],
+        searchTrace: {
+          firstHop: {
+            focus: 'era' as const,
+            summary: 'The selected task era is the first retrieval anchor.',
+            targetIds: ['task-era-runtime'],
+          },
+          secondHop: {
+            action: 'expand-era' as const,
+            evidenceGap: 'need-procedure-detail' as const,
+            summary: 'The selected episode and procedure support the era.',
+            targetIds: ['episode-runtime', 'runtime seam'],
+          },
+          thirdHop: {
+            ambiguityPosture: 'approximate' as const,
+            summary: 'The selected owner records are coherent enough for approximate recall.',
+          },
+        },
+        opening: '',
         certainty: 'firm' as const,
         rationale: 'The remembered task era is the most humanly plausible first anchor.',
         confidence: 0.84,
@@ -1598,10 +1616,10 @@ describe('runtime-organic-memory-prompt', () => {
       selectedEpisodeIds: expect.arrayContaining(['episode-runtime']),
       selectedProceduralIds: expect.arrayContaining(['runtime seam']),
       searchTrace: expect.objectContaining({
-        firstHop: expect.objectContaining({ focus: 'procedure' }),
+        firstHop: expect.objectContaining({ focus: 'era' }),
         secondHop: expect.objectContaining({
-          action: 'expand-procedure',
-          evidenceGap: 'need-episode-detail',
+          action: 'expand-era',
+          evidenceGap: 'need-procedure-detail',
         }),
         thirdHop: expect.objectContaining({ ambiguityPosture: expect.any(String) }),
       }),
@@ -1725,7 +1743,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(planMemoryRecollection).toHaveBeenCalled()
     expect(planRecollectionSpeech).toHaveBeenCalledWith(expect.objectContaining({
       recollectionPlan: expect.objectContaining({
-        opening: 'What comes back first is the runtime seam we kept returning to.',
+        opening: '',
       }),
       consolidatedMemories: expect.arrayContaining([
         expect.objectContaining({ id: 'consolidation-runtime' }),
@@ -1750,7 +1768,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(JSON.stringify(recallFact)).not.toMatch(/"opening"/u)
   })
 
-  it('lets memory deliberation become the final foreground authority over selected memory bundles', async () => {
+  it('keeps final memory deliberation grounded in owner records without Provider-authored bundles or chains', async () => {
     const planMemoryDeliberation = vi.fn(async () => ({
       shouldRecall: true,
       selectedEraIds: ['consolidation-runtime'],
@@ -1929,27 +1947,12 @@ describe('runtime-organic-memory-prompt', () => {
       shouldRecall: true,
       surfacePolicy: 'answer-anchoring',
       whyNow: 'The answer needs the remembered runtime seam as its internal anchor.',
-      followUpAffordance: expect.objectContaining({
-        summary: expect.stringContaining('remembered procedure'),
-        payoffDependency: 'can-surface-softly',
-        preferredTiming: 'same-turn-if-invited',
-      }),
-      selectedRelationshipLines: expect.arrayContaining(['Carry the same runtime seam before branching.']),
-      selectedBundles: expect.arrayContaining([
-        expect.objectContaining({
-          id: 'bundle-runtime',
-          periodId: 'consolidation-runtime',
-          episodeId: 'episode-runtime',
-          procedureId: 'procedure-runtime',
-        }),
+      selectedProcedureIds: [],
+      selectedRelationshipLines: expect.arrayContaining([
+        'The host trusted Alicization to keep following the same thread.',
       ]),
-      selectedChains: expect.arrayContaining([
-        expect.objectContaining({
-          id: 'chain-runtime',
-          currentStance: 'Stay on the same seam before branching.',
-          answerPosture: 'Answer from the same seam before branching.',
-        }),
-      ]),
+      selectedBundles: [],
+      selectedChains: [],
       selectedEras: expect.arrayContaining([
         expect.objectContaining({ id: 'consolidation-runtime', facet: 'phase' }),
       ]),
@@ -1979,17 +1982,13 @@ describe('runtime-organic-memory-prompt', () => {
       selectedPeriods: expect.arrayContaining([
         expect.objectContaining({ id: 'consolidation-runtime', kind: 'consolidation' }),
       ]),
-      selectedBundles: expect.arrayContaining([
-        expect.objectContaining({ id: 'bundle-runtime' }),
-      ]),
-      selectedChains: expect.arrayContaining([
-        expect.objectContaining({ id: 'chain-runtime', kind: 'task-procedure-relationship-stance' }),
-      ]),
+      selectedBundles: [],
+      selectedChains: [],
     }))
-    expect(JSON.stringify(recallFact)).not.toMatch(/why_withheld|must_do|must_not_do/u)
+    expect(JSON.stringify(recallFact)).not.toMatch(/bundle-runtime|chain-runtime|currentStance|answerPosture|why_withheld|must_do|must_not_do/u)
   })
 
-  it('produces different memory deliberation bundles for the same phrase under different contexts', async () => {
+  it('keeps contextual memory policy differences without carrying Provider-authored bundle prose', async () => {
     const planMemoryDeliberation = vi.fn(async (input: any) => {
       if (input.recollectionIntent.mode === 'execution-procedure') {
         return {
@@ -2005,32 +2004,8 @@ describe('runtime-organic-memory-prompt', () => {
           selectedPeriods: [],
           selectedEpisodes: [],
           selectedProcedures: [],
-          selectedBundles: [{
-            id: 'bundle-procedure',
-            summary: 'Return to the runtime seam before branching.',
-            rationale: 'Focused work context should recall the old runtime handling procedure first.',
-            confidence: 0.84,
-            periodId: null,
-            episodeId: 'episode-runtime',
-            procedureId: 'procedure-runtime',
-            conversationTurnId: null,
-            relationshipLine: null,
-          }],
-          selectedChains: [{
-            id: 'chain-procedure',
-            kind: 'task-procedure-relationship-stance' as const,
-            summary: 'Return to the runtime seam before branching.',
-            rationale: 'Focused work context should recall the old runtime handling procedure first.',
-            confidence: 0.84,
-            taskCue: 'runtime seam',
-            periodSummary: null,
-            eventSummary: 'We kept repairing the runtime continuity seam until the flow stabilized.',
-            procedureSummary: 'Return to the runtime seam before branching.',
-            relationshipMeaning: null,
-            lesson: null,
-            currentStance: 'Hold the procedure line.',
-            answerPosture: 'Answer from the existing seam.',
-          }],
+          selectedBundles: [],
+          selectedChains: [],
           surfacePolicy: 'procedural-carry' as const,
           confidence: 0.84,
           whyNow: 'The focused work context wants the remembered procedure first.',
@@ -2052,32 +2027,8 @@ describe('runtime-organic-memory-prompt', () => {
         selectedPeriods: [],
         selectedEpisodes: [],
         selectedProcedures: [],
-        selectedBundles: [{
-          id: 'bundle-relationship',
-          summary: 'Focused windows need more room before closeness.',
-          rationale: 'Relationship repair context should recall the bond lesson before any task procedure.',
-          confidence: 0.81,
-          periodId: 'consolidation-relationship',
-          episodeId: 'episode-relationship',
-          procedureId: null,
-          conversationTurnId: null,
-          relationshipLine: 'Back off first, then reopen with a lighter touch.',
-        }],
-        selectedChains: [{
-          id: 'chain-relationship',
-          kind: 'period-event-lesson-posture' as const,
-          summary: 'Focused windows need more room before closeness. | The host said the reply felt intrusive during focused work. | Back off first, then reopen with a lighter touch.',
-          rationale: 'Relationship repair context should recall the bond lesson before any task procedure.',
-          confidence: 0.81,
-          taskCue: 'relationship seam',
-          periodSummary: 'Focused windows need more room before closeness.',
-          eventSummary: 'The host said the reply felt intrusive during focused work.',
-          procedureSummary: null,
-          relationshipMeaning: 'Back off first, then reopen with a lighter touch.',
-          lesson: 'Back off first, then reopen with a lighter touch.',
-          currentStance: 'Give more room before leaning closer.',
-          answerPosture: 'Open lightly and let repair land first.',
-        }],
+        selectedBundles: [],
+        selectedChains: [],
         surfacePolicy: 'relationship-continuity' as const,
         confidence: 0.81,
         whyNow: 'The relationship-repair context wants the bond lesson first.',
@@ -2234,13 +2185,15 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     })
 
-    expect(taskContext.memoryDeliberation?.selectedBundles[0]?.id).toBe('bundle-procedure')
     expect(taskContext.memoryDeliberation?.surfacePolicy).toBe('procedural-carry')
-    expect(taskContext.memoryDeliberation?.selectedBundles[0]?.summary).toContain('runtime seam')
+    expect(taskContext.memoryDeliberation?.selectedEpisodeIds).toContain('episode-runtime')
+    expect(taskContext.memoryDeliberation?.selectedBundles).toEqual([])
+    expect(taskContext.memoryDeliberation?.selectedChains).toEqual([])
 
-    expect(relationshipContext.memoryDeliberation?.selectedBundles[0]?.id).toBe('bundle-relationship')
     expect(relationshipContext.memoryDeliberation?.surfacePolicy).toBe('relationship-continuity')
     expect(relationshipContext.memoryDeliberation?.selectedRelationshipLines[0]).toContain('lighter touch')
+    expect(relationshipContext.memoryDeliberation?.selectedBundles).toEqual([])
+    expect(relationshipContext.memoryDeliberation?.selectedChains).toEqual([])
   })
 
   it('suppresses the wrong thread cluster when two similar runtime lines compete for recall', async () => {
@@ -2565,16 +2518,19 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     })
 
-    expect(context.recollectionPlan?.searchTrace?.thirdHop.ambiguityPosture).toBe('ambiguous')
+    expect(context.recollectionPlan?.searchTrace).toBeNull()
     expect(context.memoryDeliberation?.ambiguityPosture).toBe('ambiguous')
     expect(context.memoryDeliberation?.conflictVariants).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: expect.stringContaining('cluster:'),
       }),
     ]))
+    expect(context.memoryDeliberation?.selectedBundles).toEqual([])
+    expect(context.memoryDeliberation?.selectedChains).toEqual([])
+    expect(JSON.stringify(context.memoryDeliberation)).not.toMatch(/bundle-primary|chain-task-procedure|chain-period-event/u)
   })
 
-  it('lets selected eras constrain foreground consolidations and episodes before lower-level recall surfaces', async () => {
+  it('does not restore an era or relationship line after both planning passes explicitly select no owners', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -2700,10 +2656,10 @@ describe('runtime-organic-memory-prompt', () => {
       })),
       planMemoryRecollection: vi.fn(async () => ({
         selectedEraIds: [],
-        selectedConsolidationIds: [],
+        selectedConsolidationIds: ['consolidation-relationship'],
         selectedWindowIds: [],
         selectedProceduralIds: [],
-        selectedEpisodeIds: [],
+        selectedEpisodeIds: ['episode-relationship'],
         selectedConversationTurnIds: [],
         opening: 'The first thing that comes back is that period where closeness had to back off.',
         certainty: 'approximate' as const,
@@ -2720,8 +2676,8 @@ describe('runtime-organic-memory-prompt', () => {
       })),
       planMemoryDeliberation: vi.fn(async () => ({
         shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
+        selectedEraIds: ['consolidation-project-line'],
+        selectedConsolidationIds: ['consolidation-project-line'],
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
@@ -2760,172 +2716,37 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     })
 
-    expect(context.memoryDeliberation?.selectedEras[0]).toEqual(expect.objectContaining({
-      id: 'consolidation-relationship',
-      facet: 'relationship-era',
+    const recallFact = readOrganicMemoryProviderFact(
+      runtime.buildOrganicMemoryProviderFactBlocks(context),
+      'alicization-long-term-memory-recall',
+    )
+
+    expect(context.recollectionPlan).toBeNull()
+    expect(context.memoryDeliberation).toEqual(expect.objectContaining({
+      shouldRecall: false,
+      selectedEraIds: [],
+      selectedConsolidationIds: [],
+      selectedWindowIds: [],
+      selectedProcedureIds: [],
+      selectedEpisodeIds: [],
+      selectedConversationTurnIds: [],
+      selectedRelationshipLines: [],
+      selectedEras: [],
+      selectedPeriods: [],
+      selectedEpisodes: [],
+      selectedProcedures: [],
+      stableCore: [],
     }))
-    expect(context.consolidatedMemories).toEqual([
-      expect.objectContaining({ id: 'consolidation-relationship' }),
-    ])
-    expect(context.recalledEpisodes).toEqual([
-      expect.objectContaining({ id: 'episode-relationship' }),
-    ])
-  })
-
-  it('prefers identity-continuity', async () => {
-    let plannedInput: any = null
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'warm',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [
-        {
-          id: 'episode-generic-callback',
-          cardId: 'default',
-          decisionTraceId: null,
-          turnId: 'turn-generic-callback',
-          sessionId: 'session-generic-callback',
-          occurredAt: Date.UTC(2026, 4, 1, 9, 0, 0),
-          whereSummary: 'executor callback mirror',
-          withWhom: ['host'],
-          threadAnchor: 'generic callback receipt line',
-          whatHappened: 'The callback result was delivered and the receipt landed clearly.',
-          felt: 'focused',
-          emotionTags: ['execution'],
-          whatChanged: 'The callback result stayed available.',
-          relationshipMeaning: 'Carry the callback receipt clearly before branching.',
-          lesson: 'Report the callback result clearly before branching.',
-          sourceKind: 'execution-result',
-          sourceSummary: 'generic callback receipt',
-          provenance: 'observed',
-          confidence: 0.84,
-          salience: 0.8,
-          sceneAttachment: 0.44,
-          consolidationPriority: 0.7,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['callback receipt', 'execution-result'],
-          createdAt: Date.UTC(2026, 4, 1, 9, 0, 0),
-          updatedAt: Date.UTC(2026, 4, 1, 9, 0, 0),
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-          latestReconsolidation: null,
-        },
-        {
-          id: 'episode-same-her-closure-callback',
-          cardId: 'default',
-          decisionTraceId: null,
-          turnId: 'turn-same-her-closure-callback',
-          sessionId: 'session-same-her-closure-callback',
-          occurredAt: Date.UTC(2026, 4, 1, 9, 5, 0),
-          whereSummary: 'desktop callback continuity return',
-          withWhom: ['host'],
-          threadAnchor: 'identity-continuity',
-          whatHappened: 'The callback stayed on one same-her Phase 1 line and did not reopen from scratch while the closure seam was still settling.',
-          felt: 'careful',
-          emotionTags: ['execution', 'continuity'],
-          whatChanged: 'The callback return stayed lower-pressure and more thread-faithful.',
-          relationshipMeaning: 'Keep the continuity state steady before widening outward.',
-          lesson: 'Same-her Phase 1 callback closure should stay lower-pressure and not reopen from scratch.',
-          sourceKind: 'execution-result',
-          sourceSummary: 'identity-continuity',
-          provenance: 'remembered',
-          confidence: 0.83,
-          salience: 0.79,
-          sceneAttachment: 0.43,
-          consolidationPriority: 0.74,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['same-her', 'closure-carry', 'phase-1-local-digital-life', 'execution-result'],
-          createdAt: Date.UTC(2026, 4, 1, 9, 5, 0),
-          updatedAt: Date.UTC(2026, 4, 1, 9, 5, 0),
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-          latestReconsolidation: null,
-        },
-      ] as any,
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [],
-      planRecollectionIntent: vi.fn(async () => ({
-        mode: 'execution-procedure' as const,
-        temporalFocus: 'cross-session' as const,
-        searchEpisodes: true,
-        searchConversations: false,
-        searchProceduralExperience: false,
-        queryHints: ['identity-continuity', 'phase 1'],
-        rationale: 'The host is reopening the callback line while the same Phase 1 closure seam still matters.',
-        confidence: 0.84,
-      })),
-      planMemoryRecollection: vi.fn(async (input: any) => {
-        plannedInput = input
-        return {
-          selectedEraIds: [],
-          selectedConsolidationIds: [],
-          selectedWindowIds: [],
-          selectedProceduralIds: [],
-          selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
-          selectedConversationTurnIds: [],
-          opening: 'The identity-continuity',
-          certainty: 'approximate' as const,
-          rationale: 'The identity-continuity',
-          confidence: 0.8,
-        }
-      }),
-      planRecollectionSpeech: vi.fn(async () => ({
-        shouldSurface: false,
-        surfaceMode: 'internal-only' as const,
-        placement: 'internal-only' as const,
-        certainty: 'approximate' as const,
-        rationale: 'Phase 1 closure is still open.',
-        confidence: 0.78,
-      })),
-      planMemoryDeliberation: vi.fn(async () => ({
-        shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
-        selectedWindowIds: [],
-        selectedProcedureIds: [],
-        selectedEpisodeIds: plannedInput?.recalledEpisodes?.[0] ? [plannedInput.recalledEpisodes[0].id] : [],
-        selectedConversationTurnIds: [],
-        selectedRelationshipLines: ['Keep the identity-continuity'],
-        selectedEras: [],
-        selectedPeriods: [],
-        selectedEpisodes: [],
-        selectedProcedures: [],
-        selectedBundles: [],
-        selectedChains: [],
-        surfacePolicy: 'internal-only' as const,
-        confidence: 0.82,
-        whyNow: 'Phase 1 closure is still open, so the identity-continuity',
-        inwardLine: 'Keep the identity-continuity',
-        visibleLine: '',
-      })),
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: '继续刚才那条 callback line，但别把这条 same-her 线说成重新开始',
-      recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
-        narrative: [
-          'project-preflight:Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment. | next=Keep extending cross-modal identity-continuity',
-        ],
-      } as any,
-    })
-
-    expect(plannedInput?.recalledEpisodes[0]?.id).toBe('episode-same-her-closure-callback')
-    expect(context.recollectionPlan?.selectedEpisodeIds[0]).toBe('episode-same-her-closure-callback')
+    expect(context.consolidatedMemories).toEqual([])
+    expect(context.recollectedWindows).toEqual([])
+    expect(context.proceduralMemories).toEqual([])
+    expect(context.recalledEpisodes).toEqual([])
+    expect(context.recalledConversationHistory).toEqual([])
+    expect(context.recollectionNarratives).toEqual([])
+    expect(
+      context.memoryStageReplay?.stages.find(stage => stage.stage === 'search-prelude')?.diagnostics,
+    ).toContain(`recall-action=${context.recallLatencyPolicy?.recallAction}`)
+    expect(JSON.stringify(recallFact)).not.toContain('Back off first, then reopen with a lighter touch.')
   })
 
   it('lets host person model change which relationship era comes foreground for the same question', async () => {
@@ -3367,8 +3188,8 @@ describe('runtime-organic-memory-prompt', () => {
       planRecollectionSpeech: vi.fn(async () => null),
       planMemoryDeliberation: vi.fn(async () => ({
         shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
+        selectedEraIds: ['consolidation-rich-project-awareness'],
+        selectedConsolidationIds: ['consolidation-rich-project-awareness'],
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
@@ -3489,7 +3310,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.personStateProjection?.trustRationale).toContain('Bounded repair felt safer')
   })
 
-  it('lets recall reliability pressure pull remembered continuity back inward before visible surfacing', async () => {
+  it('drops recollection narratives when reliability pressure vetoes a weak recall plan', async () => {
     const getMemoryStats = vi.fn(async () => ({
       total: 0,
       active: 0,
@@ -3583,22 +3404,22 @@ describe('runtime-organic-memory-prompt', () => {
       })),
       planMemoryRecollection: vi.fn(async () => ({
         selectedConsolidationIds: ['era-runtime'],
-        selectedWindowIds: [],
+        selectedWindowIds: ['runtime seam'],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-runtime'],
         selectedConversationTurnIds: [],
         opening: 'The same runtime seam comes back first.',
-        certainty: 'firm' as const,
+        certainty: 'approximate' as const,
         rationale: 'The remembered procedure should organize the current answer.',
-        confidence: 0.81,
+        confidence: 0.66,
       })),
       planRecollectionSpeech: vi.fn(async () => ({
         shouldSurface: true,
         surfaceMode: 'answer-anchoring' as const,
         placement: 'inside-payoff' as const,
-        certainty: 'firm' as const,
+        certainty: 'approximate' as const,
         rationale: 'The memory can still shape the turn.',
-        confidence: 0.8,
+        confidence: 0.64,
       })),
       isPersonaResidueMemoryText: () => false,
     })
@@ -3612,8 +3433,10 @@ describe('runtime-organic-memory-prompt', () => {
     })
 
     expect(getMemoryStats).toHaveBeenCalled()
+    expect(context.memoryDeliberation?.shouldRecall).toBe(false)
     expect(context.memoryDeliberation?.surfacePolicy).toBe('internal-only')
     expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
+    expect(context.recollectionNarratives).toEqual([])
   })
 
   it('lets relationship doctrine suppress closeness-heavy recall and foreground repair-first eras', async () => {
@@ -4342,179 +4165,6 @@ describe('runtime-organic-memory-prompt', () => {
     expect(['medium', 'high']).toContain(context.memoryDeliberation?.conflictSeverity)
   })
 
-  it('ranks more coherent bundles and chains ahead of isolated fragments', async () => {
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'warm',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [{
-        id: 'episode-runtime',
-        cardId: 'default',
-        decisionTraceId: null,
-        turnId: 'turn-runtime',
-        sessionId: 'session-runtime',
-        occurredAt: Date.UTC(2026, 3, 18, 8, 0, 0),
-        whereSummary: 'terminal',
-        withWhom: ['host'],
-        threadAnchor: 'runtime continuity',
-        whatHappened: 'We kept repairing the runtime continuity seam until the flow stabilized.',
-        felt: 'focused and stubborn',
-        emotionTags: ['focused'],
-        whatChanged: 'The repair rhythm became something Alicization now remembers.',
-        sourceKind: 'dialogue-reply',
-        sourceSummary: 'runtime continuity repair loop',
-        provenance: 'observed',
-        confidence: 0.82,
-        salience: 0.8,
-        sceneAttachment: 0.62,
-        consolidationPriority: 0.78,
-        relationshipShift: null,
-        derivedFrom: [],
-        tags: ['runtime seam', 'repair rhythm'],
-        relationshipMeaning: 'Carry the same runtime seam before branching.',
-        lesson: 'Carry the same runtime seam before proposing a new branch.',
-        latestReconsolidation: null,
-        createdAt: Date.UTC(2026, 3, 18, 8, 0, 0),
-        updatedAt: Date.UTC(2026, 3, 18, 9, 0, 0),
-        lastRecalledAt: null,
-        recallCount: 0,
-        reconsolidationCount: 0,
-      } as any],
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [{
-        id: 'consolidation-runtime',
-        kind: 'autobiographical',
-        periodKey: '2026-04-runtime',
-        periodStartedAt: Date.UTC(2026, 3, 18, 8, 0, 0),
-        periodEndedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
-        summary: 'That period kept bending toward the runtime seam until it finally held together.',
-        lesson: 'Return to the same seam before branching.',
-        cues: ['runtime seam', 'repair rhythm'],
-        confidence: 0.86,
-        dominantProvenance: 'remembered',
-        derivedEventIds: ['episode-runtime'],
-        updatedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
-      }],
-      planRecollectionIntent: vi.fn(async () => ({
-        mode: 'execution-procedure' as const,
-        temporalFocus: 'experience-matched' as const,
-        searchEpisodes: true,
-        searchConversations: false,
-        searchProceduralExperience: true,
-        queryHints: ['runtime seam', 'repair rhythm'],
-        rationale: 'The turn is asking for remembered procedure.',
-        confidence: 0.86,
-      })),
-      planMemoryRecollection: vi.fn(async () => null),
-      planRecollectionSpeech: vi.fn(async () => null),
-      planMemoryDeliberation: vi.fn(async () => ({
-        shouldRecall: true,
-        selectedEraIds: ['consolidation-runtime'],
-        selectedConsolidationIds: ['consolidation-runtime'],
-        selectedWindowIds: [],
-        selectedProcedureIds: ['procedure-runtime'],
-        selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
-        selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
-        selectedEras: [],
-        selectedPeriods: [],
-        selectedEpisodes: [],
-        selectedProcedures: [],
-        selectedBundles: [
-          {
-            id: 'bundle-isolated',
-            summary: 'Another unrelated remembered fragment.',
-            rationale: 'A weak isolated fragment.',
-            confidence: 0.9,
-            periodId: null,
-            episodeId: null,
-            procedureId: null,
-            conversationTurnId: null,
-            relationshipLine: null,
-          },
-          {
-            id: 'bundle-coherent',
-            summary: 'That period kept bending toward the runtime seam until it finally held together. | We kept repairing the runtime continuity seam until the flow stabilized. | Return to the same seam before branching.',
-            rationale: 'The remembered period, event, and procedure all point to the same runtime seam.',
-            confidence: 0.82,
-            periodId: 'consolidation-runtime',
-            episodeId: 'episode-runtime',
-            procedureId: 'procedure-runtime',
-            conversationTurnId: null,
-            relationshipLine: 'Carry the same runtime seam before branching.',
-          },
-        ],
-        selectedChains: [
-          {
-            id: 'chain-isolated',
-            kind: 'period-event-lesson-posture' as const,
-            summary: 'Another unrelated remembered fragment.',
-            rationale: 'A weak isolated chain.',
-            confidence: 0.9,
-            taskCue: null,
-            periodSummary: null,
-            eventSummary: null,
-            procedureSummary: null,
-            relationshipMeaning: null,
-            lesson: null,
-            currentStance: null,
-            answerPosture: null,
-          },
-          {
-            id: 'chain-coherent',
-            kind: 'task-procedure-relationship-stance' as const,
-            summary: 'Return to the same seam before branching. | Carry the same runtime seam before branching.',
-            rationale: 'The remembered procedure should set the current stance before the answer opens.',
-            confidence: 0.82,
-            taskCue: 'runtime continuity',
-            periodSummary: 'That period kept bending toward the runtime seam until it finally held together.',
-            eventSummary: 'We kept repairing the runtime continuity seam until the flow stabilized.',
-            procedureSummary: 'Return to the same seam before branching.',
-            relationshipMeaning: 'Carry the same runtime seam before branching.',
-            lesson: 'Carry the same runtime seam before proposing a new branch.',
-            currentStance: 'Stay on the same seam before branching.',
-            answerPosture: 'Answer from the same seam before branching.',
-          },
-        ],
-        surfacePolicy: 'answer-anchoring' as const,
-        confidence: 0.88,
-        whyNow: 'The answer needs the remembered runtime seam as its internal anchor.',
-        inwardLine: 'What comes back first is the runtime seam we kept carrying.',
-        visibleLine: 'It feels like the same runtime seam again.',
-      })),
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: 'runtime seam',
-      recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
-        recollectionIntent: {
-          mode: 'execution-procedure',
-          temporalFocus: 'experience-matched',
-          searchEpisodes: true,
-          searchConversations: false,
-          searchProceduralExperience: true,
-          queryHints: ['runtime seam', 'repair rhythm'],
-          rationale: 'The host is asking for remembered procedure.',
-          confidence: 0.8,
-        },
-      } as any,
-    })
-
-    expect(context.memoryDeliberation?.selectedBundles[0]?.id).toBe('bundle-coherent')
-    expect(context.memoryDeliberation?.selectedChains[0]?.id).toBe('chain-coherent')
-  })
-
   it('tightens recollection surface when contradiction-heavy fact evidence is active', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
@@ -4581,8 +4231,8 @@ describe('runtime-organic-memory-prompt', () => {
       })),
       planMemoryDeliberation: vi.fn(async () => ({
         shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
+        selectedEraIds: ['consolidation-memory-workbench-review'],
+        selectedConsolidationIds: ['consolidation-memory-workbench-review'],
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
@@ -5106,8 +4756,8 @@ describe('runtime-organic-memory-prompt', () => {
       })),
       planMemoryDeliberation: vi.fn(async () => ({
         shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
+        selectedEraIds: ['consolidation-project-line'],
+        selectedConsolidationIds: ['consolidation-project-line'],
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
@@ -5230,8 +4880,8 @@ describe('runtime-organic-memory-prompt', () => {
       })),
       planMemoryDeliberation: vi.fn(async () => ({
         shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
+        selectedEraIds: ['consolidation-rich-project-awareness'],
+        selectedConsolidationIds: ['consolidation-rich-project-awareness'],
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
@@ -5357,8 +5007,8 @@ describe('runtime-organic-memory-prompt', () => {
       })),
       planMemoryDeliberation: vi.fn(async () => ({
         shouldRecall: true,
-        selectedEraIds: [],
-        selectedConsolidationIds: [],
+        selectedEraIds: ['consolidation-memory-workbench-review'],
+        selectedConsolidationIds: ['consolidation-memory-workbench-review'],
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
@@ -6778,12 +6428,13 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.memoryDeliberation?.followUpAffordance?.intrusionRisk).toBe('high')
     expect(context.memoryDeliberation?.conflictVariants).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: 'suppression:self-model-stale',
+        id: 'consolidation-self-revision',
+        reason: null,
       }),
     ]))
     expect(context.memoryResolutionLedger?.rejectedCandidates).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: 'suppression:self-model-stale',
+        id: 'consolidation-self-revision',
       }),
     ]))
   })
@@ -6911,12 +6562,12 @@ describe('runtime-organic-memory-prompt', () => {
     })
 
     expect(context.consolidatedMemories?.[0]?.id).toBe('consolidation-self-new')
-    expect(context.memoryResolutionLedger?.rejectedCandidates).toEqual(expect.arrayContaining([
+    expect(context.memoryResolutionLedger?.rejectedCandidates).not.toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'suppression:self-model-stale',
       }),
     ]))
-    expect(context.memoryResolutionLedger?.suppressionTags).toContain('self-model-stale')
+    expect(context.memoryResolutionLedger?.suppressionTags).toEqual([])
   })
 
   it('lets relationship-era confusion pressure demote older warmth-first relationship clusters before repair-space continuity', async () => {
@@ -7042,12 +6693,12 @@ describe('runtime-organic-memory-prompt', () => {
     })
 
     expect(context.consolidatedMemories?.[0]?.id).toBe('consolidation-relationship-repair')
-    expect(context.memoryResolutionLedger?.rejectedCandidates).toEqual(expect.arrayContaining([
+    expect(context.memoryResolutionLedger?.rejectedCandidates).not.toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'suppression:relationship-era-confusion',
       }),
     ]))
-    expect(context.memoryResolutionLedger?.suppressionTags).toContain('relationship-era-confusion')
+    expect(context.memoryResolutionLedger?.suppressionTags).toEqual([])
   })
 
   it('emits affective residue memory as mind-state prompt context instead of visible care template instructions', async () => {

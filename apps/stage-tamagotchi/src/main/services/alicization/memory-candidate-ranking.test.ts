@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import { rankOrganicMemoryCandidatesStage } from './memory-candidate-ranking'
+import {
+  analyzeMemoryClusters,
+  deriveMemoryClusterKey,
+  rankByClusterDominance,
+  rankByHostSocialAffinity,
+  rankByRecollectionAgendaAffinity,
+  rankBySceneMoodEmbodiedCarry,
+} from './memory-os/context-ranking'
+
+const normalizeOrganicRecallText = (raw: string) => raw.trim().toLowerCase().replace(/\s+/g, ' ')
 
 function createHelpers() {
   return {
@@ -25,116 +35,213 @@ function createHelpers() {
   } as any
 }
 
+function createProjectIsolationHelpers(observedRecallSeeds: string[]) {
+  return {
+    deriveMemoryClusterKey: (text: string) => deriveMemoryClusterKey(normalizeOrganicRecallText, text),
+    rankByHostSocialAffinity: (input: any) => {
+      observedRecallSeeds.push(input.recallSeed)
+      return rankByHostSocialAffinity({
+        normalizeOrganicRecallText,
+        ...input,
+      })
+    },
+    rankBySceneMoodEmbodiedCarry: (input: any) => rankBySceneMoodEmbodiedCarry({
+      normalizeOrganicRecallText,
+      ...input,
+    }),
+    rankByBenchmarkTuningBias: <T>(input: { items: T[] }) => input.items,
+    rankByRecollectionAgendaAffinity: (input: any) => rankByRecollectionAgendaAffinity({
+      normalizeOrganicRecallText,
+      ...input,
+    }),
+    analyzeMemoryClusters: (input: any) => {
+      observedRecallSeeds.push(input.recallSeed)
+      return analyzeMemoryClusters({
+        normalizeOrganicRecallText,
+        ...input,
+      })
+    },
+    rankByClusterDominance: (input: any) => rankByClusterDominance({
+      normalizeOrganicRecallText,
+      ...input,
+    }),
+  } as any
+}
+
 describe('memory candidate ranking', () => {
-  it('prefers same-her drift-risk callback memory when project-preflight continuity authority is carried by richer closure cues', () => {
-    const result = rankOrganicMemoryCandidatesStage({
-      helpers: createHelpers(),
-      recallSeed: 'continue the callback line without flattening it into a generic shell',
-      activeRecollectionIntent: {
-        mode: 'execution-procedure',
-        temporalFocus: 'cross-session',
-        confidence: 0.84,
-        rationale: 'The callback reopening should stay on one identity-continuity',
-        queryHints: ['same-her drift risk', 'callback'],
-        searchEpisodes: true,
-        searchConversations: false,
-        searchProceduralExperience: false,
-        recollectionAgenda: {
-          whyRecallNow: 'The callback line is reopening before dialogue.',
-          goalSimilarity: 0.78,
-          relationshipNeed: 0.3,
-          affectivePull: 0.22,
-          sceneFamiliarity: 0.65,
-          candidateTimeScopes: [],
-          candidateEraFacets: [],
-          candidateProcedureLines: [],
-          uncertaintyTolerance: 'medium',
-        },
-      } as any,
+  it.each([
+    {
+      label: 'project block',
+      buildProjectBlock: (payload: string) => `project:Identity: runtime_personhood ${payload}. | Current phase: Phase 1: Local Digital Life. | Primary open loop: ${payload}.`,
+    },
+    {
+      label: 'project-preflight block',
+      buildProjectBlock: (payload: string) => `project-preflight:project:Identity: runtime_personhood ${payload}. | Current phase: Phase 1: Local Digital Life. | Primary open loop: ${payload}.`,
+    },
+  ])('isolates $label from candidate order, dominant cluster, and cluster scores', ({ buildProjectBlock }) => {
+    const episodes = [
+      {
+        id: 'violet-observatory',
+        threadAnchor: 'violet observatory',
+        whereSummary: 'violet observatory',
+        whatHappened: 'The violet observatory calibration was completed.',
+        relationshipMeaning: 'Violet observatory calibration remains available.',
+        lesson: 'Recall the violet observatory calibration.',
+        sourceSummary: 'violet observatory calibration',
+        tags: ['violet', 'observatory', 'calibration'],
+        sceneAttachment: 0,
+        latestReconsolidation: null,
+        provenance: 'remembered',
+        occurredAt: 1,
+      },
+      {
+        id: 'copper-harbor',
+        threadAnchor: 'copper harbor',
+        whereSummary: 'copper harbor',
+        whatHappened: 'The copper harbor archive was completed.',
+        relationshipMeaning: 'Copper harbor archive remains available.',
+        lesson: 'Recall the copper harbor archive.',
+        sourceSummary: 'copper harbor archive',
+        tags: ['copper', 'harbor', 'archive'],
+        sceneAttachment: 0,
+        latestReconsolidation: null,
+        provenance: 'remembered',
+        occurredAt: 2,
+      },
+    ] as any
+    const ordinaryUserSemantic = 'Please compare the two remembered notes for the user project named Atlas.'
+    const memoryGovernanceDirectives = [
+      'downrank=stale-note',
+      'merge=duplicate-note',
+      'forget=temporary-noise',
+    ]
+    const commonSemanticSeed = [
+      ordinaryUserSemantic,
+      ...memoryGovernanceDirectives,
+    ].join(' | ')
+    const run = (projectBlock: string) => {
+      const observedRecallSeeds: string[] = []
+      const result = rankOrganicMemoryCandidatesStage({
+        helpers: createProjectIsolationHelpers(observedRecallSeeds),
+        recallSeed: [
+          ordinaryUserSemantic,
+          projectBlock,
+          ...memoryGovernanceDirectives,
+        ].join(' | '),
+        activeRecollectionIntent: null,
+        hostPersonModel: null,
+        personStateProjection: null,
+        coreIncarnation: '',
+        memoryTuningAdvice: null,
+        recallGovernor: null,
+        consolidatedMemories: [] as any,
+        recollectedWindows: [],
+        proceduralMemories: [],
+        recalledEpisodes: episodes,
+        recalledConversationHistory: [],
+      })
+      return {
+        observedRecallSeeds,
+        result,
+      }
+    }
+    const summarize = ({ result }: ReturnType<typeof run>) => ({
+      candidateOrder: result.agendaRankedEpisodes.map(item => item.id),
+      dominantClusterKey: result.clusterState.dominantClusterKey,
+      clusterScores: [...result.clusterState.clusterScoreByKey.entries()]
+        .sort(([left], [right]) => left.localeCompare(right)),
+    })
+
+    const violetProject = run(buildProjectBlock('violet observatory calibration'))
+    const copperProject = run(buildProjectBlock('copper harbor archive'))
+
+    expect(summarize(violetProject)).toEqual(summarize(copperProject))
+    expect(new Set(violetProject.observedRecallSeeds)).toEqual(new Set([commonSemanticSeed]))
+    expect(new Set(copperProject.observedRecallSeeds)).toEqual(new Set([commonSemanticSeed]))
+  })
+
+  it('preserves user-authored project colon syntax as ordinary retrieval semantics', () => {
+    const recallSeed = [
+      'project: Atlas migration',
+      'summary: compare the violet observatory note',
+      'downrank=stale-note',
+    ].join(' | ')
+    const observedRecallSeeds: string[] = []
+
+    rankOrganicMemoryCandidatesStage({
+      helpers: createProjectIsolationHelpers(observedRecallSeeds),
+      recallSeed,
+      activeRecollectionIntent: null,
       hostPersonModel: null,
       personStateProjection: null,
       coreIncarnation: '',
       memoryTuningAdvice: null,
-      recallGovernor: {
-        narrative: [
-          'project-preflight:Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Execution reopenings still need stronger identity-continuity',
-        ],
-      } as any,
+      recallGovernor: null,
       consolidatedMemories: [] as any,
       recollectedWindows: [],
       proceduralMemories: [],
-      recalledEpisodes: [
-        {
-          id: 'generic-callback-receipt',
-          cardId: 'card-generic',
-          decisionTraceId: null,
-          turnId: 'turn-generic',
-          sessionId: 'session-generic',
-          occurredAt: 2,
-          whereSummary: 'executor callback mirror',
-          withWhom: ['host'],
-          threadAnchor: 'generic callback receipt line',
-          whatHappened: 'The callback result was delivered and the receipt landed clearly.',
-          felt: 'focused',
-          emotionTags: ['execution'],
-          whatChanged: 'The callback result stayed available.',
-          sourceKind: 'execution-result',
-          sourceSummary: 'generic callback receipt',
-          provenance: 'remembered',
-          confidence: 0.82,
-          salience: 0.8,
-          sceneAttachment: 0.44,
-          consolidationPriority: 0.7,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['callback receipt', 'execution-result'],
-          relationshipMeaning: 'Carry the callback receipt clearly before branching.',
-          lesson: 'Report the callback result clearly before branching.',
-          latestReconsolidation: null,
-          createdAt: 2,
-          updatedAt: 3,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-        {
-          id: 'same-her-drift-risk-callback',
-          cardId: 'card-same-her',
-          decisionTraceId: null,
-          turnId: 'turn-same-her',
-          sessionId: 'session-same-her',
-          occurredAt: 5,
-          whereSummary: 'desktop callback continuity return',
-          withWhom: ['host'],
-          threadAnchor: 'identity-continuity',
-          whatHappened: 'The callback stayed on one same-her Phase 1 line and avoided collapsing into generic task-shell reporting while the closure seam was still open.',
-          felt: 'careful',
-          emotionTags: ['execution', 'continuity'],
-          whatChanged: 'The callback return stayed lower-pressure and more thread-faithful.',
-          sourceKind: 'execution-result',
-          sourceSummary: 'same-her drift-risk callback memory',
-          provenance: 'remembered',
-          confidence: 0.84,
-          salience: 0.8,
-          sceneAttachment: 0.45,
-          consolidationPriority: 0.76,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['same-her', 'closure-carry', 'phase-1-local-digital-life', 'same-her-drift-risk', 'execution-result'],
-          relationshipMeaning: 'Keep the continuity state steady and do not let it flatten into generic productivity reporting.',
-          lesson: 'Same-her drift-risk callback closure should stay lower-pressure and availability-first before widening outward.',
-          latestReconsolidation: null,
-          createdAt: 5,
-          updatedAt: 6,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-      ] as any,
+      recalledEpisodes: [{
+        id: 'violet-observatory',
+        threadAnchor: 'violet observatory',
+        whereSummary: 'violet observatory',
+        whatHappened: 'The Atlas migration note references the violet observatory.',
+        relationshipMeaning: null,
+        lesson: 'Compare the selected note.',
+        sourceSummary: 'Atlas migration',
+        tags: ['atlas', 'violet'],
+        sceneAttachment: 0,
+        latestReconsolidation: null,
+        provenance: 'remembered',
+        occurredAt: 1,
+      }] as any,
       recalledConversationHistory: [],
-    } as any)
+    })
 
-    expect(result.agendaRankedEpisodes[0]?.id).toBe('same-her-drift-risk-callback')
+    expect(new Set(observedRecallSeeds)).toEqual(new Set([recallSeed]))
+  })
+
+  it('removes a single project emotion segment without swallowing following user summary fields', () => {
+    const recallSeed = [
+      'project-emotion:tone=low_pressure',
+      'summary: compare the Atlas notes',
+      'status: user requested a direct comparison',
+    ].join(' | ')
+    const expectedSemanticSeed = [
+      'summary: compare the Atlas notes',
+      'status: user requested a direct comparison',
+    ].join(' | ')
+    const observedRecallSeeds: string[] = []
+
+    rankOrganicMemoryCandidatesStage({
+      helpers: createProjectIsolationHelpers(observedRecallSeeds),
+      recallSeed,
+      activeRecollectionIntent: null,
+      hostPersonModel: null,
+      personStateProjection: null,
+      coreIncarnation: '',
+      memoryTuningAdvice: null,
+      recallGovernor: null,
+      consolidatedMemories: [] as any,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [{
+        id: 'atlas-note',
+        threadAnchor: 'Atlas notes',
+        whereSummary: 'project archive',
+        whatHappened: 'The user requested a direct comparison.',
+        relationshipMeaning: null,
+        lesson: 'Compare the selected notes.',
+        sourceSummary: 'Atlas notes',
+        tags: ['atlas', 'comparison'],
+        sceneAttachment: 0,
+        latestReconsolidation: null,
+        provenance: 'remembered',
+        occurredAt: 1,
+      }] as any,
+      recalledConversationHistory: [],
+    })
+
+    expect(new Set(observedRecallSeeds)).toEqual(new Set([expectedSemanticSeed]))
   })
 
   it('keeps recollection on embodiment-confirmed measured-return rhythm during relationship-history recall', () => {

@@ -1,10 +1,17 @@
+import type { AlicizationMemoryPlanningCandidateIdSet } from './provider-planning'
+
 import { describe, expect, it, vi } from 'vitest'
 
+import { resolveRecollectionPlanSearch } from './planning'
 import {
   generateMemoryDeliberationWithGateway,
   generateMemoryRecollectionIntentWithGateway,
   generateMemoryRecollectionPlanWithGateway,
   generateMemoryRecollectionSpeechPlanWithGateway,
+  parseMemoryDeliberationPayload,
+  parseMemoryRecollectionIntentPayload,
+  parseMemoryRecollectionPlanPayload,
+  parseMemoryRecollectionSpeechPlanPayload,
 } from './provider-planning'
 
 function providerFactType(raw: string) {
@@ -13,6 +20,117 @@ function providerFactType(raw: string) {
   }
   catch {
     return ''
+  }
+}
+
+function validRecollectionIntentPayload() {
+  return {
+    mode: 'relationship-history',
+    temporalFocus: 'cross-session',
+    searchEpisodes: true,
+    searchConversations: true,
+    searchProceduralExperience: false,
+    queryHints: ['remembered relationship line'],
+    rationale: 'The current turn is connected to an established relationship memory.',
+    confidence: 0.76,
+    recollectionAgenda: {
+      whyRecallNow: 'The current turn reopens a previously established relationship concern.',
+      goalSimilarity: 0.62,
+      relationshipNeed: 0.74,
+      affectivePull: 0.68,
+      sceneFamiliarity: 0.42,
+      candidateTimeScopes: [],
+      candidateEraFacets: [],
+      candidateProcedureLines: [],
+      uncertaintyTolerance: 'medium',
+    },
+  }
+}
+
+function validRecollectionPlanPayload() {
+  return {
+    selectedConsolidationIds: ['con-1'],
+    selectedWindowIds: [],
+    selectedProceduralIds: [],
+    selectedEpisodeIds: [],
+    selectedConversationTurnIds: [],
+    selectedRelationshipLines: ['A remembered relationship concern remains relevant.'],
+    searchTrace: {
+      firstHop: {
+        focus: 'relationship-line',
+        summary: 'Begin with the confirmed relationship memory.',
+        targetIds: ['con-1'],
+      },
+      secondHop: {
+        action: 'hold',
+        evidenceGap: 'none',
+        summary: 'The confirmed memory is sufficient for this turn.',
+        targetIds: ['con-1'],
+      },
+      thirdHop: {
+        ambiguityPosture: 'settled',
+        summary: 'The selected evidence is internally consistent.',
+      },
+    },
+    certainty: 'approximate',
+    rationale: 'The confirmed relationship memory best matches the current turn.',
+    confidence: 0.74,
+  }
+}
+
+function validRecollectionSpeechPlanPayload() {
+  return {
+    shouldSurface: true,
+    surfaceMode: 'relationship-continuity',
+    placement: 'inside-payoff',
+    certainty: 'approximate',
+    rationale: 'The memory can inform the answer without becoming a drafted reply.',
+    confidence: 0.72,
+  }
+}
+
+function validMemoryDeliberationPayload() {
+  return {
+    shouldRecall: true,
+    selectedEraIds: ['con-1'],
+    selectedConsolidationIds: ['con-1'],
+    selectedWindowIds: [],
+    selectedProcedureIds: [],
+    selectedEpisodeIds: [],
+    selectedConversationTurnIds: [],
+    selectedRelationshipLines: ['A remembered relationship concern remains relevant.'],
+    selectedBundles: [],
+    selectedChains: [],
+    conflictSeverity: 'none',
+    conflictVariants: [],
+    stableCore: ['The relationship memory is confirmed.'],
+    unsafeDetails: [],
+    surfacePolicy: 'relationship-continuity',
+    confidence: 0.76,
+    whyNow: 'The current turn reopens the confirmed relationship concern.',
+  }
+}
+
+function testCandidateIds(): AlicizationMemoryPlanningCandidateIdSet {
+  const consolidationIds = new Set(['con-1'])
+  const windowIds = new Set(['window-1'])
+  const procedureIds = new Set(['procedure-1'])
+  const episodeIds = new Set(['episode-1'])
+  const conversationTurnIds = new Set(['turn-1'])
+  const eraIds = new Set([...consolidationIds, ...windowIds])
+  return {
+    allIds: new Set([
+      ...eraIds,
+      ...procedureIds,
+      ...episodeIds,
+      ...conversationTurnIds,
+    ]),
+    consolidationIds,
+    conversationTurnIds,
+    episodeIds,
+    eraIds,
+    procedureIds,
+    windowIds,
   }
 }
 
@@ -439,6 +557,600 @@ describe('memory provider planning', () => {
     expect(systems.some(system => system.includes('visible_wording_drafts=false'))).toBe(false)
   })
 
+  it('rejects recollection plans with missing explanatory facts instead of filling fallback prose', async () => {
+    const generateMainGatewayText = vi.fn(async () => {
+      const payload = validRecollectionPlanPayload()
+      payload.rationale = ''
+      payload.searchTrace.firstHop.summary = ''
+      payload.searchTrace.secondHop.summary = ''
+      payload.searchTrace.thirdHop.summary = ''
+      return JSON.stringify(payload)
+    })
+
+    const result = await generateMemoryRecollectionPlanWithGateway({
+      recallSeed: 'relationship concern',
+      recollectionIntent: validRecollectionIntentPayload() as any,
+      consolidatedMemories: [{
+        id: 'con-1',
+        kind: 'daily',
+        periodKey: 'p1',
+        summary: 'A confirmed relationship memory.',
+        lesson: null,
+        confidence: 0.8,
+        cues: ['relationship'],
+      }] as any,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects recollection speech plans with missing rationale instead of filling fallback prose', async () => {
+    const generateMainGatewayText = vi.fn(async () => {
+      const payload = validRecollectionSpeechPlanPayload()
+      payload.rationale = ''
+      return JSON.stringify(payload)
+    })
+
+    const result = await generateMemoryRecollectionSpeechPlanWithGateway({
+      recallSeed: 'relationship concern',
+      recollectionIntent: validRecollectionIntentPayload() as any,
+      recollectionPlan: validRecollectionPlanPayload() as any,
+      consolidatedMemories: [{
+        id: 'con-1',
+        kind: 'daily',
+        periodKey: 'p1',
+        summary: 'A confirmed relationship memory.',
+        lesson: null,
+        confidence: 0.8,
+        cues: ['relationship'],
+      }] as any,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+
+    expect(result).toBeNull()
+  })
+
+  it.each([
+    [
+      'recollection intent',
+      () => {
+        const payload = validRecollectionIntentPayload()
+        payload.confidence = 1.2
+        return parseMemoryRecollectionIntentPayload(JSON.stringify(payload))
+      },
+    ],
+    [
+      'recollection plan',
+      () => {
+        const payload = validRecollectionPlanPayload()
+        payload.confidence = 1.2
+        return parseMemoryRecollectionPlanPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+    [
+      'recollection speech plan',
+      () => {
+        const payload = validRecollectionSpeechPlanPayload()
+        payload.confidence = 1.2
+        return parseMemoryRecollectionSpeechPlanPayload(JSON.stringify(payload))
+      },
+    ],
+    [
+      'memory deliberation',
+      () => {
+        const payload = validMemoryDeliberationPayload()
+        payload.confidence = 1.2
+        return parseMemoryDeliberationPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+  ])('rejects out-of-range confidence in %s instead of clamping it', (_name, parse) => {
+    expect(parse()).toBeNull()
+  })
+
+  it('rejects internally contradictory intent and deliberation policies', () => {
+    const intentPayload = validRecollectionIntentPayload()
+    intentPayload.mode = 'none'
+    intentPayload.searchEpisodes = true
+    intentPayload.searchConversations = false
+    intentPayload.searchProceduralExperience = false
+
+    const deliberationPayload = validMemoryDeliberationPayload()
+    deliberationPayload.shouldRecall = false
+    deliberationPayload.surfacePolicy = 'relationship-continuity'
+
+    expect(parseMemoryRecollectionIntentPayload(JSON.stringify(intentPayload))).toBeNull()
+    expect(parseMemoryDeliberationPayload(JSON.stringify(deliberationPayload), testCandidateIds())).toBeNull()
+  })
+
+  it.each([
+    ['numeric string', '0.8'],
+    ['null', null],
+    ['boolean', true],
+    ['negative number', -0.1],
+  ])('rejects %s confidence instead of coercing it', (_name, confidence) => {
+    const payload: any = validRecollectionIntentPayload()
+    payload.confidence = confidence
+
+    expect(parseMemoryRecollectionIntentPayload(JSON.stringify(payload))).toBeNull()
+  })
+
+  it('rejects invalid agenda weights instead of coercing them', () => {
+    const payload: any = validRecollectionIntentPayload()
+    payload.recollectionAgenda.candidateTimeScopes = [{
+      scope: 'cross-session',
+      weight: '0.8',
+      rationale: null,
+    }]
+
+    expect(parseMemoryRecollectionIntentPayload(JSON.stringify(payload))).toBeNull()
+  })
+
+  it('drops malformed deliberation items instead of inventing ids, rationale, provenance, or confidence', () => {
+    const payload: any = validMemoryDeliberationPayload()
+    payload.conflictVariants = [{
+      summary: 'An ungrounded conflict variant.',
+    }]
+    payload.selectedBundles = [{
+      summary: 'An ungrounded bundle.',
+    }, {
+      id: 'bundle-invalid-confidence',
+      summary: 'A bundle with invalid confidence.',
+      rationale: 'It should be rejected.',
+      confidence: 1.4,
+      periodId: null,
+      episodeId: null,
+      procedureId: null,
+      conversationTurnId: null,
+      relationshipLine: null,
+    }]
+    payload.selectedChains = [{
+      kind: 'period-event-lesson-posture',
+      summary: 'An ungrounded chain.',
+    }]
+
+    const result = parseMemoryDeliberationPayload(JSON.stringify(payload), testCandidateIds())
+
+    expect(result?.conflictVariants).toEqual([])
+    expect(result?.selectedBundles).toEqual([])
+    expect(result?.selectedChains).toEqual([])
+  })
+
+  it('keeps plan and deliberation ids inside the candidate set offered to the Provider', async () => {
+    const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
+      if (providerFactType(system) === 'alicization-memory-recollection-plan-context') {
+        const payload: any = validRecollectionPlanPayload()
+        payload.selectedConsolidationIds = ['con-1', 'invented-consolidation', 'con-1']
+        payload.selectedWindowIds = ['window-1', 'invented-window']
+        payload.selectedProceduralIds = ['procedure-1', 'invented-procedure']
+        payload.selectedEpisodeIds = ['episode-1', 'invented-episode']
+        payload.selectedConversationTurnIds = ['turn-1', 'invented-turn']
+        payload.searchTrace.firstHop.targetIds = ['con-1', 'invented-consolidation', 'episode-1']
+        payload.searchTrace.secondHop.targetIds = ['procedure-1', 'invented-procedure', 'turn-1']
+        return JSON.stringify(payload)
+      }
+
+      const payload: any = validMemoryDeliberationPayload()
+      payload.selectedEraIds = ['con-1', 'invented-era', 'window-1']
+      payload.selectedConsolidationIds = ['con-1', 'invented-consolidation']
+      payload.selectedWindowIds = ['window-1', 'invented-window']
+      payload.selectedProcedureIds = ['procedure-1', 'invented-procedure']
+      payload.selectedEpisodeIds = ['episode-1', 'invented-episode']
+      payload.selectedConversationTurnIds = ['turn-1', 'invented-turn']
+      payload.conflictVariants = [{
+        id: 'episode-1',
+        summary: 'Provider-authored conflict summary.',
+        provenance: 'observed',
+        reason: 'Provider-authored conflict reason.',
+      }]
+      payload.selectedBundles = [{
+        id: 'bundle-grounded',
+        summary: 'Provider-authored bundle summary.',
+        rationale: 'Every referenced memory was supplied to the Provider.',
+        confidence: 0.8,
+        periodId: 'con-1',
+        episodeId: 'episode-1',
+        procedureId: 'procedure-1',
+        conversationTurnId: 'turn-1',
+        relationshipLine: 'Provider-authored relationship line.',
+      }, {
+        id: 'bundle-invented-reference',
+        summary: 'A bundle containing an invented memory reference.',
+        rationale: 'This bundle must not survive parsing.',
+        confidence: 0.8,
+        periodId: null,
+        episodeId: 'invented-episode',
+        procedureId: null,
+        conversationTurnId: null,
+        relationshipLine: null,
+      }]
+      payload.selectedChains = [{
+        id: 'chain-provider-authored',
+        kind: 'period-event-lesson-posture',
+        summary: 'Provider-authored chain summary.',
+        rationale: 'Provider-authored chain rationale.',
+        confidence: 0.79,
+        taskCue: 'Provider-authored task cue.',
+        periodSummary: 'Provider-authored period summary.',
+        eventSummary: 'Provider-authored event summary.',
+        procedureSummary: null,
+        relationshipMeaning: 'Provider-authored relationship meaning.',
+        lesson: 'Provider-authored lesson.',
+        currentStance: 'Provider-authored current stance.',
+        answerPosture: 'Provider-authored answer posture.',
+      }]
+      payload.stableCore = ['Provider-authored stable core.']
+      payload.unsafeDetails = ['Provider-authored unsafe detail.']
+      return JSON.stringify(payload)
+    })
+    const consolidatedMemories = [{
+      id: 'con-1',
+      kind: 'daily',
+      periodKey: 'p1',
+      summary: 'A confirmed relationship memory.',
+      lesson: null,
+      confidence: 0.8,
+      cues: ['relationship'],
+    }] as any
+    const recollectedWindows = [{
+      id: 'window-1',
+      label: 'A confirmed period',
+      summary: 'A confirmed period summary.',
+      confidence: 0.78,
+      dominantProvenance: 'remembered',
+      cues: ['period'],
+    }] as any
+    const proceduralMemories = [{
+      id: 'procedure-1',
+      label: 'A confirmed procedure',
+      approach: 'Use the confirmed procedure.',
+      pitfalls: [],
+      confidence: 0.77,
+      cues: ['procedure'],
+    }] as any
+    const recalledEpisodes = [{
+      id: 'episode-1',
+      sourceKind: 'dialogue',
+      whatHappened: 'A confirmed episode happened.',
+      confidence: 0.76,
+      provenance: 'remembered',
+    }] as any
+    const recalledConversationHistory = [{
+      turnId: 'turn-1',
+      sessionId: 'session-1',
+      userText: 'A confirmed user turn.',
+      assistantText: 'A confirmed assistant turn.',
+      createdAt: 1,
+      provenance: 'reconstructed',
+    }] as any
+
+    const plan = await generateMemoryRecollectionPlanWithGateway({
+      recallSeed: 'relationship concern',
+      recollectionIntent: validRecollectionIntentPayload() as any,
+      consolidatedMemories,
+      recollectedWindows,
+      proceduralMemories,
+      recalledEpisodes,
+      recalledConversationHistory,
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+    const deliberation = await generateMemoryDeliberationWithGateway({
+      recallSeed: 'relationship concern',
+      recollectionIntent: validRecollectionIntentPayload() as any,
+      recollectionPlan: plan,
+      recollectionSpeechPlan: null,
+      consolidatedMemories,
+      recollectedWindows,
+      proceduralMemories,
+      recalledEpisodes,
+      recalledConversationHistory,
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+
+    expect(plan).toMatchObject({
+      selectedConsolidationIds: ['con-1'],
+      selectedWindowIds: ['window-1'],
+      selectedProceduralIds: ['procedure-1'],
+      selectedEpisodeIds: ['episode-1'],
+      selectedConversationTurnIds: ['turn-1'],
+      selectedRelationshipLines: [],
+      searchTrace: {
+        firstHop: {
+          targetIds: ['con-1', 'episode-1'],
+        },
+        secondHop: {
+          targetIds: ['procedure-1', 'turn-1'],
+        },
+      },
+    })
+    expect(deliberation).toMatchObject({
+      selectedEraIds: ['con-1', 'window-1'],
+      selectedConsolidationIds: ['con-1'],
+      selectedWindowIds: ['window-1'],
+      selectedProcedureIds: ['procedure-1'],
+      selectedEpisodeIds: ['episode-1'],
+      selectedConversationTurnIds: ['turn-1'],
+      selectedRelationshipLines: [],
+      conflictVariants: [],
+      stableCore: [],
+      unsafeDetails: [],
+      selectedBundles: [],
+      selectedChains: [],
+    })
+    expect(JSON.stringify(deliberation)).not.toMatch(/Provider-authored bundle|bundle-grounded/u)
+  })
+
+  it('uses the exact normalized ids from the Provider fact slice as the whitelist', async () => {
+    const systems: string[] = []
+    const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
+      systems.push(system)
+      const payload: any = validRecollectionPlanPayload()
+      payload.selectedConsolidationIds = ['con-visible', 'con-outside-slice']
+      payload.searchTrace.firstHop.targetIds = ['con-visible', 'con-outside-slice']
+      payload.searchTrace.secondHop.targetIds = ['con-visible', 'con-outside-slice']
+      return JSON.stringify(payload)
+    })
+    const consolidatedMemories = [
+      {
+        id: ' con-visible ',
+        kind: 'daily',
+        periodKey: 'p1',
+        summary: 'Visible candidate.',
+        lesson: null,
+        confidence: 0.8,
+        cues: [],
+      },
+      ...Array.from({ length: 5 }, (_, index) => ({
+        id: `con-${index + 2}`,
+        kind: 'daily',
+        periodKey: `p${index + 2}`,
+        summary: `Visible candidate ${index + 2}.`,
+        lesson: null,
+        confidence: 0.78,
+        cues: [],
+      })),
+      {
+        id: 'con-outside-slice',
+        kind: 'daily',
+        periodKey: 'p7',
+        summary: 'This candidate is outside the Provider slice.',
+        lesson: null,
+        confidence: 0.77,
+        cues: [],
+      },
+    ] as any
+
+    const result = await generateMemoryRecollectionPlanWithGateway({
+      recallSeed: 'relationship concern',
+      recollectionIntent: validRecollectionIntentPayload() as any,
+      consolidatedMemories,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+
+    const providerFacts = JSON.parse(systems[0]!) as any
+    expect(providerFacts.data.consolidatedMemories.map((item: any) => item.id)).toEqual([
+      'con-visible',
+      'con-2',
+      'con-3',
+      'con-4',
+      'con-5',
+      'con-6',
+    ])
+    expect(result?.selectedConsolidationIds).toEqual(['con-visible'])
+    expect(result?.searchTrace?.firstHop.targetIds).toEqual(['con-visible'])
+    expect(result?.searchTrace?.secondHop.targetIds).toEqual(['con-visible'])
+  })
+
+  it('removes blank and colliding owner ids before applying the Provider candidate budget', async () => {
+    const systems: string[] = []
+    const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
+      systems.push(system)
+      const payload: any = validRecollectionPlanPayload()
+      payload.selectedConsolidationIds = ['con-6']
+      payload.searchTrace.firstHop.targetIds = ['con-6']
+      payload.searchTrace.secondHop.targetIds = ['con-6']
+      return JSON.stringify(payload)
+    })
+    const consolidatedMemories = [
+      {
+        id: '   ',
+        kind: 'daily',
+        periodKey: 'blank',
+        summary: 'Blank owner id.',
+        lesson: null,
+        confidence: 0.9,
+        cues: [],
+      },
+      {
+        id: 'duplicate-owner',
+        kind: 'daily',
+        periodKey: 'duplicate-1',
+        summary: 'First colliding owner.',
+        lesson: null,
+        confidence: 0.89,
+        cues: [],
+      },
+      {
+        id: ' duplicate-owner ',
+        kind: 'daily',
+        periodKey: 'duplicate-2',
+        summary: 'Second colliding owner.',
+        lesson: null,
+        confidence: 0.88,
+        cues: [],
+      },
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `con-${index + 1}`,
+        kind: 'daily',
+        periodKey: `p${index + 1}`,
+        summary: `Valid candidate ${index + 1}.`,
+        lesson: null,
+        confidence: 0.8 - index * 0.01,
+        cues: [],
+      })),
+    ] as any
+
+    const result = await generateMemoryRecollectionPlanWithGateway({
+      recallSeed: 'relationship concern',
+      recollectionIntent: validRecollectionIntentPayload() as any,
+      consolidatedMemories,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+
+    const providerFacts = JSON.parse(systems[0]!) as any
+    expect(providerFacts.data.consolidatedMemories.map((item: any) => item.id)).toEqual([
+      'con-1',
+      'con-2',
+      'con-3',
+      'con-4',
+      'con-5',
+      'con-6',
+    ])
+    expect(result?.selectedConsolidationIds).toEqual(['con-6'])
+    expect(result?.searchTrace?.firstHop.targetIds).toEqual(['con-6'])
+    expect(result?.searchTrace?.secondHop.targetIds).toEqual(['con-6'])
+  })
+
+  it('does not expand an empty Provider selection with candidates the Provider did not select', async () => {
+    const generateMainGatewayText = vi.fn(async () => {
+      const payload: any = validRecollectionPlanPayload()
+      payload.selectedConsolidationIds = []
+      payload.selectedWindowIds = []
+      payload.selectedProceduralIds = []
+      payload.selectedEpisodeIds = []
+      payload.selectedConversationTurnIds = []
+      payload.searchTrace.firstHop.focus = 'era'
+      payload.searchTrace.firstHop.targetIds = []
+      payload.searchTrace.secondHop.targetIds = []
+      return JSON.stringify(payload)
+    })
+    const consolidatedMemories = Array.from({ length: 7 }, (_, index) => ({
+      id: `con-${index + 1}`,
+      kind: 'daily',
+      periodKey: `p${index + 1}`,
+      summary: `Candidate ${index + 1}.`,
+      lesson: null,
+      confidence: 0.8,
+      cues: [],
+    })) as any
+    const recollectionIntent = validRecollectionIntentPayload() as any
+
+    const plan = await generateMemoryRecollectionPlanWithGateway({
+      recallSeed: 'relationship concern',
+      recollectionIntent,
+      consolidatedMemories,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+    const resolved = resolveRecollectionPlanSearch({
+      recollectionIntent,
+      recollectionPlan: plan,
+      relationshipLineCandidates: [],
+      consolidatedMemories,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+    })
+
+    expect(plan?.selectedConsolidationIds).toEqual([])
+    expect(resolved?.selectedConsolidationIds).toEqual([])
+    expect(resolved?.selectedWindowIds).toEqual([])
+    expect(resolved?.selectedProceduralIds).toEqual([])
+    expect(resolved?.selectedEpisodeIds).toEqual([])
+    expect(resolved?.selectedConversationTurnIds).toEqual([])
+    expect(resolved?.searchTrace?.firstHop.targetIds).toEqual([])
+    expect(resolved?.searchTrace?.secondHop.targetIds).toEqual([])
+  })
+
+  it('rejects ambiguous duplicate owners from typed selections and cross-kind search targets', async () => {
+    const generateMainGatewayText = vi.fn(async () => {
+      const payload: any = validRecollectionPlanPayload()
+      payload.selectedConsolidationIds = ['duplicate-owner', 'shared-owner']
+      payload.selectedEpisodeIds = ['shared-owner']
+      payload.searchTrace.firstHop.targetIds = ['duplicate-owner', 'shared-owner']
+      payload.searchTrace.secondHop.targetIds = ['duplicate-owner', 'shared-owner']
+      return JSON.stringify(payload)
+    })
+
+    const result = await generateMemoryRecollectionPlanWithGateway({
+      recallSeed: 'relationship concern',
+      recollectionIntent: validRecollectionIntentPayload() as any,
+      consolidatedMemories: [
+        {
+          id: 'duplicate-owner',
+          kind: 'daily',
+          periodKey: 'p1',
+          summary: 'First duplicate owner.',
+          lesson: null,
+          confidence: 0.8,
+          cues: [],
+        },
+        {
+          id: 'duplicate-owner',
+          kind: 'daily',
+          periodKey: 'p2',
+          summary: 'Second duplicate owner.',
+          lesson: null,
+          confidence: 0.79,
+          cues: [],
+        },
+        {
+          id: 'shared-owner',
+          kind: 'daily',
+          periodKey: 'p3',
+          summary: 'Typed consolidation owner.',
+          lesson: null,
+          confidence: 0.78,
+          cues: [],
+        },
+      ] as any,
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [{
+        id: 'shared-owner',
+        sourceKind: 'dialogue-feedback',
+        whatHappened: 'A different typed episode owner.',
+        confidence: 0.77,
+        provenance: 'remembered',
+      }] as any,
+      recalledConversationHistory: [],
+      generateMainGatewayText,
+      cardId: 'default',
+    })
+
+    expect(result?.selectedConsolidationIds).toEqual(['shared-owner'])
+    expect(result?.selectedEpisodeIds).toEqual(['shared-owner'])
+    expect(result?.searchTrace?.firstHop.targetIds).toEqual([])
+    expect(result?.searchTrace?.secondHop.targetIds).toEqual([])
+  })
+
   it('keeps memory planners from authoring visible or inward reply prose', async () => {
     const systems: string[] = []
     const generateMainGatewayText = vi.fn(async ({ system }: { system: string }) => {
@@ -543,18 +1255,14 @@ describe('memory provider planning', () => {
     const systemText = systems.join('\n')
     expect(systemText).not.toMatch(/opening must be|inwardLine is|visibleLine is/i)
     expect(systemText).not.toMatch(/soft return into the same line|same-thread-continuation|widening closeness/i)
-    expect(recollectionPlan?.opening).toMatch(/^opening policy:/)
     expect(speechPlan).toEqual(expect.objectContaining({
       shouldSurface: true,
       surfaceMode: 'relationship-continuity',
       placement: 'inside-payoff',
       certainty: 'approximate',
     }))
-    expect(deliberation?.inwardLine).toMatch(/^inward policy:/)
+    expect(recollectionPlan?.opening).toBe('')
+    expect(deliberation?.inwardLine).toBe('')
     expect(deliberation?.visibleLine).toBeNull()
-    expect([
-      recollectionPlan?.opening,
-      deliberation?.inwardLine,
-    ].join(' ')).not.toMatch(/same line|before outward reply|continuity nod|widening/i)
   })
 })

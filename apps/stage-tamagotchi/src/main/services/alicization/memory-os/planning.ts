@@ -10,6 +10,11 @@ import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
 import { buildAlicizationMemoryRestraintJudge } from '../memory-restraint-judge'
 import { sanitizeOrganicMemoryText } from '../runtime-organic-memory-search-prelude'
+import {
+  buildUniqueMemoryPlanningOwnerIdIndex,
+  normalizeMemoryPlanningId,
+  resolveMemoryPlanningOwnerIds,
+} from './planning-identifiers'
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
   const result: string[] = []
@@ -42,48 +47,6 @@ function countRecallTermOverlap(base: string, candidate: string) {
   return overlap / candidateTerms.size
 }
 
-function isQuietSameHerContinuityText(text: string) {
-  return /quiet same-her continuity|same-her-inward-carry|quiet-companionship|same living line stays inward|line stayed inward|line holds inward|同一个她|同一条线|安静陪着|先别外扩/u.test(text)
-}
-
-function pickAdditionalIds<T>(input: {
-  items: T[]
-  count: number
-  existingIds?: Set<string>
-  biasTexts?: string[]
-  getId: (item: T) => string
-  getText: (item: T) => string
-}) {
-  const existingIds = input.existingIds ?? new Set<string>()
-  const biasTexts = input.biasTexts ?? []
-  const ranked = biasTexts.length > 0
-    ? [...input.items]
-        .map((item, index) => ({
-          item,
-          index,
-          score: Math.max(...biasTexts.map(text => countRecallTermOverlap(text, input.getText(item))), 0),
-        }))
-        .sort((left, right) => {
-          if (left.score !== right.score)
-            return right.score - left.score
-          return left.index - right.index
-        })
-        .map(entry => entry.item)
-    : input.items
-
-  const selected: string[] = []
-  for (const item of ranked) {
-    const id = input.getId(item)
-    if (!id || existingIds.has(id))
-      continue
-    selected.push(id)
-    existingIds.add(id)
-    if (selected.length >= input.count)
-      break
-  }
-  return selected
-}
-
 export function rankByEraAffinity<T>(input: {
   items: T[]
   eraTexts: string[]
@@ -102,32 +65,6 @@ export function rankByEraAffinity<T>(input: {
     }))
     .sort((left, right) => right.score - left.score)
     .map(entry => entry.item)
-}
-
-function collectRecollectionRelationshipLines(input: {
-  recollectionIntent: RecollectionIntentSnapshot | null
-  recollectionPlan: RecollectionPlanSnapshot | null
-  relationshipLineCandidates: AlicizationRelationshipLineCandidate[]
-  consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
-  recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  selectedConsolidationIds: Set<string>
-  selectedEpisodeIds: Set<string>
-}) {
-  return uniqueList([
-    ...(input.recollectionPlan?.selectedRelationshipLines ?? []),
-    ...input.relationshipLineCandidates
-      .filter(item => input.selectedEpisodeIds.has(item.sourceId) || input.selectedConsolidationIds.has(item.sourceId))
-      .map(item => item.line),
-    ...input.recalledEpisodes
-      .filter(item => input.selectedEpisodeIds.has(item.id))
-      .flatMap(item => [item.relationshipMeaning, item.lesson]),
-    ...input.consolidatedMemories
-      .filter(item => input.selectedConsolidationIds.has(item.id))
-      .flatMap(item => [item.lesson]),
-    ...(input.recollectionIntent?.mode === 'relationship-history'
-      ? input.recalledEpisodes.slice(0, 2).flatMap(item => [item.relationshipMeaning, item.lesson])
-      : []),
-  ], 3)
 }
 
 export function deriveMemoryFollowUpAffordance(input: {
@@ -154,7 +91,7 @@ export function deriveMemoryFollowUpAffordance(input: {
     ?? (deliberation.selectedBundles[0]?.procedureId ? deliberation.selectedBundles[0]?.summary : null)
     ?? null
   const procedureDominant = deliberation.surfacePolicy === 'procedural-carry'
-    || deliberation.surfacePolicy === 'answer-anchoring' && Boolean(procedureLine)
+    || (deliberation.surfacePolicy === 'answer-anchoring' && Boolean(procedureLine))
     || deliberation.selectedChains[0]?.kind === 'task-procedure-relationship-stance'
     || Boolean(deliberation.selectedBundles[0]?.procedureId)
   const selfModelDominant = !procedureDominant && (
@@ -313,362 +250,104 @@ export function resolveRecollectionPlanSearch(input: {
   if (!plan)
     return null
 
-  const agenda = input.recollectionIntent?.recollectionAgenda ?? null
-  const clusterState = input.clusterState ?? null
-  const selectedConsolidationIds = new Set(plan.selectedConsolidationIds)
-  const selectedWindowIds = new Set(plan.selectedWindowIds)
-  const selectedProceduralIds = new Set(plan.selectedProceduralIds)
-  const selectedEpisodeIds = new Set(plan.selectedEpisodeIds)
-  const selectedConversationTurnIds = new Set(plan.selectedConversationTurnIds)
-
-  const preferredPrimaryFocus: NonNullable<RecollectionPlanSnapshot['searchTrace']>['firstHop']['focus']
-    = plan.searchTrace?.firstHop.focus
-      ?? (
-        selectedProceduralIds.size > 0 || input.recollectionIntent?.mode === 'execution-procedure' || input.recollectionIntent?.mode === 'experience-pattern' || (agenda?.goalSimilarity ?? 0) >= 0.58
-          ? 'procedure'
-          : (
-              (agenda?.relationshipNeed ?? 0) >= 0.5 || input.recollectionIntent?.mode === 'relationship-history'
-                ? 'relationship-line'
-                : selectedConsolidationIds.size > 0 || selectedWindowIds.size > 0 || (agenda?.candidateEraFacets.length ?? 0) > 0
-                  ? 'era'
-                  : input.recollectionIntent?.mode === 'conversation-history' || selectedConversationTurnIds.size > 0
-                    ? 'conversation-turn'
-                    : 'episode'
-            )
-      )
-
-  const addPrimaryEraIfNeeded = () => {
-    if (selectedConsolidationIds.size > 0 || selectedWindowIds.size > 0)
-      return
-    const preferredFacet = agenda?.candidateEraFacets[0]?.facet ?? null
-    const preferredConsolidation = input.consolidatedMemories.find(item => !preferredFacet || item.facet === preferredFacet || preferredFacet === 'window')
-    if (preferredConsolidation) {
-      selectedConsolidationIds.add(preferredConsolidation.id)
-      return
-    }
-    const preferredWindow = input.recollectedWindows[0]
-    if (preferredWindow)
-      selectedWindowIds.add(preferredWindow.id)
-  }
-
-  const addPrimaryProcedureIfNeeded = () => {
-    if (selectedProceduralIds.size > 0)
-      return
-    const selected = pickAdditionalIds({
-      items: input.proceduralMemories,
-      count: 1,
-      existingIds: selectedProceduralIds,
-      biasTexts: [
-        ...(agenda?.candidateProcedureLines ?? []),
-        ...(plan.selectedRelationshipLines ?? []),
-      ],
-      getId: item => item.id,
-      getText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
-    })
-    for (const id of selected)
-      selectedProceduralIds.add(id)
-  }
-
-  const selectedRelationshipLines = (() => {
-    const baseline = collectRecollectionRelationshipLines({
-      recollectionIntent: input.recollectionIntent,
-      recollectionPlan: plan,
-      relationshipLineCandidates: input.relationshipLineCandidates,
-      consolidatedMemories: input.consolidatedMemories,
-      recalledEpisodes: input.recalledEpisodes,
-      selectedConsolidationIds,
-      selectedEpisodeIds,
-    })
-    if (baseline.length > 0)
-      return baseline
-    if (preferredPrimaryFocus !== 'relationship-line')
-      return baseline
-    return uniqueList([
-      ...input.relationshipLineCandidates.slice(0, 3).map(item => item.line),
-      ...input.recalledEpisodes.slice(0, 2).flatMap(item => [item.relationshipMeaning, item.lesson]),
-      ...input.consolidatedMemories.slice(0, 2).map(item => item.lesson),
-    ], 3)
-  })()
-
-  const selectedEraTexts = [
+  const consolidationIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.consolidatedMemories,
+    item => item.id,
+  )
+  const windowIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.recollectedWindows,
+    item => item.id,
+  )
+  const procedureIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.proceduralMemories,
+    item => item.id,
+  )
+  const episodeIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.recalledEpisodes,
+    item => item.id,
+  )
+  const conversationTurnIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
+    input.recalledConversationHistory,
+    item => item.turnId,
+  )
+  const targetIdIndex = buildUniqueMemoryPlanningOwnerIdIndex([
+    ...input.consolidatedMemories.map(item => ({ id: item.id })),
+    ...input.recollectedWindows.map(item => ({ id: item.id })),
+    ...input.proceduralMemories.map(item => ({ id: item.id })),
+    ...input.recalledEpisodes.map(item => ({ id: item.id })),
+    ...input.recalledConversationHistory.map(item => ({ id: item.turnId })),
+  ], item => item.id)
+  const selectedConsolidationIds = resolveMemoryPlanningOwnerIds(
+    plan.selectedConsolidationIds,
+    consolidationIdIndex,
+  )
+  const selectedWindowIds = resolveMemoryPlanningOwnerIds(
+    plan.selectedWindowIds,
+    windowIdIndex,
+  )
+  const selectedProceduralIds = resolveMemoryPlanningOwnerIds(
+    plan.selectedProceduralIds,
+    procedureIdIndex,
+  )
+  const selectedEpisodeIds = resolveMemoryPlanningOwnerIds(
+    plan.selectedEpisodeIds,
+    episodeIdIndex,
+  )
+  const selectedConversationTurnIds = resolveMemoryPlanningOwnerIds(
+    plan.selectedConversationTurnIds,
+    conversationTurnIdIndex,
+  )
+  const selectedConsolidationIdSet = new Set(selectedConsolidationIds.map(normalizeMemoryPlanningId))
+  const selectedEpisodeIdSet = new Set(selectedEpisodeIds.map(normalizeMemoryPlanningId))
+  const selectedConversationTurnIdSet = new Set(selectedConversationTurnIds.map(normalizeMemoryPlanningId))
+  const selectedRelationshipLines = uniqueList([
+    ...input.relationshipLineCandidates
+      .filter((item) => {
+        const sourceId = normalizeMemoryPlanningId(item.sourceId)
+        if (item.sourceKind === 'consolidation')
+          return selectedConsolidationIdSet.has(sourceId)
+        if (item.sourceKind === 'episode')
+          return selectedEpisodeIdSet.has(sourceId)
+        return selectedConversationTurnIdSet.has(sourceId)
+      })
+      .map(item => item.line),
+    ...input.recalledEpisodes
+      .filter(item => selectedEpisodeIds.includes(item.id))
+      .flatMap(item => [item.relationshipMeaning, item.lesson]),
     ...input.consolidatedMemories
-      .filter(item => selectedConsolidationIds.has(item.id))
-      .flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
-    ...input.recollectedWindows
-      .filter(item => selectedWindowIds.has(item.id))
-      .flatMap(item => [item.summary, ...item.cues]),
-  ].filter(Boolean)
-  const selectedProcedureTexts = [
-    ...(agenda?.candidateProcedureLines ?? []),
-    ...input.proceduralMemories
-      .filter(item => selectedProceduralIds.has(item.id))
-      .flatMap(item => [item.label, item.approach, ...(item.cues ?? [])]),
-  ].filter(Boolean)
-  const relationshipBiasTexts = selectedRelationshipLines.length > 0
-    ? selectedRelationshipLines
-    : uniqueList([
-        ...input.relationshipLineCandidates.slice(0, 3).map(item => item.line),
-        ...input.recalledEpisodes.slice(0, 2).flatMap(item => [item.relationshipMeaning, item.lesson]),
-      ], 3)
-
-  let secondHopAction: NonNullable<RecollectionPlanSnapshot['searchTrace']>['secondHop']['action'] = plan.searchTrace?.secondHop.action ?? 'hold'
-  let evidenceGap: NonNullable<RecollectionPlanSnapshot['searchTrace']>['secondHop']['evidenceGap'] = plan.searchTrace?.secondHop.evidenceGap ?? 'none'
-  const secondHopTargetIds: string[] = []
-
-  if (preferredPrimaryFocus === 'procedure') {
-    addPrimaryProcedureIfNeeded()
-    if (selectedConsolidationIds.size === 0 && selectedWindowIds.size === 0) {
-      addPrimaryEraIfNeeded()
-      secondHopAction = plan.searchTrace?.secondHop.action ?? 'expand-procedure'
-      evidenceGap = plan.searchTrace?.secondHop.evidenceGap ?? 'need-period-anchor'
-    }
-    if (selectedEpisodeIds.size === 0) {
-      const selected = pickAdditionalIds({
-        items: input.recalledEpisodes,
-        count: 2,
-        existingIds: selectedEpisodeIds,
-        biasTexts: selectedProcedureTexts,
-        getId: item => item.id,
-        getText: item => [item.threadAnchor, item.whatHappened, item.lesson, ...(item.tags ?? [])].filter(Boolean).join(' '),
-      })
-      for (const id of selected)
-        selectedEpisodeIds.add(id)
-      secondHopTargetIds.push(...selected)
-      if (selected.length > 0) {
-        secondHopAction = plan.searchTrace?.secondHop.action ?? 'expand-procedure'
-        evidenceGap = plan.searchTrace?.secondHop.evidenceGap ?? 'need-episode-detail'
+      .filter(item => selectedConsolidationIds.includes(item.id))
+      .map(item => item.lesson),
+  ], 3)
+  const searchTrace = plan.searchTrace
+    ? {
+        ...plan.searchTrace,
+        firstHop: {
+          ...plan.searchTrace.firstHop,
+          targetIds: resolveMemoryPlanningOwnerIds(
+            plan.searchTrace.firstHop.targetIds,
+            targetIdIndex,
+          ),
+        },
+        secondHop: {
+          ...plan.searchTrace.secondHop,
+          targetIds: resolveMemoryPlanningOwnerIds(
+            plan.searchTrace.secondHop.targetIds,
+            targetIdIndex,
+          ),
+        },
       }
-    }
-  }
-  else if (preferredPrimaryFocus === 'relationship-line') {
-    if ((agenda?.candidateEraFacets.some(item => item.facet === 'relationship-era') ?? false) && selectedConsolidationIds.size === 0 && selectedWindowIds.size === 0)
-      addPrimaryEraIfNeeded()
-    if (selectedEpisodeIds.size === 0) {
-      const selected = pickAdditionalIds({
-        items: input.recalledEpisodes,
-        count: 2,
-        existingIds: selectedEpisodeIds,
-        biasTexts: relationshipBiasTexts,
-        getId: item => item.id,
-        getText: item => [item.relationshipMeaning, item.lesson, item.whatHappened, ...(item.tags ?? [])].filter(Boolean).join(' '),
-      })
-      for (const id of selected)
-        selectedEpisodeIds.add(id)
-      secondHopTargetIds.push(...selected)
-    }
-    if (selectedConversationTurnIds.size === 0 && input.recollectionIntent?.mode === 'relationship-history') {
-      const selected = pickAdditionalIds({
-        items: input.recalledConversationHistory,
-        count: 1,
-        existingIds: selectedConversationTurnIds,
-        biasTexts: relationshipBiasTexts,
-        getId: item => item.turnId ?? '',
-        getText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-      })
-      for (const id of selected)
-        selectedConversationTurnIds.add(id)
-      secondHopTargetIds.push(...selected)
-    }
-    if (secondHopTargetIds.length > 0) {
-      secondHopAction = plan.searchTrace?.secondHop.action ?? 'expand-relationship-line'
-      evidenceGap = plan.searchTrace?.secondHop.evidenceGap ?? (
-        selectedEpisodeIds.size > 0 ? 'need-relationship-meaning' : 'need-conversation-evidence'
-      )
-    }
-  }
-  else if (preferredPrimaryFocus === 'era') {
-    addPrimaryEraIfNeeded()
-    if (selectedEpisodeIds.size === 0) {
-      const selected = pickAdditionalIds({
-        items: rankByEraAffinity({
-          items: input.recalledEpisodes,
-          eraTexts: selectedEraTexts,
-          toText: item => [item.threadAnchor, item.whatHappened, item.lesson, ...(item.tags ?? [])].filter(Boolean).join(' '),
-        }),
-        count: 2,
-        existingIds: selectedEpisodeIds,
-        getId: item => item.id,
-        getText: item => [item.threadAnchor, item.whatHappened, item.lesson, ...(item.tags ?? [])].filter(Boolean).join(' '),
-      })
-      for (const id of selected)
-        selectedEpisodeIds.add(id)
-      secondHopTargetIds.push(...selected)
-      if (selected.length > 0) {
-        secondHopAction = plan.searchTrace?.secondHop.action ?? 'expand-era'
-        evidenceGap = plan.searchTrace?.secondHop.evidenceGap ?? 'need-episode-detail'
-      }
-    }
-    if ((input.recollectionIntent?.mode === 'execution-procedure' || input.recollectionIntent?.mode === 'experience-pattern' || (agenda?.goalSimilarity ?? 0) >= 0.5) && selectedProceduralIds.size === 0) {
-      const selected = pickAdditionalIds({
-        items: rankByEraAffinity({
-          items: input.proceduralMemories,
-          eraTexts: selectedEraTexts.length > 0 ? selectedEraTexts : selectedProcedureTexts,
-          toText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
-        }),
-        count: 1,
-        existingIds: selectedProceduralIds,
-        getId: item => item.id,
-        getText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
-      })
-      for (const id of selected)
-        selectedProceduralIds.add(id)
-      secondHopTargetIds.push(...selected)
-      secondHopAction = plan.searchTrace?.secondHop.action ?? 'expand-era'
-      evidenceGap = plan.searchTrace?.secondHop.evidenceGap ?? 'need-procedure-detail'
-    }
-    if (selectedConversationTurnIds.size === 0 && input.recollectionIntent?.mode === 'conversation-history') {
-      const selected = pickAdditionalIds({
-        items: rankByEraAffinity({
-          items: input.recalledConversationHistory,
-          eraTexts: selectedEraTexts,
-          toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-        }),
-        count: 1,
-        existingIds: selectedConversationTurnIds,
-        getId: item => item.turnId ?? '',
-        getText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-      })
-      for (const id of selected)
-        selectedConversationTurnIds.add(id)
-      secondHopTargetIds.push(...selected)
-      secondHopAction = plan.searchTrace?.secondHop.action ?? 'expand-conversation'
-      evidenceGap = plan.searchTrace?.secondHop.evidenceGap ?? 'need-conversation-evidence'
-    }
-  }
-  else if (preferredPrimaryFocus === 'conversation-turn') {
-    if (selectedConversationTurnIds.size === 0) {
-      const selected = pickAdditionalIds({
-        items: input.recalledConversationHistory,
-        count: 1,
-        existingIds: selectedConversationTurnIds,
-        biasTexts: [
-          ...(agenda?.candidateProcedureLines ?? []),
-          ...(plan.selectedRelationshipLines ?? []),
-        ],
-        getId: item => item.turnId ?? '',
-        getText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-      })
-      for (const id of selected)
-        selectedConversationTurnIds.add(id)
-      secondHopTargetIds.push(...selected)
-      if (selected.length > 0) {
-        secondHopAction = plan.searchTrace?.secondHop.action ?? 'expand-conversation'
-        evidenceGap = plan.searchTrace?.secondHop.evidenceGap ?? 'need-conversation-evidence'
-      }
-    }
-    if (selectedConsolidationIds.size === 0 && selectedWindowIds.size === 0) {
-      addPrimaryEraIfNeeded()
-      secondHopAction = plan.searchTrace?.secondHop.action ?? 'expand-conversation'
-      evidenceGap = plan.searchTrace?.secondHop.evidenceGap ?? 'need-period-anchor'
-    }
-  }
-  else if (selectedEpisodeIds.size === 0) {
-    const selected = pickAdditionalIds({
-      items: input.recalledEpisodes,
-      count: 1,
-      existingIds: selectedEpisodeIds,
-      biasTexts: [
-        ...selectedProcedureTexts,
-        ...relationshipBiasTexts,
-      ],
-      getId: item => item.id,
-      getText: item => [item.threadAnchor, item.whatHappened, item.lesson].filter(Boolean).join(' '),
-    })
-    for (const id of selected)
-      selectedEpisodeIds.add(id)
-    secondHopTargetIds.push(...selected)
-  }
-
-  const selectedEpisodes = input.recalledEpisodes.filter(item => selectedEpisodeIds.has(item.id))
-  const conflictingVariants = selectedEpisodes.filter((item) => {
-    const provenance = item.latestReconsolidation?.provenance ?? item.provenance
-    return provenance === 'reconstructed' || provenance === 'dreamt' || provenance === 'inferred'
-  })
-  const ambiguityPosture: NonNullable<RecollectionPlanSnapshot['searchTrace']>['thirdHop']['ambiguityPosture']
-    = plan.searchTrace?.thirdHop.ambiguityPosture
-      ?? (clusterState?.ambiguous ? 'ambiguous' : null)
-      ?? (
-        conflictingVariants.length >= 2
-          ? 'ambiguous'
-          : conflictingVariants.length === 1 || plan.certainty !== 'firm' || secondHopTargetIds.length > 0
-            ? 'approximate'
-            : 'settled'
-      )
-
-  const firstHopTargetIds = preferredPrimaryFocus === 'era'
-    ? [...selectedConsolidationIds, ...selectedWindowIds].slice(0, 3)
-    : preferredPrimaryFocus === 'procedure'
-      ? [...selectedProceduralIds].slice(0, 2)
-      : preferredPrimaryFocus === 'relationship-line'
-        ? [...selectedEpisodeIds].slice(0, 2)
-        : preferredPrimaryFocus === 'conversation-turn'
-          ? [...selectedConversationTurnIds].slice(0, 2)
-          : [...selectedEpisodeIds].slice(0, 2)
-
-  const firstHopSummary = plan.searchTrace?.firstHop.summary
-    ?? (
-      preferredPrimaryFocus === 'procedure'
-        ? 'First search hop focuses on remembered procedure.'
-        : preferredPrimaryFocus === 'relationship-line'
-          ? 'First search hop focuses on relationship meaning; exact detail is secondary.'
-          : preferredPrimaryFocus === 'era'
-            ? 'First search hop focuses on a remembered period or era; fragments are secondary.'
-            : preferredPrimaryFocus === 'conversation-turn'
-              ? 'First search hop focuses on a remembered exchange, then broadens after the anchor.'
-              : 'First search hop focuses on a remembered episode.'
-    )
-  const secondHopSummary = plan.searchTrace?.secondHop.summary
-    ?? (
-      secondHopAction === 'hold'
-        ? 'search_hop=second; action=hold; evidence=enough; widen=false'
-        : secondHopAction === 'narrow-to-stable-core'
-          ? 'search_hop=second; action=narrow_to_stable_core; variant_agreement=partial'
-          : 'search_hop=second; action=expand_from_first_anchor; evidence_goal=coherent_recall'
-    )
-  const thirdHopSummary = plan.searchTrace?.thirdHop.summary
-    ?? (
-      ambiguityPosture === 'ambiguous'
-        ? clusterState?.dominantSummary && clusterState?.runnerUpSummary
-          ? `search_hop=third; ambiguity=branching; dominant=${clusterState.dominantSummary}; runner_up=${clusterState.runnerUpSummary}; certainty=ambiguous`
-          : 'search_hop=third; ambiguity=branching; certainty=ambiguous'
-        : ambiguityPosture === 'approximate'
-          ? 'search_hop=third; ambiguity=approximate; exact=false'
-          : 'search_hop=third; ambiguity=settled; confidence=normal'
-    )
-
-  const certainty: RecollectionPlanSnapshot['certainty']
-    = ambiguityPosture === 'ambiguous'
-      ? 'fragmentary'
-      : ambiguityPosture === 'approximate' && plan.certainty === 'firm'
-        ? 'approximate'
-        : plan.certainty
+    : null
 
   return {
     ...plan,
-    selectedConsolidationIds: [...selectedConsolidationIds].slice(0, 6),
-    selectedWindowIds: [...selectedWindowIds].slice(0, 6),
-    selectedProceduralIds: [...selectedProceduralIds].slice(0, 6),
-    selectedEpisodeIds: [...selectedEpisodeIds].slice(0, 6),
-    selectedConversationTurnIds: [...selectedConversationTurnIds].slice(0, 6),
+    selectedConsolidationIds,
+    selectedWindowIds,
+    selectedProceduralIds,
+    selectedEpisodeIds,
+    selectedConversationTurnIds,
     selectedRelationshipLines,
-    certainty,
-    searchTrace: {
-      firstHop: {
-        focus: preferredPrimaryFocus,
-        summary: firstHopSummary,
-        targetIds: plan.searchTrace?.firstHop.targetIds?.length ? plan.searchTrace.firstHop.targetIds.slice(0, 6) : firstHopTargetIds,
-      },
-      secondHop: {
-        action: secondHopAction,
-        evidenceGap,
-        summary: secondHopSummary,
-        targetIds: plan.searchTrace?.secondHop.targetIds?.length ? plan.searchTrace.secondHop.targetIds.slice(0, 6) : secondHopTargetIds.slice(0, 6),
-      },
-      thirdHop: {
-        ambiguityPosture,
-        summary: thirdHopSummary,
-      },
-    },
+    searchTrace,
+    opening: '',
   } satisfies RecollectionPlanSnapshot
 }
 
@@ -707,89 +386,6 @@ export function applyMemoryDeliberationToSpeechPlan(input: {
   } satisfies NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']>
 }
 
-export function rankMemoryDeliberationBundles(input: {
-  recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
-  bundles: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedBundles']
-}) {
-  const intentMode = input.recollectionIntent?.mode ?? 'none'
-  return [...input.bundles]
-    .map((bundle) => {
-      let coherence = 0
-      const quietSameHerContinuity = isQuietSameHerContinuityText([
-        bundle.summary,
-        bundle.rationale,
-        bundle.relationshipLine,
-      ].filter(Boolean).join(' '))
-      if (bundle.periodId && bundle.episodeId)
-        coherence += 0.18
-      if (bundle.procedureId && bundle.episodeId)
-        coherence += 0.18
-      if (bundle.relationshipLine)
-        coherence += 0.12
-      if (bundle.conversationTurnId)
-        coherence += 0.1
-      if (bundle.procedureId && (intentMode === 'execution-procedure' || intentMode === 'experience-pattern'))
-        coherence += 0.22
-      if (bundle.conversationTurnId && intentMode === 'conversation-history')
-        coherence += 0.2
-      if (bundle.periodId && (intentMode === 'autobiographical-history' || intentMode === 'relationship-history'))
-        coherence += 0.16
-      if (bundle.relationshipLine && intentMode === 'relationship-history')
-        coherence += 0.18
-      if (quietSameHerContinuity)
-        coherence += 0.08
-      return {
-        bundle,
-        score: bundle.confidence + coherence,
-      }
-    })
-    .sort((left, right) => right.score - left.score)
-    .map(item => item.bundle)
-    .slice(0, 4)
-}
-
-export function rankMemoryDeliberationChains(input: {
-  recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
-  chains: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedChains']
-}) {
-  const intentMode = input.recollectionIntent?.mode ?? 'none'
-  return [...input.chains]
-    .map((chain) => {
-      let coherence = 0
-      const quietSameHerContinuity = isQuietSameHerContinuityText([
-        chain.summary,
-        chain.rationale,
-        chain.currentStance,
-        chain.answerPosture,
-        chain.relationshipMeaning,
-        chain.lesson,
-      ].filter(Boolean).join(' '))
-      if (chain.currentStance)
-        coherence += 0.12
-      if (chain.answerPosture)
-        coherence += 0.14
-      if (chain.periodSummary && chain.eventSummary)
-        coherence += 0.16
-      if (chain.procedureSummary && chain.relationshipMeaning)
-        coherence += 0.16
-      if (chain.lesson)
-        coherence += 0.1
-      if (chain.kind === 'task-procedure-relationship-stance' && (intentMode === 'execution-procedure' || intentMode === 'experience-pattern'))
-        coherence += 0.24
-      if (chain.kind === 'period-event-lesson-posture' && (intentMode === 'relationship-history' || intentMode === 'autobiographical-history' || intentMode === 'conversation-history'))
-        coherence += 0.22
-      if (quietSameHerContinuity)
-        coherence += 0.08
-      return {
-        chain,
-        score: chain.confidence + coherence,
-      }
-    })
-    .sort((left, right) => right.score - left.score)
-    .map(item => item.chain)
-    .slice(0, 4)
-}
-
 export function selectMemoryDeliberationEras(input: {
   recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
   selectedEraIds: string[]
@@ -812,40 +408,14 @@ export function selectMemoryDeliberationEras(input: {
       confidence: item.confidence,
     })),
   ]
-  const selectedEraIds = new Set(
-    input.selectedEraIds.length > 0
-      ? input.selectedEraIds
-      : [
-          ...input.selectedConsolidationIds,
-          ...input.selectedWindowIds,
-        ],
-  )
-  const preferredAgendaFacets = (input.recollectionIntent?.recollectionAgenda?.candidateEraFacets ?? [])
-    .slice()
-    .sort((left, right) => right.weight - left.weight)
-    .map(item => item.facet)
-  const inferredFacet = input.recollectionIntent?.mode === 'relationship-history'
-    ? 'relationship-era'
-    : input.recollectionIntent?.mode === 'execution-procedure' || input.recollectionIntent?.mode === 'experience-pattern'
-      ? 'task-era'
-      : input.recollectionIntent?.mode === 'autobiographical-history'
-        ? 'self-era'
-        : null
-  const prioritized = selectedEraIds.size > 0
-    ? eraCandidates.filter(item => selectedEraIds.has(item.id))
-    : preferredAgendaFacets.length > 0
-      ? eraCandidates.filter(item => preferredAgendaFacets.includes(item.facet as typeof preferredAgendaFacets[number]) || item.facet === 'window')
-      : inferredFacet
-        ? eraCandidates.filter(item => item.facet === inferredFacet || item.facet === 'window')
-        : eraCandidates
-  return [...prioritized]
-    .sort((left, right) => {
-      const leftQuietSameHer = isQuietSameHerContinuityText(left.summary)
-      const rightQuietSameHer = isQuietSameHerContinuityText(right.summary)
-      if (leftQuietSameHer !== rightQuietSameHer)
-        return rightQuietSameHer ? 1 : -1
-      return right.confidence - left.confidence
-    })
+  const selectedEraIds = new Set([
+    ...input.selectedEraIds,
+    ...input.selectedConsolidationIds,
+    ...input.selectedWindowIds,
+  ])
+  return eraCandidates
+    .filter(item => selectedEraIds.has(item.id))
+    .sort((left, right) => right.confidence - left.confidence)
     .map(item => ({
       id: item.id,
       facet: item.facet,

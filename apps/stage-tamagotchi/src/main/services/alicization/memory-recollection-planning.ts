@@ -3,6 +3,7 @@ import type { AlicizationRelationshipLineCandidate } from './memory-search-retri
 import type { MemoryClusterState, RecollectionPlanSnapshot } from './runtime-organic-memory-prompt-types'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import { normalizeMemoryPlanningId } from './memory-os/planning-identifiers'
 import { buildMemoryRecollectionNarratives } from './memory-recollection-narratives'
 
 export interface OrganicMemoryRecollectionPlanningStageInput {
@@ -103,27 +104,24 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
   const selectedProceduralIds = new Set(recollectionPlan?.selectedProceduralIds ?? [])
   const selectedEpisodeIds = new Set(recollectionPlan?.selectedEpisodeIds ?? [])
   const selectedConversationTurnIds = new Set(recollectionPlan?.selectedConversationTurnIds ?? [])
+  const hasRecollectionPlan = recollectionPlan !== null
 
-  const plannedConsolidatedMemories = selectedConsolidationIds.size > 0
+  const plannedConsolidatedMemories = hasRecollectionPlan
     ? input.consolidatedMemories.filter(item => selectedConsolidationIds.has(item.id))
     : input.consolidatedMemories
-  const plannedWindows = selectedWindowIds.size > 0
+  const plannedWindows = hasRecollectionPlan
     ? input.recollectedWindows.filter(item => selectedWindowIds.has(item.id))
     : input.recollectedWindows
-  const plannedProceduralMemories = selectedProceduralIds.size > 0
+  const plannedProceduralMemories = hasRecollectionPlan
     ? input.proceduralMemories.filter(item => selectedProceduralIds.has(item.id))
     : input.proceduralMemories
-  const plannedEpisodes = selectedEpisodeIds.size > 0
+  const plannedEpisodes = hasRecollectionPlan
     ? input.recalledEpisodes.filter(item => selectedEpisodeIds.has(item.id))
     : input.recalledEpisodes
-  const plannedConversationHistory = selectedConversationTurnIds.size > 0
+  const plannedConversationHistory = hasRecollectionPlan
     ? input.recalledConversationHistory.filter(item => item.turnId && selectedConversationTurnIds.has(item.turnId))
     : input.recalledConversationHistory
 
-  const recollectionNarratives = buildMemoryRecollectionNarratives({
-    intent: input.activeRecollectionIntent,
-    recollectedWindows: plannedWindows,
-  })
   void input.recordMemoryPlannerLatency?.(Date.now() - plannerStartedAt).catch(() => {})
 
   const speechPlanStartedAt = Date.now()
@@ -150,11 +148,11 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
   void input.recordMemorySpeechPlanLatency?.(Date.now() - speechPlanStartedAt).catch(() => {})
 
   const rawMemoryDeliberation = !skipProviderPlanning && input.activeRecollectionIntent && input.planMemoryDeliberation && (
-    input.consolidatedMemories.length > 0
-    || input.recollectedWindows.length > 0
-    || input.proceduralMemories.length > 0
-    || input.recalledEpisodes.length > 0
-    || input.recalledConversationHistory.length > 0
+    plannedConsolidatedMemories.length > 0
+    || plannedWindows.length > 0
+    || plannedProceduralMemories.length > 0
+    || plannedEpisodes.length > 0
+    || plannedConversationHistory.length > 0
     || Boolean(recollectionPlan)
   )
     ? await input.planMemoryDeliberation({
@@ -162,22 +160,85 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
         recollectionIntent: input.activeRecollectionIntent,
         recollectionPlan,
         recollectionSpeechPlan,
-        consolidatedMemories: input.consolidatedMemories,
-        recollectedWindows: input.recollectedWindows,
-        proceduralMemories: input.proceduralMemories,
-        recalledEpisodes: input.recalledEpisodes,
-        recalledConversationHistory: input.recalledConversationHistory,
+        consolidatedMemories: plannedConsolidatedMemories,
+        recollectedWindows: plannedWindows,
+        proceduralMemories: plannedProceduralMemories,
+        recalledEpisodes: plannedEpisodes,
+        recalledConversationHistory: plannedConversationHistory,
         digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
       }).catch(() => null)
     : null
 
+  const finalEraIds = new Set(
+    (rawMemoryDeliberation?.selectedEraIds ?? []).map(normalizeMemoryPlanningId),
+  )
+  const finalConsolidationIds = new Set(
+    (rawMemoryDeliberation?.selectedConsolidationIds ?? []).map(normalizeMemoryPlanningId),
+  )
+  const finalWindowIds = new Set(
+    (rawMemoryDeliberation?.selectedWindowIds ?? []).map(normalizeMemoryPlanningId),
+  )
+  const finalProcedureIds = new Set(
+    (rawMemoryDeliberation?.selectedProcedureIds ?? []).map(normalizeMemoryPlanningId),
+  )
+  const finalEpisodeIds = new Set(
+    (rawMemoryDeliberation?.selectedEpisodeIds ?? []).map(normalizeMemoryPlanningId),
+  )
+  const finalConversationTurnIds = new Set(
+    (rawMemoryDeliberation?.selectedConversationTurnIds ?? []).map(normalizeMemoryPlanningId),
+  )
+  const hasFinalDeliberation = rawMemoryDeliberation !== null
+  const finalDeliberationAllowsRecall = rawMemoryDeliberation?.shouldRecall !== false
+  const finalPlannedConsolidatedMemories = hasFinalDeliberation
+    ? finalDeliberationAllowsRecall
+      ? plannedConsolidatedMemories.filter((item) => {
+          const id = normalizeMemoryPlanningId(item.id)
+          return finalConsolidationIds.has(id) || finalEraIds.has(id)
+        })
+      : []
+    : plannedConsolidatedMemories
+  const finalPlannedWindows = hasFinalDeliberation
+    ? finalDeliberationAllowsRecall
+      ? plannedWindows.filter((item) => {
+          const id = normalizeMemoryPlanningId(item.id)
+          return finalWindowIds.has(id) || finalEraIds.has(id)
+        })
+      : []
+    : plannedWindows
+  const finalPlannedProceduralMemories = hasFinalDeliberation
+    ? finalDeliberationAllowsRecall
+      ? plannedProceduralMemories.filter(item => finalProcedureIds.has(normalizeMemoryPlanningId(item.id)))
+      : []
+    : plannedProceduralMemories
+  const finalPlannedEpisodes = hasFinalDeliberation
+    ? finalDeliberationAllowsRecall
+      ? plannedEpisodes.filter(item => finalEpisodeIds.has(normalizeMemoryPlanningId(item.id)))
+      : []
+    : plannedEpisodes
+  const finalPlannedConversationHistory = hasFinalDeliberation
+    ? finalDeliberationAllowsRecall
+      ? plannedConversationHistory.filter(item =>
+          finalConversationTurnIds.has(normalizeMemoryPlanningId(item.turnId)),
+        )
+      : []
+    : plannedConversationHistory
+  const shouldBuildRecollectionNarratives = rawMemoryDeliberation
+    ? rawMemoryDeliberation.shouldRecall
+    : recollectionPlan !== null
+  const recollectionNarratives = shouldBuildRecollectionNarratives
+    ? buildMemoryRecollectionNarratives({
+        intent: input.activeRecollectionIntent,
+        recollectedWindows: finalPlannedWindows,
+      })
+    : []
+
   return {
     recollectionPlan,
-    plannedConsolidatedMemories,
-    plannedWindows,
-    plannedProceduralMemories,
-    plannedEpisodes,
-    plannedConversationHistory,
+    plannedConsolidatedMemories: finalPlannedConsolidatedMemories,
+    plannedWindows: finalPlannedWindows,
+    plannedProceduralMemories: finalPlannedProceduralMemories,
+    plannedEpisodes: finalPlannedEpisodes,
+    plannedConversationHistory: finalPlannedConversationHistory,
     recollectionNarratives,
     recollectionSpeechPlan,
     rawMemoryDeliberation,
