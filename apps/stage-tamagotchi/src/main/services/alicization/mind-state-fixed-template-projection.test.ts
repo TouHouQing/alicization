@@ -143,8 +143,11 @@ function createLongHorizonMemory(overrides: Record<string, unknown> = {}) {
 function createMindStateRuntimeHarness(previousVisualPresenceState: any) {
   const gatewayCalls: Array<{
     source: string
+    system: string
     user: string
     extraSystemBlocks?: string[]
+    injectCustomDirectives?: boolean
+    responseFormat?: unknown
   }> = []
   const runtime = createAlicizationMindStateRuntime({
     previousVisualPresenceState,
@@ -231,8 +234,11 @@ function createMindStateRuntimeHarness(previousVisualPresenceState: any) {
     generateMainGatewayText: async (input) => {
       gatewayCalls.push({
         source: input.source,
+        system: input.system,
         user: String(input.user),
         extraSystemBlocks: input.extraSystemBlocks,
+        injectCustomDirectives: input.injectCustomDirectives,
+        responseFormat: input.responseFormat,
       })
 
       if (input.source === 'dialogue-turn-semantics') {
@@ -424,8 +430,10 @@ describe('mind state fixed-template projection cleanup', () => {
     const result = await buildTemplateCleanupMindState(runtime, previousVisualPresenceState)
 
     const promptProjectStates = gatewayCalls.map((call) => {
-      const projectStateJson = call.user.match(/"projectState":(\{.*?\})/s)?.[1]
-      return JSON.parse(projectStateJson ?? '{}') as Record<string, unknown>
+      const factBlock = JSON.parse(call.system) as {
+        data?: { projectState?: Record<string, unknown> }
+      }
+      return factBlock.data?.projectState ?? {}
     })
     const projectedText = JSON.stringify([
       ...promptProjectStates,
@@ -434,6 +442,19 @@ describe('mind state fixed-template projection cleanup', () => {
 
     expect(promptProjectStates.length).toBeGreaterThan(0)
     expect(gatewayCalls.every(call => (call.extraSystemBlocks ?? []).length === 0)).toBe(true)
+    expect(gatewayCalls.map(call => call.injectCustomDirectives)).toEqual([false, false])
+    expect(gatewayCalls.map(call => (call.responseFormat as any)?.json_schema?.name)).toEqual([
+      'alicization_dialogue_turn_semantics',
+      'alicization_subjective_inference',
+    ])
+    expect(gatewayCalls.map(call => JSON.parse(call.system).type)).toEqual([
+      'alicization-dialogue-turn-semantics-context',
+      'alicization-subjective-inference-context',
+    ])
+    expect(gatewayCalls.map(call => JSON.parse(call.user).type)).toEqual([
+      'alicization-dialogue-turn-semantics-request',
+      'alicization-subjective-inference-request',
+    ])
     for (const projectState of promptProjectStates) {
       expect(projectState.sameHerSelfLine).toBeUndefined()
       expect(projectState.sameHerHoldDetail).toBeUndefined()

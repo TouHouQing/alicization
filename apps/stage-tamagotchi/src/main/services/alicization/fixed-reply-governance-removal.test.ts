@@ -331,6 +331,39 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('keeps dialogue semantics and subjective inference on typed facts and native schemas', () => {
+    const runtimeSource = readServiceSource('./runtime-mind-state.ts')
+    const contractSource = readServiceSource('./runtime-mind-state-provider-contract.ts')
+
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-dialogue-turn-semantics-context\'',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-dialogue-turn-semantics-request\'',
+    )
+    expect(runtimeSource).toContain(
+      'responseFormat: alicizationDialogueTurnSemanticsResponseFormat',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-subjective-inference-context\'',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-subjective-inference-request\'',
+    )
+    expect(runtimeSource).toContain(
+      'responseFormat: alicizationSubjectiveInferenceResponseFormat',
+    )
+    expect(contractSource).toMatch(
+      /name:\s*'alicization_dialogue_turn_semantics'[\s\S]*strict:\s*true/u,
+    )
+    expect(contractSource).toMatch(
+      /name:\s*'alicization_subjective_inference'[\s\S]*strict:\s*true/u,
+    )
+    expect(runtimeSource).not.toMatch(
+      /You are Alicization private dialogue cognition|You are Alicization private cognition|Output valid JSON only with keys|Dialogue mind snapshot JSON|Perceptual mind state JSON|Prefer interpretations that preserve coherent personhood|Prefer interpretations that protect coherent personhood/u,
+    )
+  })
+
   it('removes second-pass repair vocabulary and rewrite carry fields from the validation transport', () => {
     const sources = [
       readServiceSource('./visible-reply/critic.ts'),

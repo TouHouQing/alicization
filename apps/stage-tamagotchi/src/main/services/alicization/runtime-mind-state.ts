@@ -30,10 +30,12 @@ import type {
 } from './main-gateway-contract'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+import type { AlicizationMainGatewayResponseFormat } from './runtime-main-gateway-one-shot'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { buildVisualHeartbeat } from './visual-heartbeat'
 
 import {
+  buildAlicizationProviderFactBlock,
   buildDerivedMindStateBundle,
   containsAlicizationFixedTemplateResidue,
   formatAlicizationProjectStateAwarenessFields,
@@ -115,6 +117,10 @@ import { buildReflectionLedger } from './reflection-ledger'
 import { buildRelationshipModel } from './relationship-model'
 import { buildRepairLedger } from './repair-ledger'
 import { buildReplyDeliberation } from './reply-deliberator'
+import {
+  alicizationDialogueTurnSemanticsResponseFormat,
+  alicizationSubjectiveInferenceResponseFormat,
+} from './runtime-mind-state-provider-contract'
 import { sanitizeBriefText, uniqueCarryAnchors } from './runtime-realtime'
 import {
   dialogueTurnSemanticsTimeoutMs,
@@ -168,6 +174,7 @@ interface CreateAlicizationMindStateRuntimeOptions {
         decisionTraceId?: string | null
       }
       digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+      responseFormat?: AlicizationMainGatewayResponseFormat
     }
   >
   buildMainGatewayAgentTurnId: (...segments: Array<unknown>) => string
@@ -1045,34 +1052,29 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       heuristic,
       inspectionRequested: input.inspectionRequested === true,
     })
+    const system = buildAlicizationProviderFactBlock('alicization-dialogue-turn-semantics-context', {
+      version: 'alicization-dialogue-turn-semantics-context-v1',
+      ...promptSnapshot,
+      evidencePolicy: {
+        currentUserTurnAuthoritative: true,
+        currentSceneAuthoritativeWhenGrounded: true,
+        staleScreenContinuityAuthoritative: false,
+        inventedEvidenceAllowed: false,
+        rawTranscriptPersonaTrainingEligible: false,
+        reviewCandidatesConfirmedLongTermMemory: false,
+      },
+    })
+    const user = buildAlicizationProviderFactBlock('alicization-dialogue-turn-semantics-request', {
+      version: 'alicization-dialogue-turn-semantics-request-v1',
+      operation: 'derive-dialogue-turn-semantics',
+      responseSchema: 'alicization_dialogue_turn_semantics',
+    })
     const raw = await generateMainGatewayText({
-      system: [
-        'You are Alicization private dialogue cognition, not user-facing dialogue.',
-        'Interpret the current user turn into Alicization turn semantics.',
-        'Use current user intent, WorkingMemory, LongTermMemoryRecall evidence, and coherent personhood before any project-status framing.',
-        'Output valid JSON only with keys: act, responseNeed, truthExpectation, affectiveTone, subjectPreference, taskAnchor, sharedAttentionDemand, personaSuppression, confidence, summary, reasonTags.',
-        'act must be one of: ask-help, ask-teach, verify-grounding, correct, challenge, share-state, seek-care, social-bid, continue-thread, close-thread, unknown.',
-        'responseNeed must be one of: repair, guide, teach, answer, care, accompany, clarify.',
-        'truthExpectation must be one of: strict, normal, light.',
-        'affectiveTone must be one of: frustrated, tired, urgent, warm, neutral.',
-        'subjectPreference must be one of: alicization-self, relationship, host-state, task-knot, visible-scene, general.',
-        'sharedAttentionDemand, personaSuppression, confidence must be numbers in range [0,1].',
-        'summary must be a short obligation-shaped sentence, not roleplay.',
-        'reasonTags must be short lower-kebab-case strings.',
-        'Prefer the actual user move in this turn over stale screen continuity when they conflict.',
-        'If this user turn is a short follow-up right after Alicization just answered, check whether it is correcting or rejecting the previous answer before you treat it as a detached personal question.',
-        'First decide whether the host is asking about Alicization herself, the current task knot, or the visible scene.',
-        'Do not turn a detached personal or reflective question into verify-grounding just because the screen state is uncertain.',
-        'If inspectionRequested is true, ingress governance already judged this turn as world-owned unless the host explicitly pivots away from inspection.',
-        'Do not recast an inspection-owned turn as a relationship or self turn just because the literal foreground surface is the Alicization/Codex chat window.',
-        'If the host is criticizing Alicization herself, her intelligence, or her responsiveness, prefer subjectPreference=alicization-self or relationship unless they are still literally asking for screen truth.',
-        'If the host is reacting to Alicization’s last answer with confusion or frustration, prefer act=challenge or correct and keep the turn dialogue-first unless the host explicitly asks for a fresh screen read.',
-        'Only use responseNeed=repair when the current turn truly needs scene truth repair or re-grounding.',
-        'Prefer interpretations that preserve coherent personhood rather than generic task-router behavior.',
-      ].join('\n'),
-      user: `Dialogue mind snapshot JSON: ${JSON.stringify(promptSnapshot)}`,
+      system,
+      user,
       timeoutMs: input.timeoutMs ?? dialogueTurnSemanticsTimeoutMs,
       source: 'dialogue-turn-semantics',
+      responseFormat: alicizationDialogueTurnSemanticsResponseFormat,
       cardId: input.cardId,
       agentTurn: input.agentTurn,
       agentTurnInput: {
@@ -1493,31 +1495,36 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       return heuristic
     }
 
+    const system = buildAlicizationProviderFactBlock('alicization-subjective-inference-context', {
+      version: 'alicization-subjective-inference-context-v1',
+      ...buildSubjectiveInferencePromptSnapshot(input),
+      evidencePolicy: {
+        currentPerceptionAuthoritative: true,
+        currentAttentionAuthoritative: true,
+        staleContinuityAuthoritative: false,
+        inventedEvidenceAllowed: false,
+        uncertaintyVisible: true,
+        rawTranscriptPersonaTrainingEligible: false,
+        reviewCandidatesConfirmedLongTermMemory: false,
+      },
+    })
+    const user = buildAlicizationProviderFactBlock('alicization-subjective-inference-request', {
+      version: 'alicization-subjective-inference-request-v1',
+      operation: 'derive-subjective-inference',
+      responseSchema: 'alicization_subjective_inference',
+    })
     const raw = await generateMainGatewayText({
-      system: [
-        'You are Alicization private cognition, not user-facing dialogue.',
-        'Interpret the provided perceptual state into Alicization subjective inference without inventing unseen details.',
-        'Use current perceptual evidence, WorkingMemory, LongTermMemoryRecall evidence, and coherent personhood before any project-status framing.',
-        'Prefer the current scene and current attention over old continuity when they disagree.',
-        'Output valid JSON only with keys: dominantInterpretation, situatedMeaning, selfQuestion, uncertainty, hostIntentCandidates, relationshipNeedCandidates, confidence, notes.',
-        'hostIntentCandidates must be an array of up to 3 items with keys: goal, confidence, why.',
-        'goal must be one of: resolve-problem, inspect-change, consume-media, rest, chat, browse, unknown.',
-        'relationshipNeedCandidates must be an array of up to 3 items with keys: need, confidence, why.',
-        'need must be one of: space, companionship, guidance, care, unclear.',
-        'Each why must be grounded in visible or continuity evidence, not fantasy.',
-        'confidence and candidate confidences must be numbers in range [0,1].',
-        'notes must be an array of short lower-kebab-case strings.',
-        'If evidence is thin, keep fields sparse and confidence low instead of hallucinating certainty.',
-        'Prefer interpretations that protect coherent personhood and embodied continuity over generic assistant utility guesses.',
-      ].join('\n'),
-      user: `Perceptual mind state JSON: ${JSON.stringify(buildSubjectiveInferencePromptSnapshot(input))}`,
+      system,
+      user,
       timeoutMs: input.timeoutMs ?? subjectiveInferenceTimeoutMs,
       source: 'subjective-inference',
+      responseFormat: alicizationSubjectiveInferenceResponseFormat,
       cardId: input.cardId,
       agentTurn: input.agentTurn,
       agentTurnInput: {
         turnId: buildMainGatewayAgentTurnId('subjective-inference', input.cardId, input.now),
       },
+      injectCustomDirectives: false,
       injectPerformanceManifest: false,
       digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
     })
