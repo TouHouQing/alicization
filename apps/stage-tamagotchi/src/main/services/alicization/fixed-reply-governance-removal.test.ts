@@ -364,6 +364,27 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('keeps screen semantic classification on typed multimodal facts and a native schema', () => {
+    const runtimeSource = readServiceSource('./runtime-main-gateway-one-shot.ts')
+    const contractSource = readServiceSource('./runtime-screen-semantic-provider-contract.ts')
+
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-screen-semantic-context\'',
+    )
+    expect(runtimeSource).toContain(
+      'buildAlicizationProviderFactBlock(\'alicization-screen-semantic-request\'',
+    )
+    expect(runtimeSource).toContain(
+      'responseFormat: alicizationScreenSemanticResponseFormat',
+    )
+    expect(contractSource).toMatch(
+      /name:\s*'alicization_screen_semantic_summary'[\s\S]*strict:\s*true/u,
+    )
+    expect(runtimeSource).not.toMatch(
+      /buildScreenSemanticClassifierSystemPrompt|Classify this screen snapshot|Prefer what is visibly on the screen|Output valid JSON only with keys: workload|summary must be a short factual phrase|Do not mention emotions or advice/u,
+    )
+  })
+
   it('removes second-pass repair vocabulary and rewrite carry fields from the validation transport', () => {
     const sources = [
       readServiceSource('./visible-reply/critic.ts'),

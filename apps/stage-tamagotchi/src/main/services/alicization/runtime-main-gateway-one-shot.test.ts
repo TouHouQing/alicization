@@ -252,6 +252,58 @@ describe('runtime main gateway one-shot', () => {
     }))
   })
 
+  it('uses typed multimodal facts and a native schema for screen semantics', async () => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: JSON.stringify({
+        workload: 'coding',
+        content: 'diff',
+        summary: 'TypeScript diff in runtime main gateway',
+        confidence: 0.91,
+        matchedLabels: ['typescript', 'diff'],
+      }),
+    } as any)
+
+    const result = await runtime.generateScreenSemanticSummaryFromImage({
+      cardId: 'card-screen-semantic-contract',
+      now: 123_000,
+      imageDataUrl: 'data:image/jpeg;base64,screen',
+      foregroundWindow: {
+        appName: 'Visual Studio Code',
+        processName: 'Code',
+        title: 'runtime-main-gateway-one-shot.ts',
+      },
+      source: {
+        id: 'source-screen-semantic-contract',
+        name: 'Visual Studio Code',
+        strategy: 'window-title',
+      },
+      focusTarget: {
+        appName: 'Visual Studio Code',
+        processName: 'Code',
+        title: 'runtime-main-gateway-one-shot.ts',
+        source: 'foreground-window',
+      },
+    })
+
+    expect(result.summary?.workload.kind).toBe('coding')
+    const call = vi.mocked(generateText).mock.calls[0]?.[0]
+    const responseFormat = call?.responseFormat as { json_schema?: { name?: string } } | undefined
+    expect(responseFormat?.json_schema?.name).toBe('alicization_screen_semantic_summary')
+    const messages = call?.messages ?? []
+    const system = messages.find(message => message.role === 'system')
+    const user = messages.find(message => message.role === 'user')
+    expect(JSON.parse(String(system?.content)).type).toBe('alicization-screen-semantic-context')
+    expect(Array.isArray(user?.content)).toBe(true)
+    const userParts = user?.content as Array<{ type?: string, text?: string }>
+    expect(JSON.parse(userParts.find(part => part.type === 'text')?.text ?? '{}').type)
+      .toBe('alicization-screen-semantic-request')
+    expect(userParts.some(part => part.type === 'image_url')).toBe(true)
+    expect(JSON.stringify(messages)).not.toMatch(
+      /Classify this screen snapshot|Prefer what is visibly on the screen|Output valid JSON only with keys|must be one of|Do not mention emotions or advice/u,
+    )
+  })
+
   it('keeps explicit extra system facts but does not append project governance blocks', async () => {
     const { runtime } = createOneShotRuntimeHarness()
     const memoryFact = JSON.stringify({

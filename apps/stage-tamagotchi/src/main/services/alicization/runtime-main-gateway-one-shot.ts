@@ -19,6 +19,7 @@ import type { deriveSensoryCaptureSnapshotFromAccessRuntimeSnapshot } from './se
 
 import { errorMessageFrom } from '@moeru/std'
 import {
+  buildAlicizationProviderFactBlock,
   buildAlicizationScreenSurfaceCue,
   isWeakAlicizationScreenSurfaceCue,
 } from '@proj-alicization/stage-shared'
@@ -37,6 +38,7 @@ import {
 import { parseScreenSemanticSummary, pickScreenSemanticCaptureCandidate } from './proactive-screen-semantic'
 import { buildCompressedNativeImageDataUrl, readStringValue } from './runtime-governance'
 import { sanitizeBriefText } from './runtime-realtime'
+import { alicizationScreenSemanticResponseFormat } from './runtime-screen-semantic-provider-contract'
 import {
   normalizeCardId,
   proactiveScreenSemanticCacheTtlMs,
@@ -404,8 +406,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     }
   }
 
-  function buildScreenSemanticUserContent(input: {
-    imageDataUrl: string
+  function buildScreenSemanticContext(input: {
     foregroundWindow?: {
       appName?: string
       processName?: string
@@ -418,40 +419,52 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       title?: string
       source?: string
     } | null
-  }): CommonContentPart[] {
-    const screenContextText = [
-      'Classify this screen snapshot for Alicization proactive policy.',
-      `Capture source: ${sanitizeBriefText(input.sourceName, 120) || 'unknown'}`,
-      `Focus target: ${options.describePerceptionTarget(input.focusTarget)}`,
-      `Focus source: ${sanitizeBriefText(input.focusTarget?.source ?? '', 48) || 'none'}`,
-      `Foreground app: ${sanitizeBriefText(input.foregroundWindow?.appName ?? '', 120) || 'unknown'}`,
-      `Foreground process: ${sanitizeBriefText(input.foregroundWindow?.processName ?? '', 120) || 'unknown'}`,
-      `Foreground title: ${sanitizeBriefText(input.foregroundWindow?.title ?? '', 240) || 'unknown'}`,
-      'Prefer what is visibly on the screen over the window title if they disagree.',
-    ].join('\n')
+  }) {
+    return buildAlicizationProviderFactBlock('alicization-screen-semantic-context', {
+      version: 'alicization-screen-semantic-context-v1',
+      captureSource: {
+        name: sanitizeBriefText(input.sourceName, 120) || null,
+      },
+      focusTarget: input.focusTarget
+        ? {
+            appName: sanitizeBriefText(input.focusTarget.appName ?? '', 120) || null,
+            processName: sanitizeBriefText(input.focusTarget.processName ?? '', 120) || null,
+            title: sanitizeBriefText(input.focusTarget.title ?? '', 240) || null,
+            source: sanitizeBriefText(input.focusTarget.source ?? '', 48) || null,
+          }
+        : null,
+      foregroundWindow: input.foregroundWindow
+        ? {
+            appName: sanitizeBriefText(input.foregroundWindow.appName ?? '', 120) || null,
+            processName: sanitizeBriefText(input.foregroundWindow.processName ?? '', 120) || null,
+            title: sanitizeBriefText(input.foregroundWindow.title ?? '', 240) || null,
+          }
+        : null,
+      evidencePolicy: {
+        visiblePixelsAuthoritative: true,
+        windowMetadataFallbackOnly: true,
+        inventedDetailsAllowed: false,
+      },
+    })
+  }
 
+  function buildScreenSemanticUserContent(imageDataUrl: string): CommonContentPart[] {
     return [
-      { type: 'text', text: screenContextText },
+      {
+        type: 'text',
+        text: buildAlicizationProviderFactBlock('alicization-screen-semantic-request', {
+          version: 'alicization-screen-semantic-request-v1',
+          operation: 'classify-screen-semantic-summary',
+          responseSchema: 'alicization_screen_semantic_summary',
+        }),
+      },
       {
         type: 'image_url',
         image_url: {
-          url: input.imageDataUrl,
+          url: imageDataUrl,
         },
       } as CommonContentPart,
     ]
-  }
-
-  function buildScreenSemanticClassifierSystemPrompt() {
-    return [
-      'You classify a screen snapshot for Alicization proactive policy.',
-      'Output valid JSON only with keys: workload, content, summary, confidence, matchedLabels.',
-      'workload must be one of: coding, media, browser, terminal, game, chat, document, unknown.',
-      'content must be one of: error, diff, doc, video, music, chat, gameplay, unknown.',
-      'summary must be a short factual phrase under 18 words. Do not mention emotions or advice.',
-      'confidence must be a number in range [0,1].',
-      'matchedLabels must be an array of short lower-kebab-case strings with up to 4 items.',
-      'If the screenshot is unreadable or ambiguous, use unknown with low confidence.',
-    ].join('\n')
   }
 
   function isGenericScreenSemanticCue(raw: unknown) {
@@ -888,15 +901,15 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     agentTurn?: AlicizationAgentTurnRuntime | null
   }) {
     const raw = await generateMainGatewayText({
-      system: buildScreenSemanticClassifierSystemPrompt(),
-      user: buildScreenSemanticUserContent({
-        imageDataUrl: input.imageDataUrl,
+      system: buildScreenSemanticContext({
         foregroundWindow: input.foregroundWindow,
         sourceName: input.source.name,
         focusTarget: input.focusTarget,
       }),
+      user: buildScreenSemanticUserContent(input.imageDataUrl),
       timeoutMs: proactiveScreenSemanticTimeoutMs,
       source: 'screen-semantic',
+      responseFormat: alicizationScreenSemanticResponseFormat,
       cardId: input.cardId,
       agentTurn: input.agentTurn,
       agentTurnInput: {
