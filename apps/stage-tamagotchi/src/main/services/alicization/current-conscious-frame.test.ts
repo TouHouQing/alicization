@@ -1,206 +1,266 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildCurrentConsciousFrame,
-  buildCurrentConsciousFrameSystemBlock,
-} from './current-conscious-frame'
-import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
-import { createDefaultVisualPresenceState } from './visual-episodic-memory'
+import { buildCurrentConsciousFrame } from './current-conscious-frame'
 
-const oldTemplatePattern
-  = /Before (?:answering|speaking|acting)|Right now I am|legacy phase-one template|same[- ]her|continuity state|one living her|identity continuity|local-first digital life project|local_desktop_life_loop|phase1_local_digital_life|runtime_personhood|life_core|cadence=|relationship_cadence=|continuity_hold=|continuity_identity|continuity_line|scope=single_identity|open_loop=|project_state_review=|memory_dialogue_embodiment_closure/iu
-
-function expectNoOldTemplate(value: unknown) {
-  expect(String(value ?? '')).not.toMatch(oldTemplatePattern)
+function createDiscourseState(overrides: Record<string, unknown> = {}) {
+  return {
+    currentTurnSubject: 'task-knot',
+    screenReferenceMode: 'avoid',
+    currentTurnSummary: '',
+    currentQuestion: null,
+    primaryTurnAnchor: null,
+    primaryTurnAnchorSource: null,
+    owedAction: 'guide-task',
+    relationMove: 'guide',
+    continuityMode: 'dialogue-first',
+    confidence: 0.8,
+    narrative: [],
+    updatedAt: 10,
+    ...overrides,
+  } as any
 }
 
-function buildFrameWithMemoryTuning(focusDimensions: string[]) {
-  const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
-    ...createDefaultVisualPresenceState(83_090),
-    discourseState: {
-      currentTurnSubject: 'task-knot',
-      screenReferenceMode: 'avoid',
-      currentTurnSummary: 'Continue the current memory repair.',
-      currentQuestion: '继续补记忆闭环',
-      owedAction: 'guide-task',
-      relationMove: 'guide',
-      continuityMode: 'dialogue-first',
-      confidence: 0.84,
-      narrative: [],
-      updatedAt: 83_090,
-    },
-    conversationState: {
-      jointThread: 'The current memory repair is still active.',
-      hostMove: '继续补记忆闭环',
-      primaryTurnAnchor: 'memory repair',
-      primaryTurnAnchorSource: 'user-text',
-      activeProject: 'Alicization memory closure',
-      unansweredQuestion: '继续补记忆闭环',
-      relationFrame: 'guide',
-      continuityPolicy: 'dialogue-before-scene',
-      memoryMode: 'dialogue-carry',
-      memoryQueryHints: [],
-      shouldHoldThread: true,
-      confidence: 0.82,
-      narrative: [],
-      updatedAt: 83_090,
-    },
-    answerCompiler: {
-      answerSubject: 'task-knot',
-      screenReferenceMode: 'avoid',
-      recommendedAct: 'guide',
-      evidenceMode: 'continuity-carry',
-      turnMode: 'answer',
-      openingClaim: 'The current memory repair is still active.',
-      openingDirective: 'Stay with the current repair evidence.',
-      supportingReality: ['Runtime sampling found an incomplete memory loop.'],
-      labelCarryAsMemory: false,
-      confidence: 0.84,
-    },
-    personalityContinuityState: {
-      currentRegime: 'execution-callback',
-      trustStage: 'settling',
-      closenessPosture: 'space-first',
-      autonomyPosture: 'protect-space',
-      repairPosture: 'measured-repair',
-      activeContexts: ['execution-callback', 'focused-work'],
-      rhythmState: {
-        cadenceMode: 'ready-return',
-        restMode: 'ordinary',
-      },
-      growthProfile: {
-        companionshipStyle: 'measured-presence',
-        autonomyRespect: 0.76,
-        unfinishedThreadReturn: 0.88,
-      },
-    },
-    memoryTuningAdvice: null,
-    raw: {
-      runtimeDigest: {
-        projectState: {
-          preDialogueAwarenessLine: 'The current memory repair remains active.',
-          sameHerSelfLine: 'Alicization is carrying the current memory repair.',
-          continuityCadence: null,
-          preferredBlinkCadence: null,
-          preferredGazeMode: null,
-          preferredPauseMode: null,
-          preferredLipsyncMode: null,
-          preferredVoiceMode: null,
-          preferredPacingMode: null,
-        },
-      },
-    },
-  } as any)
-
-  if (focusDimensions.length > 0) {
-    runtimeSurface.memory.memoryTuningAdvice = {
-      version: 'memory-tuning-advice-v1',
-      source: 'nightly-replay-benchmark',
-      updatedAt: 83_000,
-      sourceReportAt: 82_900,
-      focusDimensions,
-      retrievalAdjustments: {
-        proceduralBoost: 0.08,
-        relationshipBoost: 0.08,
-        temporalWindowBias: 0.06,
-        wrongThreadPenalty: 0.04,
-      },
-      surfaceAdjustments: {
-        inwardCarryBias: 0.16,
-        delayUntilAfterPayoffBias: 0.14,
-        provenanceLabelBias: 0.08,
-        specificityClampBias: 0.06,
-      },
-      personStateAdjustments: {
-        repairWindowBias: 0.08,
-        closenessCapBias: 0.1,
-      },
-      notes: ['Replay diagnostics should remain numeric and internal.'],
-    }
-  }
-
-  return buildCurrentConsciousFrame({
-    now: 83_090,
-    runtimeSurface,
-  })
+function createAnswerCompiler(overrides: Record<string, unknown> = {}) {
+  return {
+    answerSubject: 'task-knot',
+    screenReferenceMode: 'avoid',
+    speechObligation: 'guide-task',
+    relationMove: 'guide',
+    turnMode: 'guide-current-knot',
+    responseMode: 'guide-current-knot',
+    recommendedAct: 'guide',
+    evidenceMode: 'dialogue-grounded',
+    openingStyle: 'direct-answer',
+    personaKernelMode: 'full',
+    relationshipPosture: 'warm',
+    openingDirective: '',
+    openingClaim: '',
+    supportingReality: [],
+    nextMove: null,
+    suppressAssociativeRecall: false,
+    labelCarryAsMemory: false,
+    maxSentences: 4,
+    mustDo: [],
+    mustNotDo: [],
+    confidence: 0.82,
+    narrative: [],
+    updatedAt: 10,
+    ...overrides,
+  } as any
 }
 
-describe('buildCurrentConsciousFrameSystemBlock', () => {
-  it('does not let nightly replay focus dimensions shape the conscious frame', () => {
-    const baseline = buildFrameWithMemoryTuning([])
-    const tuned = buildFrameWithMemoryTuning(
-      ['Memory', 'Emotional', 'Embodiment']
-        .map(lane => ['runtime', 'SameHer', lane, 'Carry'].join('')),
-    )
+describe('buildCurrentConsciousFrame', () => {
+  it('projects current dynamic turn evidence without authored reply policy', () => {
+    const frame = buildCurrentConsciousFrame({
+      now: 20,
+      discourseState: createDiscourseState({
+        currentQuestion: '记忆为什么没有接上？',
+        primaryTurnAnchor: '检查记忆对话链路',
+      }),
+      conversationState: {
+        primaryTurnAnchor: '检查记忆对话链路',
+        hostMove: '记忆为什么没有接上？',
+        unansweredQuestion: '记忆为什么没有接上？',
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        nextMove: '核对本轮实际召回证据。',
+      }),
+    })
 
-    expect(tuned).toEqual(baseline)
-  })
-
-  it('drops old project-state templates and internal cues from provider-facing conscious frame fields', () => {
-    const block = buildCurrentConsciousFrameSystemBlock({
-      subject: 'memory',
-      centerOfGravity: 'memory-grounded reply',
-      truthDiscipline: 'evidence-first',
-      consciousNeed: 'Answer from memory and current frame.',
-      consciousTension: 'Avoid generic project narration.',
-      speakingIntention: 'Use the live memory frame.',
-      focusAnchor: 'memory closure',
-      shouldWithholdSpecificity: false,
-      shouldSelfRevise: false,
-      withheldImpulse: null,
-      projectState: {
-        preflightSummary: 'identity=runtime_personhood',
-        preDialogueAwarenessLine: 'pre_turn_context_digest',
-        identity: 'local_desktop_life_loop',
-        currentPhase: 'project_phase=life_core',
-        latestProgress: 'WorkingMemory and LongTermMemoryRecall now both have owner evidence.',
-        primaryOpenLoop: 'open_loop=memory_dialogue_embodiment_closure',
-        nextClosureTarget: 'Keep the next answer grounded in memory evidence.',
-        sameHerSelfLine: 'scope=single_identity',
-        sameHerDriftRisk: 'project_summary_voice=blocked',
-        sameHerHoldDetail: 'relationship_cadence=remembered_boundary; room=more',
-        continuityCue: 'continuity_hold=measured_return',
-        continuityPreferredTiming: 'next-open-window',
-        continuityCadence: 'measured',
-        memoryClosureSummary: 'Memory closure should stay evidence-first.',
-        preferredVoiceMode: 'lower-pressure',
-        preferredPacingMode: 'slower',
-      },
-      reasonTags: [
-        'memory',
-        'cadence=measured_return',
-        'relationship_cadence=remembered_boundary',
-      ],
-    } as any)
-
-    expect(block).toContain('Current conscious frame.')
-    expect(block).not.toContain('[ALICIZATION_')
-    expect(block).toContain('Project landed progress: WorkingMemory and LongTermMemoryRecall now both have owner evidence.')
-    expect(block).toContain('Project next closure target: Keep the next answer grounded in memory evidence.')
-    expect(block).toContain('Project memory closure: Memory closure should stay evidence-first.')
-    expectNoOldTemplate(block)
-  })
-
-  it('can omit project-state facts while preserving transparent conscious-frame context', () => {
-    const block = buildCurrentConsciousFrameSystemBlock({
-      subject: 'execution',
+    expect(frame).toMatchObject({
+      subject: 'task-knot',
       centerOfGravity: 'guide',
-      truthDiscipline: 'evidence-first',
-      consciousNeed: 'Execution callback return needs lower pressure and preserved host room.',
-      consciousTension: null,
-      speakingIntention: 'Return the actual tool result before any comfort.',
-      focusAnchor: 'tool result',
+      truthDiscipline: 'dialogue-first',
+      consciousNeed: '记忆为什么没有接上？',
+      consciousTension: '',
+      speakingIntention: '核对本轮实际召回证据。',
+      focusAnchor: '检查记忆对话链路',
+      withheldImpulse: null,
       shouldWithholdSpecificity: false,
       shouldSelfRevise: false,
-      withheldImpulse: null,
-      projectState: {
-        latestProgress: 'continuity_progress=partial',
-      },
-      reasonTags: ['execution'],
-    } as any, { includeProjectStateFacts: false })
+      projectState: null,
+      updatedAt: 20,
+    })
+    expect(frame?.reasonTags).toEqual([
+      'subject:task-knot',
+      'center:guide',
+      'discipline:dialogue-first',
+      'evidence:dialogue-grounded',
+      'act:guide',
+    ])
+  })
 
-    expect(block).toContain('Conscious need: Execution callback return needs lower pressure and preserved host room.')
-    expect(block).not.toContain('Project landed progress:')
-    expectNoOldTemplate(block)
+  it('keeps text fields sparse when the current turn provides no dynamic text', () => {
+    const frame = buildCurrentConsciousFrame({
+      now: 30,
+      discourseState: createDiscourseState(),
+      answerCompiler: createAnswerCompiler(),
+    })
+
+    expect(frame).toMatchObject({
+      consciousNeed: '',
+      consciousTension: '',
+      speakingIntention: '',
+      focusAnchor: null,
+      withheldImpulse: null,
+    })
+  })
+
+  it('does not treat generated turn summaries as a conscious need', () => {
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      discourseState: createDiscourseState({
+        currentTurnSummary: 'This turn carries a concrete obligation.',
+      }),
+      dialogueEncounter: {
+        subject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        mustRepairFirst: false,
+        summary: 'This turn carries a concrete obligation.',
+        taskAnchor: null,
+        confidence: 0.8,
+      } as any,
+      answerCompiler: createAnswerCompiler(),
+    })
+
+    expect(frame?.consciousNeed).toBe('')
+  })
+
+  it('does not turn general mind synthesis prose into tension or speaking intent', () => {
+    const frame = buildCurrentConsciousFrame({
+      now: 36,
+      discourseState: createDiscourseState(),
+      mindSynthesis: {
+        truthBoundary: 'Scene claims are grounded in current evidence.',
+        uncertainties: [],
+        concerns: [{
+          summary: 'Care for the host gently and preserve the relationship posture.',
+        }],
+        openingIntent: 'Care for the host gently before answering.',
+        confidence: 0.8,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        nextMove: 'Let the first care response land, keep pressure light, and preserve room for the host.',
+      }),
+    })
+
+    expect(frame).toMatchObject({
+      consciousTension: '',
+      speakingIntention: '',
+    })
+  })
+
+  it('keeps repair and evidence boundaries typed instead of turning them into prose', () => {
+    const frame = buildCurrentConsciousFrame({
+      now: 40,
+      discourseState: createDiscourseState({
+        screenReferenceMode: 'required',
+        owedAction: 'repair-truth',
+      }),
+      dialogueEncounter: {
+        subject: 'visible-scene',
+        screenReferenceMode: 'required',
+        mustRepairFirst: true,
+        summary: '当前截图与旧判断冲突。',
+        taskAnchor: '当前截图',
+        confidence: 0.9,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'visible-scene',
+        screenReferenceMode: 'required',
+        recommendedAct: 'correct-stale-anchor',
+        evidenceMode: 'live-grounded',
+        uncertaintyBoundary: '旧判断已经失效。',
+      }),
+    })
+
+    expect(frame).toMatchObject({
+      subject: 'visible-scene',
+      centerOfGravity: 'repair',
+      truthDiscipline: 'repair-first',
+      consciousNeed: '当前截图与旧判断冲突。',
+      consciousTension: '旧判断已经失效。',
+      speakingIntention: '',
+      focusAnchor: '当前截图',
+      shouldWithholdSpecificity: true,
+      shouldSelfRevise: true,
+    })
+    expect(frame?.reasonTags).toContain('self-revise')
+    expect(frame?.reasonTags).toContain('withhold-specificity')
+  })
+
+  it('preserves typed cadence and confidence without copying project prose', () => {
+    const frame = buildCurrentConsciousFrame({
+      now: 50,
+      discourseState: createDiscourseState({
+        confidence: 0.7,
+      }),
+      mindSynthesis: {
+        confidence: 0.9,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        confidence: 0.82,
+      }),
+      privateThought: {
+        confidence: 0.6,
+      } as any,
+      runtimeSurface: {
+        dialogue: {
+          currentConsciousFrame: {
+            projectState: {
+              identity: 'A fixed project identity paragraph.',
+              currentPhase: 'Phase 1 project narration.',
+              primaryOpenLoop: 'A fixed open-loop paragraph.',
+              continuityPreferredTiming: 'next-open-window',
+              continuityCadence: 'linger-then-rejoin',
+              continuityArcStage: 'indexing-verification-follow-up',
+              preferredBlinkCadence: 'quiet',
+              preferredGazeMode: 'soften',
+              preferredPauseMode: 'longer',
+              preferredLipsyncMode: 'restrained',
+              preferredVoiceMode: 'lower-pressure',
+              preferredPacingMode: 'slower',
+            },
+          },
+        },
+        cognition: {},
+        agency: {},
+        raw: {},
+      } as any,
+    })
+
+    expect(frame?.confidence).toBe(0.78)
+    expect(frame?.continuityPreferredTiming).toBe('next-open-window')
+    expect(frame?.continuityCadence).toBe('linger-then-rejoin')
+    expect(frame?.projectState).toMatchObject({
+      continuityPreferredTiming: 'next-open-window',
+      continuityCadence: 'linger-then-rejoin',
+      continuityArcStage: 'indexing-verification-follow-up',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+    })
+    expect(frame?.projectState).not.toHaveProperty('identity')
+    expect(frame?.projectState).not.toHaveProperty('currentPhase')
+    expect(frame?.projectState).not.toHaveProperty('primaryOpenLoop')
+  })
+
+  it('contains no natural-language conscious-frame policy or system prompt builder', () => {
+    const source = readFileSync(new URL('./current-conscious-frame.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toMatch(
+      /buildCurrentConsciousFrameSystemBlock|Current conscious frame\.|WorkingMemory owns short-term memory|Express the current frame|Use the available current frame|Reply from the current turn context/iu,
+    )
+    expect(source).not.toMatch(
+      /Execution callback return needs|Care should stay|Let repair settle|Keep emotional closure|Keep the inward hold active|Revise first|Put dialogue first|Stay on the active knot/iu,
+    )
+    expect(source).not.toMatch(
+      /resolveAlicizationProjectStateSnapshot|buildAlicizationPersonalityContinuityState|buildSelfContinuityAuthorityFromRuntimeSurface/iu,
+    )
   })
 })

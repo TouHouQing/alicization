@@ -300,6 +300,36 @@ function canonicalizeReplyDeliberatorProjectState(frame?: AlicizationCurrentCons
   if (!projectState)
     return null
 
+  const hasExplicitProjectProse = [
+    projectState.preflightSummary,
+    projectState.preDialogueAwarenessLine,
+    projectState.preDialogueAwarenessSummary,
+    projectState.awarenessLine,
+    projectState.companionHeadlineLine,
+    projectState.companionBriefingLine,
+    projectState.identity,
+    projectState.currentPhase,
+    projectState.latestProgress,
+    projectState.latestLandedProgress,
+    projectState.landedProgressSummary,
+    projectState.memoryClosureSummary,
+    projectState.primaryOpenLoop,
+    projectState.openClosureSummary,
+    projectState.nextClosureTarget,
+    projectState.nextClosureTargetSummary,
+    projectState.sameHerSelfLine,
+    projectState.sameHerHoldDetail,
+    projectState.sameHerDriftRisk,
+    projectState.sameHerDriftRiskSummary,
+    projectState.proactiveSameHerGap,
+    projectState.proactiveSameHerGapSummary,
+    projectState.emotionalClosureCue,
+    projectState.emotionalClosureSummary,
+    projectState.continuityCue,
+  ].some(value => Boolean(sanitizeDialogueSurfaceText(value, 320)))
+  if (!hasExplicitProjectProse)
+    return null
+
   const summaryAliasProjectState = projectState as {
     landedProgressSummary?: unknown
     openClosureSummary?: unknown
