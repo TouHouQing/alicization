@@ -595,7 +595,6 @@ describe('main chat fixed template audit', () => {
       'apps/stage-tamagotchi/src/main/services/alicization/conversation-state.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/dialogue-world-thread.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/dialogue-act-kernel.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/dialogue-mind-frame.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/reply-deliberator.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/memory-os/provider-planning.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/runtime-organic-memory-prompt.ts',

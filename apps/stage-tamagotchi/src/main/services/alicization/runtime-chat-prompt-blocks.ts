@@ -1,18 +1,13 @@
 import type { CommonContentPart } from '@xsai/shared-chat'
 
 import type {
-  AlicizationMindTurnGovernance,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationPerceptionState } from './attention-anchor'
-import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
-import type { AlicizationResponseCharter } from './response-charter'
-import type { AlicizationResponseSurfaceContract } from './response-surface-contract'
 
 import { buildAlicizationProviderFactBlock } from '@proj-alicization/stage-shared'
 
 import { getActiveAttentionAnchor, isSelfPerceptionTarget } from './attention-anchor'
-import { buildDialogueMindFrameSystemBlock } from './dialogue-mind-frame'
 import {
   buildPerceptionContinuityLines,
   describePerceptionTarget,
@@ -139,80 +134,6 @@ export function buildChatInspectionContractSystemBlock(input: {
     data.captureDegradedReasons = input.captureDegradedReasons
 
   return buildAlicizationProviderFactBlock('alicization-inspection', data)
-}
-
-export function buildCompactMindTurnControlSystemBlock(input: {
-  brief: AlicizationExecutiveAnswerBrief
-  charter: AlicizationResponseCharter
-  contract: AlicizationResponseSurfaceContract
-  governance?: AlicizationMindTurnGovernance | null
-  state: AlicizationVisualPresenceStateSnapshot
-  inspectionRequested: boolean
-  currentForeground?: {
-    appName?: string
-    processName?: string
-    title?: string
-  }
-}) {
-  return buildDialogueMindFrameSystemBlock({
-    governance: input.governance ?? {
-      decisionTraceId: 'mind:fallback:controlframe',
-      turnMode: input.brief.turnMode,
-      truthState: input.brief.truthState,
-      personaKernelMode: input.contract.personaKernelMode,
-      openingStyle: input.contract.openingStyle,
-      relationshipPosture: input.charter.relationshipPosture,
-      answerSubject: input.state.dialogueActKernel?.subject ?? 'general',
-      screenReferenceMode: input.state.dialogueActKernel?.screenReferenceMode ?? 'incidental',
-      answerAct: input.state.dialogueActKernel?.speechAct ?? 'answer',
-      repairState: 'none',
-      liveSurface: sanitizeBriefText(
-        input.state.currentScene?.summary
-        ?? input.brief.liveSurface
-        ?? describePerceptionTarget(input.currentForeground),
-        180,
-      ) || null,
-      focusAnchor: sanitizeBriefText(
-        input.state.dialogueWorldThread?.currentQuestion
-        ?? input.state.conversationState?.hostMove
-        ?? input.state.currentScene?.summary
-        ?? '',
-        180,
-      ) || null,
-      answerIntent: sanitizeBriefText(
-        input.state.dialogueWorldThread?.currentQuestion
-        ?? input.state.conversationState?.jointThread
-        ?? '',
-        180,
-      ) || null,
-      openingMove: sanitizeBriefText(
-        input.state.dialogueActKernel?.openingMove
-        ?? '',
-        180,
-      ) || null,
-      carriedThread: input.contract.labelCarryAsMemory
-        ? sanitizeBriefText(
-          input.brief.carriedThread
-          ?? '',
-          180,
-        ) || null
-        : null,
-      suppressAssociativeRecall: input.contract.suppressAssociativeRecall,
-      labelCarryAsMemory: input.contract.labelCarryAsMemory,
-      shouldAskForGrounding: false,
-      shouldAcknowledgeRepair: false,
-      maxSentences: input.contract.maxSentences,
-      mindMode: input.state.mindKernel?.dominantMode ?? null,
-      embodiedPresence: input.state.privateThought?.embodiedPresence ?? 'none',
-      emotionalTension: input.state.privateThought?.emotionalTension,
-      dialogueActKernel: input.state.dialogueActKernel ?? null,
-      mindTurnFrame: input.state.mindTurnFrame ?? null,
-      mustDo: [],
-      mustNotDo: [],
-    },
-    inspectionRequested: input.inspectionRequested,
-    currentForeground: input.currentForeground,
-  })
 }
 
 export function buildChatInspectionGroundingParts(input: {

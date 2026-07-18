@@ -7536,10 +7536,8 @@ describe('alicization runtime project-state audit helpers', () => {
     const dialogueMessages = capturedMessages.filter(message => message.role !== 'system')
     const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
 
-    expect(systemText).toContain('[ALICIZATION_DIALOGUE_MIND]')
+    expect(systemText).not.toContain('[ALICIZATION_DIALOGUE_MIND]')
     expect(systemText).toContain('Chat Overlay')
-    expect(systemText).toContain('The carried thread still in memory is: GitHub pull request diff view in browser.')
-    expect(systemText).toContain('Keep the visible reply within 4 sentences')
     expect(systemText).not.toContain('[ALICIZATION_TURN_CONTROL_COMPACT]')
     expect(systemText).not.toContain('[ALICIZATION_ACTIVE_THOUGHTS]')
     expect(systemText).not.toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
@@ -10905,8 +10903,7 @@ describe('alicization runtime project-state audit helpers', () => {
     expect(result.accepted).toBe(true)
     expect(dbStub.searchSubconsciousFragments).toBeCalled()
     const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_ASSOCIATIVE_RECALL]')) ?? ''
-    expect(mainChatSystemText).toContain('[ALICIZATION_DIALOGUE_MIND]')
-    expect(mainChatSystemText).toContain('The host is speaking about the relationship between you two.')
+    expect(mainChatSystemText).not.toContain('[ALICIZATION_DIALOGUE_MIND]')
     expect(mainChatSystemText).not.toContain('[ALICIZATION_TURN_CONTROL_COMPACT]')
     expect(mainChatSystemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
     expect(mainChatSystemText).toContain('ProjectAtlas')

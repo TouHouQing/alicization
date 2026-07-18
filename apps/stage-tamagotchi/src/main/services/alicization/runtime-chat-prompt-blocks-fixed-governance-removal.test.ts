@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
@@ -8,6 +8,15 @@ import {
 } from './runtime-chat-prompt-blocks'
 
 describe('runtime chat prompt blocks fixed governance removal', () => {
+  it('removes the dead natural-language dialogue mind prompt module', () => {
+    expect(existsSync(new URL('./dialogue-mind-frame.ts', import.meta.url))).toBe(false)
+    expect(existsSync(new URL('./dialogue-mind-frame.test.ts', import.meta.url))).toBe(false)
+
+    const source = readFileSync(new URL('./runtime-chat-prompt-blocks.ts', import.meta.url), 'utf8')
+    expect(source).not.toContain('buildCompactMindTurnControlSystemBlock')
+    expect(source).not.toContain('buildDialogueMindFrameSystemBlock')
+  })
+
   it('does not define background project self-brief blocks for provider gateways', () => {
     const source = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
 
