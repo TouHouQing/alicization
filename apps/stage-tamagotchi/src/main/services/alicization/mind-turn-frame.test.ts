@@ -881,7 +881,8 @@ describe('buildMindTurnFrame', () => {
 })
 
 describe('normalizeMindTurnFrame', () => {
-  it('normalizes stored mind turn frame payloads', () => {
+  it('normalizes stored mind turn frame payloads without reviving authored reply policy', () => {
+    const legacyReplyPolicy = 'Open with the stored answer before anything else.'
     const frame = normalizeMindTurnFrame({
       world: {
         truthState: 'live-grounded',
@@ -900,23 +901,35 @@ describe('normalizeMindTurnFrame', () => {
       obligation: {
         shouldSpeak: true,
         turnMode: 'guide-current-knot',
+        openingClaim: legacyReplyPolicy,
+        openingMove: legacyReplyPolicy,
+        answerIntent: legacyReplyPolicy,
+        whyNow: legacyReplyPolicy,
         repairState: 'none',
         shouldAskForGrounding: false,
         shouldAcknowledgeRepair: false,
       },
       confidence: 0.7,
-      mustDo: [' stay current ', 'stay current'],
-      mustNotDo: [],
-      narrative: [' frame '],
+      mustDo: [legacyReplyPolicy],
+      mustNotDo: [legacyReplyPolicy],
+      narrative: [legacyReplyPolicy],
       updatedAt: 123,
     })
 
     expect(frame).not.toBeNull()
     expect(frame?.relation.subject).toBe('task-knot')
     expect(frame?.memory.carriedFacts).toEqual(['a', 'b'])
-    expect(frame?.mustDo).toEqual(['stay current'])
+    expect(frame?.obligation).toMatchObject({
+      openingClaim: null,
+      openingMove: null,
+      answerIntent: null,
+      whyNow: null,
+    })
+    expect(frame?.mustDo).toEqual([])
+    expect(frame?.mustNotDo).toEqual([])
     expect(frame?.obligation.turnMode).toBe('guide-current-knot')
     expect(frame?.world.truthState).toBe('live-grounded')
-    expect(frame?.narrative).toEqual(['frame'])
+    expect(frame?.narrative).toEqual([])
+    expect(JSON.stringify(frame)).not.toContain(legacyReplyPolicy)
   })
 })

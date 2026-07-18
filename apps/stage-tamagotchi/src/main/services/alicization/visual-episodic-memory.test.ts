@@ -2,6 +2,7 @@ import type { AlicizationEmotionalKernelSnapshot } from '../../../shared/eventa'
 
 import { describe, expect, it } from 'vitest'
 
+import { buildCurrentConsciousFrame } from './current-conscious-frame'
 import {
   buildVisualRecallSeed,
   buildVisualSedimentFragment,
@@ -1299,7 +1300,8 @@ describe('visual episodic memory', () => {
     }))
   })
 
-  it('turns cautious embodiment recollection into softer remembered-seam resident presence instead of keeping only a generic measured-return carry', () => {
+  it('lets cautious embodiment recollection shape resident presence without synthesizing an inward cue', () => {
+    const initiativeWhy = 'The callback line is still active, so stay lower-pressure and keep more room before widening outward.'
     const previousState = normalizeVisualPresenceState({
       watchMode: 'mnemonic-passive',
       currentScene: {
@@ -1383,7 +1385,7 @@ describe('visual episodic memory', () => {
         preferredStyle: 'silent-observe',
         preferredPresence: 'hesitant',
         continuityRestraint: 'lower-pressure',
-        why: 'The callback line is still active, so stay lower-pressure and keep more room before widening outward.',
+        why: initiativeWhy,
         concernId: null,
         scenario: 'coding',
         confidence: 0.82,
@@ -1519,7 +1521,7 @@ describe('visual episodic memory', () => {
         'embodiment-recall-cautious',
       ]),
     }))
-    expect(next.currentInwardPreoccupation).toContain('remembered seam')
+    expect(next.currentInwardPreoccupation).toBe(initiativeWhy)
     expect(next.residentPerformance).toMatchObject({
       performance: {
         baseEmotion: 'thinking',
@@ -1589,7 +1591,14 @@ describe('visual episodic memory', () => {
     expect(state.initiativeArbitration?.proposals[0]?.action).toBe('recheck')
   })
 
-  it('normalizes and carries the current conscious frame snapshot', () => {
+  it('restores sparse current conscious frames without reviving speaking policy', () => {
+    const legacySpeakingIntention = '先把结果沿着同一条线接回来，再决定要不要展开。'
+    const legacyProjectNarrative = {
+      identity: 'A fixed project identity paragraph.',
+      currentPhase: 'Phase 1 project narration.',
+      primaryOpenLoop: 'A fixed open-loop paragraph.',
+      continuityCue: 'Recognize the remembered seam, but keep more room this time.',
+    }
     const state = normalizeVisualPresenceState({
       watchMode: 'mnemonic-passive',
       currentScene: null,
@@ -1599,15 +1608,30 @@ describe('visual episodic memory', () => {
         subject: 'task-knot',
         centerOfGravity: 'witness',
         truthDiscipline: 'observe-then-hypothesize',
-        consciousNeed: 'Start from what is visible before naming the task.',
-        consciousTension: 'The scene is still too coarse for class-level certainty.',
-        speakingIntention: 'Separate observation from guess and keep the guess soft.',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: legacySpeakingIntention,
         focusAnchor: 'Git commit diff in Java code editor',
-        withheldImpulse: 'Do not collapse coarse visual evidence into file, class, or field certainty.',
+        withheldImpulse: null,
         shouldWithholdSpecificity: true,
         shouldSelfRevise: false,
         confidence: 0.84,
         reasonTags: ['discipline:observe-then-hypothesize'],
+        continuityPreferredTiming: 'next-open-window',
+        continuityCadence: 'linger-then-rejoin',
+        projectState: {
+          ...legacyProjectNarrative,
+          continuityPreferredTiming: 'next-open-window',
+          continuityCadence: 'linger-then-rejoin',
+          continuityRestraint: 'measured-return',
+          continuityArcStage: 'indexing-verification-follow-up',
+          preferredBlinkCadence: 'quiet',
+          preferredGazeMode: 'soften',
+          preferredPauseMode: 'longer',
+          preferredLipsyncMode: 'restrained',
+          preferredVoiceMode: 'lower-pressure',
+          preferredPacingMode: 'slower',
+        },
         updatedAt: 10_000,
       },
       privateThought: null,
@@ -1618,9 +1642,333 @@ describe('visual episodic memory', () => {
       updatedAt: 10_000,
     }, 10_000)
 
-    expect(state.currentConsciousFrame?.truthDiscipline).toBe('observe-then-hypothesize')
-    expect(state.currentConsciousFrame?.shouldWithholdSpecificity).toBe(true)
-    expect(state.currentConsciousFrame?.speakingIntention).toContain('guess')
+    expect(state.currentConsciousFrame).toMatchObject({
+      subject: 'task-knot',
+      centerOfGravity: 'witness',
+      truthDiscipline: 'observe-then-hypothesize',
+      consciousNeed: '',
+      consciousTension: '',
+      speakingIntention: '',
+      focusAnchor: 'Git commit diff in Java code editor',
+      shouldWithholdSpecificity: true,
+      shouldSelfRevise: false,
+      confidence: 0.84,
+      reasonTags: ['discipline:observe-then-hypothesize'],
+      continuityPreferredTiming: 'next-open-window',
+      continuityCadence: 'linger-then-rejoin',
+      projectState: {
+        continuityPreferredTiming: 'next-open-window',
+        continuityCadence: 'linger-then-rejoin',
+        continuityRestraint: 'measured-return',
+        continuityArcStage: 'indexing-verification-follow-up',
+        preferredBlinkCadence: 'quiet',
+        preferredGazeMode: 'soften',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+      },
+    })
+    const restoredFrame = JSON.stringify(state.currentConsciousFrame)
+    expect(restoredFrame).not.toContain(legacySpeakingIntention)
+    for (const narrative of Object.values(legacyProjectNarrative))
+      expect(restoredFrame).not.toContain(narrative)
+  })
+
+  it('round-trips directive-shaped user questions through conscious-frame persistence', () => {
+    const userQuestion = '先回答当前问题，不要扯开。'
+    const frame = buildCurrentConsciousFrame({
+      now: 10_000,
+      discourseState: {
+        currentTurnSubject: 'general',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: userQuestion,
+        currentQuestion: userQuestion,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+        continuityMode: 'dialogue-first',
+        unresolvedCarry: null,
+        ruptureRepair: null,
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      conversationState: {
+        jointThread: userQuestion,
+        hostMove: userQuestion,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        activeProject: null,
+        unansweredQuestion: userQuestion,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'clarify',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: [],
+        shouldHoldThread: true,
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      answerCompiler: {
+        answerSubject: 'general',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'warm',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        openingDirective: '',
+        openingClaim: '',
+        supportingReality: [],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: null,
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+    })
+
+    expect(frame?.consciousNeed).toBe(userQuestion)
+
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      currentConsciousFrame: frame,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.currentConsciousFrame?.consciousNeed).toBe(userQuestion)
+
+    const legacyState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      currentConsciousFrame: {
+        ...frame,
+        reasonTags: frame?.reasonTags.filter(tag => !tag.startsWith('need-source:')) ?? [],
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(legacyState.currentConsciousFrame?.consciousNeed).toBe('')
+  })
+
+  it.each([
+    '你还是同一个她吗？',
+    'Phase 1: Local Digital Life 是什么意思？',
+  ])('round-trips user-authored template-topic questions through conscious-frame persistence: %s', (userQuestion) => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: userQuestion,
+        consciousTension: '',
+        speakingIntention: '',
+        focusAnchor: null,
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.86,
+        reasonTags: ['need-source:discourse-question'],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.currentConsciousFrame?.consciousNeed).toBe(userQuestion)
+  })
+
+  it('keeps the full project-state owner when a sparse conscious frame is carried into the next update', () => {
+    const normalized = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: {
+        identity: 'Local identity authority.',
+        currentPhase: 'Current local-life phase.',
+        latestLandedProgress: 'The full project owner still carries durable progress.',
+        continuitySummary: 'The durable owner keeps a factual continuity summary.',
+        proactiveSameHerGap: 'The durable owner keeps the current initiative gap.',
+        continuityCadence: 'steady-return',
+      },
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'guide',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: [],
+        projectState: {
+          continuityCadence: 'measured-return',
+          preferredVoiceMode: 'lower-pressure',
+        },
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    const next = updateVisualPresenceState({
+      now: 11_000,
+      previousState: normalized,
+      watchMode: normalized.watchMode,
+      scene: normalized.currentScene,
+      attention: normalized.attention,
+      privateThought: null,
+      nextSuggestedProbeMs: normalized.nextSuggestedProbeMs,
+    })
+
+    expect(next.projectState).toMatchObject({
+      identity: 'Local identity authority.',
+      currentPhase: 'Current local-life phase.',
+      latestLandedProgress: 'The full project owner still carries durable progress.',
+      continuitySummary: 'The durable owner keeps a factual continuity summary.',
+      proactiveSameHerGap: 'The durable owner keeps the current initiative gap.',
+      continuityCadence: 'measured-return',
+      preferredVoiceMode: 'lower-pressure',
+    })
+  })
+
+  it('lets an explicit project-state patch clear closed loops without dropping unrelated owner fields', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      primaryOpenLoop: 'The old memory closure is still open.',
+      nextClosureTarget: 'Continue the old closure target.',
+      emotionalClosureSummary: 'The old emotional closure is still active.',
+      preferredVoiceMode: 'lower-pressure' as const,
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: staleProjectState,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+    previousState.runtime = {
+      projectState: staleProjectState,
+    } as any
+    previousState.runtimeDigest = {
+      projectState: staleProjectState,
+    } as any
+
+    const cleared = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      privateThought: null,
+      projectState: {
+        primaryOpenLoop: null,
+        nextClosureTarget: null,
+        emotionalClosureSummary: null,
+      },
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(cleared.projectState).toMatchObject({
+      identity: 'Local identity authority.',
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+      emotionalClosureSummary: null,
+      preferredVoiceMode: 'lower-pressure',
+    })
+
+    const carried = updateVisualPresenceState({
+      now: 12_000,
+      previousState: cleared,
+      watchMode: cleared.watchMode,
+      scene: cleared.currentScene,
+      attention: cleared.attention,
+      privateThought: null,
+      nextSuggestedProbeMs: cleared.nextSuggestedProbeMs,
+    })
+
+    expect(carried.projectState).toMatchObject({
+      identity: 'Local identity authority.',
+      preferredVoiceMode: 'lower-pressure',
+    })
+    expect(carried.projectState?.primaryOpenLoop ?? null).toBeNull()
+    expect(carried.projectState?.nextClosureTarget ?? null).toBeNull()
+    expect(carried.projectState?.emotionalClosureSummary ?? null).toBeNull()
+  })
+
+  it('canonicalizes the legacy proactive gap summary alias into the full project-state owner', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: {
+        proactiveSameHerGapSummary: 'The legacy summary still carries a factual initiative gap.',
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.projectState?.proactiveSameHerGap).toBe(
+      'The legacy summary still carries a factual initiative gap.',
+    )
   })
 
   it('normalizes and carries the claim evidence ledger snapshot', () => {
@@ -1757,6 +2105,349 @@ describe('visual episodic memory', () => {
     expect(state.recallGovernor?.recalledFragmentSourceBudget).toEqual([])
   })
 
+  it('migrates persisted reply state without reviving authored control fields', () => {
+    const legacyControlCue = '先把结果沿着同一条线接回来，再决定要不要展开。'
+    const legacyOpeningDirective = 'Open with the callback result before anything else.'
+    const legacyOpeningClaim = 'Lead by declaring that the current memory latency is the only thing that matters.'
+    const candidateMotiveSummary = 'The host is asking about the current memory latency.'
+    const legacyCareVector = 'Keep the answer warm and low-pressure.'
+    const legacyMustDo = 'State the latency before the explanation.'
+    const legacyMustNotDo = 'Do not widen into another topic.'
+    const supportingReality = 'The current recall took 280ms.'
+    const epistemicFact = 'The epistemic cache contains 42 verified records.'
+    const uncertaintyBoundary = 'The p95 value has not been measured yet.'
+    const legacyProjectSupportingReality = [
+      'project preflight: Alicization project state should be explicit before reply.',
+      'project identity: Alicization is the same local-first digital life project.',
+      'current phase: Phase 1: Local Digital Life.',
+      'project progress: The provider-facing continuity prompt has landed.',
+      'phase-one open loop: Keep project prose visible in the next answer.',
+      'next closure target: Reassert the same-her project line.',
+    ]
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        speechObligation: 'guide-task',
+        relationMove: 'guide',
+        turnMode: 'guide-current-knot',
+        responseMode: 'guide-current-knot',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        recommendedAct: 'guide',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'warm',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        openingDirective: legacyOpeningDirective,
+        openingClaim: legacyOpeningClaim,
+        supportingReality: [
+          ...legacyProjectSupportingReality,
+          supportingReality,
+          epistemicFact,
+        ],
+        uncertaintyBoundary,
+        careVector: legacyCareVector,
+        nextMove: legacyControlCue,
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [legacyMustDo],
+        mustNotDo: [legacyMustNotDo],
+        confidence: 0.82,
+        narrative: [legacyControlCue],
+        updatedAt: 10_000,
+      },
+      replyDeliberation: {
+        selectedMotive: 'guide',
+        speakingFrom: 'task-thread',
+        memoryMode: 'task-thread',
+        openingBeat: '',
+        whyThisReplyNow: legacyControlCue,
+        whyNotOtherCandidates: [legacyControlCue],
+        withheldImpulses: [legacyControlCue],
+        candidateMotives: [{
+          kind: 'guide',
+          summary: candidateMotiveSummary,
+          weight: 0.84,
+          sourceTags: ['conversation-state:host-move'],
+        }],
+        shouldSpeak: true,
+        mustInclude: [legacyControlCue],
+        mustAvoid: [legacyControlCue],
+        confidence: 0.84,
+        narrative: [legacyControlCue],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.answerCompiler).toMatchObject({
+      answerSubject: 'task-knot',
+      recommendedAct: 'guide',
+      evidenceMode: 'dialogue-grounded',
+      openingDirective: '',
+      openingClaim: '',
+      supportingReality: [supportingReality, epistemicFact],
+      uncertaintyBoundary,
+      careVector: null,
+      nextMove: null,
+      mustDo: [],
+      mustNotDo: [],
+      narrative: [],
+    })
+    expect(state.replyDeliberation).toMatchObject({
+      selectedMotive: 'guide',
+      speakingFrom: 'task-thread',
+      memoryMode: 'task-thread',
+      openingBeat: '',
+      whyThisReplyNow: '',
+      whyNotOtherCandidates: [],
+      withheldImpulses: [],
+      candidateMotives: [{
+        kind: 'guide',
+        summary: candidateMotiveSummary,
+        sourceTags: ['conversation-state:host-move'],
+      }],
+      shouldSpeak: true,
+      mustInclude: [],
+      mustAvoid: [],
+      confidence: 0.84,
+      narrative: [],
+    })
+    const migratedReplyState = JSON.stringify({
+      answerCompiler: state.answerCompiler,
+      replyDeliberation: state.replyDeliberation,
+    })
+    for (const controlText of [
+      legacyControlCue,
+      legacyOpeningDirective,
+      legacyOpeningClaim,
+      legacyCareVector,
+      legacyMustDo,
+      legacyMustNotDo,
+      ...legacyProjectSupportingReality,
+    ]) {
+      expect(migratedReplyState).not.toContain(controlText)
+    }
+
+    const roundTripped = normalizeVisualPresenceState(state, 11_000)
+    expect(roundTripped.answerCompiler).toMatchObject({
+      answerSubject: 'task-knot',
+      recommendedAct: 'guide',
+      evidenceMode: 'dialogue-grounded',
+      openingDirective: '',
+      openingClaim: '',
+      supportingReality: [supportingReality, epistemicFact],
+      uncertaintyBoundary,
+      careVector: null,
+      nextMove: null,
+      mustDo: [],
+      mustNotDo: [],
+      narrative: [],
+    })
+  })
+
+  it('migrates persisted derived reply snapshots into typed state and factual evidence only', () => {
+    const legacyControlCue = 'Open with this exact callback framing before anything else.'
+    const factualEvidence = 'The current recall took 280ms.'
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      mindTurnFrame: {
+        world: {
+          activeThread: 'The host is checking the current memory latency.',
+          visibleSurface: null,
+          truthState: 'live-grounded',
+          truthBoundary: 'The p95 value has not been measured yet.',
+          continuityPolicy: 'stay-on-thread',
+          continuitySummary: null,
+          staleRisk: 0.08,
+        },
+        relation: {
+          subject: 'task-knot',
+          hostMove: '当前记忆召回延迟是多少？',
+          hostGoal: 'resolve-problem',
+          relationNeed: 'guidance',
+          relationMove: 'guide',
+          relationshipPosture: 'warm',
+        },
+        memory: {
+          memoryMode: 'task-thread',
+          carriedThread: 'memory latency',
+          carriedFacts: [factualEvidence],
+          recallKeys: ['memory latency'],
+          recallSeed: 'memory latency',
+          lastOutcome: 'pending',
+          suppressAssociativeRecall: false,
+          labelCarryAsMemory: false,
+        },
+        self: {
+          stance: 'observe',
+          mindMode: 'tracking',
+          dominantDrive: 'understand',
+          embodiedPresence: 'attentive',
+          emotionalTension: 'tense-debug',
+          initiativeAction: 'speak',
+          thought: 'The latency evidence is concrete.',
+        },
+        obligation: {
+          shouldSpeak: true,
+          speechObligation: 'guide-task',
+          answerAct: 'guide',
+          responseMode: 'guide-current-knot',
+          turnMode: 'guide-current-knot',
+          openingClaim: legacyControlCue,
+          openingMove: legacyControlCue,
+          answerIntent: legacyControlCue,
+          whyNow: legacyControlCue,
+          repairState: 'none',
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+        },
+        focusAnchor: 'memory latency',
+        confidence: 0.84,
+        mustDo: [legacyControlCue],
+        mustNotDo: [legacyControlCue],
+        narrative: [legacyControlCue],
+        updatedAt: 10_000,
+      },
+      dialogueActKernel: {
+        subject: 'task-knot',
+        hostGoal: 'resolve-problem',
+        relationNeed: 'guidance',
+        activeProject: 'memory latency',
+        truthMode: 'live-grounded',
+        speechAct: 'guide',
+        turnMode: 'guide-current-knot',
+        screenReferenceMode: 'helpful',
+        speakingFrom: 'task-thread',
+        selectedEvidence: [{
+          kind: 'thread',
+          source: 'conversation-state',
+          summary: factualEvidence,
+          confidence: 0.9,
+        }],
+        openingClaim: legacyControlCue,
+        openingMove: legacyControlCue,
+        whyNow: legacyControlCue,
+        mustSay: [legacyControlCue],
+        mustAvoid: [legacyControlCue],
+        sourceTrace: [legacyControlCue],
+        confidence: 0.9,
+        updatedAt: 10_000,
+      },
+      answerPlanner: {
+        act: 'guide',
+        evidenceMode: 'live-grounded',
+        confidence: 0.88,
+        governingFocus: legacyControlCue,
+        governingProject: legacyControlCue,
+        openingMove: legacyControlCue,
+        answerIntent: legacyControlCue,
+        relationshipPosture: 'warm',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'measured-room',
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        selectedConcernEntryId: 'concern:latency',
+        selectedRepairId: null,
+        selectedCommitmentId: 'commitment:measure',
+        selectedInquiryPlanId: null,
+        selectedRuntimeThreadId: 'thread:memory-latency',
+        selectedProjectId: null,
+        selectedReflectionId: null,
+        executivePhase: 'acting',
+        selectedTruthFrame: 'live',
+        mustDo: [legacyControlCue],
+        mustNotDo: [legacyControlCue],
+        narrative: [legacyControlCue],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.mindTurnFrame).toMatchObject({
+      world: {
+        truthState: 'live-grounded',
+        truthBoundary: 'The p95 value has not been measured yet.',
+      },
+      memory: {
+        carriedFacts: [factualEvidence],
+      },
+      obligation: {
+        shouldSpeak: true,
+        answerAct: 'guide',
+        turnMode: 'guide-current-knot',
+        openingClaim: null,
+        openingMove: null,
+        answerIntent: null,
+        whyNow: null,
+      },
+      focusAnchor: 'memory latency',
+      mustDo: [],
+      mustNotDo: [],
+      narrative: [],
+    })
+    expect(state.dialogueActKernel).toMatchObject({
+      subject: 'task-knot',
+      speechAct: 'guide',
+      selectedEvidence: [{
+        summary: factualEvidence,
+      }],
+      openingClaim: '',
+      openingMove: '',
+      whyNow: '',
+      mustSay: [],
+      mustAvoid: [],
+      sourceTrace: [],
+    })
+    expect(state.answerPlanner).toMatchObject({
+      act: 'guide',
+      evidenceMode: 'live-grounded',
+      governingFocus: '',
+      governingProject: null,
+      openingMove: '',
+      answerIntent: '',
+      selectedConcernEntryId: 'concern:latency',
+      selectedCommitmentId: 'commitment:measure',
+      selectedRuntimeThreadId: 'thread:memory-latency',
+      executivePhase: 'acting',
+      selectedTruthFrame: 'live',
+      mustDo: [],
+      mustNotDo: [],
+      narrative: [],
+    })
+    expect(JSON.stringify({
+      mindTurnFrame: state.mindTurnFrame,
+      dialogueActKernel: state.dialogueActKernel,
+      answerPlanner: state.answerPlanner,
+    })).not.toContain(legacyControlCue)
+
+    const roundTripped = normalizeVisualPresenceState(state, 11_000)
+    expect(roundTripped.mindTurnFrame).not.toBeNull()
+    expect(roundTripped.dialogueActKernel).not.toBeNull()
+    expect(roundTripped.answerPlanner).not.toBeNull()
+  })
+
   it('normalizes and carries dialogue act kernel snapshots', () => {
     const state = normalizeVisualPresenceState({
       watchMode: 'mnemonic-passive',
@@ -1807,7 +2498,7 @@ describe('visual episodic memory', () => {
     })
 
     expect(state.dialogueActKernel?.speechAct).toBe('guide')
-    expect(next.dialogueActKernel?.openingClaim).toContain('current issue')
+    expect(next.dialogueActKernel?.openingClaim).toBe('')
     expect(next.dialogueActKernel?.selectedEvidence[0]?.summary).toContain('missing guard')
   })
 
@@ -2031,7 +2722,7 @@ describe('visual episodic memory', () => {
     expect(carried.emotionalKernel).toEqual(normalized.emotionalKernel)
   })
 
-  it('preserves identity-continuity', () => {
+  it('preserves typed continuity and embodiment state on the current conscious frame', () => {
     const normalized = normalizeVisualPresenceState({
       watchMode: 'symbiotic-vision',
       currentScene: null,
@@ -2041,23 +2732,19 @@ describe('visual episodic memory', () => {
         subject: 'alicization-self',
         centerOfGravity: 'answer',
         truthDiscipline: 'dialogue-first',
-        consciousNeed: 'Keep the same callback line inward for now.',
-        consciousTension: 'The later reopen should stay measured-return.',
-        speakingIntention: 'Stay nearby without restarting from zero.',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
         continuityPreferredTiming: 'next-open-window',
         continuityCadence: 'measured-return',
         projectState: {
-          identity: 'Alicization is a local-first digital life project building identity continuity.',
-          currentPhase: 'Phase 1: Local Digital Life.',
-          latestLandedProgress: 'Measured-return continuity now survives noisier callback detours.',
-          primaryOpenLoop: 'Project identity carry still needs stronger cross-modal closure.',
-          nextClosureTarget: 'Keep Phase 1 route carry visible across resident embodiment.',
-          sameHerSelfLine: 'Keep identity continuity explicit across the callback seam.',
-          sameHerDriftRisk: 'Do not let this collapse into generic guidance before the identity-continuity',
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-          preDialogueAwarenessLine: 'pre_turn_context_digest',
+          continuityRestraint: 'measured-return',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
+          preferredPauseMode: 'longer',
+          preferredLipsyncMode: 'restrained',
+          preferredVoiceMode: 'lower-pressure',
+          preferredPacingMode: 'slower',
           continuityArcStage: 'same-thread-continuation',
           continuityPreferredTiming: 'next-open-window',
           continuityCadence: 'measured-return',
@@ -2073,12 +2760,13 @@ describe('visual episodic memory', () => {
     } as any, 31_000)
 
     expect(normalized.currentConsciousFrame?.projectState).toMatchObject({
-      identity: expect.stringContaining('digital life'),
-      primaryOpenLoop: expect.stringContaining('Project identity carry'),
-      nextClosureTarget: expect.stringContaining('Phase 1 route carry'),
-      sameHerDriftRisk: expect.stringContaining('generic guidance'),
+      continuityRestraint: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
       continuityArcStage: 'same-thread-continuation',
       continuityPreferredTiming: 'next-open-window',
       continuityCadence: 'measured-return',
@@ -2120,7 +2808,8 @@ describe('visual episodic memory', () => {
     })
   })
 
-  it('preserves project-state as the current conscious frame subject during normalization', () => {
+  it('preserves project-state as the conscious subject without restoring project prose', () => {
+    const legacyProjectNarrative = 'Keep project-state visible all the way into the host-visible reply.'
     const normalized = normalizeVisualPresenceState({
       watchMode: 'symbiotic-vision',
       currentScene: null,
@@ -2130,15 +2819,13 @@ describe('visual episodic memory', () => {
         subject: 'project-state',
         centerOfGravity: 'guide',
         truthDiscipline: 'dialogue-first',
-        consciousNeed: 'Keep the same digital life project state explicit before reply.',
-        consciousTension: 'If this drifts back to generic project narration, the identity-continuity',
-        speakingIntention: 'Answer from the living project line instead of restarting from a blank shell.',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
         projectState: {
-          identity: 'Alicization is a local-first digital life project building identity continuity.',
-          currentPhase: 'Phase 1: Local Digital Life.',
-          latestLandedProgress: 'Project-state carry already reaches the pre-dialogue mind turn.',
-          primaryOpenLoop: 'The conscious frame subject still needs to stay project-state when this line is active.',
-          nextClosureTarget: 'Keep project-state visible all the way into the host-visible reply.',
+          nextClosureTarget: legacyProjectNarrative,
+          continuityPreferredTiming: 'after-payoff',
+          continuityCadence: 'single-thread',
         },
         updatedAt: 48_000,
       },
@@ -2151,7 +2838,19 @@ describe('visual episodic memory', () => {
     } as any, 48_000)
 
     expect(normalized.currentConsciousFrame?.subject).toBe('project-state')
-    expect(normalized.currentConsciousFrame?.projectState?.nextClosureTarget).toContain('host-visible reply')
+    expect(normalized.currentConsciousFrame?.projectState).toEqual({
+      continuityPreferredTiming: 'after-payoff',
+      continuityCadence: 'single-thread',
+      continuityRestraint: null,
+      continuityArcStage: null,
+      preferredBlinkCadence: null,
+      preferredGazeMode: null,
+      preferredPauseMode: null,
+      preferredLipsyncMode: null,
+      preferredVoiceMode: null,
+      preferredPacingMode: null,
+    })
+    expect(JSON.stringify(normalized.currentConsciousFrame)).not.toContain(legacyProjectNarrative)
   })
 
   it('preserves initiative continuity restraint when normalizing persisted visual presence state', () => {

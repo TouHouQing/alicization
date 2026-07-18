@@ -74,6 +74,24 @@ function uniqueSurfaceList(values: Array<unknown>, maxItems = 8) {
   return items
 }
 
+function uniqueStructuredTraceList(values: Array<unknown>, maxItems = 10) {
+  const items: string[] = []
+  for (const value of values) {
+    const normalized = sanitizeText(value, 160)
+    if (
+      !normalized
+      || !/^[a-z][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?$/u.test(normalized)
+      || items.includes(normalized)
+    ) {
+      continue
+    }
+    items.push(normalized)
+    if (items.length >= maxItems)
+      break
+  }
+  return items
+}
+
 function resolveHostGoal(input: {
   appraisal?: AlicizationSubjectiveSceneAppraisal | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
@@ -300,12 +318,6 @@ export function normalizeDialogueActKernel(raw: unknown): AlicizationDialogueAct
     return null
   }
 
-  const normalizedOpeningClaim = sanitizeKernelAnchor(candidate.openingClaim, 220)
-  const openingMove = sanitizeText(candidate.openingMove, 220)
-  const whyNow = sanitizeKernelSurface(candidate.whyNow, 220)
-  if (!normalizedOpeningClaim || !openingMove || !whyNow)
-    return null
-
   const selectedEvidence = Array.isArray(candidate.selectedEvidence)
     ? candidate.selectedEvidence
         .filter(item => item && typeof item === 'object')
@@ -359,18 +371,14 @@ export function normalizeDialogueActKernel(raw: unknown): AlicizationDialogueAct
     screenReferenceMode,
     speakingFrom,
     selectedEvidence,
-    openingClaim: normalizedOpeningClaim,
-    openingMove,
-    whyNow,
-    mustSay: Array.isArray(candidate.mustSay)
-      ? candidate.mustSay.filter((item): item is string => typeof item === 'string').map(item => sanitizeKernelSurface(item, 220)).filter(Boolean).slice(0, 10)
-      : [],
-    mustAvoid: Array.isArray(candidate.mustAvoid)
-      ? candidate.mustAvoid.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 220)).filter(Boolean).slice(0, 10)
-      : [],
-    sourceTrace: Array.isArray(candidate.sourceTrace)
-      ? candidate.sourceTrace.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 160)).filter(Boolean).slice(0, 10)
-      : [],
+    openingClaim: '',
+    openingMove: '',
+    whyNow: '',
+    mustSay: [],
+    mustAvoid: [],
+    sourceTrace: uniqueStructuredTraceList(
+      Array.isArray(candidate.sourceTrace) ? candidate.sourceTrace : [],
+    ),
     confidence: clamp01(Number(candidate.confidence)),
     updatedAt: Number.isFinite(Number(candidate.updatedAt))
       ? Math.max(0, Math.floor(Number(candidate.updatedAt)))

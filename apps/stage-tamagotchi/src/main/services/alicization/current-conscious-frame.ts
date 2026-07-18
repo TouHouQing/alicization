@@ -16,7 +16,6 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
 import {
-  isDialogueControlDirectiveText,
   sanitizeDialogueAnchorText,
   sanitizeDialogueSurfaceText,
 } from './dialogue-surface-text'
@@ -58,22 +57,26 @@ function sanitizeDynamicAnchor(raw: unknown, maxChars = 180) {
     : ''
 }
 
-function sanitizeDynamicIntention(raw: unknown, maxChars = 420) {
-  const normalized = sanitizeDynamicText(raw, maxChars)
-  if (!normalized || isDialogueControlDirectiveText(normalized))
-    return ''
-  if (/^(?:after\b|answer\b|ask\b|avoid\b|correct\b|do not\b|follow\b|keep\b|let\b|offer\b|open\b|pay off\b|protect\b|repair\b|respond\b|start\b|stay\b|use\b|what i need next\b)/iu.test(normalized))
-    return ''
-  return normalized
-}
-
-function pickDynamicText(maxChars: number, ...values: unknown[]) {
-  for (const value of values) {
-    const normalized = sanitizeDynamicText(value, maxChars)
-    if (normalized)
-      return normalized
+function pickDynamicTextWithSource(
+  maxChars: number,
+  candidates: Array<{
+    preserveUserAuthoredText?: boolean
+    value: unknown
+    sourceTag: string
+  }>,
+) {
+  for (const candidate of candidates) {
+    const normalized = candidate.preserveUserAuthoredText
+      ? sanitizeText(candidate.value, maxChars)
+      : sanitizeDynamicText(candidate.value, maxChars)
+    if (normalized) {
+      return {
+        text: normalized,
+        sourceTag: candidate.sourceTag,
+      }
+    }
   }
-  return ''
+  return null
 }
 
 function pickDynamicAnchor(...values: unknown[]) {
@@ -316,7 +319,6 @@ export function buildCurrentConsciousFrame(input: {
     conversationState?.primaryTurnAnchor,
     discourseState.primaryTurnAnchor,
     dialogueEncounter?.taskAnchor,
-    answerCompiler.openingClaim,
     conversationState?.hostMove,
   ) || null
   const evidencePhrases = [
@@ -324,7 +326,6 @@ export function buildCurrentConsciousFrame(input: {
     answerCompiler.supportingReality?.[1],
     dialogueEncounter?.summary,
     conversationState?.jointThread,
-    answerCompiler.openingClaim,
     primaryAnchor,
   ]
     .map(value => sanitizeDynamicText(value, 220))
@@ -350,23 +351,58 @@ export function buildCurrentConsciousFrame(input: {
     || answerCompiler.turnMode === 'screen-repair'
     || dialogueEncounter?.mustRepairFirst === true
   const projectState = resolveTypedProjectState(runtimeSurface)
-  const consciousNeed = pickDynamicText(
+  const consciousNeed = pickDynamicTextWithSource(
     420,
-    discourseState.currentQuestion,
-    conversationState?.unansweredQuestion,
-    conversationState?.owedRepair,
-    discourseState.ruptureRepair,
-    shouldSelfRevise ? dialogueEncounter?.summary : null,
-    primaryAnchor,
+    [
+      {
+        preserveUserAuthoredText: true,
+        value: discourseState.currentQuestion,
+        sourceTag: 'need-source:discourse-question',
+      },
+      {
+        preserveUserAuthoredText: true,
+        value: conversationState?.unansweredQuestion,
+        sourceTag: 'need-source:conversation-question',
+      },
+      {
+        value: conversationState?.owedRepair,
+        sourceTag: 'need-source:conversation-repair',
+      },
+      {
+        value: discourseState.ruptureRepair,
+        sourceTag: 'need-source:discourse-repair',
+      },
+      {
+        value: shouldSelfRevise ? dialogueEncounter?.summary : null,
+        sourceTag: 'need-source:dialogue-encounter',
+      },
+      {
+        value: primaryAnchor,
+        sourceTag: 'need-source:primary-anchor',
+      },
+    ],
   )
-  const consciousTension = pickDynamicText(
+  const consciousTension = pickDynamicTextWithSource(
     420,
-    answerCompiler.uncertaintyBoundary,
-    conversationState?.owedRepair,
-    discourseState.ruptureRepair,
-    mindSynthesis?.uncertainties?.[0]?.summary,
+    [
+      {
+        value: answerCompiler.uncertaintyBoundary,
+        sourceTag: 'tension-source:uncertainty-boundary',
+      },
+      {
+        value: conversationState?.owedRepair,
+        sourceTag: 'tension-source:conversation-repair',
+      },
+      {
+        value: discourseState.ruptureRepair,
+        sourceTag: 'tension-source:discourse-repair',
+      },
+      {
+        value: mindSynthesis?.uncertainties?.[0]?.summary,
+        sourceTag: 'tension-source:mind-uncertainty',
+      },
+    ],
   )
-  const speakingIntention = sanitizeDynamicIntention(answerCompiler.nextMove)
   const continuityPreferredTiming = projectState?.continuityPreferredTiming ?? null
   const continuityCadence = projectState?.continuityCadence ?? null
 
@@ -374,9 +410,9 @@ export function buildCurrentConsciousFrame(input: {
     subject,
     centerOfGravity,
     truthDiscipline,
-    consciousNeed,
-    consciousTension,
-    speakingIntention,
+    consciousNeed: consciousNeed?.text ?? '',
+    consciousTension: consciousTension?.text ?? '',
+    speakingIntention: '',
     focusAnchor: primaryAnchor,
     withheldImpulse: null,
     shouldWithholdSpecificity,
@@ -393,6 +429,8 @@ export function buildCurrentConsciousFrame(input: {
       `discipline:${truthDiscipline}`,
       `evidence:${answerCompiler.evidenceMode}`,
       answerCompiler.recommendedAct ? `act:${answerCompiler.recommendedAct}` : null,
+      consciousNeed?.sourceTag,
+      consciousTension?.sourceTag,
       shouldWithholdSpecificity ? 'withhold-specificity' : null,
       shouldSelfRevise ? 'self-revise' : null,
       projectState?.continuityArcStage ? `continuity-arc:${projectState.continuityArcStage}` : null,

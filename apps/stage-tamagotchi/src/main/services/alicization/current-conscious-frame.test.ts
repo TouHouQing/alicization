@@ -53,6 +53,23 @@ function createAnswerCompiler(overrides: Record<string, unknown> = {}) {
 
 describe('buildCurrentConsciousFrame', () => {
   it('projects current dynamic turn evidence without authored reply policy', () => {
+    let openingClaimReads = 0
+    let nextMoveReads = 0
+    const answerCompiler = createAnswerCompiler()
+    Object.defineProperty(answerCompiler, 'openingClaim', {
+      enumerable: true,
+      get: () => {
+        openingClaimReads += 1
+        return '由 AnswerCompiler 生成的开场结论。'
+      },
+    })
+    Object.defineProperty(answerCompiler, 'nextMove', {
+      enumerable: true,
+      get: () => {
+        nextMoveReads += 1
+        return '核对本轮实际召回证据。'
+      },
+    })
     const frame = buildCurrentConsciousFrame({
       now: 20,
       discourseState: createDiscourseState({
@@ -64,9 +81,7 @@ describe('buildCurrentConsciousFrame', () => {
         hostMove: '记忆为什么没有接上？',
         unansweredQuestion: '记忆为什么没有接上？',
       } as any,
-      answerCompiler: createAnswerCompiler({
-        nextMove: '核对本轮实际召回证据。',
-      }),
+      answerCompiler,
     })
 
     expect(frame).toMatchObject({
@@ -75,7 +90,7 @@ describe('buildCurrentConsciousFrame', () => {
       truthDiscipline: 'dialogue-first',
       consciousNeed: '记忆为什么没有接上？',
       consciousTension: '',
-      speakingIntention: '核对本轮实际召回证据。',
+      speakingIntention: '',
       focusAnchor: '检查记忆对话链路',
       withheldImpulse: null,
       shouldWithholdSpecificity: false,
@@ -89,7 +104,15 @@ describe('buildCurrentConsciousFrame', () => {
       'discipline:dialogue-first',
       'evidence:dialogue-grounded',
       'act:guide',
+      'need-source:discourse-question',
     ])
+    expect({
+      openingClaimReads,
+      nextMoveReads,
+    }).toEqual({
+      openingClaimReads: 0,
+      nextMoveReads: 0,
+    })
   })
 
   it('keeps text fields sparse when the current turn provides no dynamic text', () => {
@@ -106,6 +129,58 @@ describe('buildCurrentConsciousFrame', () => {
       focusAnchor: null,
       withheldImpulse: null,
     })
+  })
+
+  it('does not project answer-compiler opening claims or Chinese control-shaped next moves', () => {
+    const openingClaim = '这条生成结论不是真实的当前回合锚点。'
+    const nextMove = '先把结果沿着同一条线接回来，再决定要不要展开。'
+    const frame = buildCurrentConsciousFrame({
+      now: 32,
+      discourseState: createDiscourseState(),
+      answerCompiler: createAnswerCompiler({
+        openingClaim,
+        nextMove,
+      }),
+    })
+
+    expect(frame).toMatchObject({
+      consciousNeed: '',
+      consciousTension: '',
+      speakingIntention: '',
+      focusAnchor: null,
+    })
+    expect(JSON.stringify(frame)).not.toContain(openingClaim)
+    expect(JSON.stringify(frame)).not.toContain(nextMove)
+  })
+
+  it.each([
+    '你还是同一个她吗？',
+    'Phase 1: Local Digital Life 是什么意思？',
+  ])('preserves user-authored questions even when they mention former template topics: %s', (userQuestion) => {
+    const frame = buildCurrentConsciousFrame({
+      now: 34,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: userQuestion,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: userQuestion,
+        unansweredQuestion: userQuestion,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.consciousNeed).toBe(userQuestion)
+    expect(frame?.reasonTags).toContain('need-source:discourse-question')
   })
 
   it('does not treat generated turn summaries as a conscious need', () => {
@@ -262,5 +337,8 @@ describe('buildCurrentConsciousFrame', () => {
     expect(source).not.toMatch(
       /resolveAlicizationProjectStateSnapshot|buildAlicizationPersonalityContinuityState|buildSelfContinuityAuthorityFromRuntimeSurface/iu,
     )
+    expect(source).not.toContain('sanitizeDynamicIntention')
+    expect(source).not.toContain('answerCompiler.openingClaim')
+    expect(source).not.toContain('answerCompiler.nextMove')
   })
 })

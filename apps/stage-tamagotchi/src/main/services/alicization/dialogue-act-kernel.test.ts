@@ -199,7 +199,8 @@ describe('dialogue-act-kernel', () => {
     expect(kernel?.mustAvoid).toContain('Do not broaden into a checklist.')
   })
 
-  it('normalizes persisted kernel snapshots without a provider-facing renderer', () => {
+  it('normalizes persisted kernel snapshots without reviving authored reply policy', () => {
+    const legacyReplyPolicy = 'The missing guard is the current bug.'
     const kernel = normalizeDialogueActKernel({
       subject: 'task-knot',
       hostGoal: 'resolve-problem',
@@ -216,12 +217,16 @@ describe('dialogue-act-kernel', () => {
         summary: 'VS Code diff with missing guard',
         confidence: 0.9,
       }],
-      openingClaim: 'The missing guard is the current bug.',
-      openingMove: 'State the missing guard before anything else.',
-      whyNow: 'The host is asking about the active diff.',
-      mustSay: ['Answer the current diff directly.'],
-      mustAvoid: ['Do not answer from stale residue.'],
-      sourceTrace: ['speech-act:guide'],
+      openingClaim: legacyReplyPolicy,
+      openingMove: legacyReplyPolicy,
+      whyNow: legacyReplyPolicy,
+      mustSay: [legacyReplyPolicy],
+      mustAvoid: [legacyReplyPolicy],
+      sourceTrace: [
+        'subject:task-knot',
+        'speech-act:guide',
+        legacyReplyPolicy,
+      ],
       confidence: 0.9,
       updatedAt: 1,
     })
@@ -229,8 +234,18 @@ describe('dialogue-act-kernel', () => {
     expect(kernel?.subject).toBe('task-knot')
     expect(kernel?.speechAct).toBe('guide')
     expect(kernel?.selectedEvidence[0]?.summary).toBe('VS Code diff with missing guard')
-    expect(kernel?.mustSay).toEqual(['Answer the current diff directly.'])
-    expect(kernel?.mustAvoid).toEqual(['Do not answer from stale residue.'])
+    expect(kernel).toMatchObject({
+      openingClaim: '',
+      openingMove: '',
+      whyNow: '',
+      mustSay: [],
+      mustAvoid: [],
+      sourceTrace: [
+        'subject:task-knot',
+        'speech-act:guide',
+      ],
+    })
+    expect(JSON.stringify(kernel)).not.toContain(legacyReplyPolicy)
   })
 
   it('does not turn dialogue-first host turns into fake project evidence', () => {
