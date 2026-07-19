@@ -72,6 +72,7 @@ describe('buildCurrentConsciousFrame', () => {
     })
     const frame = buildCurrentConsciousFrame({
       now: 20,
+      userText: '记忆为什么没有接上？',
       discourseState: createDiscourseState({
         currentQuestion: '记忆为什么没有接上？',
         primaryTurnAnchor: '检查记忆对话链路',
@@ -159,6 +160,7 @@ describe('buildCurrentConsciousFrame', () => {
   ])('preserves user-authored questions even when they mention former template topics: %s', (userQuestion) => {
     const frame = buildCurrentConsciousFrame({
       now: 34,
+      userText: userQuestion,
       discourseState: createDiscourseState({
         currentTurnSubject: 'general',
         currentQuestion: userQuestion,
@@ -180,7 +182,386 @@ describe('buildCurrentConsciousFrame', () => {
     })
 
     expect(frame?.consciousNeed).toBe(userQuestion)
+    expect(frame?.consciousNeedSource).toBe('question')
     expect(frame?.reasonTags).toContain('need-source:discourse-question')
+  })
+
+  it('preserves real userText without trusting generated question or host fallbacks', () => {
+    const userText = '我真正问的是 same-her 和 Phase 1 为什么还会影响对话。'
+    const generatedQuestion = 'Phase 1: Local Digital Life should lead the next reply.'
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      userText,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: generatedQuestion,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: generatedQuestion,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        unansweredQuestion: generatedQuestion,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.consciousNeed).toBe(userText)
+    expect(frame?.consciousNeedSource).toBe('user-text')
+    expect(JSON.stringify(frame)).not.toContain(generatedQuestion)
+  })
+
+  it('does not trust a generated hostMove fallback without user-text provenance', () => {
+    const generatedHostMove = '当前截图'
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: null,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: generatedHostMove,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        unansweredQuestion: null,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.focusAnchor).toBe(generatedHostMove)
+    expect(frame?.focusAnchorSource).toBe('host-move')
+    expect(frame?.consciousNeed).toBe('')
+    expect(frame?.consciousNeedSource).toBeNull()
+  })
+
+  it('marks a host move that matches real userText as user-authored focus', () => {
+    const userText = 'same-her 和 Phase 1 只是我这轮真实输入的检索词。'
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      userText,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: null,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: userText,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        unansweredQuestion: null,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.focusAnchor).toBe(userText)
+    expect(frame?.focusAnchorSource).toBe('user-text')
+    expect(frame?.consciousNeed).toBe(userText)
+    expect(frame?.consciousNeedSource).toBe('host-move')
+  })
+
+  it('preserves trusted user-authored anchors when fixed-template words appear outside currentQuestion', () => {
+    const userText = '我问的是 same-her、Phase 1 和数字生命这些词是不是还会误删用户原文。'
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: null,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: userText,
+        primaryTurnAnchor: userText,
+        primaryTurnAnchorSource: 'user-text',
+        unansweredQuestion: null,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.focusAnchor).toBe(userText)
+    expect(frame?.focusAnchorSource).toBe('user-text')
+    expect(frame?.consciousNeed).toBe(userText)
+    expect(frame?.consciousNeedSource).toBe('user-text')
+    expect(frame?.reasonTags).toContain('need-source:user-text')
+  })
+
+  it('marks question-sourced primary anchors with visual-persistable question source tags', () => {
+    const userQuestion = 'Phase 1 里的 same-her 和数字生命原文为什么会被过滤？'
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      userText: userQuestion,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: null,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: userQuestion,
+        primaryTurnAnchor: userQuestion,
+        primaryTurnAnchorSource: 'question',
+        unansweredQuestion: null,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.consciousNeed).toBe(userQuestion)
+    expect(frame?.consciousNeedSource).toBe('question')
+    expect(frame?.reasonTags).toContain('need-source:conversation-question')
+    expect(frame?.reasonTags).not.toContain('need-source:primary-anchor')
+  })
+
+  it('does not preserve generated task anchors as user-authored conscious need', () => {
+    const generatedTaskAnchor = '当前截图'
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: null,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: '',
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        unansweredQuestion: null,
+      } as any,
+      dialogueEncounter: {
+        subject: 'general',
+        screenReferenceMode: 'avoid',
+        mustRepairFirst: false,
+        summary: '',
+        taskAnchor: generatedTaskAnchor,
+        confidence: 0.8,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.focusAnchor).toBe(generatedTaskAnchor)
+    expect(frame?.focusAnchorSource).toBe('dialogue-task-anchor')
+    expect(frame?.consciousNeed).toBe('')
+    expect(frame?.consciousNeedSource).toBeNull()
+    expect(frame?.reasonTags).not.toContain('need-source:primary-anchor')
+  })
+
+  it.each([
+    {
+      expectedAnchor: 'conversation 线程摘要',
+      expectedSource: 'conversation-anchor',
+      conversationAnchor: 'conversation 线程摘要',
+      conversationSource: 'thread',
+      dialogueTaskAnchor: null,
+      discourseAnchor: 'discourse 线程摘要',
+      discourseSource: 'thread',
+    },
+    {
+      expectedAnchor: 'discourse 线程摘要',
+      expectedSource: 'discourse-anchor',
+      conversationAnchor: null,
+      conversationSource: null,
+      dialogueTaskAnchor: null,
+      discourseAnchor: 'discourse 线程摘要',
+      discourseSource: 'carry',
+    },
+    {
+      expectedAnchor: '生成的任务锚点',
+      expectedSource: 'dialogue-task-anchor',
+      conversationAnchor: null,
+      conversationSource: null,
+      dialogueTaskAnchor: '生成的任务锚点',
+      discourseAnchor: null,
+      discourseSource: null,
+    },
+  ])('records generated focus provenance as $expectedSource', ({
+    expectedAnchor,
+    expectedSource,
+    conversationAnchor,
+    conversationSource,
+    dialogueTaskAnchor,
+    discourseAnchor,
+    discourseSource,
+  }) => {
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: null,
+        primaryTurnAnchor: discourseAnchor,
+        primaryTurnAnchorSource: discourseSource,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: '',
+        primaryTurnAnchor: conversationAnchor,
+        primaryTurnAnchorSource: conversationSource,
+        unansweredQuestion: null,
+      } as any,
+      dialogueEncounter: dialogueTaskAnchor
+        ? {
+            subject: 'general',
+            screenReferenceMode: 'avoid',
+            mustRepairFirst: false,
+            summary: '',
+            taskAnchor: dialogueTaskAnchor,
+            confidence: 0.8,
+          } as any
+        : null,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.focusAnchor).toBe(expectedAnchor)
+    expect(frame?.focusAnchorSource).toBe(expectedSource)
+    expect(frame?.consciousNeed).toBe('')
+    expect(frame?.consciousNeedSource).toBeNull()
+  })
+
+  it('prefers the trusted host move over a generated dialogue task anchor', () => {
+    const userText = '继续清理 same-her 和 Phase 1 固定模板残留。'
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      userText,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: null,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: userText,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        unansweredQuestion: null,
+      } as any,
+      dialogueEncounter: {
+        subject: 'general',
+        screenReferenceMode: 'avoid',
+        mustRepairFirst: false,
+        summary: '',
+        taskAnchor: '当前截图',
+        confidence: 0.8,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.focusAnchor).toBe('当前截图')
+    expect(frame?.focusAnchorSource).toBe('dialogue-task-anchor')
+    expect(frame?.consciousNeed).toBe(userText)
+    expect(frame?.consciousNeedSource).toBe('host-move')
+    expect(frame?.reasonTags).toContain('need-source:host-move')
+    expect(frame?.reasonTags).not.toContain('focus-source:host-move')
+  })
+
+  it('prefers the trusted host move over an untrusted carried thread anchor', () => {
+    const userText = '继续清理 same-her 和 Phase 1 固定模板残留。'
+    const frame = buildCurrentConsciousFrame({
+      now: 35,
+      userText,
+      discourseState: createDiscourseState({
+        currentTurnSubject: 'general',
+        currentQuestion: null,
+        primaryTurnAnchor: '旧线程摘要',
+        primaryTurnAnchorSource: 'thread',
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+      }),
+      conversationState: {
+        hostMove: userText,
+        primaryTurnAnchor: '旧 conversation 线程摘要',
+        primaryTurnAnchorSource: 'thread',
+        unansweredQuestion: null,
+      } as any,
+      answerCompiler: createAnswerCompiler({
+        answerSubject: 'general',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+      }),
+    })
+
+    expect(frame?.focusAnchor).toBe('旧 conversation 线程摘要')
+    expect(frame?.focusAnchorSource).toBe('conversation-anchor')
+    expect(frame?.consciousNeed).toBe(userText)
+    expect(frame?.consciousNeedSource).toBe('host-move')
+    expect(frame?.reasonTags).toContain('need-source:host-move')
+    expect(frame?.reasonTags).not.toContain('focus-source:host-move')
   })
 
   it('does not treat generated turn summaries as a conscious need', () => {
@@ -255,10 +636,12 @@ describe('buildCurrentConsciousFrame', () => {
       subject: 'visible-scene',
       centerOfGravity: 'repair',
       truthDiscipline: 'repair-first',
-      consciousNeed: '当前截图与旧判断冲突。',
+      consciousNeed: '',
+      consciousNeedSource: null,
       consciousTension: '旧判断已经失效。',
       speakingIntention: '',
       focusAnchor: '当前截图',
+      focusAnchorSource: 'dialogue-task-anchor',
       shouldWithholdSpecificity: true,
       shouldSelfRevise: true,
     })
@@ -340,5 +723,16 @@ describe('buildCurrentConsciousFrame', () => {
     expect(source).not.toContain('sanitizeDynamicIntention')
     expect(source).not.toContain('answerCompiler.openingClaim')
     expect(source).not.toContain('answerCompiler.nextMove')
+  })
+
+  it('passes the real user text from runtime-mind-state into the conscious frame builder', () => {
+    const source = readFileSync(new URL('./runtime-mind-state.ts', import.meta.url), 'utf8')
+    const builderCallStart = source.indexOf('buildCurrentConsciousFrame({')
+    const builderCallEnd = source.indexOf('\n        })', builderCallStart)
+    const builderCall = builderCallStart >= 0 && builderCallEnd >= 0
+      ? source.slice(builderCallStart, builderCallEnd)
+      : ''
+
+    expect(builderCall).toContain('userText: input.userText')
   })
 })

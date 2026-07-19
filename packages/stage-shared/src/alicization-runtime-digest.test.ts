@@ -66,8 +66,8 @@ describe('alicization-runtime-digest transport normalization', () => {
 
     expect(digest?.activeLoop?.continuityArcStage).toBe('hold-for-opening')
     expect(digest?.activeLoop?.continuityPreferredTiming).toBe('next-open-window')
-    expect(digest?.projectState?.identity).toBeNull()
-    expect(digest?.projectState?.sameHerSelfLine).toBeNull()
+    expect(digest?.projectState?.identity).toBeUndefined()
+    expect(digest?.projectState?.sameHerSelfLine).toBeUndefined()
     expect(digest?.projectState?.continuityArcStage).toBe('hold-for-opening')
     expect(digest?.projectState?.continuityPreferredTiming).toBe('next-open-window')
     expectNoFixedTemplateResidue(digest)
@@ -127,16 +127,16 @@ describe('alicization-runtime-digest transport normalization', () => {
       summary: 'dominant=active-memory | project-awareness=pre-dialogue-grounded',
     })
 
-    expect(digest?.projectState?.identity).toBeNull()
-    expect(digest?.projectState?.currentPhase).toBeNull()
-    expect(digest?.projectState?.preflightSummary).toBeNull()
-    expect(digest?.projectState?.preDialogueAwarenessLine).toBeNull()
+    expect(digest?.projectState?.identity).toBeUndefined()
+    expect(digest?.projectState?.currentPhase).toBeUndefined()
+    expect(digest?.projectState?.preflightSummary).toBeUndefined()
+    expect(digest?.projectState?.preDialogueAwarenessLine).toBeUndefined()
     expect(digest?.projectState?.latestLandedProgress).toContain('Project-state continuity already survives')
     expect(digest?.projectState?.memoryClosureSummary).toContain('runtime preparation')
     expect(digest?.projectState?.primaryOpenLoop).toContain('memory, initiative, and embodiment review')
     expect(digest?.projectState?.nextClosureTarget).toContain('keep closure evidence structured')
-    expect(digest?.projectState?.sameHerSelfLine).toBeNull()
-    expect(digest?.projectState?.sameHerDriftRisk).toBeNull()
+    expect(digest?.projectState?.sameHerSelfLine).toBeUndefined()
+    expect(digest?.projectState?.sameHerDriftRisk).toBeUndefined()
     expect(digest?.emotionalClosureCue).toBeNull()
     expectNoFixedTemplateResidue(digest)
   })
@@ -299,6 +299,151 @@ describe('alicization-runtime-digest transport normalization', () => {
     expectNoFixedTemplateResidue(digest)
   })
 
+  it('preserves runtime project-state continuity summary and proactive gap alias', () => {
+    const digest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      projectState: {
+        continuitySummary: 'Runtime digest ingress keeps the durable continuity summary.',
+        proactiveSameHerGapSummary: 'Runtime digest ingress keeps the proactive gap alias.',
+      },
+      channels: [],
+      summary: 'runtime project-state alias ingress',
+    })
+
+    expect(digest?.projectState).toMatchObject({
+      continuitySummary: 'Runtime digest ingress keeps the durable continuity summary.',
+      proactiveSameHerGap: 'Runtime digest ingress keeps the proactive gap alias.',
+      proactiveSameHerGapSummary: 'Runtime digest ingress keeps the proactive gap alias.',
+    })
+  })
+
+  it('keeps omitted runtime project-state fields undeclared', () => {
+    const digest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      projectState: {
+        identity: 'Local owner record 42.',
+      },
+      channels: [],
+      summary: 'runtime project-state sparse ingress',
+    })
+
+    expect(digest?.projectState).toMatchObject({
+      identity: 'Local owner record 42.',
+    })
+    expect(digest?.projectState).not.toHaveProperty('primaryOpenLoop')
+    expect(digest?.projectState).not.toHaveProperty('proactiveSameHerGap')
+    expect(digest?.projectState).not.toHaveProperty('proactiveSameHerGapSummary')
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['blank object', {}],
+  ])('keeps %s runtime project-state owner undeclared', (_label, projectState) => {
+    const digest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      ...(projectState === undefined ? {} : { projectState }),
+      channels: [],
+      summary: 'runtime project-state owner declaration',
+    })
+
+    expect(digest?.projectState).toBeUndefined()
+  })
+
+  it('preserves an explicit runtime project-state owner clear', () => {
+    const digest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      projectState: null,
+      channels: [],
+      summary: 'runtime project-state owner clear',
+    })
+
+    expect(digest?.projectState).toBeNull()
+  })
+
+  it('keeps blank runtime project-state fields undeclared beside a valid owner field', () => {
+    const digest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      projectState: {
+        identity: 'Local owner record 42.',
+        primaryOpenLoop: '   ',
+        nextClosureTarget: 'n/a',
+      },
+      channels: [],
+      summary: 'runtime project-state blank ingress',
+    })
+
+    expect(digest?.projectState).toMatchObject({
+      identity: 'Local owner record 42.',
+    })
+    expect(digest?.projectState).not.toHaveProperty('primaryOpenLoop')
+    expect(digest?.projectState).not.toHaveProperty('nextClosureTarget')
+  })
+
+  it('preserves alias-only null without synthesizing a canonical clear', () => {
+    const digest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      projectState: {
+        identity: 'Local owner record 42.',
+        proactiveSameHerGapSummary: null,
+      },
+      channels: [],
+      summary: 'runtime project-state alias-only clear',
+    })
+
+    expect(digest?.projectState).toMatchObject({
+      identity: 'Local owner record 42.',
+      proactiveSameHerGapSummary: null,
+    })
+    expect(digest?.projectState).not.toHaveProperty('proactiveSameHerGap')
+  })
+
+  it.each([
+    [
+      'canonical null',
+      {
+        proactiveSameHerGap: null,
+        proactiveSameHerGapSummary: 'Stale alias must not restore canonical state.',
+      },
+      {
+        proactiveSameHerGap: null,
+        proactiveSameHerGapSummary: null,
+      },
+    ],
+    [
+      'alias null',
+      {
+        proactiveSameHerGap: 'Current canonical initiative gap.',
+        proactiveSameHerGapSummary: null,
+      },
+      {
+        proactiveSameHerGap: 'Current canonical initiative gap.',
+        proactiveSameHerGapSummary: null,
+      },
+    ],
+  ])('honors explicit %s in runtime project-state canonical/alias conflicts', (_label, projectState, expected) => {
+    const digest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      projectState: {
+        identity: 'Local owner record 42.',
+        ...projectState,
+      },
+      channels: [],
+      summary: 'runtime project-state alias conflict',
+    })
+
+    expect(digest?.projectState).toMatchObject({
+      identity: 'Local owner record 42.',
+      ...expected,
+    })
+  })
+
   it('drops placeholder-filled runtime project-state shells', () => {
     const digest = normalizeAlicizationRuntimeDigest({
       version: 'alicization-runtime-digest-v1',
@@ -330,7 +475,7 @@ describe('alicization-runtime-digest transport normalization', () => {
       summary: 'dominant=active-memory | project-awareness=placeholder-shell',
     })
 
-    expect(digest?.projectState).toBeNull()
+    expect(digest?.projectState).toBeUndefined()
     expect(digest?.continuityRestraint).toBeNull()
     expect(digest?.emotionalClosureCue).toBeNull()
   })

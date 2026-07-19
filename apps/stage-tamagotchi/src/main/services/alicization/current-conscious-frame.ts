@@ -31,6 +31,12 @@ type AlicizationCurrentConsciousProjectState
 type AlicizationContinuityTiming
   = AlicizationCurrentConsciousFrameSnapshot['continuityPreferredTiming']
 
+type AlicizationConsciousNeedSource
+  = Exclude<AlicizationCurrentConsciousFrameSnapshot['consciousNeedSource'], null | undefined>
+
+type AlicizationFocusAnchorSource
+  = Exclude<AlicizationCurrentConsciousFrameSnapshot['focusAnchorSource'], null | undefined>
+
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -61,6 +67,7 @@ function pickDynamicTextWithSource(
   maxChars: number,
   candidates: Array<{
     preserveUserAuthoredText?: boolean
+    source?: AlicizationConsciousNeedSource | null
     value: unknown
     sourceTag: string
   }>,
@@ -71,6 +78,7 @@ function pickDynamicTextWithSource(
       : sanitizeDynamicText(candidate.value, maxChars)
     if (normalized) {
       return {
+        source: candidate.source ?? null,
         text: normalized,
         sourceTag: candidate.sourceTag,
       }
@@ -79,13 +87,23 @@ function pickDynamicTextWithSource(
   return null
 }
 
-function pickDynamicAnchor(...values: unknown[]) {
-  for (const value of values) {
-    const normalized = sanitizeDynamicAnchor(value)
-    if (normalized)
-      return normalized
+function pickDynamicAnchorWithSource(candidates: Array<{
+  focusSource: AlicizationFocusAnchorSource
+  preserveUserAuthoredText?: boolean
+  value: unknown
+}>) {
+  for (const candidate of candidates) {
+    const normalized = candidate.preserveUserAuthoredText
+      ? sanitizeText(candidate.value, 180)
+      : sanitizeDynamicAnchor(candidate.value)
+    if (normalized) {
+      return {
+        focusSource: candidate.focusSource,
+        text: normalized,
+      }
+    }
   }
-  return ''
+  return null
 }
 
 function uniqueReasonTags(values: Array<string | null | undefined>) {
@@ -292,6 +310,7 @@ function resolveTypedProjectState(
 
 export function buildCurrentConsciousFrame(input: {
   now: number
+  userText?: string
   discourseState?: AlicizationDiscourseStateSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
   dialogueEncounter?: AlicizationDialogueTurnEncounter | AlicizationDialogueEncounterSurface | null
@@ -314,13 +333,53 @@ export function buildCurrentConsciousFrame(input: {
   if (!discourseState || !answerCompiler)
     return null
 
+  const userText = sanitizeText(input.userText, 420)
+  const matchesUserText = (value: unknown) =>
+    Boolean(userText && sanitizeText(value, 420) === userText)
+  const conversationAnchorIsQuestion = conversationState?.primaryTurnAnchorSource === 'question'
+    && matchesUserText(conversationState.primaryTurnAnchor)
+  const discourseAnchorIsQuestion = discourseState.primaryTurnAnchorSource === 'question'
+    && matchesUserText(discourseState.primaryTurnAnchor)
+  const conversationAnchorIsUserText = conversationState?.primaryTurnAnchorSource === 'user-text'
+  const discourseAnchorIsUserText = discourseState.primaryTurnAnchorSource === 'user-text'
+  const hostMoveIsUserText = matchesUserText(conversationState?.hostMove)
+
   const subject = dialogueEncounter?.subject ?? discourseState.currentTurnSubject
-  const primaryAnchor = pickDynamicAnchor(
-    conversationState?.primaryTurnAnchor,
-    discourseState.primaryTurnAnchor,
-    dialogueEncounter?.taskAnchor,
-    conversationState?.hostMove,
-  ) || null
+  const primaryAnchorSelection = pickDynamicAnchorWithSource([
+    {
+      focusSource: conversationAnchorIsUserText
+        ? 'user-text'
+        : conversationAnchorIsQuestion
+          ? 'question'
+          : 'conversation-anchor',
+      preserveUserAuthoredText: conversationAnchorIsUserText || conversationAnchorIsQuestion,
+      value: conversationState?.primaryTurnAnchor,
+    },
+    {
+      focusSource: discourseAnchorIsUserText
+        ? 'user-text'
+        : discourseAnchorIsQuestion
+          ? 'question'
+          : 'discourse-anchor',
+      preserveUserAuthoredText: discourseAnchorIsUserText || discourseAnchorIsQuestion,
+      value: discourseState.primaryTurnAnchor,
+    },
+    {
+      focusSource: 'dialogue-task-anchor',
+      value: dialogueEncounter?.taskAnchor,
+    },
+    {
+      focusSource: hostMoveIsUserText ? 'user-text' : 'host-move',
+      preserveUserAuthoredText: hostMoveIsUserText,
+      value: conversationState?.hostMove,
+    },
+    {
+      focusSource: 'user-text',
+      preserveUserAuthoredText: true,
+      value: userText,
+    },
+  ])
+  const primaryAnchor = primaryAnchorSelection?.text ?? null
   const evidencePhrases = [
     answerCompiler.supportingReality?.[0],
     answerCompiler.supportingReality?.[1],
@@ -356,13 +415,65 @@ export function buildCurrentConsciousFrame(input: {
     [
       {
         preserveUserAuthoredText: true,
-        value: discourseState.currentQuestion,
+        source: 'question',
+        value: matchesUserText(discourseState.currentQuestion)
+          ? discourseState.currentQuestion
+          : null,
         sourceTag: 'need-source:discourse-question',
       },
       {
         preserveUserAuthoredText: true,
-        value: conversationState?.unansweredQuestion,
+        source: 'question',
+        value: matchesUserText(conversationState?.unansweredQuestion)
+          ? conversationState?.unansweredQuestion
+          : null,
         sourceTag: 'need-source:conversation-question',
+      },
+      {
+        preserveUserAuthoredText: true,
+        source: 'question',
+        value: conversationAnchorIsQuestion
+          ? conversationState?.primaryTurnAnchor
+          : null,
+        sourceTag: 'need-source:conversation-question',
+      },
+      {
+        preserveUserAuthoredText: true,
+        source: 'question',
+        value: discourseAnchorIsQuestion
+          ? discourseState.primaryTurnAnchor
+          : null,
+        sourceTag: 'need-source:discourse-question',
+      },
+      {
+        preserveUserAuthoredText: true,
+        source: 'user-text',
+        value: conversationAnchorIsUserText
+          ? conversationState?.primaryTurnAnchor
+          : null,
+        sourceTag: 'need-source:user-text',
+      },
+      {
+        preserveUserAuthoredText: true,
+        source: 'user-text',
+        value: discourseAnchorIsUserText
+          ? discourseState.primaryTurnAnchor
+          : null,
+        sourceTag: 'need-source:user-text',
+      },
+      {
+        preserveUserAuthoredText: true,
+        source: 'host-move',
+        value: hostMoveIsUserText
+          ? conversationState?.hostMove
+          : null,
+        sourceTag: 'need-source:host-move',
+      },
+      {
+        preserveUserAuthoredText: true,
+        source: 'user-text',
+        value: userText,
+        sourceTag: 'need-source:user-text',
       },
       {
         value: conversationState?.owedRepair,
@@ -371,14 +482,6 @@ export function buildCurrentConsciousFrame(input: {
       {
         value: discourseState.ruptureRepair,
         sourceTag: 'need-source:discourse-repair',
-      },
-      {
-        value: shouldSelfRevise ? dialogueEncounter?.summary : null,
-        sourceTag: 'need-source:dialogue-encounter',
-      },
-      {
-        value: primaryAnchor,
-        sourceTag: 'need-source:primary-anchor',
       },
     ],
   )
@@ -411,9 +514,11 @@ export function buildCurrentConsciousFrame(input: {
     centerOfGravity,
     truthDiscipline,
     consciousNeed: consciousNeed?.text ?? '',
+    consciousNeedSource: consciousNeed?.source ?? null,
     consciousTension: consciousTension?.text ?? '',
     speakingIntention: '',
     focusAnchor: primaryAnchor,
+    focusAnchorSource: primaryAnchorSelection?.focusSource ?? null,
     withheldImpulse: null,
     shouldWithholdSpecificity,
     shouldSelfRevise,

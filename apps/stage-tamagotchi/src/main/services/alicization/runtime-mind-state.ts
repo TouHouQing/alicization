@@ -3089,6 +3089,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const currentConsciousFrame = discourseState && answerCompiler
       ? buildCurrentConsciousFrame({
           now: input.now,
+          userText: input.userText,
           discourseState,
           conversationState,
           dialogueEncounter,

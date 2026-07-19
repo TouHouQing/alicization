@@ -1,5 +1,6 @@
 import type { AlicizationEmotionalKernelSnapshot } from '../../../shared/eventa'
 
+import { normalizeAlicizationRuntimeDigest } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { buildCurrentConsciousFrame } from './current-conscious-frame'
@@ -1679,6 +1680,7 @@ describe('visual episodic memory', () => {
     const userQuestion = '先回答当前问题，不要扯开。'
     const frame = buildCurrentConsciousFrame({
       now: 10_000,
+      userText: userQuestion,
       discourseState: {
         currentTurnSubject: 'general',
         screenReferenceMode: 'avoid',
@@ -1771,7 +1773,7 @@ describe('visual episodic memory', () => {
       workingMemoryEpisodes: [],
       currentConsciousFrame: {
         ...frame,
-        reasonTags: frame?.reasonTags.filter(tag => !tag.startsWith('need-source:')) ?? [],
+        consciousNeedSource: null,
       },
       privateThought: null,
       captureState: { permission: 'unknown', lastGroundedAt: null },
@@ -1798,6 +1800,7 @@ describe('visual episodic memory', () => {
         centerOfGravity: 'answer',
         truthDiscipline: 'dialogue-first',
         consciousNeed: userQuestion,
+        consciousNeedSource: 'question',
         consciousTension: '',
         speakingIntention: '',
         focusAnchor: null,
@@ -1819,6 +1822,188 @@ describe('visual episodic memory', () => {
     expect(state.currentConsciousFrame?.consciousNeed).toBe(userQuestion)
   })
 
+  it('round-trips trusted user anchors without reviving generated fixed-template anchors', () => {
+    const userText = '继续清理 same-her、Phase 1 和数字生命固定模板残留。'
+    const frame = buildCurrentConsciousFrame({
+      now: 10_000,
+      discourseState: {
+        currentTurnSubject: 'general',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: userText,
+        currentQuestion: null,
+        primaryTurnAnchor: null,
+        primaryTurnAnchorSource: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+        continuityMode: 'dialogue-first',
+        unresolvedCarry: null,
+        ruptureRepair: null,
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      conversationState: {
+        jointThread: userText,
+        hostMove: userText,
+        primaryTurnAnchor: userText,
+        primaryTurnAnchorSource: 'user-text',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'clarify',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: [],
+        shouldHoldThread: true,
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      answerCompiler: {
+        answerSubject: 'general',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-general',
+        relationMove: 'clarify',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        replyRealizationMode: 'provider-mind-required',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'warm',
+        activeClosenessContext: null,
+        activeClosenessRung: null,
+        openingDirective: '',
+        openingClaim: '',
+        supportingReality: [],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: null,
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+    })
+
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      currentConsciousFrame: frame,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.currentConsciousFrame?.consciousNeed).toBe(userText)
+    expect(state.currentConsciousFrame?.focusAnchor).toBe(userText)
+
+    const generated = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      currentConsciousFrame: {
+        ...frame,
+        consciousNeed: userText,
+        consciousNeedSource: null,
+        focusAnchor: userText,
+        focusAnchorSource: 'dialogue-task-anchor',
+        reasonTags: ['need-source:primary-anchor'],
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(generated.currentConsciousFrame?.consciousNeed).toBe('')
+    expect(generated.currentConsciousFrame?.focusAnchor).toBeNull()
+  })
+
+  it('uses typed provenance instead of reason tags to preserve long user-authored anchors', () => {
+    const longUserText = `same-her Phase 1 数字生命 ${'这是用户亲自输入的原始问题内容'.repeat(40)}`
+    const createState = (currentConsciousFrame: Record<string, unknown>) => normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: longUserText,
+        consciousTension: '',
+        speakingIntention: '',
+        focusAnchor: longUserText,
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.86,
+        updatedAt: 10_000,
+        ...currentConsciousFrame,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    const trusted = createState({
+      consciousNeedSource: 'user-text',
+      focusAnchorSource: 'user-text',
+      reasonTags: ['need-source:primary-anchor'],
+    })
+    const trustedFrame = trusted.currentConsciousFrame as any
+
+    expect(longUserText.length).toBeGreaterThan(420)
+    expect(trustedFrame.consciousNeed).toBe(longUserText.slice(0, 420))
+    expect(trustedFrame.focusAnchor).toBe(longUserText.slice(0, 180))
+    expect(trustedFrame.consciousNeedSource).toBe('user-text')
+    expect(trustedFrame.focusAnchorSource).toBe('user-text')
+
+    const forgedReasonTags = createState({
+      consciousNeedSource: null,
+      focusAnchorSource: 'dialogue-task-anchor',
+      reasonTags: [
+        'need-source:user-text',
+        'focus-source:user-text',
+      ],
+    })
+    const forgedFrame = forgedReasonTags.currentConsciousFrame as any
+
+    expect(forgedFrame.consciousNeed).toBe('')
+    expect(forgedFrame.focusAnchor).toBeNull()
+    expect(forgedFrame.consciousNeedSource).toBeNull()
+    expect(forgedFrame.focusAnchorSource).toBe('dialogue-task-anchor')
+
+    const generatedHostMove = createState({
+      consciousNeedSource: null,
+      focusAnchorSource: 'host-move',
+      reasonTags: [],
+    })
+    const generatedHostMoveFrame = generatedHostMove.currentConsciousFrame as any
+
+    expect(generatedHostMoveFrame.focusAnchor).toBeNull()
+    expect(generatedHostMoveFrame.focusAnchorSource).toBe('host-move')
+  })
+
   it('keeps the full project-state owner when a sparse conscious frame is carried into the next update', () => {
     const normalized = normalizeVisualPresenceState({
       watchMode: 'mnemonic-passive',
@@ -1832,6 +2017,8 @@ describe('visual episodic memory', () => {
         continuitySummary: 'The durable owner keeps a factual continuity summary.',
         proactiveSameHerGap: 'The durable owner keeps the current initiative gap.',
         continuityCadence: 'steady-return',
+        preferredGazeMode: 'soften',
+        preferredPauseMode: 'longer',
       },
       currentConsciousFrame: {
         subject: 'task-knot',
@@ -1875,7 +2062,573 @@ describe('visual episodic memory', () => {
       continuitySummary: 'The durable owner keeps a factual continuity summary.',
       proactiveSameHerGap: 'The durable owner keeps the current initiative gap.',
       continuityCadence: 'measured-return',
+      preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
       preferredVoiceMode: 'lower-pressure',
+    })
+  })
+
+  it('keeps the full project-state owner when the current update carries a normalized sparse conscious frame', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      continuityCadence: 'steady-return',
+      preferredBlinkCadence: 'quiet' as const,
+      preferredGazeMode: 'soften' as const,
+      preferredPauseMode: 'longer' as const,
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: staleProjectState,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+    const currentConsciousFrame = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: [],
+        projectState: {
+          continuityCadence: 'measured-return',
+          preferredVoiceMode: 'lower-pressure',
+        },
+        updatedAt: 11_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 11_000,
+    } as any, 11_000).currentConsciousFrame
+
+    const next = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      currentConsciousFrame,
+      privateThought: null,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(next.projectState).toMatchObject({
+      ...staleProjectState,
+      continuityCadence: 'measured-return',
+      preferredVoiceMode: 'lower-pressure',
+    })
+  })
+
+  it('does not let explicit nulls on the short-term conscious projection clear the full project-state owner', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      continuityCadence: 'steady-return',
+      preferredBlinkCadence: 'quiet' as const,
+      preferredGazeMode: 'soften' as const,
+      preferredPauseMode: 'longer' as const,
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: staleProjectState,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    const next = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: [],
+        projectState: {
+          continuityCadence: 'measured-return',
+          preferredBlinkCadence: null,
+          preferredGazeMode: null,
+          preferredPauseMode: null,
+          preferredVoiceMode: 'lower-pressure',
+        },
+        updatedAt: 11_000,
+      },
+      privateThought: null,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(next.projectState).toMatchObject({
+      ...staleProjectState,
+      continuityCadence: 'measured-return',
+      preferredVoiceMode: 'lower-pressure',
+    })
+  })
+
+  it('does not treat blank runtime project-state fields as explicit owner clearing', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      primaryOpenLoop: 'The active open loop must survive a blank runtime field.',
+      nextClosureTarget: 'The active target must survive a blank runtime field.',
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: staleProjectState,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    const next = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      runtimeDigest: {
+        projectState: {
+          primaryOpenLoop: '   ',
+          nextClosureTarget: '',
+        },
+      } as any,
+      privateThought: null,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(next.projectState).toMatchObject(staleProjectState)
+  })
+
+  it('keeps the full owner when a normalized runtime digest omits blank project-state fields', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      primaryOpenLoop: 'The active open loop must survive normalized blank ingress.',
+      nextClosureTarget: 'The active target must survive normalized blank ingress.',
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: staleProjectState,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+    const runtimeDigest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      projectState: {
+        identity: staleProjectState.identity,
+        primaryOpenLoop: '   ',
+        nextClosureTarget: 'n/a',
+      },
+      channels: [],
+      summary: 'normalized blank project-state ingress',
+    })
+
+    const next = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      runtimeDigest,
+      privateThought: null,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(next.projectState).toMatchObject(staleProjectState)
+  })
+
+  it('keeps the full owner when a normalized runtime digest omits project-state entirely', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      primaryOpenLoop: 'The active open loop must survive a sparse normalized digest.',
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: staleProjectState,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+    const runtimeDigest = normalizeAlicizationRuntimeDigest({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      channels: [],
+      summary: 'normalized digest without project-state',
+    })
+
+    const next = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      runtimeDigest,
+      privateThought: null,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(next.projectState).toMatchObject(staleProjectState)
+  })
+
+  it.each([
+    ['undefined', undefined],
+    ['blank object', {
+      identity: '   ',
+      primaryOpenLoop: '',
+      nextClosureTarget: '   ',
+    }],
+  ])('treats top-level %s project-state as undeclared', (_label, projectState) => {
+    const durableProjectState = {
+      identity: 'Runtime owner remains authoritative.',
+      primaryOpenLoop: 'The active loop remains open.',
+      nextClosureTarget: 'Continue the active target.',
+    }
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState,
+      runtime: {
+        projectState: durableProjectState,
+      },
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: [],
+        projectState: {
+          continuityCadence: 'measured-return',
+        },
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    expect(state.projectState).toMatchObject(durableProjectState)
+  })
+
+  it('merges a sparse top-level project-state patch over the runtime owner', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: {
+        primaryOpenLoop: null,
+      },
+      runtime: {
+        projectState: {
+          identity: 'Alice',
+          primaryOpenLoop: 'Stale open loop.',
+          nextClosureTarget: 'resume task',
+        },
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    expect(state.projectState).toMatchObject({
+      identity: 'Alice',
+      primaryOpenLoop: null,
+      nextClosureTarget: 'resume task',
+    })
+  })
+
+  it.each([
+    ['runtime', { runtime: { projectState: null } }],
+    ['runtimeDigest', { runtimeDigest: { projectState: null } }],
+  ])('does not let a sparse conscious projection revive an explicit %s owner clear', (_label, source) => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      ...source,
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: [],
+        projectState: {
+          continuityCadence: 'measured-return',
+          preferredVoiceMode: 'lower-pressure',
+        },
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    expect(state.projectState).toBeNull()
+    expect(state.raw?.projectState).toBeNull()
+  })
+
+  it('does not let a current sparse conscious projection revive a runtimeDigest owner clear during update', () => {
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: {
+        identity: 'Previous durable owner.',
+        primaryOpenLoop: 'Previous open loop.',
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    const next = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      runtimeDigest: {
+        projectState: null,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: [],
+        projectState: {
+          continuityCadence: 'measured-return',
+        },
+        updatedAt: 11_000,
+      },
+      privateThought: null,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(next.projectState).toBeNull()
+    expect(next.runtimeDigest?.projectState).toBeNull()
+  })
+
+  it('does not let a null short-term conscious projection clear the full project-state owner', () => {
+    const durableProjectState = {
+      identity: 'Full owner remains authoritative.',
+      primaryOpenLoop: 'The full owner loop remains open.',
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: durableProjectState,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    const next = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: [],
+        projectState: null,
+        updatedAt: 11_000,
+      },
+      privateThought: null,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(next.projectState).toMatchObject(durableProjectState)
+    expect(next.currentConsciousFrame?.projectState).toBeNull()
+  })
+
+  it('lets an explicit top-level null owner beat stale raw project-state persistence', () => {
+    const staleProjectState = {
+      identity: 'Stale raw owner.',
+      primaryOpenLoop: 'Stale raw open loop.',
+    }
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: null,
+      runtime: {
+        projectState: staleProjectState,
+      },
+      runtimeDigest: {
+        projectState: staleProjectState,
+      },
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'dialogue-first',
+        consciousNeed: '',
+        consciousTension: '',
+        speakingIntention: '',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: [],
+        projectState: {
+          continuityCadence: 'steady-return',
+        },
+        updatedAt: 10_000,
+      },
+      raw: {
+        projectState: staleProjectState,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    expect(state.projectState).toBeNull()
+    expect(state.raw?.projectState).toBeNull()
+    expect(state.runtime?.projectState).toBeNull()
+    expect(state.runtimeDigest?.projectState).toBeNull()
+    expect(state.currentConsciousFrame?.projectState).toBeNull()
+  })
+
+  it('preserves explicit null fields on the full owner across stale runtime projections', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      primaryOpenLoop: 'Stale runtime open loop.',
+      nextClosureTarget: 'Stale runtime closure target.',
+    }
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: {
+        identity: staleProjectState.identity,
+        primaryOpenLoop: null,
+        nextClosureTarget: null,
+      },
+      runtime: {
+        projectState: staleProjectState,
+      },
+      runtimeDigest: {
+        projectState: staleProjectState,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    expect(state.projectState).toMatchObject({
+      identity: staleProjectState.identity,
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+    })
+    expect(state.runtime?.projectState).toMatchObject({
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+    })
+    expect(state.runtimeDigest?.projectState).toMatchObject({
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
     })
   })
 
@@ -1969,6 +2722,260 @@ describe('visual episodic memory', () => {
     expect(state.projectState?.proactiveSameHerGap).toBe(
       'The legacy summary still carries a factual initiative gap.',
     )
+  })
+
+  it('preserves proactive same-her gap alias on the full project-state owner', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: {
+        continuitySummary: 'Durable continuity summary must remain on the owner.',
+        proactiveSameHerGap: 'Canonical initiative gap must remain on the owner.',
+        proactiveSameHerGapSummary: 'Alias initiative gap must also persist for older surfaces.',
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    expect(state.projectState).toMatchObject({
+      continuitySummary: 'Durable continuity summary must remain on the owner.',
+      proactiveSameHerGap: 'Canonical initiative gap must remain on the owner.',
+      proactiveSameHerGapSummary: 'Alias initiative gap must also persist for older surfaces.',
+    })
+    expect(state.raw!.projectState).toMatchObject({
+      proactiveSameHerGapSummary: 'Alias initiative gap must also persist for older surfaces.',
+    })
+  })
+
+  it.each([
+    [
+      'canonical null',
+      {
+        proactiveSameHerGap: null,
+        proactiveSameHerGapSummary: 'Stale alias must not restore canonical state.',
+      },
+      {
+        proactiveSameHerGap: null,
+        proactiveSameHerGapSummary: null,
+      },
+    ],
+    [
+      'alias null',
+      {
+        proactiveSameHerGap: 'Current canonical initiative gap.',
+        proactiveSameHerGapSummary: null,
+      },
+      {
+        proactiveSameHerGap: 'Current canonical initiative gap.',
+        proactiveSameHerGapSummary: null,
+      },
+    ],
+  ])('honors explicit %s in proactive same-her canonical/alias conflicts', (_label, projectState, expected) => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    expect(state.projectState).toMatchObject(expected)
+  })
+
+  it('preserves runtimeDigest-only continuity summary and proactive gap alias', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-memory',
+        projectState: {
+          continuitySummary: 'Runtime digest is the only continuity owner on ingress.',
+          proactiveSameHerGapSummary: 'Runtime digest is the only proactive gap alias on ingress.',
+        },
+        channels: [],
+        summary: 'runtime digest only',
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    expect(state.projectState).toMatchObject({
+      continuitySummary: 'Runtime digest is the only continuity owner on ingress.',
+      proactiveSameHerGap: 'Runtime digest is the only proactive gap alias on ingress.',
+      proactiveSameHerGapSummary: 'Runtime digest is the only proactive gap alias on ingress.',
+    })
+  })
+
+  it('lets an explicit null project-state input clear stale runtime project-state owners', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      primaryOpenLoop: 'The stale open loop should not survive explicit owner clearing.',
+      nextClosureTarget: 'The stale next target should not survive explicit owner clearing.',
+      continuitySummary: 'Old continuity summary should not be rehydrated after clearing.',
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: staleProjectState,
+      runtime: { projectState: staleProjectState },
+      runtimeDigest: { projectState: staleProjectState },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    const cleared = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      runtime: { projectState: staleProjectState } as any,
+      runtimeDigest: { projectState: staleProjectState } as any,
+      privateThought: null,
+      projectState: null,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(cleared.projectState).toBeNull()
+    expect(cleared.raw!.projectState).toBeNull()
+    expect(cleared.runtime?.projectState).toBeNull()
+    expect(cleared.runtimeDigest?.projectState).toBeNull()
+    expect(cleared.currentConsciousFrame?.projectState ?? null).toBeNull()
+  })
+
+  it('lets explicit null project-state fields win over stale runtime project-state fields in the same update', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      primaryOpenLoop: 'The stale open loop should not survive explicit field clearing.',
+      nextClosureTarget: 'The stale next target should not survive explicit field clearing.',
+      emotionalClosureSummary: 'The stale emotional closure should not survive explicit field clearing.',
+      continuitySummary: 'Current continuity summary should remain because it was not explicitly cleared.',
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: staleProjectState,
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    const cleared = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      runtime: { projectState: staleProjectState } as any,
+      runtimeDigest: { projectState: staleProjectState } as any,
+      privateThought: null,
+      projectState: {
+        primaryOpenLoop: null,
+        nextClosureTarget: null,
+        emotionalClosureSummary: null,
+      },
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(cleared.projectState).toMatchObject({
+      identity: 'Local identity authority.',
+      continuitySummary: 'Current continuity summary should remain because it was not explicitly cleared.',
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+      emotionalClosureSummary: null,
+    })
+    expect(cleared.runtime?.projectState).toMatchObject({
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+      emotionalClosureSummary: null,
+    })
+    expect(cleared.runtimeDigest?.projectState).toMatchObject({
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+      emotionalClosureSummary: null,
+    })
+  })
+
+  it('lets current runtime project-state null fields clear stale persisted owner fields', () => {
+    const staleProjectState = {
+      identity: 'Local identity authority.',
+      primaryOpenLoop: 'The stale open loop should be cleared by current runtime input.',
+      nextClosureTarget: 'The stale target should be cleared by current runtime input.',
+      continuitySummary: 'The continuity summary stays current.',
+    }
+    const previousState = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      projectState: staleProjectState,
+      runtimeDigest: { projectState: staleProjectState },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    const cleared = updateVisualPresenceState({
+      now: 11_000,
+      previousState,
+      watchMode: previousState.watchMode,
+      scene: previousState.currentScene,
+      attention: previousState.attention,
+      runtimeDigest: {
+        projectState: {
+          identity: 'Local identity authority.',
+          primaryOpenLoop: null,
+          nextClosureTarget: null,
+          continuitySummary: 'The continuity summary stays current.',
+        },
+      } as any,
+      privateThought: null,
+      nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
+    })
+
+    expect(cleared.projectState).toMatchObject({
+      identity: 'Local identity authority.',
+      continuitySummary: 'The continuity summary stays current.',
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+    })
+    expect(cleared.runtimeDigest?.projectState).toMatchObject({
+      primaryOpenLoop: null,
+      nextClosureTarget: null,
+    })
   })
 
   it('normalizes and carries the claim evidence ledger snapshot', () => {
@@ -2841,14 +3848,6 @@ describe('visual episodic memory', () => {
     expect(normalized.currentConsciousFrame?.projectState).toEqual({
       continuityPreferredTiming: 'after-payoff',
       continuityCadence: 'single-thread',
-      continuityRestraint: null,
-      continuityArcStage: null,
-      preferredBlinkCadence: null,
-      preferredGazeMode: null,
-      preferredPauseMode: null,
-      preferredLipsyncMode: null,
-      preferredVoiceMode: null,
-      preferredPacingMode: null,
     })
     expect(JSON.stringify(normalized.currentConsciousFrame)).not.toContain(legacyProjectNarrative)
   })

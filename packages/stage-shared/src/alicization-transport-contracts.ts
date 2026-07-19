@@ -5334,6 +5334,7 @@ export interface AlicizationRuntimeProjectStateDigest {
   sameHerDriftRisk?: string | null
   emotionalClosureCue?: string | null
   proactiveSameHerGap?: string | null
+  proactiveSameHerGapSummary?: string | null
   continuityRestraint?: string | null
   continuityArcStage?: string | null
   continuityPreferredTiming?: string | null
@@ -5997,14 +5998,19 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
         }
       : null,
     projectState: (() => {
+      if (!Object.prototype.hasOwnProperty.call(candidate, 'projectState'))
+        return undefined
+      if (candidate.projectState === null)
+        return null
       const projectStateCandidate = candidate.projectState && typeof candidate.projectState === 'object'
         ? candidate.projectState as Record<string, unknown>
         : null
       if (!projectStateCandidate)
-        return null
+        return undefined
 
       const preflightSummary = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preflightSummary, 320) || null
       const preDialogueAwarenessLine = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preDialogueAwarenessLine, 320) || null
+      const continuitySummary = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuitySummary, 320) || null
       const identity = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.identity, 220) || null
       const currentPhase = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.currentPhase, 120) || null
       const latestLandedProgress = resolveAlicizationProjectStateLatestLandedProgress(projectStateCandidate)
@@ -6015,7 +6021,18 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
       const sameHerHoldDetail = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.sameHerHoldDetail, 220) || null
       const sameHerDriftRisk = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.sameHerDriftRisk, 320) || null
       const emotionalClosureCue = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.emotionalClosureCue, 220) || null
-      const proactiveSameHerGap = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.proactiveSameHerGap, 320) || null
+      const hasProactiveSameHerGap = Object.prototype.hasOwnProperty.call(projectStateCandidate, 'proactiveSameHerGap')
+      const hasProactiveSameHerGapSummary = Object.prototype.hasOwnProperty.call(projectStateCandidate, 'proactiveSameHerGapSummary')
+      const canonicalProactiveSameHerGap = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.proactiveSameHerGap, 320) || null
+      const aliasProactiveSameHerGap = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.proactiveSameHerGapSummary, 320) || null
+      const proactiveSameHerGap = hasProactiveSameHerGap && projectStateCandidate.proactiveSameHerGap === null
+        ? null
+        : canonicalProactiveSameHerGap || aliasProactiveSameHerGap
+      const proactiveSameHerGapSummary = hasProactiveSameHerGap && projectStateCandidate.proactiveSameHerGap === null
+        ? null
+        : hasProactiveSameHerGapSummary && projectStateCandidate.proactiveSameHerGapSummary === null
+          ? null
+          : aliasProactiveSameHerGap || proactiveSameHerGap
       const continuityRestraint = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityRestraint, 64) || null
       const continuityArcStage = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityArcStage, 120) || null
       const continuityPreferredTiming = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityPreferredTiming, 120) || null
@@ -6028,61 +6045,73 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
       const preferredVoiceMode = normalizeAlicizationProjectStateVoiceMode(projectStateCandidate.preferredVoiceMode)
       const preferredPacingMode = normalizeAlicizationProjectStatePacingMode(projectStateCandidate.preferredPacingMode)
 
-      if (!hasAlicizationProjectAwarenessContent([
-        preflightSummary,
-        preDialogueAwarenessLine,
-        identity,
-        currentPhase,
-        latestLandedProgress,
-        memoryClosureSummary,
-        primaryOpenLoop,
-        nextClosureTarget,
-        sameHerSelfLine,
-        sameHerHoldDetail,
-        sameHerDriftRisk,
-        emotionalClosureCue,
-        proactiveSameHerGap,
-        continuityRestraint,
-        continuityArcStage,
-        continuityPreferredTiming,
-        continuityCadence,
-        continuityCue,
-        preferredBlinkCadence,
-        preferredGazeMode,
-        preferredPauseMode,
-        preferredLipsyncMode,
-        preferredVoiceMode,
-        preferredPacingMode,
-      ])) {
-        return null
+      const normalizedProjectState: AlicizationRuntimeProjectStateDigest = {}
+      let hasExplicitNull = false
+      const assign = (
+        key: keyof AlicizationRuntimeProjectStateDigest,
+        value: unknown,
+        rawKeys: string[] = [key],
+      ) => {
+        if (!rawKeys.some(rawKey => Object.prototype.hasOwnProperty.call(projectStateCandidate, rawKey)))
+          return
+        const hasRawExplicitNull = rawKeys.some(rawKey =>
+          Object.prototype.hasOwnProperty.call(projectStateCandidate, rawKey)
+          && projectStateCandidate[rawKey] === null,
+        )
+        if ((value === null || value === undefined) && !hasRawExplicitNull)
+          return
+        hasExplicitNull ||= hasRawExplicitNull
+        ;(normalizedProjectState as Record<string, unknown>)[key] = value
       }
 
-      return {
-        preflightSummary,
-        preDialogueAwarenessLine,
-        identity,
-        currentPhase,
-        latestLandedProgress,
-        memoryClosureSummary,
-        primaryOpenLoop,
-        nextClosureTarget,
-        sameHerSelfLine,
-        sameHerHoldDetail,
-        sameHerDriftRisk,
-        emotionalClosureCue,
-        ...(proactiveSameHerGap ? { proactiveSameHerGap } : {}),
-        continuityRestraint,
-        continuityArcStage,
-        continuityPreferredTiming,
-        continuityCadence,
-        continuityCue,
-        preferredBlinkCadence,
-        preferredGazeMode,
-        preferredPauseMode,
-        preferredLipsyncMode,
-        preferredVoiceMode,
-        preferredPacingMode,
+      assign('preflightSummary', preflightSummary)
+      assign('preDialogueAwarenessLine', preDialogueAwarenessLine)
+      assign('continuitySummary', continuitySummary)
+      assign('identity', identity)
+      assign('currentPhase', currentPhase)
+      assign('latestLandedProgress', latestLandedProgress, [
+        'latestLandedProgress',
+        'latestProgress',
+        'landedProgressSummary',
+      ])
+      assign('memoryClosureSummary', memoryClosureSummary)
+      assign('primaryOpenLoop', primaryOpenLoop)
+      assign('nextClosureTarget', nextClosureTarget)
+      assign('sameHerSelfLine', sameHerSelfLine)
+      assign('sameHerHoldDetail', sameHerHoldDetail)
+      assign('sameHerDriftRisk', sameHerDriftRisk)
+      assign('emotionalClosureCue', emotionalClosureCue)
+      if (hasProactiveSameHerGap || hasProactiveSameHerGapSummary) {
+        if (hasProactiveSameHerGap || aliasProactiveSameHerGap) {
+          assign('proactiveSameHerGap', proactiveSameHerGap, hasProactiveSameHerGap
+            ? ['proactiveSameHerGap']
+            : ['proactiveSameHerGapSummary'])
+        }
+        assign('proactiveSameHerGapSummary', proactiveSameHerGapSummary, [
+          'proactiveSameHerGap',
+          'proactiveSameHerGapSummary',
+        ])
       }
+      assign('continuityRestraint', continuityRestraint)
+      assign('continuityArcStage', continuityArcStage)
+      assign('continuityPreferredTiming', continuityPreferredTiming)
+      assign('continuityCadence', continuityCadence)
+      assign('continuityCue', continuityCue)
+      assign('preferredBlinkCadence', preferredBlinkCadence)
+      assign('preferredGazeMode', preferredGazeMode)
+      assign('preferredPauseMode', preferredPauseMode)
+      assign('preferredLipsyncMode', preferredLipsyncMode)
+      assign('preferredVoiceMode', preferredVoiceMode)
+      assign('preferredPacingMode', preferredPacingMode)
+
+      if (
+        !hasExplicitNull
+        && !hasAlicizationProjectAwarenessContent(Object.values(normalizedProjectState))
+      ) {
+        return undefined
+      }
+
+      return normalizedProjectState
     })(),
     affectiveResidue,
     derivedMindStateBundle,

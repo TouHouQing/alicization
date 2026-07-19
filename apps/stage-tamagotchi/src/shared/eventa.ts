@@ -2414,9 +2414,18 @@ export interface AlicizationCurrentConsciousFrameSnapshot {
   centerOfGravity: AlicizationReplyMotive
   truthDiscipline: AlicizationConsciousTruthDiscipline
   consciousNeed: string
+  consciousNeedSource?: 'user-text' | 'question' | 'host-move' | null
   consciousTension: string
   speakingIntention: string
   focusAnchor?: string | null
+  focusAnchorSource?:
+    | 'user-text'
+    | 'question'
+    | 'host-move'
+    | 'conversation-anchor'
+    | 'discourse-anchor'
+    | 'dialogue-task-anchor'
+    | null
   withheldImpulse?: string | null
   shouldWithholdSpecificity: boolean
   shouldSelfRevise: boolean
