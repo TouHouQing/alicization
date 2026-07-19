@@ -17,7 +17,6 @@ import {
 
 import { buildAutobiographicalContinuityLines, pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
-import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
 
 export interface AlicizationSelfContinuityAuthority {
   selfLine: string | null
@@ -62,16 +61,6 @@ function compactStructuredValue(raw: unknown, maxChars = 120) {
     .slice(0, maxChars)
 }
 
-function normalizeProjectIdentityField(raw: unknown) {
-  const text = sanitizeText(raw, 220)
-  if (!text)
-    return ''
-  const lower = text.toLowerCase()
-  if (/local-first digital life|local digital life|phase\s*1|one continuous her|same living line|same-her|same her/u.test(lower))
-    return ''
-  return compactStructuredValue(text, 120)
-}
-
 function structuredContinuityProjectionLine(raw: unknown, role: string) {
   const text = sanitizeText(raw, 360)
   const lower = text.toLowerCase()
@@ -102,67 +91,6 @@ function structuredContinuityProjectionLine(raw: unknown, role: string) {
 
 function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
-}
-
-function looksLikeEmbodimentClosureCarryLine(raw: unknown) {
-  const text = sanitizeText(raw, 320).toLowerCase()
-  if (!text)
-    return false
-
-  return /holding together mainly through|being carried mainly through|living audio thread|body and voice|face and voice|body, lipsync, and voice|cross-modal closure|audible-body|audible body/u.test(text)
-}
-
-function countEmbodimentClosureSignals(raw: unknown) {
-  const text = sanitizeText(raw, 320).toLowerCase()
-  if (!text)
-    return 0
-
-  let score = 0
-  if (text.includes('holding together mainly through') || text.includes('being carried mainly through'))
-    score += 3
-  if (text.includes('living audio thread'))
-    score += 3
-  if (text.includes('body, lipsync, and voice'))
-    score += 3
-  if (text.includes('body and voice') || text.includes('face and voice'))
-    score += 2
-  if (text.includes('audible-body') || text.includes('audible body'))
-    score += 2
-  if (text.includes('cross-modal closure'))
-    score += 2
-  if (text.includes('voice') || text.includes('lipsync') || text.includes('face and motion'))
-    score += 1
-  return score
-}
-
-function scoreAuthorityEmbodimentClosure(
-  authority: Partial<AlicizationSelfContinuityAuthority> | null | undefined,
-) {
-  if (!authority)
-    return 0
-
-  return [
-    authority.selfLine,
-    authority.relationshipLine,
-    authority.inwardLine,
-    authority.authoritySummary,
-  ].reduce((score, line) => score + countEmbodimentClosureSignals(line), 0)
-}
-
-function authorityCarriesSameHerProjectSignal(
-  authority: Partial<AlicizationSelfContinuityAuthority> | null | undefined,
-) {
-  const combined = sanitizeText([
-    authority?.selfLine,
-    authority?.relationshipLine,
-    authority?.inwardLine,
-    authority?.authoritySummary,
-  ].filter(Boolean).join(' | '), 800).toLowerCase()
-
-  if (!combined)
-    return false
-
-  return /same phase 1 digital life|same living line|same-her|same her|one continuous her|continuous her|local-first digital life|phase 1/u.test(combined)
 }
 
 function looksLikeHighPriorityContinuityMemoryLine(raw: unknown) {
@@ -345,7 +273,18 @@ function shouldPreferDurableSelfCoreLine(input: {
   const baselineIsGenericPersonaLine
     = !!autobiographicalIdentity
       && !baselineAlreadyCarriesContinuity
-      && !/(repair truth|truth|ground|continuous|continuity|same her|same self|living self|digital life|phase 1)/u.test(autobiographicalIdentity)
+      && ![
+        'repair truth',
+        'truth',
+        'ground',
+        'continuous',
+        'continuity',
+        'same her',
+        'same self',
+        'living self',
+        'digital life',
+        'phase 1',
+      ].some(signal => autobiographicalIdentity.includes(signal))
 
   return explicitContinuitySignal
     && !baselineCarriesTruthDoctrine
@@ -416,200 +355,6 @@ function latestReflection(reflectionLedger?: AlicizationReflectionLedgerSnapshot
   return entries.find(entry => entry.outcome !== 'released')
     ?? entries[0]
     ?? null
-}
-
-function shouldPreferProjectStateFallbackAuthority(input: {
-  authority?: AlicizationSelfContinuityAuthority | null
-  fallbackAuthority?: AlicizationSelfContinuityAuthority | null
-}) {
-  const authority = input.authority ?? null
-  const fallbackAuthority = input.fallbackAuthority ?? null
-
-  if (!fallbackAuthority?.sourceTags.includes('runtime-project-state-carry'))
-    return false
-  if (!authority)
-    return true
-  if (authorityCarriesSameHerProjectSignal(authority))
-    return false
-
-  const authorityHasNonDerivedSignals = authority.sourceTags.some(tag =>
-    !tag.startsWith('ecology:')
-    && !tag.startsWith('private-thought:')
-    && !tag.startsWith('reflection:'),
-  )
-
-  return !authorityHasNonDerivedSignals
-}
-
-function mergeEmbodimentFallbackIntoAuthority(input: {
-  authority?: AlicizationSelfContinuityAuthority | null
-  fallbackAuthority?: AlicizationSelfContinuityAuthority | null
-}) {
-  const authority = input.authority ?? null
-  const fallbackAuthority = input.fallbackAuthority ?? null
-
-  if (!fallbackAuthority)
-    return authority
-  if (!authority)
-    return fallbackAuthority
-  if (shouldPreferProjectStateFallbackAuthority({ authority, fallbackAuthority })) {
-    return {
-      ...fallbackAuthority,
-      motiveLine: fallbackAuthority.motiveLine ?? authority.motiveLine,
-      habitLine: fallbackAuthority.habitLine ?? authority.habitLine,
-      closenessPosture: fallbackAuthority.closenessPosture ?? authority.closenessPosture ?? null,
-      sourceTags: uniqueList([
-        ...fallbackAuthority.sourceTags,
-        ...authority.sourceTags,
-      ], 8),
-    } satisfies AlicizationSelfContinuityAuthority
-  }
-  if (!fallbackAuthority.sourceTags.includes('project-state-companion-headline'))
-    return authority
-
-  const fallbackEmbodimentScore = scoreAuthorityEmbodimentClosure(fallbackAuthority)
-  const authorityEmbodimentScore = scoreAuthorityEmbodimentClosure(authority)
-  if (fallbackEmbodimentScore <= authorityEmbodimentScore)
-    return authority
-
-  const relationshipLine = fallbackAuthority.relationshipLine ?? authority.relationshipLine
-  const inwardLine
-    = scoreAuthorityEmbodimentClosure({
-      inwardLine: fallbackAuthority.inwardLine,
-      authoritySummary: fallbackAuthority.authoritySummary,
-    })
-    >= scoreAuthorityEmbodimentClosure({
-      inwardLine: authority.inwardLine,
-      authoritySummary: authority.authoritySummary,
-    })
-      ? (fallbackAuthority.inwardLine ?? authority.inwardLine)
-      : authority.inwardLine
-
-  return {
-    ...authority,
-    relationshipLine,
-    inwardLine,
-    authoritySummary: uniqueList([
-      authority.selfLine,
-      relationshipLine,
-      inwardLine,
-      authority.relationshipLine,
-      authority.motiveLine,
-      authority.habitLine,
-      authority.inwardLine,
-      fallbackAuthority.selfLine,
-      fallbackAuthority.authoritySummary,
-    ], 4).join(' | ') || authority.authoritySummary,
-    closenessPosture: authority.closenessPosture ?? fallbackAuthority.closenessPosture ?? null,
-    sourceTags: uniqueList([
-      ...authority.sourceTags,
-      ...fallbackAuthority.sourceTags,
-    ], 8),
-  } satisfies AlicizationSelfContinuityAuthority
-}
-
-export function buildRuntimeSurfaceProjectStateContinuityFallback(
-  projectState?: {
-    identity?: unknown
-    currentPhase?: unknown
-    latestProgress?: unknown
-    latestLandedProgress?: unknown
-    landedProgressSummary?: unknown
-    primaryOpenLoop?: unknown
-    nextClosureTarget?: unknown
-    sameHerSelfLine?: unknown
-    companionHeadlineLine?: unknown
-    companionBriefingLine?: unknown
-    preDialogueAwarenessLine?: unknown
-  } | null,
-) {
-  const normalizedProjectState = projectState
-    ? resolveAlicizationProjectStateSnapshot({
-        runtimeProjectState: {
-          identity: projectState.identity,
-          currentPhase: projectState.currentPhase,
-          latestLandedProgress:
-            sanitizeText(projectState.latestLandedProgress, 320)
-            || sanitizeText(projectState.latestProgress, 320)
-            || sanitizeText(projectState.landedProgressSummary, 320)
-            || null,
-          primaryOpenLoop: projectState.primaryOpenLoop,
-          nextClosureTarget: projectState.nextClosureTarget,
-          sameHerSelfLine: projectState.sameHerSelfLine ?? null,
-        },
-      })
-    : {
-        identity: '',
-        currentPhase: '',
-        preflightSummary: null,
-        latestLandedProgress: null,
-        primaryOpenLoop: null,
-        nextClosureTarget: '',
-        sameHerSelfLine: '',
-      }
-  const identity = sanitizeText(normalizedProjectState.identity, 220)
-  const currentPhase = sanitizeText(normalizedProjectState.currentPhase, 160)
-  const primaryOpenLoop = sanitizeText(normalizedProjectState.primaryOpenLoop, 220)
-  const nextClosureTarget = sanitizeText(normalizedProjectState.nextClosureTarget, 220)
-  const latestProgress = sanitizeText(normalizedProjectState.latestLandedProgress, 220)
-  const sameHerSelfLine = sanitizeText(normalizedProjectState.sameHerSelfLine, 220)
-  const embodimentCarryLine = uniqueList([
-    looksLikeEmbodimentClosureCarryLine(projectState?.companionHeadlineLine) ? sanitizeText(projectState?.companionHeadlineLine, 320) : '',
-    looksLikeEmbodimentClosureCarryLine(projectState?.companionBriefingLine) ? sanitizeText(projectState?.companionBriefingLine, 320) : '',
-    looksLikeEmbodimentClosureCarryLine(projectState?.preDialogueAwarenessLine) ? sanitizeText(projectState?.preDialogueAwarenessLine, 320) : '',
-  ], 1)[0] ?? null
-
-  if (!identity && !currentPhase && !primaryOpenLoop && !nextClosureTarget && !latestProgress && !sameHerSelfLine && !embodimentCarryLine)
-    return null
-
-  const selfLine = sanitizeText([
-    sameHerSelfLine ? structuredContinuityProjectionLine(sameHerSelfLine, 'continuity_anchor') : '',
-    identity && normalizeProjectIdentityField(identity) ? `identity_scope=${normalizeProjectIdentityField(identity)}` : '',
-    currentPhase && (normalizeProjectIdentityField(currentPhase) || compactStructuredValue(currentPhase, 80))
-      ? `phase_scope=${normalizeProjectIdentityField(currentPhase) || compactStructuredValue(currentPhase, 80)}`
-      : '',
-  ].filter(Boolean).join(' '), 220) || null
-  const relationshipLine = sanitizeText(
-    embodimentCarryLine
-    || [
-      primaryOpenLoop ? `open_loop=${compactStructuredValue(primaryOpenLoop, 120)}; pressure=lower` : '',
-      nextClosureTarget ? `next_closure=${compactStructuredValue(nextClosureTarget, 140)}` : '',
-    ].filter(Boolean).join(' '),
-    220,
-  ) || null
-  const inwardLine = sanitizeText([
-    embodimentCarryLine ? `embodiment_carry=${compactStructuredValue(embodimentCarryLine, 120)}` : '',
-    sameHerSelfLine ? structuredContinuityProjectionLine(sameHerSelfLine, 'continuity_anchor') : '',
-    latestProgress ? `verified_closure_progress=${compactStructuredValue(latestProgress, 140)}` : '',
-    primaryOpenLoop ? `open_loop=${compactStructuredValue(primaryOpenLoop, 120)}` : '',
-  ].filter(Boolean).join(' | '), 220) || null
-  const authoritySummary = uniqueList([
-    selfLine,
-    relationshipLine,
-    inwardLine,
-  ], 3).join(' | ') || null
-
-  if (!authoritySummary)
-    return null
-
-  return {
-    selfLine,
-    relationshipLine,
-    motiveLine: null,
-    habitLine: null,
-    inwardLine,
-    authoritySummary,
-    closenessPosture: 'space-first',
-    sourceTags: uniqueList([
-      'runtime-project-state-carry',
-      identity ? 'project-state-identity' : '',
-      currentPhase ? 'project-state-phase' : '',
-      primaryOpenLoop ? 'project-state-open-loop' : '',
-      nextClosureTarget ? 'project-state-next-closure' : '',
-      sameHerSelfLine ? 'project-state-continuity' : '',
-      embodimentCarryLine ? 'project-state-companion-headline' : '',
-    ], 8),
-  } satisfies AlicizationSelfContinuityAuthority
 }
 
 export function buildSelfContinuityAuthority(input: {
@@ -819,7 +564,7 @@ export function buildSelfContinuityAuthorityFromRuntimeSurface(
 ) {
   if (!surface)
     return null
-  const authority = buildSelfContinuityAuthority({
+  return buildSelfContinuityAuthority({
     autobiographicalSelf: surface.memory?.autobiographicalSelf ?? null,
     longHorizonMemory: surface.memory?.longHorizonMemory ?? null,
     motiveEngine: surface.memory?.motiveEngine ?? null,
@@ -828,16 +573,5 @@ export function buildSelfContinuityAuthorityFromRuntimeSurface(
     privateThought: surface.cognition?.privateThought ?? null,
     reflectionLedger: surface.memory?.reflectionLedger ?? null,
     selfEvolution: surface.memory?.selfEvolution ?? null,
-  })
-  const fallbackAuthority = buildRuntimeSurfaceProjectStateContinuityFallback(
-    surface.dialogue?.currentConsciousFrame?.projectState
-    ?? surface.raw?.runtimeDigest?.projectState
-    ?? (surface.cognition as { runtimeDigest?: { projectState?: Record<string, unknown> | null } } | null | undefined)?.runtimeDigest?.projectState
-    ?? null,
-  )
-
-  return mergeEmbodimentFallbackIntoAuthority({
-    authority,
-    fallbackAuthority,
   })
 }

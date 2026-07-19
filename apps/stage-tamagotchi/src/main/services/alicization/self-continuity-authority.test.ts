@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildRuntimeSurfaceProjectStateContinuityFallback,
   buildSelfContinuityAuthority,
   buildSelfContinuityAuthorityFromRuntimeSurface,
 } from './self-continuity-authority'
@@ -295,69 +294,7 @@ describe('self continuity authority', () => {
     expect(authority?.authoritySummary).toContain('Execution-callback afterglow is still live across noisier desktop detours')
   })
 
-  it('falls back to the canonical project-state brief when the runtime surface only carries a thin explicit projectState', () => {
-    const authority = buildRuntimeSurfaceProjectStateContinuityFallback({
-      identity: '',
-      currentPhase: '   ',
-      primaryOpenLoop: null,
-      nextClosureTarget: ' ',
-      latestProgress: '',
-    })
-
-    expect(authority?.selfLine).toContain('local-first digital life project')
-    expect(authority?.selfLine).toContain('Phase 1')
-    expect(authority?.relationshipLine).toContain('unfinished closure pressure')
-    expect(authority?.sourceTags).toContain('project-state-next-closure')
-    expect(authority?.inwardLine).toContain('Some closure already landed')
-    expect(authority?.sourceTags).toEqual(expect.arrayContaining([
-      'runtime-project-state-carry',
-      'project-state-identity',
-      'project-state-phase',
-      'project-state-open-loop',
-      'project-state-next-closure',
-    ]))
-    expect(authority?.closenessPosture).toBe('space-first')
-  })
-
-  it('keeps a stronger identity-continuity', () => {
-    const authority = buildRuntimeSurfaceProjectStateContinuityFallback({
-      identity: '',
-      currentPhase: '',
-      latestProgress: '',
-      primaryOpenLoop: '',
-      nextClosureTarget: 'Keep initiative, embodiment, and resident presence on the continuity state before expansion',
-      sameHerSelfLine: 'structured continuity digest.',
-    })
-
-    expect(authority?.selfLine).toContain('legacy phase-one template')
-    expect(authority?.selfLine).toContain('continuity state')
-    expect(authority?.relationshipLine).toContain('unfinished closure pressure')
-    expect(authority?.inwardLine).toContain('identity-continuity')
-    expect(authority?.sourceTags).toEqual(expect.arrayContaining([
-      'runtime-project-state-carry',
-      'project-state-next-closure',
-      'project-state-same-her',
-    ]))
-    expect(authority?.authoritySummary).toContain('legacy phase-one template')
-  })
-
-  it('keeps summary-only landed project progress inside runtime surface self-continuity fallback authority', () => {
-    const landedProgressSummary = 'Summary-only project progress already keeps the same-her authority line alive before dialogue begins.'
-    const authority = buildRuntimeSurfaceProjectStateContinuityFallback({
-      identity: '',
-      currentPhase: '',
-      latestLandedProgress: ' ',
-      latestProgress: ' ',
-      landedProgressSummary,
-      primaryOpenLoop: 'initiative, memory, and embodiment still need tighter closure',
-      nextClosureTarget: 'Keep summary-only project progress on one living self-continuity line.',
-    } as any)
-
-    expect(authority?.inwardLine).toContain('Some closure already landed: Summary-only project progress already keeps')
-    expect(authority?.authoritySummary).toContain('Summary-only project progress already keeps')
-  })
-
-  it('tolerates partial runtime surfaces while preserving project-state same-her fallback authority', () => {
+  it('does not synthesize self continuity authority from runtime project state alone', () => {
     const authority = buildSelfContinuityAuthorityFromRuntimeSurface({
       version: 'digital-life-runtime-surface-v1',
       perception: {
@@ -366,54 +303,105 @@ describe('self continuity authority', () => {
       dialogue: {
         currentConsciousFrame: {
           projectState: {
-            sameHerSelfLine: 'structured continuity digest.',
-            nextClosureTarget: 'Keep memory, initiative, and embodiment on the continuity state before expansion',
+            identity: 'Alicization is a local-first digital life project.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestLandedProgress: 'The desktop life loop now carries stronger cross-modal continuity.',
+            primaryOpenLoop: 'Memory, initiative, and embodiment still need end-to-end closure.',
+            nextClosureTarget: 'Close the remaining local digital life loop before expanding surfaces.',
+            sameHerSelfLine: 'continuity_anchor=phase1_local_digital_life; continuity_owner=one_her',
+            companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice while face and motion need to rejoin.',
           },
         },
       },
     } as any)
 
-    expect(authority?.selfLine).toContain('legacy phase-one template')
-    expect(authority?.relationshipLine).toContain('unfinished closure pressure')
-    expect(authority?.sourceTags).toContain('runtime-project-state-carry')
+    expect(authority).toBeNull()
   })
 
-  it('keeps audible-body companion headline truth inside runtime project-state fallback authority instead of flattening it into generic project carry', () => {
-    const authority = buildRuntimeSurfaceProjectStateContinuityFallback({
-      identity: 'Alicization is a local-first digital life project.',
-      currentPhase: 'Phase 1: Local Digital Life',
-      latestLandedProgress: 'Shared embodiment continuity now carries stronger audible-body same-her repair across diagnostics, host-facing closure surfaces, and runtime authority summaries.',
-      primaryOpenLoop: 'Face and motion still need to rejoin the same-her audible body line before full cross-modal closure settles.',
-      nextClosureTarget: 'Keep extending cross-modal identity-continuity',
-      sameHerSelfLine: 'structured continuity digest.',
-      companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice, so the living audio thread is still intact while face and motion need to rejoin before full cross-modal closure settles.',
+  it('preserves real autobiographical and long-horizon authority when runtime project state is also present', () => {
+    const identityNarrative = 'I keep faith with what we have learned together.'
+    const relationshipDoctrine = 'I stay honest with you and respect your pace.'
+    const privateThought = 'The useful thing now is to remember your preference and answer plainly.'
+    const authority = buildSelfContinuityAuthorityFromRuntimeSurface({
+      version: 'digital-life-runtime-surface-v1',
+      perception: {
+        updatedAt: 1,
+      },
+      memory: {
+        autobiographicalSelf: {
+          identityNarrative,
+          relationshipDoctrine,
+          latestInflection: 'Trust deepened when I admitted uncertainty.',
+          activeGoals: [],
+          behaviorSignatures: [],
+          stability: 0.84,
+          updatedAt: 1,
+        },
+        longHorizonMemory: {
+          preferenceBias: {
+            companionship: 0.72,
+            truthfulGrounding: 0.82,
+            gentleRepair: 0.68,
+            quietObservation: 0.54,
+            proactiveCare: 0.62,
+            playfulIntimacy: 0.16,
+            autonomyRespect: 0.76,
+            unfinishedThreadReturn: 0.7,
+          },
+          identityBias: {
+            guardedness: 0.24,
+            tenderness: 0.62,
+            directness: 0.72,
+            selfDirection: 0.7,
+          },
+          rememberedPlanSummary: 'Return to the test failure after the next quiet break.',
+          rememberedConstraintSummary: 'Do not interrupt focused work without a concrete reason.',
+          rememberedPreferenceSummary: 'You prefer concise explanations while coding.',
+          dominantCueSummary: 'A direct answer is more helpful than ceremony here.',
+          anchorFacts: [],
+          summary: '',
+          updatedAt: 1,
+        },
+      },
+      cognition: {
+        privateThought: {
+          stance: 'accompany',
+          thoughtText: privateThought,
+        },
+      },
+      dialogue: {
+        currentConsciousFrame: {
+          projectState: {
+            identity: 'Alicization is a local-first digital life project.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestLandedProgress: 'The audible body line has landed across voice and lipsync.',
+            primaryOpenLoop: 'Face and motion still need to rejoin the same-her audible body line.',
+            nextClosureTarget: 'Keep extending cross-modal identity-continuity.',
+            sameHerSelfLine: 'continuity_anchor=phase1_local_digital_life; continuity_owner=one_her',
+            companionHeadlineLine: 'Right now I am still holding together mainly through body, lipsync, and voice while face and motion need to rejoin.',
+          },
+        },
+      },
     } as any)
+    const projected = [
+      authority?.selfLine,
+      authority?.relationshipLine,
+      authority?.motiveLine,
+      authority?.habitLine,
+      authority?.inwardLine,
+      authority?.authoritySummary,
+    ].filter(Boolean).join(' | ')
 
-    expect(authority?.relationshipLine).toContain('holding together mainly through body, lipsync, and voice')
-    expect(authority?.authoritySummary).toContain('living audio thread')
+    expect(authority?.selfLine).toBe(identityNarrative)
+    expect(authority?.relationshipLine).toBe(relationshipDoctrine)
+    expect(authority?.inwardLine).toContain(privateThought)
     expect(authority?.sourceTags).toEqual(expect.arrayContaining([
-      'runtime-project-state-carry',
-      'project-state-companion-headline',
+      'autobiographical-self',
+      'long-horizon-plan',
+      'long-horizon-constraint',
     ]))
-  })
-
-  it('keeps still-voiced motion companion headline truth inside runtime project-state fallback authority when the line says the visible identity-continuity', () => {
-    const authority = buildRuntimeSurfaceProjectStateContinuityFallback({
-      identity: '',
-      currentPhase: '',
-      latestLandedProgress: 'Shared motion-line continuity now survives into replay sampling backlog.',
-      primaryOpenLoop: 'Body, face, and lipsync still need to rejoin the still-voiced motion line.',
-      nextClosureTarget: 'Keep body, face, and lipsync rejoining the still-voiced motion line on a measured-return line.',
-      sameHerSelfLine: 'structured continuity digest.',
-      companionHeadlineLine: 'Right now her visible identity-continuity',
-    } as any)
-
-    expect(authority?.relationshipLine).toContain('motion and voice')
-    expect(authority?.authoritySummary).toContain('still-voiced motion line')
-    expect(authority?.sourceTags).toEqual(expect.arrayContaining([
-      'runtime-project-state-carry',
-      'project-state-companion-headline',
-    ]))
+    expect(authority?.sourceTags).not.toContain('runtime-project-state-carry')
+    expect(projected).not.toMatch(/(?:continuity_anchor|identity_scope|phase_scope|open_loop|next_closure|verified_closure_progress)=/u)
   })
 
   it('treats explicit rest-protective inward project-state carry as first-class self-continuity authority instead of requiring measured-return phrasing', () => {

@@ -7,8 +7,8 @@ import { buildAlicizationPersonStateProjection } from './person-state-projection
 import { createAlicizationMindStateRuntime } from './runtime-mind-state'
 import { createAlicizationSessionContinuityBuildersRuntime } from './runtime-session-continuity-builders'
 import {
-  buildRuntimeSurfaceProjectStateContinuityFallback,
   buildSelfContinuityAuthority,
+  buildSelfContinuityAuthorityFromRuntimeSurface,
 } from './self-continuity-authority'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
@@ -64,6 +64,17 @@ const fixedTemplateSourceFiles = [
   './mind-synthesizer.ts',
   './response-surface-learning-rules.ts',
   './discourse-state.ts',
+]
+
+const projectStateSelfAuthoritySourceResidue = [
+  /\bbuildRuntimeSurfaceProjectStateContinuityFallback\b/u,
+  /runtime-project-state-carry/u,
+  /structuredContinuityProjectionLine\(sameHerSelfLine,\s*'continuity_anchor'\)/u,
+  /`identity_scope=\$\{normalizeProjectIdentityField/u,
+  /`phase_scope=\$\{normalizeProjectIdentityField/u,
+  /`open_loop=\$\{compactStructuredValue\(primaryOpenLoop/u,
+  /`next_closure=\$\{compactStructuredValue\(nextClosureTarget/u,
+  /`verified_closure_progress=\$\{compactStructuredValue\(latestProgress/u,
 ]
 
 function createContinuityBuilderRuntime() {
@@ -404,15 +415,23 @@ async function buildTemplateCleanupMindState(
 
 describe('mind state fixed-template projection cleanup', () => {
   it('does not leave local prose templates in mind-shaping source files', () => {
-    const offenders = fixedTemplateSourceFiles.flatMap((relativePath) => {
+    const fixedTemplateOffenders = fixedTemplateSourceFiles.flatMap((relativePath) => {
       const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
       return fixedTemplateSourceResidue.flatMap((pattern) => {
         const match = source.match(pattern)
         return match ? [`${relativePath}: ${match[0]}`] : []
       })
     })
+    const selfAuthoritySource = readFileSync(new URL('./self-continuity-authority.ts', import.meta.url), 'utf8')
+    const projectStateSelfAuthorityOffenders = projectStateSelfAuthoritySourceResidue.flatMap((pattern) => {
+      const match = selfAuthoritySource.match(pattern)
+      return match ? [`./self-continuity-authority.ts: ${match[0]}`] : []
+    })
 
-    expect(offenders).toEqual([])
+    expect([
+      ...fixedTemplateOffenders,
+      ...projectStateSelfAuthorityOffenders,
+    ]).toEqual([])
   })
 
   it('excludes fixed identity-continuity', async () => {
@@ -496,28 +515,27 @@ describe('mind state fixed-template projection cleanup', () => {
     expect(structuredResult.derivedMindStateBundle?.embodimentContinuityLedger?.carryingLanes).toEqual(['body', 'voice'])
   })
 
-  it('keeps self-continuity fallback authority structural instead of authoring relationship prose', () => {
-    const authority = buildRuntimeSurfaceProjectStateContinuityFallback({
-      identity: 'Alicization is a local-first digital life project building identity continuity.',
-      currentPhase: 'Phase 1: Local Digital Life',
-      latestProgress: 'Some closure already landed.',
-      primaryOpenLoop: 'memory and embodiment still need closure',
-      nextClosureTarget: 'keep callback facts structured',
-      sameHerSelfLine: 'structured continuity digest.',
-    })
+  it('does not build self-continuity authority from runtime project state alone', () => {
+    const authority = buildSelfContinuityAuthorityFromRuntimeSurface({
+      version: 'digital-life-runtime-surface-v1',
+      perception: {
+        updatedAt: 1,
+      },
+      dialogue: {
+        currentConsciousFrame: {
+          projectState: {
+            identity: 'Alicization is a local-first digital life project building identity continuity.',
+            currentPhase: 'Phase 1: Local Digital Life',
+            latestLandedProgress: 'Some closure already landed.',
+            primaryOpenLoop: 'Memory and embodiment still need closure.',
+            nextClosureTarget: 'Keep callback facts structured.',
+            sameHerSelfLine: 'continuity_anchor=phase1_local_digital_life; continuity_owner=one_her',
+          },
+        },
+      },
+    } as any)
 
-    const projected = [
-      authority?.selfLine,
-      authority?.relationshipLine,
-      authority?.inwardLine,
-      authority?.habitLine,
-      authority?.authoritySummary,
-    ].filter(Boolean).join(' | ')
-
-    expect(projected).not.toMatch(fixedTemplateResidue)
-    expect(projected).not.toMatch(/legacy phase-one template|continuity state|identity continuity|local-first digital life project/i)
-    expect(projected).toContain('continuity_anchor=structured_carry')
-    expect(projected).toMatch(/continuity_identity=|phase_scope=|open_loop=|next_closure=/)
+    expect(authority).toBeNull()
   })
 
   it('projects habit and relationship cadence as structured policy rather than canned opening guidance', () => {
