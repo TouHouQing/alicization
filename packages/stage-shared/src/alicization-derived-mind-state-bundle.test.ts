@@ -20,7 +20,7 @@ describe('buildDerivedMindStateBundle', () => {
           },
         },
         continuityPhase: 'quiet',
-        carryingLanes: [],
+        carryingLanes: ['body'],
         droppedLanes: [],
         rejoinedLanes: [],
         pendingRejoinLanes: [],
@@ -42,6 +42,7 @@ describe('buildDerivedMindStateBundle', () => {
     })
 
     expect(bundle?.embodimentContinuityLedger?.lanes?.body.status).toBe('silent')
+    expect(bundle?.embodimentContinuityLedger?.carryingLanes).toEqual([])
   })
 
   it('preserves embodiment continuity ledger for cross-modal same-her replay and repair', () => {

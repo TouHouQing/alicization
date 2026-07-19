@@ -4002,16 +4002,28 @@ function normalizeAlicizationEmbodimentContinuityLedgerSnapshot(raw: unknown): A
   const selfRevisionCandidate = candidate.selfRevisionCandidate && typeof candidate.selfRevisionCandidate === 'object' && !Array.isArray(candidate.selfRevisionCandidate)
     ? candidate.selfRevisionCandidate as Record<string, unknown>
     : null
+  const carryingLanes = lanes
+    ? laneNames.filter(lane => lanes[lane].status === 'carrying-continuity')
+    : normalizeAlicizationEmbodimentContinuityLaneList(candidate.carryingLanes).slice(0, 5)
+  const droppedLanes = lanes
+    ? laneNames.filter(lane => lanes[lane].status === 'dropped')
+    : normalizeAlicizationEmbodimentContinuityLaneList(candidate.droppedLanes).slice(0, 5)
+  const rejoinedLanes = lanes
+    ? laneNames.filter(lane => lanes[lane].status === 'rejoined')
+    : normalizeAlicizationEmbodimentContinuityLaneList(candidate.rejoinedLanes).slice(0, 5)
+  const pendingRejoinLanes = lanes
+    ? laneNames.filter(lane => lanes[lane].status === 'dropped' || lanes[lane].status === 'pending-rejoin')
+    : normalizeAlicizationEmbodimentContinuityLaneList(candidate.pendingRejoinLanes).slice(0, 5)
 
   return {
     version: 'embodiment-continuity-ledger-v1',
     createdAt: normalizeNonNegativeInteger(candidate.createdAt),
     turnId: sanitizeAlicizationDigitalLifeDigestText(candidate.turnId, 160) || null,
     lanes,
-    carryingLanes: normalizeAlicizationEmbodimentContinuityLaneList(candidate.carryingLanes).slice(0, 5),
-    droppedLanes: normalizeAlicizationEmbodimentContinuityLaneList(candidate.droppedLanes).slice(0, 5),
-    rejoinedLanes: normalizeAlicizationEmbodimentContinuityLaneList(candidate.rejoinedLanes).slice(0, 5),
-    pendingRejoinLanes: normalizeAlicizationEmbodimentContinuityLaneList(candidate.pendingRejoinLanes).slice(0, 5),
+    carryingLanes,
+    droppedLanes,
+    rejoinedLanes,
+    pendingRejoinLanes,
     continuityPhase: phase,
     memoryWriteback: {
       shouldWrite: memoryWriteback?.shouldWrite === true,
