@@ -50,7 +50,7 @@ describe('embodiment-continuity-ledger', () => {
     expect(ledger.selfRevisionCandidate.reasonCodes).toEqual(expect.arrayContaining([
       'embodiment-lane-dropped:face',
       'embodiment-lane-dropped:motion',
-      'embodiment-pending-rejoin:lipsync',
+      'embodiment-partial:lipsync',
     ]))
     expect(ledger.traceSummary).toContain('dropped=face,motion')
     expect(ledger.lanes.body.status).toBe('carrying-continuity')
@@ -87,6 +87,38 @@ describe('embodiment-continuity-ledger', () => {
     }))
     expect(ledger.selfRevisionCandidate.shouldPropose).toBe(false)
     expect(ledger.replayLine).toContain('face+motion+lipsync rejoined')
+  })
+
+  it('does not treat normalized silent lanes as missing continuity', () => {
+    const ledger = buildAlicizationEmbodimentContinuityLedger({
+      createdAt: 1_740_000,
+      turnId: 'turn-embodiment-silent-normalized',
+      previous: {
+        body: { status: 'silent', summary: 'legacy status was normalized to silent' },
+        voice: { status: 'silent', summary: 'legacy status was normalized to silent' },
+        face: { status: 'silent', summary: 'legacy status was normalized to silent' },
+        motion: { status: 'silent', summary: 'legacy status was normalized to silent' },
+        lipsync: { status: 'silent', summary: 'legacy status was normalized to silent' },
+      },
+      current: {
+        body: { available: true, continuityCarry: true, summary: 'body carries continuity' },
+        voice: { available: true, continuityCarry: true, summary: 'voice carries continuity' },
+        face: { available: true, continuityCarry: true, summary: 'face carries continuity' },
+        motion: { available: true, continuityCarry: true, summary: 'motion carries continuity' },
+        lipsync: { available: true, continuityCarry: true, summary: 'lipsync carries continuity' },
+      },
+    })
+
+    expect(ledger.lanes).toEqual(expect.objectContaining({
+      body: expect.objectContaining({ status: 'carrying-continuity' }),
+      voice: expect.objectContaining({ status: 'carrying-continuity' }),
+      face: expect.objectContaining({ status: 'carrying-continuity' }),
+      motion: expect.objectContaining({ status: 'carrying-continuity' }),
+      lipsync: expect.objectContaining({ status: 'carrying-continuity' }),
+    }))
+    expect(ledger.continuityPhase).toBe('quiet')
+    expect(ledger.rejoinedLanes).toEqual([])
+    expect(ledger.memoryWriteback.shouldWrite).toBe(false)
   })
 
   it('contains no legacy same-her carry field or status', () => {

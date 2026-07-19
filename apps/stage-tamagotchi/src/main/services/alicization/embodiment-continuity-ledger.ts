@@ -81,7 +81,7 @@ function plusList(values: string[]) {
 }
 
 function hasLaneBeenMissing(status: AlicizationEmbodimentContinuityLaneStatus | null | undefined) {
-  return status === 'dropped' || status === 'pending-rejoin' || status === 'silent'
+  return status === 'dropped' || status === 'pending-rejoin'
 }
 
 function resolveLaneStatus(input: {

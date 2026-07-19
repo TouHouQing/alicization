@@ -31,7 +31,7 @@ describe('embodiment-self-revision-bridge', () => {
       selfRevisionCandidate: {
         shouldPropose: true,
         domain: 'dialogue-style',
-        reasonCodes: ['embodiment-lane-dropped:face', 'embodiment-lane-dropped:motion', 'embodiment-pending-rejoin:lipsync'],
+        reasonCodes: ['embodiment-lane-dropped:face', 'embodiment-lane-dropped:motion', 'embodiment-partial:lipsync'],
         summary: 'Cross-modal embodiment needs repair.',
       },
       traceSummary: 'phase=partial-carry | carrying=body,voice | dropped=face,motion | pending_rejoin=face,motion,lipsync',
@@ -64,7 +64,7 @@ describe('embodiment-self-revision-bridge', () => {
       'embodiment-memory:cross-modal-continuity',
       'embodiment-lane-dropped:face',
       'embodiment-lane-dropped:motion',
-      'embodiment-pending-rejoin:lipsync',
+      'embodiment-partial:lipsync',
       'same-her-self-line-active',
       'same-her-anti-shell-guard-active',
     ]))

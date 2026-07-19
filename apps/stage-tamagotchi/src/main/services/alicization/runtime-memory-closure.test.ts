@@ -122,7 +122,7 @@ describe('runtime memory closure', () => {
         selfRevisionCandidate: {
           shouldPropose: true,
           domain: 'dialogue-style',
-          reasonCodes: ['embodiment-lane-dropped:face', 'embodiment-lane-dropped:motion', 'embodiment-pending-rejoin:lipsync'],
+          reasonCodes: ['embodiment-lane-dropped:face', 'embodiment-lane-dropped:motion', 'embodiment-partial:lipsync'],
           summary: 'Embodiment continuity needs cross-modal repair.',
         },
         traceSummary: 'phase=partial-carry | carrying=body,voice | dropped=face,motion | pending_rejoin=face,motion,lipsync',
@@ -153,7 +153,7 @@ describe('runtime memory closure', () => {
         'embodiment-carry-voice',
         'embodiment-dropped-face',
         'embodiment-dropped-motion',
-        'embodiment-pending-rejoin-lipsync',
+        'embodiment-partial-lipsync',
       ]),
       lesson: expect.stringContaining('face+motion+lipsync'),
     }))

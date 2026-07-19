@@ -65,7 +65,7 @@ describe('buildDerivedMindStateBundle', () => {
         selfRevisionCandidate: {
           shouldPropose: true,
           domain: 'dialogue-style',
-          reasonCodes: ['embodiment-lane-dropped:face', 'embodiment-pending-rejoin:lipsync'],
+          reasonCodes: ['embodiment-lane-dropped:face', 'embodiment-partial:lipsync'],
           summary: 'Cross-modal embodiment needs repair before it feels like one lifeform.',
         },
         traceSummary: 'phase=partial-carry | carrying=body,voice | dropped=face,motion',
