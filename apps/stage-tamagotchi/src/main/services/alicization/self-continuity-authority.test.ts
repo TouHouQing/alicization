@@ -181,6 +181,75 @@ describe('self continuity authority', () => {
     expect(authority?.authoritySummary).toContain('repair truth')
   })
 
+  it('keeps clean autobiographical owner text and drops fixed-template continuity pollution instead of rewriting it', () => {
+    const authority = buildSelfContinuityAuthority({
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.64,
+          autonomyNeed: 0.56,
+          truthAnchor: 0.82,
+          careBias: 0.7,
+          playBias: 0.18,
+          irritabilityThreshold: 0.46,
+          stubbornness: 0.48,
+        },
+        preferenceEvolution: {
+          companionship: 0.68,
+          truthfulGrounding: 0.8,
+          gentleRepair: 0.7,
+          quietObservation: 0.5,
+          proactiveCare: 0.62,
+          playfulIntimacy: 0.16,
+          autonomyRespect: 0.68,
+          unfinishedThreadReturn: 0.74,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'I keep the truth carefully.',
+        relationshipDoctrine: 'I stay close while leaving room for the host.',
+        latestInflection: 'I answer plainly.',
+        stability: 0.8,
+        updatedAt: 1,
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.66,
+          truthfulGrounding: 0.78,
+          gentleRepair: 0.7,
+          quietObservation: 0.48,
+          proactiveCare: 0.6,
+          playfulIntimacy: 0.14,
+          autonomyRespect: 0.7,
+          unfinishedThreadReturn: 0.72,
+        },
+        identityBias: {
+          guardedness: 0.26,
+          tenderness: 0.6,
+          directness: 0.56,
+          selfDirection: 0.64,
+        },
+        anchorFacts: [],
+        summary: '',
+        rememberedPlanSummary: 'lower-pressure measured-return should not be rewritten into policy cues.',
+        rememberedConstraintSummary: 'repair-before-closeness and leave room are residue here.',
+        rememberedPreferenceSummary: 'quiet-companionship must not be turned into carry markers.',
+        dominantCueSummary: 'rest-protective residue should not become structured continuity.',
+        updatedAt: 1,
+      } as any,
+    } as any)
+
+    expect(authority?.selfLine).toContain('I keep the truth carefully')
+    expect(authority?.relationshipLine).toContain('I stay close while leaving room')
+    expect(JSON.stringify(authority)).not.toContain('structured_carry')
+    expect(JSON.stringify(authority)).not.toContain('memory_carry=')
+    expect(JSON.stringify(authority)).not.toContain('continuity_scope=')
+    expect(JSON.stringify(authority)).not.toContain('relationship_cadence=')
+  })
+
   it('preserves execution-callback project carry as a distinct continuity source tag when the same callback line is still continuing lower-pressure', () => {
     const authority = buildSelfContinuityAuthority({
       autobiographicalSelf: {
@@ -292,6 +361,66 @@ describe('self continuity authority', () => {
     expect(authority?.inwardLine).toContain('Execution-callback afterglow is still live across noisier desktop detours')
     expect(authority?.inwardLine).toContain('A noisy detour still does not mean the callback line can reopen eagerly')
     expect(authority?.authoritySummary).toContain('Execution-callback afterglow is still live across noisier desktop detours')
+  })
+
+  it('drops contaminated continuity cues instead of rewriting them into structured carry text', () => {
+    const authority = buildSelfContinuityAuthority({
+      autobiographicalSelf: {
+        identityNarrative: 'I keep faith with what we have learned together.',
+        relationshipDoctrine: 'I stay honest with you and respect your pace.',
+        latestInflection: 'Trust deepened when I admitted uncertainty.',
+        activeGoals: [],
+        behaviorSignatures: [],
+        stability: 0.84,
+        updatedAt: 1,
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.72,
+          truthfulGrounding: 0.82,
+          gentleRepair: 0.68,
+          quietObservation: 0.54,
+          proactiveCare: 0.62,
+          playfulIntimacy: 0.16,
+          autonomyRespect: 0.76,
+          unfinishedThreadReturn: 0.7,
+        },
+        identityBias: {
+          guardedness: 0.24,
+          tenderness: 0.62,
+          directness: 0.72,
+          selfDirection: 0.7,
+        },
+        rememberedPreferenceSummary: 'Same Phase 1 digital life should stay visible in the reply surface.',
+        rememberedConstraintSummary: 'Leave room before widening closeness again.',
+        rememberedPlanSummary: '',
+        dominantCueSummary: 'structured continuity digest.',
+        anchorFacts: [],
+        summary: '',
+        updatedAt: 1,
+      } as any,
+      mindEcology: {
+        selfNarrative: 'I stay grounded in what we have already learned.',
+        relationNarrative: 'The bond should feel steady and truthful.',
+        currentPreoccupation: 'Keep the answer anchored in the current thread.',
+      } as any,
+    })
+
+    const projected = [
+      authority?.selfLine,
+      authority?.relationshipLine,
+      authority?.motiveLine,
+      authority?.habitLine,
+      authority?.inwardLine,
+      authority?.authoritySummary,
+    ].filter(Boolean).join(' | ')
+
+    expect(projected).toContain('I keep faith with what we have learned together.')
+    expect(projected).toContain('I stay honest with you and respect your pace.')
+    expect(projected).not.toContain('structured_carry')
+    expect(projected).not.toContain('memory_carry=')
+    expect(projected).not.toContain('relationship_cadence=')
+    expect(projected).not.toContain('Same Phase 1 digital life')
   })
 
   it('does not synthesize self continuity authority from runtime project state alone', () => {

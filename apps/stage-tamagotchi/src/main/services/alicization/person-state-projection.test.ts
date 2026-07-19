@@ -277,8 +277,8 @@ describe('person-state-projection', () => {
       }),
     })
 
-    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('phase_scope=phase1_local_life')
-    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('memory_carry=structured_carry')
+    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('keep the runtime thread coherent')
+    expect(projection.selfContinuityAuthority?.inwardLine?.toLowerCase()).toContain('continuity should stay lived-in and thread-faithful')
     expect(projection.selfContinuityAuthority?.sourceTags).toContain('project-state-carry')
   })
 
@@ -345,10 +345,10 @@ describe('person-state-projection', () => {
     })
 
     expect(projection.selfContinuityAuthority).not.toBeNull()
-    expect(projection.selfContinuityAuthority?.selfLine).toContain('continuity_scope=detected')
+    expect(projection.selfContinuityAuthority?.selfLine).toBe('Warmth should stay lived-in instead of becoming automatic.')
     expect(projection.selfContinuityAuthority?.relationshipLine).toContain('truth or room')
     expect(projection.selfContinuityAuthority?.motiveLine).toContain('Protect continuity')
-    expect(projection.selfContinuityAuthority?.authoritySummary).toContain('visibility=redacted_internal')
+    expect(String(projection.selfContinuityAuthority?.authoritySummary ?? '')).not.toContain('visibility=redacted_internal')
   })
 
   it('lets durable-self-core alone shape lower-pressure same-line projection instead of reopening from scratch', () => {

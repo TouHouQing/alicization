@@ -11,7 +11,6 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 
 import {
-  containsAlicizationFixedTemplateResidue,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
@@ -61,32 +60,12 @@ function compactStructuredValue(raw: unknown, maxChars = 120) {
     .slice(0, maxChars)
 }
 
-function structuredContinuityProjectionLine(raw: unknown, role: string) {
+function structuredContinuityProjectionLine(raw: unknown) {
   const text = sanitizeText(raw, 360)
-  const lower = text.toLowerCase()
   if (!text)
     return ''
 
-  const carriesContinuityTemplate
-    = containsAlicizationFixedTemplateResidue(text)
-      || /same callback line|same line|same thread|one continuous|one living|same self|local-first digital life|phase\s*1|reopening from zero|reopen from zero|reopening from scratch|without restarting/u.test(lower)
-  const carriesPolicyTemplate
-    = /lower-pressure|low-pressure|measured-return|repair-before-closeness|repair before closeness|quiet-companionship|rest-protective|protect rest|wait for confirmation|widening closeness|widening warmth|leave room/u.test(lower)
-  if (!carriesContinuityTemplate && !carriesPolicyTemplate)
-    return sanitizeAuthorityField(text, 220)
-
-  return [
-    `${role}=structured_carry`,
-    carriesContinuityTemplate ? 'continuity_scope=detected' : '',
-    /callback/u.test(lower) ? 'callback_carry=true' : '',
-    /phase\s*1|local-first digital life|local digital life/u.test(lower) ? 'continuity_scope=life_loop' : '',
-    /unfinished|open loop|still needs|not closed/u.test(lower) ? 'open_loop=present' : '',
-    /already landed|some closure|verified_closure_progress|has landed/u.test(lower) ? 'landed_closure=partial' : '',
-    /lower-pressure|low-pressure|measured-return|leave room/u.test(lower) ? 'pressure=lower' : '',
-    /repair-before-closeness|repair before closeness/u.test(lower) ? 'repair_policy=before_closeness' : '',
-    /rest-protective|protect rest/u.test(lower) ? 'rest_window=protect' : '',
-    /wait for confirmation/u.test(lower) ? 'confirmation=required' : '',
-  ].filter(Boolean).join('; ')
+  return sanitizeAuthorityField(text, 220)
 }
 
 function asArray<T>(value: T[] | null | undefined) {
@@ -273,7 +252,7 @@ function shouldPreferDurableSelfCoreLine(input: {
   const baselineIsGenericPersonaLine
     = !!autobiographicalIdentity
       && !baselineAlreadyCarriesContinuity
-      && !/(repair truth|truth|ground|continuous|continuity|same her|same self|living self|digital life|phase 1)/u.test(autobiographicalIdentity)
+      && !/repair truth|truth|ground|continuous|continuity|same her|same self|living self|digital life|phase 1/u.test(autobiographicalIdentity)
 
   return explicitContinuitySignal
     && !baselineCarriesTruthDoctrine
@@ -291,7 +270,7 @@ function buildSelfEvolutionRelationshipCadenceLine(
   if (!/same her|same-her|same living line|without reopening from scratch|without restarting from scratch|across quiet, memory, and speech|one continuous her/u.test(normalized))
     return null
 
-  return structuredContinuityProjectionLine(relationshipCadenceSummary, 'relationship_cadence')
+  return structuredContinuityProjectionLine(relationshipCadenceSummary)
 }
 
 function inferExecutionCallbackProjectCarryTag(input: {
@@ -414,18 +393,18 @@ export function buildSelfContinuityAuthority(input: {
 
   const selfLine = sanitizeText(
     (preferDurableSelfCoreLine ? (selfEvolutionRelationshipCadenceLine || durableSelfCoreLine) : '')
-    || structuredContinuityProjectionLine(input.autobiographicalSelf?.identityNarrative, 'self_line')
-    || structuredContinuityProjectionLine(input.autobiographicalSelf?.latestInflection, 'self_line')
-    || structuredContinuityProjectionLine(input.mindEcology?.selfNarrative, 'self_line')
+    || structuredContinuityProjectionLine(input.autobiographicalSelf?.identityNarrative)
+    || structuredContinuityProjectionLine(input.autobiographicalSelf?.latestInflection)
+    || structuredContinuityProjectionLine(input.mindEcology?.selfNarrative)
     || selfEvolutionRelationshipCadenceLine
     || durableSelfCoreLine
-    || structuredContinuityProjectionLine(continuityLines[0], 'self_line')
+    || structuredContinuityProjectionLine(continuityLines[0])
     || '',
     220,
   ) || null
   const relationshipLine = sanitizeText(
-    structuredContinuityProjectionLine(input.autobiographicalSelf?.relationshipDoctrine, 'relationship_line')
-    || structuredContinuityProjectionLine(input.mindEcology?.relationNarrative, 'relationship_line')
+    structuredContinuityProjectionLine(input.autobiographicalSelf?.relationshipDoctrine)
+    || structuredContinuityProjectionLine(input.mindEcology?.relationNarrative)
     || '',
     220,
   ) || null
@@ -452,21 +431,21 @@ export function buildSelfContinuityAuthority(input: {
     (
       carriesExecutionCallbackProjectCarry
         ? [
-            ...prioritizedContinuityMemoryLines.map(line => structuredContinuityProjectionLine(line, 'memory_carry')),
-            structuredContinuityProjectionLine(projectStateCarryLine, 'project_state_carry'),
-            structuredContinuityProjectionLine(input.privateThought?.thoughtText, 'private_thought'),
-            structuredContinuityProjectionLine(input.mindEcology?.currentPreoccupation, 'current_preoccupation'),
+            ...prioritizedContinuityMemoryLines.map(line => structuredContinuityProjectionLine(line)),
+            structuredContinuityProjectionLine(projectStateCarryLine),
+            structuredContinuityProjectionLine(input.privateThought?.thoughtText),
+            structuredContinuityProjectionLine(input.mindEcology?.currentPreoccupation),
             sanitizeAuthorityField(reflection?.revision, 220),
-            structuredContinuityProjectionLine(continuityLines[1], 'continuity_line'),
+            structuredContinuityProjectionLine(continuityLines[1]),
           ]
         : [
-            structuredContinuityProjectionLine(prioritizedProjectStateCarryLine, 'project_state_carry'),
-            structuredContinuityProjectionLine(input.privateThought?.thoughtText, 'private_thought'),
-            structuredContinuityProjectionLine(input.mindEcology?.currentPreoccupation, 'current_preoccupation'),
+            structuredContinuityProjectionLine(prioritizedProjectStateCarryLine),
+            structuredContinuityProjectionLine(input.privateThought?.thoughtText),
+            structuredContinuityProjectionLine(input.mindEcology?.currentPreoccupation),
             sanitizeAuthorityField(reflection?.revision, 220),
-            structuredContinuityProjectionLine(continuityLines[1], 'continuity_line'),
-            ...prioritizedContinuityMemoryLines.map(line => structuredContinuityProjectionLine(line, 'memory_carry')),
-            prioritizedProjectStateCarryLine ? '' : structuredContinuityProjectionLine(projectStateCarryLine, 'project_state_carry'),
+            structuredContinuityProjectionLine(continuityLines[1]),
+            ...prioritizedContinuityMemoryLines.map(line => structuredContinuityProjectionLine(line)),
+            prioritizedProjectStateCarryLine ? '' : structuredContinuityProjectionLine(projectStateCarryLine),
           ]
     ).filter(Boolean).join(' | '),
     220,
