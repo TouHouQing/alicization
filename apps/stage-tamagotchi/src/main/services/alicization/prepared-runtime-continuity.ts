@@ -158,28 +158,6 @@ function scoreAuthorityEmbodimentContinuity(authority: {
   ].reduce<number>((score, line) => score + countEmbodimentContinuitySignals(line), 0)
 }
 
-function authorityCarriesSameHerProjectContinuity(authority: {
-  selfLine?: unknown
-  relationshipLine?: unknown
-  inwardLine?: unknown
-  authoritySummary?: unknown
-} | null | undefined) {
-  if (!authority)
-    return false
-
-  const combined = [
-    sanitizePreparedRuntimeText(authority.selfLine, 320),
-    sanitizePreparedRuntimeText(authority.relationshipLine, 320),
-    sanitizePreparedRuntimeText(authority.inwardLine, 320),
-    sanitizePreparedRuntimeText(authority.authoritySummary, 320),
-  ].filter(Boolean).join(' | ').toLowerCase()
-
-  if (!combined)
-    return false
-
-  return /same phase 1 digital life|same living line|same-her|same her|one continuous her|continuous her|local-first digital life|phase 1/u.test(combined)
-}
-
 function countAuthorityStructureFields(authority: {
   selfLine?: unknown
   relationshipLine?: unknown
@@ -757,14 +735,29 @@ export function resolvePreparedRuntimeSelfContinuityAuthority(
     bundleProjection: bundlePersonStateProjection,
     runtimeProjection: runtimePersonStateProjection,
   })
-  const runtimeProjectionAuthority = preferredPersonStateProjection?.selfContinuityAuthority ?? null
+  const runtimeSurfaceHasMemoryOwnerAuthority = Boolean(
+    runtimeSurfaceAuthority?.sourceTags?.some(tag =>
+      tag === 'autobiographical-self'
+      || tag.startsWith('long-horizon-'),
+    ),
+  )
+  const bundleProjectionAuthority = bundlePersonStateProjection?.selfContinuityAuthority ?? null
+  const preferredProjectionAuthority = preferredPersonStateProjection?.selfContinuityAuthority ?? null
+  const bundleAuthority = runtimeSurfaceHasMemoryOwnerAuthority
+    && bundleProjectionAuthority?.sourceTags?.includes('runtime-project-state-carry')
+    ? null
+    : bundleProjectionAuthority
+  const runtimeProjectionAuthority = runtimeSurfaceHasMemoryOwnerAuthority
+    && preferredProjectionAuthority?.sourceTags?.includes('runtime-project-state-carry')
+    ? null
+    : preferredProjectionAuthority
   const projectedSelfContinuityAuthority = resolvePreferredSelfContinuityAuthority<Partial<AlicizationSelfContinuityAuthority>>({
-    bundleAuthority: bundlePersonStateProjection?.selfContinuityAuthority ?? null,
+    bundleAuthority,
     runtimeAuthority: runtimeProjectionAuthority,
   })
 
   const mergedSelfContinuityAuthority = mergePreferredSelfContinuityAuthority<Partial<AlicizationSelfContinuityAuthority>>({
-    bundleAuthority: bundlePersonStateProjection?.selfContinuityAuthority ?? null,
+    bundleAuthority,
     runtimeAuthority: runtimeProjectionAuthority,
   }) ?? projectedSelfContinuityAuthority
   const runtimeProjectionRelationshipCarry = deriveRuntimeProjectionRelationshipCarry(preferredPersonStateProjection)
@@ -783,17 +776,9 @@ export function resolvePreparedRuntimeSelfContinuityAuthority(
         ].filter(Boolean).join(' | ') || mergedSelfContinuityAuthority.authoritySummary,
       }
     : mergedSelfContinuityAuthority
-  const runtimeSurfaceAuthorityIsProjectStateFallbackOnly = Boolean(
-    runtimeSurfaceAuthority?.sourceTags?.includes('runtime-project-state-carry')
-    && !runtimeSurfaceAuthority?.sourceTags?.includes('project-state-companion-headline'),
-  )
-  const mergedAuthorityAlreadyCarriesSameHerProjectContinuity
-    = authorityCarriesSameHerProjectContinuity(enrichedMergedSelfContinuityAuthority)
 
   if (
     runtimeSurfaceAuthority
-    && (!runtimeSurfaceAuthorityIsProjectStateFallbackOnly
-      || !mergedAuthorityAlreadyCarriesSameHerProjectContinuity)
     && countAuthorityStructureFields(runtimeSurfaceAuthority) >= countAuthorityStructureFields(runtimeProjectionAuthority)
     && countAuthorityStructureFields(runtimeSurfaceAuthority) >= countAuthorityStructureFields(enrichedMergedSelfContinuityAuthority)
     && (

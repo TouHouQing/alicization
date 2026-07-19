@@ -293,6 +293,74 @@ describe('prepared-runtime-continuity', () => {
     expectNoFixedTemplateResidue(authority)
   })
 
+  it('rejects persisted project-state authority when runtime memory owners are present', () => {
+    const autobiographicalIdentity = 'I remember how our trust grew and answer from that lived history.'
+    const rememberedPlan = 'Return to the unfinished test after the next quiet break.'
+    const legacyProjectStateProse = 'LEGACY PROJECT STATE SELF AUTHORITY MUST NOT RETURN'
+    const authority = resolvePreparedRuntimeSelfContinuityAuthority({
+      runtimeSurface: {
+        digitalLifeRuntimeSurface: {
+          perception: { updatedAt: 50, watchMode: 'ambient' },
+          memory: {
+            autobiographicalSelf: {
+              identityNarrative: autobiographicalIdentity,
+              activeGoals: [],
+            },
+            longHorizonMemory: {
+              preferenceBias: {
+                companionship: 0.72,
+                truthfulGrounding: 0.82,
+                gentleRepair: 0.68,
+                quietObservation: 0.54,
+                proactiveCare: 0.62,
+                playfulIntimacy: 0.16,
+                autonomyRespect: 0.76,
+                unfinishedThreadReturn: 0.7,
+              },
+              identityBias: {
+                guardedness: 0.24,
+                tenderness: 0.62,
+                directness: 0.72,
+                selfDirection: 0.7,
+              },
+              rememberedPlanSummary: rememberedPlan,
+              rememberedConstraintSummary: 'Do not interrupt focused work without a concrete reason.',
+              anchorFacts: [],
+              summary: '',
+              updatedAt: 50,
+            },
+            personStateProjection: {
+              selfContinuityAuthority: {
+                selfLine: legacyProjectStateProse,
+                relationshipLine: `${legacyProjectStateProse} relationship`,
+                motiveLine: `${legacyProjectStateProse} motive`,
+                habitLine: `${legacyProjectStateProse} habit`,
+                inwardLine: `${legacyProjectStateProse} inward`,
+                authoritySummary: `${legacyProjectStateProse} summary`,
+                sourceTags: ['runtime-project-state-carry', 'persisted-legacy-authority'],
+              },
+            },
+          },
+          agency: { habitPolicy: null },
+          cognition: { privateThought: null },
+          dialogue: { answerPlanner: null, conversationState: null, currentConsciousFrame: null },
+          world: { worldModel: null },
+        },
+      },
+    } as any)
+    const serializedAuthority = JSON.stringify(authority)
+
+    expect(authority?.selfLine).toBe(autobiographicalIdentity)
+    expect(authority?.inwardLine).toContain(rememberedPlan)
+    expect(authority?.sourceTags).toEqual(expect.arrayContaining([
+      'autobiographical-self',
+      'long-horizon-plan',
+      'long-horizon-constraint',
+    ]))
+    expect(authority?.sourceTags).not.toContain('runtime-project-state-carry')
+    expect(serializedAuthority).not.toContain(legacyProjectStateProse)
+  })
+
   it('fills missing authority summary from structured self and inward lines', () => {
     const authority = resolvePreparedRuntimeSelfContinuityAuthority({
       runtimeSurface: {

@@ -1744,7 +1744,7 @@ describe('runtime execution delivery', () => {
     expect(authority?.authoritySummary).toContain('Measured identity-continuity')
   })
 
-  it('falls back to project-state continuity authority when a sparse session runtime surface is missing memory lanes', async () => {
+  it('does not synthesize self continuity authority from a sparse project-state-only session surface', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -1803,16 +1803,7 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(authority?.selfLine ?? null).toBeNull()
-    expectNoFixedProjectTemplateResidue(authority?.selfLine)
-    expect(authority?.relationshipLine).toContain('open_loop=memory_dialogue_embodiment_closure')
-    expect(authority?.relationshipLine).toContain('pressure=lower')
-    expectNoFixedProjectTemplateResidue(authority?.relationshipLine)
-    expect(authority?.sourceTags ?? []).toEqual(expect.arrayContaining([
-      'runtime-project-state-carry',
-      'project-state-open-loop',
-      'project-state-next-closure',
-    ]))
+    expect(authority).toBeNull()
   })
 
   it('prefers a freshly rebuilt host relationship model when the session snapshot stays on an older warmer callback line', async () => {
