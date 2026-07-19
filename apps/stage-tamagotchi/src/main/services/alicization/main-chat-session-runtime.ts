@@ -90,7 +90,6 @@ import {
   projectWorkingMemoryOwnerEpisodes,
 } from './life-core/working-memory-owner-context'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
-import { buildMainChatActionObligationSystemBlock } from './main-chat-action-obligation'
 import {
   applyMainChatExecutionReplyObligationToGovernance,
   buildMainChatExecutionReplyObligationSystemBlock,
@@ -9300,7 +9299,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const runtimeSurface = await agentTurn.trackPhase('runtime-surface', async () => {
       return buildAlicizationMainChatRuntimeSurface({
         actionObligation: prelude.actionObligation,
-        actionObligationSystemBlock: buildMainChatActionObligationSystemBlock(prelude.actionObligation),
         allowTools,
         waitForTools,
         baseMessages: messages,

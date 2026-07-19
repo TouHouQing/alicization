@@ -91,7 +91,6 @@ export interface AlicizationMainChatRuntimeSurface {
 export const alicizationLivingSelfMarker = 'alicization-living-self'
 
 const alicizationProviderFactTypes = new Set([
-  'alicization-action-obligation',
   'alicization-datetime',
   'alicization-execution-callbacks',
   'alicization-execution-capabilities',
@@ -157,7 +156,6 @@ interface MainChatRuntimeSurfaceToolDescriptor {
 
 export interface BuildAlicizationMainChatRuntimeSurfaceInput {
   actionObligation?: AlicizationMainChatActionObligation | null
-  actionObligationSystemBlock?: string
   agentRuntimeSystemBlocks?: string[]
   allowTools: boolean
   baseMessages: Message[]
@@ -552,7 +550,6 @@ export function buildAlicizationMainChatRuntimeSurface(
     ...filteredPerceptionPromptSystemBlocks,
     ...filteredPerceptionSystemBlocks,
     livingSelfFactBlock,
-    input.actionObligationSystemBlock ?? '',
     input.executionReplyObligationSystemBlock ?? '',
     ...effectiveExecutionCapabilitySystemBlocks,
     effectiveExecutionRoutingEnforcementSystemBlock,

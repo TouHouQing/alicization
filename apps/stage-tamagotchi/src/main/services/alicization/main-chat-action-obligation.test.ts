@@ -3,7 +3,6 @@ import type { AlicizationExecutionCapabilityInquiry, AlicizationExecutionRouting
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildMainChatActionObligationSystemBlock,
   deriveMainChatActionObligation,
 } from './main-chat-action-obligation'
 
@@ -214,25 +213,6 @@ function createDialogueFirstRuntimeSurface() {
 }
 
 describe('main chat action obligation', () => {
-  it('serializes action authority as data without reply-writing instructions', () => {
-    const obligation: Parameters<typeof buildMainChatActionObligationSystemBlock>[0] = {
-      confidence: 0.9,
-      kind: 'execute',
-      reasonCodes: ['command-literal'],
-      routingIntent: createExplicitRoutingIntent(),
-      source: 'explicit-routing',
-      summary: 'Run the requested command.',
-    }
-
-    const block = buildMainChatActionObligationSystemBlock(obligation)
-
-    expect(JSON.parse(block)).toEqual({
-      type: 'alicization-action-obligation',
-      data: obligation,
-    })
-    expect(block).not.toMatch(/must not contradict|before speaking|This block is the turn-level action authority/iu)
-  })
-
   it('preserves explicit executor routing as execution authority', () => {
     const result = deriveMainChatActionObligation({
       userText: '帮我执行 `pnpm lint`',

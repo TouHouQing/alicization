@@ -1989,14 +1989,7 @@ describe('main chat execution surface', () => {
             decisionTraceId: 'trace-local-visual-context-1',
             sessionId: 'session-local-visual-context-1',
             agentSessionId: 'agent-session-1',
-            projectBriefing: expect.objectContaining({
-              identity: null,
-              currentPhase: null,
-              latestLandedProgress: expect.stringContaining('Continuity progress is partial'),
-              primaryOpenLoop: expect.stringContaining('Memory, dialogue, and embodiment still need end-to-end proof'),
-              nextClosureTarget: expect.stringContaining('Extend embodiment-scale validation'),
-              sameHerSelfLine: null,
-            }),
+            projectBriefing: null,
             recentActions: [{
               kind: 'sensory',
               status: 'completed',
@@ -2026,14 +2019,7 @@ describe('main chat execution surface', () => {
             decisionTraceId: 'trace-local-visual-context-1',
             sessionId: 'session-local-visual-context-1',
             agentSessionId: 'agent-session-1',
-            projectBriefing: expect.objectContaining({
-              identity: null,
-              currentPhase: null,
-              latestLandedProgress: expect.stringContaining('Continuity progress is partial'),
-              primaryOpenLoop: expect.stringContaining('Memory, dialogue, and embodiment still need end-to-end proof'),
-              nextClosureTarget: expect.stringContaining('Extend embodiment-scale validation'),
-              sameHerSelfLine: null,
-            }),
+            projectBriefing: null,
             recentActions: [{
               kind: 'sensory',
               status: 'completed',

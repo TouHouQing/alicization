@@ -9,7 +9,6 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 
 import {
   analyzeAlicizationExecutionTurnAuthority,
-  buildAlicizationProviderFactBlock,
   hasExplicitAlicizationExecutionDemand,
 } from '@proj-alicization/stage-shared'
 
@@ -691,8 +690,4 @@ export function deriveMainChatActionObligation(input: {
       pureDialogueMemoryClosureContinuation ? 'memory-closure-dialogue-continuation' : '',
     ].filter(Boolean)),
   }
-}
-
-export function buildMainChatActionObligationSystemBlock(obligation: AlicizationMainChatActionObligation) {
-  return buildAlicizationProviderFactBlock('alicization-action-obligation', obligation)
 }

@@ -1171,11 +1171,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       .map(message => String(message.content ?? ''))
       .join('\n')
 
-    expect(actionFact?.data).toMatchObject({
-      kind: 'answer',
-      routingIntent: null,
-      source: 'capability-inquiry',
-    })
+    expect(actionFact).toBeNull()
     expect(capabilityFact?.data).toEqual({
       capabilityQuestion: true,
       channels: [
@@ -1329,10 +1325,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       .map(message => String(message.content ?? ''))
       .join('\n')
 
-    expect(actionFact?.data).toMatchObject({
-      kind: 'execute',
-      source: 'explicit-routing',
-    })
+    expect(actionFact).toBeNull()
     expect(routingFact?.data).toEqual({
       reasonCodes: expect.arrayContaining(['action-verb']),
       requestedChannels: ['cli'],
