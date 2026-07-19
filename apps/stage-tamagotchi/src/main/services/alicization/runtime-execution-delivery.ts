@@ -141,7 +141,14 @@ function sanitizeExecutionDeliveryProjectFreeText(raw: unknown, maxChars = 320) 
   if (!ledgerText)
     return null
   const providerSafe = sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '')
-  return providerSafe && providerSafe !== alicizationFixedTemplateReplacement ? providerSafe : null
+  if (
+    !providerSafe
+    || providerSafe === alicizationFixedTemplateReplacement
+    || /pre_turn_context_digest|template-residue-shell|legacy phase-one template|right now she is still holding together mainly through/iu.test(providerSafe)
+  ) {
+    return null
+  }
+  return providerSafe
 }
 
 function sanitizeExecutionDeliveryProjectControlText(raw: unknown, maxChars = 120) {
@@ -159,6 +166,79 @@ function sanitizeExecutionProjectionCarryText(raw: unknown, maxChars = 320) {
   if (/Same Phase 1 digital life|same living line|same-her baseline|Before answering/iu.test(safe))
     return null
   return safe
+}
+
+function sanitizeExecutionProjectionRequiredText(raw: unknown, maxChars = 320) {
+  return sanitizeExecutionProjectionCarryText(raw, maxChars) ?? ''
+}
+
+function sanitizeExecutionPersonalityContinuityState(
+  state: AlicizationPersonalityContinuityStateSnapshot,
+) {
+  return {
+    ...state,
+    continuitySummary: sanitizeExecutionProjectionRequiredText(state.continuitySummary, 520),
+    regimeModel: state.regimeModel
+      ? {
+          ...state.regimeModel,
+          primaryReason: sanitizeExecutionProjectionCarryText(state.regimeModel.primaryReason, 320),
+          carryReason: sanitizeExecutionProjectionCarryText(state.regimeModel.carryReason, 320),
+          signals: (state.regimeModel.signals ?? [])
+            .map(signal => sanitizeExecutionProjectionRequiredText(signal, 220))
+            .filter(Boolean),
+        }
+      : state.regimeModel,
+    rhythmState: state.rhythmState
+      ? {
+          ...state.rhythmState,
+          summary: sanitizeExecutionProjectionRequiredText(state.rhythmState.summary, 520),
+          rationale: (state.rhythmState.rationale ?? [])
+            .map(reason => sanitizeExecutionProjectionRequiredText(reason, 220))
+            .filter(Boolean),
+        }
+      : state.rhythmState,
+    trustMeaning: state.trustMeaning == null ? state.trustMeaning : sanitizeExecutionProjectionCarryText(state.trustMeaning, 320),
+    reconsolidationLine: state.reconsolidationLine == null ? state.reconsolidationLine : sanitizeExecutionProjectionCarryText(state.reconsolidationLine, 320),
+    selfLine: state.selfLine == null ? state.selfLine : sanitizeExecutionProjectionCarryText(state.selfLine, 320),
+    relationLine: state.relationLine == null ? state.relationLine : sanitizeExecutionProjectionCarryText(state.relationLine, 320),
+    currentPreoccupation: state.currentPreoccupation == null
+      ? state.currentPreoccupation
+      : sanitizeExecutionProjectionCarryText(state.currentPreoccupation, 320),
+    rationale: (state.rationale ?? [])
+      .map(reason => sanitizeExecutionProjectionRequiredText(reason, 220))
+      .filter(Boolean),
+  } satisfies AlicizationPersonalityContinuityStateSnapshot
+}
+
+function sanitizeExecutionPersonStateProjection(projection: AlicizationPersonStateProjection) {
+  const authority = projection.selfContinuityAuthority
+  return {
+    ...projection,
+    personalityContinuityState: sanitizeExecutionPersonalityContinuityState(projection.personalityContinuityState),
+    openingGuidance: sanitizeExecutionProjectionCarryText(projection.openingGuidance, 320),
+    manifestationCadenceSummary: sanitizeExecutionProjectionCarryText(projection.manifestationCadenceSummary, 320),
+    preferenceText: sanitizeExecutionProjectionRequiredText(projection.preferenceText, 320),
+    sensitivityText: sanitizeExecutionProjectionRequiredText(projection.sensitivityText, 320),
+    repairTriggerText: sanitizeExecutionProjectionRequiredText(projection.repairTriggerText, 320),
+    burdenText: sanitizeExecutionProjectionRequiredText(projection.burdenText, 320),
+    routineText: sanitizeExecutionProjectionRequiredText(projection.routineText, 320),
+    trustRationale: sanitizeExecutionProjectionRequiredText(projection.trustRationale, 320),
+    relationshipDoctrine: sanitizeExecutionProjectionRequiredText(projection.relationshipDoctrine, 320),
+    summary: sanitizeExecutionProjectionRequiredText(projection.summary, 520),
+    selfContinuityAuthority: authority
+      ? {
+          ...authority,
+          selfLine: authority.selfLine == null ? authority.selfLine : sanitizeExecutionProjectionCarryText(authority.selfLine, 320),
+          relationshipLine: authority.relationshipLine == null ? authority.relationshipLine : sanitizeExecutionProjectionCarryText(authority.relationshipLine, 320),
+          motiveLine: authority.motiveLine == null ? authority.motiveLine : sanitizeExecutionProjectionCarryText(authority.motiveLine, 320),
+          habitLine: authority.habitLine == null ? authority.habitLine : sanitizeExecutionProjectionCarryText(authority.habitLine, 320),
+          inwardLine: authority.inwardLine == null ? authority.inwardLine : sanitizeExecutionProjectionCarryText(authority.inwardLine, 320),
+          authoritySummary: authority.authoritySummary == null
+            ? authority.authoritySummary
+            : sanitizeExecutionProjectionCarryText(authority.authoritySummary, 520),
+        }
+      : null,
+  } satisfies AlicizationPersonStateProjection
 }
 
 function normalizeExecutionDeliveryProjectBriefing(
@@ -196,9 +276,15 @@ function normalizeExecutionDeliveryProjectBriefing(
     sameHerHoldDetail: sanitizeExecutionDeliveryProjectFreeText(record.sameHerHoldDetail, 320),
     sameHerDriftRisk: sanitizeExecutionDeliveryProjectFreeText(record.sameHerDriftRisk, 320),
     sameHerDriftRiskSummary: sanitizeExecutionDeliveryProjectFreeText(record.sameHerDriftRiskSummary, 320),
-    preflightSummary: sanitizeExecutionDeliveryProjectFreeText(record.preflightSummary, 320),
-    preDialogueAwarenessLine: sanitizeExecutionDeliveryProjectFreeText(record.preDialogueAwarenessLine, 320),
-    preDialogueAwarenessSummary: sanitizeExecutionDeliveryProjectFreeText(record.preDialogueAwarenessSummary, 320),
+    preflightSummary: looksLikeThinExecutionDeliveryProjectPreflight(record.preflightSummary)
+      ? null
+      : sanitizeExecutionDeliveryProjectFreeText(record.preflightSummary, 320),
+    preDialogueAwarenessLine: looksLikeThinExecutionDeliveryProjectAwareness(record.preDialogueAwarenessLine)
+      ? null
+      : sanitizeExecutionDeliveryProjectFreeText(record.preDialogueAwarenessLine, 320),
+    preDialogueAwarenessSummary: looksLikeThinExecutionDeliveryProjectAwareness(record.preDialogueAwarenessSummary)
+      ? null
+      : sanitizeExecutionDeliveryProjectFreeText(record.preDialogueAwarenessSummary, 320),
   } satisfies AlicizationPendingExecutionDeliveryProjectState
 
   return Object.values(normalized).some(Boolean) ? normalized : null
@@ -227,7 +313,7 @@ function looksLikeThinExecutionDeliveryProjectPhase(value: string | null | undef
     || !normalized.includes('phase 1')
 }
 
-function looksLikeThinExecutionDeliveryProjectPreflight(value: string | null | undefined) {
+function looksLikeThinExecutionDeliveryProjectPreflight(value: unknown) {
   const normalized = sanitizeExecutionLedgerText(value, 320)?.toLowerCase() ?? ''
   if (!normalized)
     return true
@@ -238,7 +324,7 @@ function looksLikeThinExecutionDeliveryProjectPreflight(value: string | null | u
     || /^identity=|^open=|^next=/u.test(normalized)
 }
 
-function looksLikeThinExecutionDeliveryProjectAwareness(value: string | null | undefined) {
+function looksLikeThinExecutionDeliveryProjectAwareness(value: unknown) {
   const normalized = sanitizeExecutionLedgerText(value, 320) ?? ''
   if (!normalized)
     return true
@@ -873,14 +959,14 @@ function applyTruthFirstRelationshipDoctrineToProjection(input: {
         openFocus ? `Open focus: ${openFocus}.` : '',
         nextFocus ? `Next focus: ${nextFocus}.` : '',
       ].filter(Boolean).join(' ')
-    : (projectionOpeningGuidance ?? projection.openingGuidance)
+    : projectionOpeningGuidance
   const summary = shouldCarryProjectFocus
     ? [
         projectionSummary,
         openFocus ? `Open focus: ${openFocus}.` : '',
         nextFocus ? `Next focus: ${nextFocus}.` : '',
       ].filter(Boolean).join(' | ').slice(0, 520)
-    : (projectionSummary ?? projection.summary)
+    : (projectionSummary ?? '')
 
   const selfLine = typeof input.selfContinuityAuthority?.selfLine === 'string'
     ? input.selfContinuityAuthority.selfLine.trim()
@@ -938,7 +1024,7 @@ function activeSameHerContinuityShouldOverride(input: {
 function applyActiveSameHerContinuityToProjection(input: {
   projection: AlicizationPersonStateProjection
   activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch | null
-}) {
+}): AlicizationPersonStateProjection {
   if (!activeSameHerContinuityShouldOverride(input))
     return input.projection
 
@@ -1013,7 +1099,10 @@ function buildMinimalActiveSameHerProjection(input: {
     relationshipDoctrine: 'relationship_doctrine=bounded_exact_repair_before_closeness',
     cautious: true,
     restrained: true,
-    summary: `regime=execution-callback | posture=restrained | continuity=${continuitySummary} | callback_role=execution_result`.slice(0, 520),
+    summary: [
+      'Execution result callback.',
+      sanitizeExecutionProjectionCarryText(continuitySummary, 440),
+    ].filter(Boolean).join(' ').slice(0, 520),
     personalityContinuityState: buildLowPressureExecutionCallbackContinuityState({
       continuitySummary,
     }),
@@ -1566,10 +1655,10 @@ export function createAlicizationRuntimeExecutionDelivery(
       runtimeProjection: runtimeSurface?.memory.personStateProjection ?? null,
     })
     if (preferredProjection) {
-      return applyActiveSameHerContinuityToProjection({
+      return sanitizeExecutionPersonStateProjection(applyActiveSameHerContinuityToProjection({
         projection: preferredProjection as AlicizationPersonStateProjection,
         activeSelfRevisionPatch,
-      })
+      }))
     }
 
     const hostPersonModel = runtimeSurface?.memory.hostPersonModel
@@ -1626,10 +1715,10 @@ export function createAlicizationRuntimeExecutionDelivery(
 
     if (!runtimeSurface && !hostPersonModel) {
       if (activeSelfRevisionPatch) {
-        return buildMinimalActiveSameHerProjection({
+        return sanitizeExecutionPersonStateProjection(buildMinimalActiveSameHerProjection({
           activeSelfRevisionPatch,
           goal: input.goal,
-        })
+        }))
       }
       const executionProjectContinuityCue = deriveExecutionDeliveryProjectContinuityCue({
         goal: input.goal,
@@ -1640,10 +1729,10 @@ export function createAlicizationRuntimeExecutionDelivery(
         summary: input.goal,
       })
       if (executionProjectContinuityCue || executionSameHerOpeningCue) {
-        return buildMinimalProjectStateExecutionCallbackProjection({
+        return sanitizeExecutionPersonStateProjection(buildMinimalProjectStateExecutionCallbackProjection({
           goal: input.goal,
           selfContinuityAuthority: input.selfContinuityAuthority ?? null,
-        })
+        }))
       }
       return null
     }
@@ -1661,7 +1750,7 @@ export function createAlicizationRuntimeExecutionDelivery(
         .join(' ')),
     )
 
-    return applyActiveSameHerContinuityToProjection({
+    return sanitizeExecutionPersonStateProjection(applyActiveSameHerContinuityToProjection({
       projection: buildAlicizationPersonStateProjection({
         now: Date.now(),
         contexts: [
@@ -1686,7 +1775,7 @@ export function createAlicizationRuntimeExecutionDelivery(
         previousContinuityState: runtimeSurface?.memory.personalityContinuityState ?? null,
       }),
       activeSelfRevisionPatch,
-    })
+    }))
   }
 
   return {

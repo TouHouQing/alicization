@@ -16,8 +16,6 @@ const blockedProjectTemplatePattern = new RegExp([
   'visibility=redacted_internal',
   ['Same Phase 1', ' digital life'].join(''),
   ['Before answer', 'ing'].join(''),
-  ['continuity', ' state'].join(''),
-  ['identity-', 'continuity'].join(''),
 ].join('|'), 'iu')
 
 function expectNoFixedProjectTemplateResidue(value: unknown) {
@@ -513,7 +511,7 @@ describe('runtime execution delivery', () => {
         sameHerDriftRisk: null,
         preDialogueAwarenessLine: null,
         companionHeadlineLine: null,
-        preflightSummary: 'identity=Alicization | phase=Phase 1 | open=restart callback continuity | next=same callback line',
+        preflightSummary: null,
       }),
     }))
     expectNoFixedProjectTemplateResidue(queued?.projectState)
@@ -625,16 +623,16 @@ describe('runtime execution delivery', () => {
       threadId: 'thread-blocked-1',
       status: 'blocked',
       projectState: expect.objectContaining({
-        sameHerHoldDetail: expect.stringContaining('blocked-dispatch safety gate says'),
+        sameHerHoldDetail: expect.stringMatching(/blocked-dispatch safety gate says/i),
       }),
     }))
-    expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toContain('confirmation=required')
+    expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toMatch(/confirmation is required/i)
     expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toContain('no-process-started')
     expect(executionDeliveryRuntime.snapshot('default')).toEqual(expect.objectContaining({
       pending: [expect.objectContaining({
         threadId: 'thread-blocked-1',
         projectState: expect.objectContaining({
-          sameHerHoldDetail: expect.stringContaining('confirmation=required'),
+          sameHerHoldDetail: expect.stringMatching(/confirmation is required/i),
         }),
       })],
     }))
@@ -1293,6 +1291,16 @@ describe('runtime execution delivery', () => {
                     currentRegime: 'focused-work',
                     closenessPosture: 'space-first',
                     repairPosture: 'repair-first',
+                    continuitySummary: 'opening_policy=legacy_continuity',
+                    regimeModel: {
+                      primaryReason: 'relationship_cadence=legacy_regime',
+                      carryReason: null,
+                      signals: ['visibility=redacted_internal'],
+                    },
+                    rhythmState: {
+                      summary: 'opening_policy=legacy_rhythm',
+                      rationale: ['relationship_cadence=legacy_rationale'],
+                    },
                   },
                 },
               },
@@ -1304,6 +1312,98 @@ describe('runtime execution delivery', () => {
 
     expect(projection?.relationshipPosture).toBe('restrained')
     expect(projection?.openingGuidance).toContain('Repair the seam before leaning closer')
+  })
+
+  it('drops legacy governance cues from persisted execution person-state projections', async () => {
+    const runtime = createAlicizationRuntimeExecutionDelivery({
+      getActiveCardId: () => 'default',
+      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
+      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
+      withCardScope: async (_cardId, task) => await task(),
+      queueSubconsciousWake: vi.fn(),
+      appendAuditLog: async () => {},
+      syncSessionMirrorFromCurrentCardState: async () => {},
+      alicizationDb: {
+        getMetaValue: async () => undefined,
+        setMetaValue: async () => {},
+        listExecutionEvents: async () => [],
+      },
+      executionDeliveryRuntime: createAlicizationExecutionDeliveryRuntime({
+        getNow: () => 10_000,
+      }),
+      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
+      generateMainGatewayText: async () => null,
+      getPerformanceManifest: async () => null,
+      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
+      normalizeAlicizationPerformancePayload: raw => raw,
+      clampAlicizationPerformancePayloadToManifest: () => ({
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      ensureVisualPresenceState: async () => null,
+      buildHostPersonModel: async () => null,
+    })
+
+    const projection = await runtime.resolveExecutionPersonStateProjectionForRuntime({
+      cardId: 'default',
+      goal: 'Patch the runtime line.',
+      agentTurn: {
+        getSessionSnapshot: () => ({
+          digitalLifeSpine: {
+            runtimeSurface: {
+              memory: {
+                personStateProjection: {
+                  contexts: ['focused-work', 'execution-callback', 'execution'],
+                  summary: 'relationship_cadence=legacy_summary',
+                  relationshipPosture: 'restrained',
+                  openingGuidance: 'opening_policy=legacy_opening',
+                  manifestationCadenceSummary: 'visibility=redacted_internal',
+                  preferredProactiveStyle: 'silent-observe',
+                  preferenceText: 'clean preference owner text',
+                  sensitivityText: '',
+                  repairTriggerText: '',
+                  burdenText: '',
+                  routineText: '',
+                  trustRationale: 'visibility=redacted_internal',
+                  relationshipDoctrine: 'relationship_cadence=legacy_doctrine',
+                  cautious: true,
+                  restrained: true,
+                  selfContinuityAuthority: {
+                    selfLine: 'clean self owner text',
+                    relationshipLine: 'relationship_cadence=legacy_authority',
+                    motiveLine: null,
+                    habitLine: null,
+                    inwardLine: 'clean inward owner text',
+                    authoritySummary: 'visibility=redacted_internal',
+                    closenessPosture: 'space-first',
+                    sourceTags: ['runtime'],
+                  },
+                  personalityContinuityState: {
+                    currentRegime: 'focused-work',
+                    closenessPosture: 'space-first',
+                    repairPosture: 'repair-first',
+                  },
+                },
+              },
+            },
+          },
+        }),
+      } as any,
+    })
+
+    const serialized = JSON.stringify(projection)
+
+    expect(serialized).not.toContain('opening_policy=')
+    expect(serialized).not.toContain('relationship_cadence=')
+    expect(serialized).not.toContain('visibility=redacted_internal')
+    expect(projection?.preferenceText).toBe('clean preference owner text')
+    expect(projection?.selfContinuityAuthority?.selfLine).toBe('clean self owner text')
+    expect(projection?.selfContinuityAuthority?.inwardLine).toBe('clean inward owner text')
   })
 
   it('prefers richer canonical runtime projection over thinner derived carry on the same execution session surface', async () => {
@@ -2108,7 +2208,7 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.openingGuidance?.toLowerCase()).not.toContain('lean closer')
-    expect(projection?.openingGuidance?.toLowerCase()).toContain('opening_policy=room_preserving')
+    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
     expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('steadiness before closeness')
   })
 
@@ -2219,12 +2319,9 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
-    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
-    expect(projection?.summary).toContain('callback_role=execution_result')
-    expect(projection?.summary).not.toContain('project_state=legacy phase-one template')
-    expect(projection?.openingGuidance).toContain('callback_pressure=lower')
-    expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('repair_before_closeness')
+    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expect(String(projection?.summary ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expect(projection?.preferredProactiveStyle).toBe('silent-observe')
   })
 
   it('treats explicit repair-before-closeness carry as enough to override a warmer execution callback surface even when numeric biases stay low', async () => {
@@ -2321,10 +2418,9 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
-    expect(projection?.openingGuidance).toContain('repair_phase=settle_before_closeness')
-    expect(projection?.summary).toContain('callback_role=execution_result')
-    expect(projection?.summary).not.toContain('project_state=legacy phase-one template')
+    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|repair_phase=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expect(String(projection?.summary ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expect(projection?.preferredProactiveStyle).toBe('silent-observe')
   })
 
   it('builds a minimal identity-continuity', async () => {
@@ -2378,11 +2474,8 @@ describe('runtime execution delivery', () => {
 
     expect(projection).toBeTruthy()
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
-    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
-    expect(projection?.summary).toContain('callback_role=execution_result')
-    expect(projection?.summary).not.toContain('project_state=legacy phase-one template')
-    expect(projection?.openingGuidance).toContain('callback_pressure=lower')
+    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expect(String(projection?.summary ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
     expect(projection?.preferredProactiveStyle).toBe('silent-observe')
   })
 
@@ -2432,16 +2525,9 @@ describe('runtime execution delivery', () => {
     expect(projection).toBeTruthy()
     expect(projection?.relationshipPosture).toBe('restrained')
     expect(projection?.preferredProactiveStyle).toBe('silent-observe')
-    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
-    expect(projection?.openingGuidance).toContain('memory_owner.short_term=WorkingMemory')
-    expect(projection?.openingGuidance).toContain('memory_owner.long_term=LongTermMemoryRecall')
-    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
-    expect(projection?.summary).toContain('callback_context=execution-result')
-    expect(projection?.summary).not.toContain('project_state=legacy phase-one template')
-    expect(projection?.summary).toContain('latest_landed_progress=')
-    expect(projection?.summary).toContain('runtime_context=local_runtime')
-    expect(projection?.summary).not.toContain(' |  | ')
-    expect(projection?.summary).not.toContain('preflight=Alicization is a local-first digital life project')
+    expect(projection?.openingGuidance).toContain('Failure surface: explicit')
+    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|memory_owner\.|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expect(projection?.summary).toBe('')
     expectNoFixedProjectTemplateResidue(projection?.summary)
     expect(projection?.contexts).toEqual(expect.arrayContaining([
       'execution-callback',
@@ -2449,9 +2535,7 @@ describe('runtime execution delivery', () => {
       'project-state-carry',
     ]))
     expect(projection?.personalityContinuityState?.currentRegime).toBe('execution-callback')
-    expect(projection?.personalityContinuityState?.continuitySummary).toContain('execution-callback')
-    expect(projection?.personalityContinuityState?.continuitySummary).toContain('latest_landed_progress=')
-    expectNoFixedProjectTemplateResidue(projection?.personalityContinuityState?.continuitySummary)
+    expect(String(projection?.personalityContinuityState?.continuitySummary ?? '')).not.toMatch(/latest_landed_progress=|callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
     expect(projection?.personalityContinuityState?.rationale).toEqual(expect.arrayContaining([
       'execution-callback',
       'bounded-continuity',
@@ -2502,10 +2586,8 @@ describe('runtime execution delivery', () => {
       agentTurn: null,
     })
 
-    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
-    expect(projection?.openingGuidance).toContain('continuity_pressure=lower')
-    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
-    expect(projection?.summary).toContain('opening=callback_role=execution_result')
+    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|continuity_pressure=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expect(String(projection?.summary ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
   })
 
   it('keeps same-her lower-pressure opening guidance on gateway-authored execution callback structured payloads', async () => {
@@ -2601,18 +2683,9 @@ describe('runtime execution delivery', () => {
     })
 
     expect(structured?.format).toBe('mind-turn-v1')
-    expect((structured as any)?.proactive?.openingGuidance).toContain('open_focus=')
-    expect((structured as any)?.proactive?.openingGuidance).toContain('next_focus=')
-    expect((structured as any)?.proactive?.openingGuidance).not.toMatch(/identity-continuity/iu)
-    expect((structured as any)?.proactive?.embodimentHandoff).toEqual({
-      residentMode: 'repair-before-closeness',
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-    })
+    expect(JSON.stringify(structured)).not.toMatch(/open_focus=|next_focus=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expect((structured as any)?.performance?.delivery).toBe('calm')
+    expect((structured as any)?.delivery).toBe('calm')
     const gatewayInput = (generateMainGatewayText.mock.calls as unknown[][]).at(0)?.[0] as any
     expect(gatewayInput?.extraSystemBlocks ?? []).toEqual([])
   })
@@ -2890,9 +2963,8 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('callback_role=execution_result')
-    expect(projection?.openingGuidance).toContain('failure_surface=explicit')
-    expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('repair_before_closeness')
+    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expect(String(projection?.relationshipDoctrine ?? '')).not.toMatch(/repair_before_closeness|relationship_cadence=|visibility=redacted_internal/iu)
 
     const structured = await runtime.generateExecutionCallbackStructuredWithGateway({
       cardId: 'default',
@@ -3008,24 +3080,7 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect((structured as any)?.proactive?.openingGuidance).not.toMatch(/legacy phase-one template|continuity state|identity-continuity/iu)
-    expect((structured as any)?.proactive?.openingGuidance).toContain('open_focus=')
-    expect((structured as any)?.proactive?.openingGuidance).toContain('next_focus=')
-    expect(String((structured as any)?.proactive?.openFocus ?? '')).toContain('memory')
-    expect(String((structured as any)?.proactive?.openFocus ?? '')).toContain('initiative')
-    expect(String((structured as any)?.proactive?.openFocus ?? '')).toContain('embodiment')
-    expect(String((structured as any)?.proactive?.nextFocus ?? '')).toContain('project-carry')
-    expect(String((structured as any)?.proactive?.nextFocus ?? '')).toContain('measured-return')
-    expect(String((structured as any)?.proactive?.nextFocus ?? '')).toContain('embodiment')
-    expect((structured as any)?.proactive?.embodimentHandoff).toEqual({
-      residentMode: 'repair-before-closeness',
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-    })
+    expect(JSON.stringify(structured)).not.toMatch(/legacy phase-one template|continuity state|identity-continuity|open_focus=|next_focus=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
     expect((structured as any)?.performance?.delivery).toBe('calm')
     expect((structured as any)?.delivery).toBe('calm')
   })
@@ -3117,9 +3172,6 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect((structured as any)?.proactive?.relationshipDoctrine)
-      .toContain('repair_truth_before_closeness=true')
-    expect((structured as any)?.proactive?.relationshipDoctrine)
-      .toContain('closeness outrun truth')
+    expect(JSON.stringify(structured)).not.toMatch(/repair_truth_before_closeness=true|relationship_cadence=|opening_policy=|visibility=redacted_internal/iu)
   })
 })
