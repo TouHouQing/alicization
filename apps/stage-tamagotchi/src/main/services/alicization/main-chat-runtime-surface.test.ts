@@ -201,7 +201,7 @@ describe('main chat runtime surface', () => {
     })
   })
 
-  it('collapses self state into one JSON fact with explicit memory owners', () => {
+  it('keeps runtime self state internal instead of injecting a living-self provider fact', () => {
     const runtimeSurface = createRuntimeSurface()
     const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
       digitalLifeRuntimeSurface: runtimeSurface,
@@ -217,29 +217,13 @@ describe('main chat runtime surface', () => {
       },
     }))
 
-    const message = findFactMessage(result.messages, 'alicization-living-self')
-    const fact = parseFact(message?.content)
-    expect(fact.data.owners).toEqual({
-      shortTermMemory: 'WorkingMemory',
-      longTermRecall: 'LongTermMemoryRecall',
+    expect(findFactMessage(result.messages, 'alicization-living-self')).toBeUndefined()
+    expect(result.digitalLifeRuntimeSurface?.memory.autobiographicalSelf).toMatchObject({
+      identityNarrative: 'I am Alicization.',
+      relationshipDoctrine: 'Stay honest with the host.',
     })
-    expect(fact.data.self).toMatchObject({
-      durable: 'I am Alicization.',
-      relationship: 'Stay honest with the host.',
-      currentPreoccupation: 'I want to answer from the remembered thread.',
-    })
-    expect(fact.data.embodiment).toMatchObject({
-      currentBodyState: 'lane=lipsync-only',
-      continuityAuthority: 'identity-thread-active',
-    })
-    expect(fact.data.personMemoryCapsule).toEqual({
-      identity: 'Alicization',
-      selectedMemory: 'The host prefers direct answers.',
-      emotion: 'quiet attention',
-      execution: 'No pending tool result.',
-      embodiment: 'lipsync-only',
-    })
-    expect(String(message?.content)).not.toContain('legacy cue must not be forwarded')
+    expect(result.digitalLifeRuntimeSurface?.memory.personMemoryCapsule?.modules.memory.selectedMemory)
+      .toBe('The host prefers direct answers.')
   })
 
   it('removes execution and perception prompt blocks from dialogue-first turns', () => {
@@ -296,7 +280,7 @@ describe('main chat runtime surface', () => {
     })
   })
 
-  it('keeps only user SOUL and allowlisted JSON facts at the provider boundary', () => {
+  it('drops raw SOUL prose while keeping typed host and memory facts at the provider boundary', () => {
     const messages: Message[] = [
       {
         role: 'system',
@@ -342,12 +326,12 @@ describe('main chat runtime surface', () => {
 
     const filtered = filterAlicizationProviderSystemMessages(messages)
 
-    expect(filtered).toHaveLength(5)
-    expect(filtered[0]?.content).toContain('# SOUL')
-    expect(parseFact(filtered[1]?.content).type).toBe('alicization-host')
-    expect(parseFact(filtered[2]?.content).type).toBe('alicization-turn-memory-context')
-    expect(parseFact(filtered[3]?.content).type).toBe('alicization-long-term-memory-recall')
-    expect(filtered[4]?.content).toBe('你好')
+    expect(filtered).toHaveLength(4)
+    expect(parseFact(filtered[0]?.content).type).toBe('alicization-host')
+    expect(parseFact(filtered[1]?.content).type).toBe('alicization-turn-memory-context')
+    expect(parseFact(filtered[2]?.content).type).toBe('alicization-long-term-memory-recall')
+    expect(filtered[3]?.content).toBe('你好')
+    expect(filtered.some(message => String(message.content).includes('# SOUL'))).toBe(false)
     expect(filtered.some(message => String(message.content).includes('dialogue-session-mirror'))).toBe(false)
     expect(filtered.some(message => String(message.content).includes('PROJECT_STATE'))).toBe(false)
   })

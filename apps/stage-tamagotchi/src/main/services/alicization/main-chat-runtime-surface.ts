@@ -10,26 +10,16 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationMainChatActionObligation, AlicizationMainChatActionObligationKind } from './main-chat-action-obligation'
 import type { ResolvedCardCustomDirectives } from './runtime-soul'
-import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 import type {
   AlicizationMainChatReplyAuthoritySurface,
   AlicizationMainChatReplyExecutionPlanSurface,
 } from './visible-reply/facade'
 
 import {
-  alicizationFixedTemplateReplacement,
   buildAlicizationProviderFactBlock,
-  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
-import {
-  hasContinuityRestraintRelationshipSignal,
-  hasNeutralRelationshipSignal,
-  mergePreferredSelfContinuityAuthority,
-  resolvePreferredPersonStateProjection,
-  resolvePreferredSelfContinuityAuthority,
-} from './person-state-projection-resolution'
 import {
   normalizeCustomDirectives,
   parseSoul,
@@ -88,8 +78,6 @@ export interface AlicizationMainChatRuntimeSurface {
   trace: AlicizationMainChatTraceSurface
 }
 
-export const alicizationLivingSelfMarker = 'alicization-living-self'
-
 const alicizationProviderFactTypes = new Set([
   'alicization-datetime',
   'alicization-execution-callbacks',
@@ -101,7 +89,6 @@ const alicizationProviderFactTypes = new Set([
   'alicization-execution-settlement-request',
   'alicization-host',
   'alicization-inspection',
-  'alicization-living-self',
   'alicization-long-term-memory-recall',
   'alicization-memory-context',
   'alicization-persona-directives',
@@ -129,18 +116,9 @@ function readAlicizationProviderFactType(content: string) {
   }
 }
 
-function isUserAuthoredSoulSystemMessage(message: Message) {
-  return message.role === 'system'
-    && typeof message.content === 'string'
-    && message.content.startsWith('---\n')
-}
-
 export function filterAlicizationProviderSystemMessages(messages: Message[]) {
   return messages.filter((message) => {
     if (message.role !== 'system' || typeof message.content !== 'string')
-      return true
-
-    if (isUserAuthoredSoulSystemMessage(message))
       return true
 
     const type = readAlicizationProviderFactType(message.content)
@@ -220,59 +198,6 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-const livingSelfProjectTemplateResiduePatterns = [
-  /\blocal-first digital life project\b/iu,
-  /\bPhase 1:\s*Local Digital Life\b/iu,
-  /\bphase1_local_digital_life_anchor\b/iu,
-  /\bcontinuity_owner=one_her\b/iu,
-  /\bone continuous her\b/iu,
-  /\bone same her\b/iu,
-  /\bsame digital life\b/iu,
-  /\bsame unfinished closure pressure\b/iu,
-  /\bhost-facing line pointed at\b/iu,
-  /\bverified_closure_progress=/iu,
-  /\bproject[-_ ]state\b/iu,
-  /\bproject_context=/iu,
-] as const
-
-function containsLivingSelfProjectTemplateResidue(raw: unknown) {
-  if (typeof raw !== 'string')
-    return false
-  const normalized = raw.trim().replace(/\s+/g, ' ')
-  return Boolean(normalized) && livingSelfProjectTemplateResiduePatterns.some(pattern => pattern.test(normalized))
-}
-
-function sanitizeLivingSelfPromptText(raw: unknown, maxChars = 220) {
-  const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
-  if (normalized === alicizationFixedTemplateReplacement)
-    return ''
-  if (containsLivingSelfProjectTemplateResidue(normalized))
-    return ''
-  return normalized
-}
-
-function sanitizeLivingSelfFactValue(raw: unknown, maxChars = 220) {
-  if (typeof raw !== 'string')
-    return ''
-  const normalized = raw.trim().replace(/\s+/gu, ' ').slice(0, maxChars)
-  return containsLivingSelfProjectTemplateResidue(normalized) ? '' : normalized
-}
-
-function buildPersonMemoryCapsuleFact(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  const capsule = surface?.memory?.personMemoryCapsule ?? null
-  if (!capsule)
-    return null
-
-  const modules = capsule.modules
-  return {
-    identity: sanitizeLivingSelfPromptText(modules.personality.identityLine, 120) || null,
-    selectedMemory: sanitizeLivingSelfPromptText(modules.memory.selectedMemory, 160) || null,
-    emotion: sanitizeLivingSelfPromptText(modules.emotion.affectiveSummary, 120) || null,
-    execution: sanitizeLivingSelfPromptText(modules.execution.carrySummary, 120) || null,
-    embodiment: sanitizeLivingSelfPromptText(modules.embodiment.hint, 160) || null,
-  }
-}
-
 export function shouldUseDialogueFirstLivingPromptMode(input: {
   actionObligation?: AlicizationMainChatActionObligation | null
   capture: Omit<AlicizationMainChatCaptureSurface, 'hasVisualGrounding'>
@@ -291,74 +216,6 @@ export function shouldUseDialogueFirstLivingPromptMode(input: {
       || subject === 'project-state'
       || subject === 'general'
     )
-}
-
-function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  if (!surface)
-    return ''
-
-  const autobiographicalSelf = surface.memory.autobiographicalSelf ?? null
-  const preferredPersonStateProjection = resolvePreferredPersonStateProjection({
-    bundleProjection: surface.raw?.personStateProjection ?? null,
-    runtimeProjection: surface.memory.personStateProjection ?? null,
-  })
-  const projectedContinuityAuthority = resolvePreferredSelfContinuityAuthority({
-    bundleAuthority: surface.raw?.personStateProjection?.selfContinuityAuthority ?? null,
-    runtimeAuthority: preferredPersonStateProjection?.selfContinuityAuthority ?? null,
-  })
-  const mergedContinuityAuthority = mergePreferredSelfContinuityAuthority({
-    bundleAuthority: surface.raw?.personStateProjection?.selfContinuityAuthority ?? null,
-    runtimeAuthority: preferredPersonStateProjection?.selfContinuityAuthority ?? null,
-  }) ?? projectedContinuityAuthority
-  const runtimeRelationshipCarry = preferredPersonStateProjection?.selfContinuityAuthority?.relationshipLine ?? null
-  const continuityAuthority = (
-    mergedContinuityAuthority
-    && runtimeRelationshipCarry
-    && hasContinuityRestraintRelationshipSignal(runtimeRelationshipCarry)
-    && (
-      !mergedContinuityAuthority.relationshipLine
-      || hasNeutralRelationshipSignal(mergedContinuityAuthority.relationshipLine)
-    )
-  )
-    ? {
-        ...mergedContinuityAuthority,
-        relationshipLine: runtimeRelationshipCarry,
-      }
-    : mergedContinuityAuthority
-  const continuityAuthorityWithBodyState = continuityAuthority as (AlicizationSelfContinuityAuthority & {
-    currentBodyState?: string | null
-  }) | null
-  const embodimentCurrentBodyState = surface.perception.currentBodyState
-    ?? continuityAuthorityWithBodyState?.currentBodyState
-    ?? null
-
-  const durableSelf = sanitizeLivingSelfPromptText(continuityAuthority?.selfLine || autobiographicalSelf?.identityNarrative, 220)
-  const relationshipDoctrine = sanitizeLivingSelfPromptText(continuityAuthority?.relationshipLine || autobiographicalSelf?.relationshipDoctrine, 220)
-  const currentPreoccupation = sanitizeLivingSelfPromptText(
-    continuityAuthority?.inwardLine
-    || surface.cognition.privateThought?.thoughtText
-    || autobiographicalSelf?.latestInflection
-    || '',
-    220,
-  )
-  const mood = sanitizePromptText(surface.cognition.privateThought?.emotionalTension, 48)
-  return buildAlicizationProviderFactBlock(alicizationLivingSelfMarker, {
-    owners: {
-      shortTermMemory: 'WorkingMemory',
-      longTermRecall: 'LongTermMemoryRecall',
-    },
-    self: {
-      durable: durableSelf || null,
-      relationship: relationshipDoctrine || null,
-      currentPreoccupation: currentPreoccupation || null,
-    },
-    emotion: mood || null,
-    embodiment: {
-      currentBodyState: sanitizeLivingSelfFactValue(embodimentCurrentBodyState, 220) || null,
-      continuityAuthority: sanitizeLivingSelfPromptText(continuityAuthority?.authoritySummary, 220) || null,
-    },
-    personMemoryCapsule: buildPersonMemoryCapsuleFact(surface),
-  })
 }
 
 export function buildCardCustomDirectivesSystemBlock(directives: string) {
@@ -517,7 +374,6 @@ export function buildAlicizationMainChatRuntimeSurface(
     governance: input.governance,
     hasVisualGrounding: input.hasVisualGrounding,
   })
-  const livingSelfFactBlock = buildAlicizationLivingSelfSystemBlock(digitalLifeRuntimeSurface)
   const filteredPerceptionPromptSystemBlocks = dialogueFirstLivingPromptMode
     ? input.perceptionPromptSystemBlocks.filter(block =>
         !block.includes('[ALICIZATION_PERCEPTION]')
@@ -549,7 +405,6 @@ export function buildAlicizationMainChatRuntimeSurface(
     ...input.runtimeCorePromptBlocks,
     ...filteredPerceptionPromptSystemBlocks,
     ...filteredPerceptionSystemBlocks,
-    livingSelfFactBlock,
     input.executionReplyObligationSystemBlock ?? '',
     ...effectiveExecutionCapabilitySystemBlocks,
     effectiveExecutionRoutingEnforcementSystemBlock,
