@@ -1044,19 +1044,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       projectPrimaryOpenLoop,
     ].find(candidate => looksLikeStrongEmbodimentCompanionHeadline(candidate))
     ?? null
-    const repairBeforeClosenessProjectAuthority = [
-      projectStateEmotionalClosureCue,
-      projectNextClosureTarget,
-      projectStateSameHerSelfLine,
-      projectStatePreferredPreDialogueAwarenessLine,
-    ].find(candidate => hasExplicitRepairBeforeClosenessAuthority(candidate))
-    ?? null
-    const repairBeforeClosenessSummaryLead = repairBeforeClosenessProjectAuthority
-      ? /same living line|one living her|same line|same-her|同一条线|同一生命线/u.test(repairBeforeClosenessProjectAuthority)
-        ? 'carry_mode=repair_before_closeness'
-        : `carry_mode=repair_before_closeness; source=${sanitizeBriefText(repairBeforeClosenessProjectAuthority, 120)}`
-      : null
-
     if (shouldUseDeferredProactiveLine) {
       return {
         kind: 'proactive',
@@ -1065,7 +1052,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         summary: [
           'defer_reason=no_mind_authored_reply',
           reason ? `reason=${reason}` : '',
-          repairBeforeClosenessSummaryLead || strongerEmbodimentProjectAuthority || whyNow || executionIntentSummary || '',
+          strongerEmbodimentProjectAuthority || whyNow || executionIntentSummary || '',
           sourceThreadId ? `thread=${sourceThreadId}` : '',
           `scenario=${scenario}`,
         ].filter(Boolean).join(' | '),
@@ -1112,7 +1099,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       state: 'observed',
       label: `proactive:${executionIntentKind || scenario}:held-autonomy`,
       summary: [
-        repairBeforeClosenessSummaryLead || executionIntentSummary || whyNow || 'proactive_state=held_for_opening',
+        executionIntentSummary || whyNow || 'proactive_state=held_for_opening',
         executionIntentKind ? `intent=${executionIntentKind}` : '',
         deferReason ? `defer=${deferReason}` : '',
         reason ? `reason=${reason}` : '',

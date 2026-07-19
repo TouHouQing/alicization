@@ -858,7 +858,7 @@ describe('runtime session continuity builders', () => {
     expectNoFixedTemplateResidue(signal.metadata)
   })
 
-  it('keeps repair-before-closeness explicit in deferred proactive summaries when project-state carry is the only repair-first authority', () => {
+  it('keeps deferred proactive summaries on real autonomy state instead of project repair authority', () => {
     const runtime = createAlicizationSessionContinuityBuildersRuntime({
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw : fallback,
       sanitizeBriefText: (raw, maxChars) => String(raw ?? '').trim().slice(0, maxChars),
@@ -872,6 +872,7 @@ describe('runtime session continuity builders', () => {
     })
 
     const cue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
+    const whyNow = 'autonomy_state=deferred_for_visible_reply; host_context=focused'
     const signal = runtime.buildDeferredAutonomyContinuitySignal({
       now: Date.UTC(2026, 4, 22, 10, 10, 0),
       turnId: 'subconscious:default:repair-first-summary',
@@ -887,14 +888,20 @@ describe('runtime session continuity builders', () => {
         emotionalClosureCue: cue,
       } as any,
       autonomy: {
-        whyNow: 'Stay near the active project seam without forcing a visible reply.',
+        whyNow,
         sourceThreadId: 'thread-runtime',
       },
     })
 
     expect(signal.label).toBe('proactive:coding:deferred')
-    expect(signal.summary).toContain('repair_before_closeness')
-    expect(signal.summary).not.toContain('Stay near the active project seam without forcing a visible reply.')
+    expect(signal.summary).toContain(whyNow)
+    expect(signal.summary).not.toContain('carry_mode=')
+    expect(signal.summary).not.toContain('repair_before_closeness')
+    expect(signal.summary).not.toContain(cue)
+    expect(signal.metadata).toEqual(expect.objectContaining({
+      whyNow,
+      projectStateEmotionalClosureCue: cue,
+    }))
   })
 
   it('keeps deferred proactive summaries on measured-return when repair wording only appears inside a generic continuity menu', () => {
@@ -1125,7 +1132,7 @@ describe('runtime session continuity builders', () => {
     }))
   })
 
-  it('keeps held-autonomy summaries on repair-before-closeness when project-state carry is the only surviving repair-first authority', () => {
+  it('keeps held-autonomy summaries on real execution intent instead of project repair authority', () => {
     const runtime = createAlicizationSessionContinuityBuildersRuntime({
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw : fallback,
       sanitizeBriefText: (raw, maxChars) => String(raw ?? '').trim().slice(0, maxChars),
@@ -1165,8 +1172,9 @@ describe('runtime session continuity builders', () => {
     })
 
     expect(signal.label).toBe('proactive:follow-through:held-autonomy')
-    expect(signal.summary).toContain('repair_before_closeness')
-    expect(signal.summary).not.toContain('Hold the line until the better opening arrives.')
+    expect(signal.summary).toContain('re-open the unresolved runtime break and see what still blocks it')
+    expect(signal.summary).not.toContain('carry_mode=')
+    expect(signal.summary).not.toContain('repair_before_closeness')
   })
 
   it('keeps held-autonomy summaries on measured-return when repair wording only appears inside a generic continuity menu', () => {

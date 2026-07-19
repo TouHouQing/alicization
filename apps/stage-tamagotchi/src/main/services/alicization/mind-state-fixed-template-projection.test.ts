@@ -15,6 +15,7 @@ import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 const fixedTemplateResidue = /Ground first|Stay near|Protect the host rest|Current durable behavior|Wait for a clearer|Keep the next return|Repair the seam|Open by observing|Keep truth|Keep the answer|Open with the live|Current manifestation|Long-horizon relationship|observe-first so room|re-enter lightly|let repair settle|stay inward, keep caring|wait for confirmation|Keep this return|no mind-authored visible reply was available|proactive autonomy line was held/i
 
 const fixedTemplateSourceResidue = [
+  /carry_mode=/,
   /\bKeep this (?:return|remembered return)\b/i,
   /\bkeep the (?:return|remembered return)\b/i,
   /\bReturn on the same thread first\b/i,
@@ -59,6 +60,7 @@ const fixedTemplateSourceFiles = [
   './runtime-memory-deliberation-reducer.ts',
   './execution-runtime-context.ts',
   './runtime-subconscious-tick.ts',
+  './runtime-session-continuity-builders.ts',
   './mind-synthesizer.ts',
   './response-surface-learning-rules.ts',
   './discourse-state.ts',
@@ -715,8 +717,12 @@ describe('mind state fixed-template projection cleanup', () => {
     })
 
     expect(signal.summary).not.toMatch(fixedTemplateResidue)
-    expect(signal.summary).not.toMatch(/continuity state|widening warmth/i)
-    expect(signal.summary).toContain('defer_reason=no_mind_authored_reply')
-    expect(signal.summary).toMatch(/carry_mode=repair_before_closeness|proactive_state=deferred/)
+    expect(signal.summary).toBe([
+      'defer_reason=no_mind_authored_reply',
+      'reason=proactive-visible-presence-without-utterance',
+      'thread=thread-runtime',
+      'scenario=coding',
+    ].join(' | '))
+    expect(signal.summary).not.toMatch(/carry_mode=|repair[_-]before[_-]closeness|continuity state|widening warmth/i)
   })
 })
