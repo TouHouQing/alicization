@@ -352,6 +352,41 @@ describe('main chat runtime surface', () => {
     expect(filtered.some(message => String(message.content).includes('PROJECT_STATE'))).toBe(false)
   })
 
+  it('drops legacy typed project-state facts at the provider boundary', () => {
+    const messages: Message[] = [
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-project-state-facts',
+          data: {
+            fields: {
+              landed: 'Legacy canonical progress.',
+              open: 'Legacy canonical open loop.',
+              next: 'Legacy canonical next target.',
+            },
+          },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-turn-memory-context',
+          data: { owner: 'WorkingMemory' },
+        }),
+      },
+      {
+        role: 'user',
+        content: '现在记忆链路怎么样？',
+      },
+    ]
+
+    const filtered = filterAlicizationProviderSystemMessages(messages)
+
+    expect(filtered).toHaveLength(2)
+    expect(parseFact(filtered[0]?.content).type).toBe('alicization-turn-memory-context')
+    expect(filtered[1]?.content).toBe('现在记忆链路怎么样？')
+  })
+
   it('derives enforced tool names from a required filtered tool registry', () => {
     const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
       allowTools: true,

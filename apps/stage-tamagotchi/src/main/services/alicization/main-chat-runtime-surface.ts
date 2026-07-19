@@ -110,7 +110,6 @@ const alicizationProviderFactTypes = new Set([
   'alicization-personality-state',
   'alicization-personality-thresholds',
   'alicization-perception',
-  'alicization-project-state-facts',
   'alicization-required-tool-facts',
   'alicization-spark-event',
   'alicization-turn-memory-context',

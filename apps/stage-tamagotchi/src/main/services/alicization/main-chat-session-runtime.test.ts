@@ -146,16 +146,6 @@ function findAlicizationProviderFact(messages: Message[], type: string) {
   return null
 }
 
-function findAlicizationProjectStateProviderFields(messages: Message[]) {
-  const fields = findAlicizationProviderFact(
-    messages,
-    'alicization-project-state-facts',
-  )?.data.fields
-  return fields && typeof fields === 'object'
-    ? fields as Record<string, unknown>
-    : null
-}
-
 function expectNoLegacyProjectStateProviderPrompts(messages: Message[]) {
   const providerText = messages.map(message => String(message.content ?? '')).join('\n')
   expect(providerText).not.toContain('[ALICIZATION_MIND_TURN_CONTRACT]')
@@ -4641,7 +4631,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(timingAlignedCritic.reasonCodes).not.toContain('continuity-after-payoff-early-widening')
   })
 
-  it('passes project-state-bearing mind-turn contract blocks into provider-facing runtime messages before reply authoring', async () => {
+  it('keeps project-state-bearing mind-turn contracts internal instead of injecting provider prose', async () => {
     const projectState = resolveAlicizationProjectStateBrief()
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
@@ -4762,21 +4752,24 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       } as any,
       prelude: reflectivePrelude,
     })
-    const projectStateFields = findAlicizationProjectStateProviderFields(result.messages)
-
-    expect(projectStateFields).toMatchObject({
-      identity: null,
-      phase: null,
-      landed: expect.any(String),
-      open: expect.any(String),
-      next: expect.any(String),
-    })
+    expect(findAlicizationProviderFact(result.messages, 'alicization-project-state-facts')).toBeNull()
     expect(result.mindTurnContract?.projectState?.emotionalClosureCue ?? null).toBeNull()
-    expect(JSON.stringify(projectStateFields)).not.toMatch(/continuity_anchor|continuity_owner|emotional_closure_cue|local-first digital life project|Phase 1:\s*Local Digital Life/iu)
+    expect(String(
+      result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingProject
+      ?? '',
+    )).toBe('')
+    const providerText = result.messages.map(message => String(message.content ?? '')).join('\n')
+    for (const internalProjectText of [
+      projectState.latestProgress,
+      projectState.primaryOpenLoop,
+      projectState.nextClosureTarget,
+    ].filter((item): item is string => Boolean(item))) {
+      expect(providerText).not.toContain(internalProjectText)
+    }
     expectNoLegacyProjectStateProviderPrompts(result.messages)
   })
 
-  it('injects typed project-state facts without a closure-dashboard prompt when the runtime core prompt builder is thin', async () => {
+  it('does not synthesize canonical project-state fallback prose when the runtime core prompt builder is thin', async () => {
     const resolveOrganicMemoryPromptContext = vi.fn(async () => ({
       hostAttitude: '',
       coreIncarnation: '',
@@ -4855,19 +4848,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude: reflectivePrelude,
     })
 
-    const projectStateFact = findAlicizationProviderFact(
-      result.messages,
-      'alicization-project-state-facts',
-    )
-    expect(projectStateFact?.data).toMatchObject({
-      source: 'project-state',
-      visibility: 'governance',
-      fields: {
-        landed: expect.any(String),
-        open: expect.any(String),
-        next: expect.any(String),
-      },
-    })
+    expect(findAlicizationProviderFact(result.messages, 'alicization-project-state-facts')).toBeNull()
+    expect(String(
+      result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingProject
+      ?? '',
+    )).toBe('')
     const providerText = result.messages.map(message => String(message.content ?? '')).join('\n')
     expect(providerText).not.toContain('[ALICIZATION_PROJECT_STATE]')
     expect(providerText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')

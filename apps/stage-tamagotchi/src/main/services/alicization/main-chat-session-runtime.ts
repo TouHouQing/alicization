@@ -71,7 +71,6 @@ import type { AlicizationMainChatReplyAuthoritySurface, AlicizationMainChatReply
 import { errorMessageFrom } from '@moeru/std'
 import {
   alicizationFixedTemplateReplacement,
-  buildAlicizationProviderFactBlock,
   containsAlicizationFixedTemplateResidue,
   formatAlicizationProjectStateAwarenessFields,
   resolveAlicizationChatFailureSurface,
@@ -279,7 +278,6 @@ function mergeRuntimeDigestProjectState(
 
 function buildFallbackProviderFacingAnswerPlanner(input: {
   contract: AlicizationMindTurnContractSnapshot | null
-  governingProject: string | null
   now: number
 }): AlicizationAnswerPlannerSnapshot {
   return {
@@ -287,7 +285,7 @@ function buildFallbackProviderFacingAnswerPlanner(input: {
     evidenceMode: input.contract?.evidenceMode ?? 'dialogue-grounded',
     confidence: 0.5,
     governingFocus: input.contract?.governingFocus ?? '',
-    governingProject: input.governingProject,
+    governingProject: null,
     openingMove: '',
     answerIntent: input.contract?.answerIntent ?? '',
     relationshipPosture: input.contract?.relationshipPosture ?? 'restrained',
@@ -1061,113 +1059,6 @@ function writeProjectStateAwarenessFields(
     preDialogueAwarenessSummary: preferredAwarenessSummary ?? awarenessLine,
     companionHeadlineLine: preferredCompanionHeadlineLine ?? awarenessLine,
   }
-}
-
-function buildProviderFacingProjectGovernanceSummary(
-  projectState: Record<string, unknown> | null | undefined,
-) {
-  const canonicalProjectBrief = resolveAlicizationProjectStateBrief()
-  const canonicalCurrentPhase = normalizeProviderFacingProjectStateScalar(
-    canonicalProjectBrief.currentPhase,
-    1600,
-  )
-  const currentPhase = normalizeProviderFacingProjectStateScalar(projectState?.currentPhase, 1600)
-  const preferredCurrentPhase = currentPhase
-    && canonicalCurrentPhase
-    && canonicalCurrentPhase.startsWith(currentPhase)
-    ? canonicalCurrentPhase
-    : currentPhase ?? canonicalCurrentPhase
-  const canonicalLatestLandedProgress = normalizeProviderFacingProjectText(
-    canonicalProjectBrief.latestProgress ?? canonicalProjectBrief.continuityProgressSummary,
-    12000,
-  )
-  const canonicalCompactLatestLandedProgress = canonicalLatestLandedProgress
-    ? normalizeProviderFacingProjectText(
-        compactProjectLatestProgressForSystemBlock(canonicalLatestLandedProgress, 360),
-        800,
-      )
-    : null
-  const latestLandedProgress = normalizeProviderFacingProjectText(
-    projectState?.latestLandedProgress ?? projectState?.latestProgress,
-    12000,
-  )
-  const compactLatestLandedProgress = latestLandedProgress
-    ? normalizeProviderFacingProjectText(compactProjectLatestProgressForSystemBlock(latestLandedProgress, 360), 800)
-    : null
-  const preferredLatestLandedProgress = latestLandedProgress
-    && canonicalLatestLandedProgress
-    && canonicalLatestLandedProgress.startsWith(latestLandedProgress)
-    ? canonicalCompactLatestLandedProgress ?? compactLatestLandedProgress ?? canonicalLatestLandedProgress
-    : compactLatestLandedProgress ?? canonicalCompactLatestLandedProgress ?? latestLandedProgress ?? canonicalLatestLandedProgress
-  const canonicalPrimaryOpenLoop = normalizeProviderFacingProjectText(
-    canonicalProjectBrief.primaryOpenLoop ?? canonicalProjectBrief.openLoops[0],
-    12000,
-  )
-  const primaryOpenLoop = normalizeProviderFacingProjectText(projectState?.primaryOpenLoop, 12000)
-  const preferredPrimaryOpenLoop = primaryOpenLoop
-    && canonicalPrimaryOpenLoop
-    && canonicalPrimaryOpenLoop.startsWith(primaryOpenLoop)
-    ? canonicalPrimaryOpenLoop
-    : primaryOpenLoop ?? canonicalPrimaryOpenLoop
-  const canonicalNextClosureTarget = normalizeProviderFacingProjectText(
-    canonicalProjectBrief.nextClosureTarget,
-    12000,
-  )
-  const nextClosureTarget = normalizeProviderFacingProjectText(projectState?.nextClosureTarget, 12000)
-  const preferredNextClosureTarget = nextClosureTarget
-    && canonicalNextClosureTarget
-    && canonicalNextClosureTarget.startsWith(nextClosureTarget)
-    ? canonicalNextClosureTarget
-    : nextClosureTarget ?? canonicalNextClosureTarget
-  return normalizeProviderFacingProjectText([
-    normalizeProviderFacingProjectStateScalar(projectState?.identity, 12000),
-    preferredCurrentPhase,
-    normalizeProviderFacingProjectStateScalar(projectState?.sameHerSelfLine, 12000),
-    preferredLatestLandedProgress,
-    preferredPrimaryOpenLoop,
-    preferredNextClosureTarget,
-  ].filter(Boolean).join(' | '), 12000)
-}
-
-function buildProviderFacingProjectStateFactsSystemBlock(
-  projectState: Record<string, unknown> | null | undefined,
-) {
-  const canonicalBrief = resolveAlicizationProjectStateBrief()
-  const fields = {
-    identity:
-      normalizeProviderFacingProjectStateScalar(projectState?.identity, 1200)
-      ?? normalizeProviderFacingProjectStateScalar(canonicalBrief.identity, 1200),
-    phase:
-      normalizeProviderFacingProjectStateScalar(projectState?.currentPhase, 320)
-      ?? normalizeProviderFacingProjectStateScalar(canonicalBrief.currentPhase, 320),
-    landed:
-      normalizeProviderFacingProjectStateScalar(
-        projectState?.latestLandedProgress ?? projectState?.latestProgress,
-        1200,
-      )
-      ?? normalizeProviderFacingProjectStateScalar(
-        canonicalBrief.latestProgress ?? canonicalBrief.continuityProgressSummary,
-        1200,
-      ),
-    open:
-      normalizeProviderFacingProjectStateScalar(projectState?.primaryOpenLoop, 1200)
-      ?? normalizeProviderFacingProjectStateScalar(
-        canonicalBrief.primaryOpenLoop ?? canonicalBrief.openLoops[0],
-        1200,
-      ),
-    next:
-      normalizeProviderFacingProjectStateScalar(projectState?.nextClosureTarget, 1200)
-      ?? normalizeProviderFacingProjectStateScalar(canonicalBrief.nextClosureTarget, 1200),
-  }
-
-  if (!Object.values(fields).some(Boolean))
-    return ''
-
-  return buildAlicizationProviderFactBlock('alicization-project-state-facts', {
-    source: 'project-state',
-    visibility: 'governance',
-    fields,
-  })
 }
 
 function buildIdentityAwarePreparedDiagnosticsAwarenessLine(
@@ -10762,14 +10653,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       runtimeSurface,
       projectState: finalizedReturnedMindTurnContract?.projectState ?? null,
     })
-    const finalGoverningProject = shouldIncludeProviderProjectStateContext
-      ? (
-          buildProviderFacingProjectGovernanceSummary(finalReturnedRuntimeSurfaceProjectState)
-          ?? buildProviderFacingProjectGovernanceSummary(
-            normalizedMindTurnContract?.projectState as Record<string, unknown> | null | undefined,
-          )
-        )
-      : null
     const providerFacingRuntimeSurface = runtimeSurface.digitalLifeRuntimeSurface
     const providerFacingAnswerPlannerSeed: AlicizationAnswerPlannerSnapshot | null
       = providerFacingRuntimeSurface?.dialogue?.answerPlanner
@@ -10781,50 +10664,28 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           normalizedMindTurnContract
             ? buildFallbackProviderFacingAnswerPlanner({
                 contract: normalizedMindTurnContract,
-                governingProject: normalizedMindTurnContract.governingProject ?? finalGoverningProject ?? null,
                 now,
               })
             : null
         )
         ?? null
-    const shouldReplaceProviderFacingAnswerPlannerGoverningProject = Boolean(
-      finalGoverningProject
-      && providerFacingRuntimeSurface?.dialogue,
-    )
-    if (shouldReplaceProviderFacingAnswerPlannerGoverningProject && providerFacingRuntimeSurface?.dialogue) {
+    if (
+      shouldIncludeProviderProjectStateContext
+      && providerFacingRuntimeSurface?.dialogue
+      && providerFacingAnswerPlannerSeed
+    ) {
       providerFacingRuntimeSurface.dialogue.answerPlanner = {
-        ...(providerFacingAnswerPlannerSeed
-          ?? buildFallbackProviderFacingAnswerPlanner({
-            contract: normalizedMindTurnContract,
-            governingProject: finalGoverningProject,
-            now,
-          })),
-        governingProject: finalGoverningProject,
+        ...providerFacingAnswerPlannerSeed,
+        governingProject: null,
       } satisfies AlicizationAnswerPlannerSnapshot
     }
     messages = runtimeSurface.messages
-    if (shouldIncludeProviderProjectStateContext) {
-      const projectStateFactsSystemBlock = buildProviderFacingProjectStateFactsSystemBlock(
-        finalReturnedRuntimeSurfaceProjectState,
-      )
-      if (projectStateFactsSystemBlock) {
-        messages = [
-          {
-            role: 'system',
-            content: projectStateFactsSystemBlock,
-          } as Message,
-          ...messages,
-        ]
-      }
-    }
     if (!shouldIncludeProviderProjectStateContext)
       messages = sanitizeOrdinaryDialogueProviderMessages(messages)
     messages = filterAlicizationProviderSystemMessages(messages)
     messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
-    if (!shouldIncludeProviderProjectStateContext) {
-      sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeRuntimeSurface)
-      sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeSpine?.runtimeSurface ?? null)
-    }
+    sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeRuntimeSurface)
+    sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeSpine?.runtimeSurface ?? null)
     runtimeSurface.messages = messages
 
     if (options.onPreparedExecutionDiagnostics) {
@@ -11440,16 +11301,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         previousMirror: previousSessionMirror,
         mirror: sessionMirror,
       })
-    }
-
-    if (finalGoverningProject && runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.answerPlanner) {
-      const existingAnswerPlanner = runtimeSurface.digitalLifeRuntimeSurface.dialogue.answerPlanner
-      if (!String(existingAnswerPlanner.governingProject ?? '').trim()) {
-        runtimeSurface.digitalLifeRuntimeSurface.dialogue.answerPlanner = {
-          ...existingAnswerPlanner,
-          governingProject: finalGoverningProject,
-        } as typeof runtimeSurface.digitalLifeRuntimeSurface.dialogue.answerPlanner
-      }
     }
 
     const preparedResultBase = {
