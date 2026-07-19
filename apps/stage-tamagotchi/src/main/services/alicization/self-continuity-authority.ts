@@ -273,18 +273,7 @@ function shouldPreferDurableSelfCoreLine(input: {
   const baselineIsGenericPersonaLine
     = !!autobiographicalIdentity
       && !baselineAlreadyCarriesContinuity
-      && ![
-        'repair truth',
-        'truth',
-        'ground',
-        'continuous',
-        'continuity',
-        'same her',
-        'same self',
-        'living self',
-        'digital life',
-        'phase 1',
-      ].some(signal => autobiographicalIdentity.includes(signal))
+      && !/(repair truth|truth|ground|continuous|continuity|same her|same self|living self|digital life|phase 1)/u.test(autobiographicalIdentity)
 
   return explicitContinuitySignal
     && !baselineCarriesTruthDoctrine
