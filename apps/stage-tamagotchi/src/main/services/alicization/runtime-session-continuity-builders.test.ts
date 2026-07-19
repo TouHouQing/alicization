@@ -872,6 +872,7 @@ describe('runtime session continuity builders', () => {
     })
 
     const cue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
+    const companionHeadlineLine = 'embodiment_lanes=face+lipsync+voice; continuity=shared_internal_state; status=partial'
     const whyNow = 'autonomy_state=deferred_for_visible_reply; host_context=focused'
     const signal = runtime.buildDeferredAutonomyContinuitySignal({
       now: Date.UTC(2026, 4, 22, 10, 10, 0),
@@ -886,6 +887,7 @@ describe('runtime session continuity builders', () => {
         primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
         nextClosureTarget: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
         emotionalClosureCue: cue,
+        companionHeadlineLine,
       } as any,
       autonomy: {
         whyNow,
@@ -898,9 +900,11 @@ describe('runtime session continuity builders', () => {
     expect(signal.summary).not.toContain('carry_mode=')
     expect(signal.summary).not.toContain('repair_before_closeness')
     expect(signal.summary).not.toContain(cue)
+    expect(signal.summary).not.toContain(companionHeadlineLine)
     expect(signal.metadata).toEqual(expect.objectContaining({
       whyNow,
       projectStateEmotionalClosureCue: cue,
+      projectStateCompanionHeadlineLine: companionHeadlineLine,
     }))
   })
 

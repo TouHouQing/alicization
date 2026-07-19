@@ -1052,7 +1052,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         summary: [
           'defer_reason=no_mind_authored_reply',
           reason ? `reason=${reason}` : '',
-          strongerEmbodimentProjectAuthority || whyNow || executionIntentSummary || '',
+          whyNow || executionIntentSummary || strongerEmbodimentProjectAuthority || '',
           sourceThreadId ? `thread=${sourceThreadId}` : '',
           `scenario=${scenario}`,
         ].filter(Boolean).join(' | '),

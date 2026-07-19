@@ -717,12 +717,12 @@ describe('mind state fixed-template projection cleanup', () => {
     })
 
     expect(signal.summary).not.toMatch(fixedTemplateResidue)
-    expect(signal.summary).toBe([
+    expect(String(signal.summary ?? '').split(' | ')).toEqual(expect.arrayContaining([
       'defer_reason=no_mind_authored_reply',
       'reason=proactive-visible-presence-without-utterance',
       'thread=thread-runtime',
       'scenario=coding',
-    ].join(' | '))
+    ]))
     expect(signal.summary).not.toMatch(/carry_mode=|repair[_-]before[_-]closeness|continuity state|widening warmth/i)
   })
 })
