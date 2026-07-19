@@ -88,10 +88,12 @@ function createExecutionSelfRevisionStatePatch(input: {
 }
 
 describe('runtime execution delivery', () => {
-  it('does not build execution callback self-brief prompt prose', () => {
+  it('does not retain execution callback governance cue prose', () => {
     const source = readFileSync(new URL('./runtime-execution-delivery.ts', import.meta.url), 'utf8')
 
-    expect(source).toContain('callback_context=execution-result')
+    expect(source).not.toMatch(/callback_context=|runtime_context=|failure_surface=|callback_delivery=|trust_condition=|relationship_doctrine=/iu)
+    expect(source).not.toContain('buildMinimalProjectStateExecutionCallbackProjection')
+    expect(source).not.toContain('buildMinimalActiveSameHerProjection')
     expect(source).not.toContain('buildExecutionCallbackProjectSelfBriefSystemBlock')
     expect(source).not.toContain('Execution callback self brief.')
   })
@@ -268,10 +270,9 @@ describe('runtime execution delivery', () => {
     }))
     expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
       action: 'queued',
-      payload: expect.objectContaining({
-        projectContinuity: null,
-      }),
     }), 'default')
+    const queuedAudit = ((appendAuditLog.mock.calls as unknown[][]).at(0)?.[0]) as any
+    expect(queuedAudit?.payload).not.toHaveProperty('projectContinuity')
     expect(queueSubconsciousWake).toHaveBeenCalledWith('default', 'execution-delivery:thread-1', 240)
   })
 
@@ -343,7 +344,7 @@ describe('runtime execution delivery', () => {
     expect(queued?.completedAt).toBe(9_500)
   })
 
-  it('marks queued execution delivery audit payloads when the thread still carries a project continuity line', async () => {
+  it('does not classify queued delivery audit payloads with a project continuity cue', async () => {
     const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
       getNow: () => 10_000,
     })
@@ -411,10 +412,9 @@ describe('runtime execution delivery', () => {
 
     expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
       action: 'queued',
-      payload: expect.objectContaining({
-        projectContinuity: 'continuity-carrying-execution-line',
-      }),
     }), 'default')
+    const queuedAudit = ((appendAuditLog.mock.calls as unknown[][]).at(0)?.[0]) as any
+    expect(queuedAudit?.payload).not.toHaveProperty('projectContinuity')
   })
 
   it('persists thread runtime project briefing into queued execution delivery state so restart callback can reopen on the continuity state', async () => {
@@ -2095,7 +2095,7 @@ describe('runtime execution delivery', () => {
     expect(knowledgeEvidence).toBe(liveKnowledgeEvidence)
   })
 
-  it('falls back to the current live same-her state when the execution session snapshot is missing lower-pressure continuity', async () => {
+  it('keeps the current execution session projection when a live state also exists', async () => {
     const liveState = createDefaultVisualPresenceState(10_000)
     const liveSelfRevisionPatch = createExecutionSelfRevisionStatePatch({
       id: 'patch-same-her-live',
@@ -2207,12 +2207,12 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(projection?.openingGuidance?.toLowerCase()).not.toContain('lean closer')
-    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(projection?.relationshipDoctrine?.toLowerCase()).toContain('steadiness before closeness')
+    expect(projection?.relationshipPosture).toBe('warm')
+    expect(projection?.openingGuidance).toBe('Lean closer and raise the warmth immediately.')
+    expect(projection?.preferredProactiveStyle).toBe('light-nudge')
   })
 
-  it('applies active same-her lower-pressure continuity when the current execution session surface drifts warmer than the active baseline', async () => {
+  it('preserves the current execution session person-state projection when an active patch exists', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2318,13 +2318,12 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(projection?.relationshipPosture).toBe('restrained')
-    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(String(projection?.summary ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(projection?.preferredProactiveStyle).toBe('silent-observe')
+    expect(projection?.relationshipPosture).toBe('warm')
+    expect(projection?.openingGuidance).toBe('Lean closer and raise the warmth immediately.')
+    expect(projection?.preferredProactiveStyle).toBe('light-nudge')
   })
 
-  it('treats explicit repair-before-closeness carry as enough to override a warmer execution callback surface even when numeric biases stay low', async () => {
+  it('does not turn an active repair patch into a fixed execution callback posture', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2417,13 +2416,12 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(projection?.relationshipPosture).toBe('restrained')
-    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|repair_phase=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(String(projection?.summary ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(projection?.preferredProactiveStyle).toBe('silent-observe')
+    expect(projection?.relationshipPosture).toBe('warm')
+    expect(projection?.openingGuidance).toBe('Lean closer and raise the warmth immediately.')
+    expect(projection?.preferredProactiveStyle).toBe('light-nudge')
   })
 
-  it('builds a minimal identity-continuity', async () => {
+  it('does not synthesize an identity-continuity projection without a runtime surface', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2472,14 +2470,10 @@ describe('runtime execution delivery', () => {
       agentTurn: null,
     })
 
-    expect(projection).toBeTruthy()
-    expect(projection?.relationshipPosture).toBe('restrained')
-    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(String(projection?.summary ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(projection?.preferredProactiveStyle).toBe('silent-observe')
+    expect(projection).toBeNull()
   })
 
-  it('builds a minimal project-state callback projection when runtime surfaces are absent but the execution return still carries continuity closure pressure', async () => {
+  it('does not synthesize a project-state callback projection from execution goal text', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2522,25 +2516,7 @@ describe('runtime execution delivery', () => {
       agentTurn: null,
     })
 
-    expect(projection).toBeTruthy()
-    expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.preferredProactiveStyle).toBe('silent-observe')
-    expect(projection?.openingGuidance).toContain('Failure surface: explicit')
-    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|memory_owner\.|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(projection?.summary).toBe('')
-    expectNoFixedProjectTemplateResidue(projection?.summary)
-    expect(projection?.contexts).toEqual(expect.arrayContaining([
-      'execution-callback',
-      'execution',
-      'project-state-carry',
-    ]))
-    expect(projection?.personalityContinuityState?.currentRegime).toBe('execution-callback')
-    expect(String(projection?.personalityContinuityState?.continuitySummary ?? '')).not.toMatch(/latest_landed_progress=|callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(projection?.personalityContinuityState?.rationale).toEqual(expect.arrayContaining([
-      'execution-callback',
-      'bounded-continuity',
-      'lower-pressure-return',
-    ]))
+    expect(projection).toBeNull()
   })
 
   it('keeps a richer identity-continuity', async () => {
@@ -2776,7 +2752,7 @@ describe('runtime execution delivery', () => {
     )
   })
 
-  it('clamps gateway-authored execution callback delivery cadence back to calm when same-her lower-pressure continuity is active', async () => {
+  it('preserves gateway-authored execution callback delivery cadence', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2860,11 +2836,11 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect((structured as any)?.performance?.delivery).toBe('calm')
-    expect((structured as any)?.delivery).toBe('calm')
+    expect((structured as any)?.performance?.delivery).toBe('firm')
+    expect((structured as any)?.delivery).toBe('firm')
   })
 
-  it('treats relationship cadence reconfirmation as active identity-continuity', async () => {
+  it('does not rewrite gateway-authored delivery for relationship cadence reconfirmation', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2962,9 +2938,8 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(projection?.relationshipPosture).toBe('restrained')
-    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(String(projection?.relationshipDoctrine ?? '')).not.toMatch(/repair_before_closeness|relationship_cadence=|visibility=redacted_internal/iu)
+    expect(projection?.relationshipPosture).toBe('warm')
+    expect(projection?.openingGuidance).toBe('Lean in and make the callback feel immediately close again.')
 
     const structured = await runtime.generateExecutionCallbackStructuredWithGateway({
       cardId: 'default',
@@ -2989,8 +2964,8 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect((structured as any)?.performance?.delivery).toBe('calm')
-    expect((structured as any)?.delivery).toBe('calm')
+    expect((structured as any)?.performance?.delivery).toBe('gentle')
+    expect((structured as any)?.delivery).toBe('gentle')
   })
 
   it('keeps gateway-authored execution callback return on one structured continuity state', async () => {
@@ -3081,8 +3056,8 @@ describe('runtime execution delivery', () => {
     })
 
     expect(JSON.stringify(structured)).not.toMatch(/legacy phase-one template|continuity state|identity-continuity|open_focus=|next_focus=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect((structured as any)?.performance?.delivery).toBe('calm')
-    expect((structured as any)?.delivery).toBe('calm')
+    expect((structured as any)?.performance?.delivery).toBe('gentle')
+    expect((structured as any)?.delivery).toBe('gentle')
   })
 
   it('keeps truth-first relationship doctrine on project-state execution callback projection when stronger self continuity authority survives into delivery', async () => {

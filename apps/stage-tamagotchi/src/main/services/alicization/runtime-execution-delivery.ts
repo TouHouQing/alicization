@@ -21,7 +21,6 @@ import type {
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type {
   AlicizationPersonalityContinuityStateSnapshot,
-  AlicizationPersonalityRhythmStateSnapshot,
 } from './personality-continuity-state'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
@@ -59,82 +58,16 @@ import {
   resolvePreferredPersonStateProjection,
   resolvePreferredSelfContinuityAuthority,
 } from './person-state-projection-resolution'
-import { buildAlicizationPersonalityContinuityState } from './personality-continuity-state'
 import {
-  compactProjectLatestProgressForSystemBlock,
   isAlicizationThinProjectAwarenessLine,
   looksLikeThinProjectClosureShell,
   preferStrongerPersistedSameHerSelfLine,
   preferStrongerSameHerDriftRisk,
-  resolveAlicizationProjectStateBrief,
 } from './project-state-brief'
-import {
-  deriveCompactProjectStateNextFocusSummary,
-  deriveCompactProjectStateOpenFocusSummary,
-} from './project-state-focus'
 import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
 import { parseJsonObjectFromText } from './runtime-transport-content'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import { buildAlicizationSelfEvolutionKernel } from './self-evolution-kernel'
-
-const canonicalExecutionCallbackContextLine = 'callback_context=execution-result; runtime_context=local_runtime; failure_surface=transparent.'
-
-function appendFocusPart(parts: string[], value: string) {
-  if (!parts.includes(value))
-    parts.push(value)
-}
-
-function deriveExecutionProjectOpenFocus(primaryOpenLoop: unknown) {
-  const normalized = typeof primaryOpenLoop === 'string'
-    ? primaryOpenLoop.trim().toLowerCase()
-    : ''
-  const focus: string[] = []
-  const compact = deriveCompactProjectStateOpenFocusSummary(primaryOpenLoop)
-  for (const part of compact?.split('/') ?? []) {
-    if (part)
-      appendFocusPart(focus, part)
-  }
-  if (/memory_dialogue_embodiment_closure|memory=required|memory_required|natural_recall|workingmemory|longtermmemory/iu.test(normalized))
-    appendFocusPart(focus, 'memory')
-  if (/memory_dialogue_embodiment_closure|dialogue|visible_reply|voice|reply/iu.test(normalized))
-    appendFocusPart(focus, 'dialogue')
-  if (/memory_dialogue_embodiment_closure|initiative|proactive|initiative=restrained|runtime_proactive_initiative/iu.test(normalized))
-    appendFocusPart(focus, 'initiative')
-  if (/memory_dialogue_embodiment_closure|embodiment|body|face|motion|lipsync|resident_presence|cross_modal/iu.test(normalized))
-    appendFocusPart(focus, 'embodiment')
-  if (/same[-_ ]?her|same_living|same living line|closure_seam|project_identity_route_carry/iu.test(normalized))
-    appendFocusPart(focus, 'same-line')
-  return focus.length > 0 ? focus.join('/') : null
-}
-
-function deriveExecutionProjectNextFocus(nextClosureTarget: unknown) {
-  const normalized = typeof nextClosureTarget === 'string'
-    ? nextClosureTarget.trim().toLowerCase()
-    : ''
-  const focus: string[] = []
-  const compact = deriveCompactProjectStateNextFocusSummary(nextClosureTarget)
-  for (const part of compact?.split('/') ?? []) {
-    if (part)
-      appendFocusPart(focus, part)
-  }
-  if (/project_identity|project-carry|project carry|project_identity_carry/iu.test(normalized))
-    appendFocusPart(focus, 'project-carry')
-  if (/phase1|phase_1|phase-1|phase 1/iu.test(normalized))
-    appendFocusPart(focus, 'phase-1')
-  if (/measured_return|measured-return|measured return/iu.test(normalized))
-    appendFocusPart(focus, 'measured-return')
-  if (/same[-_ ]?her|same_living|same living line/iu.test(normalized))
-    appendFocusPart(focus, 'same-line')
-  if (/memory|natural_recall|workingmemory|longtermmemory/iu.test(normalized))
-    appendFocusPart(focus, 'memory')
-  if (/dialogue|visible_reply|voice|reply/iu.test(normalized))
-    appendFocusPart(focus, 'dialogue')
-  if (/initiative|proactive/iu.test(normalized))
-    appendFocusPart(focus, 'initiative')
-  if (/embodiment|body|face|motion|lipsync|resident_presence|cross_modal/iu.test(normalized))
-    appendFocusPart(focus, 'embodiment')
-  return focus.length > 0 ? focus.join('/') : null
-}
 
 function sanitizeExecutionDeliveryProjectFreeText(raw: unknown, maxChars = 320) {
   const ledgerText = sanitizeExecutionLedgerText(raw, maxChars)
@@ -828,426 +761,6 @@ function inferExecutionPersonStateContexts(goal: string | null | undefined) {
   return inferHostSocialContextsFromText(goal ?? '', ['execution-callback', 'execution'])
 }
 
-function buildLowPressureExecutionCallbackRhythmState(): AlicizationPersonalityRhythmStateSnapshot {
-  return {
-    cadenceMode: 'cooldown',
-    restMode: 'low-pressure',
-    embodiedPresence: null,
-    suggestedStyle: 'silent-observe',
-    moodLabel: 'callback-line-settling',
-    emotionalTension: 'focused-flow',
-    cadencePressure: 0.38,
-    restPressure: 0.64,
-    memoryResonance: 0.68,
-    companionshipTempo: 0.34,
-    summary: 'Execution callback continuity stays low-pressure while the current context settles.',
-    rationale: [
-      'execution-callback',
-      'bounded-continuity',
-      'lower-pressure-return',
-    ],
-  }
-}
-
-function buildLowPressureExecutionCallbackContinuityState(input: {
-  continuitySummary: string
-}): AlicizationPersonalityContinuityStateSnapshot {
-  const base = buildAlicizationPersonalityContinuityState({
-    now: Date.now(),
-  })
-
-  return {
-    ...base,
-    trustStage: 'cautious-open',
-    currentRegime: 'execution-callback',
-    closenessPosture: 'space-first',
-    repairPosture: 'repair-first',
-    autonomyPosture: 'protect-space',
-    cadenceProfile: 'slow-return',
-    energyProfile: 'steady',
-    continuitySummary: input.continuitySummary.slice(0, 220),
-    rhythmState: buildLowPressureExecutionCallbackRhythmState(),
-    trustMeaning: base.trustMeaning ?? 'Trust holds when callback timing stays lower-pressure before closeness widens.',
-    reconsolidationLine: base.reconsolidationLine ?? 'Execution callback return stays in the current reply context.',
-    selfLine: base.selfLine ?? canonicalExecutionCallbackContextLine,
-    relationLine: base.relationLine ?? 'Leave room before widening callback closeness again.',
-    rationale: [
-      ...base.rationale,
-      'execution-callback',
-      'bounded-continuity',
-      'lower-pressure-return',
-    ],
-  }
-}
-
-function carriesStrongerSameHerContinuity(projection: AlicizationPersonStateProjection | null | undefined) {
-  return Boolean(
-    projection
-    && (
-      projection.restrained
-      || /lower-pressure|same-her|steadiness before closeness/i.test([
-        projection.openingGuidance,
-        projection.relationshipDoctrine,
-        projection.summary,
-        projection.trustRationale,
-      ]
-        .filter(Boolean)
-        .join(' '))
-    ),
-  )
-}
-
-function shouldClampExecutionCallbackDeliveryToLowerPressure(input: {
-  projection: AlicizationPersonStateProjection | null | undefined
-  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
-}) {
-  const projection = input.projection
-  const authority = input.selfContinuityAuthority
-  const combined = [
-    projection?.openingGuidance,
-    projection?.manifestationCadenceSummary,
-    projection?.trustRationale,
-    projection?.relationshipDoctrine,
-    authority?.relationshipLine,
-    authority?.habitLine,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-
-  return (
-    projection?.activeClosenessContext === 'execution-callback'
-    && /lower-pressure|leave room|same-her baseline|measured|slower than|space-first/u.test(combined)
-  )
-}
-
-function clampExecutionCallbackDeliveryCadence(input: {
-  delivery: string
-  projection: AlicizationPersonStateProjection | null | undefined
-  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
-}) {
-  if (!shouldClampExecutionCallbackDeliveryToLowerPressure(input))
-    return input.delivery
-  if (input.delivery === 'firm' || input.delivery === 'gentle')
-    return 'calm'
-  return input.delivery
-}
-
-function applyTruthFirstRelationshipDoctrineToProjection(input: {
-  projection: AlicizationPersonStateProjection | null | undefined
-  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
-}) {
-  const projection = input.projection
-  if (!projection)
-    return projection ?? null
-
-  const projectState = resolveAlicizationProjectStateBrief()
-  const openFocus = deriveExecutionProjectOpenFocus(projectState.primaryOpenLoop)
-  const nextFocus = deriveExecutionProjectNextFocus(projectState.nextClosureTarget)
-  const shouldCarryProjectFocus = (projection.contexts ?? []).includes('project-state-carry')
-    || /same-her baseline|same phase 1 digital life|project-state closure/u.test([
-      projection.openingGuidance,
-      projection.summary,
-      projection.manifestationCadenceSummary,
-    ].filter(Boolean).join(' '))
-
-  const projectionOpeningGuidance = sanitizeExecutionProjectionCarryText(projection.openingGuidance, 320)
-  const projectionSummary = sanitizeExecutionProjectionCarryText(projection.summary, 520)
-  const openingGuidance = shouldCarryProjectFocus
-    ? [
-        projectionOpeningGuidance,
-        openFocus ? `Open focus: ${openFocus}.` : '',
-        nextFocus ? `Next focus: ${nextFocus}.` : '',
-      ].filter(Boolean).join(' ')
-    : projectionOpeningGuidance
-  const summary = shouldCarryProjectFocus
-    ? [
-        projectionSummary,
-        openFocus ? `Open focus: ${openFocus}.` : '',
-        nextFocus ? `Next focus: ${nextFocus}.` : '',
-      ].filter(Boolean).join(' | ').slice(0, 520)
-    : (projectionSummary ?? '')
-
-  const selfLine = typeof input.selfContinuityAuthority?.selfLine === 'string'
-    ? input.selfContinuityAuthority.selfLine.trim()
-    : ''
-  const relationshipLine = typeof input.selfContinuityAuthority?.relationshipLine === 'string'
-    ? input.selfContinuityAuthority.relationshipLine.trim()
-    : ''
-
-  if (!/repair truth|truth/u.test(selfLine) || !/closeness outrun truth/u.test(relationshipLine)) {
-    return {
-      ...projection,
-      openingGuidance,
-      summary,
-    }
-  }
-
-  return {
-    ...projection,
-    openingGuidance,
-    summary,
-    relationshipDoctrine: [
-      'Repair truth before closeness.',
-      `Relationship line: ${relationshipLine}.`,
-    ].join(' '),
-  }
-}
-
-function activeSameHerContinuityShouldOverride(input: {
-  projection: AlicizationPersonStateProjection | null | undefined
-  activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch | null
-}) {
-  const patch = input.activeSelfRevisionPatch
-  if (!patch)
-    return false
-  if (carriesStrongerSameHerContinuity(input.projection))
-    return false
-
-  const summary = [
-    patch.summary,
-    ...patch.reasonCodes,
-    ...patch.lanes,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-
-  return (
-    /same-her|lower-pressure|slower than|steadiness before closeness|bounded-return|measured-return|reconfirmation|repair-before-closeness|repair first|let repair settle/i.test(summary)
-    || patch.relationshipPosture.closenessCapBias >= 0.18
-    || patch.relationshipPosture.repairWindowBias >= 0.16
-    || patch.proactivePolicy.restraintBias >= 0.08
-  )
-}
-
-function applyActiveSameHerContinuityToProjection(input: {
-  projection: AlicizationPersonStateProjection
-  activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch | null
-}): AlicizationPersonStateProjection {
-  if (!activeSameHerContinuityShouldOverride(input))
-    return input.projection
-
-  const continuitySummary = input.activeSelfRevisionPatch?.summary?.trim() || 'preserve the current continuity baseline'
-  const nextSummaryParts = [
-    input.projection.summary,
-    `continuity=${continuitySummary}`,
-  ].filter(Boolean)
-
-  return {
-    ...input.projection,
-    contexts: [
-      ...new Set([
-        ...(input.projection.contexts ?? []),
-        'execution-callback',
-        'execution',
-      ]),
-    ],
-    activeClosenessContext: 'execution-callback',
-    activeClosenessRung: 'measured-room',
-    relationshipPosture: 'restrained',
-    openingGuidance: 'Treat this as an execution result callback; settle repair before closeness and keep failure explicit.',
-    preferredProactiveStyle: 'silent-observe',
-    manifestationCadenceSummary: 'Repair first with lower pressure.',
-    trustRationale: input.projection.trustRationale || 'Trust depends on repair settling before closeness.',
-    relationshipDoctrine: 'Keep execution repair bounded and exact before closeness.',
-    cautious: true,
-    restrained: true,
-    summary: [...nextSummaryParts, 'execution result callback'].join(' | ').slice(0, 520),
-    personalityContinuityState: {
-      ...input.projection.personalityContinuityState,
-      currentRegime: 'execution-callback',
-      closenessPosture: 'space-first',
-      repairPosture: 'repair-first',
-    },
-  }
-}
-
-function buildMinimalActiveSameHerProjection(input: {
-  activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch
-  goal?: string | null
-}): AlicizationPersonStateProjection {
-  const continuitySummary = input.activeSelfRevisionPatch.summary?.trim() || 'preserve the current continuity baseline'
-  return {
-    contexts: [
-      ...new Set([
-        ...inferExecutionPersonStateContexts(input.goal),
-        'execution-callback',
-        'execution',
-      ]),
-    ],
-    activeClosenessContext: 'execution-callback',
-    activeClosenessRung: 'measured-room',
-    selfContinuityAuthority: null,
-    closenessLadder: [{
-      context: 'execution-callback',
-      rung: 'measured-room',
-      preference: 'callback_delivery=bounded; closeness_widening=deferred',
-      rationale: `continuity=${continuitySummary}`,
-      confidence: 0.82,
-    }],
-    relationshipPosture: 'restrained',
-    openingGuidance: 'Treat this as an execution result callback; settle repair before closeness and keep failure explicit.',
-    preferredProactiveStyle: 'silent-observe',
-    manifestationCadenceSummary: 'Repair first with lower pressure.',
-    preferenceText: 'Repair timing should come before closeness.',
-    sensitivityText: 'Risk: over-close pressure.',
-    repairTriggerText: 'Repair trigger: closeness jumped too fast.',
-    burdenText: 'Callback burden: crowding risk.',
-    routineText: '',
-    trustRationale: 'trust_condition=repair_settled_before_closeness',
-    relationshipDoctrine: 'relationship_doctrine=bounded_exact_repair_before_closeness',
-    cautious: true,
-    restrained: true,
-    summary: [
-      'Execution result callback.',
-      sanitizeExecutionProjectionCarryText(continuitySummary, 440),
-    ].filter(Boolean).join(' ').slice(0, 520),
-    personalityContinuityState: buildLowPressureExecutionCallbackContinuityState({
-      continuitySummary,
-    }),
-  }
-}
-
-function deriveExecutionDeliveryProjectContinuityCue(input: {
-  goal?: string | null
-  summary?: string | null
-}) {
-  const combined = sanitizeExecutionLedgerText([
-    input.goal ?? '',
-    input.summary ?? '',
-  ].filter(Boolean).join(' | '), 240).toLowerCase()
-  if (!combined)
-    return null
-  if (/(continuity|unfinished|return|same-her|same thread|回返|未完|连续|同一条线)/iu.test(combined))
-    return 'continuity-carrying-execution-line'
-  return null
-}
-
-function deriveExecutionDeliverySameHerOpeningCue(input: {
-  goal?: string | null
-  summary?: string | null
-}) {
-  const combined = sanitizeExecutionLedgerText([
-    input.goal ?? '',
-    input.summary ?? '',
-  ].filter(Boolean).join(' | '), 320).toLowerCase()
-  if (!combined)
-    return null
-
-  const carriesSameHerLine
-    = combined.includes('same living line')
-      || combined.includes('same-her')
-      || combined.includes('same line')
-      || combined.includes('same thread')
-      || combined.includes('project-state closure seam')
-      || combined.includes('同一条线')
-  const carriesUnfinishedClosure
-    = combined.includes('unfinished')
-      || combined.includes('still-open closure')
-      || combined.includes('still-open project-state closure')
-      || combined.includes('closure seam')
-      || combined.includes('未完')
-  const carriesLowerPressureReturn
-    = combined.includes('before widening outward')
-      || combined.includes('widen outward too early')
-      || combined.includes('lower-pressure')
-      || combined.includes('continue-slower')
-      || combined.includes('轻一点')
-      || combined.includes('别一下子')
-
-  if (!carriesSameHerLine || !carriesUnfinishedClosure && !carriesLowerPressureReturn)
-    return null
-
-  return 'Execution result callback; keep pressure lower, make failure explicit, and defer widening.'
-}
-
-function buildMinimalProjectStateExecutionCallbackProjection(input: {
-  goal?: string | null
-  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
-}): AlicizationPersonStateProjection {
-  const projectState = resolveAlicizationProjectStateBrief()
-  const latestLandedProgress = compactProjectLatestProgressForSystemBlock(projectState.latestProgress, 96)
-  const projectContinuitySummary = [
-    'execution-callback',
-    latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
-  ].filter(Boolean).join(' | ')
-  const openFocus = deriveExecutionProjectOpenFocus(projectState.primaryOpenLoop)
-  const nextFocus = deriveExecutionProjectNextFocus(projectState.nextClosureTarget)
-  const executionSameHerOpeningCue = deriveExecutionDeliverySameHerOpeningCue({
-    goal: input.goal,
-    summary: input.selfContinuityAuthority?.authoritySummary ?? null,
-  })
-  const truthFirstRelationshipDoctrine
-    = typeof input.selfContinuityAuthority?.selfLine === 'string'
-      && /repair truth|truth/u.test(input.selfContinuityAuthority.selfLine)
-      && typeof input.selfContinuityAuthority?.relationshipLine === 'string'
-      && /closeness outrun truth/u.test(input.selfContinuityAuthority.relationshipLine)
-      ? [
-          'Repair truth before closeness.',
-          `Relationship line: ${input.selfContinuityAuthority.relationshipLine.trim()}.`,
-        ].join(' ')
-      : null
-
-  return {
-    contexts: [
-      ...new Set([
-        ...inferExecutionPersonStateContexts(input.goal),
-        'execution-callback',
-        'execution',
-        'project-state-carry',
-      ]),
-    ],
-    activeClosenessContext: 'execution-callback',
-    activeClosenessRung: 'measured-room',
-    selfContinuityAuthority: input.selfContinuityAuthority ?? null,
-    closenessLadder: [{
-      context: 'execution-callback',
-      rung: 'measured-room',
-      preference: 'callback_delivery=bounded; failure_surface=transparent',
-      rationale: latestLandedProgress
-        ? `latest_landed_progress=${latestLandedProgress}`
-        : 'callback_context=execution-result',
-      confidence: 0.72,
-    }],
-    relationshipPosture: 'restrained',
-    openingGuidance: [
-      'Callback role: execution result.',
-      'Failure surface: explicit.',
-      'Short-term memory owner: WorkingMemory.',
-      'Long-term recall owner: LongTermMemoryRecall.',
-      openFocus ? `Open focus: ${openFocus}.` : '',
-      nextFocus ? `Next focus: ${nextFocus}.` : '',
-      executionSameHerOpeningCue,
-    ].filter(Boolean).join(' '),
-    preferredProactiveStyle: 'silent-observe',
-    manifestationCadenceSummary: 'Measured and exact failure-transparent callback.',
-    preferenceText: 'Use exact lower-pressure timing for the current turn.',
-    sensitivityText: 'Risk: detached result notice.',
-    repairTriggerText: 'Repair trigger: hidden uncertainty.',
-    burdenText: 'Callback burden: avoid warmth crowding or failure erasure.',
-    routineText: 'Callback route: current execution context and memory owners.',
-    trustRationale: 'Trust condition: status evidence and failure transparency.',
-    relationshipDoctrine: truthFirstRelationshipDoctrine
-      ?? 'Relationship doctrine: exact and bounded; no persona cover for execution uncertainty.',
-    cautious: true,
-    restrained: true,
-    summary: [
-      'Regime: execution callback.',
-      'Posture: restrained.',
-      'Callback context: execution result.',
-      'Runtime context: local runtime.',
-      latestLandedProgress ? `latest_landed_progress=${latestLandedProgress}` : '',
-      executionSameHerOpeningCue ? `opening=${executionSameHerOpeningCue}` : '',
-      openFocus ? `Open focus: ${openFocus}.` : '',
-      nextFocus ? `Next focus: ${nextFocus}.` : '',
-    ].filter(Boolean).join(' | ').slice(0, 520),
-    personalityContinuityState: buildLowPressureExecutionCallbackContinuityState({
-      continuitySummary: projectContinuitySummary,
-    }),
-  }
-}
-
 export function createAlicizationRuntimeExecutionDelivery(
   options: CreateAlicizationRuntimeExecutionDeliveryOptions,
 ) {
@@ -1362,10 +875,6 @@ export function createAlicizationRuntimeExecutionDelivery(
         status: queued.status,
         channel: queued.channel,
         completedAt: queued.completedAt,
-        projectContinuity: deriveExecutionDeliveryProjectContinuityCue({
-          goal: input.thread.goal,
-          summary: input.thread.summary,
-        }),
       },
     }, cardId)
     options.queueSubconsciousWake(cardId, `execution-delivery:${queued.threadId}`, 240)
@@ -1430,10 +939,9 @@ export function createAlicizationRuntimeExecutionDelivery(
     }
     agentTurn?: AlicizationAgentTurnRuntime | null
   }) => {
-    const normalizedProjection = applyTruthFirstRelationshipDoctrineToProjection({
-      projection: input.personStateProjection ?? null,
-      selfContinuityAuthority: input.selfContinuityAuthority ?? null,
-    })
+    const normalizedProjection = input.personStateProjection
+      ? sanitizeExecutionPersonStateProjection(input.personStateProjection)
+      : null
     const prompt = buildAlicizationExecutionPayoffPrompt({
       mode: 'callback-delivery',
       channel: sanitizeExecutionLedgerText(input.channel, 48) || 'executor',
@@ -1487,21 +995,14 @@ export function createAlicizationRuntimeExecutionDelivery(
     if (!thought || !reply || normalizedEmotion.downgraded)
       return null
 
-    const clampedDelivery = clampExecutionCallbackDeliveryCadence({
-      delivery: performance.delivery,
-      projection: normalizedProjection,
-      selfContinuityAuthority: input.selfContinuityAuthority,
-    })
-
     return normalizeAlicizationProviderExecutionStructured({
       parsed,
       reply,
       thought,
       emotion: performance.baseEmotion,
-      delivery: clampedDelivery,
+      delivery: performance.delivery,
       performance: {
         ...performance,
-        delivery: clampedDelivery,
       },
     })
   }
@@ -1622,43 +1123,22 @@ export function createAlicizationRuntimeExecutionDelivery(
     selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   }) => {
     const sessionRuntimeSurface = input.agentTurn?.getSessionSnapshot().digitalLifeSpine?.runtimeSurface ?? null
-    const sessionProjection = resolvePreferredPersonStateProjection({
-      bundleProjection: readPersonStateProjectionFromDerivedMindStateBundle<any>(sessionRuntimeSurface?.memory.derivedMindStateBundle ?? null),
-      runtimeProjection: sessionRuntimeSurface?.memory.personStateProjection ?? null,
-    }) ?? null
-    const sessionSelfEvolution = sessionRuntimeSurface?.memory.selfEvolution
-      ?? sessionRuntimeSurface?.memory.derivedMindStateBundle?.selfEvolution
-      ?? null
-    const liveRuntimeSurface = !sessionSelfEvolution
+    const liveRuntimeSurface = !sessionRuntimeSurface
       ? await (async () => {
           const state = await options.ensureVisualPresenceState(input.cardId).catch(() => null)
           return state ? buildAlicizationDigitalLifeRuntimeSurface(state) : null
         })()
       : null
-    const liveProjection = resolvePreferredPersonStateProjection({
-      bundleProjection: readPersonStateProjectionFromDerivedMindStateBundle<any>(liveRuntimeSurface?.memory.derivedMindStateBundle ?? null),
-      runtimeProjection: liveRuntimeSurface?.memory.personStateProjection ?? null,
-    }) ?? null
     const activeSelfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
     const activeSelfEvolutionCandidateId = await options.getActiveSelfEvolutionCandidateId?.().catch(() => null) ?? null
-    const liveSelfEvolution = liveRuntimeSurface?.memory.selfEvolution
-      ?? liveRuntimeSurface?.memory.derivedMindStateBundle?.selfEvolution
-      ?? null
-    const liveProjectionCarriesStrongerContinuity = carriesStrongerSameHerContinuity(liveProjection)
-      && !carriesStrongerSameHerContinuity(sessionProjection)
-    const runtimeSurface = !sessionSelfEvolution && (liveSelfEvolution || liveProjectionCarriesStrongerContinuity)
-      ? liveRuntimeSurface
-      : sessionRuntimeSurface ?? liveRuntimeSurface
+    const runtimeSurface = sessionRuntimeSurface ?? liveRuntimeSurface
 
     const preferredProjection = resolvePreferredPersonStateProjection({
       bundleProjection: readPersonStateProjectionFromDerivedMindStateBundle<any>(runtimeSurface?.memory.derivedMindStateBundle ?? null),
       runtimeProjection: runtimeSurface?.memory.personStateProjection ?? null,
     })
     if (preferredProjection) {
-      return sanitizeExecutionPersonStateProjection(applyActiveSameHerContinuityToProjection({
-        projection: preferredProjection as AlicizationPersonStateProjection,
-        activeSelfRevisionPatch,
-      }))
+      return sanitizeExecutionPersonStateProjection(preferredProjection as AlicizationPersonStateProjection)
     }
 
     const hostPersonModel = runtimeSurface?.memory.hostPersonModel
@@ -1713,68 +1193,29 @@ export function createAlicizationRuntimeExecutionDelivery(
         })
       : null
 
-    if (!runtimeSurface && !hostPersonModel) {
-      if (activeSelfRevisionPatch) {
-        return sanitizeExecutionPersonStateProjection(buildMinimalActiveSameHerProjection({
-          activeSelfRevisionPatch,
-          goal: input.goal,
-        }))
-      }
-      const executionProjectContinuityCue = deriveExecutionDeliveryProjectContinuityCue({
-        goal: input.goal,
-        summary: input.goal,
-      })
-      const executionSameHerOpeningCue = deriveExecutionDeliverySameHerOpeningCue({
-        goal: input.goal,
-        summary: input.goal,
-      })
-      if (executionProjectContinuityCue || executionSameHerOpeningCue) {
-        return sanitizeExecutionPersonStateProjection(buildMinimalProjectStateExecutionCallbackProjection({
-          goal: input.goal,
-          selfContinuityAuthority: input.selfContinuityAuthority ?? null,
-        }))
-      }
+    if (!runtimeSurface && !hostPersonModel)
       return null
-    }
 
-    const sessionProjectionCarriesStrongerContinuity = carriesStrongerSameHerContinuity(sessionProjection)
-    const activeSelfEvolutionCarriesStrongerContinuity = Boolean(
-      activeSelfEvolution
-      && /lower-pressure|same-her|steadiness before closeness|pressure|slower return/i.test([
-        activeSelfEvolution.relationshipDoctrine,
-        activeSelfEvolution.trustMeaning,
-        activeSelfEvolution.summary,
-        ...(activeSelfEvolution.sourceSignals ?? []),
-      ]
-        .filter(Boolean)
-        .join(' ')),
-    )
-
-    return sanitizeExecutionPersonStateProjection(applyActiveSameHerContinuityToProjection({
-      projection: buildAlicizationPersonStateProjection({
-        now: Date.now(),
-        contexts: [
-          ...new Set([
-            ...inferExecutionPersonStateContexts(input.goal),
-            'execution-callback',
-            'execution',
-          ]),
-        ],
-        autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
-        hostPersonModel: hostPersonModel ?? null,
-        longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
-        motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
-        habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,
-        selfEvolution: activeSelfEvolutionCarriesStrongerContinuity && !sessionProjectionCarriesStrongerContinuity
-          ? activeSelfEvolution
-          : runtimeSurface?.memory.selfEvolution ?? activeSelfEvolution ?? null,
-        selfContinuity: runtimeSurface?.memory.selfContinuity ?? null,
-        selfState: runtimeSurface?.agency.selfState ?? null,
-        privateThought: runtimeSurface?.cognition.privateThought ?? null,
-        mindEcology: runtimeSurface ? buildMindEcologyFromRuntimeSurface(runtimeSurface) : null,
-        previousContinuityState: runtimeSurface?.memory.personalityContinuityState ?? null,
-      }),
-      activeSelfRevisionPatch,
+    return sanitizeExecutionPersonStateProjection(buildAlicizationPersonStateProjection({
+      now: Date.now(),
+      contexts: [
+        ...new Set([
+          ...inferExecutionPersonStateContexts(input.goal),
+          'execution-callback',
+          'execution',
+        ]),
+      ],
+      autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
+      hostPersonModel: hostPersonModel ?? null,
+      longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
+      motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
+      habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,
+      selfEvolution: activeSelfEvolution ?? runtimeSurface?.memory.selfEvolution ?? null,
+      selfContinuity: runtimeSurface?.memory.selfContinuity ?? null,
+      selfState: runtimeSurface?.agency.selfState ?? null,
+      privateThought: runtimeSurface?.cognition.privateThought ?? null,
+      mindEcology: runtimeSurface ? buildMindEcologyFromRuntimeSurface(runtimeSurface) : null,
+      previousContinuityState: runtimeSurface?.memory.personalityContinuityState ?? null,
     }))
   }
 
