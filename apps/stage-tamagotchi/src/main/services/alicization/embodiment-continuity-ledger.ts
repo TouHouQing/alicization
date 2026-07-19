@@ -26,7 +26,7 @@ export interface AlicizationEmbodimentContinuityLaneSnapshot {
 
 export interface AlicizationEmbodimentContinuityLaneEvidence {
   available?: boolean | null
-  sameHerCarry?: boolean | null
+  continuityCarry?: boolean | null
   summary?: string | null
 }
 
@@ -92,9 +92,9 @@ function resolveLaneStatus(input: {
     return 'silent'
   if (input.current.available === false)
     return 'dropped'
-  if (input.current.sameHerCarry === true && hasLaneBeenMissing(input.previous?.status))
+  if (input.current.continuityCarry === true && hasLaneBeenMissing(input.previous?.status))
     return 'rejoined'
-  if (input.current.sameHerCarry === true)
+  if (input.current.continuityCarry === true)
     return CARRYING_CONTINUITY_STATUS
   if (input.current.available === true)
     return 'pending-rejoin'

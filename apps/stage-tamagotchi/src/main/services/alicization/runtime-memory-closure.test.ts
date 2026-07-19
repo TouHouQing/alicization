@@ -103,8 +103,8 @@ describe('runtime memory closure', () => {
         turnId: 'turn-embodiment-writeback',
         sourceTags: ['dialogue-delivery', 'renderer-diagnostics'],
         lanes: {
-          body: { status: 'carrying-same-her', summary: 'body held same-her' },
-          voice: { status: 'carrying-same-her', summary: 'voice held same-her' },
+          body: { status: 'carrying-continuity', summary: 'body held continuity' },
+          voice: { status: 'carrying-continuity', summary: 'voice held continuity' },
           face: { status: 'dropped', summary: 'face lane missing' },
           motion: { status: 'dropped', summary: 'motion lane missing' },
           lipsync: { status: 'pending-rejoin', summary: 'lipsync mechanical' },

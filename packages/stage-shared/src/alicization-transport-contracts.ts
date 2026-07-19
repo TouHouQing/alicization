@@ -3394,7 +3394,7 @@ export interface AlicizationEmotionalTransitionLedgerSnapshot {
 }
 
 export type AlicizationEmbodimentContinuityLane = 'body' | 'voice' | 'face' | 'motion' | 'lipsync'
-export type AlicizationEmbodimentContinuityLaneStatus = 'carrying-continuity' | 'carrying-same-her' | 'dropped' | 'pending-rejoin' | 'rejoined' | 'silent'
+export type AlicizationEmbodimentContinuityLaneStatus = 'carrying-continuity' | 'dropped' | 'pending-rejoin' | 'rejoined' | 'silent'
 export type AlicizationEmbodimentContinuityPhase = 'fragmented' | 'partial-carry' | 'rejoining' | 'fully-rejoined' | 'quiet'
 
 export interface AlicizationEmbodimentContinuityLedgerSnapshot {
@@ -3949,8 +3949,6 @@ function normalizeAlicizationEmbodimentContinuityLane(raw: unknown): Alicization
 }
 
 function normalizeAlicizationEmbodimentContinuityLaneStatus(raw: unknown): AlicizationEmbodimentContinuityLaneStatus {
-  if (raw === 'carrying-same-her')
-    return 'carrying-continuity'
   return raw === 'carrying-continuity'
     || raw === 'dropped'
     || raw === 'pending-rejoin'

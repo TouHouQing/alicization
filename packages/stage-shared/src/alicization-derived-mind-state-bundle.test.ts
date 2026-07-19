@@ -4,6 +4,46 @@ import { buildDerivedMindStateBundle } from './alicization-derived-mind-state-bu
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 describe('buildDerivedMindStateBundle', () => {
+  it('does not revive the removed carrying-same-her lane status', () => {
+    const bundle = normalizeAlicizationDerivedMindStateBundle({
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 60_000,
+      embodimentContinuityLedger: {
+        version: 'embodiment-continuity-ledger-v1',
+        createdAt: 60_000,
+        turnId: null,
+        lanes: {
+          body: {
+            status: 'carrying-same-her',
+            summary: 'legacy status',
+          },
+        },
+        continuityPhase: 'quiet',
+        carryingLanes: [],
+        droppedLanes: [],
+        rejoinedLanes: [],
+        pendingRejoinLanes: [],
+        memoryWriteback: {
+          shouldWrite: false,
+          lane: 'none',
+          reason: 'none',
+        },
+        selfRevisionCandidate: {
+          shouldPropose: false,
+          domain: 'dialogue-style',
+          reasonCodes: [],
+          summary: null,
+        },
+        traceSummary: '',
+        replayLine: '',
+        sourceTags: [],
+      },
+    })
+
+    expect(bundle?.embodimentContinuityLedger?.lanes?.body.status).toBe('silent')
+  })
+
   it('preserves embodiment continuity ledger for cross-modal same-her replay and repair', () => {
     const bundle = buildDerivedMindStateBundle({
       source: 'main-runtime',

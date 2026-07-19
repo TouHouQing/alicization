@@ -12,8 +12,8 @@ describe('embodiment-self-revision-bridge', () => {
       turnId: 'turn-embodiment-patch',
       sourceTags: ['dialogue-delivery', 'renderer-diagnostics'],
       lanes: {
-        body: { status: 'carrying-same-her', summary: 'body held same-her' },
-        voice: { status: 'carrying-same-her', summary: 'voice held same-her' },
+        body: { status: 'carrying-continuity', summary: 'body held continuity' },
+        voice: { status: 'carrying-continuity', summary: 'voice held continuity' },
         face: { status: 'dropped', summary: 'face dropped' },
         motion: { status: 'dropped', summary: 'motion dropped' },
         lipsync: { status: 'pending-rejoin', summary: 'lipsync mechanical' },
@@ -82,8 +82,8 @@ describe('embodiment-self-revision-bridge', () => {
         turnId: 'turn-embodiment-rejoined',
         sourceTags: [],
         lanes: {
-          body: { status: 'carrying-same-her', summary: 'body held' },
-          voice: { status: 'carrying-same-her', summary: 'voice held' },
+          body: { status: 'carrying-continuity', summary: 'body held' },
+          voice: { status: 'carrying-continuity', summary: 'voice held' },
           face: { status: 'rejoined', summary: 'face rejoined' },
           motion: { status: 'rejoined', summary: 'motion rejoined' },
           lipsync: { status: 'rejoined', summary: 'lipsync rejoined' },
