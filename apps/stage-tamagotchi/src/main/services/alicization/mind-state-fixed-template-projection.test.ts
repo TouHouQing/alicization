@@ -485,7 +485,7 @@ describe('mind state fixed-template projection cleanup', () => {
     expect(projectedText).not.toContain('content=excluded')
   })
 
-  it('does not treat fixed same-her templates as embodiment sameHerCarry unless structured continuity evidence exists', async () => {
+  it('does not treat fixed or structured governance templates as embodiment carry evidence', async () => {
     const fixedTemplatePresenceState = createTemplateCleanupPresenceState({
       sameHerSelfLine: 'structured continuity digest.',
       sameHerHoldDetail: 'pre_turn_context_digest',
@@ -512,7 +512,7 @@ describe('mind state fixed-template projection cleanup', () => {
       structuredPresenceState,
     )
 
-    expect(structuredResult.derivedMindStateBundle?.embodimentContinuityLedger?.carryingLanes).toEqual(['body', 'voice'])
+    expect(structuredResult.derivedMindStateBundle?.embodimentContinuityLedger?.carryingLanes).toEqual([])
   })
 
   it('does not build self-continuity authority from runtime project state alone', () => {
@@ -538,7 +538,7 @@ describe('mind state fixed-template projection cleanup', () => {
     expect(authority).toBeNull()
   })
 
-  it('projects habit and relationship cadence as structured policy rather than canned opening guidance', () => {
+  it('keeps real owner text without adding relationship cadence governance cues', () => {
     const authority = buildSelfContinuityAuthority({
       autobiographicalSelf: {
         identityNarrative: 'I want to remain identity continuity across callback detours.',
@@ -571,12 +571,11 @@ describe('mind state fixed-template projection cleanup', () => {
     ].filter(Boolean).join(' | ')
 
     expect(projected).not.toMatch(fixedTemplateResidue)
-    expect(projected).not.toMatch(/same callback line|identity continuity|reopening from zero/i)
-    expect(projected).toContain('habit_policy=ground_first')
-    expect(projected).toContain('visibility=redacted_internal')
+    expect(projected).toContain('same callback line')
+    expect(projected).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
   })
 
-  it('keeps person-state opening and manifestation cadence structural', () => {
+  it('drops legacy opening and cadence governance cues from person-state projection', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 92_000,
       contexts: ['general', 'open-companionship'],
@@ -619,9 +618,8 @@ describe('mind state fixed-template projection cleanup', () => {
 
     expect(projected).not.toMatch(fixedTemplateResidue)
     expect(projected).not.toMatch(/continuity state|same line|reopening from scratch|widening closeness/i)
-    expect(projection.openingGuidance).toMatch(/opening_policy=|relationship_cadence=/)
-    if (projection.manifestationCadenceSummary)
-      expect(projection.manifestationCadenceSummary).toMatch(/manifestation_cadence=/)
+    expect(projected).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal|manifestation_cadence=/iu)
+    expect(projection.selfContinuityAuthority?.sourceTags).toContain('durable-self-core')
   })
 
   it('keeps body-kernel inward fallback structural', () => {
@@ -715,7 +713,8 @@ describe('mind state fixed-template projection cleanup', () => {
     })
 
     expect(nextState.currentInwardPreoccupation).not.toMatch(fixedTemplateResidue)
-    expect(nextState.currentInwardPreoccupation).toMatch(/body_preoccupation=|visibility=redacted_internal/)
+    expect(nextState.currentInwardPreoccupation).toBeTruthy()
+    expect(nextState.currentInwardPreoccupation).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
   })
 
   it('keeps deferred autonomy continuity summaries structural without local authoring prose', () => {

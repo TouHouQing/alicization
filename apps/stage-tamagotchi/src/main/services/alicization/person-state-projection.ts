@@ -95,6 +95,66 @@ function sanitizeProjectionText(raw: unknown, maxChars = 220) {
   return sanitizeAlicizationProviderFacingText(raw, maxChars, '')
 }
 
+function sanitizeOptionalProjectionText(raw: unknown, maxChars = 220) {
+  return sanitizeProjectionText(raw, maxChars) || null
+}
+
+function sanitizeProjectionTextList(values: string[], maxChars = 220) {
+  return values
+    .map(value => sanitizeProjectionText(value, maxChars))
+    .filter(Boolean)
+}
+
+function sanitizeProjectionAuthority(authority: AlicizationSelfContinuityAuthority | null) {
+  if (!authority)
+    return null
+
+  return {
+    ...authority,
+    selfLine: sanitizeOptionalProjectionText(authority.selfLine),
+    relationshipLine: sanitizeOptionalProjectionText(authority.relationshipLine),
+    motiveLine: sanitizeOptionalProjectionText(authority.motiveLine),
+    habitLine: sanitizeOptionalProjectionText(authority.habitLine),
+    inwardLine: sanitizeOptionalProjectionText(authority.inwardLine),
+    authoritySummary: sanitizeOptionalProjectionText(authority.authoritySummary, 520),
+  } satisfies AlicizationSelfContinuityAuthority
+}
+
+function sanitizePersonalityContinuityProjection(
+  state: AlicizationPersonalityContinuityStateSnapshot,
+) {
+  return {
+    ...state,
+    growthProfile: {
+      ...state.growthProfile,
+      styleCap: sanitizeOptionalProjectionText(state.growthProfile.styleCap),
+      presenceCap: sanitizeOptionalProjectionText(state.growthProfile.presenceCap),
+      selfLine: sanitizeOptionalProjectionText(state.growthProfile.selfLine),
+      relationLine: sanitizeOptionalProjectionText(state.growthProfile.relationLine),
+      currentPreoccupation: sanitizeOptionalProjectionText(state.growthProfile.currentPreoccupation),
+      leadingAgenda: sanitizeOptionalProjectionText(state.growthProfile.leadingAgenda),
+    },
+    continuitySummary: sanitizeProjectionText(state.continuitySummary, 520),
+    regimeModel: {
+      ...state.regimeModel,
+      primaryReason: sanitizeOptionalProjectionText(state.regimeModel.primaryReason),
+      carryReason: sanitizeOptionalProjectionText(state.regimeModel.carryReason),
+      signals: sanitizeProjectionTextList(state.regimeModel.signals),
+    },
+    rhythmState: {
+      ...state.rhythmState,
+      summary: sanitizeProjectionText(state.rhythmState.summary, 520),
+      rationale: sanitizeProjectionTextList(state.rhythmState.rationale),
+    },
+    trustMeaning: sanitizeOptionalProjectionText(state.trustMeaning),
+    reconsolidationLine: sanitizeOptionalProjectionText(state.reconsolidationLine),
+    selfLine: sanitizeOptionalProjectionText(state.selfLine),
+    relationLine: sanitizeOptionalProjectionText(state.relationLine),
+    currentPreoccupation: sanitizeOptionalProjectionText(state.currentPreoccupation),
+    rationale: sanitizeProjectionTextList(state.rationale),
+  } satisfies AlicizationPersonalityContinuityStateSnapshot
+}
+
 function compactProjectionValue(raw: unknown, maxChars = 120) {
   return sanitizeProjectionText(raw, maxChars)
     .replace(/[|;\n\r]+/gu, ' ')
@@ -139,108 +199,8 @@ function mergeUnique(items: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
-function deriveCallbackProjectClosureCarry(authority?: AlicizationSelfContinuityAuthority | null) {
-  const combined = sanitizeText([
-    authority?.authoritySummary ?? '',
-    authority?.relationshipLine ?? '',
-    authority?.inwardLine ?? '',
-  ].join(' | '), 400)
-  const lower = combined.toLowerCase()
-  if (!combined)
-    return null
-  if (
-    /same phase 1 digital life|same living line|same-her|same her|one continuous her/u.test(lower)
-    && /verified_closure_progress|some closure already landed|still unfinished|unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure/u.test(lower)
-  ) {
-    return 'continuity_progress=verified; open_closure=preserve; perspective=current-self'
-  }
-  return null
-}
-
 function normalizeContexts(contexts: string[]) {
   return mergeUnique(contexts, 8)
-}
-
-function hasNeutralRelationshipAuthorityLine(raw: unknown) {
-  const normalized = sanitizeText(raw, 220)
-  if (!normalized)
-    return false
-  return /relationship line is neutral|I can be warm|stay usefully oriented toward the host'?s knot/u.test(normalized)
-}
-
-function buildStructuredRelationshipCarry(input: {
-  openingGuidance?: string | null
-  manifestationCadenceSummary?: string | null
-  relationshipPosture?: AlicizationPersonStateRelationshipPosture | null
-  activeClosenessContext?: AlicizationPersonStateClosenessContext | null
-  activeClosenessRung?: AlicizationPersonStateClosenessRung | null
-  repairPosture?: string | null
-  inwardLine?: string | null
-}) {
-  const combined = [
-    input.openingGuidance,
-    input.manifestationCadenceSummary,
-    input.relationshipPosture,
-    input.activeClosenessContext,
-    input.activeClosenessRung,
-    input.repairPosture,
-    input.inwardLine,
-  ].filter(Boolean).join(' ').toLowerCase()
-
-  if (!combined)
-    return null
-  if (
-    /same phase 1 digital life|same living line|same-her|same her|one continuous her/u.test(combined)
-    && /verified_closure_progress|some closure already landed|unfinished|still unfinished|keep the host-facing line pointed|initiative|embodiment|resident presence|next closure|open closure/u.test(combined)
-    && /lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined)
-  ) {
-    return null
-  }
-  if (/repair-before-closeness|repair before closeness|repair-first/u.test(combined))
-    return null
-  if (/lower-pressure|leave room|measured-return|nearby-soft|quiet[- ]companionship|space-first|measured-room/u.test(combined))
-    return null
-  return null
-}
-
-function enrichStructuredSelfContinuityAuthority(input: {
-  authority: AlicizationSelfContinuityAuthority | null
-  openingGuidance?: string | null
-  manifestationCadenceSummary?: string | null
-  relationshipPosture?: AlicizationPersonStateRelationshipPosture | null
-  activeClosenessContext?: AlicizationPersonStateClosenessContext | null
-  activeClosenessRung?: AlicizationPersonStateClosenessRung | null
-  repairPosture?: string | null
-}) {
-  if (!input.authority)
-    return input.authority
-
-  const relationshipCarry = buildStructuredRelationshipCarry({
-    openingGuidance: input.openingGuidance,
-    manifestationCadenceSummary: input.manifestationCadenceSummary,
-    relationshipPosture: input.relationshipPosture,
-    activeClosenessContext: input.activeClosenessContext,
-    activeClosenessRung: input.activeClosenessRung,
-    repairPosture: input.repairPosture,
-    inwardLine: input.authority.inwardLine,
-  })
-
-  if (!relationshipCarry)
-    return input.authority
-  if (input.authority.relationshipLine && !hasNeutralRelationshipAuthorityLine(input.authority.relationshipLine))
-    return input.authority
-
-  return {
-    ...input.authority,
-    relationshipLine: relationshipCarry,
-    authoritySummary: mergeUnique([
-      input.authority.selfLine,
-      relationshipCarry,
-      input.authority.inwardLine,
-      input.authority.motiveLine,
-      input.authority.habitLine,
-    ], 3).join(' | ') || input.authority.authoritySummary,
-  }
 }
 
 function normalizeClosenessContext(raw: string | null | undefined): AlicizationPersonStateClosenessContext {
@@ -337,7 +297,6 @@ function deriveRelationshipPosture(input: {
 function deriveOpeningGuidance(input: {
   continuity: AlicizationPersonalityContinuityStateSnapshot
   personaAuthority: AlicizationPersonaAuthorityInfluence
-  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   durableSelfCoreSameLineContinuation: boolean
   relationshipPosture: AlicizationPersonStateRelationshipPosture | null
   contexts: string[]
@@ -377,9 +336,6 @@ function deriveOpeningGuidance(input: {
     /same callback line|same line|still continuing|another detour|same thread|callback return on the same line|same callback seam|after noisy detours|after noise|unrelated windows intervene|callback seam reopens/u.test(evolutionSameThreadCarry)
     && /lower-pressure|measured|less eager|slower return|reopen eagerly|should not reopen more eagerly|not widen the line into a fresh approach|stays slower than impulse/u.test(evolutionSameThreadCarry)
   ) {
-    const callbackProjectClosureCarry = deriveCallbackProjectClosureCarry(input.selfContinuityAuthority)
-    if (callbackProjectClosureCarry)
-      return callbackProjectClosureCarry
     return null
   }
   if (input.autobiographicalChooseOpeningsCarefully)
@@ -579,7 +535,7 @@ function deriveClosenessRung(input: {
     || input.continuity.closenessPosture === 'space-first'
     || input.continuity.autonomyPosture === 'protect-space'
     || input.personaAuthority.roomBias >= 0.18
-    || /space|room|lighter|quiet|leave room|back off|preference_code=lighter_touch|room=more|interruption_pressure=low|pressure=low|边界|空间|轻一点|留白/u.test(preferenceText)
+    || /space|room|lighter|quiet|leave room|back off|preference_code=lighter_touch|interruption_pressure=low|pressure=low|边界|空间|轻一点|留白/u.test(preferenceText)
   ) {
     return input.context === 'repair-window' || input.context === 'execution-callback'
       ? 'measured-room' as const
@@ -700,7 +656,7 @@ export function buildAlicizationPersonStateProjection(input: {
 }): AlicizationPersonStateProjection {
   const contexts = normalizeContexts(['general', ...(input.contexts ?? [])])
   const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personaAuthority ?? null)
-  const relationshipDoctrine = sanitizeText(
+  const relationshipDoctrine = sanitizeProjectionText(
     input.autobiographicalSelf?.relationshipDoctrine ?? '',
     220,
   )
@@ -774,19 +730,19 @@ export function buildAlicizationPersonStateProjection(input: {
     : evolutionSummary?.latestDominantRung === 'warm-near'
       ? 'preference_code=warm_directness_when_opening_clear; opening_required=true; source=evolution_summary'
       : ''
-  const evolutionDoctrine = sanitizeText(
+  const evolutionDoctrine = sanitizeProjectionText(
     evolutionSummary?.latestDoctrine
     ?? input.selfEvolution?.relationshipDoctrine
     ?? '',
     220,
   )
-  const evolutionBurden = sanitizeText(
+  const evolutionBurden = sanitizeProjectionText(
     evolutionSummary?.latestBurdenLine
     ?? input.selfEvolution?.burdenLine
     ?? '',
     180,
   )
-  const evolutionTrustMeaning = sanitizeText(
+  const evolutionTrustMeaning = sanitizeProjectionText(
     evolutionSummary?.latestTrustMeaning
     ?? input.selfEvolution?.trustMeaning
     ?? '',
@@ -801,7 +757,6 @@ export function buildAlicizationPersonStateProjection(input: {
   const openingGuidance = deriveOpeningGuidance({
     continuity: personalityContinuityState,
     personaAuthority,
-    selfContinuityAuthority: resolvedSelfContinuityAuthority,
     durableSelfCoreSameLineContinuation,
     relationshipPosture,
     contexts,
@@ -843,7 +798,7 @@ export function buildAlicizationPersonStateProjection(input: {
     autobiographicalChooseOpeningsCarefully: autobiographicalInitiativeHabit.chooseOpeningsCarefully,
     autobiographicalKeepGentleOpenings: autobiographicalInitiativeHabit.keepGentleOpenings,
   })
-  const autobiographicalProjectStateCue = sanitizeText(
+  const autobiographicalProjectStateCue = sanitizeProjectionText(
     input.autobiographicalSelf?.latestInflection?.toLowerCase().includes('continuity')
       ? input.autobiographicalSelf?.latestInflection
       : input.autobiographicalSelf?.relationshipDoctrine?.toLowerCase().includes('continuity')
@@ -851,15 +806,8 @@ export function buildAlicizationPersonStateProjection(input: {
         : '',
     220,
   )
-  const enrichedSelfContinuityAuthority = enrichStructuredSelfContinuityAuthority({
-    authority: resolvedSelfContinuityAuthority,
-    openingGuidance,
-    manifestationCadenceSummary,
-    relationshipPosture,
-    activeClosenessContext,
-    activeClosenessRung,
-    repairPosture: personalityContinuityState.repairPosture,
-  })
+  const projectedPersonalityContinuityState = sanitizePersonalityContinuityProjection(personalityContinuityState)
+  const enrichedSelfContinuityAuthority = sanitizeProjectionAuthority(resolvedSelfContinuityAuthority)
   const summary = mergeUnique([
     `regime=${personalityContinuityState.currentRegime}`,
     `closeness=${personalityContinuityState.closenessPosture}`,
@@ -883,7 +831,7 @@ export function buildAlicizationPersonStateProjection(input: {
 
   return {
     contexts,
-    personalityContinuityState,
+    personalityContinuityState: projectedPersonalityContinuityState,
     selfContinuityAuthority: enrichedSelfContinuityAuthority,
     activeClosenessContext,
     activeClosenessRung,
