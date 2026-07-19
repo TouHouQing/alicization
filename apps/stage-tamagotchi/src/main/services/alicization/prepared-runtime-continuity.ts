@@ -731,26 +731,33 @@ export function resolvePreparedRuntimeSelfContinuityAuthority(
     && continuityRuntimeSurface?.cognition
     ? buildSelfContinuityAuthorityFromRuntimeSurface(continuityRuntimeSurface)
     : null
-  const preferredPersonStateProjection = resolvePreferredPersonStateProjection<Partial<AlicizationPersonStateProjection>>({
-    bundleProjection: bundlePersonStateProjection,
-    runtimeProjection: runtimePersonStateProjection,
-  })
   const runtimeSurfaceHasMemoryOwnerAuthority = Boolean(
-    runtimeSurfaceAuthority?.sourceTags?.some(tag =>
-      tag === 'autobiographical-self'
-      || tag.startsWith('long-horizon-'),
+    runtimeSurfaceAuthority
+    && (
+      continuityRuntimeSurface?.memory?.autobiographicalSelf
+      || continuityRuntimeSurface?.memory?.longHorizonMemory
     ),
   )
-  const bundleProjectionAuthority = bundlePersonStateProjection?.selfContinuityAuthority ?? null
-  const preferredProjectionAuthority = preferredPersonStateProjection?.selfContinuityAuthority ?? null
-  const bundleAuthority = runtimeSurfaceHasMemoryOwnerAuthority
-    && bundleProjectionAuthority?.sourceTags?.includes('runtime-project-state-carry')
+  const bundleProjectionIsStaleProjectStateAuthority = Boolean(
+    runtimeSurfaceHasMemoryOwnerAuthority
+    && bundlePersonStateProjection?.selfContinuityAuthority?.sourceTags?.includes('runtime-project-state-carry'),
+  )
+  const runtimeProjectionIsStaleProjectStateAuthority = Boolean(
+    runtimeSurfaceHasMemoryOwnerAuthority
+    && runtimePersonStateProjection?.selfContinuityAuthority?.sourceTags?.includes('runtime-project-state-carry'),
+  )
+  const filteredBundlePersonStateProjection = bundleProjectionIsStaleProjectStateAuthority
     ? null
-    : bundleProjectionAuthority
-  const runtimeProjectionAuthority = runtimeSurfaceHasMemoryOwnerAuthority
-    && preferredProjectionAuthority?.sourceTags?.includes('runtime-project-state-carry')
+    : bundlePersonStateProjection
+  const filteredRuntimePersonStateProjection = runtimeProjectionIsStaleProjectStateAuthority
     ? null
-    : preferredProjectionAuthority
+    : runtimePersonStateProjection
+  const preferredPersonStateProjection = resolvePreferredPersonStateProjection<Partial<AlicizationPersonStateProjection>>({
+    bundleProjection: filteredBundlePersonStateProjection,
+    runtimeProjection: filteredRuntimePersonStateProjection,
+  })
+  const bundleAuthority = filteredBundlePersonStateProjection?.selfContinuityAuthority ?? null
+  const runtimeProjectionAuthority = filteredRuntimePersonStateProjection?.selfContinuityAuthority ?? null
   const projectedSelfContinuityAuthority = resolvePreferredSelfContinuityAuthority<Partial<AlicizationSelfContinuityAuthority>>({
     bundleAuthority,
     runtimeAuthority: runtimeProjectionAuthority,
