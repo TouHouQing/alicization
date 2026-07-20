@@ -127,6 +127,59 @@ const longTermRecallFixture: LongTermMemoryEvidenceBundle = {
 }
 
 describe('main chat memory context', () => {
+  it('drops fixed governance residue from provider evidence while keeping confirmed memory', () => {
+    const openingPolicyCue = `${['opening', 'policy'].join('_')}=legacy`
+    const contaminatedEvidence = createEvidence('memory-contaminated')
+    contaminatedEvidence.candidate.summary = [
+      'Old internal residue.',
+      openingPolicyCue,
+      'visibility=redacted_internal',
+    ].join(' | ')
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [
+          contaminatedEvidence,
+          createEvidence('memory-confirmed'),
+        ],
+      },
+    })
+
+    const serialized = context.providerSystemBlock
+    expect(serialized).not.toContain(openingPolicyCue)
+    expect(serialized).not.toContain('visibility=redacted_internal')
+    expect(context.longTermRecall?.evidence.map(item => item.candidate.id)).toEqual([
+      'memory-confirmed',
+    ])
+  })
+
+  it('keeps a confirmed user correction that discusses fixed-template terminology', () => {
+    const correctionEvidence = createEvidence('memory-correction')
+    correctionEvidence.candidate.summary = '用户明确要求不要再用 same-her 这类固定话术。'
+    correctionEvidence.queryMatches = ['same-her']
+    const pendingEvidence = createEvidence('memory-pending')
+    pendingEvidence.candidate.reviewStatus = 'pending'
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [
+          correctionEvidence,
+          pendingEvidence,
+        ],
+      },
+    })
+
+    expect(context.longTermRecall?.evidence.map(item => item.candidate.id)).toEqual([
+      'memory-correction',
+    ])
+    expect(context.longTermRecall?.evidence[0]?.candidate.summary)
+      .toBe('用户明确要求不要再用 same-her 这类固定话术。')
+  })
+
   it('normalizes provider evidence ids into one JSON envelope', () => {
     const context = buildAlicizationMainChatMemoryContext({
       workingMemory: workingMemoryFixture,

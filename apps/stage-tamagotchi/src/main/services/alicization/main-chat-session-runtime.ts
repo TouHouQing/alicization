@@ -102,7 +102,6 @@ import {
   buildMainGatewayTools,
 } from './main-chat-execution-surface'
 import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
-import { shouldIncludeProjectStateProviderContext } from './main-chat-project-state-injection-policy'
 import {
   buildAlicizationMainChatRuntimeSurface,
   filterAlicizationProviderSystemMessages,
@@ -567,6 +566,73 @@ const ordinaryDialogueProjectStateLinePattern
 const ordinaryDialogueProjectStateTextPattern
   = /Current Phase 1 project context|Some closure already landed|Unfinished closure still needs|Same Phase 1 digital life|Phase 1:\s*Local Digital Life|latest landed Phase 1 progress|still-open closure work explicit|next closure target explicit|when the host asks for project status|phase1_local_digital_life_anchor|memory_dialogue_embodiment|verified_closure_progress|project_context=phase1_local_digital_life|local-first digital life project|same-her|same digital life project|project-state|Project identity carry|Phase 1 route carry|Unresolved closure carry/iu
 
+const ordinaryDialoguePersonaOwnerFactTypes = new Set([
+  'alicization-persona-directives',
+  'alicization-persona-profile',
+  'alicization-personality-state',
+  'alicization-personality-thresholds',
+])
+
+const ordinaryDialogueFixedGovernanceCuePattern
+  = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved)\s*=|visibility\s*=\s*redacted_internal|projectState(?:PreflightSummary|PreDialogueAwarenessLine)/iu
+
+const ordinaryDialogueFixedGovernanceFieldNamePattern
+  = /^(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectStatePreflightSummary|projectStatePreDialogueAwarenessLine)$/iu
+
+function sanitizeOrdinaryDialogueTypedFactText(raw: string) {
+  return raw
+    .split(/\s+\|\s+|;\s+/u)
+    .filter(segment => !ordinaryDialogueFixedGovernanceCuePattern.test(segment))
+    .join(' | ')
+    .trim()
+}
+
+function sanitizeOrdinaryDialogueTypedFactValue(raw: unknown): unknown {
+  if (typeof raw === 'string')
+    return sanitizeOrdinaryDialogueTypedFactText(raw)
+  if (Array.isArray(raw))
+    return raw.map(item => sanitizeOrdinaryDialogueTypedFactValue(item))
+  if (!raw || typeof raw !== 'object')
+    return raw
+
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (
+      ordinaryDialogueFixedGovernanceFieldNamePattern.test(key)
+      || (key.toLowerCase() === 'visibility' && value === 'redacted_internal')
+    ) {
+      continue
+    }
+    sanitized[key] = sanitizeOrdinaryDialogueTypedFactValue(value)
+  }
+  return sanitized
+}
+
+function sanitizeOrdinaryDialogueTypedProviderFact(block: string) {
+  try {
+    const parsed = JSON.parse(block) as {
+      data?: unknown
+      type?: unknown
+    }
+    if (
+      !parsed
+      || typeof parsed !== 'object'
+      || typeof parsed.type !== 'string'
+      || parsed.data === undefined
+    ) {
+      return null
+    }
+
+    if (ordinaryDialoguePersonaOwnerFactTypes.has(parsed.type))
+      return block
+
+    return JSON.stringify(sanitizeOrdinaryDialogueTypedFactValue(parsed))
+  }
+  catch {
+    return null
+  }
+}
+
 function isBlockedProviderFacingTemplateLine(line: string) {
   return line.includes('content_withheld')
     || line.includes('visibility=internal-structured')
@@ -601,6 +667,10 @@ function sanitizeOrdinaryDialogueMemoryOwnerSystemBlock(block: string) {
 }
 
 function sanitizeOrdinaryDialogueProviderSystemBlock(block: string) {
+  const typedProviderFact = sanitizeOrdinaryDialogueTypedProviderFact(block)
+  if (typedProviderFact !== null)
+    return typedProviderFact
+
   if (
     ordinaryDialogueLegacyStructuredBlockPattern.test(block)
     && !ordinaryDialogueMemoryOwnerBlockMarkers.some(marker => block.includes(marker))
@@ -8639,15 +8709,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const freshExecutionReplyCallback = executionReplyObligation?.source === 'fresh-callback'
       ? [...executionCallbackContext.callbacks].sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
       : null
-    const shouldIncludeProviderProjectStateContext = shouldIncludeProjectStateProviderContext({
-      actionKind: prelude.actionObligation.kind,
-      answerSubject: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.answerSubject ?? null,
-      executionCapabilityInquiry: prelude.executionCapabilityInquiry,
-      executionReplyObligation,
-      executionRoutingIntent: effectiveExecutionRoutingIntent,
-      latestUserText: readLatestUserMessageText(messages),
-      messages,
-    })
+    const shouldIncludeExecutionCapabilityContext = Boolean(
+      prelude.executionCapabilityInquiry.active
+      || prelude.executionCapabilityInquiry.capabilityQuestion
+      || effectiveExecutionRoutingIntent
+      || executionReplyObligation,
+    )
     const {
       effectiveMindTurnGovernanceWithRecollection,
       llmMindAuthorityGovernance,
@@ -9196,7 +9263,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
 
     const runtimeCorePromptBlocks = options.buildMainRuntimeCorePromptBlocks({
       hostName,
-      includeProjectStateContext: shouldIncludeProviderProjectStateContext,
+      includeProjectStateContext: false,
       personaKernel,
     })
     const hasVisualGrounding = provisionalHasVisualGrounding
@@ -9309,7 +9376,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         perceptionPromptSystemBlocks: prelude.perceptionAugmentation.promptSystemBlocks,
         perceptionSystemBlocks: prelude.perceptionAugmentation.systemBlocks,
         digitalLifeRuntimeSurface: runtimeSurfaceForBuilder,
-        executionCapabilitySystemBlocks: shouldIncludeProviderProjectStateContext
+        executionCapabilitySystemBlocks: shouldIncludeExecutionCapabilityContext
           ? buildExecutionCapabilitySystemBlocks(
               executionCapabilities,
               options.executionCapabilityChannels,
@@ -10667,19 +10734,14 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             : null
         )
         ?? null
-    if (
-      shouldIncludeProviderProjectStateContext
-      && providerFacingRuntimeSurface?.dialogue
-      && providerFacingAnswerPlannerSeed
-    ) {
+    if (providerFacingRuntimeSurface?.dialogue && providerFacingAnswerPlannerSeed) {
       providerFacingRuntimeSurface.dialogue.answerPlanner = {
         ...providerFacingAnswerPlannerSeed,
         governingProject: null,
       } satisfies AlicizationAnswerPlannerSnapshot
     }
     messages = runtimeSurface.messages
-    if (!shouldIncludeProviderProjectStateContext)
-      messages = sanitizeOrdinaryDialogueProviderMessages(messages)
+    messages = sanitizeOrdinaryDialogueProviderMessages(messages)
     messages = filterAlicizationProviderSystemMessages(messages)
     messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
     sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeRuntimeSurface)

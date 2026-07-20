@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import { __alicizationTestOnly } from './main-chat-session-runtime'
@@ -16,6 +18,67 @@ const structuredContinuityFacts
   = 'identity=working_memory_owner_connected | phase=memory_quality_scaleup | landed=working_memory_owner_connected | open=open_loop=memory+dialogue+embodiment; status=unfinished | next=semantic_recall_grounded_on_user_query'
 
 describe('main chat session runtime fixed-template regression', () => {
+  it('preserves typed persona and failure facts while removing only legacy governance fields', () => {
+    const sanitizeMessages = __alicizationTestOnly.sanitizeOrdinaryDialogueProviderMessages
+    const relationshipCadenceField = ['relationship', 'cadence'].join('_')
+    const messages = sanitizeMessages([
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-persona-profile',
+          data: {
+            description: '用户明确设置的人格可以讨论 same-her 这个词。',
+          },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-persona-directives',
+          data: {
+            text: `${relationshipCadenceField}=user-authored`,
+          },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-execution-callbacks',
+          data: {
+            status: 'failed',
+            summary: `${relationshipCadenceField}=legacy; Provider timeout while removing old residue.`,
+          },
+        }),
+      },
+    ] as any)
+
+    const serialized = JSON.stringify(messages)
+    expect(serialized).toContain('alicization-persona-profile')
+    expect(serialized).toContain('用户明确设置的人格可以讨论 same-her 这个词')
+    expect(serialized).toContain('alicization-persona-directives')
+    expect(serialized).toContain(`${relationshipCadenceField}=user-authored`)
+    expect(serialized).toContain('alicization-execution-callbacks')
+    expect(serialized).toContain('failed')
+    expect(serialized).toContain('Provider timeout')
+    expect(serialized).not.toContain(`${relationshipCadenceField}=legacy`)
+  })
+
+  it('does not default the canonical project brief into organic memory resolution', () => {
+    const source = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('projectStateBrief: input?.projectStateBrief ?? projectStateBrief')
+  })
+
+  it('does not reopen provider project-state injection from chat or perception policy', () => {
+    const mainChatSource = readFileSync(new URL('./main-chat-session-runtime.ts', import.meta.url), 'utf8')
+    const perceptionSource = readFileSync(new URL('./runtime-chat-perception-augment.ts', import.meta.url), 'utf8')
+
+    expect(mainChatSource).not.toContain('shouldIncludeProjectStateProviderContext')
+    expect(mainChatSource).toContain('includeProjectStateContext: false')
+    expect(perceptionSource).not.toContain('shouldIncludeProjectStateProviderContext')
+    expect(perceptionSource).toContain('includeProjectStateFacts: false')
+  })
+
   it('does not treat fixed-template project lines as stronger provider-facing awareness', () => {
     expect(__alicizationTestOnly.isBlockedFixedTemplateEvidence(fixedTemplateLine)).toBe(true)
     expect(__alicizationTestOnly.isBlockedFixedTemplateEvidence(blockedEvidenceLine)).toBe(true)

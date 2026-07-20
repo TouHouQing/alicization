@@ -372,6 +372,90 @@ function hasUsableDigitalLifeRuntimeSurface(
 }
 
 export function createAlicizationMainGatewayOneShotRuntime(options: CreateAlicizationMainGatewayOneShotRuntimeOptions) {
+  const fixedGovernanceCuePattern
+    = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved)\s*=|visibility\s*=\s*redacted_internal|projectState(?:PreflightSummary|PreDialogueAwarenessLine)/iu
+  const fixedGovernanceFieldNamePattern
+    = /^(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectStatePreflightSummary|projectStatePreDialogueAwarenessLine)$/iu
+  const userOriginTextFieldNames = new Set([
+    'currentUserText',
+    'latestUserText',
+    'userText',
+    'userTurn',
+  ])
+
+  function sanitizeOneShotInternalText(raw: unknown) {
+    const text = sanitizeMultilineText(raw).trim()
+    if (!text)
+      return ''
+
+    return text
+      .split('\n')
+      .map((line) => {
+        const trimmed = line.trim()
+        if (!fixedGovernanceCuePattern.test(trimmed))
+          return trimmed
+        return trimmed
+          .split(/\s+\|\s+|;\s+/u)
+          .filter(segment => !fixedGovernanceCuePattern.test(segment))
+          .join(' | ')
+          .trim()
+      })
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+  }
+
+  function sanitizeOneShotStructuredValue(raw: unknown, fieldName?: string): unknown {
+    if (typeof raw === 'string') {
+      if (fieldName && userOriginTextFieldNames.has(fieldName))
+        return raw
+      return sanitizeOneShotInternalText(raw) || undefined
+    }
+    if (Array.isArray(raw)) {
+      if (raw.length === 0)
+        return []
+      const sanitizedItems = raw
+        .map(item => sanitizeOneShotStructuredValue(item))
+        .filter(item => item !== undefined)
+      return sanitizedItems.length > 0 ? sanitizedItems : undefined
+    }
+    if (!raw || typeof raw !== 'object')
+      return raw
+
+    const entries = Object.entries(raw)
+    if (entries.length === 0)
+      return {}
+    const sanitized: Record<string, unknown> = {}
+    for (const [key, value] of entries) {
+      if (
+        fixedGovernanceFieldNamePattern.test(key)
+        || (key.toLowerCase() === 'visibility' && value === 'redacted_internal')
+      ) {
+        continue
+      }
+      const nextValue = sanitizeOneShotStructuredValue(value, key)
+      if (nextValue === undefined)
+        continue
+      sanitized[key] = nextValue
+    }
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined
+  }
+
+  function sanitizeOneShotInternalSystemBlock(raw: unknown) {
+    const text = sanitizeMultilineText(raw).trim()
+    if (!text)
+      return ''
+
+    try {
+      const parsed = JSON.parse(text)
+      const sanitized = sanitizeOneShotStructuredValue(parsed)
+      return sanitized === undefined ? '' : JSON.stringify(sanitized)
+    }
+    catch {
+      return sanitizeOneShotInternalText(text)
+    }
+  }
+
   function sanitizeOneShotProviderSystemBlock(raw: unknown) {
     const text = sanitizeMultilineText(raw).trim()
     if (!text)
@@ -390,7 +474,16 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       ) {
         return ''
       }
-      return JSON.stringify(parsed)
+      const sanitized = sanitizeOneShotStructuredValue(parsed)
+      if (
+        !sanitized
+        || typeof sanitized !== 'object'
+        || Array.isArray(sanitized)
+        || !('data' in sanitized)
+      ) {
+        return ''
+      }
+      return JSON.stringify(sanitized)
     }
     catch {
       return ''
@@ -729,18 +822,22 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       })
     }
 
+    const executionCallbackSystemBlock = sanitizeOneShotInternalSystemBlock(executionCallbackContext.systemBlock)
+    const callerSystemBlock = sanitizeOneShotInternalSystemBlock(generateOptions.system)
     const systemMessages: Message[] = [
       ...(customDirectiveBlock
         ? [{ role: 'system', content: customDirectiveBlock } as Message]
         : []),
-      ...(executionCallbackContext.systemBlock
-        ? [{ role: 'system', content: executionCallbackContext.systemBlock } as Message]
+      ...(executionCallbackSystemBlock
+        ? [{ role: 'system', content: executionCallbackSystemBlock } as Message]
         : []),
       ...(generateOptions.extraSystemBlocks ?? [])
         .map(block => sanitizeOneShotProviderSystemBlock(block))
         .filter(Boolean)
         .map(content => ({ role: 'system', content }) as Message),
-      { role: 'system', content: generateOptions.system } as Message,
+      ...(callerSystemBlock
+        ? [{ role: 'system', content: callerSystemBlock } as Message]
+        : []),
     ]
     const rawGenerationMessages = [
       ...systemMessages,

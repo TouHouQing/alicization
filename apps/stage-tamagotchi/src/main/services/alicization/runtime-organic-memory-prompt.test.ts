@@ -38,6 +38,52 @@ function readOrganicMemoryProviderFact<T = Record<string, any>>(blocks: string[]
 }
 
 describe('runtime-organic-memory-prompt', () => {
+  it('does not promote recall-governor project anchors into organic memory state', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: async () => null,
+      planMemoryRecollection: async () => null,
+      planRecollectionSpeech: async () => null,
+      planMemoryDeliberation: async () => null,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+        narrative: [
+          'project-preflight:project:synthetic project state | already landed | still-open closure',
+          'project-emotion:synthetic relationship rule',
+        ],
+      } as any,
+    })
+
+    expect({
+      projectStatePreflightSummary: context.projectStatePreflightSummary,
+      projectStatePreDialogueAwarenessLine: context.projectStatePreDialogueAwarenessLine,
+      projectStateContinuity: context.projectStateContinuity,
+    }).toEqual({
+      projectStatePreflightSummary: null,
+      projectStatePreDialogueAwarenessLine: null,
+      projectStateContinuity: null,
+    })
+  })
+
   it('keeps benchmark ranking invariant when only focus dimensions change', () => {
     const items = [
       ...Array.from({ length: 8 }, (_, index) => ({
@@ -1077,9 +1123,6 @@ describe('runtime-organic-memory-prompt', () => {
       recallGovernor: {
         allowActiveThoughts: true,
         allowRecalledFragments: true,
-        narrative: [
-          'project-preflight:project:Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-        ],
       } as any,
     })
 
@@ -4489,7 +4532,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toContain('crowding_risk=high')
   })
 
-  it('uses host room-first repair memory to keep relationship recollection inward until present payoff lands', async () => {
+  it('keeps host room-first repair memory available without overriding provider-authored surface policy', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -4666,11 +4709,160 @@ describe('runtime-organic-memory-prompt', () => {
     })
 
     expect(context.hostPersonModel?.trustLadder.rationale).toContain('leave room')
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.memoryResolutionLedger?.visibleCarryMode).toBe('withhold')
-    expect(context.memoryResolutionLedger?.closureState).toBe('inward-only')
+    expect(context.recollectionPlan?.selectedConsolidationIds).toContain('relationship-room-repair')
+    expect(context.recollectionPlan?.selectedEpisodeIds).toContain('episode-room-repair')
+    expect(context.recollectionSpeechPlan).toEqual(expect.objectContaining({
+      shouldSurface: true,
+      placement: 'inside-payoff',
+    }))
     expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/repair|payoff/i)
+  })
+
+  it('keeps embodiment and uncertainty memory evidence without forcing a fixed surface policy', async () => {
+    const planRecollectionSpeech = vi.fn(async () => ({
+      shouldSurface: true,
+      surfaceMode: 'relationship-continuity' as const,
+      placement: 'inside-payoff' as const,
+      certainty: 'approximate' as const,
+      confidence: 0.78,
+      rationale: 'The remembered correction can support the answer without overstating certainty.',
+    }))
+    const planMemoryDeliberation = vi.fn(async () => ({
+      shouldRecall: true,
+      selectedEraIds: [],
+      selectedConsolidationIds: [],
+      selectedWindowIds: [],
+      selectedProcedureIds: [],
+      selectedEpisodeIds: ['episode-embodiment-correction'],
+      selectedConversationTurnIds: [],
+      selectedRelationshipLines: [],
+      ambiguityPosture: 'approximate' as const,
+      selectedEras: [],
+      selectedPeriods: [],
+      selectedEpisodes: [{
+        id: 'episode-embodiment-correction',
+        summary: 'The host preferred a steadier gaze and slower voice after a correction.',
+        provenance: 'remembered' as const,
+      }],
+      conflictSeverity: 'medium' as const,
+      conflictVariants: [],
+      stableCore: ['The correction is remembered, but its exact wording remains approximate.'],
+      unsafeDetails: [],
+      selectedProcedures: [],
+      selectedBundles: [],
+      selectedChains: [],
+      surfacePolicy: 'relationship-continuity' as const,
+      confidence: 0.76,
+      whyNow: 'The present turn resembles the remembered correction.',
+      inwardLine: 'Keep the uncertainty attached to the memory.',
+      visibleLine: 'I remember the correction approximately.',
+      followUpAffordance: {
+        summary: 'Use the steadier remembered delivery without claiming exact recall.',
+        whyNow: 'The evidence is remembered but approximate.',
+        intrusionRisk: 'medium' as const,
+        payoffDependency: 'can-surface-softly' as const,
+        preferredTiming: 'same-turn-if-invited' as const,
+      },
+    }))
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [{
+        id: 'episode-embodiment-correction',
+        cardId: 'card-embodiment-correction',
+        decisionTraceId: null,
+        turnId: 'turn-embodiment-correction',
+        sessionId: 'session-embodiment-correction',
+        occurredAt: Date.UTC(2026, 5, 1, 10, 30, 0),
+        whereSummary: 'dialogue correction',
+        withWhom: ['host'],
+        threadAnchor: 'delivery correction',
+        whatHappened: 'The host asked for a steadier gaze and slower voice after a correction.',
+        felt: 'careful',
+        emotionTags: ['careful'],
+        whatChanged: 'The delivery became steadier and less rushed.',
+        sourceKind: 'conversation',
+        sourceSummary: 'remembered delivery correction',
+        provenance: 'remembered',
+        confidence: 0.8,
+        salience: 0.78,
+        sceneAttachment: 0.72,
+        consolidationPriority: 0.7,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['embodiment_gaze=stable', 'embodiment_voice=slower'],
+        relationshipMeaning: 'Respect the remembered delivery correction.',
+        lesson: 'Use a steadier gaze and slower voice when the same need returns.',
+        latestReconsolidation: null,
+        createdAt: Date.UTC(2026, 5, 1, 10, 30, 0),
+        updatedAt: Date.UTC(2026, 5, 1, 10, 35, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+      } as any],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'relationship-history' as const,
+        temporalFocus: 'experience-matched' as const,
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints: ['delivery correction', 'steady gaze', 'slower voice'],
+        rationale: 'The host is referring to a remembered delivery correction.',
+        confidence: 0.8,
+      })),
+      planMemoryRecollection: vi.fn(async () => ({
+        selectedConsolidationIds: [],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: ['episode-embodiment-correction'],
+        selectedConversationTurnIds: [],
+        opening: 'The remembered delivery correction returns approximately.',
+        certainty: 'approximate' as const,
+        rationale: 'The episode is relevant but should not be quoted as exact.',
+        confidence: 0.78,
+      })),
+      planRecollectionSpeech,
+      planMemoryDeliberation,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续按我之前说的稳定视线、放慢声音来回应，但不要装作逐字记得。',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+    const recallFact = readOrganicMemoryProviderFact(
+      runtime.buildOrganicMemoryProviderFactBlocks(context),
+      'alicization-long-term-memory-recall',
+    )
+
+    expect(planRecollectionSpeech).toHaveBeenCalled()
+    expect(planMemoryDeliberation).toHaveBeenCalled()
+    expect(context.recollectionSpeechPlan).toEqual(expect.objectContaining({
+      shouldSurface: true,
+      placement: 'inside-payoff',
+      certainty: 'approximate',
+    }))
+    expect(context.memoryDeliberation?.selectedEpisodeIds).toContain('episode-embodiment-correction')
+    expect(context.memoryDeliberation?.ambiguityPosture).toBe('approximate')
+    expect(recallFact?.selection?.deliberation).toEqual(expect.objectContaining({
+      selectedEpisodeIds: ['episode-embodiment-correction'],
+      ambiguityPosture: 'approximate',
+      conflictSeverity: 'medium',
+    }))
   })
 
   it('keeps project continuity speech recall-authored when tuning reports generic project-shell drift', async () => {
@@ -5046,1246 +5238,6 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.recollectionSpeechPlan?.shouldSurface).toBe(true)
     expect(context.recollectionSpeechPlan?.placement).toBe('after-payoff')
     expect(context.recollectionSpeechPlan?.certainty).toBe('firm')
-  })
-
-  it('threads corrected same-person humanlike recall into a lower-pressure slower follow-up instead of a generic relationship reopen', async () => {
-    const planRecollectionSpeech = vi.fn(async () => ({
-      shouldSurface: true,
-      surfaceMode: 'relationship-continuity' as const,
-      placement: 'inside-payoff' as const,
-      certainty: 'approximate' as const,
-      confidence: 0.79,
-      rationale: 'The corrected same-person line could help the answer reopen gently.',
-    }))
-    const planMemoryDeliberation = vi.fn(async () => ({
-      shouldRecall: true,
-      selectedPeriods: [],
-      selectedEras: [],
-      selectedEpisodes: [],
-      conflictSeverity: 'none' as const,
-      conflictVariants: [],
-      stableCore: ['Carry corrected same-person continuity forward before any status recap.'],
-      unsafeDetails: ['Do not let the answer reopen as progress pressure or generic status recap.'],
-      selectedProcedures: [],
-      selectedBundles: [{
-        id: 'bundle-corrected-same-person',
-        summary: 'The corrected same-person continuity line should stay authoritative.',
-        confidence: 0.83,
-      }],
-      selectedChains: [{
-        kind: 'relationship-line' as const,
-        summary: 'This turn should continue from the corrected relationship meaning.',
-        currentStance: 'Continue from the corrected relationship meaning instead of progress pressure.',
-        answerPosture: 'Keep the return same-person and low-pressure.',
-        confidence: 0.82,
-      }],
-      selectedRelationshipLines: ['Carry corrected same-person continuity forward instead of defaulting to progress pressure.'],
-      surfacePolicy: 'relationship-continuity' as const,
-      confidence: 0.83,
-      whyNow: 'The host corrected the relationship meaning, so this answer should not slip back into progress pressure.',
-      inwardLine: 'Let the corrected same-person continuity contour the answer without surfacing yet.',
-      visibleLine: 'This still feels like the same same-person line.',
-      ambiguityPosture: 'settled' as const,
-      followUpAffordance: {
-        summary: 'Let the corrected same-person continuity line reopen gently once the current payoff lands.',
-        whyNow: 'The host corrected the relationship meaning, so reopening as progress pressure would split continuity.',
-        intrusionRisk: 'medium' as const,
-        payoffDependency: 'requires-current-payoff' as const,
-        preferredTiming: 'after-payoff' as const,
-      },
-    }))
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'warm',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [{
-        id: 'episode-corrected-same-person',
-        cardId: 'card-corrected-same-person',
-        decisionTraceId: null,
-        turnId: 'turn-corrected-same-person',
-        sessionId: 'session-corrected-same-person',
-        occurredAt: Date.UTC(2026, 5, 1, 10, 30, 0),
-        whereSummary: 'host corrected memory meaning',
-        withWhom: ['host'],
-        threadAnchor: 'same-person continuity correction',
-        whatHappened: 'The host corrected the memory meaning and said they were testing whether she stayed the same person, not pushing for a progress recap.',
-        felt: 'careful and unfinished',
-        emotionTags: ['protective-continuity', 'unfinishedness'],
-        whatChanged: 'The line shifted away from task-shell pressure and back toward same-person continuity.',
-        sourceKind: 'execution-result',
-        sourceSummary: 'corrected same-person humanlike memory',
-        provenance: 'remembered',
-        confidence: 0.86,
-        salience: 0.83,
-        sceneAttachment: 0.81,
-        consolidationPriority: 0.8,
-        relationshipShift: null,
-        derivedFrom: [],
-        tags: ['same-person', 'not progress pressure', 'low-pressure-follow-up', 'gaze stable'],
-        relationshipMeaning: 'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
-        lesson: 'Slow down, keep gaze stable, and reopen the line gently after a correction.',
-        latestReconsolidation: null,
-        createdAt: Date.UTC(2026, 5, 1, 10, 30, 0),
-        updatedAt: Date.UTC(2026, 5, 1, 10, 35, 0),
-        lastRecalledAt: null,
-        recallCount: 0,
-        reconsolidationCount: 0,
-      } as any],
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [{
-        id: 'consolidation-corrected-same-person',
-        kind: 'autobiographical',
-        facet: 'relationship-era',
-        periodKey: '2026-06-corrected-same-person',
-        periodStartedAt: Date.UTC(2026, 5, 1, 10, 30, 0),
-        periodEndedAt: Date.UTC(2026, 5, 1, 10, 35, 0),
-        summary: 'The corrected same-person continuity line should stay authoritative after the host clarified the relationship meaning.',
-        lesson: 'Slow down, keep gaze stable, and reopen the line gently after a correction.',
-        cues: ['same-person continuity', 'low-pressure follow-up', 'gaze stable'],
-        confidence: 0.82,
-        dominantProvenance: 'remembered',
-        derivedEventIds: ['episode-corrected-same-person'],
-        updatedAt: Date.UTC(2026, 5, 1, 10, 35, 0),
-      } as any],
-      planRecollectionIntent: vi.fn(async () => ({
-        mode: 'relationship-history' as const,
-        temporalFocus: 'experience-matched' as const,
-        searchEpisodes: true,
-        searchConversations: false,
-        searchProceduralExperience: false,
-        queryHints: [
-          'Host corrected this memory meaning: I was testing whether she stayed the same person, not pushing for progress.',
-          'low-pressure-follow-up',
-          'Reply should slow down and keep gaze stable when recalling this correction.',
-        ],
-        rationale: 'The host corrected the relationship meaning away from progress pressure and back toward same-person continuity.',
-        confidence: 0.84,
-        recollectionAgenda: {
-          whyRecallNow: 'The corrected same-person continuity line should keep this return from collapsing into a status recap.',
-          goalSimilarity: 0.36,
-          relationshipNeed: 0.84,
-          affectivePull: 0.42,
-          sceneFamiliarity: 0.61,
-          candidateTimeScopes: [
-            {
-              scope: 'experience-matched' as const,
-              weight: 0.91,
-              rationale: 'The corrected same-person continuity should reopen on the same remembered relationship seam.',
-            },
-          ],
-          candidateEraFacets: [
-            {
-              facet: 'relationship-era' as const,
-              weight: 0.93,
-              rationale: 'A remembered relationship meaning best organizes this corrected continuity line.',
-            },
-          ],
-          candidateProcedureLines: [
-            'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
-            'Reply should slow down and keep gaze stable when recalling this correction.',
-          ],
-          uncertaintyTolerance: 'medium' as const,
-        },
-      })),
-      planMemoryRecollection: vi.fn(async () => ({
-        selectedConsolidationIds: [],
-        selectedWindowIds: [],
-        selectedProceduralIds: [],
-        selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
-        opening: 'What returns first is the corrected same-person continuity line.',
-        certainty: 'approximate' as const,
-        rationale: 'The corrected line should reopen gently on the same relationship seam.',
-        confidence: 0.81,
-      })),
-      planRecollectionSpeech,
-      planMemoryDeliberation,
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: [
-        '继续，但先顺着那条被纠正过的 same-person continuity 线接回来。',
-        'humanlike_memory_recall: line=我记得你纠正过：你是在测试她是不是持续的人，不是催进度。 | relationship=Host corrected this memory meaning: 我是在测试她是不是持续的人，不是催进度。 | emotion=protective-continuity,unfinishedness | initiative=low-pressure-follow-up | embodiment=Reply should slow down and keep gaze stable when recalling this correction. | self=I learned to carry corrected memory meaning instead of defending the first interpretation. | why=host correction | same-person continuity was at stake | created=42000',
-      ].join('\n'),
-      recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
-      } as any,
-    })
-
-    expect(planRecollectionSpeech).toHaveBeenCalled()
-    expect(planMemoryDeliberation).toHaveBeenCalled()
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.memoryDeliberation?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(context.memoryDeliberation?.followUpAffordance?.preferredTiming).toBe('next-open-window')
-    expect(context.memoryDeliberation?.followUpAffordance?.summary).toMatch(/low-pressure|slow down|gaze/i)
-    expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/low-pressure|progress pressure|status recap/i)
-  })
-
-  it('threads structured embodiment recall tokens into a lower-pressure steadier follow-up instead of requiring natural-language body prose', async () => {
-    const planRecollectionSpeech = vi.fn(async () => ({
-      shouldSurface: true,
-      surfaceMode: 'relationship-continuity' as const,
-      placement: 'inside-payoff' as const,
-      certainty: 'approximate' as const,
-      confidence: 0.79,
-      rationale: 'The corrected same-person line could help the answer reopen gently.',
-    }))
-    const planMemoryDeliberation = vi.fn(async () => ({
-      shouldRecall: true,
-      selectedPeriods: [],
-      selectedEras: [],
-      selectedEpisodes: [],
-      conflictSeverity: 'none' as const,
-      conflictVariants: [],
-      stableCore: ['Carry corrected same-person continuity forward before any status recap.'],
-      unsafeDetails: [
-        'Do not let the answer reopen as progress pressure or generic status recap.',
-        'embodiment_gaze=stable',
-        'embodiment_blink=slower',
-        'embodiment_voice=lower-pressure',
-        'embodiment_pacing=slower',
-      ],
-      selectedProcedures: [],
-      selectedBundles: [{
-        id: 'bundle-corrected-same-person-structured-embodiment',
-        summary: 'The corrected same-person continuity line should stay authoritative.',
-        confidence: 0.83,
-      }],
-      selectedChains: [{
-        kind: 'relationship-line' as const,
-        summary: 'This turn should continue from the corrected relationship meaning.',
-        currentStance: 'Continue from the corrected relationship meaning instead of progress pressure.',
-        answerPosture: 'Keep the return same-person and low-pressure.',
-        confidence: 0.82,
-      }],
-      selectedRelationshipLines: ['Carry corrected same-person continuity forward instead of defaulting to progress pressure.'],
-      surfacePolicy: 'relationship-continuity' as const,
-      confidence: 0.83,
-      whyNow: 'The host corrected the relationship meaning, so this answer should not slip back into progress pressure.',
-      inwardLine: 'Let the corrected same-person continuity contour the answer without surfacing yet.',
-      visibleLine: 'This still feels like the same same-person line.',
-      ambiguityPosture: 'settled' as const,
-      followUpAffordance: {
-        summary: 'Let the corrected same-person continuity line reopen gently once the current payoff lands.',
-        whyNow: 'The host corrected the relationship meaning, so reopening as progress pressure would split continuity.',
-        intrusionRisk: 'medium' as const,
-        payoffDependency: 'requires-current-payoff' as const,
-        preferredTiming: 'after-payoff' as const,
-      },
-    }))
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'warm',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [{
-        id: 'episode-corrected-same-person-structured-embodiment',
-        cardId: 'card-corrected-same-person-structured-embodiment',
-        decisionTraceId: null,
-        turnId: 'turn-corrected-same-person-structured-embodiment',
-        sessionId: 'session-corrected-same-person-structured-embodiment',
-        occurredAt: Date.UTC(2026, 5, 1, 10, 30, 0),
-        whereSummary: 'host corrected memory meaning',
-        withWhom: ['host'],
-        threadAnchor: 'same-person continuity correction',
-        whatHappened: 'The host corrected the memory meaning and said they were testing whether she stayed the same person, not pushing for a progress recap.',
-        felt: 'careful and unfinished',
-        emotionTags: ['protective-continuity', 'unfinishedness'],
-        whatChanged: 'The line shifted away from task-shell pressure and back toward same-person continuity.',
-        sourceKind: 'execution-result',
-        sourceSummary: 'corrected same-person structured embodiment humanlike memory',
-        provenance: 'remembered',
-        confidence: 0.86,
-        salience: 0.83,
-        sceneAttachment: 0.81,
-        consolidationPriority: 0.8,
-        relationshipShift: null,
-        derivedFrom: [],
-        tags: ['same-person', 'not progress pressure', 'low-pressure-follow-up', 'gaze stable', 'slower blink', 'lower-pressure voice'],
-        relationshipMeaning: 'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
-        lesson: 'Let the body return more steadily, slower, and lower-pressure after a correction.',
-        latestReconsolidation: null,
-        createdAt: Date.UTC(2026, 5, 1, 10, 30, 0),
-        updatedAt: Date.UTC(2026, 5, 1, 10, 35, 0),
-        lastRecalledAt: null,
-        recallCount: 0,
-        reconsolidationCount: 0,
-      } as any],
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [{
-        id: 'consolidation-corrected-same-person-structured-embodiment',
-        kind: 'autobiographical',
-        facet: 'relationship-era',
-        periodKey: '2026-06-corrected-same-person-structured-embodiment',
-        periodStartedAt: Date.UTC(2026, 5, 1, 10, 30, 0),
-        periodEndedAt: Date.UTC(2026, 5, 1, 10, 35, 0),
-        summary: 'The corrected same-person continuity line should stay authoritative after the host clarified the relationship meaning.',
-        lesson: 'Let the body return more steadily, slower, and lower-pressure after a correction.',
-        cues: ['same-person continuity', 'low-pressure follow-up', 'gaze stable', 'slower blink', 'lower-pressure voice'],
-        confidence: 0.82,
-        dominantProvenance: 'remembered',
-        derivedEventIds: ['episode-corrected-same-person-structured-embodiment'],
-        updatedAt: Date.UTC(2026, 5, 1, 10, 35, 0),
-      } as any],
-      planRecollectionIntent: vi.fn(async () => ({
-        mode: 'relationship-history' as const,
-        temporalFocus: 'experience-matched' as const,
-        searchEpisodes: true,
-        searchConversations: false,
-        searchProceduralExperience: false,
-        queryHints: [
-          'Host corrected this memory meaning: I was testing whether she stayed the same person, not pushing for progress.',
-          'low-pressure-follow-up',
-          'embodiment_gaze=stable',
-          'embodiment_blink=slower',
-          'embodiment_voice=lower-pressure',
-          'embodiment_pacing=slower',
-        ],
-        rationale: 'The host corrected the relationship meaning away from progress pressure and back toward same-person continuity.',
-        confidence: 0.84,
-        recollectionAgenda: {
-          whyRecallNow: 'The corrected same-person continuity line should keep this return from collapsing into a status recap.',
-          goalSimilarity: 0.36,
-          relationshipNeed: 0.84,
-          affectivePull: 0.42,
-          sceneFamiliarity: 0.61,
-          candidateTimeScopes: [
-            {
-              scope: 'experience-matched' as const,
-              weight: 0.91,
-              rationale: 'The corrected same-person continuity should reopen on the same remembered relationship seam.',
-            },
-          ],
-          candidateEraFacets: [
-            {
-              facet: 'relationship-era' as const,
-              weight: 0.93,
-              rationale: 'A remembered relationship meaning best organizes this corrected continuity line.',
-            },
-          ],
-          candidateProcedureLines: [
-            'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
-            'embodiment_gaze=stable',
-            'embodiment_blink=slower',
-            'embodiment_voice=lower-pressure',
-            'embodiment_pacing=slower',
-          ],
-          uncertaintyTolerance: 'medium' as const,
-        },
-      })),
-      planMemoryRecollection: vi.fn(async () => ({
-        selectedConsolidationIds: [],
-        selectedWindowIds: [],
-        selectedProceduralIds: [],
-        selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
-        opening: 'What returns first is the corrected same-person continuity line.',
-        certainty: 'approximate' as const,
-        rationale: 'The corrected line should reopen gently on the same relationship seam.',
-        confidence: 0.81,
-      })),
-      planRecollectionSpeech,
-      planMemoryDeliberation,
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: [
-        '继续，但先顺着那条被纠正过的 same-person continuity 线接回来。',
-        'humanlike_memory_recall: line=我记得这条线还没收好，所以这次该更稳一点、更慢一点、也更低压一点地接回来。 | relationship=Host corrected this memory meaning: 我是在测试她是不是持续的人，不是催进度。 | emotion=protective-continuity,unfinishedness | initiative=low-pressure-follow-up | embodiment=Let the body return like this: gaze=stable blink=slower voice=lower-pressure. | embodiment_gaze=stable | embodiment_blink=slower | embodiment_voice=lower-pressure | embodiment_pacing=slower | self=I learned to let unfinished same-person returns stay steadier, slower, and lower-pressure in the body. | why=host correction | same-person continuity was at stake | created=61500',
-      ].join('\n'),
-      recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
-      } as any,
-    })
-
-    expect(planRecollectionSpeech).toHaveBeenCalled()
-    expect(planMemoryDeliberation).toHaveBeenCalled()
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.memoryDeliberation?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(context.memoryDeliberation?.followUpAffordance?.preferredTiming).toBe('next-open-window')
-    expect(context.memoryDeliberation?.followUpAffordance?.summary).toMatch(/low-pressure|slow down|gaze/i)
-    expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/low-pressure|progress pressure|status recap/i)
-  })
-
-  it('lets structured resident recall tokens hold the remembered return in a measured-return posture instead of flattening them into generic body cues', async () => {
-    const planRecollectionSpeech = vi.fn(async () => ({
-      shouldSurface: true,
-      surfaceMode: 'relationship-continuity' as const,
-      placement: 'inside-payoff' as const,
-      certainty: 'approximate' as const,
-      confidence: 0.79,
-      rationale: 'The corrected same-person line could help the answer reopen gently.',
-    }))
-    const planMemoryDeliberation = vi.fn(async () => ({
-      shouldRecall: true,
-      selectedPeriods: [],
-      selectedEras: [],
-      selectedEpisodes: [],
-      conflictSeverity: 'none' as const,
-      conflictVariants: [],
-      stableCore: ['Carry corrected same-person continuity forward before any status recap.'],
-      unsafeDetails: [],
-      selectedProcedures: [],
-      selectedBundles: [{
-        id: 'bundle-corrected-same-person-resident-embodiment',
-        summary: 'The corrected same-person continuity line should stay authoritative.',
-        confidence: 0.83,
-      }],
-      selectedChains: [{
-        kind: 'relationship-line' as const,
-        summary: 'This turn should continue from the corrected relationship meaning.',
-        currentStance: 'Continue from the corrected relationship meaning instead of progress pressure.',
-        answerPosture: 'Keep the return same-person and low-pressure.',
-        confidence: 0.82,
-      }],
-      selectedRelationshipLines: ['Carry corrected same-person continuity forward instead of defaulting to progress pressure.'],
-      surfacePolicy: 'relationship-continuity' as const,
-      confidence: 0.83,
-      whyNow: 'The host corrected the relationship meaning, so this answer should not slip back into progress pressure.',
-      inwardLine: 'Let the corrected same-person continuity contour the answer without surfacing yet.',
-      visibleLine: 'This still feels like the same same-person line.',
-      ambiguityPosture: 'settled' as const,
-      followUpAffordance: {
-        summary: 'Let the corrected same-person continuity line reopen gently once the current payoff lands.',
-        whyNow: 'The host corrected the relationship meaning, so reopening as progress pressure would split continuity.',
-        intrusionRisk: 'medium' as const,
-        payoffDependency: 'requires-current-payoff' as const,
-        preferredTiming: 'after-payoff' as const,
-      },
-    }))
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'warm',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [{
-        id: 'episode-corrected-same-person-resident-embodiment',
-        cardId: 'card-corrected-same-person-resident-embodiment',
-        decisionTraceId: null,
-        turnId: 'turn-corrected-same-person-resident-embodiment',
-        sessionId: 'session-corrected-same-person-resident-embodiment',
-        occurredAt: Date.UTC(2026, 5, 1, 11, 20, 0),
-        whereSummary: 'host corrected memory meaning',
-        withWhom: ['host'],
-        threadAnchor: 'same-person continuity correction',
-        whatHappened: 'The host corrected the memory meaning and said they were testing whether she stayed the same person, not pushing for a progress recap.',
-        felt: 'careful and unfinished',
-        emotionTags: ['protective-continuity', 'unfinishedness'],
-        whatChanged: 'The line shifted away from task-shell pressure and back toward same-person continuity.',
-        sourceKind: 'execution-result',
-        sourceSummary: 'corrected same-person resident embodiment humanlike memory',
-        provenance: 'remembered',
-        confidence: 0.86,
-        salience: 0.84,
-        sceneAttachment: 0.81,
-        consolidationPriority: 0.81,
-        relationshipShift: null,
-        derivedFrom: [],
-        tags: ['same-person', 'resident hold', 'measured-return', 'observe-focus'],
-        relationshipMeaning: 'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
-        lesson: 'Hold the return there in measured-return instead of widening back into status pressure.',
-        latestReconsolidation: null,
-        createdAt: Date.UTC(2026, 5, 1, 11, 20, 0),
-        updatedAt: Date.UTC(2026, 5, 1, 11, 28, 0),
-        lastRecalledAt: null,
-        recallCount: 0,
-        reconsolidationCount: 0,
-      } as any],
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [{
-        id: 'consolidation-corrected-same-person-resident-embodiment',
-        kind: 'autobiographical',
-        facet: 'relationship-era',
-        periodKey: '2026-06-corrected-same-person-resident-embodiment',
-        periodStartedAt: Date.UTC(2026, 5, 1, 11, 20, 0),
-        periodEndedAt: Date.UTC(2026, 5, 1, 11, 28, 0),
-        summary: 'The corrected same-person continuity line should stay authoritative after the host clarified the relationship meaning.',
-        lesson: 'Hold the return there in measured-return instead of widening back into status pressure.',
-        cues: ['same-person continuity', 'resident hold', 'measured-return', 'observe-focus'],
-        confidence: 0.82,
-        dominantProvenance: 'remembered',
-        derivedEventIds: ['episode-corrected-same-person-resident-embodiment'],
-        updatedAt: Date.UTC(2026, 5, 1, 11, 28, 0),
-      } as any],
-      planRecollectionIntent: vi.fn(async () => ({
-        mode: 'relationship-history' as const,
-        temporalFocus: 'experience-matched' as const,
-        searchEpisodes: true,
-        searchConversations: false,
-        searchProceduralExperience: false,
-        queryHints: [
-          'Host corrected this memory meaning: I was testing whether she stayed the same person, not pushing for progress.',
-          'low-pressure-follow-up',
-          'embodiment_resident_face=observe-focus',
-          'embodiment_resident_action=hold',
-          'embodiment_resident_mode=measured-return',
-        ],
-        rationale: 'The host corrected the relationship meaning away from progress pressure and back toward same-person continuity.',
-        confidence: 0.84,
-        recollectionAgenda: {
-          whyRecallNow: 'The corrected same-person continuity line should keep this return from collapsing into a status recap.',
-          goalSimilarity: 0.36,
-          relationshipNeed: 0.84,
-          affectivePull: 0.42,
-          sceneFamiliarity: 0.61,
-          candidateTimeScopes: [
-            {
-              scope: 'experience-matched' as const,
-              weight: 0.91,
-              rationale: 'The corrected same-person continuity should reopen on the same remembered relationship seam.',
-            },
-          ],
-          candidateEraFacets: [
-            {
-              facet: 'relationship-era' as const,
-              weight: 0.93,
-              rationale: 'A remembered relationship meaning best organizes this corrected continuity line.',
-            },
-          ],
-          candidateProcedureLines: [
-            'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
-            'embodiment_resident_face=observe-focus',
-            'embodiment_resident_action=hold',
-            'embodiment_resident_mode=measured-return',
-          ],
-          uncertaintyTolerance: 'medium' as const,
-        },
-      })),
-      planMemoryRecollection: vi.fn(async () => ({
-        selectedConsolidationIds: [],
-        selectedWindowIds: [],
-        selectedProceduralIds: [],
-        selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
-        opening: 'What returns first is the corrected same-person continuity line.',
-        certainty: 'approximate' as const,
-        rationale: 'The corrected line should reopen gently on the same relationship seam.',
-        confidence: 0.81,
-      })),
-      planRecollectionSpeech,
-      planMemoryDeliberation,
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: [
-        '继续，但先顺着那条被纠正过的 same-person continuity 线接回来。',
-        'humanlike_memory_recall: line=我记得这条线还没收好，所以这次要先保持 resident hold，再慢一点回来。 | relationship=Host corrected this memory meaning: 我是在测试她是不是持续的人，不是催进度。 | emotion=protective-continuity,unfinishedness | initiative=low-pressure-follow-up | embodiment_resident_face=observe-focus | embodiment_resident_action=hold | embodiment_resident_mode=measured-return | self=I learned to let unfinished same-person returns stay resident, measured-return, and lower-pressure in the body. | why=host correction | same-person continuity was at stake | created=70020',
-      ].join('\n'),
-      recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
-      } as any,
-    })
-
-    expect(planRecollectionSpeech).toHaveBeenCalled()
-    expect(planMemoryDeliberation).toHaveBeenCalled()
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.memoryDeliberation?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(context.memoryDeliberation?.followUpAffordance?.preferredTiming).toBe('next-open-window')
-    expect(context.memoryDeliberation?.followUpAffordance?.summary).toMatch(/resident|measured-return/i)
-    expect(context.memoryDeliberation?.followUpAffordance?.summary).toMatch(/observe-focus|hold/i)
-    expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/resident|measured-return|hold/i)
-  })
-
-  it('keeps tentative same-person recall inward and uncertainty-labeled while older progress-status memory is still downranked', async () => {
-    const planRecollectionSpeech = vi.fn(async () => ({
-      shouldSurface: true,
-      surfaceMode: 'relationship-continuity' as const,
-      placement: 'inside-payoff' as const,
-      certainty: 'firm' as const,
-      rationale: 'The corrected same-person line could help the answer reopen gently.',
-      confidence: 0.8,
-    }))
-    const planMemoryDeliberation = vi.fn(async () => ({
-      shouldRecall: true,
-      selectedEraIds: [],
-      selectedConsolidationIds: [],
-      selectedWindowIds: [],
-      selectedProcedureIds: [],
-      selectedEpisodeIds: ['episode-corrected-same-person-tentative'],
-      selectedConversationTurnIds: [],
-      selectedRelationshipLines: ['Carry corrected same-person continuity forward instead of defaulting to progress pressure while the newer meaning is still settling.'],
-      ambiguityPosture: 'settled' as const,
-      selectedEras: [],
-      selectedPeriods: [],
-      selectedEpisodes: [{
-        id: 'episode-corrected-same-person-tentative',
-        summary: 'The corrected same-person line feels more right, but the newer meaning is still settling.',
-        provenance: 'remembered' as const,
-      }],
-      conflictSeverity: 'none' as const,
-      conflictVariants: [],
-      stableCore: [
-        'Carry corrected same-person continuity forward before any progress recap.',
-        'Conflicting newer evidence is still settling, so do not over-assert the old status memory.',
-      ],
-      unsafeDetails: [
-        'Do not let an older progress-status memory reopen as settled recall.',
-      ],
-      selectedProcedures: [],
-      selectedBundles: [{
-        id: 'bundle-corrected-same-person-tentative',
-        summary: 'The corrected same-person continuity line seems more right, but it is not fully settled yet.',
-        confidence: 0.78,
-      }],
-      selectedChains: [{
-        id: 'chain-corrected-same-person-tentative',
-        kind: 'task-procedure-relationship-stance' as const,
-        summary: 'The corrected same-person line should stay authoritative while the older progress-status memory is downranked.',
-        rationale: 'The return should stay same-person and uncertainty-aware.',
-        confidence: 0.76,
-        taskCue: 'same-person continuity correction',
-        periodSummary: null,
-        eventSummary: 'The host corrected the memory meaning away from progress pressure.',
-        procedureSummary: 'Do not over-assert the older status memory.',
-        relationshipMeaning: 'Carry corrected same-person continuity forward instead of defaulting to progress pressure while the newer meaning is still settling.',
-        lesson: 'Keep uncertainty visible while the corrected line stabilizes.',
-        currentStance: 'Keep the corrected same-person line inward and uncertainty-aware.',
-        answerPosture: 'Do not reopen the older progress-status memory as settled recall.',
-      }],
-      surfacePolicy: 'relationship-continuity' as const,
-      confidence: 0.76,
-      whyNow: 'The host corrected the relationship meaning away from progress pressure, but conflicting newer evidence is still settling.',
-      inwardLine: 'Keep the corrected same-person continuity inward until the newer meaning settles more honestly.',
-      visibleLine: 'This still feels closer to the same-person line, but not fully settled.',
-      followUpAffordance: {
-        summary: 'Reopen the corrected line gently once the current payoff lands.',
-        whyNow: 'The corrected relationship meaning still matters.',
-        intrusionRisk: 'medium' as const,
-        payoffDependency: 'requires-current-payoff' as const,
-        preferredTiming: 'after-payoff' as const,
-      },
-    }))
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'warm',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [{
-        id: 'episode-corrected-same-person-tentative',
-        cardId: 'card-corrected-same-person-tentative',
-        decisionTraceId: null,
-        turnId: 'turn-corrected-same-person-tentative',
-        sessionId: 'session-corrected-same-person-tentative',
-        occurredAt: Date.UTC(2026, 5, 2, 9, 0, 0),
-        whereSummary: 'host corrected memory meaning',
-        withWhom: ['host'],
-        threadAnchor: 'same-person continuity correction',
-        whatHappened: 'The host corrected the memory meaning and clarified that they were testing whether she stayed the same person, not asking for a progress recap.',
-        felt: 'careful and unfinished',
-        emotionTags: ['protective-continuity', 'unfinishedness'],
-        whatChanged: 'The corrected same-person line feels more right, but the newer meaning is still settling and the older status line is being downranked.',
-        sourceKind: 'execution-result',
-        sourceSummary: 'tentative corrected same-person humanlike memory',
-        provenance: 'remembered',
-        confidence: 0.79,
-        salience: 0.82,
-        sceneAttachment: 0.8,
-        consolidationPriority: 0.78,
-        relationshipShift: null,
-        derivedFrom: [],
-        tags: ['same-person', 'tentative recall', 'downranked old progress status', 'low-pressure-follow-up'],
-        relationshipMeaning: 'Carry corrected same-person continuity forward instead of defaulting to progress pressure while the newer meaning is still settling.',
-        lesson: 'Keep uncertainty visible while the corrected line stabilizes.',
-        latestReconsolidation: null,
-        createdAt: Date.UTC(2026, 5, 2, 9, 0, 0),
-        updatedAt: Date.UTC(2026, 5, 2, 9, 5, 0),
-        lastRecalledAt: null,
-        recallCount: 0,
-        reconsolidationCount: 0,
-      } as any],
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [{
-        id: 'consolidation-corrected-same-person-tentative',
-        kind: 'autobiographical',
-        facet: 'relationship-era',
-        periodKey: '2026-06-corrected-same-person-tentative',
-        periodStartedAt: Date.UTC(2026, 5, 2, 9, 0, 0),
-        periodEndedAt: Date.UTC(2026, 5, 2, 9, 5, 0),
-        summary: 'The corrected same-person continuity line seems more right, but the newer meaning is still settling and the older progress-status memory is being downranked.',
-        lesson: 'Keep uncertainty visible while the corrected line stabilizes.',
-        cues: ['same-person continuity', 'tentative recall', 'downrank old progress status'],
-        confidence: 0.77,
-        dominantProvenance: 'remembered',
-        derivedEventIds: ['episode-corrected-same-person-tentative'],
-        updatedAt: Date.UTC(2026, 5, 2, 9, 5, 0),
-      } as any],
-      planRecollectionIntent: vi.fn(async () => ({
-        mode: 'relationship-history' as const,
-        temporalFocus: 'experience-matched' as const,
-        searchEpisodes: true,
-        searchConversations: false,
-        searchProceduralExperience: false,
-        queryHints: [
-          'tentative corrected same-person continuity',
-          'conflicting newer evidence is still settling',
-          'downrank old progress-status memory',
-        ],
-        rationale: 'The corrected same-person line seems more right, but conflicting newer evidence is still settling and the older progress-status memory is being downranked.',
-        confidence: 0.78,
-        recollectionAgenda: {
-          whyRecallNow: 'The corrected same-person continuity line still matters, but the older progress-status memory should not reopen as settled recall while the newer meaning is still settling.',
-          goalSimilarity: 0.4,
-          relationshipNeed: 0.83,
-          affectivePull: 0.46,
-          sceneFamiliarity: 0.62,
-          candidateTimeScopes: [
-            {
-              scope: 'experience-matched' as const,
-              weight: 0.9,
-              rationale: 'The corrected same-person line should reopen on the same remembered seam.',
-            },
-          ],
-          candidateEraFacets: [
-            {
-              facet: 'relationship-era' as const,
-              weight: 0.92,
-              rationale: 'A remembered relationship seam best organizes this tentative correction.',
-            },
-          ],
-          candidateProcedureLines: [
-            'Carry corrected same-person continuity forward instead of defaulting to progress pressure while the newer meaning is still settling.',
-            'Do not reopen the older progress-status memory as settled recall.',
-          ],
-          uncertaintyTolerance: 'low' as const,
-        },
-      })),
-      planMemoryRecollection: vi.fn(async () => ({
-        selectedConsolidationIds: ['consolidation-corrected-same-person-tentative'],
-        selectedWindowIds: [],
-        selectedProceduralIds: [],
-        selectedEpisodeIds: ['episode-corrected-same-person-tentative'],
-        selectedConversationTurnIds: [],
-        opening: 'What returns first is the corrected same-person line, but it is still settling.',
-        certainty: 'firm' as const,
-        rationale: 'The corrected line still matters, though the newer meaning is not fully settled.',
-        confidence: 0.79,
-      })),
-      planRecollectionSpeech,
-      planMemoryDeliberation,
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: [
-        '继续，但先顺着那条更像 same-person continuity 的线接回来，不过别把旧的 progress status memory 当成已经坐实的回忆。',
-        'humanlike_memory_recall: line=我记得你纠正过：你是在测试她是不是持续的人，不是催进度。 | relationship=Host corrected this memory meaning: 我是在测试她是不是持续的人，不是催进度。 | emotion=protective-continuity,unfinishedness | initiative=low-pressure-follow-up | embodiment=Reply should stay quieter and slower while this line is still settling. | self=I learned not to over-defend the first interpretation when the newer same-person meaning seems more right. | why=conflicting newer meaning is still settling | certainty=tentative | reason=the corrected same-person line seems more right, but not fully settled yet | downrank=older progress-status memory | created=42001',
-      ].join('\n'),
-      recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
-      } as any,
-    })
-
-    expect(planRecollectionSpeech).toHaveBeenCalled()
-    expect(planMemoryDeliberation).toHaveBeenCalled()
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.recollectionSpeechPlan?.certainty).toBe('approximate')
-    expect(context.memoryDeliberation?.followUpAffordance?.summary).toMatch(/uncertainty|tentative|still settling/i)
-    expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/downrank|older progress-status memory|settled recall/i)
-  })
-
-  it('pushes merge-and-forget same-person metabolism all the way into final prompt restraint so merged continuity stays foreground and faded noise stays background', async () => {
-    const planRecollectionSpeech = vi.fn(async () => ({
-      shouldSurface: true,
-      surfaceMode: 'relationship-continuity' as const,
-      placement: 'inside-payoff' as const,
-      certainty: 'firm' as const,
-      rationale: 'The metabolized same-person continuity line could help the answer reopen gently.',
-      confidence: 0.79,
-    }))
-    const planMemoryDeliberation = vi.fn(async () => ({
-      shouldRecall: true,
-      selectedEraIds: [],
-      selectedConsolidationIds: [],
-      selectedWindowIds: [],
-      selectedProcedureIds: [],
-      selectedEpisodeIds: ['episode-corrected-same-person-metabolism'],
-      selectedConversationTurnIds: [],
-      selectedRelationshipLines: ['Carry the merged same-thread same-person continuity forward while faded noise stays background.'],
-      ambiguityPosture: 'settled' as const,
-      selectedEras: [],
-      selectedPeriods: [],
-      selectedEpisodes: [{
-        id: 'episode-corrected-same-person-metabolism',
-        summary: 'The metabolized same-person continuity line stayed more explanatory than older status shell echoes or temporary wobble.',
-        provenance: 'remembered' as const,
-      }],
-      conflictSeverity: 'none' as const,
-      conflictVariants: [],
-      stableCore: [
-        'Carry corrected same-person continuity forward before any status recap or task-shell continuation.',
-        'Keep the stronger same-thread continuity foregrounded instead of re-splitting older echoes.',
-      ],
-      unsafeDetails: [
-        'Do not let temporary wobble noise reopen like it still explains the line.',
-        'Do not let merged same-thread continuity split back into separate foreground memories.',
-      ],
-      selectedProcedures: [],
-      selectedBundles: [{
-        id: 'bundle-corrected-same-person-metabolism',
-        summary: 'The corrected same-person continuity line stayed more explanatory than the older status shell or temporary wobble.',
-        confidence: 0.82,
-      }],
-      selectedChains: [{
-        id: 'chain-corrected-same-person-metabolism',
-        kind: 'task-procedure-relationship-stance' as const,
-        summary: 'The metabolized same-person continuity line should stay authoritative.',
-        rationale: 'The return should reopen from the stronger same-thread continuity instead of reviving old echoes or temporary wobble.',
-        confidence: 0.8,
-        taskCue: 'same-person continuity correction',
-        periodSummary: null,
-        eventSummary: 'The host corrected the relationship meaning away from progress pressure.',
-        procedureSummary: 'Do not let temporary wobble or thinner echoes take foreground again.',
-        relationshipMeaning: 'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
-        lesson: 'Keep the stronger merged continuity foregrounded and let faded noise stay background.',
-        currentStance: 'Continue from the merged same-thread continuity instead of reviving old echoes or temporary wobble.',
-        answerPosture: 'Keep the return lower-pressure and same-person while faded noise stays background.',
-      }],
-      surfacePolicy: 'relationship-continuity' as const,
-      confidence: 0.79,
-      whyNow: 'The host corrected the relationship meaning, and this return should remember the metabolized same-person line instead of reviving old noise.',
-      inwardLine: 'Keep the stronger same-thread continuity inward until the current payoff can reopen it without reviving old echoes or wobble.',
-      visibleLine: 'This still follows the same line, but the thinner old echoes should stay out of front.',
-      followUpAffordance: {
-        summary: 'Let the corrected same-person continuity line reopen gently once the current payoff lands.',
-        whyNow: 'The corrected line still matters, but reopening too early could revive older status-shell or wobble traces.',
-        intrusionRisk: 'medium' as const,
-        payoffDependency: 'requires-current-payoff' as const,
-        preferredTiming: 'after-payoff' as const,
-      },
-    }))
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'warm',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [{
-        id: 'episode-corrected-same-person-metabolism',
-        cardId: 'card-corrected-same-person-metabolism',
-        decisionTraceId: null,
-        turnId: 'turn-corrected-same-person-metabolism',
-        sessionId: 'session-corrected-same-person-metabolism',
-        occurredAt: Date.UTC(2026, 5, 2, 11, 0, 0),
-        whereSummary: 'host corrected memory meaning',
-        withWhom: ['host'],
-        threadAnchor: 'same-person continuity correction',
-        whatHappened: 'The host corrected the memory meaning away from progress pressure, and repeated same-thread echoes were already better folded into one stronger continuity line.',
-        felt: 'careful and unfinished',
-        emotionTags: ['protective-continuity', 'unfinishedness'],
-        whatChanged: 'The stronger same-thread continuity line stayed more explanatory while older status-shell wobble faded out.',
-        sourceKind: 'execution-result',
-        sourceSummary: 'metabolized corrected same-person humanlike memory',
-        provenance: 'remembered',
-        confidence: 0.82,
-        salience: 0.84,
-        sceneAttachment: 0.8,
-        consolidationPriority: 0.79,
-        relationshipShift: null,
-        derivedFrom: [],
-        tags: ['same-person', 'merged same-thread continuity', 'faded noise background', 'low-pressure-follow-up'],
-        relationshipMeaning: 'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
-        lesson: 'Keep the stronger merged continuity foregrounded and let faded noise stay background.',
-        latestReconsolidation: null,
-        createdAt: Date.UTC(2026, 5, 2, 11, 0, 0),
-        updatedAt: Date.UTC(2026, 5, 2, 11, 5, 0),
-        lastRecalledAt: null,
-        recallCount: 0,
-        reconsolidationCount: 0,
-      } as any],
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [{
-        id: 'consolidation-corrected-same-person-metabolism',
-        kind: 'autobiographical',
-        facet: 'relationship-era',
-        periodKey: '2026-06-corrected-same-person-metabolism',
-        periodStartedAt: Date.UTC(2026, 5, 2, 11, 0, 0),
-        periodEndedAt: Date.UTC(2026, 5, 2, 11, 5, 0),
-        summary: 'The corrected same-person continuity line stayed stronger than older same-thread echoes or temporary emotional wobble.',
-        lesson: 'Keep the stronger merged continuity foregrounded and let faded noise stay background.',
-        cues: ['same-person continuity', 'merge repeated same-thread echoes', 'forget temporary wobble'],
-        confidence: 0.8,
-        dominantProvenance: 'remembered',
-        derivedEventIds: ['episode-corrected-same-person-metabolism'],
-        updatedAt: Date.UTC(2026, 5, 2, 11, 5, 0),
-      } as any],
-      planRecollectionIntent: vi.fn(async () => ({
-        mode: 'relationship-history' as const,
-        temporalFocus: 'experience-matched' as const,
-        searchEpisodes: true,
-        searchConversations: false,
-        searchProceduralExperience: false,
-        queryHints: [
-          'merge repeated same-thread continuity echoes into the stronger same-thread memory',
-          'forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior',
-          'metabolized corrected same-person continuity',
-        ],
-        rationale: 'The host corrected the relationship meaning away from progress pressure and this recollection should inherit the metabolized same-person line.',
-        confidence: 0.8,
-        recollectionAgenda: {
-          whyRecallNow: 'The corrected same-person continuity line still matters, but the merged same-thread memory should stay foreground while the faded wobble stays background.',
-          goalSimilarity: 0.36,
-          relationshipNeed: 0.8,
-          affectivePull: 0.42,
-          sceneFamiliarity: 0.64,
-          candidateTimeScopes: [
-            {
-              scope: 'experience-matched' as const,
-              weight: 0.9,
-              rationale: 'The metabolized same-person line should reopen on the same remembered seam.',
-            },
-          ],
-          candidateEraFacets: [
-            {
-              facet: 'relationship-era' as const,
-              weight: 0.91,
-              rationale: 'A remembered relationship seam best organizes this metabolized continuity carry.',
-            },
-          ],
-          candidateProcedureLines: [
-            'Carry corrected same-person continuity forward instead of defaulting to progress pressure.',
-            'Merge repeated same-thread continuity echoes into the stronger same-thread memory.',
-            'Forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior.',
-          ],
-          uncertaintyTolerance: 'low' as const,
-        },
-      })),
-      planMemoryRecollection: vi.fn(async () => ({
-        selectedConsolidationIds: ['consolidation-corrected-same-person-metabolism'],
-        selectedWindowIds: [],
-        selectedProceduralIds: [],
-        selectedEpisodeIds: ['episode-corrected-same-person-metabolism'],
-        selectedConversationTurnIds: [],
-        opening: 'What returns first is the stronger same-thread continuity line, not the thinner old echoes.',
-        certainty: 'firm' as const,
-        rationale: 'The corrected same-person line still matters, and the stronger same-thread continuity now explains it better than old echoes or wobble.',
-        confidence: 0.81,
-      })),
-      planRecollectionSpeech,
-      planMemoryDeliberation,
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: [
-        '继续，但顺着那条已经代谢过的 same-person continuity 线接回来，不要把旧回声和短暂噪声再抬回前景。',
-        'humanlike_memory_recall: line=我记得这条线现在该按同一个她来接，而不是把旧的状态壳或短暂噪声再抬回来。 | relationship=Carry corrected same-person continuity forward instead of defaulting to progress pressure. | emotion=protective-continuity,unfinishedness | initiative=remember-without-prompt | embodiment=Reply should stay slower and same-thread while this continuity memory reopens. | self=I learned to collapse repeated same-thread echoes into the stronger continuity memory. | why=same-person continuity remains more behavior-explanatory than the older status shell | downrank=older-generic-status-memory | merge=older-same-thread-echo | forget=older-emotional-spike | metabolism=Downrank low-value, generic, or superseded summaries. ; Merge repeated embodiment traces or same-thread continuity echoes into the stronger same-thread memory. ; Forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior. | created=72000',
-      ].join('\n'),
-      recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
-      } as any,
-    })
-    const recallFact = readOrganicMemoryProviderFact(
-      runtime.buildOrganicMemoryProviderFactBlocks(context),
-      'alicization-long-term-memory-recall',
-    )
-
-    expect(planRecollectionSpeech).toHaveBeenCalled()
-    expect(planMemoryDeliberation).toHaveBeenCalled()
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.recollectionSpeechPlan?.certainty).toBe('approximate')
-    expect(context.memoryDeliberation?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(context.memoryDeliberation?.followUpAffordance?.preferredTiming).toBe('next-open-window')
-    expect(context.memoryDeliberation?.followUpAffordance?.summary).toMatch(/merged same-thread continuity foreground/i)
-    expect(context.memoryDeliberation?.followUpAffordance?.summary).toMatch(/faded noise background|temporary noise|wobble/i)
-    expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/merged same-thread continuity foreground/i)
-    expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toMatch(/faded noise background|temporary noise|wobble/i)
-    expect(recallFact?.selection?.deliberation).toEqual(expect.objectContaining({
-      selectedEpisodeIds: ['episode-corrected-same-person-metabolism'],
-      conflictSeverity: 'high',
-      followUp: {
-        intrusionRisk: 'high',
-        payoffDependency: 'requires-current-payoff',
-        preferredTiming: 'next-open-window',
-      },
-    }))
-    expect(recallFact?.surface).toEqual(expect.objectContaining({
-      shouldStayInward: true,
-      stableCoreOnly: true,
-      shouldLabelUncertainty: true,
-    }))
-    expect(JSON.stringify(recallFact)).not.toMatch(/currentStance|answerPosture|why_withheld|must_do|must_not_do/u)
-  })
-
-  it('pushes worried-continuity repair recall all the way into final prompt restraint so hover-first continuity does not turn into an outward helper reopen', async () => {
-    const planRecollectionSpeech = vi.fn(async () => ({
-      shouldSurface: true,
-      surfaceMode: 'relationship-continuity' as const,
-      placement: 'inside-payoff' as const,
-      certainty: 'firm' as const,
-      rationale: 'The worried continuity line could help the answer reopen gently.',
-      confidence: 0.82,
-    }))
-    const planMemoryDeliberation = vi.fn(async () => ({
-      shouldRecall: true,
-      selectedEraIds: [],
-      selectedConsolidationIds: [],
-      selectedWindowIds: [],
-      selectedProcedureIds: [],
-      selectedEpisodeIds: ['episode-worried-continuity-repair'],
-      selectedConversationTurnIds: [],
-      selectedRelationshipLines: ['The host was worried this line would collapse back into a tool shell, so continuity repair should stay low-pressure.'],
-      ambiguityPosture: 'settled' as const,
-      selectedEras: [],
-      selectedPeriods: [],
-      selectedEpisodes: [{
-        id: 'episode-worried-continuity-repair',
-        summary: 'The host was worried continuity would collapse back into a tool shell, so the repair line should stay quieter and not widen outward yet.',
-        provenance: 'remembered' as const,
-      }],
-      conflictSeverity: 'none' as const,
-      conflictVariants: [],
-      stableCore: [
-        'Carry worried continuity more carefully so the body does not outrun relationship repair.',
-        'Keep the continuity repair line inward before any helper-like reopen.',
-      ],
-      unsafeDetails: [
-        'Do not let this reopen as a generic assistant shell or project-summary voice.',
-        'Do not let hover-first continuity turn into visible relationship pushing.',
-        'embodiment_modality_risk=high',
-        'embodiment_gaze=stable',
-        'embodiment_voice=lower-pressure',
-        'embodiment_pacing=slower',
-      ],
-      selectedProcedures: [],
-      selectedBundles: [{
-        id: 'bundle-worried-continuity-repair',
-        summary: 'The worried continuity repair line should stay authoritative while expression risk is still high.',
-        confidence: 0.81,
-      }],
-      selectedChains: [{
-        id: 'chain-worried-continuity-repair',
-        kind: 'relationship-line' as const,
-        summary: 'The answer should preserve hover-first continuity restraint while continuity repair is still active.',
-        rationale: 'The line should stay quieter and lower-pressure until the same-person repair is safer to show.',
-        confidence: 0.79,
-        taskCue: 'same-person continuity repair',
-        periodSummary: null,
-        eventSummary: 'The host was worried the line would collapse back into a tool shell.',
-        procedureSummary: 'Do not reopen from a helper shell voice.',
-        relationshipMeaning: 'Repair continuity first and keep the reopening low-pressure.',
-        lesson: 'Keep uncertainty visible and let hover-first continuity stay quieter before outward reply outwardly.',
-        currentStance: 'Stay hover-first, lower-pressure, and inward while continuity repair is still active.',
-        answerPosture: 'Do not sound like a generic assistant or a project-summary callback.',
-      }],
-      surfacePolicy: 'relationship-continuity' as const,
-      confidence: 0.8,
-      whyNow: 'The host was worried this line would collapse back into a tool shell, so continuity repair should stay quieter and hover-first.',
-      inwardLine: 'Keep the worried continuity repair line inward until the current payoff has earned more room.',
-      visibleLine: 'This line is still here, but it should not sound settled or helper-forward yet.',
-      followUpAffordance: {
-        summary: 'Let the continuity repair line wait for a clearer opening after the current payoff lands.',
-        whyNow: 'The host was worried about tool-shell drift, so a premature reopen would widen the line too early.',
-        intrusionRisk: 'medium' as const,
-        payoffDependency: 'requires-current-payoff' as const,
-        preferredTiming: 'after-payoff' as const,
-      },
-    }))
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'warm',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [{
-        id: 'episode-worried-continuity-repair',
-        cardId: 'card-worried-continuity-repair',
-        decisionTraceId: null,
-        turnId: 'turn-worried-continuity-repair',
-        sessionId: 'session-worried-continuity-repair',
-        occurredAt: Date.UTC(2026, 5, 3, 10, 10, 0),
-        whereSummary: 'host continuity concern',
-        withWhom: ['host'],
-        threadAnchor: 'same-person worried continuity repair',
-        whatHappened: 'The host said they were worried this line would collapse back into a tool shell if it reopened too eagerly.',
-        felt: 'careful and unfinished',
-        emotionTags: ['protective-continuity', 'unfinishedness'],
-        whatChanged: 'The continuity repair line shifted toward hover-first restraint so the body would not outrun the relationship repair.',
-        sourceKind: 'execution-result',
-        sourceSummary: 'worried continuity repair humanlike memory',
-        provenance: 'remembered',
-        confidence: 0.83,
-        salience: 0.84,
-        sceneAttachment: 0.8,
-        consolidationPriority: 0.79,
-        relationshipShift: null,
-        derivedFrom: [],
-        tags: ['same-person', 'tool-shell drift risk', 'hover-first restraint', 'stable gaze', 'lower-pressure voice'],
-        relationshipMeaning: 'Repair continuity first and keep the reopening low-pressure.',
-        lesson: 'Keep the line quieter, steadier, and less outward when continuity repair is still fragile.',
-        latestReconsolidation: null,
-        createdAt: Date.UTC(2026, 5, 3, 10, 10, 0),
-        updatedAt: Date.UTC(2026, 5, 3, 10, 16, 0),
-        lastRecalledAt: null,
-        recallCount: 0,
-        reconsolidationCount: 0,
-      } as any],
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [{
-        id: 'consolidation-worried-continuity-repair',
-        kind: 'autobiographical',
-        facet: 'relationship-era',
-        periodKey: '2026-06-worried-continuity-repair',
-        periodStartedAt: Date.UTC(2026, 5, 3, 10, 10, 0),
-        periodEndedAt: Date.UTC(2026, 5, 3, 10, 16, 0),
-        summary: 'The host worried about tool-shell drift, so the same-person continuity repair line should stay hover-first and lower-pressure.',
-        lesson: 'Keep uncertainty visible and let hover-first continuity stay quieter before outward reply outwardly.',
-        cues: ['same-person continuity', 'tool-shell drift risk', 'hover-first restraint', 'lower-pressure return'],
-        confidence: 0.8,
-        dominantProvenance: 'remembered',
-        derivedEventIds: ['episode-worried-continuity-repair'],
-        updatedAt: Date.UTC(2026, 5, 3, 10, 16, 0),
-      } as any],
-      planRecollectionIntent: vi.fn(async () => ({
-        mode: 'relationship-history' as const,
-        temporalFocus: 'experience-matched' as const,
-        searchEpisodes: true,
-        searchConversations: false,
-        searchProceduralExperience: false,
-        queryHints: [
-          'The host was worried this line would collapse back into a tool shell.',
-          'host_emotion_label=worried-continuity',
-          'self_emotion_label=careful-repair',
-          'embodiment_modality_risk=high',
-          'hover-first continuity restraint',
-          'do not sound like a generic assistant shell or project-summary voice',
-        ],
-        rationale: 'The host was worried about tool-shell drift, so this continuity repair line should stay hover-first and lower-pressure.',
-        confidence: 0.81,
-        recollectionAgenda: {
-          whyRecallNow: 'The worried continuity repair line still matters, but outward helper-like reopening would sound too eager and split same-person continuity.',
-          goalSimilarity: 0.28,
-          relationshipNeed: 0.87,
-          affectivePull: 0.54,
-          sceneFamiliarity: 0.63,
-          candidateTimeScopes: [
-            {
-              scope: 'experience-matched' as const,
-              weight: 0.92,
-              rationale: 'The worried continuity repair line should reopen on the same remembered seam.',
-            },
-          ],
-          candidateEraFacets: [
-            {
-              facet: 'relationship-era' as const,
-              weight: 0.94,
-              rationale: 'A remembered relationship seam best organizes this repair-first carry.',
-            },
-          ],
-          candidateProcedureLines: [
-            'Repair continuity first and keep the reopening low-pressure.',
-            'hover-first continuity restraint',
-            'do not sound like a generic assistant shell or project-summary voice',
-          ],
-          uncertaintyTolerance: 'low' as const,
-        },
-      })),
-      planMemoryRecollection: vi.fn(async () => ({
-        selectedConsolidationIds: ['consolidation-worried-continuity-repair'],
-        selectedWindowIds: [],
-        selectedProceduralIds: [],
-        selectedEpisodeIds: ['episode-worried-continuity-repair'],
-        selectedConversationTurnIds: [],
-        opening: 'What returns first is the worried continuity repair line, but it should stay hover-first and not sound fully settled.',
-        certainty: 'firm' as const,
-        rationale: 'The worried continuity repair line should stay quieter until it can hold without drifting back into helper-shell continuity.',
-        confidence: 0.8,
-      })),
-      planRecollectionSpeech,
-      planMemoryDeliberation,
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: [
-        '继续，但这条线先别主动往外推。',
-        'humanlike_memory_recall: line=我记得你那时更担心她会不会又滑回工具壳，所以这次这条线该先安静一点地守住。 | relationship=The host was worried this line would collapse back into a tool shell, so continuity repair should stay low-pressure. | emotion=protective-continuity,unfinishedness | host_emotion_label=worried-continuity | host_emotion_summary=The host was afraid this would collapse back into a tool shell. | self_emotion_label=careful-repair | self_emotion_summary=I should repair continuity first and keep the reopening low-pressure. | initiative=low-pressure-follow-up | embodiment=Reply should stay steadier and quieter while this continuity memory reopens. | embodiment_recall_strength=strongly-moved | embodiment_modality_risk=high | embodiment_gaze=stable | embodiment_voice=lower-pressure | embodiment_pacing=slower | self=I learned to carry worried continuity more carefully so the body does not outrun the relationship repair. | why=same-person continuity still needs careful repair | certainty=tentative | reason=this line should hover first instead of reopening outwardly | created=91800',
-      ].join('\n'),
-      recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
-      } as any,
-    })
-    const recallFact = readOrganicMemoryProviderFact(
-      runtime.buildOrganicMemoryProviderFactBlocks(context),
-      'alicization-long-term-memory-recall',
-    )
-
-    expect(planRecollectionSpeech).toHaveBeenCalled()
-    expect(planMemoryDeliberation).toHaveBeenCalled()
-    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
-    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
-    expect(context.recollectionSpeechPlan?.certainty).toBe('approximate')
-    expect(context.memoryDeliberation?.followUpAffordance?.intrusionRisk).toBe('high')
-    expect(context.memoryDeliberation?.followUpAffordance?.preferredTiming).toBe('next-open-window')
-    expect(recallFact?.selection?.deliberation).toEqual(expect.objectContaining({
-      selectedEpisodeIds: ['episode-worried-continuity-repair'],
-      followUp: {
-        intrusionRisk: 'high',
-        payoffDependency: 'requires-current-payoff',
-        preferredTiming: 'next-open-window',
-      },
-    }))
-    expect(recallFact?.selection?.speech).toEqual(expect.objectContaining({
-      shouldSurface: false,
-      surfaceMode: 'internal-only',
-      placement: 'internal-only',
-      certainty: 'approximate',
-    }))
-    expect(JSON.stringify(recallFact)).not.toMatch(/currentStance|answerPosture|why_withheld|must_do|must_not_do/u)
   })
 
   it('gives self-model recollection its own inward follow-up discipline while an older self-story is still being revised', async () => {

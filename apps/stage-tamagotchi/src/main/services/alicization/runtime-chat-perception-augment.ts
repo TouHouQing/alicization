@@ -20,7 +20,6 @@ import { updateVisualAttentionModel } from './attention-model'
 import { buildAlicizationMindTurnGovernance } from './chat-mind-governance'
 import { commitAlicizationDigitalLifeSpine } from './digital-life-spine'
 import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
-import { shouldIncludeProjectStateProviderContext } from './main-chat-project-state-injection-policy'
 import { buildMindContinuityRecallSeed } from './mind-continuity'
 import {
   buildProactiveLayeredContext,
@@ -248,10 +247,6 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     const chatRuntimeSurface = committedChatDigitalLifeSpine.current.runtimeSurface
     const chatDigitalLifeArchitecture = committedChatDigitalLifeSpine.current.architecture
     const activeSelfRevisionPatch = await getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
-    const includePreludeProjectStateContext = shouldIncludeProjectStateProviderContext({
-      latestUserText: input.userText,
-      messages,
-    })
     const visibleReplySurfacePlan = buildAlicizationVisibleReplySurfacePlan({
       now,
       context: chatLayeredContext,
@@ -271,7 +266,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
       answerCompiler: chatMindState.answerCompiler ?? undefined,
       currentConsciousFrame: chatMindState.currentConsciousFrame ?? undefined,
       claimEvidenceLedger: chatMindState.claimEvidenceLedger ?? undefined,
-      includeProjectStateFacts: includePreludeProjectStateContext,
+      includeProjectStateFacts: false,
       selfRevisionPatch: activeSelfRevisionPatch,
     })
     const responseCharter = visibleReplySurfacePlan.responseCharter

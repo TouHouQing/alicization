@@ -195,6 +195,132 @@ beforeEach(() => {
 })
 
 describe('runtime main gateway one-shot', () => {
+  it('scrubs fixed governance fields from internal one-shot blocks without rewriting user text', async () => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: 'ok',
+    } as any)
+
+    const openingPolicyCue = `${['opening', 'policy'].join('_')}=legacy`
+    const relationshipCadenceCue = `${['relationship', 'cadence'].join('_')}=legacy`
+    const visibilityCue = 'visibility=redacted_internal'
+    const projectStateCue = 'projectStatePreflightSummary=legacy'
+    const openingPolicyField = ['opening', 'policy'].join('_')
+    const relationshipCadenceField = ['relationship', 'cadence'].join('_')
+
+    await runtime.generateMainGatewayText({
+      system: [
+        'Return the requested structured result.',
+        openingPolicyCue,
+        relationshipCadenceCue,
+        visibilityCue,
+      ].join('\n'),
+      user: `用户原文提到了 ${relationshipCadenceCue}，不应被内部清洗改写。`,
+      source: 'scene-appraisal',
+      cardId: 'card-scrub-governance',
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      extraSystemBlocks: [
+        JSON.stringify({
+          type: 'internal-fact',
+          data: {
+            visible: 'keep this fact',
+            projectStateCue,
+            [openingPolicyField]: 'legacy',
+            [relationshipCadenceField]: 'legacy',
+            visibility: 'redacted_internal',
+          },
+        }),
+      ],
+    })
+
+    const messages = vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? []
+    const systemText = messages
+      .filter(message => message.role === 'system')
+      .map(message => typeof message.content === 'string' ? message.content : '')
+      .join('\n')
+    const userText = messages
+      .filter(message => message.role === 'user')
+      .map(message => typeof message.content === 'string' ? message.content : '')
+      .join('\n')
+
+    expect(systemText).toContain('Return the requested structured result.')
+    expect(systemText).toContain('keep this fact')
+    expect(systemText).not.toContain(openingPolicyCue)
+    expect(systemText).not.toContain(relationshipCadenceCue)
+    expect(systemText).not.toContain(visibilityCue)
+    expect(systemText).not.toContain(projectStateCue)
+    expect(systemText).not.toContain(`"${openingPolicyField}"`)
+    expect(systemText).not.toContain(`"${relationshipCadenceField}"`)
+    expect(systemText).not.toContain('"visibility":"redacted_internal"')
+    expect(userText).toContain(relationshipCadenceCue)
+  })
+
+  it('preserves user-origin text and failure facts inside caller and callback JSON', async () => {
+    const relationshipCadenceField = ['relationship', 'cadence'].join('_')
+    const openingPolicyField = ['opening', 'policy'].join('_')
+    const userTurn = `用户正在讨论 ${relationshipCadenceField}=legacy 这段旧字段。`
+    const agentTurn = {
+      conversationSessionId: 'session-one-shot',
+      ingestDigitalLifeArchitecture: vi.fn(),
+      ingestDigitalLifeSpine: vi.fn(),
+      ingestContinuitySignals: vi.fn(),
+      ingestRuntimeActions: vi.fn(),
+      trackTool: vi.fn(async (input: { run: () => Promise<unknown> }) => await input.run()),
+    }
+    const { runtime } = createOneShotRuntimeHarness({
+      buildPendingExecutionCallbackContext: vi.fn(async () => ({
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: JSON.stringify({
+          type: 'alicization-execution-callbacks',
+          data: {
+            status: 'failed',
+            summary: `${relationshipCadenceField}=legacy; Provider timeout.`,
+            [openingPolicyField]: 'legacy',
+          },
+        }),
+      })),
+    })
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: 'ok',
+    } as any)
+
+    await runtime.generateMainGatewayText({
+      system: JSON.stringify({
+        type: 'alicization-mind-state-request',
+        data: {
+          userTurn,
+          task: 'Keep the useful request.',
+          [openingPolicyField]: 'legacy',
+        },
+      }),
+      user: 'input',
+      source: 'scene-appraisal',
+      cardId: 'card-json-system-scrub',
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      captureAgentSensorySnapshot: false,
+      agentTurn: agentTurn as any,
+    })
+
+    const systemFacts = (vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? [])
+      .filter(message => message.role === 'system' && typeof message.content === 'string')
+      .map(message => JSON.parse(String(message.content)))
+    const callbackFact = systemFacts.find(fact => fact.type === 'alicization-execution-callbacks')
+    const callerFact = systemFacts.find(fact => fact.type === 'alicization-mind-state-request')
+
+    expect(callerFact?.data.userTurn).toBe(userTurn)
+    expect(callerFact?.data.task).toBe('Keep the useful request.')
+    expect(callerFact?.data).not.toHaveProperty(openingPolicyField)
+    expect(callbackFact?.data.status).toBe('failed')
+    expect(callbackFact?.data.summary).toContain('Provider timeout')
+    expect(callbackFact?.data.summary).not.toContain(`${relationshipCadenceField}=legacy`)
+    expect(callbackFact?.data).not.toHaveProperty(openingPolicyField)
+  })
+
   it('sends only caller-owned system context and returns Provider text without project-state wrapping', async () => {
     const { runtime } = createOneShotRuntimeHarness()
     vi.mocked(generateText).mockResolvedValueOnce({

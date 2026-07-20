@@ -62,11 +62,6 @@ import {
 import { buildMemorySituationCompetition } from './memory-situation-competition'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { resolvePreferredPersonStateProjection } from './person-state-projection-resolution'
-import {
-  buildAlicizationProjectPreDialogueAwarenessLine,
-  resolveAlicizationProjectStateBrief,
-  resolveAlicizationProjectStateSnapshot,
-} from './project-state-brief'
 import { planAlicizationRecall } from './recall-planner'
 import { buildOrganicMemoryProviderFactBlocks as buildOrganicMemoryFactBlocks } from './runtime-organic-memory-prompt-blocks'
 import {
@@ -541,31 +536,6 @@ function sanitizeOrganicProjectStateText(value: unknown, limit: number) {
     : null
 }
 
-function sanitizeOrganicProjectEmotionText(value: unknown, limit: number) {
-  const normalized = sanitizeOrganicMemoryText(
-    typeof value === 'string' ? value : '',
-    limit,
-  )
-  if (!normalized)
-    return null
-
-  const sanitized = sanitizeAlicizationProviderFacingText(normalized, limit)
-  if (
-    sanitized
-    && sanitized !== alicizationFixedTemplateReplacement
-    && !/same-her|same her|same living line|one living her|one continuous "?her"?|Before (?:answering|speaking|acting)|local-first digital life project/iu.test(sanitized)
-  ) {
-    return sanitized
-  }
-
-  return [
-    'Emotional closure content was sanitized.',
-    /low-pressure|lower-pressure|measured-return/iu.test(normalized) ? 'Keep the tone low-pressure.' : null,
-    /repair-before-closeness|repair first|repair-first/iu.test(normalized) ? 'Let repair come before closeness.' : null,
-    /rest-protective|rest protection|fatigue|休息/u.test(normalized) ? 'Protect rest.' : null,
-  ].filter(Boolean).join('; ')
-}
-
 function sanitizeOrganicMemoryReplayText(value: unknown, limit = 800) {
   const normalized = sanitizeOrganicMemoryText(
     typeof value === 'string' ? value : '',
@@ -594,275 +564,17 @@ function sanitizeOrganicMemoryReplayText(value: unknown, limit = 800) {
     : ''
 }
 
-function stripRepeatedRecallAnchorPrefix(raw: string | null, prefix: 'project' | 'project-emotion', limit: number) {
-  let normalized = sanitizeOrganicMemoryText(raw ?? '', limit) || null
-  while (normalized?.startsWith(`${prefix}:`))
-    normalized = sanitizeOrganicMemoryText(normalized.slice(prefix.length + 1), limit) || null
-  return prefix === 'project-emotion'
-    ? sanitizeOrganicProjectEmotionText(normalized, limit)
-    : sanitizeOrganicProjectStateText(normalized, limit)
-}
-
-function extractRecallGovernorProjectAnchor(input: {
-  recallGovernor?: AlicizationRecallGovernorSnapshot | null
-  anchorKind: 'project-preflight' | 'project-emotion'
-}) {
-  const recallGovernor = input.recallGovernor ?? null
-  if (!recallGovernor)
-    return null
-
-  const narrativePrefix = input.anchorKind === 'project-preflight'
-    ? 'project-preflight:'
-    : 'project-emotion:'
-  const anchorPrefix = input.anchorKind === 'project-preflight'
-    ? 'project'
-    : 'project-emotion'
-
-  for (const entry of recallGovernor.narrative ?? []) {
-    const narrativeEntry = sanitizeOrganicMemoryText(entry, 420)
-    if (!narrativeEntry?.startsWith(narrativePrefix))
-      continue
-    const stripped = stripRepeatedRecallAnchorPrefix(
-      narrativeEntry.slice(narrativePrefix.length).trim(),
-      anchorPrefix,
-      420,
-    )
-    if (stripped)
-      return stripped
-  }
-
-  const recallSeed = sanitizeOrganicProjectStateText(recallGovernor.recallSeed, 800)
-  if (!recallSeed)
-    return null
-
-  const match = input.anchorKind === 'project-preflight'
-    ? recallSeed.match(/(?:^|\s\|\s)project:(.+?)(?=\s\|\s[a-z][a-z0-9_-]*:|$)/u)
-    : recallSeed.match(/(?:^|\s\|\s)project-emotion:(.+?)(?=\s\|\s[a-z][a-z0-9_-]*:|$)/u)
-  return stripRepeatedRecallAnchorPrefix(match?.[1]?.trim() ?? null, anchorPrefix, 420)
-}
-
-function buildSameHerCarryLineFromProjectAnchor(projectPreflight: string | null) {
-  const summary = sanitizeOrganicProjectStateText(projectPreflight, 220)
-  if (!summary)
-    return null
-  if (/content_withheld;\s*reason=continuity-residue/iu.test(summary))
-    return null
-
-  const lowered = summary.toLowerCase()
-  const carriesProjectIdentity
-    = lowered.includes('runtime_personhood')
-      || lowered.includes('phase1_local_digital_life')
-      || lowered.includes('identity=phase1')
-      || lowered.includes('same phase 1 digital life')
-      || lowered.includes('same digital life')
-      || lowered.includes('same-her')
-      || lowered.includes('same her')
-  const carriesLandedProgress
-    = lowered.includes('landed=partial')
-      || lowered.includes('memory_progress=partial')
-      || lowered.includes('some closure already landed')
-      || lowered.includes('already landed')
-      || lowered.includes('already survives')
-      || lowered.includes('has landed')
-  const carriesOpenClosure
-    = lowered.includes('open=continuity_pending')
-      || lowered.includes('memory_unresolved=continuity')
-      || lowered.includes('unfinished closure still needs the same living line')
-      || lowered.includes('still-open closure')
-      || lowered.includes('same living line')
-      || lowered.includes('still needs')
-
-  if (!carriesProjectIdentity && !carriesLandedProgress && !carriesOpenClosure)
-    return null
-
-  return [
-    carriesProjectIdentity ? 'runtime_context=continuity_present.' : '',
-    carriesLandedProgress ? 'memory_progress=partial.' : '',
-    carriesOpenClosure ? 'memory_unresolved=continuity.' : '',
-  ].filter(Boolean).join(' ')
-}
-
-function looksLikeThinOrganicProjectPreflightShell(projectPreflight: string | null) {
-  const normalized = sanitizeOrganicProjectStateText(projectPreflight, 320)
-  if (!normalized)
-    return true
-  const summary = normalized.toLowerCase()
-
-  return summary.startsWith('same digital life')
-    || summary === 'project'
-    || summary === 'phase 1'
-    || summary.includes('keep the closure seam explicit')
-    || summary.includes('keep this same digital life project in view')
-    || summary.includes('generic continuity summary')
-    || summary.includes('generic awareness summary')
-    || summary.includes('generic reminder')
-    || summary.includes('generic guidance')
-}
-
-function looksLikeNarrowOrganicProjectSameHerLine(line: string | null) {
-  const normalized = sanitizeOrganicProjectStateText(line, 220)
-  if (!normalized)
-    return false
-  const summary = normalized.toLowerCase()
-
-  return /same phase 1 digital life|same living line|same her|same-her/u.test(summary)
-    && !summary.includes('some closure already landed')
-    && !summary.includes('unfinished closure')
-}
-
-function buildOrganicMemoryProjectStateContextFromRecallGovernor(
-  recallGovernor?: AlicizationRecallGovernorSnapshot | null,
-) {
-  const projectPreflight = extractRecallGovernorProjectAnchor({
-    recallGovernor,
-    anchorKind: 'project-preflight',
-  })
-  const projectEmotionalClosure = extractRecallGovernorProjectAnchor({
-    recallGovernor,
-    anchorKind: 'project-emotion',
-  })
-  if (!projectPreflight && !projectEmotionalClosure)
-    return null
-
-  const projectPreflightIsExcludedResidue = /content_withheld;\s*reason=continuity-residue/iu.test(projectPreflight ?? '')
-  if (projectPreflightIsExcludedResidue) {
-    return {
-      projectStatePreflightSummary: null,
-      projectStatePreDialogueAwarenessLine: null,
-      projectStateContinuity: {
-        identity: null,
-        currentPhase: null,
-        sameHerSummary: null,
-        landedProgressSummary: null,
-        openClosureSummary: null,
-        proactiveSameHerGap: null,
-        nextClosureTarget: null,
-        preDialogueAwarenessLine: null,
-        emotionalClosureCue: projectEmotionalClosure,
-        sameHerSelfLine: null,
-        sameHerHoldDetail: null,
-        sameHerDriftRisk: null,
-      },
-    }
-  }
-
-  const sameHerCarryLine = buildSameHerCarryLineFromProjectAnchor(projectPreflight)
-  const canonicalProjectState = resolveAlicizationProjectStateBrief()
-  const shouldPreferNormalizedProjectAwareness = looksLikeThinOrganicProjectPreflightShell(projectPreflight)
-  const normalizedProjectState = resolveAlicizationProjectStateSnapshot({
-    runtimeProjectState: {
-      preflightSummary: projectPreflight,
-      preDialogueAwarenessLine: shouldPreferNormalizedProjectAwareness ? null : projectPreflight,
-      awarenessLine: shouldPreferNormalizedProjectAwareness ? null : projectPreflight,
-      sameHerSelfLine: sameHerCarryLine ?? projectPreflight,
-      emotionalClosureCue: projectEmotionalClosure,
-    },
-    fallbackProjectState: {
-      identity: canonicalProjectState.identity,
-      currentPhase: canonicalProjectState.currentPhase,
-      preflightSummary: canonicalProjectState.preflightSummary ?? null,
-      preDialogueAwarenessLine: canonicalProjectState.preDialogueAwarenessLine ?? null,
-      awarenessLine: canonicalProjectState.preDialogueAwarenessLine ?? null,
-      latestLandedProgress:
-        canonicalProjectState.continuityProgressSummary
-        ?? canonicalProjectState.latestProgress
-        ?? null,
-      latestProgress:
-        canonicalProjectState.continuityProgressSummary
-        ?? canonicalProjectState.latestProgress
-        ?? null,
-      primaryOpenLoop: canonicalProjectState.openLoops[0] ?? null,
-      nextClosureTarget: canonicalProjectState.nextClosureTarget,
-      sameHerSelfLine: canonicalProjectState.sameHerSelfLine,
-      sameHerDriftRisk: canonicalProjectState.sameHerDriftRisk,
-      emotionalClosureCue: projectEmotionalClosure,
-    },
-  })
-
-  const resolvedSameHerLine = sanitizeOrganicProjectStateText(
-    looksLikeNarrowOrganicProjectSameHerLine(sameHerCarryLine)
-      ? (normalizedProjectState.sameHerSelfLine ?? sameHerCarryLine)
-      : (sameHerCarryLine ?? normalizedProjectState.sameHerSelfLine),
-    220,
-  )
-  const resolvedLandedProgressSummary = sameHerCarryLine?.includes('memory_progress=partial.')
-    ? 'memory_progress=partial.'
-    : sanitizeOrganicProjectStateText(
-        normalizedProjectState.latestLandedProgress ?? normalizedProjectState.latestProgress,
-        220,
-      )
-  const resolvedOpenClosureSummary = sameHerCarryLine?.includes('memory_unresolved=continuity.')
-    ? 'memory_unresolved=continuity.'
-    : sanitizeOrganicProjectStateText(normalizedProjectState.primaryOpenLoop, 220)
-  const resolvedPreflightSummary = sanitizeOrganicProjectStateText(
-    shouldPreferNormalizedProjectAwareness
-      ? normalizedProjectState.preflightSummary
-      : (projectPreflight ?? normalizedProjectState.preflightSummary),
-    320,
-  )
-  const rebuiltProjectAwarenessLine = sanitizeOrganicProjectStateText(
-    buildAlicizationProjectPreDialogueAwarenessLine({
-      identity: normalizedProjectState.identity,
-      currentPhase: normalizedProjectState.currentPhase,
-      latestLandedProgress: normalizedProjectState.latestLandedProgress,
-      latestProgress: normalizedProjectState.latestProgress,
-      primaryOpenLoop: normalizedProjectState.primaryOpenLoop,
-      nextClosureTarget: normalizedProjectState.nextClosureTarget,
-      sameHerSelfLine: normalizedProjectState.sameHerSelfLine ?? resolvedSameHerLine,
-    }) ?? '',
-    320,
-  )
-  const resolvedPreDialogueAwarenessLine = sanitizeOrganicProjectStateText(
-    shouldPreferNormalizedProjectAwareness
-      ? (
-          rebuiltProjectAwarenessLine
-          ?? normalizedProjectState.preDialogueAwarenessLine
-          ?? normalizedProjectState.awarenessLine
-          ?? projectPreflight
-        )
-      : (
-          projectPreflight
-          ?? normalizedProjectState.preDialogueAwarenessLine
-          ?? normalizedProjectState.awarenessLine
-        ),
-    320,
-  )
-
-  return {
-    projectStatePreflightSummary: resolvedPreflightSummary,
-    projectStatePreDialogueAwarenessLine: resolvedPreDialogueAwarenessLine,
-    projectStateContinuity: {
-      identity: sanitizeOrganicProjectStateText(normalizedProjectState.identity, 220),
-      currentPhase: sanitizeOrganicProjectStateText(normalizedProjectState.currentPhase, 160),
-      sameHerSummary: resolvedSameHerLine,
-      landedProgressSummary: resolvedLandedProgressSummary,
-      openClosureSummary: resolvedOpenClosureSummary,
-      proactiveSameHerGap: sanitizeOrganicProjectStateText(normalizedProjectState.proactiveSameHerGap, 220),
-      nextClosureTarget: sanitizeOrganicProjectStateText(normalizedProjectState.nextClosureTarget, 220),
-      preDialogueAwarenessLine: resolvedPreDialogueAwarenessLine,
-      emotionalClosureCue: sanitizeOrganicProjectStateText(
-        projectEmotionalClosure ?? normalizedProjectState.emotionalClosureCue,
-        220,
-      ),
-      sameHerSelfLine: resolvedSameHerLine,
-      sameHerHoldDetail: sanitizeOrganicProjectStateText(normalizedProjectState.sameHerHoldDetail, 220),
-      sameHerDriftRisk: sanitizeOrganicProjectStateText(normalizedProjectState.sameHerDriftRisk, 220),
-    },
-  }
-}
-
 function resolveOrganicMemoryProjectStateContext(
   projectStateBrief: (Partial<AlicizationProjectStateBrief> & {
     sameHerSummary?: unknown
     landedProgressSummary?: unknown
     openClosureSummary?: unknown
   }) | null | undefined,
-  recallGovernor?: AlicizationRecallGovernorSnapshot | null,
 ) {
   const brief = projectStateBrief ?? null
   const readText = (value: unknown, limit: number) => sanitizeOrganicProjectStateText(value, limit)
   if (!brief) {
-    return buildOrganicMemoryProjectStateContextFromRecallGovernor(recallGovernor) ?? {
+    return {
       projectStatePreflightSummary: null,
       projectStatePreDialogueAwarenessLine: null,
       projectStateContinuity: null,
@@ -1399,7 +1111,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       projectStateContinuity,
     } = resolveOrganicMemoryProjectStateContext(
       options?.projectStateBrief,
-      options?.recallGovernor ?? null,
     )
     const {
       recalledConversationHistory,

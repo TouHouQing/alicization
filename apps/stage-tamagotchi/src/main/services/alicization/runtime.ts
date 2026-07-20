@@ -2486,12 +2486,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveOrganicMemoryPromptContext: resolveBaseOrganicMemoryPromptContext,
   } = memoryRuntime
   const projectStateBrief = resolveAlicizationProjectStateBrief()
-  const resolveOrganicMemoryPromptContext: typeof resolveBaseOrganicMemoryPromptContext = async (input) => {
-    return await resolveBaseOrganicMemoryPromptContext({
-      ...input,
-      projectStateBrief: input?.projectStateBrief ?? projectStateBrief,
-    })
-  }
+  const resolveOrganicMemoryPromptContext = resolveBaseOrganicMemoryPromptContext
   const projectStatePersistence = {
     identity: projectStateBrief.identity,
     currentPhase: projectStateBrief.currentPhase,
