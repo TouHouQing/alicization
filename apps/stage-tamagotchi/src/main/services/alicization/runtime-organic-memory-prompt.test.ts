@@ -11,6 +11,8 @@ import {
 
 type OrganicMemoryPromptRuntimeOptionsFixture = {
   [Key in keyof CreateAlicizationOrganicMemoryPromptRuntimeOptions]?: any
+} & {
+  projectStateBrief?: Record<string, unknown> | null
 }
 
 const normalizeOrganicRecallText: CreateAlicizationOrganicMemoryPromptRuntimeOptions['normalizeOrganicRecallText']
@@ -38,6 +40,86 @@ function readOrganicMemoryProviderFact<T = Record<string, any>>(blocks: string[]
 }
 
 describe('runtime-organic-memory-prompt', () => {
+  it('does not inject project-state brief fields into organic memory context', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      projectStateBrief: {
+        preflightSummary: 'memory owners are configured',
+        preDialogueAwarenessLine: 'continue the current project closure',
+        latestProgress: 'memory loop connected',
+        primaryOpenLoop: 'scale validation remains',
+        nextClosureTarget: 'continue validation',
+      },
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: async () => null,
+      planMemoryRecollection: async () => null,
+      planRecollectionSpeech: async () => null,
+      planMemoryDeliberation: async () => null,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续',
+    })
+
+    expect(context.projectStatePreflightSummary).toBeNull()
+    expect(context.projectStatePreDialogueAwarenessLine).toBeNull()
+    expect(context.projectStateContinuity).toBeNull()
+  })
+
+  it('does not invent execution callback carry when recalled evidence has no summary', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [{
+        id: 'episode-empty-callback',
+        threadAnchor: '',
+        whatHappened: '',
+        whatChanged: '',
+        relationshipMeaning: '',
+        lesson: '',
+        sourceSummary: '',
+        tags: ['execution-callback'],
+        emotionTags: [],
+        confidence: 0.8,
+      } as any],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: async () => null,
+      planMemoryRecollection: async () => null,
+      planRecollectionSpeech: async () => null,
+      planMemoryDeliberation: async () => null,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续',
+    })
+
+    expect(context.executionCallbackCarry).toBeNull()
+  })
+
   it('does not promote recall-governor project anchors into organic memory state', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
@@ -1352,37 +1434,26 @@ describe('runtime-organic-memory-prompt', () => {
         'proactive-opening after payoff',
       ]),
     }))
-    expect(context.affectiveResidue?.relationshipCadence).toEqual(expect.objectContaining({
-      cadenceMode: 'measured-return',
-      shouldDelayWarmth: true,
-    }))
-    expect(context.personStateProjection?.manifestationCadenceSummary).toContain('voice face motion lipsync same-body cadence')
-    expect(artifact.memoryClosureTrace.whySurface).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        source: 'execution-feedback',
-        summary: expect.stringContaining('why recall surfaced now'),
-      }),
-      expect.objectContaining({
-        source: 'embodiment-cadence',
-        summary: expect.stringContaining('voice face motion lipsync same-body cadence'),
-      }),
-    ]))
-    expect(artifact.memoryClosureTrace.nextInfluence.initiative).toEqual(expect.objectContaining({
-      restraint: 'measured-return',
-      pressure: 'lower-pressure',
-    }))
+    expect(context.personStateProjection?.manifestationCadenceSummary ?? '').not.toMatch(
+      /same-body cadence|measured-return/iu,
+    )
+    expect(artifact.memoryClosureTrace.whySurface.map(item => item.source)).not.toContain('embodiment-cadence')
+    expect(JSON.stringify(artifact.memoryClosureTrace)).not.toMatch(
+      /same-body cadence|execution_callback_return=|measured-return with softened gaze/iu,
+    )
     expect(artifact.memoryClosureTrace.nextInfluence.execution).toEqual(expect.objectContaining({
       carry: expect.stringContaining('callback-afterglow'),
       nextLearningAction: 'verify',
       shouldVerify: true,
       shouldReflect: true,
     }))
-    expect(artifact.memoryClosureTrace.nextInfluence.embodiment).toEqual(expect.objectContaining({
-      cadence: expect.stringContaining('voice face motion lipsync same-body cadence'),
-      preferredVoiceMode: 'lower-pressure',
-      preferredLipsyncMode: 'restrained',
-      preferredGazeMode: 'soften',
-    }))
+    expect(artifact.memoryClosureTrace.nextInfluence.embodiment).toEqual({
+      cadence: null,
+      preferredVoiceMode: null,
+      preferredLipsyncMode: null,
+      preferredGazeMode: null,
+      reason: null,
+    })
   })
 
   it('uses session mirror runtime continuity carry to foreground task-era procedure memory without retrospective wording', async () => {

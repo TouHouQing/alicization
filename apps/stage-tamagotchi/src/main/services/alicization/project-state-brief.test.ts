@@ -124,32 +124,16 @@ describe('project-state-brief', () => {
     expectNoOldProjectStateTemplate({ preDialogueAwareness, preDialogueClosure })
   })
 
-  it('builds internal and provider-facing system blocks as typed governance facts only', () => {
+  it('does not build project-state system blocks for dialogue providers', () => {
     const internalBlock = buildAlicizationProjectStateSystemBlock()
     const providerBlock = buildAlicizationProviderFacingProjectStateSystemBlock()
     const internalExtraBlocks = buildAlicizationProjectStateExtraSystemBlocks()
     const providerExtraBlocks = buildAlicizationProviderFacingProjectStateExtraSystemBlocks()
 
-    for (const block of [internalBlock, providerBlock, ...internalExtraBlocks, ...providerExtraBlocks]) {
-      const factBlock = parseProviderFactBlock(block)
-      const data = factBlock.data as Record<string, unknown>
-
-      expect(factBlock.type).toBe('alicization-memory-governance-status')
-      expect(data).toMatchObject({
-        audience: expect.stringMatching(/internal|provider/u),
-        failureSurface: 'transparent',
-        owners: {
-          longTermRecall: 'LongTermMemoryRecall',
-          shortTerm: 'WorkingMemory',
-          visibleGovernance: 'MemoryWorkbench',
-        },
-        scope: 'explicit-project-status',
-        version: 'alicization-memory-governance-status-v1',
-      })
-      expect(block).not.toContain('Memory governance status context.')
-      expect(block).not.toContain('No fixed persona templates should be used as visible replies.')
-      expectNoOldProjectStateTemplate(block)
-    }
+    expect(internalBlock).toBe('')
+    expect(providerBlock).toBe('')
+    expect(internalExtraBlocks).toEqual([])
+    expect(providerExtraBlocks).toEqual([])
   })
 
   it('builds dashboard blocks as typed audit facts without legacy cue fields', () => {

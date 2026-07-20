@@ -511,6 +511,20 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('does not rebuild project or callback governance templates inside organic memory', () => {
+    const organicPromptSource = readServiceSource('./runtime-organic-memory-prompt.ts')
+
+    expect(organicPromptSource).not.toMatch(
+      /resolveOrganicMemoryProjectStateContext|sanitizeOrganicProjectStateText/u,
+    )
+    expect(organicPromptSource).not.toMatch(
+      /Project continuity context is present|Continuity remains pending|Carry the execution callback as relationship continuity/u,
+    )
+    expect(organicPromptSource).not.toMatch(
+      /['"`]execution_callback_return=|['"`]execution_feedback_return=|['"`]memory_os_execution_feedback=|['"`]same-body cadence|['"`]measured-return with softened gaze/u,
+    )
+  })
+
   it('keeps replay tuning numeric and out of provider-facing reply governance', () => {
     const tuningAdviceSource = readServiceSource('./memory-tuning-advice.ts')
     const organicPromptSource = readServiceSource('./runtime-organic-memory-prompt.ts')

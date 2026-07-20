@@ -4082,92 +4082,29 @@ export function resolveAlicizationProjectStateCoverage(): AlicizationProjectStat
 export function buildAlicizationProjectStateSystemBlock(input?: {
   brief?: AlicizationProjectStateBrief | null
 }) {
-  const brief = input?.brief ?? resolveAlicizationProjectStateBrief()
-  const openFocusSummary = deriveCompactProjectStateOpenFocusSummary(brief.openLoops[0] ?? '')
-  const nextFocusSummary = deriveCompactProjectStateNextFocusSummary(brief.nextClosureTarget)
-  return buildAlicizationProviderFactBlock('alicization-memory-governance-status', {
-    version: 'alicization-memory-governance-status-v1',
-    scope: 'explicit-project-status',
-    audience: 'internal',
-    owners: {
-      shortTerm: 'WorkingMemory',
-      longTermRecall: 'LongTermMemoryRecall',
-      visibleGovernance: 'MemoryWorkbench',
-    },
-    failureSurface: 'transparent',
-    latestLandedProgress: sanitizeProviderFacingProjectStateText(
-      compactProjectLatestProgressForSystemBlock(brief.latestProgress, 360),
-      360,
-    ) || null,
-    primaryOpenLoop: sanitizeProviderFacingProjectStateText(brief.openLoops[0] ?? '', 220) || null,
-    initiativeGap: sanitizeProviderFacingProjectStateText(brief.proactiveSameHerGap, 220) || null,
-    openFocus: sanitizeProviderFacingProjectStateText(openFocusSummary, 220) || null,
-    nextClosureTarget: sanitizeProviderFacingProjectStateText(brief.nextClosureTarget, 220) || null,
-    nextFocus: sanitizeProviderFacingProjectStateText(nextFocusSummary, 220) || null,
-    embodimentPreferences: {
-      pause: sanitizeProjectStateSnapshotText(brief.preferredPauseMode ?? '', 32) || null,
-      lipsync: sanitizeProjectStateSnapshotText(brief.preferredLipsyncMode ?? '', 32) || null,
-      voice: sanitizeProjectStateSnapshotText(brief.preferredVoiceMode ?? '', 32) || null,
-      pacing: sanitizeProjectStateSnapshotText(brief.preferredPacingMode ?? '', 32) || null,
-    },
-    remainingFocus: [
-      'semantic-recall',
-      'production-embedding',
-      'paginated-long-term-search',
-      'review-policy-persistence',
-      'persona-candidate-review',
-    ],
-  })
+  void input
+  return ''
 }
 
 export function buildAlicizationProviderFacingProjectStateSystemBlock(input?: {
   brief?: AlicizationProjectStateBrief | null
 }) {
-  const brief = input?.brief ?? resolveAlicizationProjectStateBrief()
-  const openFocusSummary = deriveCompactProjectStateOpenFocusSummary(brief.openLoops[0] ?? '')
-  const latestLandedProgress = sanitizeProviderFacingProjectStateText(
-    compactProjectLatestProgressForSystemBlock(brief.latestProgress, 360),
-    360,
-  )
-  const primaryOpenLoop = sanitizeProviderFacingProjectStateText(brief.openLoops[0] ?? '', 220)
-  const openFocus = sanitizeProviderFacingProjectStateText(openFocusSummary, 220)
-  return buildAlicizationProviderFactBlock('alicization-memory-governance-status', {
-    version: 'alicization-memory-governance-status-v1',
-    scope: 'explicit-project-status',
-    audience: 'provider',
-    owners: {
-      shortTerm: 'WorkingMemory',
-      longTermRecall: 'LongTermMemoryRecall',
-      visibleGovernance: 'MemoryWorkbench',
-    },
-    failureSurface: 'transparent',
-    latestLandedProgress: latestLandedProgress || null,
-    primaryOpenLoop: primaryOpenLoop || null,
-    openFocus: openFocus || null,
-    remainingFocus: [
-      'semantic-recall',
-      'production-embedding',
-      'paginated-long-term-search',
-      'review-policy-persistence',
-      'persona-candidate-review',
-    ],
-  })
+  void input
+  return ''
 }
 
 export function buildAlicizationProjectStateExtraSystemBlocks(input?: {
   brief?: AlicizationProjectStateBrief | null
 }) {
-  return [
-    buildAlicizationProjectStateSystemBlock(input),
-  ].filter(Boolean)
+  void input
+  return []
 }
 
 export function buildAlicizationProviderFacingProjectStateExtraSystemBlocks(input?: {
   brief?: AlicizationProjectStateBrief | null
 }) {
-  return [
-    buildAlicizationProviderFacingProjectStateSystemBlock(input),
-  ].filter(Boolean)
+  void input
+  return []
 }
 
 export function buildAlicizationProjectStateClosureDashboard(input?: {

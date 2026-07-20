@@ -104,9 +104,7 @@ describe('visible reply facade project-state summary', () => {
       currentConsciousFrame: runtimeSurface.dialogue.currentConsciousFrame ?? undefined,
     })
 
-    const projectState = surfacePlan.mindTurnContract.projectState as Record<string, unknown>
-
-    expect(projectState.sameHerHoldDetail).toBe(correctedSamePersonAuthority)
+    expect(surfacePlan.mindTurnContract.projectState).toBeNull()
     expect(surfacePlan).not.toHaveProperty('systemBlocks')
     expect(JSON.stringify(surfacePlan)).not.toContain(genericProgressRecapPressure)
   })

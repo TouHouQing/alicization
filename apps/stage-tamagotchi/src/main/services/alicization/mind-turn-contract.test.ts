@@ -63,7 +63,7 @@ describe('mind-turn-contract', () => {
     expect(buildAlicizationMindTurnContractSystemBlock(contract)).toBe('')
   })
 
-  it('keeps live project state as inspectable data only', () => {
+  it('does not carry project-state governance into the dialogue turn contract', () => {
     const contract = buildAlicizationMindTurnContract({
       responseCharter: charter as any,
       responseSurfaceContract: surface as any,
@@ -77,8 +77,10 @@ describe('mind-turn-contract', () => {
       now: 30,
     })
 
-    expect(JSON.stringify(contract.projectState)).toContain('runtime-landed-marker')
-    expect(JSON.stringify(contract.projectState)).toContain('runtime-next-marker')
+    expect(contract.projectState).toBeNull()
+    expect(contract.preDialogueClosure).toBeNull()
+    expect(JSON.stringify(contract)).not.toContain('runtime-landed-marker')
+    expect(JSON.stringify(contract)).not.toContain('runtime-next-marker')
     expect(contract.mustDo).toEqual([])
     expect(contract.mustNotDo).toEqual([])
   })
