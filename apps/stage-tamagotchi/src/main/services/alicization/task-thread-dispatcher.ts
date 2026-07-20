@@ -344,33 +344,6 @@ function buildRunningDispatchSummary(
   return 'Executor dispatch is running for the current task thread.'
 }
 
-function buildProjectExecutionSummarySuffix(runtimeContext: AlicizationExecutionRuntimeContext | null) {
-  const projectBriefing = runtimeContext?.projectBriefing ?? null
-  if (!projectBriefing)
-    return ''
-
-  const currentPhase = typeof projectBriefing.currentPhase === 'string'
-    ? projectBriefing.currentPhase.trim()
-    : ''
-  const primaryOpenLoop = typeof projectBriefing.primaryOpenLoop === 'string'
-    ? projectBriefing.primaryOpenLoop.trim()
-    : ''
-  const nextClosureTarget = typeof projectBriefing.nextClosureTarget === 'string'
-    ? projectBriefing.nextClosureTarget.trim()
-    : ''
-
-  const parts = [
-    currentPhase ? `phase=${currentPhase}` : '',
-    primaryOpenLoop ? `open=${primaryOpenLoop}` : '',
-    nextClosureTarget ? `next=${nextClosureTarget}` : '',
-  ].filter(Boolean)
-
-  if (parts.length === 0)
-    return ''
-
-  return ` | project_continuity=${parts.join(' | ')}`
-}
-
 async function upsertExecutorSession(
   port: TaskThreadDispatchPort,
   input: {
@@ -553,7 +526,7 @@ export async function dispatchTaskThread(
     workspaceRoot: input.workspaceRoot,
     now,
   })
-  const summarizedResult = `${result.summary}${buildProjectExecutionSummarySuffix(runtimeContext)}`.trim()
+  const summarizedResult = result.summary.trim()
 
   if (result.events.length > 0)
     await port.appendExecutionEvents(result.events)

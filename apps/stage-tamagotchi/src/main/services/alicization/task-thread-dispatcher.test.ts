@@ -188,49 +188,6 @@ describe('task-thread dispatcher', () => {
     expect(port.appendExecutionEvents).not.toBeCalled()
   })
 
-  it('preserves richer pre-dialogue project awareness summary when dispatch merges payload and stored runtime context', async () => {
-    const richerStoredSummary = 'pre_turn_context_digest'
-    const port = createPort(createThread({
-      metadata: {
-        task: {
-          permissionMode: 'implicit',
-          effect: 'mutate',
-        },
-        execution: {
-          runtimeContext: createExecutionRuntimeContext({
-            projectBriefing: {
-              ...createExecutionRuntimeContext().projectBriefing!,
-              preDialogueAwarenessLine: 'template-residue-shell',
-              preDialogueAwarenessSummary: richerStoredSummary,
-            },
-          }),
-        },
-      },
-    }))
-
-    const result = await dispatchTaskThread(port, {
-      threadId: 'thread-dispatch-1',
-      cli: {
-        command: 'node',
-        args: ['-e', 'console.log("dispatcher summary merge ok")'],
-        runtimeContext: createExecutionRuntimeContext({
-          projectBriefing: {
-            ...createExecutionRuntimeContext().projectBriefing!,
-            preDialogueAwarenessLine: 'template-residue-shell',
-            preDialogueAwarenessSummary: 'template-residue-shell',
-          },
-        }),
-      },
-      workspaceRoot: process.cwd(),
-    })
-
-    expect(result.ok).toBe(true)
-    const persistedRuntimeContext = ((port.readThread().metadata?.execution as Record<string, any> | undefined)?.runtimeContext ?? null) as AlicizationExecutionRuntimeContext | null
-    expectNoFixedTemplateResidue(persistedRuntimeContext?.projectBriefing)
-    expect(persistedRuntimeContext?.projectBriefing?.preDialogueAwarenessSummary).toContain('visibility=redacted_internal')
-    expect(persistedRuntimeContext?.projectBriefing?.preDialogueAwarenessSummary).toContain('open_loop=')
-  })
-
   it('keeps non-planned threads from dispatching', async () => {
     const port = createPort(createThread({
       status: 'needs-affirmation',
@@ -639,23 +596,23 @@ describe('task-thread dispatcher', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(result.summary).toContain('project_continuity=')
-    expect(result.summary).toContain('Project identity carry')
+    expect(result.summary).toContain('dispatcher context ok')
+    expect(result.summary).not.toContain('project_continuity=')
+    expect(result.summary).not.toContain('Project identity carry')
     expectNoFixedTemplateResidue(port.readThread().metadata)
     expect(port.readThread().metadata).toEqual(expect.objectContaining({
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
           cardId: 'default',
           turnId: 'turn-dispatch-1',
+          sensory: expect.objectContaining({
+            foregroundWindow: expect.objectContaining({
+              appName: 'Cursor',
+            }),
+          }),
           projectBriefing: expect.objectContaining({
-            identity: expect.stringContaining('phase1_local_digital_life'),
-            currentPhase: expect.stringContaining('phase1_local_digital_life'),
             latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
             primaryOpenLoop: expect.stringContaining('Project identity carry'),
-            nextClosureTarget: expect.stringContaining('life_loop_continuity'),
-            sameHerSelfLine: expect.stringContaining('phase1_local_digital_life'),
-            sameHerDriftRisk: expect.stringContaining('generic_guidance'),
-            preDialogueAwarenessLine: expect.stringContaining('visibility=redacted_internal'),
           }),
         }),
       }),
@@ -687,11 +644,11 @@ describe('task-thread dispatcher', () => {
     expect(result.ok).toBe(true)
     expect(result.thread.status).toBe('completed')
     expect(result.summary).toContain('stored runtime context reused')
-    expect(result.summary).toContain('project_continuity=')
+    expect(result.summary).not.toContain('project_continuity=')
     expectNoFixedTemplateResidue(result.summary)
   })
 
-  it('keeps stored project briefing when dispatch payload refreshes sensory context without project briefing', async () => {
+  it('uses refreshed sensory context without restoring stripped project briefing', async () => {
     const storedRuntimeContext = createExecutionRuntimeContext()
     const payloadRuntimeContext = createExecutionRuntimeContext({
       generatedAt: 1_710_000_000_500,
@@ -732,16 +689,16 @@ describe('task-thread dispatcher', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(result.summary).toContain('Terminal:phase1_local_digital_life')
-    expect(result.summary).toContain('project_continuity=')
+    expect(result.summary).toContain('Terminal:missing-project')
+    expect(result.summary).not.toContain('project_continuity=')
     expectNoFixedTemplateResidue(port.readThread().metadata)
     expect(port.readThread().metadata).toEqual(expect.objectContaining({
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
           generatedAt: 1_710_000_000_500,
           projectBriefing: expect.objectContaining({
-            identity: expect.stringContaining('phase1_local_digital_life'),
-            currentPhase: expect.stringContaining('phase1_local_digital_life'),
+            identity: null,
+            currentPhase: null,
             primaryOpenLoop: expect.stringContaining('Project identity carry'),
           }),
           sensory: expect.objectContaining({
@@ -854,7 +811,7 @@ describe('task-thread dispatcher', () => {
     }))
   })
 
-  it('fills missing payload project briefing fields from stored execution project briefing', async () => {
+  it('keeps execution details without refilling stripped project persona fields', async () => {
     const storedRuntimeContext = createExecutionRuntimeContext()
     const payloadRuntimeContext = createExecutionRuntimeContext({
       generatedAt: 1_710_000_000_600,
@@ -896,7 +853,8 @@ describe('task-thread dispatcher', () => {
 
     expect(result.ok).toBe(true)
     expectNoFixedTemplateResidue(result.summary)
-    expect(result.summary).toContain('phase1_local_digital_life')
+    expect(result.summary).toContain('missing-identity')
+    expect(result.summary).toContain('missing-phase')
     expect(result.summary).toContain('Project identity carry')
     expect(result.summary).toContain('Payload asks dispatcher to keep the refreshed closure target')
     expectNoFixedTemplateResidue(port.readThread().metadata)
@@ -904,19 +862,19 @@ describe('task-thread dispatcher', () => {
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
           projectBriefing: expect.objectContaining({
-            identity: expect.stringContaining('phase1_local_digital_life'),
-            currentPhase: 'phase1_local_digital_life',
+            identity: null,
+            currentPhase: null,
             latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
             primaryOpenLoop: expect.stringContaining('Project identity carry'),
             nextClosureTarget: 'Payload asks dispatcher to keep the refreshed closure target.',
-            sameHerSelfLine: expect.stringContaining('phase1_local_digital_life'),
+            sameHerSelfLine: null,
           }),
         }),
       }),
     }))
   })
 
-  it('does not let a generic payload project-state hold detail erase richer stored same-her execution briefing during dispatch runtime-context merging', async () => {
+  it('drops legacy same-her hold and continuity cues during dispatch runtime-context merging', async () => {
     const storedRuntimeContext = createExecutionRuntimeContext()
     const payloadRuntimeContext = createExecutionRuntimeContext({
       generatedAt: 1_710_000_000_700,
@@ -950,14 +908,15 @@ describe('task-thread dispatcher', () => {
 
     expect(result.ok).toBe(true)
     expectNoFixedTemplateResidue(result.summary)
-    expect(result.summary).toContain('project_continuity=')
+    expect(result.summary).toContain('missing-hold | missing-continuity')
+    expect(result.summary).not.toContain('project_continuity=')
     expect(port.readThread().metadata).toEqual(expect.objectContaining({
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
           generatedAt: 1_710_000_000_700,
           projectBriefing: expect.objectContaining({
-            sameHerHoldDetail: expect.stringContaining('continuity_line'),
-            continuityCue: expect.stringContaining('continuity_line'),
+            sameHerHoldDetail: null,
+            continuityCue: null,
           }),
         }),
       }),
