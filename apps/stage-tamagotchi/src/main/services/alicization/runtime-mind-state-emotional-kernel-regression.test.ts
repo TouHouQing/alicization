@@ -36,7 +36,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
 
     expect(emotionalKernelBlock).toContain('personStateProjection: preferredResidentPersonStateProjection')
     expect(emotionalKernelBlock).toContain('selfEvolution')
-    expect(emotionalKernelBlock).toContain('projectState: mindProjectStateRuntimeSnapshot')
+    expect(emotionalKernelBlock).not.toContain('projectState')
     expect(initiativeBaseBlock).toContain('personStateProjection: preferredResidentPersonStateProjection')
     expect(initiativeBaseBlock).toContain('recollectionIntent: input.organicMemoryContext?.recollectionIntent')
     expect(emotionalKernelBlock).not.toContain('personStateProjection: input.previousVisualPresenceState.personStateProjection ?? null')
@@ -92,21 +92,16 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(rebuiltEmotionalKernelMatches.every(block => block.includes('longHorizonMemory'))).toBe(true)
   })
 
-  it('promotes emotional and embodiment self-revision candidates into active continuity governance before exporting the derived mind bundle', () => {
+  it('does not turn emotional or embodiment observations into fixed continuity governance', () => {
     const source = readFileSync(new URL('./runtime-mind-state.ts', import.meta.url), 'utf8')
 
-    expect(source).toContain('buildAlicizationEmotionalSelfRevisionStatePatch')
-    expect(source).toContain('const emotionalSelfRevisionPatch = buildAlicizationEmotionalSelfRevisionStatePatch({')
     expect(source).toContain('buildAlicizationEmbodimentContinuityLedger')
     expect(source).toContain('const embodimentContinuityLedger = buildAlicizationEmbodimentContinuityLedger({')
-    expect(source).toContain('const embodimentSelfRevisionPatch = buildAlicizationEmbodimentSelfRevisionStatePatch({')
-    expect(source).toContain('const emotionalActiveContinuityGovernance = emotionalSelfRevisionPatch')
-    expect(source).toContain('activeSelfRevision: embodimentSelfRevisionPatch')
-    expect(source).toContain(': emotionalSelfRevisionPatch')
-    expect(source).toContain('patchId: emotionalSelfRevisionPatch.id')
-    expect(source).toContain('patchId: embodimentSelfRevisionPatch.id')
-    expect(source).toContain('activeContinuityGovernance: embodimentActiveContinuityGovernance')
-    expect(source).toContain('?? emotionalActiveContinuityGovernance')
+    expect(source).not.toContain('buildAlicizationEmotionalSelfRevisionStatePatch')
+    expect(source).not.toContain('buildAlicizationEmbodimentSelfRevisionStatePatch')
+    expect(source).not.toContain('same-her-baseline')
+    expect(source).toContain('activeSelfRevision: existingDerivedMindStateBundle?.activeSelfRevision ?? null')
+    expect(source).toContain('activeContinuityGovernance: null')
   })
 
   it('lets the current-turn host model retune long-horizon memory formation immediately instead of leaving relationship context one turn late', async () => {
@@ -975,7 +970,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(['hover', 'wait', 'recheck']).toContain(result.initiative.selectedAction)
   })
 
-  it('keeps answer-compiler opening discipline on the fresher measured-return same-line carry instead of falling back to the older previous shell', async () => {
+  it('does not let an older persisted projection outrank current-turn person-state evidence', async () => {
     const runtime = createAlicizationMindStateRuntime({
       previousVisualPresenceState: createDefaultVisualPresenceState(50_000),
       buildDialogueIngressContext: () => ({
@@ -1209,11 +1204,9 @@ describe('runtime-mind-state emotional kernel regression', () => {
       } as any,
     })
 
-    expect(result.answerCompiler?.openingDirective).toContain('Keep the opening lower-pressure and leave room before widening closeness.')
     expect(result.answerCompiler?.openingDirective).not.toContain('Thin runtime shell line')
-    expect(result.answerCompiler?.mustDo).toContain('Let long-horizon relationship timing keep the answer lower-pressure before closeness widens again.')
-    expect(result.answerCompiler?.mustDo).toContain('Return the result on the same thread before widening into anything extra.')
-    expect(result.answerCompiler?.mustNotDo).toContain('Do not let warmth, callback enthusiasm, or remembered closeness outrun the host’s need for room.')
+    expect(result.answerCompiler?.mustDo).not.toContain('Thin runtime shell line')
+    expect(result.answerCompiler?.mustNotDo).not.toContain('Thin runtime shell line')
   })
 
   it('lets cautious embodiment recollection authority retune runtime emotional carry into measured-return instead of leaving body memory inert', async () => {

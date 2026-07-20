@@ -167,89 +167,17 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     return item.kind === 'procedural' || item.kind === 'autobiographical'
   }
 
-  function normalizeHostFacingMemoryConsolidation(
-    item: AlicizationMemoryConsolidationRecord & { kind: 'procedural' | 'autobiographical' },
+  function isLegacyProjectGovernanceConsolidation(
+    item: AlicizationMemoryConsolidationRecord,
   ) {
-    const loweredSummary = item.summary.toLowerCase()
-    const loweredLesson = String(item.lesson ?? '').toLowerCase()
-    const loweredCues = item.cues.map(cue => cue.toLowerCase())
-    const hasQuietSameHerCarry = loweredCues.includes('same-her-inward-carry')
-      || loweredCues.includes('quiet-companionship')
-      || loweredSummary.includes('same-her-inward-carry')
-      || loweredSummary.includes('quiet same-her continuity')
-      || loweredLesson.includes('quiet same-her continuity')
-
-    if (!hasQuietSameHerCarry)
-      return item
-
-    const summary = /quiet (?:same-her )?continuity/i.test(item.summary)
-      ? item.summary.replace(/quiet same-her continuity/gi, 'quiet inward continuity')
-      : `${item.summary} This period held as quiet inward continuity rather than a generic measured-return helper state.`
-    const lesson = item.lesson && /quiet (?:same-her )?continuity/i.test(item.lesson)
-      ? item.lesson.replace(/quiet same-her continuity/gi, 'quiet continuity')
-      : item.lesson
-        ? `${item.lesson} Preserve inward lower-pressure continuity as quiet continuity.`
-        : 'Preserve inward lower-pressure continuity as quiet continuity.'
-    const cues = Array.from(new Set([
+    return /same[ -]her|project[-_ ]?state|continuity[-_ ]?(?:hold|identity|line|thread|anchor|governance)|runtime_personhood|phase[-_ ]?1/iu.test([
+      item.id,
+      item.periodKey,
+      item.summary,
+      item.lesson,
       ...item.cues,
-      'quiet-inward-continuity',
-    ])).slice(0, 6)
-
-    return {
-      ...item,
-      summary,
-      lesson,
-      cues,
-    }
-  }
-
-  function buildActiveContinuityGovernance(input: {
-    candidateId: string | null
-    activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch | null
-  }) {
-    function sanitizeActiveContinuityText(raw: unknown, maxChars = 220) {
-      if (typeof raw !== 'string')
-        return ''
-      return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-    }
-
-    function uniqueActiveContinuityTexts(values: Array<string | null | undefined>, maxItems = 4) {
-      const result: string[] = []
-      for (const value of values) {
-        const normalized = sanitizeActiveContinuityText(value)
-        if (!normalized)
-          continue
-        if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
-          continue
-        result.push(normalized)
-        if (result.length >= maxItems)
-          break
-      }
-      return result
-    }
-
-    const patch = input.activeSelfRevisionPatch
-    if (!patch && !input.candidateId)
-      return null
-
-    const continuitySummary = uniqueActiveContinuityTexts([
-      patch?.summary ?? null,
-      patch?.projectStateContinuity?.sameHerHoldDetail ?? null,
-      patch?.projectStateContinuity?.emotionalClosureCue ?? null,
-      patch?.projectStateContinuity?.continuityGuard ?? null,
-      patch?.projectStateContinuity?.sameHerSelfLine ?? null,
-    ]).join(' | ') || null
-
-    return {
-      source: 'active-self-evolution-version' as const,
-      mode: 'same-her-baseline' as const,
-      candidateId: input.candidateId,
-      patchId: patch?.id ?? null,
-      decisionTraceId: patch?.decisionTraceId ?? null,
-      summary: continuitySummary,
-      lanes: patch ? [...patch.lanes] : [],
-      reasonCodes: patch ? [...patch.reasonCodes] : [],
-    }
+      ...(item.derivedEventIds ?? []),
+    ].filter(Boolean).join(' | '))
   }
 
   function readTransientRecallCache<T>(key: string, now = Date.now()) {
@@ -416,12 +344,10 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     const activeThoughts = filterOrganicMemoryEntries(rawActiveThoughts)
     const recentSubconsciousFragments = rawRecentSubconsciousFragments.filter(fragment => !isPersonaResidueMemoryText(fragment.text))
     const hostPersonModel = await buildHostPersonModel().catch(() => null)
-    const memoryConsolidations: NonNullable<AlicizationOrganicMemorySnapshot['memoryConsolidations']> = rawMemoryConsolidations
-      .flatMap((item) => {
-        if (!isHostFacingMemoryConsolidation(item))
-          return []
-        return [normalizeHostFacingMemoryConsolidation(item)]
-      })
+    const cleanHostFacingMemoryConsolidations = rawMemoryConsolidations
+      .filter(isHostFacingMemoryConsolidation)
+      .filter(item => !isLegacyProjectGovernanceConsolidation(item))
+    const memoryConsolidations: NonNullable<AlicizationOrganicMemorySnapshot['memoryConsolidations']> = cleanHostFacingMemoryConsolidations
       .map(item => ({
         id: item.id,
         kind: item.kind as 'procedural' | 'autobiographical',
@@ -441,7 +367,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       hostPersonModel,
       personStateEvolutionSummary,
       recentEpisodicEvents,
-      recentMemoryConsolidations: rawMemoryConsolidations,
+      recentMemoryConsolidations: cleanHostFacingMemoryConsolidations,
       previousContinuityState: null,
     })
     const affectiveResidue = buildAlicizationAffectiveResidueMemory({
@@ -508,14 +434,6 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       relationshipDynamics,
       activeSelfEvolutionCandidateId,
       activeSelfRevisionPatch,
-      activeContinuityGovernance: buildActiveContinuityGovernance({
-        candidateId: activeSelfEvolutionCandidateId,
-        activeSelfRevisionPatch,
-      }),
-    })
-    const activeContinuityGovernance = buildActiveContinuityGovernance({
-      candidateId: activeSelfEvolutionCandidateId,
-      activeSelfRevisionPatch,
     })
     const learningExecutionState = deriveAlicizationLearningExecutionProjection({
       persistedState: persistedLearningExecutionState,
@@ -537,7 +455,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       hostPersonModel,
       memoryConsolidations,
       knowledgeEvidence: derivedMindStateBundle?.knowledgeEvidence ?? null,
-      activeContinuityGovernance,
+      activeContinuityGovernance: null,
       selfEvolution,
       affectiveResidue,
       recallLatencyPolicy,
@@ -829,7 +747,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
         hit: true,
         won: true,
       }).catch(() => {})
-      return cached
+      return cached.filter(item => !isLegacyProjectGovernanceConsolidation(item))
     }
     void options.recordMemoryCacheAccess?.(false).catch(() => {})
     if (plan.prewarmKey)
@@ -848,8 +766,9 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       }),
       limit: Math.max(input.limit ?? 0, plan.consolidationLimit),
     }).catch(() => [])
-    writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
-    return rows
+    const cleanRows = rows.filter(item => !isLegacyProjectGovernanceConsolidation(item))
+    writeTransientRecallCache(cacheKey, cleanRows, plan.cacheTtlMs)
+    return cleanRows
   }
 
   async function resolveRecentContextualTurns(sessionId: string, turnCount: number) {

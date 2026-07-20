@@ -66,14 +66,7 @@ const activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch = {
     rollbackPlan: ['rollback-to-pre-revision-posture'],
   },
   reasonCodes: ['domain:self-model', 'rollback-validation-required'],
-  projectStateContinuity: {
-    sameHerSelfLine: null,
-    sameHerDriftRisk: null,
-    proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-    emotionalClosureCue: null,
-    continuityGuard: null,
-    continuityPressure: 0.22,
-  },
+  projectStateContinuity: null,
   summary: 'Do not let unverified self-model revisions drift into durable identity.',
 }
 
@@ -160,14 +153,13 @@ describe('runtime organic memory self evolution integration', () => {
       activeLearningFocuses: expect.arrayContaining(['self-revision-policy-feedback']),
       sourceSignals: expect.arrayContaining(['self-revision:domain:self-model']),
     }))
-    expect(result.selfEvolution?.relationshipCadenceSummary?.toLowerCase()).toContain('proactive')
     expect(
       result.selfEvolution?.sourceSignals?.some(signal =>
         signal.includes('visible proactive hold')
         && signal.includes('subconscious carry')
         && signal.includes('next-session feedback carry'),
       ),
-    ).toBe(true)
+    ).toBe(false)
     expect(result.derivedMindStateBundle).toEqual(expect.objectContaining({
       activeSelfRevision: expect.objectContaining({
         candidateId: 'candidate-self-evolution-1',
@@ -180,7 +172,7 @@ describe('runtime organic memory self evolution integration', () => {
     }))
   })
 
-  it('promotes a repair emotional transition candidate into active self-revision and continuity governance', () => {
+  it('keeps legacy repair revision ids without applying project continuity policy bias', () => {
     const ledger = buildAlicizationEmotionalTransitionLedger({
       createdAt: 120_000,
       previous: null,
@@ -271,19 +263,16 @@ describe('runtime organic memory self evolution integration', () => {
       },
     })
 
-    expect(result.selfEvolution?.sourceSignals).toEqual(expect.arrayContaining([
-      'self-revision:emotion-transition:repair-shift',
-      'self-revision:emotion-candidate:repair-before-closeness',
-    ]))
+    expect(result.selfEvolution).toBeNull()
     expect(result.derivedMindStateBundle.activeSelfRevision).toEqual(expect.objectContaining({
       candidateId: 'emotion-repair-baseline',
       patchId: emotionalPatch?.id,
-      summary: expect.stringContaining('Repair-first emotional carry'),
+      patchDecisionTraceId: 'trace-emotion-repair-1',
+      lanes: expect.arrayContaining(['relationship-posture', 'response-posture', 'proactive-policy']),
+      reasonCodes: [],
+      summary: null,
     }))
-    expect(result.derivedMindStateBundle.activeContinuityGovernance).toEqual(expect.objectContaining({
-      mode: 'same-her-baseline',
-      patchId: emotionalPatch?.id,
-      summary: expect.stringContaining('Repair-first emotional carry'),
-    }))
+    expect(result.derivedMindStateBundle.activeContinuityGovernance).toBeNull()
+    expect(JSON.stringify(result)).not.toMatch(/Future proactive returns must stay quieter|Keep repair-before-closeness active|same-her/iu)
   })
 })

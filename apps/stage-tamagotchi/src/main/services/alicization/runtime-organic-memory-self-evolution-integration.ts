@@ -99,16 +99,25 @@ export function buildOrganicMemoryEvolutionState(input: {
     proceduralMemories: input.proceduralMemories,
   })
   const activeSelfRevisionPatch = input.activeSelfRevisionPatch ?? null
+  const legacyProjectGovernancePattern = /same[ -]her|project[-_ ]state|continuity[-_ ]?(?:hold|identity|line|thread|anchor|governance)|runtime_personhood|phase[-_ ]?1/iu
+  const legacyProjectGovernancePatch = Boolean(activeSelfRevisionPatch?.projectStateContinuity)
+    || Boolean(activeSelfRevisionPatch && legacyProjectGovernancePattern.test(JSON.stringify({
+      projectStateContinuity: activeSelfRevisionPatch.projectStateContinuity,
+      reasonCodes: activeSelfRevisionPatch.reasonCodes,
+      summary: activeSelfRevisionPatch.summary,
+    })))
+  const activeSelfRevisionReasonCodes = (activeSelfRevisionPatch?.reasonCodes ?? [])
+    .filter(code => !/same-her|project[-_]state|continuity_(?:hold|identity|line)|runtime_personhood|phase[-_]?1/iu.test(code))
   const selfEvolution = buildAlicizationSelfEvolutionKernel({
     personStateEvolutionSummary: input.personStateEvolutionSummary ?? null,
     hostPersonModel: input.hostPersonModel,
     knowledgeEvidence,
-    learningPolicyState: activeSelfRevisionPatch
+    learningPolicyState: activeSelfRevisionPatch && !legacyProjectGovernancePatch
       ? {
           strictnessBias: activeSelfRevisionPatch.memoryPolicy.strictnessBias ?? 0,
           wrongThreadSuppressionBias: activeSelfRevisionPatch.memoryPolicy.wrongThreadSuppressionBias ?? 0,
           provenanceLabelBias: activeSelfRevisionPatch.memoryPolicy.provenanceLabelBias ?? 0,
-          reasonCodes: activeSelfRevisionPatch.reasonCodes ?? [],
+          reasonCodes: activeSelfRevisionReasonCodes,
           selfRevisionPatchCount: 1,
           selfRevisionMemoryPolicyBias: Math.max(
             activeSelfRevisionPatch.memoryPolicy.strictnessBias ?? 0,
@@ -137,12 +146,11 @@ export function buildOrganicMemoryEvolutionState(input: {
             activeSelfRevisionPatch.validation.requiresRevalidation ? 1 : 0,
           ),
           selfRevisionReasonCodes: [
-            ...(activeSelfRevisionPatch.reasonCodes ?? []),
+            ...activeSelfRevisionReasonCodes,
             ...(activeSelfRevisionPatch.lanes ?? []).map(lane => `lane:${lane}`),
           ].slice(0, 24),
         }
       : null,
-    activeSelfRevisionProjectStateContinuity: activeSelfRevisionPatch?.projectStateContinuity ?? null,
     reflectionSummary: input.personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
     reflectionLesson: input.personStateEvolutionSummary?.explanation?.[0] ?? null,
     reflectionTargetScope: input.personStateEvolutionSummary?.latestDoctrine ? 'relationship' : null,
@@ -172,11 +180,11 @@ export function buildOrganicMemoryEvolutionState(input: {
           patchId: activeSelfRevisionPatch.id,
           patchDecisionTraceId: activeSelfRevisionPatch.decisionTraceId,
           lanes: [...activeSelfRevisionPatch.lanes],
-          reasonCodes: [...activeSelfRevisionPatch.reasonCodes],
-          summary: activeSelfRevisionPatch.summary,
+          reasonCodes: legacyProjectGovernancePatch ? [] : [...activeSelfRevisionReasonCodes],
+          summary: legacyProjectGovernancePatch ? null : activeSelfRevisionPatch.summary,
         }
       : null,
-    activeContinuityGovernance: input.activeContinuityGovernance ?? null,
+    activeContinuityGovernance: null,
     selfEvolution,
     affectiveResidue,
     learningExecutionState: deriveAlicizationLearningExecutionProjection({

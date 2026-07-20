@@ -204,29 +204,12 @@ describe('runtime-organic-memory-access', () => {
         patchId: 'patch-1',
       }),
     }))
-    expect((snapshot as any).activeContinuityGovernance).toEqual(expect.objectContaining({
-      source: 'active-self-evolution-version',
-      mode: 'same-her-baseline',
-      candidateId: 'candidate-1',
-      patchId: 'patch-1',
-      decisionTraceId: 'trace-1',
-      summary: 'Verify the relationship doctrine before loosening posture.',
-      lanes: ['memory-policy'],
-      reasonCodes: ['domain:relationship'],
-    }))
-    expect((snapshot.derivedMindStateBundle as any)?.activeContinuityGovernance).toEqual(expect.objectContaining({
-      source: 'active-self-evolution-version',
-      mode: 'same-her-baseline',
-      candidateId: 'candidate-1',
-      patchId: 'patch-1',
-      decisionTraceId: 'trace-1',
-      summary: 'Verify the relationship doctrine before loosening posture.',
-    }))
-    expect(snapshot.derivedMindStateBundle?.summary).toContain('continuity=same-her-baseline')
-    expect(snapshot.derivedMindStateBundle?.summary).toContain('anchor=candidate-1')
+    expect((snapshot as any).activeContinuityGovernance).toBeNull()
+    expect((snapshot.derivedMindStateBundle as any)?.activeContinuityGovernance).toBeNull()
+    expect(snapshot.derivedMindStateBundle?.summary).not.toContain('same-her-baseline')
   })
 
-  it('keeps host-facing autobiographical consolidations explicit about quiet inward continuity', async () => {
+  it('drops legacy same-her consolidations without authoring replacement continuity text', async () => {
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
       getSoulSnapshot: () => null,
@@ -290,17 +273,11 @@ describe('runtime-organic-memory-access', () => {
 
     const snapshot = await runtime.getOrganicMemorySnapshot()
 
-    expect(snapshot.memoryConsolidations).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: 'consolidation-quiet-same-her-1',
-        summary: expect.stringMatching(/quiet.*continuity/i),
-        lesson: expect.stringMatching(/quiet.*continuity/i),
-        cues: expect.arrayContaining(['quiet-inward-continuity']),
-      }),
-    ]))
+    expect(snapshot.memoryConsolidations).toEqual([])
+    expect(JSON.stringify(snapshot)).not.toMatch(/same-her-inward-carry|quiet inward continuity|Preserve inward lower-pressure continuity/iu)
   })
 
-  it('carries richer same-her emotional closure cues from the active self-revision patch into self-evolution cadence so initiative and embodiment can stay on that living line', async () => {
+  it('does not translate active self-revision project-state residue into self-evolution cadence', async () => {
     const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
@@ -402,11 +379,14 @@ describe('runtime-organic-memory-access', () => {
 
     expect(snapshot.selfEvolution).toEqual(expect.objectContaining({
       version: 'self-evolution-kernel-v1',
-      relationshipCadenceSummary: expect.stringContaining('repair-before-closeness'),
     }))
-    expect(snapshot.selfEvolution?.relationshipCadenceSummary?.toLowerCase()).toContain('continuity state')
-    expect(snapshot.selfEvolution?.summary?.toLowerCase()).toContain('repair-before-closeness')
-    expect((snapshot as any).activeContinuityGovernance?.summary?.toLowerCase()).toContain('repair-before-closeness')
+    expect(snapshot.selfEvolution?.relationshipCadenceSummary?.toLowerCase()).not.toMatch(/repair-before-closeness|continuity state/u)
+    expect(snapshot.selfEvolution?.summary?.toLowerCase()).not.toMatch(/repair-before-closeness|continuity state/u)
+    expect(snapshot.derivedMindStateBundle?.activeSelfRevision).toEqual(expect.objectContaining({
+      patchId: 'patch-emotional-carry-1',
+      patchDecisionTraceId: 'trace-emotional-carry-1',
+    }))
+    expect((snapshot as any).activeContinuityGovernance).toBeNull()
   })
 
   it('reuses short-lived caches for repeated consolidation and conversation recall', async () => {
@@ -547,7 +527,7 @@ describe('runtime-organic-memory-access', () => {
     const searchEpisodicEvents = vi.fn(async () => refreshedEpisodicEvents)
     const searchMemoryConsolidations = vi.fn()
       .mockResolvedValueOnce([{
-        id: 'consolidation-old',
+        id: 'consolidation:projectStateIdentityContinuity',
         kind: 'autobiographical' as const,
         facet: 'task-era' as const,
         periodKey: '2026-05-old-callback',
@@ -558,7 +538,7 @@ describe('runtime-organic-memory-access', () => {
         cues: ['generic shell'],
         confidence: 0.82,
         dominantProvenance: 'remembered' as const,
-        derivedEventIds: ['episode-old'],
+        derivedEventIds: ['event:projectStateIdentityContinuity'],
         updatedAt: 2,
       }])
       .mockResolvedValueOnce([{
@@ -568,9 +548,9 @@ describe('runtime-organic-memory-access', () => {
         periodKey: '2026-05-new-callback',
         periodStartedAt: 1,
         periodEndedAt: 3,
-        summary: 'The fresher callback summary keeps the continuity state explicit.',
-        lesson: 'Keep the callback on the continuity state before expansion',
-        cues: ['continuity state'],
+        summary: 'The fresher callback summary keeps the actual callback fact explicit.',
+        lesson: 'Keep the callback fact before expansion',
+        cues: ['execution-callback'],
         confidence: 0.9,
         dominantProvenance: 'remembered' as const,
         derivedEventIds: ['episode-callback-refresh-1'],
@@ -627,7 +607,7 @@ describe('runtime-organic-memory-access', () => {
     const first = await runtime.recallMemoryConsolidations({
       query: '继续把 execution callback 接回同一条 continuity state',
     })
-    expect(first[0]?.lesson).toContain('generic shell')
+    expect(first).toEqual([])
 
     await runtime.recallEpisodicEventsWithGovernor({
       recallSeed: '继续把 execution callback 接回同一条 continuity state',
@@ -654,7 +634,7 @@ describe('runtime-organic-memory-access', () => {
       query: '继续把 execution callback 接回同一条 continuity state',
     })
 
-    expect(second[0]?.lesson).toContain('continuity state before expansion')
+    expect(second[0]?.lesson).toContain('callback fact before expansion')
     expect(searchMemoryConsolidations).toHaveBeenCalledTimes(2)
     expect(searchEpisodicEvents).toHaveBeenCalledTimes(1)
   })

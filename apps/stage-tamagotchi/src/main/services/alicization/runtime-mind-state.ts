@@ -37,10 +37,7 @@ import type { buildVisualHeartbeat } from './visual-heartbeat'
 import {
   buildAlicizationProviderFactBlock,
   buildDerivedMindStateBundle,
-  containsAlicizationFixedTemplateResidue,
-  formatAlicizationProjectStateAwarenessFields,
   readRecollectionIntentFromDerivedMindStateBundle,
-  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
 import { buildActionEcology } from './action-ecology'
@@ -107,12 +104,6 @@ import {
 } from './person-state-projection-resolution'
 import { buildAlicizationPersonalityContinuityState } from './personality-continuity-state'
 import { buildPrivateThoughtLoop } from './private-thought-loop'
-import {
-  buildAlicizationProjectPreDialogueAwarenessLine,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
-  resolveAlicizationProjectStateBrief,
-  resolveAlicizationProjectStateSnapshot,
-} from './project-state-brief'
 import { buildReflectionLedger } from './reflection-ledger'
 import { buildRelationshipModel } from './relationship-model'
 import { buildRepairLedger } from './repair-ledger'
@@ -131,8 +122,6 @@ import {
 } from './runtime-soul'
 import { buildSelfContinuity } from './self-continuity'
 import { buildAlicizationSelfEvolutionKernel } from './self-evolution-kernel'
-import { buildAlicizationEmbodimentSelfRevisionStatePatch } from './self-evolution/embodiment-self-revision-bridge'
-import { buildAlicizationEmotionalSelfRevisionStatePatch } from './self-evolution/emotional-self-revision-bridge'
 import { buildSelfGovernor } from './self-governor'
 import { buildSelfState } from './self-state'
 import {
@@ -193,34 +182,6 @@ function compactPromptText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function compactProjectStatePromptText(raw: unknown, maxChars = 180) {
-  const compacted = compactPromptText(raw, maxChars)
-  if (!compacted)
-    return ''
-  return sanitizeAlicizationProviderFacingText(compacted, maxChars)
-}
-
-function compactProjectStatePromptTextFailClosed(input: {
-  resolved: unknown
-  raw?: unknown
-  fallback?: unknown
-  fallbackRaw?: unknown
-  maxChars?: number
-}) {
-  const maxChars = input.maxChars ?? 180
-  if (containsAlicizationFixedTemplateResidue(input.raw))
-    return sanitizeAlicizationProviderFacingText(input.raw, maxChars)
-
-  const resolved = compactProjectStatePromptText(input.resolved, maxChars)
-  if (resolved)
-    return resolved
-
-  if (containsAlicizationFixedTemplateResidue(input.fallbackRaw))
-    return sanitizeAlicizationProviderFacingText(input.fallbackRaw, maxChars)
-
-  return compactProjectStatePromptText(input.fallback, maxChars)
 }
 
 function isRecord(raw: unknown): raw is Record<string, unknown> {
@@ -285,485 +246,40 @@ function asRecollectionSpeechPlan(raw: unknown): AlicizationRecollectionSpeechPl
   return raw as unknown as AlicizationRecollectionSpeechPlan
 }
 
-function normalizeProjectStatePrimaryOpenLoopForPrompt(raw: unknown, maxChars = 180) {
-  return compactPromptText(raw, maxChars)
-}
-
-function looksLikeThinMindProjectStateIdentity(value: unknown) {
-  const normalized = compactPromptText(value, 220).toLowerCase()
-  if (!normalized)
-    return true
-
-  return normalized === 'same digital life'
-    || normalized === 'digital life'
-    || normalized === 'local-first digital life'
-    || normalized === 'project'
-}
-
-function looksLikeThinMindProjectStatePhase(value: unknown) {
-  const normalized = compactPromptText(value, 140).toLowerCase()
-  if (!normalized)
-    return true
-
-  return normalized === 'phase 1'
-    || normalized === 'phase 1: local digital life'
-}
-
-function looksLikeThinMindProjectStatePrimaryOpenLoop(value: unknown) {
-  const normalized = compactPromptText(value, 220).toLowerCase()
-  if (!normalized)
-    return true
-
-  return normalized === 'open closure'
-    || normalized === 'open loop'
-    || normalized === 'closure'
-}
-
-function looksLikeThinMindProjectStateLatestLandedProgress(value: unknown) {
-  const normalized = compactPromptText(value, 220).toLowerCase()
-  if (!normalized)
-    return true
-
-  return normalized === 'landed'
-    || normalized === 'progress'
-    || normalized === 'closure landed'
-}
-
-function compactMindProjectLatestLandedProgressForPrompt(value: unknown, maxChars = 220) {
-  const rawText = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : ''
-  const normalized = compactPromptText(rawText, 320)
-  if (!normalized)
-    return ''
-
-  const lowerRawText = rawText.toLowerCase()
-  const carriesGovernanceTail = lowerRawText.includes('pre-dialogue transport')
-    && lowerRawText.includes('entrypoint governance')
-    && lowerRawText.includes('chat-entry governance')
-  if (!carriesGovernanceTail)
-    return normalized.replace(/[.。!！?？;；:：]+$/u, '').slice(0, maxChars).trim()
-
-  const governanceTail = 'pre-dialogue transport is explicit entrypoint governance mirrored into chat-entry governance'
-  const candidates = [
-    normalized.includes('rest-protective callback continuation')
-      ? `Same-session mirror carry and rest-protective callback continuation already land; ${governanceTail}`
-      : `Same-session mirror carry already lands; ${governanceTail}`,
-    `Same-session mirror carry already lands; ${governanceTail}`,
-    governanceTail,
-  ]
-    .map(item => item.replace(/[.。!！?？;；:：]+$/u, '').trim())
-
-  return candidates.find(item => item.length <= maxChars)
-    ?? normalized.replace(/[.。!！?？;；:：]+$/u, '').slice(0, maxChars).trim()
-}
-
-function resolvePreferredMindProjectLatestLandedProgressSource(input: {
-  candidate: unknown
-  projectStateBrief: ReturnType<typeof resolveAlicizationProjectStateBrief>
-}) {
-  const candidateText = typeof input.candidate === 'string' ? input.candidate.trim().replace(/\s+/g, ' ') : ''
-  const briefLatestProgress = typeof input.projectStateBrief.latestProgress === 'string'
-    ? input.projectStateBrief.latestProgress.trim().replace(/\s+/g, ' ')
-    : ''
-  const carriesGovernanceTail = (text: string) => text.toLowerCase().includes('pre-dialogue transport')
-    && text.toLowerCase().includes('entrypoint governance')
-    && text.toLowerCase().includes('chat-entry governance')
-
-  if (carriesGovernanceTail(candidateText) || !carriesGovernanceTail(briefLatestProgress))
-    return input.candidate
-
-  return briefLatestProgress
-}
-
-function looksLikeThinMindProjectStateNextClosureTarget(value: unknown) {
-  const normalized = compactPromptText(value, 220).toLowerCase()
-  if (!normalized)
-    return true
-
-  return normalized === 'next closure'
-    || normalized === 'next step'
-    || normalized === 'closure target'
-}
-
-function looksLikeThinMindProjectStateSameHerSelfLine(value: unknown) {
-  const normalized = compactPromptText(value, 220).toLowerCase()
-  if (!normalized)
-    return true
-
-  return normalized === 'same her'
-    || normalized === 'same-her'
-    || normalized === 'same living line'
-    || normalized === 'continuous her'
-}
-
-function looksLikeThinMindProjectStateSameHerDriftRisk(value: unknown) {
-  const normalized = compactPromptText(value, 220).toLowerCase()
-  if (!normalized)
-    return true
-
-  return normalized === 'drift'
-    || normalized === 'same-her drift'
-    || normalized === 'generic shell drift'
-}
-
-function mindProjectLatestLandedProgressCarriesGovernanceTail(value: unknown) {
-  const normalized = compactPromptText(value, 320).toLowerCase()
-  if (!normalized)
-    return false
-
-  return normalized.includes('pre-dialogue transport')
-    && normalized.includes('entrypoint governance')
-    && normalized.includes('chat-entry governance')
-}
-
-function compactMindProjectGovernanceTailForAwareness(value: unknown) {
-  const normalized = compactPromptText(value, 320)
-  if (!mindProjectLatestLandedProgressCarriesGovernanceTail(normalized))
-    return ''
-
-  return 'pre-dialogue transport is explicit entrypoint governance mirrored into chat-entry governance'
-}
-
-function compactMindProjectIdentityForAwareness(value: unknown) {
-  const normalized = compactPromptText(value, 180)
-  if (!normalized)
-    return ''
-
-  if (/Alicization is a local-first digital life project|本地优先数字生命项目/iu.test(normalized))
-    return ''
-  return compactPromptText(normalized, 96)
-}
-
-function compactMindProjectPhaseForAwareness(value: unknown) {
-  const normalized = compactPromptText(value, 140)
-  if (!normalized)
-    return ''
-  if (/phase\s*1\s*:\s*local digital life|phase1_local_digital_life/iu.test(normalized))
-    return ''
-  return compactPromptText(normalized.split('. ')[0] ?? normalized, 72)
-}
-
-function compactMindProjectSameHerLineForAwareness(value: unknown) {
-  const normalized = compactPromptText(value, 220)
-  if (!normalized)
-    return ''
-
-  return compactPromptText(normalized.split('. ')[0] ?? normalized, 72)
-}
-
-function buildMindGovernanceTailAwarePreDialogueAwarenessLine(input: {
-  identity: string | null
-  currentPhase: string | null
-  latestLandedProgress: string | null
-  sameHerSelfLine: string | null
-}) {
-  const identity = compactMindProjectIdentityForAwareness(input.identity)
-  const currentPhase = compactMindProjectPhaseForAwareness(input.currentPhase)
-  const sameHerSelfLine = compactMindProjectSameHerLineForAwareness(input.sameHerSelfLine)
-  const latestLandedProgress = compactPromptText(
-    compactMindProjectGovernanceTailForAwareness(input.latestLandedProgress) || input.latestLandedProgress,
-    160,
-  )
-
-  return compactPromptText(formatAlicizationProjectStateAwarenessFields({
-    identity,
-    currentPhase,
-    latestLandedProgress,
-    sameHerSelfLine,
-    maxChars: 320,
-  }), 320) || null
-}
-
-function resolvePreferredMindProjectStateSnapshot(input: {
-  previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot | null | undefined
-}) {
-  const projectStateBrief = resolveAlicizationProjectStateBrief()
-  const previousProjectState = input.previousVisualPresenceState?.currentConsciousFrame?.projectState
-    ?? input.previousVisualPresenceState?.runtimeDigest?.projectState
-    ?? null
-  const rawProjectState = isRecord(previousProjectState) ? previousProjectState : null
-  const projectStateSnapshot = resolveAlicizationProjectStateSnapshot({
-    runtimeProjectState: previousProjectState,
-    fallbackProjectState: projectStateBrief,
-  })
-  const identity = compactPromptText(
-    looksLikeThinMindProjectStateIdentity(projectStateSnapshot.identity)
-      ? projectStateBrief.identity
-      : projectStateSnapshot.identity,
-    180,
-  )
-  || compactPromptText(projectStateBrief.identity, 180)
-  const currentPhase = compactPromptText(
-    looksLikeThinMindProjectStatePhase(projectStateSnapshot.currentPhase)
-      ? projectStateBrief.currentPhase
-      : projectStateSnapshot.currentPhase,
-    140,
-  )
-  || compactPromptText(projectStateBrief.currentPhase, 140)
-  const preflightSummary = compactPromptText(projectStateSnapshot.preflightSummary, 320)
-    || compactPromptText(projectStateBrief.preflightSummary, 320)
-    || null
-  const latestLandedProgress = compactPromptText(
-    compactMindProjectLatestLandedProgressForPrompt(
-      resolvePreferredMindProjectLatestLandedProgressSource({
-        candidate: looksLikeThinMindProjectStateLatestLandedProgress(projectStateSnapshot.latestLandedProgress)
-          ? projectStateBrief.continuityProgressSummary
-          : projectStateSnapshot.latestLandedProgress,
-        projectStateBrief,
-      }),
-      220,
-    ),
-    220,
-  )
-  || compactPromptText(compactMindProjectLatestLandedProgressForPrompt(resolvePreferredMindProjectLatestLandedProgressSource({
-    candidate: projectStateBrief.continuityProgressSummary,
-    projectStateBrief,
-  }), 220), 220)
-  || null
-  const emotionalClosureCue = compactPromptText(projectStateSnapshot.emotionalClosureCue, 220) || null
-  const emotionalClosureSummary = compactPromptText(projectStateSnapshot.emotionalClosureSummary, 220)
-    || emotionalClosureCue
-    || null
-  const primaryOpenLoop = normalizeProjectStatePrimaryOpenLoopForPrompt(
-    looksLikeThinMindProjectStatePrimaryOpenLoop(projectStateSnapshot.primaryOpenLoop)
-      ? projectStateBrief.primaryOpenLoop
-      : projectStateSnapshot.primaryOpenLoop,
-    180,
-  ) || null
-  const nextClosureTarget = compactPromptText(
-    looksLikeThinMindProjectStateNextClosureTarget(projectStateSnapshot.nextClosureTarget)
-      ? projectStateBrief.nextClosureTarget
-      : projectStateSnapshot.nextClosureTarget,
-    220,
-  )
-  || compactPromptText(projectStateBrief.nextClosureTarget, 220)
-  || null
-  const sameHerSelfLine = compactProjectStatePromptTextFailClosed({
-    resolved: looksLikeThinMindProjectStateSameHerSelfLine(projectStateSnapshot.sameHerSelfLine)
-      ? projectStateBrief.sameHerSelfLine
-      : projectStateSnapshot.sameHerSelfLine,
-    raw: rawProjectState?.sameHerSelfLine,
-    fallback: projectStateBrief.sameHerSelfLine,
-    maxChars: 220,
-  })
-  || null
-  const sameHerHoldDetail = compactProjectStatePromptTextFailClosed({
-    resolved: projectStateSnapshot.sameHerHoldDetail,
-    raw: rawProjectState?.sameHerHoldDetail,
-    maxChars: 220,
-  }) || null
-  const sameHerDriftRisk = compactProjectStatePromptTextFailClosed({
-    resolved: looksLikeThinMindProjectStateSameHerDriftRisk(projectStateSnapshot.sameHerDriftRisk)
-      ? projectStateBrief.sameHerDriftRisk
-      : projectStateSnapshot.sameHerDriftRisk,
-    raw: rawProjectState?.sameHerDriftRisk ?? rawProjectState?.sameHerDriftRiskSummary,
-    fallback: projectStateBrief.sameHerDriftRisk,
-    maxChars: 220,
-  })
-  || null
-  const proactiveSameHerGap = compactProjectStatePromptTextFailClosed({
-    resolved: projectStateSnapshot.proactiveSameHerGap,
-    raw: rawProjectState?.proactiveSameHerGap ?? rawProjectState?.proactiveSameHerGapSummary,
-    fallback: projectStateBrief.proactiveSameHerGap,
-    maxChars: 220,
-  })
-  || null
-  const companionHeadlineLine = compactPromptText(projectStateSnapshot.companionHeadlineLine, 320) || null
-  const companionBriefingLine = compactPromptText(projectStateSnapshot.companionBriefingLine, 320) || null
-  const canonicalPreDialogueAwarenessLine = compactPromptText(
-    resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: projectStateSnapshot,
-      fallbackProjectState: projectStateBrief,
-    }),
-    320,
-  ) || null
-  const governanceTailNeedsStrongerAwarenessCarry
-    = mindProjectLatestLandedProgressCarriesGovernanceTail(latestLandedProgress)
-      && !mindProjectLatestLandedProgressCarriesGovernanceTail(canonicalPreDialogueAwarenessLine)
-  const governanceTailAwarePreDialogueAwarenessLine = compactPromptText(
-    governanceTailNeedsStrongerAwarenessCarry
-      ? buildMindGovernanceTailAwarePreDialogueAwarenessLine({
-          identity,
-          currentPhase,
-          latestLandedProgress,
-          sameHerSelfLine,
-        })
-      : buildAlicizationProjectPreDialogueAwarenessLine({
-          identity,
-          currentPhase,
-          latestLandedProgress,
-          primaryOpenLoop,
-          nextClosureTarget,
-          sameHerSelfLine,
-        }),
-    320,
-  ) || null
-  const selectedPreDialogueAwarenessLine = compactPromptText(
-    governanceTailNeedsStrongerAwarenessCarry
-      ? (governanceTailAwarePreDialogueAwarenessLine ?? canonicalPreDialogueAwarenessLine)
-      : (canonicalPreDialogueAwarenessLine ?? governanceTailAwarePreDialogueAwarenessLine),
-    320,
-  ) || null
-  const preDialogueAwarenessLine = selectedPreDialogueAwarenessLine
-    ? compactPromptText(formatAlicizationProjectStateAwarenessFields({
-      identity,
-      currentPhase,
-      latestLandedProgress,
-      primaryOpenLoop,
-      nextClosureTarget,
-      sameHerSelfLine,
-      sameHerHoldDetail,
-      sameHerDriftRisk,
-      proactiveSameHerGap,
-      emotionalClosureCue: emotionalClosureSummary ?? emotionalClosureCue,
-      summary: selectedPreDialogueAwarenessLine,
-      maxChars: 1200,
-    }), 640) || null
-    : null
-
-  return {
-    brief: projectStateBrief,
-    snapshot: projectStateSnapshot,
-    identity,
-    currentPhase,
-    preflightSummary,
-    preDialogueAwarenessLine,
-    companionHeadlineLine,
-    companionBriefingLine,
-    latestLandedProgress,
-    emotionalClosureCue,
-    emotionalClosureSummary,
-    primaryOpenLoop,
-    nextClosureTarget,
-    sameHerSelfLine,
-    sameHerHoldDetail,
-    sameHerDriftRisk,
-    proactiveSameHerGap,
-  }
-}
-
-function buildMindProjectStatePromptSnapshot(input: {
-  preferredMindProjectState: ReturnType<typeof resolvePreferredMindProjectStateSnapshot>
-}) {
-  return {
-    identity: input.preferredMindProjectState.identity || undefined,
-    currentPhase: input.preferredMindProjectState.currentPhase || undefined,
-    preflightSummary: input.preferredMindProjectState.preflightSummary || undefined,
-    preDialogueAwarenessLine: input.preferredMindProjectState.preDialogueAwarenessLine || undefined,
-    companionHeadlineLine: input.preferredMindProjectState.companionHeadlineLine || undefined,
-    companionBriefingLine: input.preferredMindProjectState.companionBriefingLine || undefined,
-    latestLandedProgress: input.preferredMindProjectState.latestLandedProgress || undefined,
-    emotionalClosureCue: input.preferredMindProjectState.emotionalClosureCue || undefined,
-    emotionalClosureSummary: input.preferredMindProjectState.emotionalClosureSummary || undefined,
-    primaryOpenLoop: input.preferredMindProjectState.primaryOpenLoop || undefined,
-    nextClosureTarget: input.preferredMindProjectState.nextClosureTarget || undefined,
-    preferredVoiceMode: input.preferredMindProjectState.snapshot.preferredVoiceMode || undefined,
-    preferredPacingMode: input.preferredMindProjectState.snapshot.preferredPacingMode || undefined,
-  }
-}
-
-function buildMindProjectStateRuntimeSnapshot(input: {
-  preferredMindProjectState: ReturnType<typeof resolvePreferredMindProjectStateSnapshot>
-}) {
-  return {
-    identity: input.preferredMindProjectState.identity || undefined,
-    currentPhase: input.preferredMindProjectState.currentPhase || undefined,
-    preflightSummary: input.preferredMindProjectState.preflightSummary || undefined,
-    preDialogueAwarenessLine: input.preferredMindProjectState.preDialogueAwarenessLine || undefined,
-    companionHeadlineLine: input.preferredMindProjectState.companionHeadlineLine || undefined,
-    companionBriefingLine: input.preferredMindProjectState.companionBriefingLine || undefined,
-    latestLandedProgress: input.preferredMindProjectState.latestLandedProgress || undefined,
-    memoryClosureSummary: input.preferredMindProjectState.latestLandedProgress || undefined,
-    emotionalClosureCue: input.preferredMindProjectState.emotionalClosureCue || undefined,
-    emotionalClosureSummary: input.preferredMindProjectState.emotionalClosureSummary || undefined,
-    primaryOpenLoop: input.preferredMindProjectState.primaryOpenLoop || undefined,
-    nextClosureTarget: input.preferredMindProjectState.nextClosureTarget || undefined,
-    sameHerSelfLine: input.preferredMindProjectState.sameHerSelfLine || undefined,
-    sameHerHoldDetail: input.preferredMindProjectState.sameHerHoldDetail || undefined,
-    sameHerDriftRisk: input.preferredMindProjectState.sameHerDriftRisk || undefined,
-    proactiveSameHerGap: input.preferredMindProjectState.proactiveSameHerGap || undefined,
-    preferredBlinkCadence: input.preferredMindProjectState.snapshot.preferredBlinkCadence || undefined,
-    preferredGazeMode: input.preferredMindProjectState.snapshot.preferredGazeMode || undefined,
-    preferredVoiceMode: input.preferredMindProjectState.snapshot.preferredVoiceMode || undefined,
-    preferredPacingMode: input.preferredMindProjectState.snapshot.preferredPacingMode || undefined,
-    continuityCue: input.preferredMindProjectState.snapshot.continuityCue || undefined,
-    continuityArcStage: input.preferredMindProjectState.snapshot.continuityArcStage || undefined,
-    continuityPreferredTiming: input.preferredMindProjectState.snapshot.continuityPreferredTiming || undefined,
-  }
-}
-
-function readMindStateEmbodimentLaneSet(raw: unknown) {
-  const normalized = compactPromptText(raw, 320).toLowerCase()
-  const match = normalized.match(/lane=([^|\s]+)/u)
-  if (!match?.[1])
-    return new Set<AlicizationEmbodimentContinuityLane>()
-
-  const tokens = match[1].split('+')
-  return new Set(tokens.filter((token): token is AlicizationEmbodimentContinuityLane =>
-    token === 'body'
-    || token === 'voice'
-    || token === 'face'
-    || token === 'motion'
-    || token === 'lipsync',
-  ))
-}
-
 function buildMindStateEmbodimentLaneEvidence(input: {
   previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot
   emotionalKernel: NonNullable<AlicizationVisualPresenceStateSnapshot['emotionalKernel']>
-  projectState: ReturnType<typeof resolvePreferredMindProjectStateSnapshot>
 }): Record<AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneEvidence> {
   const currentBodyState = compactPromptText(input.previousVisualPresenceState.currentBodyState, 220)
   const currentInwardPreoccupation = compactPromptText(input.previousVisualPresenceState.currentInwardPreoccupation, 220)
   const continuityMode = compactPromptText(input.previousVisualPresenceState.continuityMode, 80)
-  const laneSet = readMindStateEmbodimentLaneSet([
-    currentBodyState,
-    currentInwardPreoccupation,
-    input.projectState.sameHerHoldDetail,
-    input.projectState.companionBriefingLine,
-  ].filter(Boolean).join(' | '))
-  const sameHerText = [
-    input.projectState.sameHerSelfLine,
-    input.projectState.sameHerHoldDetail,
-    input.projectState.companionBriefingLine,
-    input.emotionalKernel.why,
-    currentInwardPreoccupation,
-  ].map(item => compactProjectStatePromptText(item, 220).toLowerCase()).join(' ')
-  const carriesStructuredContinuity
-    = /(?:^|\s|\|)(?:continuity_anchor|continuity_hold|continuity_drift_risk|project_state_review|runtime_loop_validation|embodiment_closure|embodiment_scale_validation|continuity_identity|continuity_line|continuity_thread|callback_continuity|body_continuity|owner)=/u.test(sameHerText)
-  const carriesContinuity = carriesStructuredContinuity
   const bodyAvailable = input.previousVisualPresenceState.currentBodyState !== 'sleep'
-  const preferredVoiceMode = compactPromptText(input.projectState.snapshot.preferredVoiceMode, 80)
-  const preferredPacingMode = compactPromptText(input.projectState.snapshot.preferredPacingMode, 80)
-  const preferredLipsyncMode = compactPromptText(input.projectState.snapshot.preferredLipsyncMode, 80)
-  const preferredGazeMode = compactPromptText(input.projectState.snapshot.preferredGazeMode, 80)
-  const preferredBlinkCadence = compactPromptText(input.projectState.snapshot.preferredBlinkCadence, 80)
-  const hasExplicitLaneSet = laneSet.size > 0
 
   return {
     body: {
       available: bodyAvailable,
-      continuityCarry: bodyAvailable && carriesContinuity,
+      continuityCarry: false,
       summary: `Body state is ${currentBodyState || 'unknown'}; continuity mode is ${continuityMode || 'unknown'}; embodiment tone is ${input.emotionalKernel.embodimentTone}.`,
     },
     voice: {
-      available: Boolean(preferredVoiceMode || preferredPacingMode || input.emotionalKernel.embodimentTone),
-      continuityCarry: carriesContinuity,
-      summary: `Voice mode is ${preferredVoiceMode || 'emotion-tone'}; pacing is ${preferredPacingMode || 'unknown'}.`,
+      available: Boolean(input.emotionalKernel.embodimentTone),
+      continuityCarry: false,
+      summary: `Voice follows the current emotional tone ${input.emotionalKernel.embodimentTone}.`,
     },
     face: {
-      available: hasExplicitLaneSet ? laneSet.has('face') : Boolean(preferredGazeMode || preferredBlinkCadence),
-      continuityCarry: laneSet.has('face') && carriesContinuity,
-      summary: `face gaze=${preferredGazeMode || 'unknown'} blink=${preferredBlinkCadence || 'unknown'}`,
+      available: false,
+      continuityCarry: false,
+      summary: 'No current face continuity evidence.',
     },
     motion: {
-      available: hasExplicitLaneSet ? laneSet.has('motion') : Boolean(input.previousVisualPresenceState.currentBodyState === 'accompanying' && currentInwardPreoccupation),
-      continuityCarry: laneSet.has('motion') && carriesContinuity,
+      available: Boolean(input.previousVisualPresenceState.currentBodyState === 'accompanying' && currentInwardPreoccupation),
+      continuityCarry: false,
       summary: `motion body=${currentBodyState || 'unknown'} preoccupation=${currentInwardPreoccupation || 'none'}`,
     },
     lipsync: {
-      available: hasExplicitLaneSet ? laneSet.has('lipsync') : Boolean(preferredLipsyncMode),
-      continuityCarry: (laneSet.has('lipsync') || preferredLipsyncMode === 'matched') && carriesContinuity,
-      summary: `lipsync=${preferredLipsyncMode || 'unknown'}`,
+      available: false,
+      continuityCarry: false,
+      summary: 'No current lipsync continuity evidence.',
     },
   }
 }
@@ -790,6 +306,186 @@ function mapPersistedReflectionRecordToEntry(record: AlicizationMemoryReflection
   }
 }
 
+const legacyProjectGovernancePattern = /same[ -]her|same[ -]living[ -](?:line|thread)|project[-_ ]?state|continuity[-_ ]?(?:hold|mode|arc|timing|cadence|governance|baseline|carry|closure|self|anti[ -]shell|proactive|emotional|anchor|identity|line|thread)|continuity\s*=|remembered identity continuity|measured[-_ ]return|lower[-_ ]pressure|repair[-_ ]before[-_ ]closeness|next[-_ ]open[-_ ]window|opening[_ -]?policy|relationship[_ -]?cadence|visibility\s*=\s*redacted_internal/iu
+
+function carriesLegacyProjectGovernance(raw: unknown) {
+  const normalized = typeof raw === 'string'
+    ? raw
+    : JSON.stringify(raw ?? null)
+  if (legacyProjectGovernancePattern.test(normalized))
+    return true
+
+  if (!isRecord(raw) || !Array.isArray(raw.anchorFacts))
+    return false
+
+  return raw.anchorFacts.some((cue) => {
+    if (!isRecord(cue))
+      return false
+    const predicate = typeof cue.predicate === 'string' ? cue.predicate : ''
+    const id = typeof cue.id === 'string' ? cue.id : ''
+    return /continuity[-_ ]?(?:anchor|hold|identity|line|thread)|project[-_ ]?state/iu.test(predicate)
+      || /(?:^|:)project[-_ ]?state/iu.test(id)
+  })
+}
+
+function stripLegacyProjectGovernanceFromDerivedMindStateBundle(
+  bundle: AlicizationVisualPresenceStateSnapshot['derivedMindStateBundle'],
+) {
+  if (!bundle)
+    return bundle
+
+  const activeSelfRevision = bundle.activeSelfRevision
+  const sanitizedActiveSelfRevision = activeSelfRevision
+    ? {
+        ...activeSelfRevision,
+        reasonCodes: Array.isArray(activeSelfRevision.reasonCodes)
+          ? activeSelfRevision.reasonCodes.filter(reason => !legacyProjectGovernancePattern.test(String(reason)))
+          : activeSelfRevision.reasonCodes,
+        summary: carriesLegacyProjectGovernance(activeSelfRevision.summary)
+          ? null
+          : activeSelfRevision.summary,
+      }
+    : activeSelfRevision
+  const {
+    activeContinuityGovernance: _activeContinuityGovernance,
+    sameHerCausalityRepairPressure: _sameHerCausalityRepairPressure,
+    ...cleanBundle
+  } = bundle
+
+  return {
+    ...cleanBundle,
+    activeSelfRevision: sanitizedActiveSelfRevision,
+    selfEvolution: carriesLegacyProjectGovernance(bundle.selfEvolution)
+      ? null
+      : bundle.selfEvolution ?? null,
+    memoryDeliberation: carriesLegacyProjectGovernance(bundle.memoryDeliberation)
+      ? null
+      : bundle.memoryDeliberation ?? null,
+    summary: carriesLegacyProjectGovernance(bundle.summary) ? '' : bundle.summary,
+  }
+}
+
+function stripLegacyProjectGovernanceFromVisualPresenceState(
+  state: AlicizationVisualPresenceStateSnapshot,
+): AlicizationVisualPresenceStateSnapshot {
+  const stripConsciousFrame = (
+    frame: AlicizationVisualPresenceStateSnapshot['currentConsciousFrame'],
+  ) => frame
+    ? {
+        ...frame,
+        continuityPreferredTiming: undefined,
+        continuityCadence: undefined,
+        projectState: undefined,
+      }
+    : frame
+  const stripRuntimeDigest = (
+    digest: AlicizationVisualPresenceStateSnapshot['runtimeDigest'],
+  ) => digest
+    ? {
+        ...digest,
+        projectState: undefined,
+        continuityRestraint: undefined,
+        emotionalClosureCue: undefined,
+        activeLoop: digest.activeLoop
+          ? {
+              ...digest.activeLoop,
+              continuityArcStage: undefined,
+              continuityPreferredTiming: undefined,
+              summary: digest.activeLoop.continuityArcStage
+                || digest.activeLoop.continuityPreferredTiming
+                || carriesLegacyProjectGovernance(digest.activeLoop.summary)
+                ? ''
+                : digest.activeLoop.summary,
+            }
+          : digest.activeLoop,
+        derivedMindStateBundle: stripLegacyProjectGovernanceFromDerivedMindStateBundle(digest.derivedMindStateBundle),
+        currentConsciousFrame: digest.currentConsciousFrame
+          ? {
+              ...digest.currentConsciousFrame,
+              continuityArcStage: undefined,
+              continuityPreferredTiming: undefined,
+              continuityCadence: undefined,
+            }
+          : digest.currentConsciousFrame,
+      }
+    : digest
+  const strippedRuntime = state.runtime
+    ? {
+        ...state.runtime,
+        projectState: undefined,
+        memoryDeliberationProjectStateDiagnostics: undefined,
+        effectiveRuntimeAwarenessDiagnostics: undefined,
+      }
+    : state.runtime
+  const strippedRuntimeDigest = stripRuntimeDigest(state.runtimeDigest)
+  const strippedRaw = state.raw
+    ? (() => {
+        const raw = state.raw as Record<string, unknown>
+        const {
+          projectState: _projectState,
+          runtime: _runtime,
+          runtimeDigest: _runtimeDigest,
+          subjectiveInference: _subjectiveInference,
+          privateThought: _privateThought,
+          derivedMindStateBundle: _derivedMindStateBundle,
+          ...cleanRaw
+        } = raw
+        return {
+          ...cleanRaw,
+          runtime: state.raw?.runtime
+            ? {
+                ...state.raw.runtime,
+                projectState: undefined,
+                memoryDeliberationProjectStateDiagnostics: undefined,
+                effectiveRuntimeAwarenessDiagnostics: undefined,
+              }
+            : state.raw?.runtime,
+          runtimeDigest: stripRuntimeDigest(state.raw?.runtimeDigest),
+        } as AlicizationVisualPresenceStateSnapshot['raw']
+      })()
+    : state.raw
+
+  const strippedProactiveLoopState = state.proactiveLoopState
+    ? {
+        ...state.proactiveLoopState,
+        pendingOutcomes: state.proactiveLoopState.pendingOutcomes.map((outcome) => {
+          const {
+            projectStateOpenFocusSummary: _projectStateOpenFocusSummary,
+            projectStateNextFocusSummary: _projectStateNextFocusSummary,
+            projectStateEmotionalClosureCue: _projectStateEmotionalClosureCue,
+            ...cleanOutcome
+          } = outcome
+          return cleanOutcome
+        }),
+        recentOutcomes: state.proactiveLoopState.recentOutcomes.map((outcome) => {
+          const {
+            projectStateOpenFocusSummary: _projectStateOpenFocusSummary,
+            projectStateNextFocusSummary: _projectStateNextFocusSummary,
+            projectStateEmotionalClosureCue: _projectStateEmotionalClosureCue,
+            ...cleanOutcome
+          } = outcome
+          return cleanOutcome
+        }),
+      }
+    : state.proactiveLoopState
+
+  return {
+    ...state,
+    projectState: undefined,
+    runtime: strippedRuntime,
+    runtimeDigest: strippedRuntimeDigest,
+    currentConsciousFrame: stripConsciousFrame(state.currentConsciousFrame),
+    raw: strippedRaw,
+    proactiveLoopState: strippedProactiveLoopState,
+    subjectiveInference: carriesLegacyProjectGovernance(state.subjectiveInference) ? null : state.subjectiveInference,
+    appraisal: carriesLegacyProjectGovernance(state.appraisal) ? null : state.appraisal,
+    relationshipModel: carriesLegacyProjectGovernance(state.relationshipModel) ? null : state.relationshipModel,
+    privateThought: carriesLegacyProjectGovernance(state.privateThought) ? null : state.privateThought,
+    longHorizonMemory: carriesLegacyProjectGovernance(state.longHorizonMemory) ? null : state.longHorizonMemory,
+    derivedMindStateBundle: stripLegacyProjectGovernanceFromDerivedMindStateBundle(state.derivedMindStateBundle),
+  }
+}
+
 export function createAlicizationMindStateRuntime(options: CreateAlicizationMindStateRuntimeOptions) {
   const {
     buildDialogueIngressContext,
@@ -804,18 +500,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     listMemoryConsolidations,
     getPersonStateEvolutionSummary,
     readMindHead,
-    previousVisualPresenceState,
   } = options
-  const preferredMindProjectState = resolvePreferredMindProjectStateSnapshot({
-    previousVisualPresenceState,
-  })
-  const mindProjectStatePromptSnapshot = buildMindProjectStatePromptSnapshot({
-    preferredMindProjectState,
-  })
-  const mindProjectStateRuntimeSnapshot = buildMindProjectStateRuntimeSnapshot({
-    preferredMindProjectState,
-  })
-  const projectStatePrimaryOpenLoop = preferredMindProjectState.primaryOpenLoop
   function isSeriousDurabilityPulseForMind(durabilityPulse: AlicizationDurabilityPulseSnapshot | null | undefined) {
     return durabilityPulse?.kind === 'process-gone'
       || durabilityPulse?.kind === 'render-process-gone'
@@ -1107,8 +792,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     inspectionRequested?: boolean
   }) {
     return {
-      projectState: mindProjectStatePromptSnapshot,
-      userTurn: compactPromptText(input.userText, 220),
+      userTurn: input.userText,
       inspectionRequested: input.inspectionRequested === true,
       recentDialogue: input.recentMessages.slice(-4).map(message => ({
         role: message.role,
@@ -1208,7 +892,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
   }) {
     const previousInference = input.previousVisualPresenceState.subjectiveInference
     return {
-      projectState: mindProjectStatePromptSnapshot,
       context: {
         localTime: input.context.localTime,
         system: {
@@ -1371,7 +1054,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       agency?: Partial<AlicizationDigitalLifeRuntimeSurface['agency']>
     }
   }): AlicizationDigitalLifeRuntimeSurface {
-    const base = buildAlicizationDigitalLifeRuntimeSurface(input.previousVisualPresenceState)
+    const base = buildAlicizationDigitalLifeRuntimeSurface(
+      stripLegacyProjectGovernanceFromVisualPresenceState(input.previousVisualPresenceState),
+    )
     const surfaceOverrides = input.surfaceOverrides ?? {}
     const mergeProjectedPersonStateProjection = <
       T extends AlicizationDigitalLifeRuntimeSurface['memory']['personStateProjection']
@@ -1563,6 +1248,40 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const effectiveSubjectiveInferenceTimeoutMs = input.cognitionMode === 'interactive'
       ? interactiveSubjectiveInferenceTimeoutMs
       : subjectiveInferenceTimeoutMs
+    const previousVisualPresenceState = stripLegacyProjectGovernanceFromVisualPresenceState(
+      input.previousVisualPresenceState,
+    )
+    const organicMemoryContext = input.organicMemoryContext
+      ? (() => {
+          const {
+            projectStatePreDialogueAwarenessLine: _projectStatePreDialogueAwarenessLine,
+            projectStatePreflightSummary: _projectStatePreflightSummary,
+            projectStateContinuity: _projectStateContinuity,
+            activeContinuityGovernance: _activeContinuityGovernance,
+            ...cleanContext
+          } = input.organicMemoryContext
+          return {
+            ...cleanContext,
+            longHorizonMemory: carriesLegacyProjectGovernance(input.organicMemoryContext.longHorizonMemory)
+              ? null
+              : input.organicMemoryContext.longHorizonMemory ?? null,
+            selfEvolution: carriesLegacyProjectGovernance(input.organicMemoryContext.selfEvolution)
+              ? null
+              : input.organicMemoryContext.selfEvolution ?? null,
+            memoryDeliberation: carriesLegacyProjectGovernance(input.organicMemoryContext.memoryDeliberation)
+              ? null
+              : input.organicMemoryContext.memoryDeliberation ?? null,
+            derivedMindStateBundle: stripLegacyProjectGovernanceFromDerivedMindStateBundle(
+              input.organicMemoryContext.derivedMindStateBundle ?? null,
+            ),
+          }
+        })()
+      : null
+    input = {
+      ...input,
+      previousVisualPresenceState,
+      organicMemoryContext,
+    }
     const liveWorldModel = buildWorldModel({
       now: input.now,
       context: input.context,
@@ -1571,15 +1290,15 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       attention: input.attention,
       recentTransition: input.visualHeartbeat.recentTransition,
       durabilityPulse: input.durabilityPulse,
-      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
-      previousModel: input.previousVisualPresenceState.worldModel ?? null,
+      workingMemoryEpisodes: previousVisualPresenceState.workingMemoryEpisodes,
+      previousModel: previousVisualPresenceState.worldModel ?? null,
     })
     const dialogueTurnGrounding = input.userText
       ? buildDialogueIngressContext({
           now: input.now,
           currentForeground: input.currentForeground,
           perceptionState: input.perceptionState ?? null,
-          visualPresenceState: input.previousVisualPresenceState,
+          visualPresenceState: previousVisualPresenceState,
         })
       : null
     const worldModel = mergeDialogueIngressCarryWorldModel({
@@ -1591,7 +1310,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     })
     const dialogueSemanticsRuntimeSurface = buildAlicizationProvisionalDigitalLifeRuntimeSurface({
       now: input.now,
-      previousVisualPresenceState: input.previousVisualPresenceState,
+      previousVisualPresenceState,
       visualHeartbeat: input.visualHeartbeat,
       attention: input.attention,
       worldModel: dialogueTurnGrounding?.worldModel ?? worldModel,
@@ -1604,7 +1323,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           context: dialogueTurnGrounding?.context ?? input.context,
           currentScene: dialogueTurnGrounding?.currentScene ?? input.visualHeartbeat.scene,
           worldModel: dialogueTurnGrounding?.worldModel ?? worldModel,
-          previousVisualPresenceState: input.previousVisualPresenceState,
+          previousVisualPresenceState,
           inspectionRequested: input.inspectionRequested === true,
           groundedThisTurn: input.groundedThisTurn === true,
           timeoutMs: effectiveDialogueTurnSemanticsTimeoutMs,
@@ -1624,8 +1343,8 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       scene: input.visualHeartbeat.scene,
       attention: input.attention,
       worldModel: governedWorldModel,
-      previousModel: input.previousVisualPresenceState.entityWorld ?? null,
-      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
+      previousModel: previousVisualPresenceState.entityWorld ?? null,
+      workingMemoryEpisodes: previousVisualPresenceState.workingMemoryEpisodes,
       durabilityPulse: input.durabilityPulse,
     })
     const heuristicAppraisal = buildSubjectiveSceneAppraisal({
@@ -1637,11 +1356,11 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       worldModel: governedWorldModel,
       recentTransition: input.visualHeartbeat.recentTransition,
       durabilityPulse: input.durabilityPulse,
-      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
+      workingMemoryEpisodes: previousVisualPresenceState.workingMemoryEpisodes,
     })
     const subjectiveInferenceRuntimeSurface = buildAlicizationProvisionalDigitalLifeRuntimeSurface({
       now: input.now,
-      previousVisualPresenceState: input.previousVisualPresenceState,
+      previousVisualPresenceState,
       visualHeartbeat: input.visualHeartbeat,
       attention: input.attention,
       worldModel: governedWorldModel,
@@ -1651,7 +1370,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       cardId: input.cardId,
       now: input.now,
       context: input.context,
-      previousVisualPresenceState: input.previousVisualPresenceState,
+      previousVisualPresenceState,
       visualHeartbeat: input.visualHeartbeat,
       attention: input.attention,
       worldModel: governedWorldModel,
@@ -1730,15 +1449,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
             ?? input.organicMemoryContext?.derivedMindStateBundle?.affectiveResidue
             ?? null,
           recentMemoryConsolidations,
-          projectStateEmotionalClosureCue: preferredMindProjectState.emotionalClosureCue,
-          projectStatePrimaryOpenLoop,
-          projectStateSameHerSelfLine: preferredMindProjectState.sameHerSelfLine,
-          projectStateSameHerDriftRisk: preferredMindProjectState.sameHerDriftRisk,
-          projectStateProactiveSameHerGap: preferredMindProjectState.proactiveSameHerGap,
-          projectStatePreferredPauseMode: preferredMindProjectState.snapshot.preferredPauseMode,
-          projectStatePreferredLipsyncMode: preferredMindProjectState.snapshot.preferredLipsyncMode,
-          projectStatePreferredVoiceMode: preferredMindProjectState.snapshot.preferredVoiceMode,
-          projectStatePreferredPacingMode: preferredMindProjectState.snapshot.preferredPacingMode,
         })
       : previousLongHorizonMemory
     const seedMotiveEngine = buildMotiveEngine({
@@ -1754,7 +1464,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       personalityAuthority: input.personalityAuthority ?? null,
       reflectionLedger: previousReflectionLedger,
       previous: previousMotiveEngine,
-      projectState: mindProjectStatePromptSnapshot,
     })
     const seedHabitPolicy = buildHabitPolicy({
       now: input.now,
@@ -1768,7 +1477,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       reflectionLedger: previousReflectionLedger,
       motiveEngine: seedMotiveEngine,
       previous: previousHabitPolicy,
-      projectState: mindProjectStatePromptSnapshot,
     })
     const beliefLedger = buildBeliefLedger({
       now: input.now,
@@ -2122,15 +1830,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       personStateUpdateSurface: previousPersonStateUpdateSurface,
       personalityAuthority: input.personalityAuthority ?? null,
       previous: previousAutobiographicalSelf,
-      projectStatePreDialogueAwarenessLine: preferredMindProjectState.preDialogueAwarenessLine,
-      projectStatePreflightSummary: preferredMindProjectState.preflightSummary,
-      projectStateEmotionalClosureCue: preferredMindProjectState.emotionalClosureCue,
-      projectStatePrimaryOpenLoop,
-      projectStateProactiveSameHerGap: preferredMindProjectState.proactiveSameHerGap,
-      projectStatePreferredPauseMode: preferredMindProjectState.snapshot.preferredPauseMode,
-      projectStatePreferredLipsyncMode: preferredMindProjectState.snapshot.preferredLipsyncMode,
-      projectStatePreferredVoiceMode: preferredMindProjectState.snapshot.preferredVoiceMode,
-      projectStatePreferredPacingMode: preferredMindProjectState.snapshot.preferredPacingMode,
     })
     const refreshedSelfEvolution = buildAlicizationSelfEvolutionKernel({
       personStateEvolutionSummary,
@@ -2162,7 +1861,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       recentMemoryConsolidations,
       reflectionLedger,
       previous: previousMotiveEngine,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const habitPolicy = buildHabitPolicy({
       now: input.now,
@@ -2177,7 +1875,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       reflectionLedger,
       motiveEngine,
       previous: previousHabitPolicy,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const executiveCycle = buildExecutiveCycle({
       now: input.now,
@@ -2223,7 +1920,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       inquiryPlanner,
       mindKernel,
       counterfactualDeliberation,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const preferredResidentPersonStateProjection = resolvePreferredPersonStateProjection({
       bundleProjection: input.previousVisualPresenceState.personStateProjection ?? null,
@@ -2244,7 +1940,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         ?? null,
       longHorizonMemory,
       selfEvolution,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const initiativeArbitration = buildInitiativeArbitration({
       now: input.now,
@@ -2266,7 +1961,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       personalityAuthority: input.personalityAuthority ?? null,
       motiveEngine,
       habitPolicy,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     // Break the initiative/autonomy/private-thought cycle by bootstrapping from the
     // previous resident thought, then rehydrating the current-frame emotional kernel
@@ -2312,9 +2006,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         )
         ?? null,
       selfEvolution,
-      activeContinuityGovernance: input.organicMemoryContext?.activeContinuityGovernance ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const bootstrapDesireMemory = buildDesireMemory({
       now: input.now,
@@ -2349,7 +2041,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       habitPolicy,
       threadRuntime,
       thoughtThreads,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const bootstrapInitiative = {
       ...initiativeBase,
@@ -2426,7 +2117,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       mindEcology: provisionalMindEcology,
       durabilityPulse: input.durabilityPulse,
       previousPrivateThought: input.previousVisualPresenceState.privateThought ?? null,
-      projectState: mindProjectStatePromptSnapshot,
       intentionStream,
       reflectionLedger,
       executiveCycle,
@@ -2443,7 +2133,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         ?? null,
       longHorizonMemory,
       selfEvolution,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     // Once the current-turn thought exists, let initiative/autonomy rehydrate on the
     // same emotional beat instead of exporting the bootstrap projection one turn late.
@@ -2488,9 +2177,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           existingDerivedMindStateBundle ?? null,
         )
         ?? null,
-      activeContinuityGovernance: input.organicMemoryContext?.activeContinuityGovernance ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const autonomy = buildAutonomySnapshot({
       now: input.now,
@@ -2508,7 +2195,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       habitPolicy,
       threadRuntime,
       thoughtThreads,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const initiativeWhy = autonomy.whyNow
     const desireMemory = buildDesireMemory({
@@ -2521,6 +2207,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       appraisal,
       initiative: {
         ...finalizedInitiativeBase,
+        selectedAction: autonomy.visibleAction,
         confidence: Math.max(finalizedInitiativeBase.confidence, autonomy.confidence),
         shouldSurface: autonomy.shouldSurface,
         shouldSpeak: autonomy.shouldSpeak,
@@ -2585,7 +2272,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       mindEcology: provisionalMindEcology,
       durabilityPulse: input.durabilityPulse,
       previousPrivateThought: input.previousVisualPresenceState.privateThought ?? null,
-      projectState: mindProjectStatePromptSnapshot,
       intentionStream,
       reflectionLedger,
       executiveCycle,
@@ -2602,7 +2288,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         ?? null,
       longHorizonMemory,
       selfEvolution,
-      projectState: mindProjectStateRuntimeSnapshot,
     })
     const dialogueEncounterRuntimeSurface = dialogueSemantics
       ? buildAlicizationProvisionalDigitalLifeRuntimeSurface({
@@ -2748,15 +2433,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       recentReinforcementEvents,
       personStateUpdateSurface: previousPersonStateUpdateSurface,
       previous: previousAutobiographicalSelf,
-      projectStatePreDialogueAwarenessLine: preferredMindProjectState.preDialogueAwarenessLine,
-      projectStatePreflightSummary: preferredMindProjectState.preflightSummary,
-      projectStateEmotionalClosureCue: preferredMindProjectState.emotionalClosureCue,
-      projectStatePrimaryOpenLoop,
-      projectStateProactiveSameHerGap: preferredMindProjectState.proactiveSameHerGap,
-      projectStatePreferredPauseMode: preferredMindProjectState.snapshot.preferredPauseMode,
-      projectStatePreferredLipsyncMode: preferredMindProjectState.snapshot.preferredLipsyncMode,
-      projectStatePreferredVoiceMode: preferredMindProjectState.snapshot.preferredVoiceMode,
-      projectStatePreferredPacingMode: preferredMindProjectState.snapshot.preferredPacingMode,
     })
     const mindEcology = buildMindEcology({
       now: input.now,
@@ -2862,21 +2538,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           ...(input.organicMemoryContext?.recollectionIntent ? ['recollection-intent'] : []),
           ...(selfEvolution ? ['self-evolution'] : []),
           ...(preferredResidentPersonStateProjection ? ['person-state-projection'] : []),
-          ...(mindProjectStateRuntimeSnapshot?.emotionalClosureCue ? ['project-state'] : []),
         ],
-      },
-    })
-    const emotionalSelfRevisionPatch = buildAlicizationEmotionalSelfRevisionStatePatch({
-      ledger: emotionalTransitionLedger,
-      decisionTraceId: null,
-      fallbackSourceTurnId: null,
-      projectStateContinuity: {
-        sameHerSelfLine: preferredMindProjectState.sameHerSelfLine,
-        sameHerDriftRisk: preferredMindProjectState.sameHerDriftRisk,
-        proactiveSameHerGap: preferredMindProjectState.proactiveSameHerGap,
-        emotionalClosureCue: preferredMindProjectState.emotionalClosureCue,
-        sameHerHoldDetail: preferredMindProjectState.sameHerHoldDetail,
-        continuityGuard: preferredMindProjectState.sameHerDriftRisk,
       },
     })
     const embodimentContinuityLedger = buildAlicizationEmbodimentContinuityLedger({
@@ -2886,61 +2548,17 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       current: buildMindStateEmbodimentLaneEvidence({
         previousVisualPresenceState: input.previousVisualPresenceState,
         emotionalKernel,
-        projectState: preferredMindProjectState,
       }),
       sourceTags: [
         'runtime-mind-state',
         'body-state',
         emotionalKernel.embodimentTone ? `emotion-tone:${emotionalKernel.embodimentTone}` : null,
-        preferredMindProjectState.snapshot.preferredVoiceMode ? 'project-state-voice' : null,
-        preferredMindProjectState.snapshot.preferredLipsyncMode ? 'project-state-lipsync' : null,
       ].filter(Boolean) as string[],
-      projectStateContinuity: {
-        sameHerSelfLine: preferredMindProjectState.sameHerSelfLine,
-        sameHerDriftRisk: preferredMindProjectState.sameHerDriftRisk,
-        sameHerHoldDetail: preferredMindProjectState.sameHerHoldDetail,
-      },
     })
-    const embodimentSelfRevisionPatch = buildAlicizationEmbodimentSelfRevisionStatePatch({
-      ledger: embodimentContinuityLedger,
-      decisionTraceId: null,
-      projectStateContinuity: {
-        sameHerSelfLine: preferredMindProjectState.sameHerSelfLine,
-        sameHerDriftRisk: preferredMindProjectState.sameHerDriftRisk,
-        sameHerHoldDetail: preferredMindProjectState.sameHerHoldDetail,
-      },
-    })
-    const emotionalActiveContinuityGovernance = emotionalSelfRevisionPatch
-      ? {
-          source: 'active-self-evolution-version' as const,
-          mode: 'same-her-baseline' as const,
-          candidateId: null,
-          patchId: emotionalSelfRevisionPatch.id,
-          decisionTraceId: emotionalSelfRevisionPatch.decisionTraceId,
-          summary: emotionalSelfRevisionPatch.summary,
-          lanes: [...emotionalSelfRevisionPatch.lanes],
-          reasonCodes: [...emotionalSelfRevisionPatch.reasonCodes],
-        }
-      : null
-    const embodimentActiveContinuityGovernance = embodimentSelfRevisionPatch
-      ? {
-          source: 'active-self-evolution-version' as const,
-          mode: 'same-her-baseline' as const,
-          candidateId: null,
-          patchId: embodimentSelfRevisionPatch.id,
-          decisionTraceId: embodimentSelfRevisionPatch.decisionTraceId,
-          summary: embodimentSelfRevisionPatch.summary,
-          lanes: [...embodimentSelfRevisionPatch.lanes],
-          reasonCodes: [...embodimentSelfRevisionPatch.reasonCodes],
-        }
-      : null
     const answerCompilerDerivedMindStateBundle = (
       existingDerivedMindStateBundle
       || input.organicMemoryContext?.affectiveResidue
       || input.organicMemoryContext?.learningExecutionState
-      || input.organicMemoryContext?.activeContinuityGovernance
-      || embodimentSelfRevisionPatch
-      || emotionalSelfRevisionPatch
       || selfEvolution
       || answerCompilerPersonStateProjection
     )
@@ -2951,30 +2569,8 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           personStateProjection: answerCompilerPersonStateProjection as unknown as Record<string, unknown> | null,
           knowledgeEvidence: existingDerivedMindStateBundle?.knowledgeEvidence ?? input.organicMemoryContext?.knowledgeEvidence ?? null,
           claimEvidenceGraphs: existingDerivedMindStateBundle?.claimEvidenceGraphs ?? null,
-          activeSelfRevision: embodimentSelfRevisionPatch
-            ? {
-                candidateId: null,
-                patchId: embodimentSelfRevisionPatch.id,
-                patchDecisionTraceId: embodimentSelfRevisionPatch.decisionTraceId,
-                lanes: [...embodimentSelfRevisionPatch.lanes],
-                reasonCodes: [...embodimentSelfRevisionPatch.reasonCodes],
-                summary: embodimentSelfRevisionPatch.summary,
-              }
-            : emotionalSelfRevisionPatch
-              ? {
-                  candidateId: null,
-                  patchId: emotionalSelfRevisionPatch.id,
-                  patchDecisionTraceId: emotionalSelfRevisionPatch.decisionTraceId,
-                  lanes: [...emotionalSelfRevisionPatch.lanes],
-                  reasonCodes: [...emotionalSelfRevisionPatch.reasonCodes],
-                  summary: emotionalSelfRevisionPatch.summary,
-                }
-              : existingDerivedMindStateBundle?.activeSelfRevision ?? null,
-          activeContinuityGovernance: embodimentActiveContinuityGovernance
-            ?? emotionalActiveContinuityGovernance
-            ?? input.organicMemoryContext?.activeContinuityGovernance
-            ?? existingDerivedMindStateBundle?.activeContinuityGovernance
-            ?? null,
+          activeSelfRevision: existingDerivedMindStateBundle?.activeSelfRevision ?? null,
+          activeContinuityGovernance: null,
           emotionalTransitionLedger,
           embodimentContinuityLedger,
           selfEvolution,
@@ -3241,9 +2837,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       mindEcology,
       emotionalKernel,
       personalityContinuityState: provisionalPersonalityContinuityState,
-      projectStatePreDialogueAwarenessLine: preferredMindProjectState.preDialogueAwarenessLine,
-      projectStatePreflightSummary: preferredMindProjectState.preflightSummary,
-      projectStateEmotionalClosureCue: preferredMindProjectState.emotionalClosureCue,
       selfContinuityAuthority: (() => {
         const runtimeProjectionAuthority = resolvePreferredPersonStateProjection({
           bundleProjection: answerCompilerRuntimeSurface?.raw?.personStateProjection ?? null,

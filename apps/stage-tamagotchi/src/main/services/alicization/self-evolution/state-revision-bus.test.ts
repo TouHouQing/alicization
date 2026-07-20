@@ -62,27 +62,14 @@ describe('state-revision-bus', () => {
     expect(patch.responsePosture).not.toHaveProperty('secondPassRequiredBias')
     expect(patch.responsePosture.templateShellSuppressionBias).toBeGreaterThan(0.2)
     expect(patch.validation.requiresRollbackCheck).toBe(true)
-    expect(patch.projectStateContinuity).toEqual(expect.objectContaining({
-      sameHerSelfLine: null,
-      sameHerDriftRisk: null,
-      proactiveSameHerGap,
-      emotionalClosureCue,
-      sameHerHoldDetail: null,
-      continuityGuard: null,
-      continuityPressure: expect.any(Number),
-    }))
-    expect(JSON.stringify(patch.projectStateContinuity)).not.toMatch(/content=excluded|visibility=redacted_internal|identity continuity|identity-continuity/iu)
+    expect(patch.projectStateContinuity).toBeNull()
     expect(patch.reasonCodes).toEqual(expect.arrayContaining([
       'domain:relationship',
       'rollback-validation-required',
       'policy:rollback-pressure',
-      'continuity-proactive-gap-active',
-      'continuity-emotional-closure-carry-active',
     ]))
     expect(patch.reasonCodes).not.toEqual(expect.arrayContaining([
-      'continuity-self-line-active',
-      'continuity-anti-shell-guard-active',
-      'continuity-hold-detail-active',
+      expect.stringMatching(/^continuity-/u),
     ]))
   })
 

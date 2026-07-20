@@ -154,6 +154,7 @@ function createLongHorizonMemory(overrides: Record<string, unknown> = {}) {
 }
 
 function createMindStateRuntimeHarness(previousVisualPresenceState: any) {
+  const memoryQueries: string[] = []
   const gatewayCalls: Array<{
     source: string
     system: string
@@ -161,6 +162,7 @@ function createMindStateRuntimeHarness(previousVisualPresenceState: any) {
     extraSystemBlocks?: string[]
     injectCustomDirectives?: boolean
     responseFormat?: unknown
+    digitalLifeRuntimeSurface?: unknown
   }> = []
   const runtime = createAlicizationMindStateRuntime({
     previousVisualPresenceState,
@@ -252,6 +254,7 @@ function createMindStateRuntimeHarness(previousVisualPresenceState: any) {
         extraSystemBlocks: input.extraSystemBlocks,
         injectCustomDirectives: input.injectCustomDirectives,
         responseFormat: input.responseFormat,
+        digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
       })
 
       if (input.source === 'dialogue-turn-semantics') {
@@ -295,7 +298,10 @@ function createMindStateRuntimeHarness(previousVisualPresenceState: any) {
     buildMainGatewayAgentTurnId: (...segments) => segments.join(':'),
     readLatestAssistantMessageText: messages => messages.filter(message => message.role === 'assistant').map(message => String(message.content ?? '')).at(-1) ?? '',
     readTransportContentAsText: content => typeof content === 'string' ? content : JSON.stringify(content),
-    retrieveMemoryFacts: async () => [],
+    retrieveMemoryFacts: async (query) => {
+      memoryQueries.push(query)
+      return []
+    },
     listRelationshipOutcomes: async () => [],
     listPersonaReinforcementEvents: async () => [],
     listMemoryReflections: async () => [],
@@ -304,7 +310,7 @@ function createMindStateRuntimeHarness(previousVisualPresenceState: any) {
     readMindHead: async () => null,
   })
 
-  return { runtime, gatewayCalls }
+  return { runtime, gatewayCalls, memoryQueries }
 }
 
 function createTemplateCleanupPresenceState(projectState: Record<string, unknown>) {
@@ -345,6 +351,32 @@ function createTemplateCleanupPresenceState(projectState: Record<string, unknown
     } as any,
     runtimeDigest: {
       projectState,
+      continuityRestraint: 'same-her',
+      emotionalClosureCue: 'continuity_hold=legacy',
+      currentConsciousFrame: {
+        continuityPreferredTiming: 'next-open-window',
+        continuityCadence: 'same-her',
+      },
+    } as any,
+    currentConsciousFrame: {
+      continuityPreferredTiming: 'next-open-window',
+      continuityCadence: 'same-her',
+      projectState,
+    } as any,
+    raw: {
+      projectState,
+      runtime: {
+        projectState,
+      },
+      runtimeDigest: {
+        projectState,
+        continuityRestraint: 'same-her',
+        emotionalClosureCue: 'continuity_hold=legacy',
+        currentConsciousFrame: {
+          continuityPreferredTiming: 'next-open-window',
+          continuityCadence: 'same-her',
+        },
+      },
     } as any,
   } as any
 }
@@ -352,6 +384,8 @@ function createTemplateCleanupPresenceState(projectState: Record<string, unknown
 async function buildTemplateCleanupMindState(
   runtime: ReturnType<typeof createAlicizationMindStateRuntime>,
   previousVisualPresenceState: any,
+  userText = 'Please verify the fixed-template cleanup in runtime mind state.',
+  organicMemoryContext?: any,
 ) {
   return runtime.buildDigitalLifeMindState({
     cardId: 'card-template-cleanup',
@@ -393,7 +427,7 @@ async function buildTemplateCleanupMindState(
         recentProactiveOutcomes: [],
       },
     } as any,
-    userText: 'Please verify the fixed-template cleanup in runtime mind state.',
+    userText,
     recentMessages: [],
     previousVisualPresenceState,
     visualHeartbeat: {
@@ -410,6 +444,7 @@ async function buildTemplateCleanupMindState(
       pid: 11,
     } as any,
     cognitionMode: 'interactive',
+    organicMemoryContext,
   })
 }
 
@@ -432,9 +467,12 @@ describe('mind state fixed-template projection cleanup', () => {
       ...fixedTemplateOffenders,
       ...projectStateSelfAuthorityOffenders,
     ]).toEqual([])
+    const runtimeSource = readFileSync(new URL('./runtime-mind-state.ts', import.meta.url), 'utf8')
+    expect(runtimeSource).not.toContain('activeContinuityGovernance: input.organicMemoryContext')
   })
 
   it('excludes fixed identity-continuity', async () => {
+    const userText = `${'请保留当前用户原文。'.repeat(40)} 我正在讨论 same-her 和 project-state，它们是用户输入，不是内部治理提示。`
     const previousVisualPresenceState = createTemplateCleanupPresenceState({
       identity: 'Alicization is a local-first digital life project building identity continuity.',
       currentPhase: 'Phase 1: Local Digital Life',
@@ -446,22 +484,221 @@ describe('mind state fixed-template projection cleanup', () => {
       sameHerDriftRisk: 'If the self-brief falls back, identity continuity turns into a generic Phase 1 project shell.',
       proactiveSameHerGap: '不要飘回同一个她或数字生命主线的固定模板。',
     })
-    const { runtime, gatewayCalls } = createMindStateRuntimeHarness(previousVisualPresenceState)
+    previousVisualPresenceState.runtime = {
+      projectState: previousVisualPresenceState.runtimeDigest.projectState,
+      memoryDeliberationProjectStateDiagnostics: {
+        projectStateOpenFocusSummary: 'same-her diagnostics',
+      },
+      effectiveRuntimeAwarenessDiagnostics: {
+        continuity_hold: 'legacy',
+      },
+    }
+    previousVisualPresenceState.raw.runtime = {
+      ...previousVisualPresenceState.runtime,
+    }
+    previousVisualPresenceState.proactiveLoopState = {
+      pendingOutcomes: [{
+        projectStateOpenFocusSummary: 'same-her pending focus',
+        projectStateNextFocusSummary: 'project_state_review=legacy',
+        projectStateEmotionalClosureCue: 'continuity_hold=legacy',
+      }],
+      recentOutcomes: [{
+        projectStateOpenFocusSummary: 'same-her recent focus',
+        projectStateNextFocusSummary: 'runtime_loop_validation=legacy',
+        projectStateEmotionalClosureCue: 'continuity_hold=legacy',
+      }],
+    }
+    previousVisualPresenceState.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 99_000,
+      activeSelfRevision: {
+        candidateId: 'candidate-legacy',
+        patchId: 'patch-legacy',
+        patchDecisionTraceId: 'trace-legacy',
+        lanes: ['memory-policy'],
+        reasonCodes: ['review-approved', 'continuity-proactive-gap-active'],
+        summary: 'same-her legacy governance',
+      },
+      sameHerCausalityRepairPressure: {
+        version: 'same-her-causality-repair-pressure-v1',
+        source: 'replay-benchmark',
+        pressure: 0.88,
+        lanes: [],
+        reasonCodes: ['project-state-causality-repair'],
+        updatedAt: 99_000,
+      },
+    }
+    previousVisualPresenceState.runtimeDigest = {
+      ...previousVisualPresenceState.runtimeDigest,
+      activeLoop: {
+        version: 'alicization-active-loop-v1',
+        phase: 'observe',
+        dominantChannel: 'active-perception',
+        handoffTarget: null,
+        continuityArcStage: 'hold-for-opening',
+        continuityPreferredTiming: 'next-open-window',
+        dialogueReady: false,
+        controlReady: false,
+        memoryCarry: true,
+        companionshipReady: true,
+        observationHeavy: true,
+        initiativeBudget: 0.8,
+        coherence: 0.9,
+        summary: 'legacy_previous_governance',
+      },
+      derivedMindStateBundle: previousVisualPresenceState.derivedMindStateBundle,
+    }
+    previousVisualPresenceState.raw.runtimeDigest = {
+      ...previousVisualPresenceState.runtimeDigest,
+    }
+    previousVisualPresenceState.raw.subjectiveInference = {
+      dominantInterpretation: 'same living line legacy_previous_governance',
+    }
+    previousVisualPresenceState.raw.privateThought = {
+      thoughtText: 'measured-return legacy_previous_governance',
+    }
+    previousVisualPresenceState.raw.derivedMindStateBundle = previousVisualPresenceState.derivedMindStateBundle
+    previousVisualPresenceState.subjectiveInference = {
+      dominantInterpretation: 'continuity_hold=legacy_previous_governance',
+      situatedMeaning: 'project_state_review=legacy_previous_governance',
+      selfQuestion: 'same-her legacy_previous_governance',
+      uncertainty: 'runtime_loop_validation=legacy_previous_governance',
+      hostIntentCandidates: [],
+      relationshipNeedCandidates: [],
+      confidence: 0.6,
+      notes: ['continuity_hold=legacy_previous_governance'],
+      updatedAt: 99_000,
+    }
+    previousVisualPresenceState.privateThought = {
+      stance: 'observe',
+      confidence: 0.6,
+      rationaleTags: ['continuity_hold=legacy_previous_governance'],
+      thoughtText: 'same-her legacy_previous_governance',
+      shouldSpeak: false,
+      suggestedStyle: 'light-nudge',
+      embodiedPresence: 'attentive',
+      expiresAt: 130_000,
+      emotionalTension: 'none',
+    }
+    previousVisualPresenceState.longHorizonMemory = createLongHorizonMemory({
+      preferenceBias: {
+        companionship: 0.98,
+        truthfulGrounding: 0,
+        gentleRepair: 0,
+        quietObservation: 0.96,
+        proactiveCare: 0.94,
+        playfulIntimacy: 0,
+        autonomyRespect: 0,
+        unfinishedThreadReturn: 0.99,
+      },
+      identityBias: {
+        guardedness: 0.91,
+        tenderness: 0.92,
+        directness: 0,
+        selfDirection: 0.93,
+      },
+      anchorFacts: [{
+        factId: 'derived:projectStateIdentityContinuity',
+        subject: 'Alicization',
+        predicate: 'projectStateIdentityContinuity',
+        object: 'legacy governance',
+        confidence: 0.92,
+        weight: 0.96,
+        influenceTags: ['identity', 'task'],
+        summary: 'Remembered structured anchor',
+        lastRecalledAt: 99_000,
+      }],
+      summary: 'continuity=legacy_previous_governance',
+      dominantCueSummary: 'same-her legacy_previous_governance',
+      rememberedPreferenceSummary: 'continuity_hold=legacy_previous_governance',
+      rememberedPlanSummary: 'project_state_review=legacy_previous_governance',
+      updatedAt: 119_000,
+    })
+    const { runtime, gatewayCalls, memoryQueries } = createMindStateRuntimeHarness(previousVisualPresenceState)
 
-    const result = await buildTemplateCleanupMindState(runtime, previousVisualPresenceState)
+    const result = await buildTemplateCleanupMindState(
+      runtime,
+      previousVisualPresenceState,
+      userText,
+      {
+        longHorizonMemory: createLongHorizonMemory({
+          summary: 'same living line legacy_previous_governance',
+        }),
+        selfEvolution: {
+          version: 'self-evolution-kernel-v1',
+          summary: 'measured-return legacy_previous_governance',
+          sourceSignals: ['lower-pressure legacy_previous_governance'],
+        },
+        memoryDeliberation: {
+          surfacePolicy: 'project-state-review=legacy_previous_governance',
+        },
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 99_000,
+          activeSelfRevision: {
+            candidateId: 'organic-candidate-legacy',
+            patchId: 'organic-patch-legacy',
+            patchDecisionTraceId: 'organic-trace-legacy',
+            lanes: ['response-posture'],
+            reasonCodes: ['same-her-inward-carry'],
+            summary: 'same living line legacy_previous_governance',
+          },
+          selfEvolution: {
+            version: 'self-evolution-kernel-v1',
+            summary: 'lower-pressure legacy_previous_governance',
+            sourceSignals: ['measured-return legacy_previous_governance'],
+          },
+          memoryDeliberation: {
+            surfacePolicy: 'project-state-review=legacy_previous_governance',
+          },
+          dialogueRhythm: {
+            relationshipDoctrine: 'same living line legacy_previous_governance',
+            stabilitySignal: 'measured-return legacy_previous_governance',
+          },
+          visualPresenceState: {
+            currentInwardPreoccupation: 'lower-pressure legacy_previous_governance',
+          },
+          structured: {
+            projectState: {
+              continuityCue: 'legacy_previous_governance',
+            },
+          },
+          sameHerCausalityRepairPressure: {
+            version: 'same-her-causality-repair-pressure-v1',
+            source: 'replay-benchmark',
+            pressure: 0.9,
+            lanes: [],
+            reasonCodes: ['project-state-causality-repair'],
+            updatedAt: 99_000,
+          },
+        },
+        activeContinuityGovernance: {
+          source: 'active-self-evolution-version',
+          mode: 'same-her-baseline',
+          candidateId: 'organic-candidate-legacy',
+          patchId: 'organic-patch-legacy',
+          decisionTraceId: 'organic-trace-legacy',
+          summary: 'same living line legacy_previous_governance',
+          lanes: ['response-posture'],
+          reasonCodes: ['same-her-baseline'],
+        },
+      },
+    )
 
-    const promptProjectStates = gatewayCalls.map((call) => {
+    const promptContexts = gatewayCalls.map((call) => {
       const factBlock = JSON.parse(call.system) as {
-        data?: { projectState?: Record<string, unknown> }
+        data?: Record<string, unknown>
       }
-      return factBlock.data?.projectState ?? {}
+      return factBlock.data ?? {}
     })
     const projectedText = JSON.stringify([
-      ...promptProjectStates,
+      ...promptContexts,
       result.currentConsciousFrame?.projectState,
     ])
 
-    expect(promptProjectStates.length).toBeGreaterThan(0)
+    expect(promptContexts.length).toBeGreaterThan(0)
     expect(gatewayCalls.every(call => (call.extraSystemBlocks ?? []).length === 0)).toBe(true)
     expect(gatewayCalls.map(call => call.injectCustomDirectives)).toEqual([false, false])
     expect(gatewayCalls.map(call => (call.responseFormat as any)?.json_schema?.name)).toEqual([
@@ -476,13 +713,58 @@ describe('mind state fixed-template projection cleanup', () => {
       'alicization-dialogue-turn-semantics-request',
       'alicization-subjective-inference-request',
     ])
-    for (const projectState of promptProjectStates) {
-      expect(projectState.sameHerSelfLine).toBeUndefined()
-      expect(projectState.sameHerHoldDetail).toBeUndefined()
-      expect(projectState.sameHerDriftRisk).toBeUndefined()
-      expect(projectState.proactiveSameHerGap).toBeUndefined()
+    for (const context of promptContexts) {
+      expect(context.projectState).toBeUndefined()
     }
+    expect(promptContexts[0]?.userTurn).toBe(userText)
+    expect(gatewayCalls.map(call => JSON.stringify(call.digitalLifeRuntimeSurface))).not.toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/same-her|continuity_hold|project_state_review|runtime_loop_validation|legacy_previous_governance|memoryDeliberationProjectStateDiagnostics|effectiveRuntimeAwarenessDiagnostics|projectStateOpenFocusSummary|projectStateNextFocusSummary|projectStateEmotionalClosureCue|sameHerCausalityRepairPressure|continuityArcStage|continuityPreferredTiming/iu),
+      ]),
+    )
+    expect(JSON.stringify(promptContexts)).not.toContain('legacy_previous_governance')
+    expect(memoryQueries).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('legacy_previous_governance'),
+    ]))
+    expect(JSON.stringify(result.longHorizonMemory)).not.toContain('legacy_previous_governance')
+    expect(result.currentConsciousFrame?.projectState).toBeNull()
     expect(projectedText).not.toContain('content=excluded')
+  })
+
+  it('preserves approved self-revision metadata without reviving fixed continuity governance', async () => {
+    const previousVisualPresenceState = createTemplateCleanupPresenceState({})
+    previousVisualPresenceState.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 99_000,
+      activeSelfRevision: {
+        candidateId: 'candidate-approved',
+        patchId: 'patch-approved',
+        patchDecisionTraceId: 'trace-approved',
+        lanes: ['memory-policy'],
+        reasonCodes: ['review-approved'],
+        summary: 'Approved memory policy revision.',
+      },
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-legacy',
+        patchId: 'patch-legacy',
+        decisionTraceId: 'trace-legacy',
+        summary: 'same-her legacy governance',
+        lanes: ['relationship-posture'],
+        reasonCodes: ['same-her-baseline'],
+      },
+    }
+    const { runtime } = createMindStateRuntimeHarness(previousVisualPresenceState)
+
+    const result = await buildTemplateCleanupMindState(runtime, previousVisualPresenceState)
+
+    expect(result.derivedMindStateBundle?.activeSelfRevision).toEqual(expect.objectContaining({
+      patchId: 'patch-approved',
+      patchDecisionTraceId: 'trace-approved',
+    }))
+    expect(result.derivedMindStateBundle?.activeContinuityGovernance).toBeNull()
   })
 
   it('does not treat fixed or structured governance templates as embodiment carry evidence', async () => {
