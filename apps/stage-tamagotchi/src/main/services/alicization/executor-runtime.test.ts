@@ -11,12 +11,12 @@ function createNeedsAffirmationThread(): AlicizationTaskThreadRecord {
     turnId: 'subconscious:resume-affirmation-1',
     sessionId: 'session-resume-affirmation-1',
     origin: 'subconscious-proactive',
-    goal: 'Proactively patch the current runtime knot after host approval.',
+    goal: 'Patch the current runtime after host approval.',
     kind: 'codebase-edit',
     status: 'needs-affirmation',
     selectedChannel: null,
     proposedChannel: 'codex',
-    summary: 'waiting for explicit host approval before applying the patch',
+    summary: 'Waiting for explicit host approval before applying the patch.',
     metadata: {
       task: {
         permissionMode: 'none',
@@ -27,6 +27,17 @@ function createNeedsAffirmationThread(): AlicizationTaskThreadRecord {
       fabric: {
         affirmationReasonCodes: ['medium-risk-proactive-action-requires-affirmation'],
       },
+      execution: {
+        runtimeContext: {
+          projectBriefing: {
+            identity: 'Legacy project identity prompt.',
+            currentPhase: 'Legacy phase prompt.',
+            continuityCue: 'opening_policy=legacy',
+            continuityCadence: 'relationship_cadence=legacy',
+            preferredVoiceMode: 'lower-pressure',
+          },
+        },
+      },
     },
     createdAt: 100,
     updatedAt: 100,
@@ -35,9 +46,63 @@ function createNeedsAffirmationThread(): AlicizationTaskThreadRecord {
   }
 }
 
+function createDbState(initialThread: AlicizationTaskThreadRecord) {
+  let currentThread = initialThread
+  const appendExecutionEvents = vi.fn(async () => {})
+  const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
+  const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
+    currentThread = {
+      ...currentThread,
+      ...input,
+      metadata: input.metadata ?? currentThread.metadata,
+    }
+    return { ...currentThread }
+  })
+
+  return {
+    appendExecutionEvents,
+    getCurrentThread: () => currentThread,
+    upsertTaskThread,
+    db: {
+      appendExecutionEvents,
+      getTaskThread,
+      getLatestRelationshipDynamics: vi.fn(async () => null),
+      listChannelCapabilityManifests: vi.fn(async () => []),
+      listExecutionEvents: vi.fn(async () => []),
+      listRecentEpisodicEvents: vi.fn(async () => []),
+      listExecutorSessions: vi.fn(async () => []),
+      listTaskThreads: vi.fn(async () => []),
+      searchMemoryConsolidations: vi.fn(async () => []),
+      upsertChannelCapabilityManifest: vi.fn(async () => {}),
+      upsertExecutorSession: vi.fn(async () => {}),
+      upsertTaskThread,
+    },
+  }
+}
+
+function createRuntime(input: {
+  dbState: ReturnType<typeof createDbState>
+  dispatchTaskThread: ReturnType<typeof vi.fn>
+  localCapabilities?: Array<Record<string, unknown>>
+}) {
+  return createAlicizationExecutorRuntime({
+    appendAuditLog: vi.fn(async () => {}),
+    dispatchTaskThread: input.dispatchTaskThread,
+    ensureSessionId: async () => 'session-resume-affirmation-1',
+    getAlicizationDb: () => input.dbState.db,
+    getCardKillSwitchState: () => 'ACTIVE',
+    getGlobalKillSwitchState: () => 'ACTIVE',
+    normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
+    resolveLocalCapabilityChannels: input.localCapabilities
+      ? async () => input.localCapabilities as any
+      : undefined,
+    sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+  } as any)
+}
+
 describe('executor runtime inferPreferredProcedureChannel', () => {
-  it('prefers browser for remembered webpage-style procedures instead of OpenClaw', () => {
-    expect(inferPreferredProcedureChannel('Open the browser page, search weibo, and click the compose button.'))
+  it('prefers browser for remembered webpage procedures', () => {
+    expect(inferPreferredProcedureChannel('Open the browser page, search, and click the compose button.'))
       .toEqual({
         channel: 'browser',
         reason: 'remembered-procedure-browser-shape',
@@ -54,133 +119,67 @@ describe('executor runtime inferPreferredProcedureChannel', () => {
 })
 
 describe('executor runtime capability resolution', () => {
-  it('merges local browser/software/desktop capabilities into default planning and prompt capability probes', async () => {
+  it('merges local visual capabilities into planning and prompt probes', async () => {
+    const dbState = createDbState(createNeedsAffirmationThread())
     const localCapabilities = [
       { channel: 'browser', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
       { channel: 'software', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
       { channel: 'desktop', available: true, enabled: true, ready: true, sessionAffinity: false, reason: null },
     ]
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
+    const runtime = createRuntime({
+      dbState,
       dispatchTaskThread: vi.fn(),
-      ensureSessionId: async () => 'session-local-capabilities-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents: vi.fn(async () => {}),
-        getTaskThread: vi.fn(async () => undefined),
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread: vi.fn(async () => undefined),
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      resolveLocalCapabilityChannels: async () => localCapabilities as any,
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
+      localCapabilities,
+    })
 
     const planningCapabilities = await runtime.resolveTaskPlanningCapabilities()
     const promptCapabilities = await runtime.resolveExecutionCapabilitiesForPrompt()
 
     expect(planningCapabilities).toEqual(expect.arrayContaining([
-      expect.objectContaining({ channel: 'browser', ready: true, reason: null }),
-      expect.objectContaining({ channel: 'software', ready: true, reason: null }),
-      expect.objectContaining({ channel: 'desktop', ready: true, reason: null }),
+      expect.objectContaining({ channel: 'browser', ready: true }),
+      expect.objectContaining({ channel: 'software', ready: true }),
+      expect.objectContaining({ channel: 'desktop', ready: true }),
     ]))
     expect(promptCapabilities).toEqual(expect.arrayContaining([
-      expect.objectContaining({ channel: 'browser', ready: true, reason: null }),
-      expect.objectContaining({ channel: 'software', ready: true, reason: null }),
-      expect.objectContaining({ channel: 'desktop', ready: true, reason: null }),
+      expect.objectContaining({ channel: 'browser', ready: true }),
+      expect.objectContaining({ channel: 'software', ready: true }),
+      expect.objectContaining({ channel: 'desktop', ready: true }),
     ]))
   })
 })
 
 describe('executor runtime resumeMainGatewayTaskThread', () => {
-  it('promotes approved needs-affirmation proactive code-edit threads to explicit permission before redispatch', async () => {
-    let currentThread = createNeedsAffirmationThread()
-    const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-    const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
-      currentThread = {
-        ...currentThread,
-        ...input,
-        metadata: input.metadata ?? currentThread.metadata,
+  it('promotes permission and redispatches a clean Codex task prompt', async () => {
+    const dbState = createDbState(createNeedsAffirmationThread())
+    let dispatchedPrompt = ''
+    const dispatchTaskThread = vi.fn(async ({ port, input }: any) => {
+      const resumedThread = await port.getTaskThread(input.threadId)
+      dispatchedPrompt = String(input.codex?.prompt ?? '')
+      expect((resumedThread?.metadata as any)?.task?.permissionMode).toBe('explicit')
+      return {
+        ok: true,
+        summary: 'Codex resumed after explicit host approval.',
+        thread: {
+          ...resumedThread,
+          status: 'completed',
+        },
+        createdEventKinds: ['dispatch', 'result'],
+        output: 'patched',
       }
-      return { ...currentThread }
     })
-
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
-      dispatchTaskThread: vi.fn(async ({ port, input }) => {
-        const resumedThread = await port.getTaskThread(input.threadId)
-        const permissionMode = resumedThread?.metadata
-          && typeof resumedThread.metadata === 'object'
-          && resumedThread.metadata.task
-          && typeof resumedThread.metadata.task === 'object'
-          ? (resumedThread.metadata.task as { permissionMode?: unknown }).permissionMode
-          : null
-
-        if (permissionMode !== 'explicit') {
-          return {
-            ok: false,
-            summary: 'Codex resume stayed blocked because explicit approval did not reach the redispatch thread metadata.',
-            errorCode: 'CODEX_PERMISSION_REQUIRED',
-            thread: {
-              ...(resumedThread as AlicizationTaskThreadRecord),
-              status: 'failed',
-            },
-            createdEventKinds: ['result'],
-            output: null,
-          }
-        }
-
-        return {
-          ok: true,
-          summary: 'Codex resumed after explicit host approval.',
-          thread: {
-            ...(resumedThread as AlicizationTaskThreadRecord),
-            status: 'completed',
-          },
-          createdEventKinds: ['dispatch', 'result'],
-          output: 'patched',
-        }
-      }),
-      ensureSessionId: async () => 'session-resume-affirmation-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents: vi.fn(async () => {}),
-        getTaskThread,
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread,
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: {
-        cardId: 'default',
-      } as any,
-      threadId: currentThread.id,
+      context: { cardId: 'default' } as any,
+      threadId: dbState.getCurrentThread().id,
     })
 
     expect(result.ok).toBe(true)
-    expect(result.thread.status).toBe('completed')
-    expect(upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+    expect(dispatchedPrompt).toContain('Goal: Patch the current runtime after host approval.')
+    expect(dispatchedPrompt).toContain('Summary: Waiting for explicit host approval before applying the patch.')
+    expect(dispatchedPrompt).toContain('Report execution blockers, tool failures, and uncertainty directly')
+    expect(dispatchedPrompt).not.toMatch(/runtime_context=|project_|continuity_|same_her|opening_policy=|relationship_cadence=|preferred_(?:blink|gaze|voice|pacing)/iu)
+    expect(dbState.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
       status: 'planned',
       selectedChannel: 'codex',
       metadata: expect.objectContaining({
@@ -191,718 +190,56 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     }))
   })
 
-  it('keeps project identity, current phase, and still-open closure explicit when resuming a confirmed execution thread', async () => {
-    let currentThread: AlicizationTaskThreadRecord = {
-      ...createNeedsAffirmationThread(),
-      metadata: {
-        ...createNeedsAffirmationThread().metadata,
-        execution: {
-          runtimeContext: {
-            projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
-              primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
-              nextClosureTarget: 'Keep extending identity-continuity',
-              sameHerSelfLine: 'structured continuity digest.',
-              sameHerHoldDetail: 'identity-continuity',
-              sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
-              continuityArcStage: 'same-thread-continuation',
-              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
-              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns | next=Keep extending identity-continuity',
-              preDialogueAwarenessLine: 'pre_turn_context_digest',
-            },
-          },
-        },
-      },
-    }
-    const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-    const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
-      currentThread = {
-        ...currentThread,
-        ...input,
-        metadata: input.metadata ?? currentThread.metadata,
-      }
-      return { ...currentThread }
-    })
-    const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
-      const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).toContain('runtime_context=alicization_phase1')
-      expect(prompt).not.toContain('project_identity=')
-      expect(prompt).not.toContain('project_phase=')
-      expect(prompt).toContain('latest_landed_progress=Same-session mirror carry and measured-return continuity now survive longer noisy detours.')
-      expect(prompt).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.')
-      expect(prompt).not.toContain('same_her_line=')
-      expect(prompt).not.toContain('same_her_hold=')
-      expect(prompt).not.toContain('same_her_drift_risk=')
-      expect(prompt).toContain('execution_continuity_arc_stage=same-thread-continuation')
-      expect(prompt).not.toContain('project_continuity=')
-      expect(prompt).not.toContain('project_preflight=')
-      expect(prompt).not.toContain('project_awareness=')
-      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
-      expect(prompt).toContain('Report execution blockers, tool failures, and uncertainty directly')
-
-      return {
-        ok: true,
-        summary: 'Codex resumed with project-aware execution guidance.',
-        thread: {
-          ...currentThread,
-          status: 'completed',
-        },
-        createdEventKinds: ['dispatch', 'result'],
-        output: 'patched',
-      }
-    })
-
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
-      dispatchTaskThread,
-      ensureSessionId: async () => 'session-resume-affirmation-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents: vi.fn(async () => {}),
-        getTaskThread,
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread,
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
-
-    const result = await runtime.resumeMainGatewayTaskThread({
-      context: {
-        cardId: 'default',
-      } as any,
-      threadId: currentThread.id,
-    })
-
-    expect(result.ok).toBe(true)
-    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not let blank legacy resume project briefing fields block richer summary-only project-state carry when redispatching a confirmed execution thread', async () => {
-    let currentThread: AlicizationTaskThreadRecord = {
-      ...createNeedsAffirmationThread(),
-      metadata: {
-        ...createNeedsAffirmationThread().metadata,
-        execution: {
-          runtimeContext: {
-            projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestLandedProgress: '   ',
-              primaryOpenLoop: ' ',
-              nextClosureTarget: '',
-              sameHerSelfLine: 'structured continuity digest.',
-              sameHerHoldDetail: 'identity-continuity',
-              sameHerDriftRisk: ' ',
-              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
-              preflightSummary: ' ',
-              preDialogueAwarenessLine: '   ',
-              landedProgressSummary: 'Same-session mirror carry already survives execution preflight even after the explicit legacy slot went blank.',
-              openClosureSummary: 'Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit before execution resumes.',
-              nextClosureTargetSummary: 'Keep extending cross-modal identity-continuity',
-              sameHerDriftRiskSummary: 'If blank legacy project briefing slots collapse redispatch back into a generic shell, treat that as unfinished same-her drift.',
-            },
-          },
-        },
-      },
-    }
-    const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-    const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
-      currentThread = {
-        ...currentThread,
-        ...input,
-        metadata: input.metadata ?? currentThread.metadata,
-      }
-      return { ...currentThread }
-    })
-    const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
-      const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).toContain('runtime_context=alicization_phase1')
-      expect(prompt).not.toContain('project_identity=')
-      expect(prompt).not.toContain('project_phase=')
-      expect(prompt).toContain('latest_landed_progress=Same-session mirror carry already survives execution preflight even after the explicit legacy slot went blank.')
-      expect(prompt).toContain('primary_open_loop=Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit before execution resumes.')
-      expect(prompt).not.toContain('next_closure_target=Keep extending cross-modal identity-continuity')
-      expect(prompt).not.toContain('same_her_line=')
-      expect(prompt).not.toContain('same_her_hold=')
-      expect(prompt).not.toContain('same_her_drift_risk=')
-      expect(prompt).not.toContain('project_continuity=')
-      expect(prompt).not.toContain('project_awareness=')
-      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
-
-      return {
-        ok: true,
-        summary: 'Codex resumed with summary-only project-aware execution guidance.',
-        thread: {
-          ...currentThread,
-          status: 'completed',
-        },
-        createdEventKinds: ['dispatch', 'result'],
-        output: 'patched',
-      }
-    })
-
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
-      dispatchTaskThread,
-      ensureSessionId: async () => 'session-resume-affirmation-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents: vi.fn(async () => {}),
-        getTaskThread,
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread,
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
-
-    const result = await runtime.resumeMainGatewayTaskThread({
-      context: {
-        cardId: 'default',
-      } as any,
-      threadId: currentThread.id,
-    })
-
-    expect(result.ok).toBe(true)
-    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
-  })
-
-  it('prefers richer resume identity-continuity', async () => {
-    let currentThread: AlicizationTaskThreadRecord = {
-      ...createNeedsAffirmationThread(),
-      metadata: {
-        ...createNeedsAffirmationThread().metadata,
-        execution: {
-          runtimeContext: {
-            projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestLandedProgress: 'Same-session mirror carry already survives longer desktop detours before execution resumes.',
-              primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
-              nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-              sameHerSelfLine: 'structured continuity digest.',
-              sameHerHoldDetail: 'identity-continuity',
-              sameHerDriftRisk: 'If thinner resume awareness shells outrank richer identity-continuity',
-              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
-              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
-              preDialogueAwarenessLine: 'template-residue-shell',
-              preDialogueAwarenessSummary: 'pre_turn_context_digest',
-              companionBriefingLine: 'pre_turn_context_digest',
-              emotionalClosureSummary: 'identity-continuity',
-              continuityPreferredTiming: 'next-open-window',
-              continuityCadence: 'measured-return',
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-              preferredPauseMode: 'longer',
-              preferredLipsyncMode: 'restrained',
-              preferredVoiceMode: 'lower-pressure',
-              preferredPacingMode: 'slower',
-            },
-          },
-        },
-      },
-    }
-    const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-    const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
-      currentThread = {
-        ...currentThread,
-        ...input,
-        metadata: input.metadata ?? currentThread.metadata,
-      }
-      return { ...currentThread }
-    })
-    const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
-      const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).not.toContain('project_awareness=')
-      expect(prompt).not.toContain('project_companion_briefing=')
-      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
-      expect(prompt).toContain('execution_continuity_preferred_timing=next-open-window')
-      expect(prompt).toContain('execution_continuity_cadence=measured-return')
-      expect(prompt).toContain('execution_preferred_blink_cadence=linger')
-      expect(prompt).toContain('execution_preferred_gaze_mode=soften')
-      expect(prompt).toContain('execution_pause_mode=longer')
-      expect(prompt).toContain('execution_lipsync_mode=restrained')
-      expect(prompt).toContain('execution_voice_mode=lower-pressure')
-      expect(prompt).toContain('execution_pacing_mode=slower')
-      expect(prompt).not.toContain('project_awareness=template-residue-shell')
-      expect(prompt).not.toContain('project_companion_briefing=template-residue-shell')
-
-      return {
-        ok: true,
-        summary: 'Codex resumed with richer identity-continuity',
-        thread: {
-          ...currentThread,
-          status: 'completed',
-        },
-        createdEventKinds: ['dispatch', 'result'],
-        output: 'patched',
-      }
-    })
-
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
-      dispatchTaskThread,
-      ensureSessionId: async () => 'session-resume-affirmation-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents: vi.fn(async () => {}),
-        getTaskThread,
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread,
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
-
-    const result = await runtime.resumeMainGatewayTaskThread({
-      context: {
-        cardId: 'default',
-      } as any,
-      threadId: currentThread.id,
-    })
-
-    expect(result.ok).toBe(true)
-    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
-  })
-
-  it('prefers a richer stored companion headline over a thinner stored awareness shell when resuming a confirmed execution thread', async () => {
-    const richerCompanionHeadline = 'pre_turn_context_digest'
-    let currentThread: AlicizationTaskThreadRecord = {
-      ...createNeedsAffirmationThread(),
-      metadata: {
-        ...createNeedsAffirmationThread().metadata,
-        execution: {
-          runtimeContext: {
-            projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestLandedProgress: 'Same-session mirror carry already survives longer desktop detours before execution resumes.',
-              primaryOpenLoop: 'Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
-              nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-              sameHerSelfLine: 'structured continuity digest.',
-              sameHerHoldDetail: 'identity-continuity',
-              sameHerDriftRisk: 'If thinner resume awareness shells outrank richer identity-continuity',
-              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
-              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Emotion, memory, initiative, and embodiment still need one stronger identity-continuity',
-              preDialogueAwarenessLine: 'template-residue-shell',
-              companionHeadlineLine: richerCompanionHeadline,
-            },
-          },
-        },
-      },
-    }
-    const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-    const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
-      currentThread = {
-        ...currentThread,
-        ...input,
-        metadata: input.metadata ?? currentThread.metadata,
-      }
-      return { ...currentThread }
-    })
-    const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
-      const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).not.toContain(`project_awareness=${richerCompanionHeadline}`)
-      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
-      expect(prompt).not.toContain('project_awareness=template-residue-shell')
-
-      return {
-        ok: true,
-        summary: 'Codex resumed with richer same-her companion headline.',
-        thread: {
-          ...currentThread,
-          status: 'completed',
-        },
-        createdEventKinds: ['dispatch', 'result'],
-        output: 'patched',
-      }
-    })
-
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
-      dispatchTaskThread,
-      ensureSessionId: async () => 'session-resume-affirmation-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents: vi.fn(async () => {}),
-        getTaskThread,
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread,
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
-
-    const result = await runtime.resumeMainGatewayTaskThread({
-      context: {
-        cardId: 'default',
-      } as any,
-      threadId: currentThread.id,
-    })
-
-    expect(result.ok).toBe(true)
-    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not let a thin stored pre-dialogue awareness summary outrank richer normalized project self-knowledge when resuming a confirmed execution thread', async () => {
-    let currentThread: AlicizationTaskThreadRecord = {
-      ...createNeedsAffirmationThread(),
-      metadata: {
-        ...createNeedsAffirmationThread().metadata,
-        execution: {
-          runtimeContext: {
-            projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestLandedProgress: 'Execution-side project continuity already survives into runtime context preparation before tool use starts.',
-              primaryOpenLoop: 'Memory, initiative, execution, and embodiment still need stronger identity-continuity',
-              nextClosureTarget: 'Keep execution openings aware of the still-open identity-continuity',
-              sameHerSelfLine: 'structured continuity digest.',
-              sameHerHoldDetail: 'identity-continuity',
-              sameHerDriftRisk: 'If a thin summary shell outranks fuller project self-knowledge here, treat that as unfinished same-her drift.',
-              continuityCue: 'continuity state: execution should keep carrying this same Phase 1 digital life before widening outward.',
-              preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory, initiative, execution, and embodiment still need stronger identity-continuity',
-              preDialogueAwarenessSummary: 'same digital life | keep closure explicit',
-            },
-          },
-        },
-      },
-    }
-    const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-    const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
-      currentThread = {
-        ...currentThread,
-        ...input,
-        metadata: input.metadata ?? currentThread.metadata,
-      }
-      return { ...currentThread }
-    })
-    const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
-      const prompt = ((input.codex as { prompt?: unknown } | undefined)?.prompt ?? '') as string
-      expect(prompt).not.toContain('project_awareness=')
-      expect(prompt).not.toContain('pre_turn_context_digest')
-      expect(prompt).toContain('template_awareness=withheld_from_executor_prompt')
-      expect(prompt).not.toContain('project_awareness=same digital life | keep closure explicit')
-
-      return {
-        ok: true,
-        summary: 'Codex resumed with normalized project self-knowledge instead of a thin summary shell.',
-        thread: {
-          ...currentThread,
-          status: 'completed',
-        },
-        createdEventKinds: ['dispatch', 'result'],
-        output: 'patched',
-      }
-    })
-
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
-      dispatchTaskThread,
-      ensureSessionId: async () => 'session-resume-affirmation-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents: vi.fn(async () => {}),
-        getTaskThread,
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread,
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
-
-    const result = await runtime.resumeMainGatewayTaskThread({
-      context: {
-        cardId: 'default',
-      } as any,
-      threadId: currentThread.id,
-    })
-
-    expect(result.ok).toBe(true)
-    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
-  })
-
-  it('audits host-confirmed resume before redispatching a needs-affirmation execution thread', async () => {
-    let currentThread: AlicizationTaskThreadRecord = {
-      ...createNeedsAffirmationThread(),
-      metadata: {
-        ...createNeedsAffirmationThread().metadata,
-        execution: {
-          runtimeContext: {
-            projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestLandedProgress: 'Blocked dispatch safety gates now preserve confirmation and no-process-started evidence.',
-              primaryOpenLoop: 'Execution still needs confirmed resume auditability before redispatch can be treated as closed.',
-              nextClosureTarget: 'Keep confirmed execution resume, audit, and memory on one same-her Phase 1 line.',
-              sameHerSelfLine: 'structured continuity digest.',
-              sameHerDriftRisk: 'If confirmed resume only mutates thread metadata, treat that as audit drift.',
-              sameHerHoldDetail: 'identity-continuity',
-              continuityArcStage: 'same-thread-continuation',
-              continuityCue: 'Keep this host-confirmed redispatch on the continuity state before expansion',
-              continuityPreferredTiming: 'next-open-window',
-              continuityCadence: 'measured-return',
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-              preferredPauseMode: 'longer',
-              preferredLipsyncMode: 'restrained',
-              continuityRestraint: 'measured-return',
-              emotionalClosureSummary: 'identity-continuity',
-              preferredVoiceMode: 'lower-pressure',
-              preferredPacingMode: 'slower',
-              preflightSummary: 'Alicization execution resume still belongs to the same Phase 1 life loop.',
-              preDialogueAwarenessLine: 'Before resuming, remember the host confirmed this execution boundary inside the same digital life project.',
-            },
-          },
-        },
-      },
-    }
-    const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-    const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
-      currentThread = {
-        ...currentThread,
-        ...input,
-        metadata: input.metadata ?? currentThread.metadata,
-      }
-      return { ...currentThread }
-    })
-    const appendExecutionEvents = vi.fn(async () => {})
+  it('records only confirmation, permission, risk, and audit facts in the resume event', async () => {
+    const dbState = createDbState(createNeedsAffirmationThread())
     const dispatchTaskThread = vi.fn(async () => ({
       ok: true,
       summary: 'Codex resumed after explicit host approval.',
       thread: {
-        ...currentThread,
-        status: 'completed' as const,
+        ...dbState.getCurrentThread(),
+        status: 'completed',
       },
       createdEventKinds: ['dispatch', 'result'],
       output: 'patched',
     }))
-
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
-      dispatchTaskThread,
-      ensureSessionId: async () => 'session-resume-affirmation-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents,
-        getTaskThread,
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread,
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
-
-    const result = await runtime.resumeMainGatewayTaskThread({
-      context: {
-        cardId: 'default',
-      } as any,
-      threadId: currentThread.id,
-    })
-
-    expect(result.ok).toBe(true)
-    expect(appendExecutionEvents).toHaveBeenCalledWith([
-      expect.objectContaining({
-        threadId: 'thread-resume-affirmation-1',
-        decisionTraceId: 'mind:trace:resume-affirmation-1',
-        turnId: 'subconscious:resume-affirmation-1',
-        sessionId: 'session-resume-affirmation-1',
-        origin: 'subconscious-proactive',
-        channel: 'codex',
-        kind: 'resume',
-        threadStatus: 'planned',
-        payload: expect.objectContaining({
-          approval: 'host-confirmed',
-          previousStatus: 'needs-affirmation',
-          resumedStatus: 'planned',
-          previousPermissionMode: 'none',
-          permissionMode: 'explicit',
-          effect: 'mutate',
-          riskBudget: 'medium',
-          affirmationReasonCodes: ['medium-risk-proactive-action-requires-affirmation'],
-          projectIdentity: expect.stringContaining('local-first digital life'),
-          projectPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-          projectAwareness: expect.stringContaining('host confirmed this execution boundary'),
-          projectCompanionBriefing: null,
-          projectSameHerHoldDetail: expect.stringContaining('host-confirmed redispatch'),
-          projectContinuityArcStage: 'same-thread-continuation',
-          projectContinuityCue: expect.stringContaining('host-confirmed redispatch'),
-          projectContinuityPreferredTiming: 'next-open-window',
-          projectContinuityCadence: 'measured-return',
-          projectContinuityRestraint: 'measured-return',
-          projectEmotionalClosure: expect.stringContaining('low-pressure'),
-          projectBlinkCadence: 'linger',
-          projectGazeMode: 'soften',
-          projectPauseMode: 'longer',
-          projectLipsyncMode: 'restrained',
-          projectVoiceMode: 'lower-pressure',
-          projectPacingMode: 'slower',
-          sameHerLine: expect.stringContaining('phase1_local_digital_life_anchor'),
-        }),
-      }),
-    ])
-    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps canonical companion headline carry when host-confirmed resume lacks stored companion fields', async () => {
-    let currentThread: AlicizationTaskThreadRecord = {
-      ...createNeedsAffirmationThread(),
-      metadata: {
-        ...createNeedsAffirmationThread().metadata,
-        execution: {
-          runtimeContext: {
-            projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestLandedProgress: 'Blocked dispatch safety gates now preserve confirmation and no-process-started evidence.',
-              primaryOpenLoop: 'Execution still needs confirmed resume auditability before redispatch can be treated as closed.',
-              nextClosureTarget: 'Keep confirmed execution resume, audit, and memory on one same-her Phase 1 line.',
-              sameHerSelfLine: 'structured continuity digest.',
-              sameHerDriftRisk: 'If confirmed resume only mutates thread metadata, treat that as audit drift.',
-              sameHerHoldDetail: 'identity-continuity',
-              continuityArcStage: 'same-thread-continuation',
-              continuityCue: 'Keep this host-confirmed redispatch on the continuity state before expansion',
-              preflightSummary: 'Alicization execution resume still belongs to the same Phase 1 life loop.',
-              preDialogueAwarenessLine: 'Before resuming, remember the host confirmed this execution boundary inside the same digital life project.',
-              companionHeadlineLine: '   ',
-              companionBriefingLine: '   ',
-            },
-          },
-        },
-      },
-    }
-    const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-    const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
-      currentThread = {
-        ...currentThread,
-        ...input,
-        metadata: input.metadata ?? currentThread.metadata,
-      }
-      return { ...currentThread }
-    })
-    const appendExecutionEvents = vi.fn(async () => {})
-    const dispatchTaskThread = vi.fn(async () => ({
-      ok: true,
-      summary: 'Codex resumed after explicit host approval.',
-      thread: {
-        ...currentThread,
-        status: 'completed' as const,
-      },
-      createdEventKinds: ['dispatch', 'result'],
-      output: 'patched',
-    }))
-
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
-      dispatchTaskThread,
-      ensureSessionId: async () => 'session-resume-affirmation-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents,
-        getTaskThread,
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread,
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     await runtime.resumeMainGatewayTaskThread({
-      context: {
-        cardId: 'default',
-      } as any,
-      threadId: currentThread.id,
+      context: { cardId: 'default' } as any,
+      threadId: dbState.getCurrentThread().id,
     })
 
-    expect(appendExecutionEvents).toHaveBeenCalledWith([
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          projectCompanionHeadline: expect.stringContaining('identity=Alicization'),
-          projectCompanionBriefing: null,
-        }),
+    const events = (dbState.appendExecutionEvents.mock.calls as unknown[][]).at(0)?.[0] as any[]
+    const event = events?.[0]
+    expect(event).toEqual(expect.objectContaining({
+      kind: 'resume',
+      channel: 'codex',
+      payload: expect.objectContaining({
+        approval: 'host-confirmed',
+        previousStatus: 'needs-affirmation',
+        resumedStatus: 'planned',
+        previousPermissionMode: 'none',
+        permissionMode: 'explicit',
+        effect: 'mutate',
+        riskBudget: 'medium',
+        confirmationBoundary: 'host-confirmed-before-redispatch',
+        auditability: 'resume-before-dispatch',
+        interruptibility: 'process-not-yet-restarted',
       }),
-    ])
+    }))
+    expect(JSON.stringify(event?.payload ?? {})).not.toMatch(/project|sameHer|continuity|preferredBlink|preferredGaze|preferredVoice|opening_policy=|relationship_cadence=/iu)
   })
 
-  it('builds a resumable embodied instruction payload for browser threads so they can redispatch without forcing an OpenClaw-only resume path', async () => {
-    let currentThread: AlicizationTaskThreadRecord = {
+  it('redispatches browser threads through local visual instructions without project governance cues', async () => {
+    const browserThread: AlicizationTaskThreadRecord = {
+      ...createNeedsAffirmationThread(),
       id: 'thread-resume-browser-1',
-      decisionTraceId: 'mind:trace:resume-browser-1',
-      turnId: 'turn-resume-browser-1',
-      sessionId: 'session-resume-browser-1',
-      origin: 'user-turn',
       goal: 'Continue submitting the visible browser form.',
       kind: 'browser-automation',
       status: 'planned',
       selectedChannel: 'browser',
       proposedChannel: 'browser',
-      summary: 'The browser task is waiting to continue from the visible form step.',
+      summary: 'Continue from the visible form step.',
       metadata: {
         task: {
           permissionMode: 'implicit',
@@ -912,111 +249,40 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
         },
         execution: {
           runtimeContext: {
-            generatedAt: 1_710_000_000_000,
-            cardId: 'default',
-            turnId: 'turn-resume-browser-1',
-            decisionTraceId: 'mind:trace:resume-browser-1',
             projectBriefing: {
-              identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-              currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-              latestLandedProgress: 'Browser continuation routing already prefers local direct tools before broader embodied escalation.',
-              primaryOpenLoop: 'Task-thread browser continuation still needs a local redispatch path instead of collapsing back into network-only embodied transport.',
-              nextClosureTarget: 'Let browser task threads resume on the same local GUI line before widening outward.',
-              sameHerSelfLine: 'structured continuity digest.',
-              sameHerHoldDetail: 'identity-continuity',
-              sameHerDriftRisk: 'If browser redispatch falls back into an OpenClaw-only shell, treat that as unfinished execution drift.',
-              continuityCue: 'Keep this browser continuation on the same local GUI line before widening outward.',
-              preflightSummary: 'Alicization browser continuation still belongs to the same local-first digital life project.',
-              preDialogueAwarenessLine: 'Before resuming, remember this browser continuation still belongs to the same local-first digital life project.',
-            },
-            sensory: {
-              collectedAt: 1_710_000_000_123,
-              running: true,
-              stale: false,
-              ageMs: 20,
-              foregroundWindow: {
-                appName: 'Chrome',
-                processName: 'chrome',
-                title: 'Weibo Compose',
-              },
-              capture: {
-                health: 'healthy',
-                permission: 'granted',
-                sourceCount: 1,
-                lastUpdatedAt: 1_710_000_000_100,
-                lastError: null,
-                degradedReasons: [],
-              },
+              identity: 'Legacy project identity prompt.',
+              continuityCue: 'opening_policy=legacy',
             },
           },
         },
       },
-      createdAt: 100,
-      updatedAt: 100,
-      lastEventAt: 100,
-      completedAt: null,
     }
-    const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-    const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
-      currentThread = {
-        ...currentThread,
-        ...input,
-        metadata: input.metadata ?? currentThread.metadata,
-      }
-      return { ...currentThread }
-    })
-    const dispatchTaskThread = vi.fn(async ({ input }: { input: Record<string, unknown> }) => {
-      expect(input.localVisual).toEqual(expect.objectContaining({
-        instruction: expect.stringContaining('Continue the already-confirmed Alicization task directly.'),
-      }))
+    const dbState = createDbState(browserThread)
+    let instruction = ''
+    const dispatchTaskThread = vi.fn(async ({ input }: any) => {
+      instruction = String(input.localVisual?.instruction ?? '')
       expect(input.openclaw).toBeUndefined()
-      expect(input.codex).toBeUndefined()
-      expect(input.claudeCode).toBeUndefined()
-
       return {
         ok: true,
-        summary: 'Browser task resumed with a local embodied continuation payload.',
+        summary: 'Browser execution resumed locally.',
         thread: {
-          ...currentThread,
+          ...dbState.getCurrentThread(),
           status: 'completed',
         },
         createdEventKinds: ['dispatch', 'result'],
-        output: 'browser-resumed',
+        output: 'submitted',
       }
     })
-
-    const runtime = createAlicizationExecutorRuntime({
-      appendAuditLog: vi.fn(async () => {}),
-      dispatchTaskThread,
-      ensureSessionId: async () => 'session-resume-browser-1',
-      getAlicizationDb: () => ({
-        appendExecutionEvents: vi.fn(async () => {}),
-        getTaskThread,
-        getLatestRelationshipDynamics: vi.fn(async () => null),
-        listChannelCapabilityManifests: vi.fn(async () => []),
-        listExecutionEvents: vi.fn(async () => []),
-        listRecentEpisodicEvents: vi.fn(async () => []),
-        listExecutorSessions: vi.fn(async () => []),
-        listTaskThreads: vi.fn(async () => []),
-        searchMemoryConsolidations: vi.fn(async () => []),
-        upsertChannelCapabilityManifest: vi.fn(async () => {}),
-        upsertExecutorSession: vi.fn(async () => {}),
-        upsertTaskThread,
-      }),
-      getCardKillSwitchState: () => 'ACTIVE',
-      getGlobalKillSwitchState: () => 'ACTIVE',
-      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
-      sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-    } as any)
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
 
     const result = await runtime.resumeMainGatewayTaskThread({
-      context: {
-        cardId: 'default',
-      } as any,
-      threadId: currentThread.id,
+      context: { cardId: 'default' } as any,
+      threadId: browserThread.id,
     })
 
     expect(result.ok).toBe(true)
-    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
+    expect(instruction).toContain('Goal: Continue submitting the visible browser form.')
+    expect(instruction).toContain('Summary: Continue from the visible form step.')
+    expect(instruction).not.toMatch(/runtime_context=|project_|continuity_|same_her|opening_policy=/iu)
   })
 })
