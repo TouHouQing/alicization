@@ -11,7 +11,6 @@ import type {
   AlicizationReplyMotive,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
-import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
@@ -24,12 +23,6 @@ interface AlicizationDialogueEncounterSurface extends Pick<
   AlicizationDialogueTurnEncounterSnapshot,
   'subject' | 'screenReferenceMode' | 'dialogueFirst' | 'summary' | 'taskAnchor' | 'mustRepairFirst' | 'confidence'
 > {}
-
-type AlicizationCurrentConsciousProjectState
-  = NonNullable<AlicizationCurrentConsciousFrameSnapshot['projectState']>
-
-type AlicizationContinuityTiming
-  = AlicizationCurrentConsciousFrameSnapshot['continuityPreferredTiming']
 
 type AlicizationConsciousNeedSource
   = Exclude<AlicizationCurrentConsciousFrameSnapshot['consciousNeedSource'], null | undefined>
@@ -198,116 +191,6 @@ function resolveTruthDiscipline(input: {
   return screenTurn ? 'observe-then-hypothesize' as const : 'dialogue-first' as const
 }
 
-function sanitizeContinuityTiming(raw: unknown): AlicizationContinuityTiming {
-  return raw === 'internal-only'
-    || raw === 'after-payoff'
-    || raw === 'same-turn-if-invited'
-    || raw === 'next-open-window'
-    ? raw
-    : null
-}
-
-function sanitizeContinuityRestraint(raw: unknown): AlicizationCurrentConsciousProjectState['continuityRestraint'] {
-  return raw === 'lower-pressure'
-    || raw === 'measured-return'
-    || raw === 'repair-before-closeness'
-    || raw === 'rest-protective'
-    || raw === 'single-thread'
-    ? raw
-    : null
-}
-
-function sanitizeStructuredSlug(raw: unknown) {
-  const normalized = sanitizeText(raw, 80).toLowerCase()
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(normalized) ? normalized : null
-}
-
-function sanitizeBlinkCadence(raw: unknown): AlicizationCurrentConsciousProjectState['preferredBlinkCadence'] {
-  return raw === 'normal' || raw === 'linger' || raw === 'quiet' ? raw : null
-}
-
-function sanitizeGazeMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredGazeMode'] {
-  return raw === 'steady' || raw === 'soften' || raw === 'drift' ? raw : null
-}
-
-function sanitizePauseMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredPauseMode'] {
-  return raw === 'longer' || raw === 'natural' ? raw : null
-}
-
-function sanitizeLipsyncMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredLipsyncMode'] {
-  return raw === 'restrained' || raw === 'matched' ? raw : null
-}
-
-function sanitizeVoiceMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredVoiceMode'] {
-  return raw === 'lower-pressure' || raw === 'even' ? raw : null
-}
-
-function sanitizePacingMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredPacingMode'] {
-  return raw === 'slower' || raw === 'natural' ? raw : null
-}
-
-function resolveTypedProjectState(
-  runtimeSurface: AlicizationDigitalLifeRuntimeSurface | null,
-): AlicizationCurrentConsciousFrameSnapshot['projectState'] {
-  const sources = [
-    runtimeSurface?.dialogue?.currentConsciousFrame?.projectState,
-    runtimeSurface?.dialogue?.runtimeDigest?.projectState,
-    runtimeSurface?.cognition?.runtimeDigest?.projectState,
-    runtimeSurface?.raw?.runtimeDigest?.projectState,
-    runtimeSurface?.raw?.runtime?.projectState,
-    runtimeSurface?.raw?.projectState,
-  ].filter(Boolean)
-
-  const pick = <T>(key: string, normalize: (raw: unknown) => T | null) => {
-    for (const source of sources) {
-      const value = (source as Record<string, unknown>)[key]
-      const normalized = normalize(value)
-      if (normalized !== null)
-        return normalized
-    }
-    return null
-  }
-
-  const continuityPreferredTiming = pick('continuityPreferredTiming', sanitizeContinuityTiming)
-  const continuityCadence = pick('continuityCadence', sanitizeStructuredSlug)
-  const continuityRestraint = pick('continuityRestraint', sanitizeContinuityRestraint)
-  const continuityArcStage = pick('continuityArcStage', sanitizeStructuredSlug)
-  const preferredBlinkCadence = pick('preferredBlinkCadence', sanitizeBlinkCadence)
-  const preferredGazeMode = pick('preferredGazeMode', sanitizeGazeMode)
-  const preferredPauseMode = pick('preferredPauseMode', sanitizePauseMode)
-  const preferredLipsyncMode = pick('preferredLipsyncMode', sanitizeLipsyncMode)
-  const preferredVoiceMode = pick('preferredVoiceMode', sanitizeVoiceMode)
-  const preferredPacingMode = pick('preferredPacingMode', sanitizePacingMode)
-
-  if (
-    !continuityPreferredTiming
-    && !continuityCadence
-    && !continuityRestraint
-    && !continuityArcStage
-    && !preferredBlinkCadence
-    && !preferredGazeMode
-    && !preferredPauseMode
-    && !preferredLipsyncMode
-    && !preferredVoiceMode
-    && !preferredPacingMode
-  ) {
-    return null
-  }
-
-  return {
-    continuityPreferredTiming,
-    continuityCadence,
-    continuityRestraint,
-    continuityArcStage,
-    preferredBlinkCadence,
-    preferredGazeMode,
-    preferredPauseMode,
-    preferredLipsyncMode,
-    preferredVoiceMode,
-    preferredPacingMode,
-  }
-}
-
 export function buildCurrentConsciousFrame(input: {
   now: number
   userText?: string
@@ -319,16 +202,15 @@ export function buildCurrentConsciousFrame(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
-  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+  runtimeSurface?: unknown
 }): AlicizationCurrentConsciousFrameSnapshot | null {
-  const runtimeSurface = input.runtimeSurface ?? null
-  const discourseState = runtimeSurface?.dialogue?.discourseState ?? input.discourseState ?? null
-  const conversationState = runtimeSurface?.dialogue?.conversationState ?? input.conversationState ?? null
-  const dialogueEncounter = runtimeSurface?.dialogue?.dialogueEncounter ?? input.dialogueEncounter ?? null
-  const mindSynthesis = runtimeSurface?.dialogue?.mindSynthesis ?? input.mindSynthesis ?? null
-  const answerCompiler = runtimeSurface?.dialogue?.answerCompiler ?? input.answerCompiler ?? null
-  const privateThought = runtimeSurface?.cognition?.privateThought ?? input.privateThought ?? null
-  const initiative = runtimeSurface?.agency?.initiative ?? input.initiative ?? null
+  const discourseState = input.discourseState ?? null
+  const conversationState = input.conversationState ?? null
+  const dialogueEncounter = input.dialogueEncounter ?? null
+  const mindSynthesis = input.mindSynthesis ?? null
+  const answerCompiler = input.answerCompiler ?? null
+  const privateThought = input.privateThought ?? null
+  const initiative = input.initiative ?? null
 
   if (!discourseState || !answerCompiler)
     return null
@@ -409,7 +291,6 @@ export function buildCurrentConsciousFrame(input: {
   const shouldSelfRevise = truthDiscipline === 'repair-first'
     || answerCompiler.turnMode === 'screen-repair'
     || dialogueEncounter?.mustRepairFirst === true
-  const projectState = resolveTypedProjectState(runtimeSurface)
   const consciousNeed = pickDynamicTextWithSource(
     420,
     [
@@ -506,9 +387,6 @@ export function buildCurrentConsciousFrame(input: {
       },
     ],
   )
-  const continuityPreferredTiming = projectState?.continuityPreferredTiming ?? null
-  const continuityCadence = projectState?.continuityCadence ?? null
-
   return {
     subject,
     centerOfGravity,
@@ -538,13 +416,7 @@ export function buildCurrentConsciousFrame(input: {
       consciousTension?.sourceTag,
       shouldWithholdSpecificity ? 'withhold-specificity' : null,
       shouldSelfRevise ? 'self-revise' : null,
-      projectState?.continuityArcStage ? `continuity-arc:${projectState.continuityArcStage}` : null,
-      continuityPreferredTiming ? `continuity-timing:${continuityPreferredTiming}` : null,
-      continuityCadence ? `continuity-cadence:${continuityCadence}` : null,
     ]),
-    continuityPreferredTiming,
-    continuityCadence,
-    projectState,
     updatedAt: input.now,
   }
 }

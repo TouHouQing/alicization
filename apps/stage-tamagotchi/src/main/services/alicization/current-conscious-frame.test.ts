@@ -96,7 +96,6 @@ describe('buildCurrentConsciousFrame', () => {
       withheldImpulse: null,
       shouldWithholdSpecificity: false,
       shouldSelfRevise: false,
-      projectState: null,
       updatedAt: 20,
     })
     expect(frame?.reasonTags).toEqual([
@@ -649,8 +648,8 @@ describe('buildCurrentConsciousFrame', () => {
     expect(frame?.reasonTags).toContain('withhold-specificity')
   })
 
-  it('preserves typed cadence and confidence without copying project prose', () => {
-    const frame = buildCurrentConsciousFrame({
+  it('ignores legacy governance fields from every runtime surface branch', () => {
+    const directInput = {
       now: 50,
       discourseState: createDiscourseState({
         confidence: 0.7,
@@ -664,48 +663,73 @@ describe('buildCurrentConsciousFrame', () => {
       privateThought: {
         confidence: 0.6,
       } as any,
+    }
+    const frame = buildCurrentConsciousFrame(directInput)
+    const frameWithLegacyGovernance = buildCurrentConsciousFrame({
+      ...directInput,
       runtimeSurface: {
         dialogue: {
           currentConsciousFrame: {
             projectState: {
-              identity: 'A fixed project identity paragraph.',
-              currentPhase: 'Phase 1 project narration.',
-              primaryOpenLoop: 'A fixed open-loop paragraph.',
+              identity: 'legacy identity cue',
+              currentPhase: 'legacy phase cue',
+              primaryOpenLoop: 'legacy open loop cue',
               continuityPreferredTiming: 'next-open-window',
               continuityCadence: 'linger-then-rejoin',
               continuityArcStage: 'indexing-verification-follow-up',
-              preferredBlinkCadence: 'quiet',
-              preferredGazeMode: 'soften',
-              preferredPauseMode: 'longer',
-              preferredLipsyncMode: 'restrained',
-              preferredVoiceMode: 'lower-pressure',
-              preferredPacingMode: 'slower',
+            },
+          },
+          runtimeDigest: {
+            projectState: {
+              continuityPreferredTiming: 'after-payoff',
+              continuityCadence: 'legacy-runtime-cadence',
+              continuityArcStage: 'legacy-runtime-stage',
             },
           },
         },
-        cognition: {},
-        agency: {},
-        raw: {},
+        cognition: {
+          runtimeDigest: {
+            projectState: {
+              continuityPreferredTiming: 'internal-only',
+              continuityCadence: 'legacy-cognition-cadence',
+              continuityArcStage: 'legacy-cognition-stage',
+            },
+          },
+        },
+        raw: {
+          runtimeDigest: {
+            projectState: {
+              continuityPreferredTiming: 'same-turn-if-invited',
+              continuityCadence: 'legacy-raw-digest-cadence',
+              continuityArcStage: 'legacy-raw-digest-stage',
+            },
+          },
+          runtime: {
+            projectState: {
+              continuityPreferredTiming: 'next-open-window',
+              continuityCadence: 'legacy-raw-runtime-cadence',
+              continuityArcStage: 'legacy-raw-runtime-stage',
+            },
+          },
+          projectState: {
+            continuityPreferredTiming: 'after-payoff',
+            continuityCadence: 'legacy-raw-project-cadence',
+            continuityArcStage: 'legacy-raw-project-stage',
+          },
+        },
       } as any,
     })
 
-    expect(frame?.confidence).toBe(0.78)
-    expect(frame?.continuityPreferredTiming).toBe('next-open-window')
-    expect(frame?.continuityCadence).toBe('linger-then-rejoin')
-    expect(frame?.projectState).toMatchObject({
-      continuityPreferredTiming: 'next-open-window',
-      continuityCadence: 'linger-then-rejoin',
-      continuityArcStage: 'indexing-verification-follow-up',
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-    })
-    expect(frame?.projectState).not.toHaveProperty('identity')
-    expect(frame?.projectState).not.toHaveProperty('currentPhase')
-    expect(frame?.projectState).not.toHaveProperty('primaryOpenLoop')
+    expect(frameWithLegacyGovernance).toEqual(frame)
+    expect(frameWithLegacyGovernance).not.toHaveProperty('projectState')
+    expect(frameWithLegacyGovernance).not.toHaveProperty('continuityPreferredTiming')
+    expect(frameWithLegacyGovernance).not.toHaveProperty('continuityCadence')
+    expect(frameWithLegacyGovernance?.reasonTags).not.toEqual(expect.arrayContaining([
+      'continuity-arc:indexing-verification-follow-up',
+      'continuity-timing:next-open-window',
+      'continuity-cadence:linger-then-rejoin',
+    ]))
+    expect(JSON.stringify(frameWithLegacyGovernance)).not.toContain('legacy')
   })
 
   it('contains no natural-language conscious-frame policy or system prompt builder', () => {
