@@ -1,5 +1,3 @@
-export { describeAlicizationEmbodimentClosureReminder } from '@proj-alicization/stage-shared'
-
 interface AlicizationProjectStateLike {
   identity?: unknown
   currentPhase?: unknown

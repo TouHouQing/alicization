@@ -757,14 +757,15 @@ describe('alicization runtime architecture', () => {
           updatedAt: 1,
         },
         proactive: {
-          selectedAction: 'wait',
-          preferredStyle: 'silent-observe',
+          selectedAction: 'inspect-memory',
+          preferredStyle: 'direct',
+          continuityRestraint: 'rest-protective',
           confidence: 0.8,
-          shouldSpeak: false,
+          shouldSpeak: true,
           activeThreadId: 'thread-1',
           activeThreadTitle: 'Memory cleanup',
           dominantConcernKind: 'task',
-          dominantConcernSummary: 'Keep observing the current task.',
+          dominantConcernSummary: 'Inspect the requested memory.',
           leadingGoalId: null,
           leadingGoalSummary: null,
           preferredPresence: 'attentive',
@@ -777,11 +778,21 @@ describe('alicization runtime architecture', () => {
     })
     const digest = projectAlicizationRuntimeDigest(snapshot)
 
+    expect(snapshot?.shouldProactivelySpeak).toBe(true)
+    expect(snapshot?.channels['active-dialogue']).toEqual(expect.objectContaining({
+      readiness: 0.8,
+      summary: expect.stringContaining('action=inspect-memory'),
+    }))
+    expect(snapshot?.channels['active-dialogue'].summary).toContain('style=direct')
     expect(snapshot).not.toHaveProperty('projectState')
     expect(digest).not.toHaveProperty('projectState')
+    expect(digest?.channels.find(channel => channel.id === 'active-dialogue')).toEqual(expect.objectContaining({
+      readiness: 0.8,
+      summary: expect.stringContaining('action=inspect-memory'),
+    }))
     expect(buildAlicizationRuntimeSystemBlock(snapshot)).toBe('')
     expect(JSON.stringify({ snapshot, digest })).not.toMatch(
-      /same[-_ ]her|project_state_governance|preDialogueAwareness/iu,
+      /same[-_ ]her|project_state_governance|preDialogueAwareness|continuityRestraint|rest-protective/iu,
     )
   })
 })

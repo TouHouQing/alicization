@@ -253,34 +253,37 @@ function buildMindStateEmbodimentLaneEvidence(input: {
 }): Record<AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneEvidence> {
   const currentBodyState = compactPromptText(input.previousVisualPresenceState.currentBodyState, 220)
   const currentInwardPreoccupation = compactPromptText(input.previousVisualPresenceState.currentInwardPreoccupation, 220)
-  const continuityMode = compactPromptText(input.previousVisualPresenceState.continuityMode, 80)
-  const bodyAvailable = input.previousVisualPresenceState.currentBodyState !== 'sleep'
+  const bodyAvailable = currentBodyState ? true : null
+  const voiceAvailable = input.emotionalKernel.embodimentTone ? true : null
+  const motionAvailable = input.previousVisualPresenceState.currentBodyState === 'accompanying' && currentInwardPreoccupation
+    ? true
+    : null
 
   return {
     body: {
       available: bodyAvailable,
       continuityCarry: false,
-      summary: `Body state is ${currentBodyState || 'unknown'}; continuity mode is ${continuityMode || 'unknown'}; embodiment tone is ${input.emotionalKernel.embodimentTone}.`,
+      summary: null,
     },
     voice: {
-      available: Boolean(input.emotionalKernel.embodimentTone),
+      available: voiceAvailable,
       continuityCarry: false,
-      summary: `Voice follows the current emotional tone ${input.emotionalKernel.embodimentTone}.`,
+      summary: null,
     },
     face: {
-      available: false,
+      available: null,
       continuityCarry: false,
-      summary: 'No current face continuity evidence.',
+      summary: null,
     },
     motion: {
-      available: Boolean(input.previousVisualPresenceState.currentBodyState === 'accompanying' && currentInwardPreoccupation),
+      available: motionAvailable,
       continuityCarry: false,
-      summary: `motion body=${currentBodyState || 'unknown'} preoccupation=${currentInwardPreoccupation || 'none'}`,
+      summary: null,
     },
     lipsync: {
-      available: false,
+      available: null,
       continuityCarry: false,
-      summary: 'No current lipsync continuity evidence.',
+      summary: null,
     },
   }
 }
@@ -667,6 +670,21 @@ export function stripProjectGovernanceMetadataFromVisualPresenceState(
         currentConsciousFrame: digest.currentConsciousFrame
           ? {
               ...digest.currentConsciousFrame,
+              reasonTags: Array.isArray(digest.currentConsciousFrame.reasonTags)
+                ? digest.currentConsciousFrame.reasonTags.filter(tag => !carriesLegacyProjectGovernanceProjection(tag))
+                : [],
+              signature: carriesLegacyProjectGovernanceProjection(digest.currentConsciousFrame.signature)
+                ? null
+                : digest.currentConsciousFrame.signature,
+              focusAnchor: carriesLegacyProjectGovernanceProjection(digest.currentConsciousFrame.focusAnchor)
+                ? null
+                : digest.currentConsciousFrame.focusAnchor,
+              consciousNeed: carriesLegacyProjectGovernanceProjection(digest.currentConsciousFrame.consciousNeed)
+                ? ''
+                : digest.currentConsciousFrame.consciousNeed,
+              speakingIntention: carriesLegacyProjectGovernanceProjection(digest.currentConsciousFrame.speakingIntention)
+                ? ''
+                : digest.currentConsciousFrame.speakingIntention,
               continuityArcStage: undefined,
               continuityPreferredTiming: undefined,
               continuityCadence: undefined,

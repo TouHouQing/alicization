@@ -947,7 +947,6 @@ function deriveDigestOnlyRuntimeSnapshot(input: {
             confidence: proactive.confidence,
             speakDrive: proactive.shouldSpeak ? proactive.confidence : 0,
             why: proactive.dominantConcernSummary,
-            continuityRestraint: (proactive as { continuityRestraint?: unknown }).continuityRestraint,
           }
         : null,
       autonomy: null,

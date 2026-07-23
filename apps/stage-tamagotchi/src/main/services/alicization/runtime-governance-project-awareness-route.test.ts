@@ -141,7 +141,7 @@ describe('runtime governance project awareness route', () => {
     }))
   })
 
-  it('keeps richer project awareness and runtime digest inside the normalized dialogue-responded structured payload before the first outward speech path opens', () => {
+  it('keeps real runtime diagnostics and the LLM reply without reattaching project governance payloads', () => {
     const runtimeDigest = {
       projectState: {
         identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
@@ -204,15 +204,10 @@ describe('runtime governance project awareness route', () => {
     } as any)
 
     expect((dialoguePayload as any)?.structured).toEqual(expect.objectContaining({
-      preDialogueAwareness: expect.objectContaining({
-        status: 'grounded',
-        summaryLine: 'Renderer-side identity-continuity',
-        companionNextClosureLine: 'Carry the same project awareness and runtime digest into the real speech path.',
-        awarenessLine: 'Before fallback voice opens, remember what has already landed, what is still open, and keep the same project-aware line.',
-      }),
+      reply: '我先把这条真实发声链上的 project awareness 接稳，再往外说。',
+      visibleReplyAuthority: 'llm-mind',
       runtimeDigest: expect.objectContaining({
         projectState: expect.objectContaining({
-          currentPhase: 'Phase 1: Local Digital Life',
           latestLandedProgress: 'Accepted-start authority already lands on the renderer before the first outward reply.',
           primaryOpenLoop: 'The real speech path still needs to keep the same project awareness and runtime digest explicit before fallback voice opens.',
           preDialogueAwarenessLine: 'Before fallback voice opens, remember what has already landed, what is still open, and keep the same project-aware line.',
@@ -223,5 +218,10 @@ describe('runtime governance project awareness route', () => {
         }),
       }),
     }))
+    expect((dialoguePayload as any)?.structured).not.toHaveProperty('projectState')
+    expect((dialoguePayload as any)?.structured).not.toHaveProperty('preDialogueAwareness')
+    expect(JSON.stringify((dialoguePayload as any)?.structured)).not.toMatch(
+      /opening_policy|relationship_cadence|visibility\s*=\s*redacted_internal/iu,
+    )
   })
 })

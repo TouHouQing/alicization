@@ -486,6 +486,35 @@ describe('mind state fixed-template projection cleanup', () => {
     expect(sanitized.subjectiveInference).toEqual(state.subjectiveInference)
   })
 
+  it('sanitizes legacy governance prose inside runtime-digest conscious frames', () => {
+    const state = {
+      ...createDefaultVisualPresenceState(100_000),
+      runtimeDigest: {
+        ...createDefaultVisualPresenceState(100_000).runtimeDigest,
+        currentConsciousFrame: {
+          reasonTags: ['real-observation', 'opening_policy=legacy'],
+          focusAnchor: 'The user is testing memory.',
+          consciousNeed: 'relationship_cadence=legacy',
+          speakingIntention: 'visibility=redacted_internal',
+          continuityArcStage: 'same-thread-continuation',
+          continuityPreferredTiming: 'next-open-window',
+          continuityCadence: 'measured-return',
+        },
+      },
+    } as any
+
+    const sanitized = stripProjectGovernanceMetadataFromVisualPresenceState(state)
+    const frame = sanitized.runtimeDigest?.currentConsciousFrame
+
+    expect(frame?.reasonTags).toEqual(['real-observation'])
+    expect(frame?.focusAnchor).toBe('The user is testing memory.')
+    expect(frame?.consciousNeed).toBe('')
+    expect(frame?.speakingIntention).toBe('')
+    expect(frame?.continuityArcStage).toBeUndefined()
+    expect(frame?.continuityPreferredTiming).toBeUndefined()
+    expect(frame?.continuityCadence).toBeUndefined()
+  })
+
   it('fails closed on nested governance projections while preserving real memory and person-state owners', () => {
     const realAnchor = {
       factId: 'memory:real-preference',

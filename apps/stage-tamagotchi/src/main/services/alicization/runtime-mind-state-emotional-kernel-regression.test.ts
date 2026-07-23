@@ -107,6 +107,18 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(source).toContain('activeContinuityGovernance: null')
   })
 
+  it('keeps embodiment lane evidence structural when a lane has no current observation', () => {
+    const source = readFileSync(new URL('./runtime-mind-state.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('Body state is ')
+    expect(source).not.toContain('Voice follows ')
+    expect(source).not.toContain('No current face continuity evidence.')
+    expect(source).not.toContain('motion body=')
+    expect(source).not.toContain('No current lipsync continuity evidence.')
+    expect(source).toContain('available: null')
+    expect(source).toContain('summary: null')
+  })
+
   it('lets the current-turn host model retune long-horizon memory formation immediately instead of leaving relationship context one turn late', async () => {
     const previousVisualPresenceState = createDefaultVisualPresenceState(50_000) as any
     previousVisualPresenceState.hostPersonModel = {
