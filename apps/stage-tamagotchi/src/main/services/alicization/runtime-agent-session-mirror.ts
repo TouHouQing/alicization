@@ -1,5 +1,3 @@
-import type { Message } from '@xsai/shared-chat'
-
 import type {
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
@@ -164,32 +162,6 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     }
   }
 
-  function buildAgentTurnContinuitySystemMessages(input: {
-    agentTurn: AlicizationAgentTurnRuntime
-    cardId: string
-  }): Message[] {
-    const messages: Message[] = []
-    const sessionId = sanitizeText(input.agentTurn.conversationSessionId, '')
-    if (sessionId) {
-      const mirrorBlock = dialogueSessionManager.buildSessionMirrorSystemBlock({
-        cardId: input.cardId,
-        sessionId,
-      })
-      if (mirrorBlock) {
-        messages.push({
-          role: 'system',
-          content: mirrorBlock,
-        } as Message)
-      }
-    }
-
-    messages.push({
-      role: 'system',
-      content: input.agentTurn.buildSessionSystemBlock(),
-    } as Message)
-    return messages
-  }
-
   function syncAgentTurnSessionMirror(input: {
     agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
@@ -345,7 +317,6 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
 
   return {
     buildAgentRuntimeAuditSnapshot,
-    buildAgentTurnContinuitySystemMessages,
     hydrateAgentTurnFromCurrentCardState,
     syncAgentTurnSessionMirror,
     syncSessionMirrorFromCurrentCardState,

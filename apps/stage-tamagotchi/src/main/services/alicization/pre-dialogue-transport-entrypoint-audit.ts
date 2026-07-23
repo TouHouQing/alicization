@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 
 const preDialogueTransportRepoRoot = new URL('../../../../../../', import.meta.url)
 
@@ -21,12 +21,17 @@ function toPreDialogueTransportAuditRelativePath(repoRelativePath: string) {
 }
 
 function collectRepoRelativePaths(args: string[]) {
-  const output = execFileSync('rg', args, {
+  const result = spawnSync('rg', args, {
     cwd: preDialogueTransportRepoRoot,
     encoding: 'utf8',
   })
 
-  return output
+  if (result.status === 1)
+    return []
+  if (result.status !== 0)
+    throw result.error ?? new Error(result.stderr || `rg exited with status ${result.status}`)
+
+  return result.stdout
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean)

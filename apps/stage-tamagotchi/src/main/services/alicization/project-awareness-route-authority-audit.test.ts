@@ -96,6 +96,7 @@ describe('project awareness route authority audit', () => {
     const auditedFiles = new Set([
       ...resolveAlicizationChatStartPayloadAuditedFiles(),
       ...resolveAlicizationChatStartDeepHelperOwnerAuditFiles(),
+      ...resolveAlicizationRecoveryReentryAuditedFiles(),
     ])
     const uncoveredCandidates = candidateFiles.filter(relativePath => !auditedFiles.has(relativePath))
 

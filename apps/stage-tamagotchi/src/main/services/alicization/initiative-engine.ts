@@ -45,9 +45,10 @@ import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { buildInitiativeArbitration } from './initiative-arbiter'
-import { resolveAlicizationProjectStateBrief, resolveAlicizationProjectStateSnapshot } from './project-state-brief'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -59,6 +60,88 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+const initiativeWhyStructuredGovernancePattern
+  = /\b(?:persona|initiative_(?:anti_spam|closure|outcome|pressure|reaction|strategy|visible|visible_policy|warning|window)|next_closure|memory_continuity|verified_closure_progress|project_state|opening_policy|relationship_cadence|embodiment_(?:modality_risk|resident_action|resident_face|resident_mode)|host_emotion_label|self_emotion_label)\s*=/iu
+
+const initiativeWhyLocalGovernancePattern
+  = /\b(?:live recollection intent|durable long-horizon memory|self evolution|emotional kernel|same-person continuity|same person continuity|corrected same-person continuity|measured-return|bounded-return|repair-before-closeness|lower-pressure|progress pressure|timer spam|generic assistant(?: shell)?|tool shell|same Phase\s*1 digital life|Phase\s*1(?:\s*:\s*Local Digital Life)?|local digital life|project identity carry|project-state continuity carry|same-session mirror carry|memory and initiative still need stronger end-to-end closure|continuity state|same living line|one living her|callback-afterglow|unfinished closure|is still not closed yet|initiative still needs tighter)\b|她还想先把这一刻再看稳一点|同一个她|同一条(?:生命|活)?线|接回去|留白|修复优先|先修复再靠近|数字生命(?:闭环|主线)?/iu
+
+const initiativeWhyFallbackPattern
+  = /^(?:The inner (?:world|line) has not yet earned a nearer move|The inner line is still deciding how close to come|她还想先把这一刻再看稳一点)[。.!?]*$/iu
+
+const transparentInitiativeFailurePattern
+  = /\b(?:provider|embedding|tool|execution|request|api|model|runtime)\b.{0,180}\b(?:failed|failure|error|timed out|timeout|unavailable|HTTP\s+\d{3})\b|\b(?:failed|failure|error|timed out|timeout|unavailable)\b.{0,180}\b(?:provider|embedding|tool|execution|request|api|model|runtime)\b|\bHTTP\s+\d{3}\b/iu
+
+const transparentFailureGovernanceSuffixPattern
+  = /\b(?:keep|stay|return|reopen|repair)\b.{0,120}\b(?:same-person continuity|same person continuity|lower-pressure|measured-return|repair-before-closeness|progress pressure|closeness)\b/iu
+
+function trimInitiativeWhySegment(raw: string) {
+  return raw
+    .trim()
+    .replace(/^[|;,\s]+/u, '')
+    .replace(/[|;,\s]+$/u, '')
+}
+
+function sanitizeInitiativeWhySegment(raw: string) {
+  let segment = trimInitiativeWhySegment(sanitizeText(raw, 640))
+  if (!segment)
+    return ''
+
+  const structuredGovernanceIndex = segment.search(initiativeWhyStructuredGovernancePattern)
+  if (structuredGovernanceIndex === 0)
+    return ''
+  if (structuredGovernanceIndex > 0)
+    segment = trimInitiativeWhySegment(segment.slice(0, structuredGovernanceIndex))
+
+  if (!segment || initiativeWhyFallbackPattern.test(segment))
+    return ''
+
+  if (transparentInitiativeFailurePattern.test(segment)) {
+    const governanceSuffixIndex = segment.search(transparentFailureGovernanceSuffixPattern)
+    if (governanceSuffixIndex > 0)
+      segment = trimInitiativeWhySegment(segment.slice(0, governanceSuffixIndex))
+    return sanitizeText(segment, 320)
+  }
+
+  const localGovernanceIndex = segment.search(initiativeWhyLocalGovernancePattern)
+  if (localGovernanceIndex === 0)
+    return ''
+  if (
+    localGovernanceIndex > 0
+    && /^(?:keep|stay|return|reopen|repair|carry|hold|avoid|remember|不要|别|先|保持|修复)\b/iu.test(segment)
+  ) {
+    return ''
+  }
+  if (localGovernanceIndex > 0)
+    return ''
+
+  return sanitizeAlicizationProviderFacingText(segment, 320, '')
+}
+
+function sanitizeInitiativeWhyCandidate(raw: unknown) {
+  const normalized = sanitizeText(raw, 1600)
+  if (!normalized)
+    return ''
+
+  return sanitizeText(
+    normalized
+      .split(/(?<=[!?。！？])\s*|(?<=\.)\s+|[|;\n]+/u)
+      .map(sanitizeInitiativeWhySegment)
+      .filter(Boolean)
+      .join(' '),
+    320,
+  )
+}
+
+function resolveInitiativeWhy(candidates: unknown[]) {
+  for (const candidate of candidates) {
+    const sanitized = sanitizeInitiativeWhyCandidate(candidate)
+    if (sanitized)
+      return sanitized
+  }
+  return ''
 }
 
 function asArray<T>(value: T[] | null | undefined) {
@@ -248,12 +331,7 @@ function deriveSelfEvolutionInitiativeBias(selfEvolution?: AlicizationSelfEvolut
     gentleContinue,
     correctedSamePersonSettling,
     quieterEmbodimentSettling,
-    explanation: sanitizeText([
-      'self evolution:',
-      correctedSamePersonSettling ? 'corrected same-person continuity should stay authoritative while the return is still settling' : '',
-      quieterEmbodimentSettling ? 'embodiment should stay quieter before the return feels fully settled' : '',
-      gentleContinue ? 'accepted gentle follow-up can stay memory-led without widening too early' : '',
-    ].filter(Boolean).join(' '), 220),
+    explanation: '',
   }
 }
 
@@ -517,13 +595,6 @@ function deriveEmotionalKernelInitiativeBias(emotionalKernel?: AlicizationEmotio
   const repairFirst = emotionalKernel.initiativeMode === 'repair'
     || emotionalKernel.embodimentTone === 'repair-before-closeness'
     || emotionalKernel.dominantEmotion === 'repair-tension'
-  const protectiveContinuity = (emotionalKernel.reasonTags ?? []).includes('protective-continuity')
-  const unfinishedness = (emotionalKernel.reasonTags ?? []).includes('unfinishedness')
-  const explanatoryCarry = [
-    protectiveContinuity ? 'protective-continuity' : null,
-    unfinishedness ? 'unfinishedness' : null,
-  ].filter(Boolean).join(' ')
-
   return {
     preferLowerPressure: measuredReturn || restProtective || guardedBoundaryHold || inwardContinuityHold || repairFirst,
     forceSilentObserve: measuredReturn || restProtective || guardedBoundaryHold || inwardContinuityHold,
@@ -540,11 +611,7 @@ function deriveEmotionalKernelInitiativeBias(emotionalKernel?: AlicizationEmotio
             : null,
     preferredStyle: measuredReturn || restProtective || guardedBoundaryHold || inwardContinuityHold ? 'silent-observe' : null,
     preferredPresence: restProtective ? 'concerned' : guardedBoundaryHold ? 'hesitant' : null,
-    explanation: explanatoryCarry
-      ? protectiveContinuity
-        ? `emotional kernel: ${emotionalKernel.dominantEmotion} ${explanatoryCarry} same-person continuity, not progress pressure`
-        : `emotional kernel: ${emotionalKernel.dominantEmotion} ${explanatoryCarry}`
-      : `emotional kernel: ${emotionalKernel.dominantEmotion}`,
+    explanation: '',
   }
 }
 
@@ -791,20 +858,7 @@ function deriveRecollectionIntentInitiativeBias(recollectionIntent?: Alicization
         : preferMeasuredReturn
           ? 'measured-return'
           : null,
-    explanation: sanitizeText([
-      'live recollection intent:',
-      metabolizedSameThreadForeground ? 'carry the stronger merged same-thread continuity forward while faded temporary noise stays background' : '',
-      relationshipCarry ? 'same-person continuity is reopening' : '',
-      unfinishedCarry ? 'unfinished carry should stay lower-pressure' : '',
-      vulnerableCareCarry ? 'vulnerable care should arrive before analysis-heavy reopening' : '',
-      residentMeasuredReturnCarry ? 'resident measured-return keeps this return on the same quieter line before sounding outwardly' : '',
-      residentQuietHoldCarry ? `resident ${[residentObserveFocusCarry ? 'observe-focus' : '', residentHoldCarry ? 'hold' : ''].filter(Boolean).join(' ')} keeps presence in a quieter in-place posture` : '',
-      anthropomorphicRepairHold ? 'worried continuity should not collapse back into a tool shell, careful repair stays lower-pressure, and the body should not outrun the repair under high modality risk' : '',
-      allowGentleContinue ? 'remembered accepted low-pressure reopening can stay gentle without falling silent' : '',
-      rememberedRhythmWindow ? 'remembered reopening window says return only when the same line is visibly reopening' : '',
-      rememberedAntiSpamCadence ? 'anti-spam cadence says not pushing outwardly' : '',
-      combined.includes('progress pressure') ? 'not progress pressure' : '',
-    ].filter(Boolean).join(' '), 220),
+    explanation: '',
   }
 }
 
@@ -937,160 +991,19 @@ function deriveLongHorizonInitiativeBias(longHorizonMemory?: AlicizationLongHori
         : preferLowerPressure
           ? 'lower-pressure'
           : null,
-    explanation: sanitizeText([
-      'durable long-horizon memory:',
-      relationshipCarry ? 'same-person continuity should stay on one continuity line' : '',
-      preferLowerPressure ? 'keep the next return lower-pressure' : '',
-      antiSpamCarry ? 'not progress pressure or timer spam' : '',
-      anthropomorphicRepairHold ? 'worried-continuity and careful-repair stay tied to tool shell drift and modality risk high, so the body should settle before another reopen' : '',
-    ].filter(Boolean).join(' '), 220),
+    explanation: '',
   }
 }
 
-function deriveProjectStateInitiativeBias(input?: {
-  preflightSummary?: string | null
-  identity?: string | null
-  currentPhase?: string | null
-  primaryOpenLoop?: string | null
-  openClosureSummary?: string | null
-  nextClosureTarget?: string | null
-  nextClosureTargetSummary?: string | null
-  latestLandedProgress?: string | null
-  landedProgressSummary?: string | null
-  sameHerSelfLine?: string | null
-  sameHerDriftRisk?: string | null
-  emotionalClosureCue?: string | null
-  preDialogueAwarenessLine?: string | null
-  openingGuidance?: string | null
-  relationshipDoctrine?: string | null
-  manifestationCadenceSummary?: string | null
-  selfContinuityAuthorityLine?: string | null
-} | null) {
-  const projectState = input
-    ? resolveAlicizationProjectStateSnapshot({
-        runtimeProjectState: {
-          preflightSummary: input.preflightSummary,
-          identity: input.identity,
-          currentPhase: input.currentPhase,
-          latestLandedProgress: input.latestLandedProgress || input.landedProgressSummary,
-          primaryOpenLoop: input.primaryOpenLoop || input.openClosureSummary,
-          nextClosureTarget: input.nextClosureTarget || input.nextClosureTargetSummary,
-          sameHerSelfLine: input.sameHerSelfLine,
-        },
-      })
-    : {
-        preflightSummary: null,
-        identity: '',
-        currentPhase: '',
-        latestLandedProgress: null,
-        primaryOpenLoop: null,
-        nextClosureTarget: '',
-        sameHerSelfLine: '',
-      }
-  const preflightSummary = sanitizeText(projectState.preflightSummary, 320).toLowerCase()
-  const identity = sanitizeText(projectState.identity, 160).toLowerCase()
-  const currentPhase = sanitizeText(projectState.currentPhase, 120).toLowerCase()
-  const primaryOpenLoop = sanitizeText(projectState.primaryOpenLoop, 200).toLowerCase()
-  const nextClosureTarget = sanitizeText(projectState.nextClosureTarget, 220).toLowerCase()
-  const latestLandedProgress = sanitizeText(projectState.latestLandedProgress, 220)
-  const sameHerSelfLine = sanitizeText(input?.sameHerSelfLine ?? projectState.sameHerSelfLine, 220).toLowerCase()
-  const sameHerDriftRisk = sanitizeText(input?.sameHerDriftRisk, 220).toLowerCase()
-  const emotionalClosureCue = sanitizeText(input?.emotionalClosureCue, 220).toLowerCase()
-  const preDialogueAwarenessLine = sanitizeText(input?.preDialogueAwarenessLine, 220).toLowerCase()
-  const openingGuidance = sanitizeText(input?.openingGuidance, 220).toLowerCase()
-  const relationshipDoctrine = sanitizeText(input?.relationshipDoctrine, 220).toLowerCase()
-  const manifestationCadenceSummary = sanitizeText(input?.manifestationCadenceSummary, 220).toLowerCase()
-  const selfContinuityAuthorityLine = sanitizeText(input?.selfContinuityAuthorityLine, 220).toLowerCase()
-  const combinedProjectState = `${preflightSummary} ${identity} ${currentPhase} ${primaryOpenLoop} ${nextClosureTarget} ${latestLandedProgress.toLowerCase()} ${sameHerSelfLine} ${sameHerDriftRisk} ${emotionalClosureCue} ${preDialogueAwarenessLine} ${openingGuidance} ${relationshipDoctrine} ${manifestationCadenceSummary} ${selfContinuityAuthorityLine}`.trim()
-  const canonicalProjectState = resolveAlicizationProjectStateBrief()
-  const canonicalNextClosureTarget = sanitizeText(canonicalProjectState.nextClosureTarget, 220).toLowerCase()
-  const explicitProjectTimingSignals = [
-    preflightSummary,
-    primaryOpenLoop,
-    nextClosureTarget === canonicalNextClosureTarget ? '' : nextClosureTarget,
-    sameHerSelfLine,
-    sameHerDriftRisk,
-    emotionalClosureCue,
-    preDialogueAwarenessLine,
-    openingGuidance,
-    relationshipDoctrine,
-    manifestationCadenceSummary,
-    selfContinuityAuthorityLine,
-  ].filter(Boolean).join(' ')
-
-  const phaseOneDigitalLife = combinedProjectState.includes('phase 1')
-    || combinedProjectState.includes('local digital life')
-  const digitalLifeIdentity = includesAny(combinedProjectState, [
-    'digital life',
-    'lifeform',
-    'digital companion',
-    '数字生命',
-    '陪伴',
-    '生命体',
-  ])
-  const openLifeLoop = includesAny(combinedProjectState, [
-    'memory closure',
-    'personhood continuity',
-    'initiative',
-    'embodiment',
-    'execution',
-    'relationship continuity',
-    '主动性',
-    '记忆',
-    '人格连续',
-    '闭环',
-    '拟人',
-    '生命',
-  ])
-  const sameHerClosureDirection = includesAny(explicitProjectTimingSignals, [
-    'identity-continuity',
-    'identity continuity',
-    'measured-return',
-    'repair-before-closeness',
-    'cross-modal',
-    'longer-lived voice',
-    'resident presence',
-    'facial state',
-    'motion',
-    'visible reply',
-    '具身',
-    '拟人',
-    '跨模态',
-    '修复优先',
-    '同一个 her',
-  ]) || hasThinRoomMakingCue(explicitProjectTimingSignals)
-  const directContinuityTiming = hasMeasuredReturnContinuityCue(explicitProjectTimingSignals)
-    || includesAny(explicitProjectTimingSignals, [
-      'repair-before-closeness',
-      'repair before closeness',
-      'repair first',
-      'surface fully cools',
-    ])
-  const requiresLifeLoopClosure = phaseOneDigitalLife && digitalLifeIdentity && openLifeLoop
-
+function deriveProjectStateInitiativeBias(_input?: unknown) {
   return {
-    requiresLifeLoopClosure,
-    preferLowerPressure: requiresLifeLoopClosure || directContinuityTiming,
-    forceSilentObserve: requiresLifeLoopClosure || directContinuityTiming,
-    sameHerClosureDirection: sameHerClosureDirection || directContinuityTiming,
-    preferMeasuredReturn: (requiresLifeLoopClosure && sameHerClosureDirection) || directContinuityTiming,
-    repairBeforeCloseness: combinedProjectState.includes('repair-before-closeness')
-      || combinedProjectState.includes('repair before closeness')
-      || combinedProjectState.includes('repair first')
-      || combinedProjectState.includes('修复优先')
-      || combinedProjectState.includes('let repair settle'),
-    initiativeExplanation: requiresLifeLoopClosure
-      ? sanitizeText([
-          latestLandedProgress ? `some closure has already landed through ${lowerFirst(latestLandedProgress)}` : '',
-          phaseOneDigitalLife ? 'I am still growing inside the current Phase 1 context' : '',
-          sameHerSelfLine ? lowerFirst(sanitizeText(sameHerSelfLine, 180)) : '',
-          primaryOpenLoop ? `but ${lowerFirst(sanitizeText(primaryOpenLoop, 200))} is still not closed yet` : '',
-          sameHerClosureDirection && nextClosureTarget.includes('cross-modal')
-            ? 'the next closure still depends on more cross-modal continuity evidence'
-            : '',
-          emotionalClosureCue ? lowerFirst(sanitizeText(emotionalClosureCue, 180)) : '',
-        ].filter(Boolean).join(', '), 240)
-      : '',
+    requiresLifeLoopClosure: false,
+    preferLowerPressure: false,
+    forceSilentObserve: false,
+    sameHerClosureDirection: false,
+    preferMeasuredReturn: false,
+    repairBeforeCloseness: false,
+    initiativeExplanation: '',
   }
 }
 
@@ -2042,7 +1955,7 @@ export function buildInitiativeSnapshot(input: {
     ?? governingProject?.summary
     ?? thoughtThread?.summary
     ?? foregroundRuntimeThread?.whyHeld
-    ?? '她还想先把这一刻再看稳一点。'
+    ?? ''
   const projectStateWhy = projectStateBias.initiativeExplanation
     ? sanitizeText(`${why} ${projectStateBias.initiativeExplanation}.`, 260) || why
     : why
@@ -2286,6 +2199,7 @@ export function buildInitiativeSnapshot(input: {
           }) || emotionalKernelWhy
           : emotionalKernelWhy
     )
+  void projectStateCarryWhy
   const executionCallbackProjectCarry = projectStateCarryReasonTag.toLowerCase() === 'continuity-execution-callback-project-carry'
 
   const preferredStyle: AlicizationProactiveStyle = resolvePreferredStyle({
@@ -2403,69 +2317,27 @@ export function buildInitiativeSnapshot(input: {
               ? (input.actionEcology?.shouldSpeak ?? (selectedAction === 'whisper' || selectedAction === 'speak' || selectedAction === 'warn'))
               : (selectedProposal?.shouldSpeak ?? input.actionEcology?.shouldSpeak ?? (selectedAction === 'whisper' || selectedAction === 'speak' || selectedAction === 'warn'))
         )
-  const baseFinalWhy = privateThoughtHasStructuredProjectCarry
-    ? (structuredProjectStateThoughtSummary || projectStateCarryWhy)
-    : projectStateCarryWhy
-  const longHorizonCarryForWhy = longHorizonBias.explanation
-    && !baseFinalWhy.toLowerCase().includes(longHorizonBias.explanation.toLowerCase())
-    ? longHorizonBias.explanation
-    : ''
-  const longHorizonAnchoredWhy = longHorizonCarryForWhy
-    ? joinConciseSentencesPrioritized({
-      priorityParts: [
-        longHorizonCarryForWhy,
-        baseFinalWhy,
-      ],
-      optionalParts: [],
-      maxChars: 320,
-    }) || baseFinalWhy
-    : baseFinalWhy
-  const recollectionIntentCarryForWhy = recollectionIntentBias.explanation
-    && !longHorizonAnchoredWhy.toLowerCase().includes(recollectionIntentBias.explanation.toLowerCase())
-    ? recollectionIntentBias.explanation
-    : ''
-  const recollectionAnchoredWhy = recollectionIntentCarryForWhy
-    ? joinConciseSentencesPrioritized({
-      priorityParts: [
-        recollectionIntentCarryForWhy,
-        longHorizonAnchoredWhy,
-      ],
-      optionalParts: [],
-      maxChars: 320,
-    }) || longHorizonAnchoredWhy
-    : longHorizonAnchoredWhy
-  const selfEvolutionCarryForWhy = selfEvolutionBias.explanation
-    && !recollectionAnchoredWhy.toLowerCase().includes(selfEvolutionBias.explanation.toLowerCase())
-    ? selfEvolutionBias.explanation
-    : ''
-  const selfEvolutionAnchoredWhy = selfEvolutionCarryForWhy
-    ? joinConciseSentencesPrioritized({
-      priorityParts: [
-        selfEvolutionCarryForWhy,
-        recollectionAnchoredWhy,
-      ],
-      optionalParts: [],
-      maxChars: 320,
-    }) || recollectionAnchoredWhy
-    : recollectionAnchoredWhy
-  const emotionalKernelCarryForWhy = emotionalKernelBias.explanation.includes('protective-continuity')
-    || emotionalKernelBias.explanation.includes('unfinishedness')
-    ? sanitizeText(
-        emotionalKernelBias.explanation.replace(/^emotional kernel:\s*/i, ''),
-        120,
-      )
-    : ''
-  const finalWhy = emotionalKernelCarryForWhy
-    && !selfEvolutionAnchoredWhy.toLowerCase().includes(emotionalKernelCarryForWhy.toLowerCase())
-    ? joinConciseSentencesPrioritized({
-      priorityParts: [
-        emotionalKernelCarryForWhy,
-        selfEvolutionAnchoredWhy,
-      ],
-      optionalParts: [],
-      maxChars: 320,
-    }) || selfEvolutionAnchoredWhy
-    : selfEvolutionAnchoredWhy
+  const factualWhy = resolveInitiativeWhy([
+    preferredProposalWhy,
+    input.privateThought?.thoughtText,
+    input.executiveCycle?.currentLine,
+    activeReflection?.revision,
+    input.recollectionIntent?.rationale,
+    input.recollectionIntent?.recollectionAgenda?.whyRecallNow,
+    input.longHorizonMemory?.dominantCueSummary,
+    input.longHorizonMemory?.summary,
+    input.longHorizonMemory?.rememberedConstraintSummary,
+    input.longHorizonMemory?.rememberedPreferenceSummary,
+    input.longHorizonMemory?.rememberedPlanSummary,
+    asArray(motiveEngine?.backgroundAgendas)[0]?.summary,
+    autobiographicalGoal?.summary,
+    governingProject?.summary,
+    thoughtThread?.summary,
+    foregroundRuntimeThread?.summary,
+    foregroundRuntimeThread?.whyHeld,
+    concern?.summary,
+    input.worldModel.activeThread?.summary,
+  ])
 
   return {
     selectedAction,
@@ -2518,7 +2390,7 @@ export function buildInitiativeSnapshot(input: {
     preferredStyle: finalPreferredStyle,
     preferredPresence: finalPreferredPresence,
     continuityRestraint,
-    why: finalWhy,
+    why: factualWhy,
     shouldSurface: selectedProposal?.shouldSurface
       ?? input.actionEcology?.shouldSurface
       ?? Boolean(counterfactualOption ? counterfactualOption.action !== 'wait' || preferredPresence !== 'none' : selectedAction !== 'wait'),

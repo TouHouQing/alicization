@@ -2,8 +2,6 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 
 import { sanitizeAlicizationStructuredInternalText } from '@proj-alicization/stage-shared'
 
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
-
 export type AlicizationDigitalLifeSubsystemId
   = | 'dialogue'
     | 'perception'
@@ -32,13 +30,6 @@ export interface AlicizationDigitalLifeArchitectureSnapshot {
   supportingSystems: AlicizationDigitalLifeSubsystemId[]
   governingFocus: string | null
   summary: string
-  closureAudit?: {
-    currentPhase: string | null
-    primaryOpenLoop: string | null
-    activeClosurePressures: string[]
-    selfAuthoritySummary?: string | null
-    summary: string
-  } | null
   systems: Record<AlicizationDigitalLifeSubsystemId, AlicizationDigitalLifeSubsystemSnapshot>
 }
 
@@ -135,14 +126,6 @@ function toSubsystemState(score: number): AlicizationDigitalLifeSubsystemState {
   return 'idle'
 }
 
-function formatSubsystemState(state: AlicizationDigitalLifeSubsystemState) {
-  if (state === 'hot')
-    return 'HOT'
-  if (state === 'warm')
-    return 'WARM'
-  return 'IDLE'
-}
-
 function isAutonomyActionMode(mode: string | null | undefined) {
   return mode === 'prepare-act' || mode === 'act'
 }
@@ -207,7 +190,6 @@ function buildDialogueSubsystem(surface: AlicizationDigitalLifeRuntimeSurface): 
     answerPlanner?.shouldAskForGrounding ? 0.74 : 0,
   ))
   const focus = firstNonEmptyText(
-    answerPlanner?.governingFocus,
     encounter?.summary,
     surface.dialogue.discourseState?.primaryTurnAnchor,
     answerPlanner?.answerIntent,
@@ -557,36 +539,6 @@ function supportPreferenceBoost(
   return 0
 }
 
-function deriveClosureAudit(surface: AlicizationDigitalLifeRuntimeSurface) {
-  const projectState = resolveAlicizationProjectStateBrief()
-  const currentPhase = sanitizeText(projectState.currentPhase, 120) || null
-  const primaryOpenLoop = sanitizeText(projectState.openLoops[0] ?? '', 180) || null
-  const selfAuthoritySummary = sanitizeText(
-    surface.memory.personStateProjection?.selfContinuityAuthority?.authoritySummary ?? '',
-    180,
-  ) || null
-  const activeClosurePressures = [
-    surface.agency.habitPolicy?.returnViaRecheck ? 'habit:return-via-recheck' : '',
-    surface.agency.actionEcology?.mode ? `ecology:${surface.agency.actionEcology.mode}` : '',
-    surface.cognition.privateThought?.stance ? `private-thought:${surface.cognition.privateThought.stance}` : '',
-    surface.agency.autonomy?.selectedMode ? `autonomy:${surface.agency.autonomy.selectedMode}` : '',
-    surface.dialogue.responseCharter?.relationshipPosture ? `charter:${surface.dialogue.responseCharter.relationshipPosture}` : '',
-  ].filter(Boolean)
-
-  return {
-    currentPhase,
-    primaryOpenLoop,
-    activeClosurePressures,
-    selfAuthoritySummary,
-    summary: [
-      currentPhase ? `Phase: ${currentPhase}.` : '',
-      primaryOpenLoop ? `Open loop: ${sanitizeText(primaryOpenLoop, 96)}.` : '',
-      selfAuthoritySummary ? `Continuity anchor: ${sanitizeText(selfAuthoritySummary, 96)}.` : '',
-      activeClosurePressures.length > 0 ? `Shaping pressures: ${activeClosurePressures.join(', ')}.` : '',
-    ].filter(Boolean).join(' '),
-  }
-}
-
 export function buildAlicizationDigitalLifeArchitecture(
   surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
 ): AlicizationDigitalLifeArchitectureSnapshot | null {
@@ -624,25 +576,17 @@ export function buildAlicizationDigitalLifeArchitecture(
     systems,
     surface: normalizedSurface,
   })
-  const governingFocus = dominant.focus
-    ?? ranked.find(system => system.focus)?.focus
-    ?? null
-  const closureAudit = deriveClosureAudit(normalizedSurface)
-
   return {
     version: 'digital-life-architecture-v1',
     operatingMode,
     dominantSystem: dominant.id,
     supportingSystems,
-    governingFocus,
+    governingFocus: null,
     summary: [
       `mode=${operatingMode}`,
       `dominant=${dominant.id}`,
       supportingSystems.length > 0 ? `support=${supportingSystems.join(',')}` : '',
-      closureAudit.summary ? `closure=${sanitizeText(closureAudit.summary, 120)}` : '',
-      governingFocus ? `Focus: ${sanitizeText(governingFocus, 96)}.` : '',
     ].filter(Boolean).join(' | '),
-    closureAudit,
     systems,
   }
 }
@@ -650,30 +594,6 @@ export function buildAlicizationDigitalLifeArchitecture(
 export function buildAlicizationDigitalLifeArchitectureSystemBlock(
   architecture: AlicizationDigitalLifeArchitectureSnapshot | null | undefined,
 ) {
-  if (!architecture)
-    return ''
-
-  const ranked = rankSubsystems(architecture.systems)
-  return [
-    '[ALICIZATION_DIGITAL_LIFE_ARCHITECTURE]',
-    `Operating mode: ${architecture.operatingMode}.`,
-    `Dominant system: ${architecture.dominantSystem}.`,
-    `Supporting systems: ${architecture.supportingSystems.join(',') || 'none'}.`,
-    `Governing focus: ${sanitizeText(architecture.governingFocus ?? '', 180) || 'none'}.`,
-    architecture.closureAudit?.summary
-      ? `Project-state closure: ${sanitizeText(architecture.closureAudit.summary, 220)}.`
-      : '',
-    architecture.closureAudit?.selfAuthoritySummary
-      ? `Self-continuity authority: ${sanitizeText(architecture.closureAudit.selfAuthoritySummary, 220)}.`
-      : '',
-    'subsystems:',
-    ...ranked.map(system => [
-      `- [${formatSubsystemState(system.state)} ${system.score.toFixed(2)}] ${system.id}`,
-      system.summary ? ` :: ${sanitizeText(system.summary, 220)}` : '',
-      system.reasons.length > 0 ? ` :: ${system.reasons.join(', ')}` : '',
-    ].join('')),
-    'architecture_spine.role=live_session',
-    'architecture_spine.identity_scope=single_runtime',
-    'architecture_spine.parallel_story_drift=blocked',
-  ].join('\n')
+  void architecture
+  return ''
 }

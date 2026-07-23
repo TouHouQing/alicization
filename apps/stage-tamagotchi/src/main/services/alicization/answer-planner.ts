@@ -621,7 +621,6 @@ export function buildAnswerPlanner(input: {
     preferredPersonStateProjection?.sensitivityText,
   ])
   const projectedAnswer = joinDynamicText([
-    preferredPersonStateProjection?.openingGuidance,
     preferredPersonStateProjection?.burdenText,
   ])
   const plannerFocus = resolvePlannerFocus({

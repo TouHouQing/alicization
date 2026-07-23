@@ -60,18 +60,17 @@ function legacyEmbodimentHeadline() {
 }
 
 describe('prepared-runtime-continuity', () => {
-  it('derives relationship carry from quiet-companionship projection cues without returning the cue template', () => {
+  it('does not turn project relationship cues into a prepared reply line', () => {
     const carry = deriveRuntimeProjectionRelationshipCarry({
       openingGuidance: 'Keep the continuity state inward in quiet-companionship before widening outward.',
       manifestationCadenceSummary: 'quiet-companionship inward continuity',
       summary: 'quiet-companionship continuity state',
     })
 
-    expect(carry).toBe('relationship_carry=low_pressure; continuity=quiet_companionship; closeness=widen_later')
-    expect(carry).not.toContain('continuity state')
+    expect(carry).toBeNull()
   })
 
-  it('resolves runtime project state into structured canonical identity and preserves runtime progress evidence', () => {
+  it('does not expose runtime project state as prepared continuity', () => {
     const projectState = resolvePreparedRuntimeProjectState({
       runtimeSurface: {
         digitalLifeRuntimeSurface: {
@@ -91,16 +90,10 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(projectState?.identity).toBe('')
-    expect(projectState?.currentPhase).toBe('')
-    expect(projectState?.latestLandedProgress).toBe('Runtime project-state carry reached prepared continuity.')
-    expect(projectState?.primaryOpenLoop).toBe('Memory, initiative, and embodiment review remain open.')
-    expect(projectState?.nextClosureTarget).toBe('Review closure evidence before broadening.')
-    expect(projectState?.sameHerSelfLine).toBe('')
-    expectNoFixedTemplateResidue(projectState)
+    expect(projectState).toBeNull()
   })
 
-  it('prefers richer contract closure fields when runtime project state is only a thin shell', () => {
+  it('does not prefer contract project closure over memory-owned continuity', () => {
     const projectState = resolvePreparedRuntimeProjectState({
       mindTurnContract: {
         projectState: {
@@ -130,15 +123,10 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(projectState?.latestLandedProgress).toBe('Contract-carried project awareness already survives prepared continuity.')
-    expect(projectState?.primaryOpenLoop).toBe('Prepared continuity still needs memory, initiative, and embodiment closure review.')
-    expect(projectState?.nextClosureTarget).toBe('Keep next closure evidence structured for the visible answer.')
-    expect(projectState?.preDialogueAwarenessLine).toContain('landed=Contract-carried project awareness already survives prepared continuity')
-    expect(projectState?.preDialogueAwarenessLine).toContain('open=Prepared continuity still needs memory, initiative, and embodiment closure review')
-    expectNoFixedTemplateResidue(projectState)
+    expect(projectState).toBeNull()
   })
 
-  it('builds a snapshot that falls back from contaminated runtime self line to structured canonical continuity', () => {
+  it('returns an empty project-state snapshot instead of rebuilding canonical continuity', () => {
     const snapshot = resolvePreparedRuntimeProjectStateSnapshot({
       runtimeSurface: {
         digitalLifeRuntimeSurface: {
@@ -158,14 +146,17 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(snapshot.identity).toBe('')
-    expect(snapshot.currentPhase).toBe('')
-    expect(snapshot.latestLandedProgress).toContain('continuity_progress=partial')
-    expect(snapshot.sameHerSelfLine).toBe('')
-    expectNoFixedTemplateResidue(snapshot)
+    expect(snapshot).toEqual(expect.objectContaining({
+      identity: '',
+      currentPhase: '',
+      latestLandedProgress: null,
+      primaryOpenLoop: null,
+      nextClosureTarget: '',
+      sameHerSelfLine: '',
+    }))
   })
 
-  it('resolves prepared awareness from old companion headline into structured closure evidence', () => {
+  it('does not rebuild prepared awareness from an embodiment headline', () => {
     const awareness = resolvePreparedRuntimeProjectPreDialogueAwarenessSummary({
       runtimeSurface: {
         digitalLifeRuntimeSurface: {
@@ -181,13 +172,10 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(awareness).toContain('landed=')
-    expect(awareness).toContain('open=memory_dialogue_embodiment_closure')
-    expect(awareness).toContain('next=embodiment_scale_validation')
-    expectNoFixedTemplateResidue(awareness)
+    expect(awareness).toBeNull()
   })
 
-  it('does not preserve thin Chinese runtime reminder shells as prepared awareness', () => {
+  it('does not promote thin Chinese runtime reminder shells into prepared awareness', () => {
     const awareness = resolvePreparedRuntimeProjectPreDialogueAwarenessSummary({
       mindTurnContract: {
         projectState: {
@@ -216,12 +204,10 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(awareness).toContain('open=主动性、具身和对话闭环还没有真正收住。')
-    expect(awareness).toContain('next=继续以结构化证据治理下一轮闭环。')
-    expectNoFixedTemplateResidue(awareness)
+    expect(awareness).toBeNull()
   })
 
-  it('prefers richer bundled self-continuity authority over a thinner runtime projection', () => {
+  it('rejects bundled self-continuity authority when it is project-governance shaped', () => {
     const authority = resolvePreparedRuntimeSelfContinuityAuthority({
       runtimeSurface: {
         digitalLifeSpine: {
@@ -283,13 +269,7 @@ describe('prepared-runtime-continuity', () => {
       },
     } as any)
 
-    expect(authority).toEqual(expect.objectContaining({
-      selfLine: 'self_continuity=project_state_governance',
-      relationshipLine: 'relationship_carry=callback_current_thread; pressure=lower',
-      inwardLine: 'inward_line=memory_execution_embodiment_review',
-      closenessPosture: 'space-first',
-    }))
-    expect(authority?.sourceTags).toEqual(expect.arrayContaining(['project-state-carry', 'bundle-rich']))
+    expect(authority).toBeNull()
     expectNoFixedTemplateResidue(authority)
   })
 

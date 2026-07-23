@@ -18,12 +18,12 @@ export const alicizationChatStartDeepHelperOwnerAuditRegistry = [
   {
     relativePath: 'main-chat-background-run.ts',
     mode: 'timeout-fallback-owner',
-    responsibility: 'Background recovery owns the last local timeout fallback generation seam and must only pass through the already-selected pre-dialogue identity fragment instead of inventing a new project-awareness shell there.',
+    responsibility: 'Background recovery owns timeout failure delivery and must not author replacement dialogue.',
   },
   {
     relativePath: 'runtime.ts',
     mode: 'prelude-preparation-owner',
-    responsibility: 'The core runtime chat-start seam owns direct entry into deeper prelude/preparation helpers and must normalize same-her project awareness before spawning either helper.',
+    responsibility: 'The core runtime owns entry into chat prelude and execution preparation.',
   },
 ] as const satisfies readonly AlicizationChatStartDeepHelperOwnerAuditEntry[]
 

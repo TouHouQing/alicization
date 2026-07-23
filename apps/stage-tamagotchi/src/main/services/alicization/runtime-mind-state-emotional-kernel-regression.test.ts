@@ -6,14 +6,17 @@ import { createAlicizationMindStateRuntime } from './runtime-mind-state'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('runtime-mind-state emotional kernel regression', () => {
-  it('reads persisted person-state carry and routes it through autobiographical self instead of dropping the same-her memory sediment between turns', () => {
+  it('sanitizes persisted governance metadata before routing person-state carry through autobiographical self', () => {
     const source = readFileSync(new URL('./runtime-mind-state.ts', import.meta.url), 'utf8')
 
     expect(source).toContain('readMindHead<AlicizationVisualPresenceStateSnapshot[\'autobiographicalSelf\']>(input.cardId, \'autobiographical-self\')')
     expect(source).toContain('readMindHead<AlicizationPersonStateUpdateSurface>(input.cardId, \'person-state-update-surface\')')
-    expect(source).toContain('const previousPersonStateUpdateSurface = input.previousVisualPresenceState.personStateUpdateSurface ?? persistedPersonStateUpdateSurface ?? null')
+    expect(source).toContain('const previousPersonStateUpdateSurface = stripLegacyProjectGovernanceOwner(')
+    expect(source).toContain('input.previousVisualPresenceState.personStateUpdateSurface ?? persistedPersonStateUpdateSurface ?? null,')
     expect(source).toContain('personStateUpdateSurface: previousPersonStateUpdateSurface,')
     expect(source).toContain('personStateUpdateSurface,')
+    expect(source).toContain('stripProjectGovernanceMetadataFromVisualPresenceState')
+    expect(source).toContain('activeContinuityGovernance: null')
   })
 
   it('builds emotional-kernel and initiative projection inputs from the fresher preferred resident projection instead of only the persisted previous shell', () => {

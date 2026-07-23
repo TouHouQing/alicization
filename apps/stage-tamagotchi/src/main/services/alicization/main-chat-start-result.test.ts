@@ -219,7 +219,67 @@ describe('main chat start result', () => {
     })
   })
 
-  it('returns prepared runtime metadata unchanged without promoting project-state governance', async () => {
+  it('sanitizes accepted-start governance and spine before embodiment projection', async () => {
+    const input = createInput({
+      preparationPromise: Promise.resolve({
+        governance: {
+          decisionTraceId: 'prepared-sanitized-trace',
+          governingFocus: 'project-state-governance',
+          openingStyle: 'light-accompaniment',
+          relationshipPosture: 'tender',
+          emotionalClosureCue: 'repair-before-closeness',
+          reasons: ['relationship_cadence=measured-return'],
+        },
+        runtimeSurface: {
+          digitalLifeSpine: {
+            version: 'digital-life-spine-v1',
+            runtimeSurface: null,
+            architecture: {
+              operatingMode: 'speaking',
+              dominantSystem: 'dialogue',
+              supportingSystems: [],
+              governingFocus: 'project-state-governance',
+              summary: 'relationship_cadence=measured-return',
+            },
+            continuitySignal: {
+              label: 'digital-life-line',
+              summary: 'continuityCue=hold-for-opening',
+              signature: 'legacy-continuity',
+              createdAt: 1,
+            },
+          },
+          digitalLifeRuntimeSurface: null,
+        },
+      } as any),
+    })
+
+    const result = await resolveAlicizationMainChatStartResult(input)
+
+    const embodimentInput = vi.mocked(input.buildEmbodimentMeta).mock.calls[0]?.[0]
+    expect(embodimentInput).toMatchObject({
+      governance: {
+        decisionTraceId: 'prepared-sanitized-trace',
+        reasons: [],
+      },
+      digitalLifeSpine: {
+        architecture: {
+          operatingMode: 'speaking',
+          dominantSystem: 'dialogue',
+        },
+      },
+      turnId: 'turn-1',
+    })
+    expect(embodimentInput?.digitalLifeSpine).not.toHaveProperty('continuitySignal')
+    expect(result.governance).toEqual({
+      decisionTraceId: 'prepared-sanitized-trace',
+      reasons: [],
+    })
+    expect(JSON.stringify(result.digitalLifeSpine)).not.toMatch(
+      /project-state-governance|relationship_cadence|continuityCue|hold-for-opening/u,
+    )
+  })
+
+  it('sanitizes prepared runtime metadata without promoting project-state governance', async () => {
     const preludeRuntimeDigest = {
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'dialogue',
@@ -278,8 +338,13 @@ describe('main chat start result', () => {
 
     const result = await resolveAlicizationMainChatStartResult(input)
 
-    expect(result.runtimeDigest).toBe(preparedRuntimeDigest)
-    expect(result).not.toHaveProperty('projectState')
+    expect(result.runtimeDigest).toMatchObject({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'dialogue',
+      continuityPressure: 0.2,
+      summary: 'prepared runtime digest',
+    })
+    expect(result.runtimeDigest).not.toHaveProperty('projectState')
     expect(result).not.toHaveProperty('preDialogueAwareness')
   })
 
@@ -385,8 +450,15 @@ describe('main chat start result', () => {
 
     const result = await resolveAlicizationMainChatStartResult(input)
 
-    expect(result.embodimentScript).toEqual(embodimentScript)
-    expect(result.digitalLife).toBeNull()
+    expect(result.embodimentScript).toMatchObject({
+      ...embodimentScript,
+      facePlan: {
+        speakingCues: embodimentScript.facePlan.speakingCues,
+      },
+    })
+    expect(result.embodimentScript?.facePlan).not.toHaveProperty('preUtteranceCue')
+    expect(result.embodimentScript?.facePlan).not.toHaveProperty('postUtteranceCue')
+    expect(result.digitalLife).toEqual(result.embodimentScript?.digitalLife)
   })
 
   it('keeps prelude-derived digital life spine when preparation fails after richer prelude runtime state already settled', async () => {
@@ -492,7 +564,7 @@ describe('main chat start result', () => {
     })
   })
 
-  it('falls back to the settled prelude runtime digest unchanged when preparation fails', async () => {
+  it('sanitizes the settled prelude runtime digest when preparation fails', async () => {
     const preludeRuntimeDigest = {
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'dialogue',
@@ -528,8 +600,13 @@ describe('main chat start result', () => {
     expect(result.governance).toEqual({
       decisionTraceId: 'prelude-fallback-trace',
     })
-    expect(result.runtimeDigest).toBe(preludeRuntimeDigest)
-    expect(result).not.toHaveProperty('projectState')
+    expect(result.runtimeDigest).toMatchObject({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'dialogue',
+      continuityPressure: 0.5,
+      summary: 'settled prelude runtime digest',
+    })
+    expect(result.runtimeDigest).not.toHaveProperty('projectState')
     expect(result).not.toHaveProperty('preDialogueAwareness')
   })
 

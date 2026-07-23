@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { buildPresenceOnlyHoldContinuityProjection } from './runtime-subconscious-tick'
 
 describe('buildPresenceOnlyHoldContinuityProjection thin cues', () => {
-  it('preserves thinner affective-residue room-making initiative wording inside measured-return continuity guidance', () => {
+  it('does not copy initiative wording into measured-return continuity prose', () => {
     const projection = buildPresenceOnlyHoldContinuityProjection({
       previousProjection: null,
       continuityRestraint: 'measured-return',
@@ -11,11 +11,12 @@ describe('buildPresenceOnlyHoldContinuityProjection thin cues', () => {
     })
 
     expect(projection).toEqual(expect.objectContaining({
-      openingGuidance: expect.stringContaining('余韵'),
+      openingGuidance: '',
       selfContinuityAuthority: expect.objectContaining({
-        inwardLine: expect.stringContaining('余韵'),
+        inwardLine: null,
       }),
     }))
-    expect(projection?.openingGuidance).toContain('留白')
+    expect(JSON.stringify(projection)).not.toContain('余韵')
+    expect(JSON.stringify(projection)).not.toContain('留白')
   })
 })

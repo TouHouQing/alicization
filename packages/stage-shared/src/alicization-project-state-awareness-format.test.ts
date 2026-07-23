@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { renderAlicizationProjectStateStructuredBlock } from './alicization-project-state-awareness-format'
 
 describe('alicization project-state awareness format', () => {
-  it('drops old natural-language continuity templates from structured project facts', () => {
+  it('never renders project-state facts into provider text', () => {
     const block = renderAlicizationProjectStateStructuredBlock({
       identity: 'Alicization is a local-first digital life companion.',
       currentPhase: 'Phase 1: Local Digital Life',
@@ -17,19 +17,7 @@ describe('alicization project-state awareness format', () => {
       summary: 'Keep the same digital life project in view.',
     })
 
-    expect(block).not.toContain('[fixed-template-excluded]')
-    expect(block).not.toContain('continuity_anchor=')
-    expect(block).not.toContain('continuity_hold=')
-    expect(block).not.toContain('emotional_closure=')
-    expect(block).not.toContain('status=Pre-reply')
-    expect(block).not.toContain('summary=')
-    expect(block).toContain('landed=Memory owner blocks are wired.')
-    expect(block).toContain('open=failure_surface=transparent_errors_only')
-    expect(block).toContain('next=Continue semantic recall.')
-    expect(block).not.toContain('legacy phase-one template')
-    expect(block).not.toContain('identity-continuity')
-    expect(block).not.toContain('same digital life project in view')
-    expect(block).not.toContain('Pre-reply')
+    expect(block).toBe('')
   })
 
   it('drops fixed-template landed open and next prose instead of neutralizing it into another prompt token', () => {
@@ -140,7 +128,7 @@ describe('alicization project-state awareness format', () => {
     expect(block).not.toContain('same-her')
   })
 
-  it('preserves real non-template governance facts', () => {
+  it('does not preserve even non-template project facts as prompt text', () => {
     const block = renderAlicizationProjectStateStructuredBlock({
       latestLandedProgress: 'WorkingMemory owner boundary reaches the chat entrypoint.',
       primaryOpenLoop: 'LongTermMemoryRecall needs semantic recall verification.',
@@ -148,13 +136,6 @@ describe('alicization project-state awareness format', () => {
       status: 'memory_governance_visible',
     })
 
-    expect(block).toContain('[ALICIZATION_PROJECT_STATE_FACTS]')
-    expect(block).toContain('landed=WorkingMemory owner boundary reaches the chat entrypoint.')
-    expect(block).toContain('open=LongTermMemoryRecall needs semantic recall verification.')
-    expect(block).toContain('next=Expose provider timeout and tool failure state to the user.')
-    expect(block).toContain('status=memory_governance_visible')
-    expect(block).not.toContain('same-her')
-    expect(block).not.toContain('content=excluded')
-    expect(block).not.toContain('visibility=internal')
+    expect(block).toBe('')
   })
 })

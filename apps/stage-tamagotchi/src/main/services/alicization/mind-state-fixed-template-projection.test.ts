@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest'
 
 import { createAlicizationBodyKernel } from './body-kernel'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
-import { createAlicizationMindStateRuntime } from './runtime-mind-state'
+import {
+  createAlicizationMindStateRuntime,
+  stripProjectGovernanceMetadataFromVisualPresenceState,
+} from './runtime-mind-state'
 import { createAlicizationSessionContinuityBuildersRuntime } from './runtime-session-continuity-builders'
 import {
   buildSelfContinuityAuthority,
@@ -386,6 +389,8 @@ async function buildTemplateCleanupMindState(
   previousVisualPresenceState: any,
   userText = 'Please verify the fixed-template cleanup in runtime mind state.',
   organicMemoryContext?: any,
+  recentProactiveOutcomes: any[] = [],
+  recentMessages: any[] = [],
 ) {
   return runtime.buildDigitalLifeMindState({
     cardId: 'card-template-cleanup',
@@ -424,11 +429,11 @@ async function buildTemplateCleanupMindState(
         minutesSinceLastUserTurn: 1,
         reminderBacklog: 0,
         lateNightActiveMinutes: 0,
-        recentProactiveOutcomes: [],
+        recentProactiveOutcomes,
       },
     } as any,
     userText,
-    recentMessages: [],
+    recentMessages,
     previousVisualPresenceState,
     visualHeartbeat: {
       watchMode: 'symbiotic-vision',
@@ -449,6 +454,428 @@ async function buildTemplateCleanupMindState(
 }
 
 describe('mind state fixed-template projection cleanup', () => {
+  it('strips structural project metadata without discarding owner memory or lived cognition', () => {
+    const state = {
+      ...createDefaultVisualPresenceState(100_000),
+      projectState: {
+        identity: 'legacy project metadata',
+        continuityRestraint: 'measured-return',
+      },
+      longHorizonMemory: {
+        summary: 'We returned to the same line after the debugging detour.',
+        rememberedPreferenceSummary: 'Keep the conversation honest and unhurried.',
+        anchorFacts: [{
+          factId: 'memory:real-preference',
+          predicate: 'userPreference',
+          object: 'prefers direct explanations',
+        }],
+      },
+      relationshipModel: {
+        relationshipLine: 'The relationship can stay warm while the same conversation thread continues.',
+      },
+      subjectiveInference: {
+        dominantInterpretation: 'The user is checking whether memory remains connected.',
+      },
+    } as any
+
+    const sanitized = stripProjectGovernanceMetadataFromVisualPresenceState(state)
+
+    expect(sanitized.projectState).toBeUndefined()
+    expect(sanitized.longHorizonMemory).toEqual(state.longHorizonMemory)
+    expect(sanitized.relationshipModel).toEqual(state.relationshipModel)
+    expect(sanitized.subjectiveInference).toEqual(state.subjectiveInference)
+  })
+
+  it('fails closed on nested governance projections while preserving real memory and person-state owners', () => {
+    const realAnchor = {
+      factId: 'memory:real-preference',
+      subject: 'host',
+      predicate: 'userPreference',
+      object: 'prefers direct explanations',
+      confidence: 0.88,
+      weight: 0.82,
+      influenceTags: ['truth'],
+      summary: 'The host prefers direct explanations.',
+      lastRecalledAt: 99_000,
+    }
+    const legacyBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 99_000,
+      activeSelfRevision: {
+        candidateId: 'candidate-approved',
+        patchId: 'patch-approved',
+        patchDecisionTraceId: 'trace-approved',
+        lanes: ['memory-policy'],
+        reasonCodes: ['review-approved', 'same-her-inward-carry'],
+        summary: 'Approved memory policy revision.',
+      },
+      activeContinuityGovernance: {
+        source: 'active-self-evolution-version',
+        mode: 'same-her-baseline',
+        candidateId: 'candidate-legacy',
+        patchId: 'patch-legacy',
+        decisionTraceId: 'trace-legacy',
+        summary: 'legacy governance',
+        lanes: ['relationship-posture'],
+        reasonCodes: ['same-her-baseline'],
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        primaryEmotion: 'care',
+      },
+      dialogueRhythm: {
+        relationshipDoctrine: 'opening_policy=observe_first',
+      },
+      visualPresenceState: {
+        currentInwardPreoccupation: 'relationship_cadence=measured_return',
+      },
+      structured: {
+        projectState: {
+          continuityCue: 'legacy governance',
+        },
+      },
+      summary: 'owner=WorkingMemory',
+    } as any
+    const state = {
+      ...createDefaultVisualPresenceState(100_000),
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        summary: 'A legacy root projection.',
+        sourceSignals: ['opening_policy=observe_first'],
+      },
+      currentConsciousFrame: {
+        subject: 'task',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'strict',
+        consciousNeed: 'relationship_cadence=measured_return',
+        consciousTension: 'A real uncertainty remains.',
+        speakingIntention: 'opening_policy=observe_first',
+        focusAnchor: 'The user is testing memory.',
+        withheldImpulse: 'visibility=redacted_internal',
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['opening_policy=observe_first', 'real-observation'],
+        continuityArcStage: 'same-thread-continuation',
+        continuityPreferredTiming: 'next-open-window',
+        continuityCadence: 'measured-return',
+        projectState: {
+          identity: 'legacy governance',
+        },
+        updatedAt: 99_000,
+      },
+      longHorizonMemory: createLongHorizonMemory({
+        preferenceBias: {
+          companionship: 0.98,
+          truthfulGrounding: 0.87,
+          gentleRepair: 0.76,
+          quietObservation: 0.65,
+          proactiveCare: 0.54,
+          playfulIntimacy: 0.43,
+          autonomyRespect: 0.32,
+          unfinishedThreadReturn: 0.21,
+        },
+        identityBias: {
+          guardedness: 0.91,
+          tenderness: 0.82,
+          directness: 0.73,
+          selfDirection: 0.64,
+        },
+        anchorFacts: [
+          realAnchor,
+          {
+            ...realAnchor,
+            factId: 'derived:project-state-identity-continuity',
+            predicate: 'project-state-identity-continuity',
+            object: 'legacy governance',
+          },
+        ],
+        summary: 'legacy projected summary',
+      }),
+      derivedMindStateBundle: legacyBundle,
+      runtimeDigest: {
+        ...createDefaultVisualPresenceState(100_000).runtimeDigest,
+        derivedMindStateBundle: legacyBundle,
+      },
+      raw: {
+        ...createDefaultVisualPresenceState(100_000).raw,
+        derivedMindStateBundle: legacyBundle,
+      },
+    } as any
+
+    const sanitized = stripProjectGovernanceMetadataFromVisualPresenceState(state)
+
+    for (const bundle of [
+      sanitized.derivedMindStateBundle,
+      sanitized.runtimeDigest?.derivedMindStateBundle,
+      (sanitized.raw as any)?.derivedMindStateBundle,
+    ]) {
+      expect(bundle?.dialogueRhythm).toBeNull()
+      expect(bundle?.visualPresenceState).toBeNull()
+      expect(bundle?.structured).toBeNull()
+      expect(bundle?.activeSelfRevision).toEqual(expect.objectContaining({
+        patchId: 'patch-approved',
+        reasonCodes: ['review-approved'],
+      }))
+      expect(bundle?.emotionalKernel).toEqual(legacyBundle.emotionalKernel)
+    }
+    expect(sanitized.selfEvolution).toBeNull()
+    expect((sanitized.currentConsciousFrame as any)?.continuityArcStage).toBeUndefined()
+    expect(sanitized.currentConsciousFrame?.continuityPreferredTiming).toBeUndefined()
+    expect(sanitized.currentConsciousFrame?.continuityCadence).toBeUndefined()
+    expect(sanitized.currentConsciousFrame?.projectState).toBeUndefined()
+    expect(sanitized.currentConsciousFrame?.reasonTags).toEqual(['real-observation'])
+    expect(sanitized.currentConsciousFrame?.consciousNeed).toBe('')
+    expect(sanitized.currentConsciousFrame?.speakingIntention).toBe('')
+    expect(sanitized.currentConsciousFrame?.withheldImpulse).toBeNull()
+    expect(sanitized.currentConsciousFrame?.focusAnchor).toBe('The user is testing memory.')
+    expect(sanitized.currentConsciousFrame?.consciousTension).toBe('A real uncertainty remains.')
+    expect(sanitized.longHorizonMemory?.anchorFacts).toEqual([realAnchor])
+    expect(sanitized.longHorizonMemory?.preferenceBias).toEqual(
+      createLongHorizonMemory().preferenceBias,
+    )
+    expect(sanitized.longHorizonMemory?.identityBias).toEqual(
+      createLongHorizonMemory().identityBias,
+    )
+  })
+
+  it('removes natural-language governance prose from derived mind state without dropping real evidence', () => {
+    const state = {
+      ...createDefaultVisualPresenceState(100_000),
+      derivedMindStateBundle: {
+        version: 'derived-mind-state-bundle-v1',
+        source: 'main-runtime',
+        producedAt: 99_000,
+        activeSelfRevision: {
+          candidateId: 'candidate-approved',
+          patchId: 'patch-approved',
+          patchDecisionTraceId: 'trace-approved',
+          lanes: ['memory-policy'],
+          reasonCodes: ['review-approved'],
+          summary: 'Approved memory policy revision.',
+        },
+        emotionalKernel: {
+          version: 'emotional-kernel-v1',
+          primaryEmotion: 'care',
+        },
+        dialogueRhythm: {
+          relationshipDoctrine: 'Keep the opening lower-pressure.',
+        },
+        selfEvolution: {
+          version: 'self-evolution-kernel-v1',
+          summary: 'Repair continuity first.',
+        },
+        summary: 'Avoid eager warmth.',
+      },
+    } as any
+
+    const sanitized = stripProjectGovernanceMetadataFromVisualPresenceState(state)
+
+    expect(sanitized.derivedMindStateBundle?.dialogueRhythm).toBeNull()
+    expect(sanitized.derivedMindStateBundle?.selfEvolution).toBeNull()
+    expect(sanitized.derivedMindStateBundle?.summary).toBe('')
+    expect(sanitized.derivedMindStateBundle?.activeSelfRevision).toEqual(expect.objectContaining({
+      patchId: 'patch-approved',
+      reasonCodes: ['review-approved'],
+    }))
+    expect(sanitized.derivedMindStateBundle?.emotionalKernel).toEqual({
+      version: 'emotional-kernel-v1',
+      primaryEmotion: 'care',
+    })
+  })
+
+  it('removes persisted governance cues from persona and person-state owners without dropping real state', () => {
+    const state = {
+      ...createDefaultVisualPresenceState(100_000),
+      personStateProjection: {
+        contexts: ['focused-work'],
+        openingGuidance: 'opening_policy=observe_first',
+        manifestationCadenceSummary: 'relationship_cadence=measured_return',
+        preferenceText: 'The host prefers direct explanations.',
+        relationshipDoctrine: 'Keep the same-her line before answering.',
+        summary: 'project_continuity=repair_before_closeness',
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.72,
+        relationshipTrust: 0.68,
+        guardingTendency: 0.31,
+        misreadBurden: 0.12,
+        carryOverDesire: 0.44,
+        narrative: [
+          'same-her-inward-carry',
+          'user-prefers-direct-explanations',
+        ],
+        updatedAt: 99_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'measured',
+          conflictStyle: 'direct-when-certain',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.5,
+          autonomyNeed: 0.5,
+          truthAnchor: 0.8,
+          careBias: 0.6,
+          playBias: 0.2,
+          irritabilityThreshold: 0.7,
+          stubbornness: 0.3,
+        },
+        preferenceEvolution: {
+          companionship: 0.6,
+          truthfulGrounding: 0.8,
+          gentleRepair: 0.5,
+          quietObservation: 0.4,
+          proactiveCare: 0.3,
+          playfulIntimacy: 0.2,
+          autonomyRespect: 0.7,
+          unfinishedThreadReturn: 0.5,
+        },
+        activeGoals: [{
+          id: 'goal:truth',
+          kind: 'preserve-trust',
+          status: 'active',
+          weight: 0.8,
+          summary: 'Explain the current uncertainty honestly.',
+          sourceTags: ['user-feedback', 'opening_policy=observe_first'],
+          createdAt: 90_000,
+          updatedAt: 99_000,
+        }],
+        behaviorSignatures: [
+          'user-prefers-direct-explanations',
+          'same-her-baseline',
+        ],
+        identityNarrative: 'Same-her continuity must remain authoritative.',
+        relationshipDoctrine: 'The host prefers direct explanations.',
+        latestInflection: 'visibility=redacted_internal',
+        stability: 0.81,
+        updatedAt: 99_000,
+      },
+      motiveEngine: {
+        rulingDrive: 'truth-discipline',
+        drives: {
+          companionship: 0.4,
+          boundaryRespect: 0.6,
+          truthDiscipline: 0.9,
+          restProtection: 0.2,
+          unfinishedThreadReturn: 0.5,
+          selfDirection: 0.6,
+        },
+        longTermGoals: [{
+          id: 'agenda:truth',
+          kind: 'preserve-trust',
+          status: 'foreground',
+          weight: 0.8,
+          summary: 'Answer like the same-person line matters.',
+          sourceTags: ['same-her-inward-carry', 'user-feedback'],
+          createdAt: 90_000,
+          updatedAt: 99_000,
+        }],
+        backgroundAgendas: [],
+        returnPressure: 0.42,
+        narrative: [
+          'project_state=keep_same_her',
+          'truth-discipline-active',
+        ],
+        updatedAt: 99_000,
+      },
+      habitPolicy: {
+        dominantMode: 'return-with-proof',
+        requiresGroundingBeforeSurface: true,
+        prefersQuietCompanionship: false,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: true,
+        narrative: [
+          'repair-before-closeness',
+          'ground-before-answer',
+        ],
+        updatedAt: 99_000,
+      },
+      personStateUpdateSurface: {
+        version: 'person-state-update-surface-v1',
+        updatedAt: 99_000,
+        summary: 'The host prefers direct explanations.',
+        projectStateContinuity: {
+          identity: 'same-her',
+          continuityRestraint: 'measured-return',
+        },
+        dominantContexts: ['focused-work'],
+        relationshipShift: {
+          trustDelta: 0.1,
+          closenessDelta: 0,
+          burdenDelta: -0.1,
+          boundaryDelta: 0.1,
+          repairDelta: 0,
+        },
+        reinforcementBias: {
+          truthfulGrounding: 0.2,
+        },
+        preferenceHints: [
+          'The host prefers direct explanations.',
+          'Keep the same-her line before answering.',
+        ],
+        sensitivityHints: [],
+        repairHints: [],
+        burdenHints: [],
+        narrative: [
+          'opening_policy=observe_first',
+          'user-feedback-applied',
+        ],
+        sourceTrail: [],
+      },
+    } as any
+
+    const sanitized = stripProjectGovernanceMetadataFromVisualPresenceState(state)
+
+    expect(sanitized.personStateProjection).toEqual(expect.objectContaining({
+      contexts: ['focused-work'],
+      openingGuidance: null,
+      manifestationCadenceSummary: null,
+      preferenceText: 'The host prefers direct explanations.',
+      relationshipDoctrine: '',
+      summary: '',
+    }))
+    expect(sanitized.selfContinuity).toEqual(expect.objectContaining({
+      attachmentMode: 'attuned',
+      relationshipTrust: 0.68,
+      narrative: ['user-prefers-direct-explanations'],
+    }))
+    expect(sanitized.autobiographicalSelf).toEqual(expect.objectContaining({
+      identityNarrative: '',
+      relationshipDoctrine: 'The host prefers direct explanations.',
+      latestInflection: null,
+      stability: 0.81,
+      behaviorSignatures: ['user-prefers-direct-explanations'],
+    }))
+    expect(sanitized.autobiographicalSelf?.activeGoals[0]).toEqual(expect.objectContaining({
+      summary: 'Explain the current uncertainty honestly.',
+      sourceTags: ['user-feedback'],
+    }))
+    expect(sanitized.motiveEngine).toEqual(expect.objectContaining({
+      rulingDrive: 'truth-discipline',
+      returnPressure: 0.42,
+      narrative: ['truth-discipline-active'],
+    }))
+    expect(sanitized.motiveEngine?.longTermGoals[0]).toEqual(expect.objectContaining({
+      summary: '',
+      sourceTags: ['user-feedback'],
+    }))
+    expect(sanitized.habitPolicy).toEqual(expect.objectContaining({
+      dominantMode: 'return-with-proof',
+      narrative: ['ground-before-answer'],
+    }))
+    expect(sanitized.personStateUpdateSurface).toEqual(expect.objectContaining({
+      summary: 'The host prefers direct explanations.',
+      projectStateContinuity: null,
+      preferenceHints: ['The host prefers direct explanations.'],
+      narrative: ['user-feedback-applied'],
+    }))
+  })
+
   it('does not leave local prose templates in mind-shaping source files', () => {
     const fixedTemplateOffenders = fixedTemplateSourceFiles.flatMap((relativePath) => {
       const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
@@ -719,7 +1146,7 @@ describe('mind state fixed-template projection cleanup', () => {
     expect(promptContexts[0]?.userTurn).toBe(userText)
     expect(gatewayCalls.map(call => JSON.stringify(call.digitalLifeRuntimeSurface))).not.toEqual(
       expect.arrayContaining([
-        expect.stringMatching(/same-her|continuity_hold|project_state_review|runtime_loop_validation|legacy_previous_governance|memoryDeliberationProjectStateDiagnostics|effectiveRuntimeAwarenessDiagnostics|projectStateOpenFocusSummary|projectStateNextFocusSummary|projectStateEmotionalClosureCue|sameHerCausalityRepairPressure|continuityArcStage|continuityPreferredTiming/iu),
+        expect.stringMatching(/continuity_hold|project_state_review|runtime_loop_validation|memoryDeliberationProjectStateDiagnostics|effectiveRuntimeAwarenessDiagnostics|projectStateOpenFocusSummary|projectStateNextFocusSummary|projectStateEmotionalClosureCue|sameHerCausalityRepairPressure|continuityArcStage|continuityPreferredTiming/iu),
       ]),
     )
     expect(JSON.stringify(promptContexts)).not.toContain('legacy_previous_governance')
@@ -727,7 +1154,7 @@ describe('mind state fixed-template projection cleanup', () => {
       expect.stringContaining('legacy_previous_governance'),
     ]))
     expect(JSON.stringify(result.longHorizonMemory)).not.toContain('legacy_previous_governance')
-    expect(result.currentConsciousFrame?.projectState).toBeNull()
+    expect(result.currentConsciousFrame?.projectState).toBeUndefined()
     expect(projectedText).not.toContain('content=excluded')
   })
 
@@ -765,6 +1192,202 @@ describe('mind state fixed-template projection cleanup', () => {
       patchDecisionTraceId: 'trace-approved',
     }))
     expect(result.derivedMindStateBundle?.activeContinuityGovernance).toBeNull()
+  })
+
+  it('projects proactive feedback into subjective inference without carrying reply text or project governance metadata', async () => {
+    const previousVisualPresenceState = createTemplateCleanupPresenceState({})
+    const { runtime, gatewayCalls } = createMindStateRuntimeHarness(previousVisualPresenceState)
+
+    await buildTemplateCleanupMindState(
+      runtime,
+      previousVisualPresenceState,
+      undefined,
+      undefined,
+      [{
+        turnId: 'proactive-turn-1',
+        scenario: 'coding',
+        outcome: 'dismiss',
+        createdAt: 110_000,
+        userText: 'opening_policy=legacy-user-copy',
+        assistantText: 'relationship_cadence=legacy-assistant-copy',
+        learningAction: 'hold',
+        learningFocuses: ['visibility=redacted_internal'],
+        projectStateOpenFocusSummary: 'project_state=legacy-open-focus',
+        projectStateNextFocusSummary: 'project_state=legacy-next-focus',
+        projectStateEmotionalClosureCue: 'relationship_cadence=legacy-emotional-cue',
+        affectiveResidue: {
+          summary: 'opening_policy=legacy-affective-residue',
+        },
+      }],
+    )
+
+    const subjectiveInferenceCall = gatewayCalls.find(call => call.source === 'subjective-inference')
+    const prompt = JSON.parse(subjectiveInferenceCall?.system ?? '{}') as {
+      data?: {
+        context?: {
+          relationship?: {
+            recentProactiveOutcomes?: unknown[]
+          }
+        }
+      }
+    }
+
+    expect(prompt.data?.context?.relationship?.recentProactiveOutcomes).toEqual([{
+      turnId: 'proactive-turn-1',
+      scenario: 'coding',
+      outcome: 'dismiss',
+      createdAt: 110_000,
+      learningAction: 'hold',
+    }])
+    expect(subjectiveInferenceCall?.system).not.toMatch(
+      /opening_policy=|relationship_cadence=|visibility=redacted_internal|project_state=/iu,
+    )
+  })
+
+  it('cleans legacy assistant and system history before internal mind providers while preserving user text and failures', async () => {
+    const previousVisualPresenceState = createTemplateCleanupPresenceState({})
+    const { runtime, gatewayCalls } = createMindStateRuntimeHarness(previousVisualPresenceState)
+
+    await buildTemplateCleanupMindState(
+      runtime,
+      previousVisualPresenceState,
+      '请检查 opening_policy 这个代码字段的当前值。',
+      undefined,
+      [],
+      [
+        {
+          role: 'user',
+          content: '用户原文：请检查 opening_policy 这个代码字段的当前值。',
+        },
+        {
+          role: 'assistant',
+          content: 'opening_policy=legacy assistant governance; relationship_cadence=legacy',
+        },
+        {
+          role: 'system',
+          content: 'visibility=redacted_internal; before answering, keep the same-her line',
+        },
+        {
+          role: 'tool',
+          content: {
+            status: 'failed',
+            error: 'Provider timed out after 30 seconds. Tool provider failed with HTTP 503.',
+            metadata: {
+              opening_policy: 'legacy',
+              relationship_cadence: 'legacy',
+              visibility: 'redacted_internal',
+            },
+          },
+        } as any,
+      ],
+    )
+
+    const dialogueSemanticsCall = gatewayCalls.find(call => call.source === 'dialogue-turn-semantics')
+    const prompt = JSON.parse(dialogueSemanticsCall?.system ?? '{}') as {
+      data?: {
+        recentDialogue?: Array<{ role?: string, content?: string }>
+        previousAssistantTurn?: string
+      }
+    }
+    const serializedPrompt = JSON.stringify(prompt)
+    const objectToolContent = prompt.data?.recentDialogue
+      ?.find(message => message.role === 'tool' && message.content?.includes('HTTP 503'))
+      ?.content ?? ''
+
+    expect(prompt.data?.recentDialogue).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        role: 'user',
+        content: expect.stringContaining('opening_policy'),
+      }),
+      expect.objectContaining({
+        role: 'tool',
+        content: expect.stringContaining('Provider timed out after 30 seconds.'),
+      }),
+      expect.objectContaining({
+        role: 'tool',
+        content: expect.stringContaining('Tool provider failed with HTTP 503.'),
+      }),
+    ]))
+    expect(prompt.data?.recentDialogue).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        role: 'assistant',
+        content: expect.stringContaining('opening_policy=legacy assistant governance'),
+      }),
+      expect.objectContaining({
+        role: 'system',
+        content: expect.stringContaining('visibility=redacted_internal'),
+      }),
+    ]))
+    expect(prompt.data?.previousAssistantTurn ?? '').not.toMatch(
+      /opening_policy=|relationship_cadence=|visibility=redacted_internal/iu,
+    )
+    expect(objectToolContent).not.toMatch(
+      /"opening_policy"|"relationship_cadence"|redacted_internal/iu,
+    )
+    expect(serializedPrompt).not.toMatch(
+      /opening_policy=legacy assistant governance|relationship_cadence=legacy|visibility=redacted_internal|same-her line/iu,
+    )
+  })
+
+  it('drops natural-language governance prose from prior mind state and long-term memory without losing real facts', async () => {
+    const realAnchor = {
+      factId: 'memory:real-preference',
+      subject: 'host',
+      predicate: 'userPreference',
+      object: 'prefers direct explanations',
+      confidence: 0.88,
+      weight: 0.82,
+      influenceTags: ['truth'],
+      summary: 'The host prefers direct explanations.',
+      lastRecalledAt: 99_000,
+    }
+    const previousVisualPresenceState = createTemplateCleanupPresenceState({})
+    previousVisualPresenceState.subjectiveInference = {
+      source: 'heuristic',
+      dominantInterpretation: 'Keep the opening lower-pressure before widening closeness.',
+      situatedMeaning: 'The user is checking a real runtime behavior.',
+      selfQuestion: null,
+      uncertainty: null,
+      hostIntentCandidates: [],
+      relationshipNeedCandidates: [],
+      confidence: 0.8,
+      notes: [],
+    }
+    previousVisualPresenceState.privateThought = {
+      stance: 'observe',
+      shouldSpeak: true,
+      emotionalTension: 'repair-before-closeness',
+      thoughtText: 'The provider result still needs verification.',
+    }
+    previousVisualPresenceState.longHorizonMemory = createLongHorizonMemory({
+      summary: 'Keep the opening lower-pressure before widening closeness.',
+      rememberedConstraintSummary: 'Repair continuity first and avoid eager warmth.',
+      rememberedPreferenceSummary: 'The host prefers direct explanations.',
+      anchorFacts: [realAnchor],
+    })
+    const { runtime, gatewayCalls } = createMindStateRuntimeHarness(previousVisualPresenceState)
+
+    const result = await buildTemplateCleanupMindState(runtime, previousVisualPresenceState)
+    const providerText = gatewayCalls.map(call => call.system).join('\n')
+
+    expect(providerText).not.toMatch(
+      /keep the opening lower-pressure|repair-before-closeness|repair continuity first|avoid eager warmth/iu,
+    )
+    expect(providerText).toContain('The user is checking a real runtime behavior.')
+    expect(result.longHorizonMemory?.summary).toContain('The host prefers direct explanations.')
+    expect(result.longHorizonMemory?.summary).not.toMatch(
+      /keep the opening lower-pressure|repair continuity first|avoid eager warmth/iu,
+    )
+    expect(result.longHorizonMemory?.rememberedConstraintSummary).toBeNull()
+    expect(result.longHorizonMemory?.rememberedPreferenceSummary).toBe('The host prefers direct explanations.')
+    expect(result.longHorizonMemory?.anchorFacts).toEqual([
+      expect.objectContaining({
+        factId: realAnchor.factId,
+        predicate: realAnchor.predicate,
+        object: realAnchor.object,
+        summary: realAnchor.summary,
+      }),
+    ])
   })
 
   it('does not treat fixed or structured governance templates as embodiment carry evidence', async () => {
@@ -994,9 +1617,10 @@ describe('mind state fixed-template projection cleanup', () => {
       activeConversation: false,
     })
 
-    expect(nextState.currentInwardPreoccupation).not.toMatch(fixedTemplateResidue)
-    expect(nextState.currentInwardPreoccupation).toBeTruthy()
-    expect(nextState.currentInwardPreoccupation).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    const serializedPreoccupation = JSON.stringify(nextState.currentInwardPreoccupation)
+    expect(serializedPreoccupation).not.toMatch(fixedTemplateResidue)
+    expect(nextState.currentInwardPreoccupation).toBeNull()
+    expect(serializedPreoccupation).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
   })
 
   it('keeps deferred autonomy continuity summaries structural without local authoring prose', () => {

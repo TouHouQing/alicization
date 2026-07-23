@@ -167,17 +167,34 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     return item.kind === 'procedural' || item.kind === 'autobiographical'
   }
 
+  const legacyProjectGovernanceAssignmentPattern
+    = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|project_state|runtime_loop_validation|runtime_personhood|continuity_(?:anchor|hold|cue|timing|cadence)|owner)\s*=|visibility\s*=\s*redacted_internal/iu
+  const legacyProjectGovernanceIdentifierPattern
+    = /(?:^|[^a-z0-9])(?:same-her-(?:baseline|inward-carry|causality-repair-pressure|emotional-closure-carry-active)|continuity-proactive-gap-active|project-state-causality-repair)(?:$|[^a-z0-9])|projectstateidentitycontinuity|project-state-identity-continuity/iu
+  const legacyProjectGovernanceKeyPattern
+    = /^(?:projectState|project_state|projectStateContinuity|activeContinuityGovernance|sameHerCausalityRepairPressure|opening_policy|relationship_cadence)$/u
+
+  function carriesLegacyProjectGovernanceConsolidationProjection(raw: unknown): boolean {
+    if (typeof raw === 'string') {
+      return legacyProjectGovernanceAssignmentPattern.test(raw)
+        || legacyProjectGovernanceIdentifierPattern.test(raw)
+    }
+    if (Array.isArray(raw))
+      return raw.some(carriesLegacyProjectGovernanceConsolidationProjection)
+    if (!raw || typeof raw !== 'object')
+      return false
+
+    return Object.entries(raw).some(([key, value]) =>
+      legacyProjectGovernanceKeyPattern.test(key)
+      || (key === 'visibility' && value === 'redacted_internal')
+      || carriesLegacyProjectGovernanceConsolidationProjection(value),
+    )
+  }
+
   function isLegacyProjectGovernanceConsolidation(
     item: AlicizationMemoryConsolidationRecord,
   ) {
-    return /same[ -]her|project[-_ ]?state|continuity[-_ ]?(?:hold|identity|line|thread|anchor|governance)|runtime_personhood|phase[-_ ]?1/iu.test([
-      item.id,
-      item.periodKey,
-      item.summary,
-      item.lesson,
-      ...item.cues,
-      ...(item.derivedEventIds ?? []),
-    ].filter(Boolean).join(' | '))
+    return carriesLegacyProjectGovernanceConsolidationProjection(item)
   }
 
   function readTransientRecallCache<T>(key: string, now = Date.now()) {
@@ -619,9 +636,12 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       options.listPersonaReinforcementEvents({ cardId, limit: 24 }).catch(() => []),
       options.readMindHead<AlicizationPersonStateUpdateSurface>(cardId, 'person-state-update-surface').catch(() => null),
     ])
+    const cleanConsolidations = consolidations.filter(
+      item => !isLegacyProjectGovernanceConsolidation(item),
+    )
     if (
       events.length === 0
-      && consolidations.length === 0
+      && cleanConsolidations.length === 0
       && relationshipOutcomes.length === 0
       && reinforcementEvents.length === 0
       && !relationshipDynamics
@@ -631,7 +651,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     const baseModel = buildHostPersonModelSnapshot({
       events,
       facts: [],
-      consolidations,
+      consolidations: cleanConsolidations,
       relationshipOutcomes,
       reinforcementEvents,
       personStateUpdateSurface,

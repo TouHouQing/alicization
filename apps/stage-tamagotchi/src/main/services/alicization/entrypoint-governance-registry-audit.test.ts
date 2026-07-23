@@ -167,9 +167,9 @@ describe('entrypoint governance registry audit', () => {
     expect(registry.some(entry => entry.domain === 'chat-start' && entry.mode === 'normalize-before-use')).toBe(true)
     expect(registry.some(entry => entry.domain === 'chat-start' && entry.mode === 'read-only-downstream')).toBe(true)
 
-    expect(registry.some(entry => entry.domain === 'pre-dialogue-transport' && entry.mode === 'identity-construction')).toBe(true)
     expect(registry.some(entry => entry.domain === 'pre-dialogue-transport' && entry.mode === 'transport-sanitization')).toBe(true)
-    expect(registry.some(entry => entry.domain === 'pre-dialogue-transport' && entry.mode === 'bridge-forwarding')).toBe(true)
+    expect(registry.some(entry => entry.domain === 'pre-dialogue-transport' && entry.mode === 'identity-construction')).toBe(false)
+    expect(registry.some(entry => entry.domain === 'pre-dialogue-transport' && entry.mode === 'bridge-forwarding')).toBe(false)
 
     expect(registry.some(entry => entry.domain === 'chat-entry' && entry.mode === 'authority')).toBe(true)
     expect(registry.filter(entry => entry.domain === 'chat-entry' && entry.mode === 'normalize-before-use')).toEqual([
@@ -259,22 +259,10 @@ describe('entrypoint governance registry audit', () => {
 
     const expectedMirrors = [
       {
-        transportRelativePath: '../../../../../../packages/stage-ui/src/stores/chat.ts',
-        transportMode: 'identity-construction',
-        chatEntryRelativePath: './chat.ts',
-        chatEntryMode: 'authority',
-      },
-      {
         transportRelativePath: '../../../renderer/App.vue',
         transportMode: 'transport-sanitization',
         chatEntryRelativePath: '../../../../apps/stage-tamagotchi/src/renderer/App.vue',
         chatEntryMode: 'read-only-downstream',
-      },
-      {
-        transportRelativePath: '../../../../../../packages/stage-ui/src/stores/mods/api/context-bridge.ts',
-        transportMode: 'bridge-forwarding',
-        chatEntryRelativePath: './mods/api/context-bridge.ts',
-        chatEntryMode: 'authority',
       },
     ] as const
 
@@ -319,10 +307,11 @@ describe('entrypoint governance registry audit', () => {
     expect(allowedOverlaps.every(entry => entry.reason.length > 0)).toBe(true)
   })
 
-  it('keeps runtime.ts overlap concrete by anchoring chat-start normalization, main-gateway provider dispatch wiring, runtime-owned proactive/reminder entry markers, execution-preflight rebuild, and audited execution redispatch in one audit instead of relying only on the overlap reason prose', () => {
+  it('keeps runtime.ts overlap concrete without restoring deleted pre-dialogue governance', () => {
     const runtimeSource = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
 
-    expect(runtimeSource).toContain('const normalizedPayload = stripLegacyChatStartPayloadFields(payload)')
+    expect(runtimeSource).toContain('const normalizedPayload = payload')
+    expect(runtimeSource).not.toContain('stripLegacyChatStartPayloadFields')
     expect(runtimeSource).not.toContain('resolveAlicizationChatStartPayloadPreDialogueSendIdentity')
     expect(runtimeSource).toContain('resolveAlicizationMainChatStartResult({')
     expect(runtimeSource).toContain('const mainGatewayTextProvider: AlicizationMainGatewayTextProvider = generateMainGatewayText')
@@ -334,10 +323,10 @@ describe('entrypoint governance registry audit', () => {
     expect(runtimeSource).toContain('dispatchTaskThread: invocation => dispatchTaskThreadWithExecutionDelivery(invocation)')
   })
 
-  it('keeps main-chat-session-runtime overlap concrete by anchoring chat-start renormalization, session-bound execution runtime-context requests, and live execution follow-up assembly in one audit instead of relying only on the overlap reason prose', () => {
+  it('keeps main-chat-session-runtime execution ownership without restoring deleted chat-start cue repair', () => {
     const sessionRuntimeSource = readFileSync(new URL('./main-chat-session-runtime.ts', import.meta.url), 'utf8')
 
-    expect(sessionRuntimeSource).toContain('stripLegacyChatStartPayloadFields(')
+    expect(sessionRuntimeSource).not.toContain('stripLegacyChatStartPayloadFields(')
     expect(sessionRuntimeSource).not.toContain('resolveAlicizationChatStartPayloadPreDialogueSendIdentity')
     expect(sessionRuntimeSource).toContain('buildExecutionRuntimeContext: async (toolContext) => {')
     expect(sessionRuntimeSource).toContain('return await agentTurn.buildExecutionRuntimeContext({')

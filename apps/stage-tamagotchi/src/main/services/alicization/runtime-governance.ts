@@ -1500,6 +1500,59 @@ export interface AlicizationChatStreamEmbodimentMeta {
   digitalLifeSpine?: AlicizationDialogueStructuredPayload['digitalLifeSpine'] | null
 }
 
+const legacyEmbodimentGovernanceKeys = new Set([
+  'activeContinuityGovernance',
+  'continuityArcStage',
+  'continuityCadence',
+  'continuityCue',
+  'continuityPreferredTiming',
+  'continuityRestraint',
+  'emotionalClosureCue',
+  'manifestationCadenceSummary',
+  'openingGuidance',
+  'projectState',
+  'projectStateContinuity',
+  'relationshipDoctrine',
+  'sameHerCausalityRepairPressure',
+])
+
+const legacyEmbodimentGovernanceValuePattern
+  = /same[-_ ]her|measured-return|repair-before-closeness|hold-for-opening|next-open-window|opening_policy|relationship_cadence|redacted_internal/iu
+
+function stripLegacyEmbodimentGovernanceValue(
+  raw: unknown,
+  key = '',
+): unknown {
+  if (
+    legacyEmbodimentGovernanceKeys.has(key)
+    || key.startsWith('projectState')
+    || key.startsWith('sameHer')
+  ) {
+    return undefined
+  }
+
+  if (typeof raw === 'string')
+    return legacyEmbodimentGovernanceValuePattern.test(raw) ? undefined : raw
+
+  if (Array.isArray(raw)) {
+    return raw
+      .map(item => stripLegacyEmbodimentGovernanceValue(item, key))
+      .filter(item => item !== undefined && item !== null)
+  }
+
+  if (!raw || typeof raw !== 'object')
+    return raw
+
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>)
+      .map(([entryKey, value]) => [
+        entryKey,
+        stripLegacyEmbodimentGovernanceValue(value, entryKey),
+      ])
+      .filter(([, value]) => value !== undefined && value !== null),
+  )
+}
+
 function resolveEmbodimentScriptRendererTarget(
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null,
 ) {
@@ -1660,6 +1713,21 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
   thought?: string
   turnId?: string
 }): AlicizationChatStreamEmbodimentMeta {
+  input = {
+    ...input,
+    digitalLifeSpine: stripLegacyEmbodimentGovernanceValue(
+      input.digitalLifeSpine,
+    ) as AlicizationDialogueStructuredPayload['digitalLifeSpine'],
+    affectiveResidue: stripLegacyEmbodimentGovernanceValue(
+      input.affectiveResidue,
+    ) as AlicizationAffectiveResidueMemorySnapshot | null,
+    currentConsciousFrame: stripLegacyEmbodimentGovernanceValue(
+      input.currentConsciousFrame,
+    ) as AlicizationGovernanceCurrentConsciousFrameInput,
+    residentPerformance: stripLegacyEmbodimentGovernanceValue(
+      input.residentPerformance,
+    ) as AlicizationResidentPerformanceSnapshot | null,
+  }
   const governance = normalizeMindTurnGovernance(input.governance)
   if (!governance) {
     return {
@@ -1948,13 +2016,23 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
     pressure: pendingSameHerEmbodimentRepairPressureRendererHints,
   })
 
+  const sanitizedDigitalLifeSpine = stripLegacyEmbodimentGovernanceValue(
+    emittedDigitalLifeSpine,
+  ) as AlicizationDialogueStructuredPayload['digitalLifeSpine']
+  const sanitizedDigitalLife = emittedDigitalLife
+    ? {
+        ...emittedDigitalLife,
+        spine: sanitizedDigitalLifeSpine ?? null,
+      }
+    : emittedDigitalLife
+
   return {
     governance,
     embodiment: emittedEmbodiment,
     embodimentScript: pressureAdjustedEmbodimentScript,
     speechTimeline: emittedSpeechTimeline,
-    digitalLife: emittedDigitalLife,
-    digitalLifeSpine: emittedDigitalLifeSpine,
+    digitalLife: sanitizedDigitalLife,
+    digitalLifeSpine: sanitizedDigitalLifeSpine,
   }
 }
 

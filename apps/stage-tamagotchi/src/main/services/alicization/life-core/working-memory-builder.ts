@@ -20,7 +20,6 @@ import type {
 } from './working-memory'
 
 import {
-  alicizationFixedTemplateReplacement,
   containsAlicizationFixedTemplateResidue,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
@@ -74,27 +73,16 @@ function detectCorrectionScope(text: string) {
 }
 
 function looksLikeCorrection(text: string) {
-  return /不是这个|不想要|不要固定|固定回复|固定模板|我需要|你搞错|你错了|别这样|不要这样/u.test(text)
-}
-
-function looksLikeTemplateRejectionCorrection(text: string) {
-  return /(?:不要|别|不想要|禁止|移除|清除|别再|不要再)[^。.!?]*(?:固定模板|固定回复|模板化|same-her|one continuous her|Before (?:answering|speaking|acting)|Right now I am|local-first digital life project|同一个她|同一个\s*her|数字生命主线)/iu.test(text)
+  return /不是这个|不想要|不要固定|固定回复|固定模板|我需要|你搞错|你错了|别这样|不要这样|(?:不要|别|不想要|禁止|移除|清除|别再|不要再)[^。.!?]*(?:固定模板|固定回复|模板化|same-her|one continuous her|Before (?:answering|speaking|acting)|Right now I am|local-first digital life project|同一个她|同一个\s*her|数字生命主线)/iu.test(text)
 }
 
 function sanitizeWorkingMemoryStoredText(raw: unknown, maxChars: number) {
   const normalized = normalizeWorkingMemoryText(raw, maxChars)
   if (!normalized)
     return ''
-  if (looksLikeTemplateRejectionCorrection(normalized))
-    return '不要使用固定模板；用户反对模板化人格/记忆回复。'
-  if (containsAlicizationFixedTemplateResidue(normalized)) {
-    return sanitizeAlicizationProviderFacingText(
-      normalized,
-      maxChars,
-      alicizationFixedTemplateReplacement,
-    )
-  }
-  return normalized
+  return containsAlicizationFixedTemplateResidue(normalized)
+    ? sanitizeAlicizationProviderFacingText(normalized, maxChars)
+    : normalized
 }
 
 function looksLikeThinContinuationCue(text: string) {
@@ -159,8 +147,14 @@ function mergeLongTermCandidates(
 ) {
   const result: WorkingMemoryLongTermCandidate[] = []
   const seen = new Set<string>()
-  for (const candidate of [...current, ...(previous ?? [])]) {
-    const summary = sanitizeWorkingMemoryStoredText(candidate.summary, 260)
+  for (const entry of [
+    ...current.map(candidate => ({ candidate, current: true })),
+    ...(previous ?? []).map(candidate => ({ candidate, current: false })),
+  ]) {
+    const candidate = entry.candidate
+    const summary = entry.current
+      ? normalizeWorkingMemoryText(candidate.summary, 260)
+      : sanitizeWorkingMemoryStoredText(candidate.summary, 260)
     const reason = sanitizeWorkingMemoryStoredText(candidate.reason, 260)
     const sourceTurnIds = uniqueWorkingMemoryTexts(candidate.sourceTurnIds, 12, 120)
     const key = [
@@ -182,6 +176,17 @@ function mergeLongTermCandidates(
       break
   }
   return result
+}
+
+function recoverLongTermCandidateSummary(
+  candidate: WorkingMemoryLongTermCandidate,
+  recentRawTurns: WorkingMemoryTurn[],
+) {
+  const sourceText = candidate.sourceTurnIds
+    .map(sourceTurnId => recentRawTurns.find(turn => turn.turnId === sourceTurnId)?.text ?? '')
+    .map(text => normalizeWorkingMemoryText(text, 260))
+    .find(Boolean)
+  return sourceText || candidate.summary
 }
 
 function mergeAudit(current: WorkingMemoryAuditState, previous: WorkingMemoryAuditState | null | undefined): WorkingMemoryAuditState {
@@ -228,7 +233,7 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
   for (const [index, turn] of (input.recentTurns ?? []).entries()) {
     const createdAt = Number.isFinite(turn.createdAt) ? Number(turn.createdAt) : input.now - (index + 2)
     const turnId = normalizeWorkingMemoryText(turn.turnId, 120) || `recent-${index + 1}`
-    const userText = sanitizeWorkingMemoryStoredText(turn.userText, 900)
+    const userText = normalizeWorkingMemoryText(turn.userText, 900)
     const assistantText = sanitizeWorkingMemoryStoredText(turn.assistantText, 900)
     const origin = turn.failureSurface?.origin ?? turn.origin ?? null
     const learningPolicy = turn.learningPolicy ?? (turn.failureSurface
@@ -273,7 +278,7 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
     }
   }
 
-  const currentText = sanitizeWorkingMemoryStoredText(input.currentUserText, 1200)
+  const currentText = normalizeWorkingMemoryText(input.currentUserText, 1200)
   if (currentText) {
     turns.push(normalizeWorkingMemoryTurn({
       turnId: 'current-user',
@@ -429,8 +434,13 @@ export function buildWorkingMemorySnapshot(input: BuildWorkingMemorySnapshotInpu
     ...(input.conversationState?.memoryQueryHints ?? []),
     ...(input.dialogueWorldThread?.recallKeys ?? []),
   ], previousSnapshot?.memoryQueryHints, 8, 120)
+  const currentLongTermCandidates = createLongTermCandidatesFromWorkingTurns(recentRawTurns)
+    .map(candidate => ({
+      ...candidate,
+      summary: recoverLongTermCandidateSummary(candidate, recentRawTurns),
+    }))
   const mergedLongTermCandidates = mergeLongTermCandidates(
-    createLongTermCandidatesFromWorkingTurns(recentRawTurns),
+    currentLongTermCandidates,
     previousSnapshot?.longTermCandidates,
   )
   const failureTurnIds = recentRawTurns

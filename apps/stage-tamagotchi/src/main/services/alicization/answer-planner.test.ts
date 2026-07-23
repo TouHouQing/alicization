@@ -287,4 +287,55 @@ describe('buildAnswerPlanner', () => {
     expect(planner.selectedReflectionId).toBeNull()
     expect(planner.governingFocus).not.toContain('Temporary noise')
   })
+
+  it('does not carry person-state opening or closeness governance text into planner intent', () => {
+    const planner = buildPlanner({
+      ownership: {
+        subject: 'relationship',
+        screenReferenceMode: 'avoid',
+      },
+      conversationState: {
+        primaryTurnAnchor: '用户正在说明昨晚发生的真实情况。',
+        hostMove: '用户正在说明昨晚发生的真实情况。',
+      },
+      runtimeSurface: {
+        version: 'digital-life-runtime-surface-v1',
+        perception: {
+          currentScene: null,
+        },
+        world: {
+          worldModel: null,
+          worldOntology: null,
+          relationshipModel: null,
+        },
+        cognition: {
+          privateThought: null,
+          mindKernel: null,
+        },
+        memory: {
+          personStateProjection: {
+            openingGuidance: 'Observe first with lighter pressure.',
+            manifestationCadenceSummary: 'Manifest with lower pressure and preserve context.',
+            relationshipPosture: 'restrained',
+            activeClosenessContext: 'focused-work',
+            activeClosenessRung: 'space-first',
+            sensitivityText: '用户昨晚连续工作到很晚。',
+            burdenText: '用户昨晚睡眠不足。',
+          },
+        },
+        agency: {},
+        dialogue: {},
+        raw: {},
+      },
+    })
+
+    expect(planner.governingFocus).toContain('用户正在说明昨晚发生的真实情况')
+    expect(planner.answerIntent).toContain('用户昨晚睡眠不足')
+    expect(planner.governingFocus).not.toMatch(
+      /Observe first with lighter pressure|Manifest with lower pressure|space-first|restrained/iu,
+    )
+    expect(planner.answerIntent).not.toMatch(
+      /Observe first with lighter pressure|Manifest with lower pressure|space-first|restrained/iu,
+    )
+  })
 })

@@ -19,20 +19,9 @@ import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
-import {
-  alicizationFixedTemplateReplacement,
-  formatAlicizationProjectStateAwarenessFields,
-  sanitizeAlicizationProviderFacingText,
-} from '@proj-alicization/stage-shared'
-
 import { buildAutobiographicalContinuityLines } from './autobiographical-self'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
-import {
-  isAlicizationThinProjectAwarenessLine,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
-  resolveAlicizationProjectStateBrief,
-} from './project-state-brief'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -196,185 +185,17 @@ function buildSelfAuthorityAnchors(selfContinuityAuthority?: AlicizationSelfCont
   ], 5)
 }
 
-function buildProjectStateCarryLine(
-  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null,
-) {
-  const rememberedPlanSummary = sanitizeText(longHorizonMemory?.rememberedPlanSummary, 220)
-  const rememberedConstraintSummary = sanitizeText(longHorizonMemory?.rememberedConstraintSummary, 220)
-  const rememberedPreferenceSummary = sanitizeText(longHorizonMemory?.rememberedPreferenceSummary, 220)
-  const dominantCueSummary = sanitizeText(longHorizonMemory?.dominantCueSummary, 220)
-  const combined = [
-    rememberedPlanSummary,
-    rememberedConstraintSummary,
-    rememberedPreferenceSummary,
-    dominantCueSummary,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-
-  const carriesProjectIdentity
-    = combined.includes('local-first digital life')
-      || combined.includes('one continuous her')
-      || combined.includes('same-her')
-      || combined.includes('same her')
-      || combined.includes('phase 1')
-  const carriesLandedProgress
-    = combined.includes('already survives')
-      || combined.includes('already landed')
-      || combined.includes('has landed')
-      || combined.includes('already become real')
-  const carriesOpenClosure
-    = combined.includes('still-open closure')
-      || combined.includes('not closed')
-      || combined.includes('open loop')
-      || combined.includes('still needs')
-
-  if (!carriesProjectIdentity && !carriesLandedProgress && !carriesOpenClosure)
-    return null
-
-  return sanitizeText([
-    carriesProjectIdentity ? 'memory_continuity=local_runtime.' : '',
-    carriesLandedProgress ? 'verified_closure_progress=partial.' : '',
-    carriesOpenClosure ? 'unresolved_closure=continuity.' : '',
-  ].filter(Boolean).join(' '), 220) || null
-}
-
-function buildProjectPreflightRecallFallbackProjectState(
-  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null,
-) {
-  const projectStateCarryLine = buildProjectStateCarryLine(longHorizonMemory)
-  if (!projectStateCarryLine)
-    return null
-
-  return {
-    identity: '',
-    currentPhase: '',
-    latestLandedProgress: projectStateCarryLine.includes('verified_closure_progress=partial.')
-      ? 'verified_closure_progress=partial.'
-      : '',
-    primaryOpenLoop: projectStateCarryLine.includes('unresolved_closure=continuity.')
-      ? 'unresolved_closure=continuity.'
-      : '',
-    preflightSummary: projectStateCarryLine,
-    preDialogueAwarenessLine: projectStateCarryLine,
-    awarenessLine: projectStateCarryLine,
-    companionBriefingLine: projectStateCarryLine,
-    sameHerSelfLine: projectStateCarryLine,
-  }
-}
-
-function sanitizeRecallProjectAnchorText(raw: unknown, maxChars = 720) {
-  const sanitized = sanitizeAlicizationProviderFacingText(raw, maxChars)
-  if (!sanitized || sanitized === alicizationFixedTemplateReplacement)
-    return null
-  if (
-    /local-first digital life project|Same Phase 1 digital life|Before (?:answering|speaking|acting)|one continuous "?her"?|same living line|same-her|same her|one living her/iu.test(sanitized)
-  ) {
-    return null
-  }
-  return sanitized
-}
-
-function isStructuredRecallProjectAnchorText(raw: unknown) {
-  const sanitized = sanitizeRecallProjectAnchorText(raw, 720)
-  return sanitized
-    && /\b(?:phase1_local_digital_life|runtime_personhood)\b/iu.test(sanitized)
-    && (
-      /\bidentity=phase1_local_digital_life\b/iu.test(sanitized)
-      || /\bproject_anchor=phase1_local_digital_life\b/iu.test(sanitized)
-      || sanitized === 'phase1_local_digital_life'
-      || /\bidentity=runtime_personhood\b/iu.test(sanitized)
-      || /\bproject_anchor=runtime_personhood\b/iu.test(sanitized)
-      || sanitized === 'runtime_personhood'
-    )
-    ? null
-    : null
-}
-
-function buildStructuredRecallProjectAnchor(input: {
-  raw?: unknown
-  fallbackProjectState?: ReturnType<typeof resolveAlicizationProjectStateBrief> | ReturnType<typeof buildProjectPreflightRecallFallbackProjectState> | null
-}) {
-  const fallbackProjectState = input.fallbackProjectState ?? null
-  const fallbackProjectStateAny = fallbackProjectState as any
-  const formatted = formatAlicizationProjectStateAwarenessFields({
-    identity: fallbackProjectState?.identity ?? input.raw ?? null,
-    currentPhase: fallbackProjectState?.currentPhase ?? null,
-    latestLandedProgress: fallbackProjectStateAny?.latestLandedProgress,
-    primaryOpenLoop: fallbackProjectState?.primaryOpenLoop,
-    nextClosureTarget: fallbackProjectStateAny?.nextClosureTarget,
-    sameHerSelfLine: fallbackProjectState?.sameHerSelfLine ?? null,
-    status: 'project_recall_anchor_sanitized',
-    maxChars: 720,
-  })
-
-  return formatted.trim()
-}
-
 function buildProjectPreflightRecallAnchor(input: {
   raw: unknown
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
 }) {
-  const summary = sanitizeText(input.raw, 220)
-  const longHorizonProjectFallback = buildProjectPreflightRecallFallbackProjectState(
-    input.longHorizonMemory ?? null,
-  )
-  if (!summary && !longHorizonProjectFallback)
-    return null
-
-  const fallbackProjectState = longHorizonProjectFallback ?? resolveAlicizationProjectStateBrief()
-  const canonicalSummary = sanitizeText(
-    resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: summary
-        ? {
-            preDialogueAwarenessLine: summary,
-            preflightSummary: summary,
-          }
-        : null,
-      fallbackProjectState,
-    }) ?? '',
-    720,
-  )
-
-  const resolvedSummary = !summary
-    ? canonicalSummary
-    : isAlicizationThinProjectAwarenessLine(summary)
-      ? canonicalSummary || summary
-      : canonicalSummary || summary
-
-  if (!resolvedSummary)
-    return null
-
-  const providerSafeSummary = isStructuredRecallProjectAnchorText(resolvedSummary)
-  if (providerSafeSummary && !isAlicizationThinProjectAwarenessLine(providerSafeSummary))
-    return `project:${providerSafeSummary}`
-
-  return `project:${buildStructuredRecallProjectAnchor({
-    raw: resolvedSummary,
-    fallbackProjectState,
-  })}`
+  void input
+  return null
 }
 
 function buildProjectEmotionalClosureRecallAnchor(raw: unknown) {
-  const summary = sanitizeText(raw, 220)
-  if (!summary)
-    return null
-  const sanitized = sanitizeAlicizationProviderFacingText(summary, 220)
-  if (
-    sanitized
-    && sanitized !== alicizationFixedTemplateReplacement
-    && !/same-her|same her|same living line|one living her|one continuous "?her"?|Before (?:answering|speaking|acting)|local-first digital life project/iu.test(sanitized)
-  ) {
-    return `project-emotion:${sanitized}`
-  }
-
-  const tags = [
-    /low-pressure|lower-pressure|measured-return/iu.test(summary) ? 'tone=low_pressure' : null,
-    /repair-before-closeness|repair first|repair-first/iu.test(summary) ? 'repair=before_closeness' : null,
-    /rest-protective|rest protection|fatigue|休息/u.test(summary) ? 'rest_protection=true' : null,
-  ].filter(Boolean).join('; ')
-  return `project-emotion:emotional_closure=content_sanitized; ${tags}`
+  void raw
+  return null
 }
 
 function pickRecallAnchor(...values: unknown[]) {
@@ -884,39 +705,6 @@ export function buildRecallGovernor(input: {
 }
 
 export function buildRecallGovernorSystemBlock(state: AlicizationRecallGovernorSnapshot | null | undefined) {
-  if (!state)
-    return ''
-
-  const sourceBudget = state.recalledFragmentSourceBudget && state.recalledFragmentSourceBudget.length > 0
-    ? state.recalledFragmentSourceBudget.map(item => `${item.sourceKind}:${item.maxItems}`).join(',')
-    : 'none'
-
-  return [
-    'Recall governor.',
-    'Recall gate: old memory entry is policy-gated.',
-    `Mode: ${state.mode}.`,
-    `Recall seed present: ${state.recallSeed ? 'yes' : 'no'}.`,
-    `Thread anchor count: ${state.threadAnchors?.length ?? 0}.`,
-    `Affect anchor count: ${state.affectAnchors?.length ?? 0}.`,
-    `Relationship anchor count: ${state.relationshipAnchors?.length ?? 0}.`,
-    `Salience bias: ${(state.salienceBias ?? 0.5).toFixed(2)}.`,
-    `Scene anchor present: ${state.sceneAnchor ? 'yes' : 'no'}.`,
-    `Scene familiarity hint: ${typeof state.sceneFamiliarityHint === 'number' ? state.sceneFamiliarityHint.toFixed(2) : 'none'}.`,
-    `Affective carry: ${state.affectiveCarry ? 'present' : 'none'}.`,
-    `Affective mood: ${sanitizeAlicizationProviderFacingText(state.affectiveCarry?.moodLabel, 64, '') || 'none'}.`,
-    `Affective tension: ${sanitizeAlicizationProviderFacingText(state.affectiveCarry?.emotionalTension, 64, '') || 'none'}.`,
-    `Embodied carry: ${state.embodiedCarry ? 'present' : 'none'}.`,
-    `Embodied presence: ${sanitizeAlicizationProviderFacingText(state.embodiedCarry?.presence, 64, '') || 'none'}.`,
-    `Embodied style: ${sanitizeAlicizationProviderFacingText(state.embodiedCarry?.suggestedStyle, 64, '') || 'none'}.`,
-    `Recollection intent: ${state.recollectionIntent ? 'present' : 'none'}.`,
-    `Recollection mode: ${sanitizeAlicizationProviderFacingText(state.recollectionIntent?.mode, 64, '') || 'none'}.`,
-    `Recollection temporal focus: ${sanitizeAlicizationProviderFacingText(state.recollectionIntent?.temporalFocus, 64, '') || 'none'}.`,
-    `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
-    `Allow active thoughts: ${state.allowActiveThoughts ? 'yes' : 'no'}.`,
-    `Allow recalled fragments: ${state.allowRecalledFragments ? 'yes' : 'no'}.`,
-    `Recalled fragment cap: ${state.recalledFragmentCap ?? 0}.`,
-    `Recalled fragment source budget: ${sourceBudget}.`,
-    `Carry as memory: ${state.carryAsMemory ? 'yes' : 'no'}.`,
-    `Rationale: ${sanitizeAlicizationProviderFacingText(state.rationale, 360, 'withheld')}.`,
-  ].join('\n')
+  void state
+  return ''
 }

@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildSoulBody, defaultFrontmatter, normalizeFrontmatter } from './runtime-soul'
+import {
+  buildSoulBody,
+  defaultFrontmatter,
+  normalizeCustomDirectives,
+  normalizeFrontmatter,
+} from './runtime-soul'
+
+describe('runtime soul custom directives', () => {
+  it('keeps user-authored persona guidance while removing legacy governance cues', () => {
+    expect(normalizeCustomDirectives([
+      '优先诚实，不要臆测。',
+      'opening_policy=measured-return | 说话自然一点。',
+      'relationship_cadence=hold-for-opening',
+      'Before answering, remember Alicization is the same local-first digital life project.',
+    ].join('\n'))).toBe([
+      '优先诚实，不要臆测。',
+      '说话自然一点。',
+    ].join('\n'))
+  })
+})
 
 describe('persona workshop compilation', () => {
   it('compiles persona workshop input into richer personality authority', async () => {
@@ -95,9 +114,9 @@ describe('runtime soul persona kernel seeding', () => {
 
     expect(frontmatter.host_attitude).not.toBe(defaultFrontmatter.host_attitude)
     expect(frontmatter.host_attitude).toContain('主人')
-    expect(frontmatter.core_incarnation).toContain('我是小艾')
-    expect(frontmatter.core_incarnation).toContain('女仆')
-    expect(frontmatter.core_incarnation).toContain('先接住主人情绪')
+    expect(frontmatter.core_incarnation).toContain('Identity name: 小艾')
+    expect(frontmatter.core_incarnation).toContain('Relation: 女仆')
+    expect(frontmatter.core_incarnation).toContain('User directive: 先接住主人情绪')
   })
 
   it('preserves already-evolved host attitude and core incarnation', () => {

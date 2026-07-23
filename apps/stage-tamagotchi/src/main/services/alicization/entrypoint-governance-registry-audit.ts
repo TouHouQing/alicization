@@ -49,11 +49,6 @@ const alicizationProjectEntrypointGovernanceAllowedCrossDomainOverlaps = [
     reason: 'main-chat-session-runtime.ts bridges chat-start normalization, session-bound execution context requests, and execution follow-up assembly.',
   },
   {
-    relativePath: 'main-chat-timeout-fallback.ts',
-    domains: ['chat-start', 'recovery-reentry'],
-    reason: 'main-chat-timeout-fallback.ts bridges chat-start fallback consumption with transparent timeout reconstruction.',
-  },
-  {
     relativePath: 'runtime-subconscious-tick.ts',
     domains: ['autonomous-dialogue', 'execution-dispatch', 'execution-preflight'],
     reason: 'runtime-subconscious-tick.ts bridges autonomous turn ownership, execution context requests, and deferred execution redispatch.',

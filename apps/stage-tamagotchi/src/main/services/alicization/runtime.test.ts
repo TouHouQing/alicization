@@ -1196,21 +1196,94 @@ describe('alicization runtime project-state audit helpers', () => {
       userText: '你好',
       assistantText: '你好，我在。',
       structured: {
+        format: 'mind-turn-v1',
         thought: 'respond politely',
         emotion: 'happy',
         reply: '你好，我在。',
         parsePath: 'json',
+        visibleReplyAuthority: 'llm-mind',
+      },
+      visibleReplyRealization: {
+        version: 'visible-reply-realization-v1',
+        expectedAuthority: 'llm-mind',
+        actualAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        mode: 'provider-stream',
+        visibleText: '你好，我在。',
+        blockedReasons: [],
       },
       createdAt: Date.now(),
     })
 
     expect(dbStub.appendConversationTurn).toBeCalledTimes(1)
-    expect(contextEmitMock).toBeCalledWith(alicizationDialogueResponded, expect.objectContaining({
+    const persistedTurn = dbStub.appendConversationTurn.mock.calls[0]?.[0] as AlicizationConversationTurnInput
+    const dialogueEvent = getDialogueRespondedEvents().find(event => event.turnId === 'turn-test-1')
+
+    expect(persistedTurn.structured).not.toHaveProperty('projectState')
+    expect(persistedTurn.structured?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
+    expect(dialogueEvent).toEqual(expect.objectContaining({
       cardId: 'default',
       turnId: 'turn-test-1',
       sessionId: 'session-test',
       isFallback: false,
     }))
+    expect(dialogueEvent?.structured).not.toHaveProperty('projectState')
+    expect(dialogueEvent?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
+  })
+
+  it('drops legacy visible-reply governance telemetry while preserving authority and failure facts', () => {
+    const normalized = runtimeTestInternals.normalizeVisibleReplyRealizationTelemetry({
+      version: 'visible-reply-realization-v1',
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'non-human-authored-blocked',
+      providerMindExecuted: false,
+      mode: 'provider-stream',
+      visibleText: 'Provider failed before a normal reply was available.',
+      nonHumanAuthoredStatus: 'provider-failed',
+      blockedReasons: ['provider-failed'],
+      reason: 'HTTP 503',
+      projectStateEvidenceStatus: 'present',
+      sameHerInwardCarry: 'same-her fixed carry',
+      emotionalClosureAudit: {
+        activeCue: 'relationship_cadence=measured_return',
+      },
+      selfAuthorityAudit: {
+        authoritySummary: 'opening_policy=observe_first',
+      },
+      projectStateAudit: {
+        sameHerSummary: 'project_state=legacy',
+      },
+      openingGuidanceHoldDetail: 'hold-for-opening',
+      companionshipHoldMode: 'measured-return',
+      openingEmbodimentAudit: {
+        firstBeatPosture: 'measured-return',
+        delivery: 'calm',
+        facialCue: 'soften',
+        actionCue: 'leave-room',
+        derivedFrom: 'legacy-governance',
+      },
+    })
+
+    expect(normalized).toEqual(expect.objectContaining({
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'non-human-authored-blocked',
+      providerMindExecuted: false,
+      nonHumanAuthoredStatus: 'provider-failed',
+      blockedReasons: ['provider-failed'],
+      reason: 'HTTP 503',
+    }))
+    for (const key of [
+      'projectStateEvidenceStatus',
+      'sameHerInwardCarry',
+      'emotionalClosureAudit',
+      'selfAuthorityAudit',
+      'projectStateAudit',
+      'openingGuidanceHoldDetail',
+      'companionshipHoldMode',
+      'openingEmbodimentAudit',
+    ]) {
+      expect(normalized).not.toHaveProperty(key)
+    }
   })
 
   it('registers persisted assistant turns into the dialogue world thread state', async () => {
@@ -11704,7 +11777,7 @@ describe('alicization runtime project-state audit helpers', () => {
     expect(appendedFragments.some((item: any) => typeof item.text === 'string' && item.text.includes('answer_act:'))).toBe(true)
   })
 
-  it('keeps proactive initiative lower-pressure when long-horizon trust meaning says the opening should stay less eager', async () => {
+  it('keeps proactive interruption suppressed when long-horizon trust records a cautious boundary', async () => {
     const sandboxPath = await createSandboxPath()
     let subjectiveInferenceSystemText = ''
     foregroundWindowSample = {
@@ -11798,7 +11871,7 @@ describe('alicization runtime project-state audit helpers', () => {
       await onEvent?.({
         type: 'text-delta',
         text: JSON.stringify({
-          thought: 'lower-pressure long-horizon trust keeps the opening tentative',
+          thought: 'the remembered boundary suggests waiting before interrupting',
           emotion: 'thinking',
           reply: '我先陪你看稳一点，再决定要不要直接提醒。',
           performance: {
@@ -11847,29 +11920,18 @@ describe('alicization runtime project-state audit helpers', () => {
         expect.objectContaining({ kind: 'repair' }),
         expect.objectContaining({ kind: 'trust' }),
       ]),
-      relationshipCadence: expect.objectContaining({
-        cadenceMode: 'measured-return',
-      }),
     }))
-    expect(visualPresenceState?.residentPerformance?.reasonTags).toContain('measured-return')
     expect(proactivePolicyAudit?.payload?.decision).toEqual(expect.objectContaining({
       shouldInterrupt: false,
       style: 'silent-observe',
-      reasonCodes: expect.arrayContaining([
-        'relationship-cadence-residue',
-        'continuity-next-open-window',
-      ]),
-      whyNow: expect.stringContaining('lower-pressure'),
-      whyNotLater: expect.stringContaining('lower-pressure'),
+      presenceOnlyHold: true,
     }))
-    expect(subjectiveInferenceSystemText).toContain('digital_life_line=')
-    expect(subjectiveInferenceSystemText).toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(subjectiveInferenceSystemText).toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-    expect(subjectiveInferenceSystemText).toContain('next_closure_target=Keep extending cross-modal identity-continuity')
-    expect(subjectiveInferenceSystemText).toMatch(/measured-return|repair-before-closeness|rest-protective|quiet-companionship/)
+    expect(subjectiveInferenceSystemText).not.toMatch(
+      /\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD)\]|next_closure_target=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu,
+    )
   })
 
-  it('keeps measured-return continuity across a scene shift instead of reopening as a fresh proactive approach', async () => {
+  it('keeps working-memory continuity across a scene shift without reopening proactive speech', async () => {
     const sandboxPath = await createSandboxPath()
     foregroundWindowSample = {
       appName: 'Cursor',
@@ -11976,7 +12038,7 @@ describe('alicization runtime project-state audit helpers', () => {
                 why: 'The host just changed scenes, so the safer move is to leave room before reopening closeness.',
               }],
               confidence: 0.78,
-              notes: ['scene-shift', 'carry-thread', 'lower-pressure'],
+              notes: ['scene-shift', 'carry-thread', 'leave-room'],
             }),
           })
           await onEvent?.({ type: 'finish', finishReason: 'stop' })
@@ -12009,7 +12071,7 @@ describe('alicization runtime project-state audit helpers', () => {
       await onEvent?.({
         type: 'text-delta',
         text: JSON.stringify({
-          thought: 'the scene changed, but the return still needs to stay lower-pressure',
+          thought: 'the scene changed, but the previous task remains relevant',
           emotion: 'thinking',
           reply: '我先不借这个新页面突然靠近，先把刚才那条线继续放轻一点。',
           performance: {
@@ -12045,7 +12107,6 @@ describe('alicization runtime project-state audit helpers', () => {
     await forceTick!({ cardId: 'default' })
     const firstState = await getVisualPresenceState!({ cardId: 'default' })
     expect(firstState?.initiative?.preferredStyle).toBe('silent-observe')
-    expect(firstState?.residentPerformance?.reasonTags).toContain('measured-return')
 
     foregroundWindowSample = {
       appName: 'Arc',
@@ -12060,38 +12121,23 @@ describe('alicization runtime project-state audit helpers', () => {
       .filter((item: any) => item.action === 'proactive-policy-evaluated')
     const secondPolicyAudit = proactivePolicyAudits.at(-1)
 
-    expect(secondState?.currentScene?.summary).toContain('project roadmap note page')
+    expect(secondState?.currentScene?.summary).toMatch(/project roadmap/i)
     expect(secondState?.currentScene?.summary ?? '').not.toContain('red TypeScript error panel')
     expect(secondState?.worldModel?.continuity.label).toBe('scene-shift')
     expect(secondState?.worldModel?.lingeringThreads.some((thread: any) => thread.kind === 'debugging')).toBe(true)
-    expect(secondState?.workingMemoryEpisodes.at(-1)?.summary).toContain('red TypeScript error panel')
+    expect(secondState?.workingMemoryEpisodes.at(-1)?.summary).toMatch(/runtime\.ts|typescript error/i)
     expect(secondState?.derivedMindStateBundle?.affectiveResidue).toEqual(expect.objectContaining({
       dominantResidueKind: 'repair',
-      relationshipCadence: expect.objectContaining({
-        cadenceMode: 'measured-return',
-      }),
     }))
     expect(secondState?.initiative?.preferredStyle).toBe('silent-observe')
     expect(secondState?.initiative?.shouldSpeak).toBe(false)
-    expect(secondState?.residentPerformance?.reasonTags).toContain('measured-return')
-    expect(secondState?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('digital life'),
-      memoryClosureSummary: expect.any(String),
-      nextClosureTarget: expect.stringContaining('identity-continuity'),
-    }))
+    expect(secondState?.runtimeDigest?.projectState).toBeUndefined()
     expect(secondPolicyAudit?.payload?.decision).toEqual(expect.objectContaining({
       shouldInterrupt: false,
       style: 'silent-observe',
-      reasonCodes: expect.arrayContaining([
-        'relationship-cadence-residue',
-        'continuity-next-open-window',
-      ]),
+      presenceOnlyHold: true,
     }))
-    expect(secondPolicyAudit?.payload?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('digital life'),
-      memoryClosureSummary: expect.any(String),
-      nextClosureTarget: expect.stringContaining('identity-continuity'),
-    }))
+    expect(secondPolicyAudit?.payload?.runtimeDigest?.projectState).toBeUndefined()
   })
 
   it('emits remembered-seam companionship reason on a real later chat turn when the same relationship seam reappears after scene hops', async () => {

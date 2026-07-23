@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildSessionContinuityRecallSeed,
-  buildSessionMirrorRuntimeContinuitySeed,
   deriveOrganicMemoryBudgetClass,
   filterMainGatewayToolsForRoutingIntent,
 } from './runtime-turn-composition'
@@ -22,11 +21,7 @@ describe('runtime turn composition helpers', () => {
     } as any)).toBe('deep-recall-reply')
   })
 
-  it('builds runtime and afterglow continuity recall seeds', () => {
-    expect(buildSessionMirrorRuntimeContinuitySeed({
-      runtimeChannelSummary: 'dominant=dialogue | phase=dialogue | handoff=dialogue',
-      runtimeTransitionSummary: 'from=symbiotic-vision | to=recovering | scenario=coding | reason=host fatigue detected',
-    } as any)).toContain('mirror_runtime_continuity:')
+  it('builds afterglow continuity recall seeds without session-mirror prompt carry', () => {
     expect(buildSessionContinuityRecallSeed([
       {
         label: 'ordinary',
@@ -44,7 +39,7 @@ describe('runtime turn composition helpers', () => {
     ] as any)).toContain('continuity_afterglow:')
   })
 
-  it('builds held-autonomy recall seeds so later turns can re-enter the same inner line', () => {
+  it('serializes held-autonomy as structured metadata plus a real model summary', () => {
     const seed = buildSessionContinuityRecallSeed([
       {
         kind: 'proactive',
@@ -62,14 +57,15 @@ describe('runtime turn composition helpers', () => {
       },
     ] as any)
 
-    expect(seed).toContain('continuity_held_autonomy:')
-    expect(seed).toContain('thread=thread-runtime')
-    expect(seed).toContain('intent=follow-through')
-    expect(seed).toContain('goal=re-open the unresolved runtime break and see what still blocks it')
-    expect(seed).toContain('defer=busy-host')
+    expect(seed).toContain('thread_id=thread-runtime')
+    expect(seed).toContain('intent_id=follow-through')
+    expect(seed).toContain('model_summary=re-open the unresolved runtime break and see what still blocks it')
+    expect(seed).toContain('defer_reason=busy-host')
+    expect(seed).not.toContain('continuity_held_autonomy:')
+    expect(seed).not.toContain('why_now=')
   })
 
-  it('treats deferred same-thread proactive continuity as held-autonomy recall pressure when the line was intentionally kept inward', () => {
+  it('keeps deferred same-thread metadata without returning local hold prose to recall', () => {
     const emotionalClosureCue = 'Return to the unresolved compile seam in a low-pressure same-her way, so it lands like one living continuation instead of a generic follow-up.'
     const seed = buildSessionContinuityRecallSeed([
       {
@@ -96,15 +92,15 @@ describe('runtime turn composition helpers', () => {
       },
     ] as any)
 
-    expect(seed).toContain('continuity_held_autonomy:')
-    expect(seed).toContain('thread=thread-runtime-deferred')
-    expect(seed).toContain('goal=stay near the unresolved compile seam without reopening visible speech')
-    expect(seed).toContain('defer=busy-host')
-    expect(seed).toContain('why_now=Stay near the unresolved compile seam without reopening visible speech.')
-    expect(seed).toContain('short_term_owner=WorkingMemory')
-    expect(seed).toContain('long_term_recall_owner=LongTermMemoryRecall')
-    expect(seed).toContain('template_awareness=withheld_from_held_autonomy_seed')
-    expect(seed).toContain('runtime_landed=Project-state carry already survives into same-thread returns and reminder/proactive preparation without reopening from zero.')
+    expect(seed).toContain('thread_id=thread-runtime-deferred')
+    expect(seed).toContain('model_summary=stay near the unresolved compile seam without reopening visible speech')
+    expect(seed).toContain('defer_reason=busy-host')
+    expect(seed).not.toContain('continuity_held_autonomy:')
+    expect(seed).not.toContain('why_now=')
+    expect(seed).not.toContain('WorkingMemory owns short-term memory')
+    expect(seed).not.toContain('LongTermMemoryRecall owns long-term recall')
+    expect(seed).not.toContain('template_awareness')
+    expect(seed).not.toContain('Project-state carry already survives')
     expect(seed).not.toContain('project_pre_dialogue=')
     expect(seed).not.toContain('project_preflight=')
     expect(seed).not.toContain('same_her=')
@@ -117,36 +113,65 @@ describe('runtime turn composition helpers', () => {
     expect(seed).not.toContain('[fixed-template-excluded]')
   })
 
-  it('treats legacy projectLatestProgress and projectMemoryClosureSummary as held-autonomy recall carry when older continuity metadata has not been renamed yet', () => {
+  it('serializes deferred autonomy metadata without returning local hold prose to the organic recall seed', () => {
     const seed = buildSessionContinuityRecallSeed([
       {
         kind: 'proactive',
-        state: 'observed',
-        label: 'proactive:follow-through:held-autonomy',
-        summary: 'older continuity metadata still keeps the same inner line alive',
+        state: 'pending',
+        label: 'proactive:coding:deferred',
+        summary: '真实模型摘要：下次用户回来时继续检查 Provider 失败。',
         metadata: {
-          source: 'proactive-held-autonomy',
-          sourceThreadId: 'thread-runtime-legacy',
-          executionIntentKind: 'follow-through',
-          executionIntentSummary: 're-open the unresolved runtime break and see what still blocks it',
-          projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
-          projectStateSameHerSelfLine: 'structured continuity digest.',
-          projectLatestProgress: 'Legacy held-autonomy project carry still preserves what has already landed across older continuity metadata.',
-          projectMemoryClosureSummary: 'Legacy held-autonomy continuity still needs to keep the still-open closure explicit before the remembered line widens outward.',
+          source: 'proactive-deferred',
+          reasonCode: 'provider-mind-unavailable-for-proactive-visible-utterance',
+          sourceThreadId: 'thread-deferred',
+          intentId: 'follow-through',
+          deferredAt: 100,
+          deferReason: 'busy-host',
+          whyNow: 'Keep the opening lower-pressure while the same-her continuity settles.',
+          executionIntentSummary: '真实模型摘要：下次用户回来时继续检查 Provider 失败。',
+          projectPhase: 'Phase 1: Local Digital Life',
+          projectPrimaryOpenLoop: 'unresolved=old governance carry',
+          projectNextClosureTarget: 'next=keep the opening lower-pressure',
         },
       },
     ] as any)
 
-    expect(seed).toContain('continuity_held_autonomy:')
-    expect(seed).toContain('thread=thread-runtime-legacy')
-    expect(seed).toContain('runtime_landed=Legacy held-autonomy project carry still preserves what has already landed across older continuity metadata.')
-    expect(seed).toContain('runtime_unresolved=Legacy held-autonomy continuity still needs to keep the still-open closure explicit before the remembered line widens outward.')
-    expect(seed).not.toContain('project_pre_dialogue=')
-    expect(seed).not.toContain('project_preflight=')
-    expect(seed).not.toContain('same_her=')
+    expect(seed).toContain('reason_code=provider-mind-unavailable-for-proactive-visible-utterance')
+    expect(seed).toContain('thread_id=thread-deferred')
+    expect(seed).toContain('intent_id=follow-through')
+    expect(seed).toContain('deferred_at=100')
+    expect(seed).toContain('真实模型摘要：下次用户回来时继续检查 Provider 失败。')
+    expect(seed).not.toContain('continuity_held_autonomy:')
+    expect(seed).not.toContain('Keep the opening lower-pressure')
+    expect(seed).not.toContain('same-her')
+    expect(seed).not.toContain('phase=')
+    expect(seed).not.toContain('unresolved=')
+    expect(seed).not.toContain('why_now=')
+    expect(seed).not.toContain('proactive_state=')
   })
 
-  it('preserves one identity-continuity', () => {
+  it('keeps provider failure facts in the organic recall seed without the hold template', () => {
+    const seed = buildSessionContinuityRecallSeed([
+      {
+        kind: 'proactive',
+        state: 'pending',
+        label: 'proactive:general:deferred',
+        summary: 'Provider failed with HTTP 503: upstream unavailable.',
+        metadata: {
+          source: 'proactive-deferred',
+          reasonCode: 'provider-mind-unavailable-for-proactive-visible-utterance',
+          deferredAt: 200,
+          failure: 'Provider failed with HTTP 503: upstream unavailable.',
+        },
+      },
+    ] as any)
+
+    expect(seed).toContain('failure=Provider failed with HTTP 503: upstream unavailable.')
+    expect(seed).not.toContain('continuity_held_autonomy:')
+    expect(seed).not.toContain('no mind-authored visible reply was available')
+  })
+
+  it('ignores unrelated continuity records while keeping held-autonomy metadata', () => {
     const recallSeed = buildSessionContinuityRecallSeed([
       {
         kind: 'proactive',
@@ -176,13 +201,13 @@ describe('runtime turn composition helpers', () => {
       },
     ] as any)
 
-    expect(recallSeed).toContain('continuity_held_autonomy:')
-    expect(recallSeed).toContain('thread=thread-runtime')
-    expect(recallSeed).toContain('intent=follow-through')
+    expect(recallSeed).toContain('thread_id=thread-runtime')
+    expect(recallSeed).toContain('intent_id=follow-through')
+    expect(recallSeed).not.toContain('continuity_held_autonomy:')
     expect(recallSeed).not.toContain('generic utility')
   })
 
-  it('builds cadence reconfirmation recall seeds so runtime steering can keep measured-return continuity in view', () => {
+  it('does not turn relationship cadence signals into recall prompt cues', () => {
     const seed = buildSessionContinuityRecallSeed([
       {
         kind: 'proactive',
@@ -202,14 +227,7 @@ describe('runtime turn composition helpers', () => {
       },
     ] as any)
 
-    expect(seed).toContain('continuity_cadence_reconfirmation:')
-    expect(seed).toContain('thread=thread-cadence-runtime')
-    expect(seed).toContain('cadence=measured-return')
-    expect(seed).toContain('line=keep the relationship return measured until the surface fully cools')
-    expect(seed).toContain('body=measured-return')
-    expect(seed).toContain('blink=linger')
-    expect(seed).toContain('gaze=soften')
-    expect(seed).toContain('why_now=The callback return still needs room-first continuity before closeness widens again.')
+    expect(seed).toBe('')
   })
 
   it('filters tools to required routing names without dropping fallback tools when no match exists', () => {

@@ -85,6 +85,18 @@ describe('fixed reply governance removal', () => {
     expect(source).not.toContain('agentTurn.buildSessionSystemBlock()')
   })
 
+  it('does not send fixed evidence or continuity governance to internal Providers', () => {
+    const mindStateSource = readServiceSource('./runtime-mind-state.ts')
+    const dreamSource = readServiceSource('./runtime-dream.ts')
+    const oneShotSource = readServiceSource('./runtime-main-gateway-one-shot.ts')
+    const sessionMirrorSource = readServiceSource('./runtime-agent-session-mirror.ts')
+
+    expect(mindStateSource).not.toContain('evidencePolicy:')
+    expect(oneShotSource).not.toContain('evidencePolicy:')
+    expect(dreamSource).not.toContain('continuitySystemBlocks')
+    expect(sessionMirrorSource).not.toContain('buildAgentTurnContinuitySystemMessages')
+  })
+
   it('removes the legacy organic-memory system prompt builder and marker blocks', () => {
     const organicPromptSource = readServiceSource('./runtime-organic-memory-prompt.ts')
     const organicPromptBlocksSource = readServiceSource('./runtime-organic-memory-prompt-blocks.ts')

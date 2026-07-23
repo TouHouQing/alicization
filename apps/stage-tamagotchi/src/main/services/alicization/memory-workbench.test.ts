@@ -82,9 +82,9 @@ describe('memory workbench projection', () => {
     const serialized = JSON.stringify(projected.longTermQueue)
 
     expect(projected.longTermQueue[0]?.summary)
-      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
+      .toBe('')
     expect(projected.longTermQueue[0]?.reason)
-      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
+      .toBe('')
     expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|legacy phase-one template|one continuous "?her"?|continuity state/iu)
   })
 

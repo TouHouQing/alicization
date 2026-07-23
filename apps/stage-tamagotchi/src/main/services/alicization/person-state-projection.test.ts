@@ -565,7 +565,7 @@ describe('person-state-projection', () => {
     expect(projection.personalityContinuityState.currentRegime).toBe('late-night-care')
     expect(projection.activeClosenessContext).toBe('late-night-care')
     expect(projection.activeClosenessRung).toBe('space-first')
-    expect(projection.openingGuidance).toContain('Open by observing first')
+    expect(projection.openingGuidance).toBeNull()
     expect(projection.preferredProactiveStyle).toBe('gentle-care')
   })
 
@@ -895,9 +895,8 @@ describe('person-state-projection', () => {
 
     expect(projection.activeClosenessRung).toBe('space-first')
     expect(projection.preferredProactiveStyle).toBe('silent-observe')
-    expect(projection.manifestationCadenceSummary).toContain('lower-pressure')
-    expect(String(projection.manifestationCadenceSummary ?? '')).not.toMatch(/manifestation_cadence=|eagerness=/iu)
-    expect(projection.summary).toContain('manifestation=')
+    expect(projection.manifestationCadenceSummary).toBeNull()
+    expect(projection.summary).not.toContain('manifestation=')
   })
 
   it('turns remembered proactive rejection strategy into lower-pressure silent-observe projection instead of reopening eagerly again', () => {
@@ -945,9 +944,8 @@ describe('person-state-projection', () => {
     })
 
     expect(projection.preferredProactiveStyle).toBe('silent-observe')
-    expect(projection.openingGuidance).toMatch(/lighter|lower-pressure|room/i)
-    expect(projection.manifestationCadenceSummary).toContain('lower-pressure')
-    expect(String(projection.manifestationCadenceSummary ?? '')).not.toMatch(/manifestation_cadence=|eagerness=/iu)
+    expect(projection.openingGuidance).toBeNull()
+    expect(projection.manifestationCadenceSummary).toBeNull()
   })
 
   it('lets autobiographical initiative habits alone keep projection lower-pressure or memory-led instead of waiting for a fresher evolution summary', () => {
@@ -1071,8 +1069,8 @@ describe('person-state-projection', () => {
     })
 
     expect(projection.preferredProactiveStyle).toBe('silent-observe')
-    expect(projection.manifestationCadenceSummary).toContain('lower-pressure')
-    expect(projection.summary).toContain('manifestation=')
+    expect(projection.manifestationCadenceSummary).toBeNull()
+    expect(projection.summary).not.toContain('manifestation=')
     expect(projection.openingGuidance).toBeNull()
   })
 
@@ -1557,5 +1555,43 @@ describe('person-state-projection', () => {
     })
 
     expect(projection.openingGuidance).toBeNull()
+  })
+
+  it('does not generate fixed opening or pressure governance text', () => {
+    const projection = buildAlicizationPersonStateProjection({
+      now: 58_200,
+      contexts: ['late-night', 'open-companionship'],
+      personaAuthority: createPersonaAuthority({
+        openingGuidance: 'Observe first with lighter pressure.',
+      }),
+      autobiographicalSelf: createAutobiographicalSelf({
+        relationshipDoctrine: 'Keep the relationship warm while preserving room.',
+      }),
+      selfEvolution: {
+        relationshipDoctrine: 'lower-pressure companionship should protect the rest window',
+        trustMeaning: 'truth before warmth',
+        burdenLine: 'the return should stay measured',
+      } as any,
+      privateThought: {
+        thoughtText: 'The host is tired after a long day.',
+        stance: 'care',
+        emotionalTension: 'late-night-drain',
+        embodiedPresence: 'nearby-soft',
+        rationaleTags: [],
+        updatedAt: 58_200,
+      } as any,
+      mindEcology: createMindEcology({
+        moodLabel: 'tired-care',
+        currentPreoccupation: 'The host is tired after a long day.',
+        updatedAt: 58_200,
+      }),
+    })
+
+    expect(projection.openingGuidance).toBeNull()
+    expect(projection.manifestationCadenceSummary).toBeNull()
+    expect(projection.personalityContinuityState.currentRegime).toEqual(expect.any(String))
+    expect(projection.summary).not.toMatch(
+      /Observe first with lighter pressure|Put truth first|Keep pressure low|Answer first with lighter pressure|Preserve room/iu,
+    )
   })
 })

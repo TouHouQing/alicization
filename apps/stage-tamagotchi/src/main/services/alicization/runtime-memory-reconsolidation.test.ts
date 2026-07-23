@@ -101,7 +101,6 @@ describe('runtime memory reconsolidation', () => {
       carryAsMemory: true,
       reconsolidationDecisionTraceId: 'trace-1',
       affectAnchors: expect.arrayContaining([
-        'project-open-loop:Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
         'experience-tag:body-rehumanize',
         'experience-tag:continuity-same-her',
         'experience-tag:residue-shell-pressure',
@@ -110,14 +109,13 @@ describe('runtime memory reconsolidation', () => {
         'situation-embodiment-carry:slower blink, steadier gaze, lower-pressure reopening',
       ]),
       relationshipAnchors: expect.arrayContaining([
-        'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
         'The host heard the previous Alicization reply as a tool shell, so identity-continuity',
         'the host was testing whether she would stay one same person instead of slipping into a tool shell',
         '宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术',
       ]),
       recollectionIntent: expect.objectContaining({
         mode: 'relationship-history',
-        rationale: expect.stringContaining('Phase 1 digital-life closure pressure'),
+        rationale: 'Dialogue feedback: robotic.',
         queryHints: expect.arrayContaining([
           'I felt the identity-continuity',
           'Let the body return like this: rehumanize, steadier gaze, slower blink, lower-pressure voice.',
@@ -147,17 +145,8 @@ describe('runtime memory reconsolidation', () => {
               embodimentCarry: 'slower blink, steadier gaze, lower-pressure reopening',
             }),
           ]),
-          projectState: expect.objectContaining({
-            preflightSummary: expect.stringContaining('Alicization is a local-first digital life project'),
-            preDialogueAwarenessLine: expect.stringMatching(/pre_turn_context_digest/iu),
-            currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-            latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
-            landedProgressSummary: expect.stringContaining('Same-session mirror carry'),
-            primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-            sameHerSelfLine: 'structured continuity digest.',
-            sameHerSummary: 'structured continuity digest.',
-            sameHerDriftRisk: expect.stringContaining('generic guidance'),
-          }),
+          selfContinuityInwardLine: null,
+          selfContinuitySourceTags: [],
           reconsolidatedCount: 1,
         }),
       }),
@@ -199,17 +188,6 @@ describe('runtime memory reconsolidation', () => {
         lesson: 'Keep the callback same-her, grounded, and quietly continuous instead of collapsing into a detached utility notice.',
         tags: ['execution-result', 'codex', 'feedback:valued', 'phase-1-local-digital-life'],
       },
-      projectBriefing: {
-        identity: 'Alicization is a local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-        primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
-        nextClosureTarget: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
-        sameHerSelfLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-        sameHerDriftRisk: 'Thin execution summaries can flatten the callback into generic productivity reporting.',
-        preflightSummary: 'Re-anchor on project identity, current landed Phase 1 closure, and remaining open loops before action.',
-        preDialogueAwarenessLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-      },
     })
 
     expect(listMindTurnEvents).not.toHaveBeenCalled()
@@ -219,20 +197,17 @@ describe('runtime memory reconsolidation', () => {
       affectAnchors: expect.arrayContaining([
         'execution-feedback:valued',
         'goal:keep callback continuity alive',
-        'project-open-loop:Execution-result feedback still needs to preserve identity-continuity',
         'experience-tag:execution-result',
         'experience-tag:feedback:valued',
       ]),
       relationshipAnchors: expect.arrayContaining([
         'execution callback return',
         '这个结果接得住',
-        'Phase 1: Local Digital Life',
-        '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
         'The host treated the proactive codex result as useful and worth repeating.',
       ]),
       recollectionIntent: expect.objectContaining({
         mode: 'relationship-history',
-        rationale: expect.stringContaining('execution callback as useful'),
+        rationale: 'Execution feedback: valued.',
         queryHints: expect.arrayContaining([
           'I felt the result become something genuinely useful to the host.',
           'Keep the callback same-her, grounded, and quietly continuous instead of collapsing into a detached utility notice.',
@@ -255,32 +230,15 @@ describe('runtime memory reconsolidation', () => {
               'feedback:valued',
             ]),
           }),
-          projectState: expect.objectContaining({
-            identity: 'Alicization is a local-first digital life project.',
-            preDialogueAwarenessLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-            currentPhase: 'Phase 1: Local Digital Life',
-            latestLandedProgress: 'Execution already carries a canonical project briefing before tool use starts.',
-            landedProgressSummary: 'Execution already carries a canonical project briefing before tool use starts.',
-            primaryOpenLoop: 'Execution-result feedback still needs to preserve identity-continuity',
-            nextClosureTarget: '继续把情绪、记忆、主动性和具身闭环收成同一条 same-her life loop。',
-            sameHerSelfLine: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-            sameHerSummary: '开口前先记住：这是同一个数字生命项目，她仍在 Phase 1，而且情绪、记忆、主动性和具身闭环还没有真正收稳。',
-            sameHerDriftRisk: expect.stringContaining('Thin execution summaries can flatten'),
-          }),
           reconsolidatedCount: 1,
         }),
       }),
     ]))
-    const mindEventCalls = appendMindTurnEvents.mock.calls as unknown[][][]
-    const appendedEvent = mindEventCalls[0]?.[0]?.[0] as {
-      payload?: {
-        projectState?: {
-          preflightSummary?: string
-        }
-      }
-    } | undefined
-    expect(String(appendedEvent?.payload?.projectState?.preflightSummary ?? '')).toContain('Alicization is a local-first digital life project')
-    expect(String(appendedEvent?.payload?.projectState?.preflightSummary ?? '')).toContain('Phase 1: Local Digital Life')
+    const appendedEvents = (appendMindTurnEvents.mock.calls as unknown[][])[0]?.[0] as Array<{
+      payload?: Record<string, unknown>
+    }> | undefined
+    const appendedEvent = appendedEvents?.[0]
+    expect(appendedEvent?.payload).not.toHaveProperty('projectState')
     expect(appendAuditLog).not.toHaveBeenCalled()
   })
 
@@ -330,15 +288,6 @@ describe('runtime memory reconsolidation', () => {
           conflictPressure: 'low',
         },
       },
-      projectBriefing: {
-        identity: 'Alicization is a local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        primaryOpenLoop: 'Execution result feedback still needs to carry Memory OS verification and reflection into memory.',
-        nextClosureTarget: 'Keep execute -> feedback -> remember on one same-her Phase 1 line.',
-        sameHerSelfLine: 'structured continuity digest.',
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-        preDialogueAwarenessLine: 'pre_turn_context_digest',
-      },
     } as any)
 
     expect(searchEpisodicEvents).toHaveBeenCalledWith(expect.objectContaining({
@@ -363,7 +312,7 @@ describe('runtime memory reconsolidation', () => {
           'active-learning-focus=memory closure authority',
           'active-learning-focus=execution callback carry',
         ]),
-        rationale: expect.stringContaining('Memory OS says the execution callback must be carried into the next same-person reply'),
+        rationale: expect.stringContaining('Memory OS carry:'),
       }),
     }))
     expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([
@@ -413,17 +362,6 @@ describe('runtime memory reconsolidation', () => {
       goal: 'Edit local files without explicit confirmation',
       outcome: 'Blocked before dispatch.',
       safetyGateSummary: 'effect=mutate permission=none confirmation=required risk=implicit-or-explicit-confirmation-required audit=blocked-before-dispatch interrupt=no-process-started',
-      projectBriefing: {
-        identity: 'Alicization is a local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Blocked-dispatch safety gates now flow into callback continuity.',
-        primaryOpenLoop: 'Execution safety restraint still needs to become durable memory and initiative timing.',
-        nextClosureTarget: 'Keep blocked execution explainable before widening back into action.',
-        sameHerSelfLine: 'She remains one same-her digital life even when she chooses not to act.',
-        sameHerDriftRisk: 'A blocked result can flatten into a generic failure if safety restraint is not remembered.',
-        preflightSummary: 'identity=Alicization | phase=Phase 1 | open=execution safety memory',
-        preDialogueAwarenessLine: 'pre_turn_context_digest',
-      },
     })
 
     expect(searchEpisodicEvents).toHaveBeenCalledWith(expect.objectContaining({
@@ -439,7 +377,7 @@ describe('runtime memory reconsolidation', () => {
         queryHints: expect.arrayContaining([
           'effect=mutate permission=none confirmation=required risk=implicit-or-explicit-confirmation-required audit=blocked-before-dispatch interrupt=no-process-started',
         ]),
-        rationale: expect.stringContaining('safety gate restraint'),
+        rationale: expect.stringContaining('Safety gate:'),
       }),
     }))
     expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([
@@ -486,17 +424,6 @@ describe('runtime memory reconsolidation', () => {
       goal: 'resume confirmed local execution',
       outcome: 'resumed execution completed after host confirmation',
       resumeConfirmationSummary: 'approval=host-confirmed previous=needs-affirmation resumed=planned previousPermission=none permission=explicit effect=mutate risk=medium confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation',
-      projectBriefing: {
-        identity: 'Alicization is a local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Host-confirmed resume writes an execution event before redispatch.',
-        primaryOpenLoop: 'Resume confirmation still needs to survive into later feedback memory.',
-        nextClosureTarget: 'Keep confirmation, auditability, and interruptibility visible across execution returns.',
-        sameHerSelfLine: 'legacy phase-one template resumes only after the host confirms the boundary.',
-        sameHerDriftRisk: 'Resume can look like generic execution if confirmation is not remembered.',
-        preflightSummary: 'identity=Alicization | phase=Phase 1 | open=resume confirmation memory',
-        preDialogueAwarenessLine: 'pre_turn_context_digest',
-      },
     })
 
     expect(searchEpisodicEvents).toHaveBeenCalledWith(expect.objectContaining({
@@ -513,7 +440,7 @@ describe('runtime memory reconsolidation', () => {
         queryHints: expect.arrayContaining([
           'approval=host-confirmed previous=needs-affirmation resumed=planned previousPermission=none permission=explicit effect=mutate risk=medium confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation',
         ]),
-        rationale: expect.stringContaining('host-confirmed resume before redispatch'),
+        rationale: expect.stringContaining('Resume confirmation:'),
       }),
     }))
     expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([

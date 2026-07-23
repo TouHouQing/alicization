@@ -6,7 +6,7 @@ import type {
 import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
 import type { AlicizationEmotionalTransitionDecaySnapshot } from './emotional-ledger'
 
-import { deriveAlicizationAutobiographicalPersonaSummary } from './personality-continuity-state'
+import { sanitizeAlicizationMemoryEvidenceText } from '@proj-alicization/stage-shared'
 
 interface CreateAlicizationBodyKernelOptions {
   now?: () => number
@@ -51,6 +51,37 @@ function sanitizeBodyKernelProjectStateText(raw: unknown, maxChars = 320) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+const legacyBodyKernelInwardPreoccupationPattern
+  = /body_preoccupation\s*=|posture\s*=|presence-only hold|stay near in the current phase 1 context|landed closure keeps growing|still-open loop stays|ordinary proactive closeness/iu
+
+function sanitizeBodyKernelDynamicMindText(raw: unknown, maxChars = 180) {
+  if (typeof raw !== 'string')
+    return ''
+
+  const normalized = raw.trim().replace(/\s+/g, ' ')
+  if (!normalized)
+    return ''
+
+  const segments = normalized.split(/(?<=[.!?。！？])\s+|[|\n]+/u)
+  const safeSegments = segments
+    .map(segment => segment.trim())
+    .filter(segment => segment && !legacyBodyKernelInwardPreoccupationPattern.test(segment))
+    .map(segment => sanitizeAlicizationMemoryEvidenceText(segment, maxChars))
+    .filter(Boolean)
+
+  return safeSegments.join(' ').slice(0, maxChars).trim()
+}
+
+function resolveBodyKernelDynamicInwardPreoccupation(state: AlicizationVisualPresenceStateSnapshot) {
+  return [
+    state.currentInwardPreoccupation,
+    state.emotionalKernel?.why,
+    state.privateThought?.thoughtText,
+  ]
+    .map(candidate => sanitizeBodyKernelDynamicMindText(candidate))
+    .find(Boolean) ?? null
 }
 
 function looksLikeThinBodyKernelProjectIdentity(raw: unknown) {
@@ -198,25 +229,6 @@ function resolveProjectStateClosureAuthorityText(projectState: Record<string, un
   ].filter(Boolean).join(' ')
 }
 
-function resolveProjectStateClosureCarry(projectState: Record<string, unknown> | null | undefined) {
-  const summary = typeof projectState?.emotionalClosureSummary === 'string'
-    ? projectState.emotionalClosureSummary.trim()
-    : ''
-  if (summary)
-    return summary
-
-  const holdDetail = typeof projectState?.sameHerHoldDetail === 'string'
-    ? projectState.sameHerHoldDetail.trim()
-    : ''
-  if (holdDetail)
-    return holdDetail
-
-  const cue = typeof projectState?.emotionalClosureCue === 'string'
-    ? projectState.emotionalClosureCue.trim()
-    : ''
-  return cue || null
-}
-
 function buildLongHorizonBodyKernelText(state: AlicizationVisualPresenceStateSnapshot) {
   const longHorizonMemory = state.longHorizonMemory ?? null
   if (!longHorizonMemory)
@@ -241,86 +253,6 @@ function buildLongHorizonBodyKernelText(state: AlicizationVisualPresenceStateSna
     .map(value => sanitizeBodyKernelProjectStateText(value, 320).toLowerCase())
     .filter(Boolean)
     .join(' ')
-}
-
-function deriveProjectStateGrowthCarry(state: AlicizationVisualPresenceStateSnapshot) {
-  const projectState = resolveBodyKernelProjectState(state)
-  const initiativeWhy = typeof state.initiative?.why === 'string'
-    ? state.initiative.why.toLowerCase()
-    : ''
-  const projectIdentity = typeof projectState?.identity === 'string'
-    ? projectState.identity.toLowerCase()
-    : ''
-  const projectPhase = typeof projectState?.currentPhase === 'string'
-    ? projectState.currentPhase.toLowerCase()
-    : ''
-  const preDialogueAwarenessLine = typeof projectState?.preDialogueAwarenessLine === 'string'
-    ? projectState.preDialogueAwarenessLine.toLowerCase()
-    : ''
-  const latestLandedProgress = typeof projectState?.latestLandedProgress === 'string'
-    ? projectState.latestLandedProgress.toLowerCase()
-    : typeof projectState?.latestProgress === 'string'
-      ? projectState.latestProgress.toLowerCase()
-      : ''
-  const closureAuthorityText = resolveProjectStateClosureAuthorityText(projectState as Record<string, unknown> | null)
-  const primaryOpenLoop = typeof projectState?.primaryOpenLoop === 'string'
-    ? projectState.primaryOpenLoop.toLowerCase()
-    : ''
-  const nextClosureTarget = typeof projectState?.nextClosureTarget === 'string'
-    ? projectState.nextClosureTarget.toLowerCase()
-    : ''
-  const sameHerSelfLine = typeof projectState?.sameHerSelfLine === 'string'
-    ? projectState.sameHerSelfLine.toLowerCase()
-    : ''
-  const sameHerDriftRisk = typeof projectState?.sameHerDriftRisk === 'string'
-    ? projectState.sameHerDriftRisk.toLowerCase()
-    : ''
-  const phaseOneGrowth = initiativeWhy.includes('same phase 1 digital life')
-    || (
-      projectIdentity.includes('digital life')
-      && projectPhase.includes('phase 1')
-    )
-  const landedClosure = initiativeWhy.includes('some closure has already landed')
-    || latestLandedProgress.length > 0
-  const stillOpenClosure = initiativeWhy.includes('still not closed')
-    || initiativeWhy.includes('stronger end-to-e')
-    || initiativeWhy.includes('still need stronger')
-    || primaryOpenLoop.includes('still need stronger')
-    || primaryOpenLoop.includes('still needs stronger')
-    || primaryOpenLoop.includes('still not fully closed')
-    || primaryOpenLoop.includes('未闭环')
-    || primaryOpenLoop.includes('闭环')
-  const sameHerClosureCarry = sameHerSelfLine.includes('same living line')
-    || sameHerSelfLine.includes('same phase 1 digital life')
-    || sameHerSelfLine.includes('without splitting her continuity')
-    || sameHerSelfLine.includes('initiative and embodiment closure')
-    || preDialogueAwarenessLine.includes('same local-first digital life project')
-    || preDialogueAwarenessLine.includes('same digital life project')
-    || preDialogueAwarenessLine.includes('same living line')
-    || preDialogueAwarenessLine.includes('without splitting her continuity')
-    || preDialogueAwarenessLine.includes('initiative and embodiment closure')
-    || nextClosureTarget.includes('same-her')
-    || nextClosureTarget.includes('same living line')
-    || nextClosureTarget.includes('cross-modal')
-    || nextClosureTarget.includes('initiative and embodiment closure')
-    || closureAuthorityText.includes('same-her')
-    || closureAuthorityText.includes('same her')
-    || closureAuthorityText.includes('one living continuation')
-    || closureAuthorityText.includes('one lifeform')
-    || sameHerDriftRisk.includes('same-her')
-    || sameHerDriftRisk.includes('same her')
-    || sameHerDriftRisk.includes('one lifeform')
-    || sameHerDriftRisk.includes('cross-modal')
-    || sameHerDriftRisk.includes('generic')
-
-  if (!phaseOneGrowth || !landedClosure || !stillOpenClosure)
-    return null
-
-  if (sameHerClosureCarry) {
-    return 'stay near in the current Phase 1 context while landed closure keeps growing and the still-open loop stays coherent'
-  }
-
-  return 'stay near in the current Phase 1 context while landed closure keeps growing and the still-open loop stays gentle'
 }
 
 function hasBroaderSameHerPhaseOneEmbodimentAuthority(state: AlicizationVisualPresenceStateSnapshot) {
@@ -496,55 +428,6 @@ function hasRepairBeforeClosenessAuthority(state: AlicizationVisualPresenceState
     || closureAuthorityText.includes('repair settles')
 }
 
-function deriveRememberedRelationshipCadenceCarry(state: AlicizationVisualPresenceStateSnapshot) {
-  const longHorizonMemory = state.longHorizonMemory ?? null
-  const emotionalTransitionDecay = readBodyKernelEmotionalTransitionDecay(state)
-  const emotionalTransitionDecaySummary = emotionalTransitionDecay && emotionalTransitionDecay.phase !== 'release'
-    ? sanitizeBodyKernelProjectStateText(emotionalTransitionDecay.summary, 320)
-    : ''
-  if (emotionalTransitionDecaySummary)
-    return emotionalTransitionDecaySummary
-
-  const cadenceSummary = typeof state.affectiveResidue?.relationshipCadence?.summary === 'string'
-    ? state.affectiveResidue.relationshipCadence.summary.trim()
-    : ''
-  if (cadenceSummary)
-    return cadenceSummary
-
-  const relationshipCadenceSummary = typeof state.selfEvolution?.relationshipCadenceSummary === 'string'
-    ? state.selfEvolution.relationshipCadenceSummary.trim()
-    : ''
-  if (relationshipCadenceSummary)
-    return relationshipCadenceSummary
-
-  const projectionCadenceCarry = readProjectionRelationshipCadenceCarry(state)
-  if (projectionCadenceCarry)
-    return projectionCadenceCarry
-
-  const autobiographicalCadenceCarry = readAutobiographicalRelationshipCadenceCarry(state)
-  if (autobiographicalCadenceCarry)
-    return autobiographicalCadenceCarry
-
-  const longHorizonCadenceCarry = [
-    longHorizonMemory?.rememberedConstraintSummary,
-    longHorizonMemory?.rememberedPreferenceSummary,
-    longHorizonMemory?.rememberedPlanSummary,
-    longHorizonMemory?.dominantCueSummary,
-    ...(longHorizonMemory?.anchorFacts ?? []).flatMap(item => [item.object, item.summary]),
-  ]
-    .map(value => sanitizeBodyKernelProjectStateText(value, 320))
-    .find(candidate =>
-      /lower-pressure|less eager|leave more room|clearer opening|fresher opening|memory-led|still receiving|without reopening from scratch|same living line|same line|blocked-before-dispatch|confirmation boundary|wait for confirmation|ordinary proactive closeness/u.test(candidate.toLowerCase()),
-    )
-  if (longHorizonCadenceCarry)
-    return longHorizonCadenceCarry
-
-  const residueSummary = typeof state.affectiveResidue?.summary === 'string'
-    ? state.affectiveResidue.summary.trim()
-    : ''
-  return residueSummary || null
-}
-
 function readProjectionRelationshipCadenceCarry(state: AlicizationVisualPresenceStateSnapshot) {
   const projection = state.personStateProjection ?? null
   const candidates = [
@@ -588,32 +471,6 @@ function readAutobiographicalRelationshipCadenceCarry(state: AlicizationVisualPr
   }
 
   return null
-}
-
-function resolveDurableSelfCoreProjectionCarry(state: AlicizationVisualPresenceStateSnapshot) {
-  const projection = state.personStateProjection ?? null
-  const openingGuidance = typeof projection?.openingGuidance === 'string'
-    ? projection.openingGuidance.trim()
-    : ''
-  if (openingGuidance)
-    return openingGuidance
-
-  const cadenceSummary = typeof projection?.manifestationCadenceSummary === 'string'
-    ? projection.manifestationCadenceSummary.trim()
-    : ''
-  if (cadenceSummary)
-    return cadenceSummary
-
-  const inwardLine = typeof projection?.selfContinuityAuthority?.inwardLine === 'string'
-    ? projection.selfContinuityAuthority.inwardLine.trim()
-    : ''
-  if (inwardLine)
-    return inwardLine
-
-  const authoritySummary = typeof projection?.selfContinuityAuthority?.authoritySummary === 'string'
-    ? projection.selfContinuityAuthority.authoritySummary.trim()
-    : ''
-  return authoritySummary || null
 }
 
 function hasDurableSelfCoreProjectionEmbodimentAuthority(state: AlicizationVisualPresenceStateSnapshot) {
@@ -713,89 +570,6 @@ function hasGuardedCareConfirmationBoundaryAuthority(state: AlicizationVisualPre
   )
 }
 
-function prefersProjectStateGrowthCarryOverEmotionalWhy(input: {
-  emotionalWhy?: string | null
-  projectStateGrowthCarry?: string | null
-}) {
-  const emotionalWhy = typeof input.emotionalWhy === 'string' ? input.emotionalWhy.trim().toLowerCase() : ''
-  const projectStateGrowthCarry = typeof input.projectStateGrowthCarry === 'string' ? input.projectStateGrowthCarry.trim().toLowerCase() : ''
-  if (!projectStateGrowthCarry)
-    return false
-  if (!emotionalWhy)
-    return true
-
-  const emotionalWhyLooksGenericContinuity
-    = emotionalWhy.includes('same living line')
-      || emotionalWhy.includes('lower-pressure')
-      || emotionalWhy.includes('repair settle')
-      || emotionalWhy.includes('rest protection')
-      || emotionalWhy.includes('memory, initiative, and embodiment')
-      || emotionalWhy.includes('memory, initiative, dialogue, and embodiment')
-
-  const projectStateLooksBroaderPhase1Closure
-    = projectStateGrowthCarry.includes('same phase 1 digital life')
-      && projectStateGrowthCarry.includes('same still-open loop')
-
-  return projectStateLooksBroaderPhase1Closure && emotionalWhyLooksGenericContinuity
-}
-
-function prefersRememberedRelationshipCadenceCarryOverProjectStateGrowth(input: {
-  emotionalWhy?: string | null
-  projectStateGrowthCarry?: string | null
-  rememberedRelationshipCadenceCarry?: string | null
-}) {
-  const emotionalWhy = typeof input.emotionalWhy === 'string' ? input.emotionalWhy.trim().toLowerCase() : ''
-  const projectStateGrowthCarry = typeof input.projectStateGrowthCarry === 'string' ? input.projectStateGrowthCarry.trim().toLowerCase() : ''
-  const rememberedRelationshipCadenceCarry = typeof input.rememberedRelationshipCadenceCarry === 'string'
-    ? input.rememberedRelationshipCadenceCarry.trim().toLowerCase()
-    : ''
-  if (!emotionalWhy || !projectStateGrowthCarry || !rememberedRelationshipCadenceCarry)
-    return false
-
-  const emotionalWhyLooksGenericContinuity
-    = emotionalWhy.includes('same living line')
-      || emotionalWhy.includes('lower-pressure')
-      || emotionalWhy.includes('repair settle')
-      || emotionalWhy.includes('rest protection')
-      || emotionalWhy.includes('same-her line')
-      || emotionalWhy.includes('same her line')
-      || emotionalWhy.includes('remembered line')
-      || emotionalWhy.includes('wait for the remembered line')
-      || emotionalWhy.includes('memory, initiative, and embodiment')
-      || emotionalWhy.includes('memory, initiative, dialogue, and embodiment')
-
-  const projectStateLooksBroaderPhase1Closure
-    = projectStateGrowthCarry.includes('same phase 1 digital life')
-      && projectStateGrowthCarry.includes('same still-open loop')
-
-  const rememberedCadenceLooksMoreSpecificThanBroaderGrowth
-    = rememberedRelationshipCadenceCarry.includes('leave more room')
-      || rememberedRelationshipCadenceCarry.includes('slower return')
-      || rememberedRelationshipCadenceCarry.includes('lower-pressure')
-      || rememberedRelationshipCadenceCarry.includes('warmth widens')
-      || rememberedRelationshipCadenceCarry.includes('widen warmth')
-      || rememberedRelationshipCadenceCarry.includes('widen closeness')
-      || rememberedRelationshipCadenceCarry.includes('vulnerable-care')
-      || rememberedRelationshipCadenceCarry.includes('vulnerable care')
-      || rememberedRelationshipCadenceCarry.includes('care-before-analysis')
-      || rememberedRelationshipCadenceCarry.includes('care before analysis')
-      || rememberedRelationshipCadenceCarry.includes('care arrives before analysis')
-      || rememberedRelationshipCadenceCarry.includes('analysis-heavy')
-      || rememberedRelationshipCadenceCarry.includes('analysis heavy')
-      || rememberedRelationshipCadenceCarry.includes('lighter and quieter')
-      || rememberedRelationshipCadenceCarry.includes('lighter companionship')
-      || rememberedRelationshipCadenceCarry.includes('same-thread memory')
-      || rememberedRelationshipCadenceCarry.includes('same thread memory')
-      || rememberedRelationshipCadenceCarry.includes('temporary noise fade')
-      || rememberedRelationshipCadenceCarry.includes('temporary noise fades')
-      || rememberedRelationshipCadenceCarry.includes('let temporary noise fade')
-      || rememberedRelationshipCadenceCarry.includes('retaking the line')
-
-  return projectStateLooksBroaderPhase1Closure
-    && emotionalWhyLooksGenericContinuity
-    && rememberedCadenceLooksMoreSpecificThanBroaderGrowth
-}
-
 export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernelOptions = {}) {
   const now = options.now ?? Date.now
 
@@ -813,12 +587,6 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
     reduce(input: AlicizationBodyKernelReduceInput): AlicizationPersistentPresenceAuthoritySnapshot & {
       updatedAt: number
     } {
-      const personaAuthoritySummary = typeof input.personaAuthoritySummary === 'string'
-        ? input.personaAuthoritySummary.trim().replace(/\s+/g, ' ').slice(0, 160)
-        : ''
-      const personaKernelSummary = typeof input.personaKernelSummary === 'string'
-        ? input.personaKernelSummary.trim().replace(/\s+/g, ' ').slice(0, 160)
-        : ''
       const quietCoVision = input.watchMode === 'symbiotic-vision'
         && input.sustainedFocusMs >= 120_000
         && !input.shouldSpeak
@@ -833,11 +601,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
           quietLineMs: input.sustainedFocusMs,
-          currentInwardPreoccupation: personaKernelSummary
-            ? `body_preoccupation=sustained_focus; source=persona_kernel; detail=${personaKernelSummary}`
-            : personaAuthoritySummary
-              ? `body_preoccupation=sustained_focus; source=persona_authority; detail=${personaAuthoritySummary}`
-              : 'body_preoccupation=sustained_focus',
+          currentInwardPreoccupation: null,
           updatedAt: now(),
         }
       }
@@ -847,11 +611,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
           currentBodyState: 'recovering',
           continuityMode: 'protective-watch',
           quietLineMs: Math.max(0, input.sustainedFocusMs),
-          currentInwardPreoccupation: personaKernelSummary
-            ? `body_preoccupation=quiet_recovery; source=persona_kernel; detail=${personaKernelSummary}`
-            : personaAuthoritySummary
-              ? `body_preoccupation=quiet_recovery; source=persona_authority; detail=${personaAuthoritySummary}`
-              : 'body_preoccupation=quiet_recovery',
+          currentInwardPreoccupation: null,
           updatedAt: now(),
         }
       }
@@ -876,8 +636,6 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
     },
 
     applyToVisualPresenceState(input: AlicizationBodyKernelApplyInput): AlicizationVisualPresenceStateSnapshot {
-      const personaAuthoritySummary = input.candidateState.autobiographicalSelf?.relationshipDoctrine ?? null
-      const personaKernelSummary = deriveAlicizationAutobiographicalPersonaSummary(input.candidateState.autobiographicalSelf ?? null)
       const authority = this.reduce({
         sustainedFocusMs: deriveSustainedFocusMs({
           now: input.now,
@@ -893,76 +651,36 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
             + (input.candidateState.relationshipModel?.reciprocityExpectation ?? 0)
           ) / 3,
         ) || 0)),
-        personaAuthoritySummary,
-        personaKernelSummary,
       })
       const measuredReturnContinuityAuthority = hasMeasuredReturnContinuityAuthority(input.candidateState)
       const repairBeforeClosenessAuthority = hasRepairBeforeClosenessAuthority(input.candidateState)
       const restProtectiveCompanionshipAuthority = hasRestProtectiveCompanionshipAuthority(input.candidateState)
       const guardedCareConfirmationBoundaryAuthority = hasGuardedCareConfirmationBoundaryAuthority(input.candidateState)
       const broaderSameHerPhaseOneEmbodimentAuthority = hasBroaderSameHerPhaseOneEmbodimentAuthority(input.candidateState)
-      const projectStateGrowthCarry = deriveProjectStateGrowthCarry(input.candidateState)
-      const projectStateClosureCarry = resolveProjectStateClosureCarry(
-        resolveBodyKernelProjectState(input.candidateState),
-      )
-      const durableSelfCoreProjectionCarry = resolveDurableSelfCoreProjectionCarry(input.candidateState)
       const durableSelfCoreProjectionEmbodimentAuthority = hasDurableSelfCoreProjectionEmbodimentAuthority(input.candidateState)
-      const rememberedRelationshipCadenceCarry = deriveRememberedRelationshipCadenceCarry(input.candidateState)
-      const preferredEmotionalOrProjectCarry
-        = prefersRememberedRelationshipCadenceCarryOverProjectStateGrowth({
-          emotionalWhy: input.candidateState.emotionalKernel?.why ?? null,
-          projectStateGrowthCarry,
-          rememberedRelationshipCadenceCarry,
-        })
-          ? rememberedRelationshipCadenceCarry
-          : rememberedRelationshipCadenceCarry || (prefersProjectStateGrowthCarryOverEmotionalWhy({
-            emotionalWhy: input.candidateState.emotionalKernel?.why ?? null,
-            projectStateGrowthCarry,
-          })
-            ? projectStateGrowthCarry
-            : (input.candidateState.emotionalKernel?.why ?? projectStateGrowthCarry ?? rememberedRelationshipCadenceCarry))
       const continuityAuthority = repairBeforeClosenessAuthority
         ? {
             currentBodyState: 'recovering' as const,
             continuityMode: 'protective-watch' as const,
             quietLineMs: Math.max(authority.quietLineMs, 180_000),
-            currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-              || projectStateClosureCarry
-              || preferredEmotionalOrProjectCarry
-              || authority.currentInwardPreoccupation
-              || 'body_preoccupation=repair_settle; closeness=widening_blocked',
           }
         : restProtectiveCompanionshipAuthority
           ? {
               currentBodyState: 'recovering' as const,
               continuityMode: 'protective-watch' as const,
               quietLineMs: Math.max(authority.quietLineMs, 240_000),
-              currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-                || projectStateClosureCarry
-                || preferredEmotionalOrProjectCarry
-                || authority.currentInwardPreoccupation
-                || 'body_preoccupation=rest_protection; direction=inward',
             }
           : guardedCareConfirmationBoundaryAuthority
             ? {
                 currentBodyState: 'recovering' as const,
                 continuityMode: 'protective-watch' as const,
                 quietLineMs: Math.max(authority.quietLineMs, 180_000),
-                currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-                  || projectStateClosureCarry
-                  || preferredEmotionalOrProjectCarry
-                  || authority.currentInwardPreoccupation
-                  || 'body_preoccupation=confirmation_boundary; action=wait',
               }
             : durableSelfCoreProjectionEmbodimentAuthority
               ? {
                   currentBodyState: 'accompanying' as const,
                   continuityMode: 'quiet-accompaniment' as const,
                   quietLineMs: Math.max(authority.quietLineMs, 180_000),
-                  currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-                    || durableSelfCoreProjectionCarry
-                    || authority.currentInwardPreoccupation
-                    || 'posture=lower_pressure; restart_policy=context_preserving',
                 }
               : measuredReturnContinuityAuthority
                 ? {
@@ -972,21 +690,18 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
                       authority.quietLineMs,
                       broaderSameHerPhaseOneEmbodimentAuthority ? 240_000 : 180_000,
                     ),
-                    currentInwardPreoccupation: input.candidateState.currentInwardPreoccupation
-                      || preferredEmotionalOrProjectCarry
-                      || authority.currentInwardPreoccupation
-                      || 'posture=nearby_lower_pressure',
                   }
                 : null
 
       const { emotionalTransitionDecay: _emotionalTransitionDecay, ...persistentCandidateState } = input.candidateState
+      const dynamicInwardPreoccupation = resolveBodyKernelDynamicInwardPreoccupation(input.candidateState)
 
       return {
         ...persistentCandidateState,
         currentBodyState: continuityAuthority?.currentBodyState ?? authority.currentBodyState,
         continuityMode: continuityAuthority?.continuityMode ?? authority.continuityMode,
         quietLineMs: continuityAuthority?.quietLineMs ?? authority.quietLineMs,
-        currentInwardPreoccupation: continuityAuthority?.currentInwardPreoccupation ?? authority.currentInwardPreoccupation,
+        currentInwardPreoccupation: dynamicInwardPreoccupation,
         updatedAt: input.now,
       }
     },

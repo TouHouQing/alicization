@@ -155,15 +155,6 @@ function sanitizePersonalityContinuityProjection(
   } satisfies AlicizationPersonalityContinuityStateSnapshot
 }
 
-function compactProjectionValue(raw: unknown, maxChars = 120) {
-  return sanitizeProjectionText(raw, maxChars)
-    .replace(/[|;\n\r]+/gu, ' ')
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, maxChars)
-}
-
 function includesAny(text: string, needles: string[]) {
   return needles.some(needle => text.includes(needle))
 }
@@ -294,110 +285,6 @@ function deriveRelationshipPosture(input: {
   return null
 }
 
-function deriveOpeningGuidance(input: {
-  continuity: AlicizationPersonalityContinuityStateSnapshot
-  personaAuthority: AlicizationPersonaAuthorityInfluence
-  durableSelfCoreSameLineContinuation: boolean
-  relationshipPosture: AlicizationPersonStateRelationshipPosture | null
-  contexts: string[]
-  repairTriggerText: string
-  burdenText: string
-  repairBeforeCloseness: boolean
-  truthBeforeWarmth: boolean
-  restIntervention: boolean
-  restrained: boolean
-  evolutionDoctrine?: string
-  evolutionTrustMeaning?: string
-  evolutionBurden?: string
-  autobiographicalChooseOpeningsCarefully?: boolean
-  autobiographicalKeepGentleOpenings?: boolean
-}) {
-  const evolutionSameThreadCarry = sanitizeText([
-    input.evolutionDoctrine ?? '',
-    input.evolutionTrustMeaning ?? '',
-    input.evolutionBurden ?? '',
-  ].join(' '), 400).toLowerCase()
-  const rememberedSeamSpecificCarry = sanitizeText([
-    input.personaAuthority.openingGuidance ?? '',
-    input.evolutionDoctrine ?? '',
-    input.evolutionTrustMeaning ?? '',
-    input.evolutionBurden ?? '',
-  ].join(' '), 500).toLowerCase()
-  const carriesRememberedSeamCue = /remembered seam|same remembered seam|same remembered relationship seam|同一条线被重新看见|留白/u.test(
-    rememberedSeamSpecificCarry,
-  )
-  const carriesRememberedSeamReinterpretation
-    = /reopened too eagerly|too eagerly before|more room this time|keep more room this time|this time keep more room|do not reopen from scratch|不要重开得太快|这次更要留白/u.test(
-      rememberedSeamSpecificCarry,
-    )
-  if (carriesRememberedSeamCue && carriesRememberedSeamReinterpretation)
-    return null
-  if (
-    /same callback line|same line|still continuing|another detour|same thread|callback return on the same line|same callback seam|after noisy detours|after noise|unrelated windows intervene|callback seam reopens/u.test(evolutionSameThreadCarry)
-    && /lower-pressure|measured|less eager|slower return|reopen eagerly|should not reopen more eagerly|not widen the line into a fresh approach|stays slower than impulse/u.test(evolutionSameThreadCarry)
-  ) {
-    return null
-  }
-  if (input.autobiographicalChooseOpeningsCarefully)
-    return null
-  if (input.autobiographicalKeepGentleOpenings)
-    return null
-  if (
-    (input.repairTriggerText && input.relationshipPosture === 'restrained')
-    || (input.continuity.currentRegime === 'repair-window' && input.relationshipPosture === 'restrained')
-  ) {
-    return null
-  }
-  if (
-    input.repairBeforeCloseness
-    && input.relationshipPosture === 'restrained'
-    && (input.contexts.includes('focused-work') || input.contexts.includes('repair-window'))
-  ) {
-    return null
-  }
-  if (
-    input.continuity.repairPosture === 'repair-first'
-  ) {
-    return null
-  }
-  if (input.durableSelfCoreSameLineContinuation)
-    return null
-  if (
-    input.personaAuthority.openingGuidance
-    && (!input.restrained || (input.relationshipPosture === 'warm' && input.personaAuthority.directnessBias >= 0.34))
-  ) {
-    return sanitizeProjectionText(input.personaAuthority.openingGuidance, 220)
-      || null
-  }
-  if (
-    input.personaAuthority.preferredProactiveStyle === 'silent-observe'
-    && input.relationshipPosture === 'restrained'
-  ) {
-    return 'Observe first with lighter pressure.'
-  }
-  if (input.truthBeforeWarmth)
-    return 'Put truth first.'
-  if (
-    input.restIntervention
-    || input.continuity.currentRegime === 'late-night-care'
-    || (input.contexts.includes('late-night') && input.burdenText)
-  ) {
-    return 'Keep pressure low and protect the rest window.'
-  }
-  if (
-    input.restrained
-    || input.continuity.closenessPosture === 'space-first'
-    || input.continuity.autonomyPosture === 'protect-space'
-  ) {
-    return 'Answer first with lighter pressure.'
-  }
-  if (input.relationshipPosture === 'tender')
-    return 'Put truth and room first; keep closeness bounded.'
-  if (input.relationshipPosture === 'warm')
-    return 'Preserve room and keep closeness bounded.'
-  return null
-}
-
 function derivePreferredProactiveStyle(input: {
   continuity: AlicizationPersonalityContinuityStateSnapshot
   personaAuthority: AlicizationPersonaAuthorityInfluence
@@ -446,40 +333,6 @@ function derivePreferredProactiveStyle(input: {
   }
   if (input.continuity.currentRegime === 'repair-window')
     return 'light-nudge' as const
-  return null
-}
-
-function deriveManifestationCadenceSummary(input: {
-  preferredProactiveStyle: AlicizationProactiveStyle | null
-  activeClosenessRung: AlicizationPersonStateClosenessRung
-  lowerPressureManifestation: boolean
-  durableSelfCoreSameLineContinuation: boolean
-  evolutionTrustMeaning: string
-  evolutionDoctrine: string
-  evolutionBurden: string
-  autobiographicalChooseOpeningsCarefully?: boolean
-  autobiographicalKeepGentleOpenings?: boolean
-}) {
-  if (input.durableSelfCoreSameLineContinuation)
-    return 'Manifest with lower pressure and preserve context.'
-  if (input.autobiographicalChooseOpeningsCarefully)
-    return 'Manifest with lower pressure and wait for a real opening.'
-  if (input.autobiographicalKeepGentleOpenings)
-    return 'Let memory lead gently with lower pressure.'
-  if (input.lowerPressureManifestation) {
-    const anchor = input.evolutionTrustMeaning || input.evolutionDoctrine || input.evolutionBurden
-    return sanitizeText([
-      'Manifest with lower pressure and low eagerness.',
-      anchor ? `Anchor: ${compactProjectionValue(anchor, 120)}` : '',
-    ].filter(Boolean).join(' '), 220)
-  }
-
-  if (input.preferredProactiveStyle === 'silent-observe' && input.activeClosenessRung === 'space-first')
-    return 'Observe first and preserve room.'
-
-  if (input.preferredProactiveStyle === 'light-nudge' && input.activeClosenessRung === 'measured-room')
-    return 'Use only a light nudge when there is a bounded opening.'
-
   return null
 }
 
@@ -754,25 +607,6 @@ export function buildAlicizationPersonStateProjection(input: {
     ['lower-pressure', 'less eager', 'leave more room', 'more room', 'slower return', 'pressure', 'timing', 'quiet-companionship', 'quiet companionship'],
   ) || (input.privateThought?.rationaleTags ?? []).includes('self-evolution:lower-pressure-companionship')
   const durableSelfCoreSameLineContinuation = prefersDurableSelfCoreSameLineContinuation(resolvedSelfContinuityAuthority)
-  const openingGuidance = deriveOpeningGuidance({
-    continuity: personalityContinuityState,
-    personaAuthority,
-    durableSelfCoreSameLineContinuation,
-    relationshipPosture,
-    contexts,
-    repairTriggerText: hostGuidance.repairTriggerText,
-    burdenText: hostGuidance.burdenText,
-    repairBeforeCloseness: doctrineGuidance.repairBeforeCloseness,
-    truthBeforeWarmth: doctrineGuidance.truthBeforeWarmth,
-    restIntervention: doctrineGuidance.restIntervention,
-    restrained,
-    evolutionDoctrine,
-    evolutionTrustMeaning,
-    evolutionBurden,
-    autobiographicalChooseOpeningsCarefully: autobiographicalInitiativeHabit.chooseOpeningsCarefully,
-    autobiographicalKeepGentleOpenings: autobiographicalInitiativeHabit.keepGentleOpenings,
-  })
-
   const preferredProactiveStyle = derivePreferredProactiveStyle({
     continuity: personalityContinuityState,
     personaAuthority,
@@ -784,17 +618,6 @@ export function buildAlicizationPersonStateProjection(input: {
     doctrinePreferredStyle: doctrineGuidance.preferredProactiveStyle,
     lowerPressureManifestation,
     durableSelfCoreSameLineContinuation,
-    autobiographicalChooseOpeningsCarefully: autobiographicalInitiativeHabit.chooseOpeningsCarefully,
-    autobiographicalKeepGentleOpenings: autobiographicalInitiativeHabit.keepGentleOpenings,
-  })
-  const manifestationCadenceSummary = deriveManifestationCadenceSummary({
-    preferredProactiveStyle,
-    activeClosenessRung,
-    lowerPressureManifestation,
-    durableSelfCoreSameLineContinuation,
-    evolutionTrustMeaning,
-    evolutionDoctrine,
-    evolutionBurden,
     autobiographicalChooseOpeningsCarefully: autobiographicalInitiativeHabit.chooseOpeningsCarefully,
     autobiographicalKeepGentleOpenings: autobiographicalInitiativeHabit.keepGentleOpenings,
   })
@@ -826,7 +649,6 @@ export function buildAlicizationPersonStateProjection(input: {
 
   const projectionSummary = mergeUnique([
     summary,
-    manifestationCadenceSummary ? `manifestation=${manifestationCadenceSummary}` : null,
   ], 7).join(' | ')
 
   return {
@@ -837,9 +659,9 @@ export function buildAlicizationPersonStateProjection(input: {
     activeClosenessRung,
     closenessLadder,
     relationshipPosture,
-    openingGuidance,
+    openingGuidance: null,
     preferredProactiveStyle,
-    manifestationCadenceSummary,
+    manifestationCadenceSummary: null,
     preferenceText: hostGuidance.preferenceText || evolutionPreferenceText || activeClosenessEntry?.preference || '',
     sensitivityText: hostGuidance.sensitivityText,
     repairTriggerText: hostGuidance.repairTriggerText,

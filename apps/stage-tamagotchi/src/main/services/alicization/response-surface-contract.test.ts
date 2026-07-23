@@ -48,22 +48,33 @@ describe('response-surface-contract', () => {
     expect(result.systemBlock).toBe('')
   })
 
-  it('keeps project continuity as data instead of provider prose', () => {
+  it('does not carry project governance into the response surface contract', () => {
     const result = buildAlicizationResponseSurfaceContract({
       brief: { ...brief, turnMode: 'answer' } as any,
-      charter: charter as any,
+      charter: {
+        ...charter,
+        governingProject: 'opening_policy=legacy; relationship_cadence=legacy',
+      } as any,
       currentConsciousFrame: {
         projectState: {
           currentPhase: 'runtime-phase',
           latestProgress: 'runtime-landed',
           primaryOpenLoop: 'runtime-open',
           nextClosureTarget: 'runtime-next',
+          continuityCue: 'continuityCue=legacy',
+          reasonTags: ['reasonTags=legacy'],
+          reasonCodes: ['reasonCodes=legacy'],
+          governingFocus: 'governingFocus=legacy',
+          mustDo: ['mustDo=legacy'],
+          mustNotDo: ['mustNotDo=legacy'],
         },
       } as any,
     })
 
-    expect(JSON.stringify(result.contract.projectContinuity)).toContain('runtime-phase')
-    expect(JSON.stringify(result.contract.projectContinuity)).toContain('runtime-next')
+    expect(result.contract).not.toHaveProperty('projectContinuity')
     expect(result.systemBlock).toBe('')
+    expect(JSON.stringify(result)).not.toMatch(
+      /project-state|runtime-phase|runtime-landed|runtime-open|runtime-next|opening_policy|relationship_cadence|reasonTags=|reasonCodes=|continuityCue=|governingFocus=|mustDo=|mustNotDo=/iu,
+    )
   })
 })

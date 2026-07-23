@@ -13,445 +13,85 @@ import type { AlicizationPersonStateProjection } from './person-state-projection
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
-import {
-  alicizationFixedTemplateReplacement,
-  buildAlicizationEmbodimentLoopSummary,
-  containsAlicizationFixedTemplateResidue,
-  describeAlicizationEmbodimentClosureReminder,
-  formatAlicizationProjectStateAwarenessFields,
-  resolveAlicizationChatFailureSurface,
-  sanitizeAlicizationProviderFacingText,
-} from '@proj-alicization/stage-shared'
+import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 
-import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
-import {
-  isAlicizationThinProjectAwarenessLine,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
-  resolveAlicizationProjectStateBrief,
-} from './project-state-brief'
-import { buildPrioritizedProjectStateContinuityLines } from './runtime-governance'
 import {
   buildAlicizationAutonomousDialogueTurnId,
   resolveAlicizationAutonomousDialogueOrigin,
 } from './runtime-structured-format'
-import { resolveCanonicalStructuredProjectState } from './structured-project-state'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
 
-type CallbackPersistenceSelfContinuityAuthority = Partial<AlicizationSelfContinuityAuthority> & {
-  currentBodyState?: string | null
-}
-
-const continuityBaselineTag = ['same', 'her-baseline'].join('-')
 const executionProviderSettlementRetryBudget = 3
 
-type ProjectStateAuditFieldKind
-  = | 'phase'
-    | 'landed'
-    | 'open'
-    | 'next'
-    | 'continuity_anchor'
-    | 'continuity_hold'
-    | 'continuity_drift_risk'
-    | 'emotional_closure'
-    | 'summary'
-    | 'awareness'
+const legacyExecutionDeliveryGovernanceKeys = new Set([
+  'continuityArc',
+  'continuityArcStage',
+  'continuityCadence',
+  'continuityCue',
+  'continuityPreferredTiming',
+  'continuityRestraint',
+  'governingCommitment',
+  'governingConcern',
+  'governingFocus',
+  'governingInquiry',
+  'governingProject',
+  'initiativeRestraint',
+  'mustDo',
+  'mustNotDo',
+  'openingGuidance',
+  'openingStyle',
+  'opening_policy',
+  'preDialogueAwarenessLine',
+  'preDialogueAwarenessSummary',
+  'preflightSummary',
+  'projectState',
+  'projectStateAudit',
+  'project_continuity',
+  'project_state',
+  'relationshipPosture',
+  'relationship_cadence',
+  'runtime_context',
+  'sameHerDriftRisk',
+  'sameHerHoldDetail',
+  'sameHerSelfLine',
+  'shouldDelayUntilAfterPayoff',
+  'shouldStayInward',
+  'suppressionTags',
+  'surfacePolicy',
+])
 
-function extractProjectStateAwarenessFieldValue(structured: string, key: string) {
-  return structured
-    .split('|')
-    .map(part => part.trim())
-    .find(part => part.startsWith(`${key}=`))
-    ?.replace(new RegExp(`^${key}=`, 'u'), '')
-    .trim()
-    || ''
-}
+function stripLegacyExecutionDeliveryGovernance<T>(value: T): T {
+  if (Array.isArray(value))
+    return value.map(item => stripLegacyExecutionDeliveryGovernance(item)) as T
 
-function formatProjectStateAuditField(raw: unknown, field: ProjectStateAuditFieldKind, maxChars = 360) {
-  const normalized = sanitizeProjectStateField(raw, null)
-  if (!normalized)
-    return null
+  if (!value || typeof value !== 'object')
+    return value
 
-  const formatInput = (() => {
-    if (field === 'phase')
-      return { currentPhase: normalized, maxChars }
-    if (field === 'landed')
-      return { latestLandedProgress: normalized, maxChars }
-    if (field === 'open')
-      return { primaryOpenLoop: normalized, maxChars }
-    if (field === 'next')
-      return { nextClosureTarget: normalized, maxChars }
-    if (field === 'continuity_anchor')
-      return { sameHerSelfLine: normalized, maxChars }
-    if (field === 'continuity_hold')
-      return { sameHerHoldDetail: normalized, maxChars }
-    if (field === 'continuity_drift_risk')
-      return { sameHerDriftRisk: normalized, maxChars }
-    if (field === 'emotional_closure')
-      return { emotionalClosureCue: normalized, maxChars }
-    if (field === 'awareness') {
-      return containsAlicizationFixedTemplateResidue(normalized)
-        ? {
-            identity: normalized,
-            currentPhase: normalized,
-            latestLandedProgress: normalized,
-            primaryOpenLoop: normalized,
-            nextClosureTarget: normalized,
-            sameHerSelfLine: normalized,
-            sameHerHoldDetail: normalized,
-            sameHerDriftRisk: normalized,
-            emotionalClosureCue: normalized,
-            summary: normalized,
-            maxChars,
-          }
-        : { summary: normalized, maxChars }
-    }
-    return { summary: normalized, maxChars }
-  })()
-
-  const formatted = formatAlicizationProjectStateAwarenessFields(formatInput)
-  if (field === 'awareness')
-    return formatted || (containsAlicizationFixedTemplateResidue(normalized) ? alicizationFixedTemplateReplacement : normalized)
-
-  const key = field === 'summary' ? 'summary' : field
-  const extracted = extractProjectStateAwarenessFieldValue(formatted, key)
-  if (extracted)
-    return extracted
-
-  return containsAlicizationFixedTemplateResidue(normalized)
-    ? alicizationFixedTemplateReplacement
-    : normalized
-}
-
-function ensureProjectStateAudit(input: {
-  projectStateAudit: {
-    sameHerSummary?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRiskSummary?: string | null
-    continuityArcStage?: string | null
-    currentPhaseSummary?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    openFocusSummary?: string | null
-    nextFocusSummary?: string | null
-    nextClosureTargetSummary?: string | null
-    emotionalClosureSummary?: string | null
-    preDialogueAwarenessSummary?: string | null
-    companionBriefingLine?: string | null
-    continuitySummary?: string | null
-    embodimentClosureSummary?: string | null
-  } | null | undefined
-  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
-  projectState: {
-    currentPhase?: string | null
-    preflightSummary?: string | null
-    preDialogueAwarenessLine?: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    latestLandedProgress?: string | null
-    latestProgress?: string | null
-    landedProgressSummary?: string | null
-    primaryOpenLoop?: string | null
-    openClosureSummary?: string | null
-    nextClosureTarget?: string | null
-    nextClosureTargetSummary?: string | null
-    sameHerSelfLine?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-    continuityArcStage?: string | null
-    emotionalClosureCue?: string | null
-  }
-  preferRicherClosureCarry?: boolean
-}) {
-  const buildStructuredProjectAwarenessCarry = (parts: Array<unknown>) => parts
-    .map(value => sanitizeProjectStateField(value, null))
-    .filter((value, index, list): value is string => Boolean(value) && list.indexOf(value) === index)
-    .join(' ')
-    || null
-  const carriesProjectIdentityAwareness = (value: string | null | undefined) => /local-first digital life project|current continuity project|phase1 continuity|continuous identity|continuous identity|continuity_project/iu.test(value ?? '')
-  const carriesSameHerContinuityAwareness = (value: string | null | undefined) => /continuity line|current continuity|phase1 continuity|continuity line|same-session mirror carry|continuous identity|continuous identity|without splitting continuity|initiative and embodiment closure|continuity_identity|continuity_identity/iu.test(value ?? '')
-  const sameHerSummary = sanitizeProjectStateProviderField(
-    input.projectState.sameHerSelfLine,
-    null,
-    320,
-  )
-  const landedProgressSummary = input.projectState.latestLandedProgress
-    ?? input.projectState.latestProgress
-    ?? input.projectState.landedProgressSummary
-    ?? null
-  const openClosureSummary = input.projectState.primaryOpenLoop
-    ?? input.projectState.openClosureSummary
-    ?? input.projectState.nextClosureTarget
-    ?? null
-  const nextClosureTargetSummary = resolvePreferredProjectNextClosureTarget(
-    input.projectState.nextClosureTarget,
-    input.projectState.nextClosureTargetSummary,
-    input.projectState.primaryOpenLoop,
-    null,
-  )
-  const preferredProjectAwarenessLine = isAlicizationThinProjectAwarenessLine(input.projectState.preDialogueAwarenessLine ?? null)
-    ? sanitizeProjectStateField(
-        sanitizeProjectStateProviderField(input.projectState.companionBriefingLine ?? null, null, 800),
-        sanitizeProjectStateProviderField(input.projectState.preDialogueAwarenessLine ?? null, null, 800),
+  const sanitized = Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key, item]) =>
+        !legacyExecutionDeliveryGovernanceKeys.has(key)
+        && (key !== 'visibility' || item !== 'redacted_internal'),
       )
-    : sanitizeProjectStateProviderField(input.projectState.preDialogueAwarenessLine ?? null, null, 800)
-  const currentPhaseSummary = sanitizeProjectStateField(
-    null,
-    input.projectState.currentPhase ?? null,
+      .map(([key, item]) => [
+        key,
+        stripLegacyExecutionDeliveryGovernance(item),
+      ]),
   )
-  const existing = input.projectStateAudit ?? null
-  const sameHerDriftRiskSummary = sanitizeProjectStateField(
-    existing?.sameHerDriftRiskSummary,
-    input.projectState.sameHerDriftRisk ?? null,
-  )
-  const sameHerHoldDetail = sanitizeProjectStateField(
-    input.projectState.sameHerHoldDetail,
-    input.projectStateAudit?.sameHerHoldDetail ?? null,
-  )
-  const continuityArcStage = sanitizeProjectStateField(
-    input.projectState.continuityArcStage,
-    input.projectStateAudit?.continuityArcStage ?? null,
-  )
-  const emotionalClosureSummary = input.preferRicherClosureCarry
-    ? preferRicherProjectStateAuditText({
-        current: existing?.emotionalClosureSummary,
-        candidate: input.projectState.emotionalClosureCue ?? null,
-      })
-    : sanitizeProjectStateField(
-        existing?.emotionalClosureSummary,
-        input.projectState.emotionalClosureCue ?? null,
-      )
-  const selfContinuityAuthorityWithBodyState
-    = input.selfContinuityAuthority as CallbackPersistenceSelfContinuityAuthority | null | undefined
-  const authoritySummary = sanitizeProjectStateField(
-    input.selfContinuityAuthority?.authoritySummary ?? null,
-    null,
-  )
-  const currentBodyState = sanitizeProjectStateField(
-    selfContinuityAuthorityWithBodyState?.currentBodyState ?? null,
-    null,
-  )
-  const callbackPersistenceSelfContinuityAuthority: CallbackPersistenceSelfContinuityAuthority = {
-    ...input.selfContinuityAuthority,
-    authoritySummary,
-    currentBodyState,
-  }
-  const embodimentClosureSummary = resolveCallbackPersistenceEmbodimentClosureSummary({
-    current: describeAlicizationEmbodimentClosureReminder({
-      authoritySummary,
-      currentBodyState,
-    }) || null,
-    selfContinuityAuthority: callbackPersistenceSelfContinuityAuthority,
-  })
-  const resolvedSameHerSummary = resolveProjectSameHerSummary(existing?.sameHerSummary, sameHerSummary)
-  const resolvedLandedProgressSummary = input.preferRicherClosureCarry
-    ? preferRicherProjectStateAuditText({
-        current: existing?.landedProgressSummary,
-        candidate: landedProgressSummary,
-      })
-    : sanitizeProjectStateField(existing?.landedProgressSummary, landedProgressSummary)
-  const resolvedOpenClosureSummary = input.preferRicherClosureCarry
-    ? preferRicherProjectStateAuditText({
-        current: existing?.openClosureSummary,
-        candidate: openClosureSummary,
-      })
-    : sanitizeProjectStateField(existing?.openClosureSummary, openClosureSummary)
-  const resolvedOpenFocusSummary = input.preferRicherClosureCarry
-    ? preferRicherProjectStateAuditText({
-        current: existing?.openFocusSummary,
-        candidate: input.projectStateAudit?.openFocusSummary ?? null,
-      })
-    : sanitizeProjectStateField(existing?.openFocusSummary, input.projectStateAudit?.openFocusSummary ?? null)
-  const resolvedNextFocusSummary = input.preferRicherClosureCarry
-    ? preferRicherProjectStateAuditText({
-        current: existing?.nextFocusSummary,
-        candidate: input.projectStateAudit?.nextFocusSummary ?? null,
-      })
-    : sanitizeProjectStateField(existing?.nextFocusSummary, input.projectStateAudit?.nextFocusSummary ?? null)
-  const resolvedNextClosureTargetSummary = input.preferRicherClosureCarry
-    ? preferRicherProjectNextClosureAuditText({
-        current: existing?.nextClosureTargetSummary,
-        candidate: nextClosureTargetSummary,
-      })
-    : sanitizeProjectStateField(existing?.nextClosureTargetSummary, nextClosureTargetSummary)
-  const preDialogueAwarenessSummary = resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: {
-      ...input.projectState,
-      preDialogueAwarenessLine: preferredProjectAwarenessLine,
-      companionHeadlineLine: input.projectState.companionHeadlineLine ?? preferredProjectAwarenessLine,
-      landedProgressSummary: resolvedLandedProgressSummary,
-      openClosureSummary: resolvedOpenClosureSummary,
-      nextFocusSummary: resolvedNextFocusSummary,
-      openFocusSummary: resolvedOpenFocusSummary,
-      nextClosureTargetSummary: resolvedNextClosureTargetSummary,
-      emotionalClosureSummary,
-      sameHerDriftRiskSummary,
-    },
-    fallbackProjectState: {
-      preDialogueAwarenessLine: existing?.preDialogueAwarenessSummary ?? null,
-      preDialogueAwarenessSummary: existing?.preDialogueAwarenessSummary ?? null,
-      landedProgressSummary: existing?.landedProgressSummary ?? null,
-      openClosureSummary: existing?.openClosureSummary ?? null,
-      openFocusSummary: existing?.openFocusSummary ?? null,
-      nextFocusSummary: existing?.nextFocusSummary ?? null,
-      nextClosureTargetSummary: existing?.nextClosureTargetSummary ?? null,
-      emotionalClosureSummary: existing?.emotionalClosureSummary ?? null,
-      sameHerDriftRiskSummary: existing?.sameHerDriftRiskSummary ?? null,
-      preflightSummary: input.projectState.preflightSummary ?? null,
-    },
-  })
-  ?? sanitizeProjectStateProviderField(input.projectState.preflightSummary, null, 800)
-  ?? (sameHerSummary ? `current_continuity=${sameHerSummary}` : null)
-  const richerStructuredPreDialogueAwarenessSummary = input.preferRicherClosureCarry
-    ? buildStructuredProjectAwarenessCarry([
-        preferredProjectAwarenessLine,
-        resolvedLandedProgressSummary,
-        resolvedOpenClosureSummary,
-        resolvedOpenFocusSummary,
-        resolvedNextFocusSummary,
-        resolvedNextClosureTargetSummary,
-        emotionalClosureSummary,
-      ])
-    : null
-  const resolvedPreDialogueAwarenessSummary = resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: {
-      preDialogueAwarenessLine: preferredProjectAwarenessLine,
-      companionHeadlineLine: input.projectState.companionHeadlineLine ?? preferredProjectAwarenessLine,
-      companionBriefingLine: input.projectState.companionBriefingLine ?? null,
-      preDialogueAwarenessSummary: input.preferRicherClosureCarry
-        ? null
-        : preDialogueAwarenessSummary,
-      landedProgressSummary: resolvedLandedProgressSummary,
-      openClosureSummary: resolvedOpenClosureSummary,
-      openFocusSummary: resolvedOpenFocusSummary,
-      nextFocusSummary: resolvedNextFocusSummary,
-      nextClosureTargetSummary: resolvedNextClosureTargetSummary,
-      emotionalClosureSummary,
-      sameHerDriftRiskSummary,
-    },
-    fallbackProjectState: {
-      preDialogueAwarenessLine: existing?.preDialogueAwarenessSummary ?? null,
-      companionBriefingLine: existing?.companionBriefingLine ?? null,
-      preDialogueAwarenessSummary: existing?.preDialogueAwarenessSummary ?? null,
-      landedProgressSummary: existing?.landedProgressSummary ?? null,
-      openClosureSummary: existing?.openClosureSummary ?? null,
-      openFocusSummary: existing?.openFocusSummary ?? null,
-      nextFocusSummary: existing?.nextFocusSummary ?? null,
-      nextClosureTargetSummary: existing?.nextClosureTargetSummary ?? null,
-      emotionalClosureSummary: existing?.emotionalClosureSummary ?? null,
-      sameHerDriftRiskSummary: existing?.sameHerDriftRiskSummary ?? null,
-      preflightSummary: input.projectState.preflightSummary ?? null,
-    },
-  })
-  const shouldPreferStructuredClosureAwareness = Boolean(
-    input.preferRicherClosureCarry
-    && richerStructuredPreDialogueAwarenessSummary
-    && (
-      resolvedLandedProgressSummary !== sanitizeProjectStateField(existing?.landedProgressSummary, null)
-      || resolvedOpenClosureSummary !== sanitizeProjectStateField(existing?.openClosureSummary, null)
-      || resolvedNextClosureTargetSummary !== sanitizeProjectStateField(existing?.nextClosureTargetSummary, null)
-    ),
-  )
-  const explicitProjectAwarenessAnchor = sanitizeProjectStateField(
-    preferredProjectAwarenessLine,
-    input.projectState.companionHeadlineLine ?? null,
-  )
-  const explicitProjectAwarenessAnchorCarriesSameHer = carriesSameHerContinuityAwareness(explicitProjectAwarenessAnchor)
-  const selectedPreDialogueAwarenessSummary = shouldPreferStructuredClosureAwareness
-    ? richerStructuredPreDialogueAwarenessSummary
-    : resolvedPreDialogueAwarenessSummary
-      ?? richerStructuredPreDialogueAwarenessSummary
-      ?? sanitizeProjectStateField(existing?.preDialogueAwarenessSummary, preDialogueAwarenessSummary)
-  const selectedPreDialogueAwarenessSummaryCarriesSameHer = carriesSameHerContinuityAwareness(selectedPreDialogueAwarenessSummary)
-  const finalPreDialogueAwarenessSummary
-    = explicitProjectAwarenessAnchor
-      && (
-        (
-          carriesProjectIdentityAwareness(explicitProjectAwarenessAnchor)
-          && !carriesProjectIdentityAwareness(selectedPreDialogueAwarenessSummary)
-        )
-        || (
-          explicitProjectAwarenessAnchorCarriesSameHer
-          && !selectedPreDialogueAwarenessSummaryCarriesSameHer
-        )
-      )
-      ? explicitProjectAwarenessAnchor
-      : selectedPreDialogueAwarenessSummary
-  const resolvedEmbodimentClosureSummary = resolveEmbodimentClosureSummary(
-    existing?.embodimentClosureSummary,
-    embodimentClosureSummary,
-  )
-  const safeSameHerSummary = formatProjectStateAuditField(resolvedSameHerSummary, 'continuity_anchor', 320)
-  const safeSameHerHoldDetail = formatProjectStateAuditField(sameHerHoldDetail, 'continuity_hold', 320)
-  const safeCurrentPhaseSummary = formatProjectStateAuditField(currentPhaseSummary, 'phase', 220)
-  const safeLandedProgressSummary = formatProjectStateAuditField(resolvedLandedProgressSummary, 'landed', 360)
-  const safeOpenClosureSummary = formatProjectStateAuditField(resolvedOpenClosureSummary, 'open', 360)
-  const safeNextClosureTargetSummary = formatProjectStateAuditField(resolvedNextClosureTargetSummary, 'next', 360)
-  const safeEmotionalClosureSummary = formatProjectStateAuditField(emotionalClosureSummary, 'emotional_closure', 360)
-  const safeSameHerDriftRiskSummary = formatProjectStateAuditField(sameHerDriftRiskSummary, 'continuity_drift_risk', 360)
-  const safeEmbodimentClosureSummary = formatProjectStateAuditField(resolvedEmbodimentClosureSummary, 'summary', 520)
-  const resolvedContinuitySummary = buildProjectStateContinuitySummary({
-    sameHerSummary: safeSameHerSummary,
-    sameHerHoldDetail: safeSameHerHoldDetail,
-    continuityArcStage,
-    currentPhaseSummary: safeCurrentPhaseSummary,
-    landedProgressSummary: safeLandedProgressSummary,
-    openClosureSummary: safeOpenClosureSummary,
-    nextClosureTargetSummary: safeNextClosureTargetSummary,
-    emotionalClosureSummary: safeEmotionalClosureSummary,
-    sameHerDriftRiskSummary: safeSameHerDriftRiskSummary,
-    embodimentClosureSummary: safeEmbodimentClosureSummary,
-  })
 
-  return {
-    sameHerSummary: safeSameHerSummary,
-    sameHerHoldDetail: safeSameHerHoldDetail,
-    continuityArcStage,
-    currentPhaseSummary: safeCurrentPhaseSummary,
-    landedProgressSummary: safeLandedProgressSummary,
-    openClosureSummary: safeOpenClosureSummary,
-    openFocusSummary: formatProjectStateAuditField(resolvedOpenFocusSummary, 'summary', 220),
-    nextFocusSummary: formatProjectStateAuditField(resolvedNextFocusSummary, 'summary', 220),
-    nextClosureTargetSummary: safeNextClosureTargetSummary,
-    emotionalClosureSummary: safeEmotionalClosureSummary,
-    preDialogueAwarenessSummary: formatProjectStateAuditField(finalPreDialogueAwarenessSummary, 'awareness', 800),
-    sameHerDriftRiskSummary: safeSameHerDriftRiskSummary,
-    continuitySummary: resolvedContinuitySummary,
-    embodimentClosureSummary: safeEmbodimentClosureSummary,
-  }
+  return sanitized as T
 }
 
-function normalizeHostVisibleEmbodimentClosureSummary(value: unknown) {
-  const normalized = sanitizeProjectStateField(value, null)
-  if (!normalized)
-    return null
-
-  return normalized
-}
-
-function ensureHostVisibleProjectStateAudit(input: Parameters<typeof ensureProjectStateAudit>[0]) {
-  const audit = ensureProjectStateAudit(input)
-  const hostVisibleEmbodimentClosureSummary = normalizeHostVisibleEmbodimentClosureSummary(audit.embodimentClosureSummary)
-
-  if (!hostVisibleEmbodimentClosureSummary || hostVisibleEmbodimentClosureSummary === audit.embodimentClosureSummary)
-    return audit
-
-  return {
-    ...audit,
-    continuitySummary: buildProjectStateContinuitySummary({
-      sameHerSummary: audit.sameHerSummary ?? null,
-      sameHerHoldDetail: audit.sameHerHoldDetail,
-      sameHerDriftRiskSummary: audit.sameHerDriftRiskSummary,
-      currentPhaseSummary: audit.currentPhaseSummary,
-      landedProgressSummary: audit.landedProgressSummary ?? null,
-      openClosureSummary: audit.openClosureSummary ?? null,
-      nextClosureTargetSummary: audit.nextClosureTargetSummary,
-      emotionalClosureSummary: audit.emotionalClosureSummary,
-      embodimentClosureSummary: hostVisibleEmbodimentClosureSummary,
-    }),
-    embodimentClosureSummary: hostVisibleEmbodimentClosureSummary,
-  }
+function sanitizeExecutionDeliveryForRequeue<T extends Record<string, unknown>>(
+  pendingDelivery: T,
+  patch: Record<string, unknown> = {},
+) {
+  return stripLegacyExecutionDeliveryGovernance({
+    ...pendingDelivery,
+    ...patch,
+  })
 }
 
 interface CreateAlicizationDeliveryReminderRuntimeOptions {
@@ -564,686 +204,7 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
   errorMessageFrom: (error: unknown) => string | undefined
 }
 
-function sanitizeProjectStateField(value: unknown, fallback: string | null) {
-  if (typeof value !== 'string')
-    return fallback
-  const normalized = value.trim().replace(/\s+/g, ' ')
-  return normalized || fallback
-}
-
-function sanitizeProjectStateProviderField(value: unknown, fallback: string | null, maxChars = 360) {
-  const normalized = sanitizeAlicizationProviderFacingText(value, maxChars, '')
-  if (normalized && normalized !== alicizationFixedTemplateReplacement)
-    return normalized
-  if (!fallback)
-    return null
-  const fallbackNormalized = sanitizeAlicizationProviderFacingText(fallback, maxChars, '')
-  return fallbackNormalized && fallbackNormalized !== alicizationFixedTemplateReplacement
-    ? fallbackNormalized
-    : null
-}
-
-function sanitizePersistedProjectStateSnapshot<T extends Record<string, any>>(projectState: T): T {
-  return {
-    ...projectState,
-    identity: sanitizeProjectStateProviderField(projectState.identity, null, 220) ?? '',
-    currentPhase: sanitizeProjectStateProviderField(projectState.currentPhase, null, 180) ?? '',
-    preflightSummary: sanitizeProjectStateProviderField(projectState.preflightSummary, null, 1200),
-    preDialogueAwarenessSummary: sanitizeProjectStateProviderField(projectState.preDialogueAwarenessSummary, null, 1200),
-    preDialogueAwarenessLine: sanitizeProjectStateProviderField(projectState.preDialogueAwarenessLine, null, 1200),
-    awarenessLine: sanitizeProjectStateProviderField(projectState.awarenessLine, null, 1200),
-    companionHeadlineLine: sanitizeProjectStateProviderField(projectState.companionHeadlineLine, null, 1200),
-    companionBriefingLine: sanitizeProjectStateProviderField(projectState.companionBriefingLine, null, 1200),
-    latestLandedProgress: sanitizeProjectStateProviderField(projectState.latestLandedProgress, null, 520),
-    primaryOpenLoop: sanitizeProjectStateProviderField(projectState.primaryOpenLoop, null, 520),
-    nextClosureTarget: sanitizeProjectStateProviderField(projectState.nextClosureTarget, null, 520),
-    sameHerSelfLine: sanitizeProjectStateProviderField(projectState.sameHerSelfLine, null, 360),
-    sameHerHoldDetail: sanitizeProjectStateProviderField(projectState.sameHerHoldDetail, null, 520),
-    sameHerDriftRisk: sanitizeProjectStateProviderField(projectState.sameHerDriftRisk, null, 520),
-    emotionalClosureCue: sanitizeProjectStateProviderField(projectState.emotionalClosureCue, null, 520),
-    emotionalClosureSummary: sanitizeProjectStateProviderField(projectState.emotionalClosureSummary, null, 520),
-    continuityRestraint: sanitizeProjectStateProviderField(projectState.continuityRestraint, null, 120),
-    continuityArcStage: sanitizeProjectStateProviderField(projectState.continuityArcStage, null, 120),
-    continuityCue: sanitizeProjectStateProviderField(projectState.continuityCue, null, 520),
-    continuityPreferredTiming: sanitizeProjectStateProviderField(projectState.continuityPreferredTiming, null, 120),
-    continuityCadence: sanitizeProjectStateProviderField(projectState.continuityCadence, null, 120),
-    preferredBlinkCadence: sanitizeProjectStateProviderField(projectState.preferredBlinkCadence, null, 80),
-    preferredGazeMode: sanitizeProjectStateProviderField(projectState.preferredGazeMode, null, 80),
-    preferredPauseMode: sanitizeProjectStateProviderField(projectState.preferredPauseMode, null, 80),
-    preferredLipsyncMode: sanitizeProjectStateProviderField(projectState.preferredLipsyncMode, null, 80),
-    preferredVoiceMode: sanitizeProjectStateProviderField(projectState.preferredVoiceMode, null, 80),
-    preferredPacingMode: sanitizeProjectStateProviderField(projectState.preferredPacingMode, null, 80),
-  }
-}
-
-function looksLikeThinProjectNextClosureShell(value: string | null | undefined) {
-  const normalized = sanitizeProjectStateField(value, null)?.toLowerCase() ?? ''
-  if (!normalized)
-    return true
-
-  return normalized.includes('generic next target')
-    || normalized.includes('generic next closure')
-    || normalized.includes('generic closure shell')
-    || normalized.includes('generic closure summary')
-    || normalized.includes('generic callback summary')
-    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
-}
-
-function preferProjectNextClosureTarget(current: unknown, candidate: unknown) {
-  const normalizedCurrent = sanitizeProjectStateField(current, null)
-  const normalizedCandidate = sanitizeProjectStateField(candidate, null)
-
-  if (!normalizedCurrent)
-    return normalizedCandidate
-  if (!normalizedCandidate)
-    return normalizedCurrent
-  if (normalizedCurrent === normalizedCandidate)
-    return normalizedCurrent
-
-  if (
-    looksLikeThinProjectNextClosureShell(normalizedCurrent)
-    && !looksLikeThinProjectNextClosureShell(normalizedCandidate)
-  ) {
-    return normalizedCandidate
-  }
-
-  return normalizedCurrent
-}
-
-function preferRicherProjectNextClosureAuditText(input: {
-  current?: unknown
-  candidate?: unknown
-}) {
-  const current = sanitizeProjectStateField(input.current, null)
-  const candidate = sanitizeProjectStateField(input.candidate, null)
-
-  if (!current)
-    return candidate
-  if (!candidate)
-    return current
-  if (current === candidate)
-    return current
-
-  if (looksLikeThinProjectNextClosureShell(current) !== looksLikeThinProjectNextClosureShell(candidate))
-    return looksLikeThinProjectNextClosureShell(candidate) ? current : candidate
-
-  return preferRicherProjectStateAuditText({
-    current,
-    candidate,
-  })
-}
-
-function resolvePreferredProjectNextClosureTarget(...values: Array<unknown>): string | null {
-  return values.reduce<string | null>(
-    (best, candidate) => preferProjectNextClosureTarget(best, candidate),
-    null,
-  )
-}
-
-function preferRicherProjectStateAuditText(input: {
-  current?: unknown
-  candidate?: unknown
-}) {
-  const current = sanitizeProjectStateField(input.current, null)
-  const candidate = sanitizeProjectStateField(input.candidate, null)
-
-  if (!current)
-    return candidate
-  if (!candidate)
-    return current
-  if (current === candidate)
-    return current
-
-  const preferredClosureAuthority = preferStrongerContinuityClosureAuthority(current, candidate)
-  if (preferredClosureAuthority)
-    return preferredClosureAuthority
-
-  if (candidate.startsWith(current) && candidate.length >= current.length + 24)
-    return candidate
-  if (current.startsWith(candidate) && current.length >= candidate.length + 24)
-    return current
-
-  return candidate.length > current.length ? candidate : current
-}
-
-function scoreProjectSameHerLine(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return 0
-
-  let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
-  if (/current continuity|continuity|continuity line|continuous identity|continuous identity|continuous identity|without splitting continuity|initiative and embodiment closure|continuity_identity|continuity_identity/u.test(normalized))
-    score += 3
-  if (/holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure|unfinished closure|still needs .* closure/u.test(normalized))
-    score += 2
-  if (/keep the current continuity project in view|generic reminder|generic guidance/u.test(normalized))
-    score -= 2
-  return score
-}
-
-function looksLikeRicherLivingSelfSameHerLine(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-
-  return /continuous identity|continuous identity|holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure|continuity line|without splitting continuity|initiative and embodiment closure|continuous identity/u.test(normalized)
-}
-
-function resolveProjectSameHerSummary(existingValue: unknown, currentValue: string | null) {
-  const existing = sanitizeProjectStateField(existingValue, null)
-  const current = sanitizeProjectStateField(currentValue, null)
-  const existingScore = scoreProjectSameHerLine(existing)
-  const currentScore = scoreProjectSameHerLine(current)
-  if (
-    looksLikeRicherLivingSelfSameHerLine(current)
-    && currentScore > existingScore
-  ) {
-    return current ?? existing
-  }
-
-  return existing ?? current
-}
-
-function resolveEmbodimentClosureSummary(value: unknown, current: string | null) {
-  if (typeof current === 'string' && current.trim())
-    return current.trim()
-
-  if (typeof value !== 'string')
-    return null
-
-  const normalized = value.trim().replace(/\s+/g, ' ')
-  return normalized || null
-}
-
-function shouldPromotePlainLaneEmbodimentCarryToLoopSummary(currentBodyState: string | null | undefined) {
-  const normalized = sanitizeProjectStateField(currentBodyState, null)?.toLowerCase() ?? ''
-  if (!normalized)
-    return false
-
-  return normalized.includes('lane=')
-    && normalized.includes('visible continuity still present but no longer fully cross-modal')
-    && !normalized.includes('living audio thread')
-    && !normalized.includes('resident body')
-    && !normalized.includes('same segment')
-}
-
-function resolveCallbackPersistenceEmbodimentClosureSummary(input: {
-  current?: string | null
-  selfContinuityAuthority?: CallbackPersistenceSelfContinuityAuthority | null
-}) {
-  const current = sanitizeProjectStateField(input.current, null)
-  const selfContinuityAuthorityWithBodyState
-    = input.selfContinuityAuthority as CallbackPersistenceSelfContinuityAuthority | null | undefined
-  const authoritySummary = sanitizeProjectStateField(
-    input.selfContinuityAuthority?.authoritySummary ?? null,
-    null,
-  )
-  const currentBodyState = sanitizeProjectStateField(
-    selfContinuityAuthorityWithBodyState?.currentBodyState ?? null,
-    null,
-  )
-
-  if (!shouldPromotePlainLaneEmbodimentCarryToLoopSummary(currentBodyState))
-    return current
-
-  const loopSummary = buildAlicizationEmbodimentLoopSummary({
-    authoritySummary,
-    currentBodyState,
-  }) || null
-
-  return preferRicherProjectStateAuditText({
-    current,
-    candidate: loopSummary,
-  })
-}
-
-function buildProjectStateContinuitySummary(input: {
-  sameHerSummary: string | null
-  sameHerHoldDetail?: string | null
-  sameHerDriftRiskSummary?: string | null
-  continuityArcStage?: string | null
-  currentPhaseSummary?: string | null
-  landedProgressSummary: string | null
-  openClosureSummary: string | null
-  nextClosureTargetSummary?: string | null
-  emotionalClosureSummary?: string | null
-  embodimentClosureSummary: string | null
-}) {
-  const projectStateContinuityCarry = buildPrioritizedProjectStateContinuityLines({
-    projectStateContinuityAnchors: [
-      formatProjectStateAuditField(input.sameHerSummary, 'continuity_anchor', 320),
-      formatProjectStateAuditField(input.sameHerHoldDetail, 'continuity_hold', 320),
-      input.continuityArcStage ?? '',
-      formatProjectStateAuditField(input.sameHerDriftRiskSummary, 'continuity_drift_risk', 360),
-      formatProjectStateAuditField(input.currentPhaseSummary, 'phase', 220),
-      formatProjectStateAuditField(input.landedProgressSummary, 'landed', 360),
-      formatProjectStateAuditField(input.openClosureSummary, 'open', 360),
-      formatProjectStateAuditField(input.nextClosureTargetSummary, 'next', 360),
-      formatProjectStateAuditField(input.emotionalClosureSummary, 'emotional_closure', 360),
-    ].filter((value): value is string => Boolean(value)),
-  })
-  return [
-    ...projectStateContinuityCarry,
-    formatProjectStateAuditField(input.embodimentClosureSummary, 'summary', 520),
-  ].filter(Boolean).join(' ') || null
-}
-
-export const runtimeDeliveryReminderTestInternals = {
-  buildReminderProjectStatePersistence,
-  buildProjectStateContinuitySummary,
-  ensureProjectStateAudit,
-  resolvePersistedProjectState,
-}
-
-function resolvePersistedProjectState(input: {
-  runtimeProjectState?: {
-    identity?: unknown
-    currentPhase?: unknown
-    preflightSummary?: unknown
-    preDialogueAwarenessLine?: unknown
-    awarenessLine?: unknown
-    companionBriefingLine?: unknown
-    preDialogueAwarenessSummary?: unknown
-    latestLandedProgress?: unknown
-    latestProgress?: unknown
-    primaryOpenLoop?: unknown
-    nextClosureTarget?: unknown
-    sameHerSelfLine?: unknown
-    sameHerHoldDetail?: unknown
-    sameHerDriftRisk?: unknown
-    continuityArcStage?: unknown
-    landedProgressSummary?: unknown
-    openClosureSummary?: unknown
-    openFocusSummary?: unknown
-    nextFocusSummary?: unknown
-    nextClosureTargetSummary?: unknown
-    emotionalClosureSummary?: unknown
-    sameHerDriftRiskSummary?: unknown
-    emotionalClosureCue?: unknown
-  } | null
-  fallbackProjectState: {
-    identity: string
-    currentPhase: string
-    preflightSummary: string | null
-    preDialogueAwarenessLine?: string | null
-    awarenessLine?: string | null
-    companionBriefingLine?: string | null
-    preDialogueAwarenessSummary?: string | null
-    latestLandedProgress: string | null
-    primaryOpenLoop: string | null
-    nextClosureTarget: string
-    sameHerSelfLine: string
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-    continuityArcStage?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    openFocusSummary?: string | null
-    nextFocusSummary?: string | null
-    nextClosureTargetSummary?: string | null
-    emotionalClosureSummary?: string | null
-    sameHerDriftRiskSummary?: string | null
-    emotionalClosureCue?: string | null
-  }
-}) {
-  const runtimePreflightSummary = sanitizeProjectStateField(
-    input.runtimeProjectState?.preflightSummary,
-    null,
-  )
-  const runtimeAwarenessSummaryLine = sanitizeProjectStateField(
-    input.runtimeProjectState?.preDialogueAwarenessSummary,
-    null,
-  )
-  const runtimeInlineAwarenessLine = sanitizeProjectStateField(
-    input.runtimeProjectState?.preDialogueAwarenessLine,
-    sanitizeProjectStateField(
-      input.runtimeProjectState?.awarenessLine,
-      null,
-    ),
-  )
-  const runtimeExplicitAwarenessLine
-    = runtimeInlineAwarenessLine
-      && isAlicizationThinProjectAwarenessLine(runtimeInlineAwarenessLine)
-      && runtimeAwarenessSummaryLine
-      && !isAlicizationThinProjectAwarenessLine(runtimeAwarenessSummaryLine)
-      ? runtimeAwarenessSummaryLine
-      : sanitizeProjectStateField(
-          runtimeInlineAwarenessLine,
-          runtimeAwarenessSummaryLine,
-        )
-  const runtimeCompanionBriefingLine = sanitizeProjectStateField(
-    input.runtimeProjectState?.companionBriefingLine,
-    null,
-  )
-  const fallbackExplicitAwarenessLine = sanitizeProjectStateField(
-    input.fallbackProjectState.preDialogueAwarenessLine,
-    sanitizeProjectStateField(
-      input.fallbackProjectState.awarenessLine,
-      null,
-    ),
-  )
-  const runtimeProjectStateLooksThin = [
-    input.runtimeProjectState?.identity,
-    input.runtimeProjectState?.currentPhase,
-    input.runtimeProjectState?.preflightSummary,
-    input.runtimeProjectState?.preDialogueAwarenessLine,
-    input.runtimeProjectState?.awarenessLine,
-    input.runtimeProjectState?.companionBriefingLine,
-    input.runtimeProjectState?.preDialogueAwarenessSummary,
-    input.runtimeProjectState?.latestLandedProgress,
-    input.runtimeProjectState?.primaryOpenLoop,
-    input.runtimeProjectState?.nextClosureTarget,
-    input.runtimeProjectState?.sameHerSelfLine,
-    input.runtimeProjectState?.sameHerDriftRisk,
-  ].every(value => !sanitizeProjectStateField(value, null))
-  const preferredPersistedAwarenessLine
-    = runtimeExplicitAwarenessLine && !isAlicizationThinProjectAwarenessLine(runtimeExplicitAwarenessLine)
-      ? runtimeExplicitAwarenessLine
-      : runtimeCompanionBriefingLine || (runtimeProjectStateLooksThin
-        ? fallbackExplicitAwarenessLine
-        : null)
-  const shouldPreserveRuntimeProjectThreadPreflight
-    = Boolean(
-      runtimePreflightSummary
-      && /same-digital-life-project-thread|phase1-route=|unresolved=/iu.test(runtimePreflightSummary),
-    )
-  const runtimePreDialogueAwarenessLine = sanitizeProjectStateField(
-    runtimeExplicitAwarenessLine,
-    runtimeAwarenessSummaryLine,
-  )
-  const preferredRuntimePreDialogueAwarenessLine = isAlicizationThinProjectAwarenessLine(runtimePreDialogueAwarenessLine)
-    ? sanitizeProjectStateField(
-        input.fallbackProjectState.preDialogueAwarenessLine ?? null,
-        runtimePreDialogueAwarenessLine,
-      )
-    : runtimePreDialogueAwarenessLine
-  const preferredRuntimeNextClosureTarget = resolvePreferredProjectNextClosureTarget(
-    input.runtimeProjectState?.nextClosureTarget,
-    input.runtimeProjectState?.nextClosureTargetSummary,
-    input.fallbackProjectState.nextClosureTarget,
-    input.fallbackProjectState.nextClosureTargetSummary ?? null,
-  )
-  const runtimeLatestLandedProgress = sanitizeProjectStateField(
-    input.runtimeProjectState?.latestLandedProgress,
-    sanitizeProjectStateField(input.runtimeProjectState?.latestProgress, null),
-  )
-  const canonicalStructuredProjectState = resolveCanonicalStructuredProjectState({
-    normalizedProjectState: {
-      identity: sanitizeProjectStateField(
-        input.runtimeProjectState?.identity,
-        input.fallbackProjectState.identity,
-      ) ?? input.fallbackProjectState.identity,
-      currentPhase: sanitizeProjectStateField(
-        input.runtimeProjectState?.currentPhase,
-        input.fallbackProjectState.currentPhase,
-      ) ?? input.fallbackProjectState.currentPhase,
-      latestLandedProgress: sanitizeProjectStateField(
-        runtimeLatestLandedProgress,
-        input.fallbackProjectState.latestLandedProgress,
-      ),
-      primaryOpenLoop: sanitizeProjectStateField(
-        input.runtimeProjectState?.primaryOpenLoop,
-        input.fallbackProjectState.primaryOpenLoop,
-      ),
-      nextClosureTarget: sanitizeProjectStateField(
-        preferredRuntimeNextClosureTarget,
-        input.fallbackProjectState.nextClosureTarget,
-      ) ?? input.fallbackProjectState.nextClosureTarget,
-      sameHerSelfLine: sanitizeProjectStateField(
-        input.runtimeProjectState?.sameHerSelfLine,
-        input.fallbackProjectState.sameHerSelfLine,
-      ) ?? input.fallbackProjectState.sameHerSelfLine,
-      sameHerHoldDetail: sanitizeProjectStateField(
-        input.runtimeProjectState?.sameHerHoldDetail,
-        input.fallbackProjectState.sameHerHoldDetail ?? null,
-      ),
-      sameHerDriftRisk: sanitizeProjectStateField(
-        input.runtimeProjectState?.sameHerDriftRisk,
-        input.fallbackProjectState.sameHerDriftRisk ?? null,
-      ),
-      continuityArcStage: sanitizeProjectStateField(
-        input.runtimeProjectState?.continuityArcStage,
-        input.fallbackProjectState.continuityArcStage ?? null,
-      ),
-    },
-    runtimePreflightSummary: sanitizeProjectStateField(
-      input.runtimeProjectState?.preflightSummary,
-      input.fallbackProjectState.preflightSummary,
-    ),
-    runtimePreDialogueAwarenessLine: sanitizeProjectStateField(
-      resolveAlicizationProjectPreDialogueAwarenessLine({
-        runtimeProjectState: {
-          preDialogueAwarenessLine: preferredRuntimePreDialogueAwarenessLine,
-          awarenessLine: input.runtimeProjectState?.awarenessLine,
-          companionBriefingLine: input.runtimeProjectState?.companionBriefingLine,
-          preDialogueAwarenessSummary: input.runtimeProjectState?.preDialogueAwarenessSummary,
-          preflightSummary: input.runtimeProjectState?.preflightSummary,
-          landedProgressSummary: input.runtimeProjectState?.landedProgressSummary ?? runtimeLatestLandedProgress,
-          openClosureSummary: input.runtimeProjectState?.openClosureSummary,
-          openFocusSummary: input.runtimeProjectState?.openFocusSummary,
-          nextFocusSummary: input.runtimeProjectState?.nextFocusSummary,
-          nextClosureTargetSummary: sanitizeProjectStateField(
-            preferredRuntimeNextClosureTarget,
-            sanitizeProjectStateField(input.runtimeProjectState?.nextClosureTargetSummary, null),
-          ),
-          emotionalClosureSummary: input.runtimeProjectState?.emotionalClosureSummary,
-          sameHerDriftRiskSummary: input.runtimeProjectState?.sameHerDriftRiskSummary,
-        },
-        fallbackProjectState: {
-          preDialogueAwarenessLine: input.fallbackProjectState.preDialogueAwarenessLine ?? null,
-          awarenessLine: input.fallbackProjectState.awarenessLine ?? null,
-          companionBriefingLine: input.fallbackProjectState.companionBriefingLine ?? null,
-          preDialogueAwarenessSummary: input.fallbackProjectState.preDialogueAwarenessSummary ?? null,
-          preflightSummary: input.fallbackProjectState.preflightSummary,
-          landedProgressSummary: input.fallbackProjectState.landedProgressSummary ?? null,
-          openClosureSummary: input.fallbackProjectState.openClosureSummary ?? null,
-          openFocusSummary: input.fallbackProjectState.openFocusSummary ?? null,
-          nextFocusSummary: input.fallbackProjectState.nextFocusSummary ?? null,
-          nextClosureTargetSummary: input.fallbackProjectState.nextClosureTargetSummary ?? null,
-          emotionalClosureSummary: input.fallbackProjectState.emotionalClosureSummary ?? null,
-          sameHerDriftRiskSummary: input.fallbackProjectState.sameHerDriftRiskSummary ?? null,
-        },
-      }),
-      input.fallbackProjectState.preDialogueAwarenessLine ?? null,
-    ),
-    payloadPreflightSummary: input.fallbackProjectState.preflightSummary,
-    payloadPreDialogueAwarenessLine: input.fallbackProjectState.preDialogueAwarenessLine ?? null,
-  })
-
-  return sanitizePersistedProjectStateSnapshot({
-    ...canonicalStructuredProjectState,
-    preflightSummary: shouldPreserveRuntimeProjectThreadPreflight
-      ? runtimePreflightSummary
-      : canonicalStructuredProjectState.preflightSummary,
-    preDialogueAwarenessSummary: preferredPersistedAwarenessLine ?? canonicalStructuredProjectState.preDialogueAwarenessSummary,
-    preDialogueAwarenessLine: preferredPersistedAwarenessLine ?? canonicalStructuredProjectState.preDialogueAwarenessLine,
-    awarenessLine: preferredPersistedAwarenessLine ?? canonicalStructuredProjectState.awarenessLine,
-    emotionalClosureCue: sanitizeProjectStateField(
-      input.runtimeProjectState?.emotionalClosureCue,
-      input.fallbackProjectState.emotionalClosureCue ?? null,
-    ),
-  })
-}
-
-function resolveExecutionDeliveryContinuityCue(reasonTags: string[]) {
-  return reasonTags.find(tag =>
-    tag === 'held-autonomy-carry'
-    || tag === continuityBaselineTag
-    || tag === 'callback-afterglow-hold',
-  ) ?? null
-}
-
-function carriesProjectStateCallbackClosure(input: {
-  personStateProjection?: AlicizationPersonStateProjection | null
-  projectState?: {
-    preflightSummary?: string | null
-    currentPhase?: string | null
-    primaryOpenLoop?: string | null
-  } | null
-}) {
-  const text = [
-    input.personStateProjection?.openingGuidance ?? '',
-    input.personStateProjection?.summary ?? '',
-    input.projectState?.preflightSummary ?? '',
-    input.projectState?.currentPhase ?? '',
-    input.projectState?.primaryOpenLoop ?? '',
-  ].join(' ').toLowerCase()
-
-  return /phase 1|local-first digital life|current continuity|unfinished closure|project identity carry|still-open closure|continuity/u.test(text)
-}
-
-function resolveExecutionDeliveryHoldOpeningGuidance(input: {
-  continuityCue: string | null
-  personStateProjection?: AlicizationPersonStateProjection | null
-  reasonTags?: string[] | null
-  projectState?: {
-    nextClosureTarget?: string | null
-    primaryOpenLoop?: string | null
-    sameHerSelfLine?: string | null
-    latestLandedProgress?: string | null
-    emotionalClosureCue?: string | null
-  } | null
-}) {
-  const projectedGuidance = sanitizeProjectStateProviderField(
-    input.personStateProjection?.openingGuidance,
-    null,
-    520,
-  )
-  const sameHerSelfLine = sanitizeProjectStateProviderField(
-    input.projectState?.sameHerSelfLine,
-    null,
-    320,
-  )
-  const primaryOpenLoop = sanitizeProjectStateProviderField(
-    input.projectState?.primaryOpenLoop,
-    null,
-    360,
-  )
-  const nextClosureTarget = sanitizeProjectStateProviderField(
-    input.projectState?.nextClosureTarget,
-    null,
-    360,
-  )
-  const latestLandedProgress = sanitizeProjectStateProviderField(
-    input.projectState?.latestLandedProgress,
-    null,
-    360,
-  )
-  const emotionalClosureCue = sanitizeProjectStateProviderField(
-    input.projectState?.emotionalClosureCue,
-    null,
-    360,
-  )
-  const carriesRestProtective = (input.reasonTags ?? []).includes('rest-protective')
-    || /rest-protective|protect rest|quiet-companionship|line holds inward|低压|护住休息|安静陪着|先别外扩/iu.test(nextClosureTarget ?? '')
-    || /rest-protective|protect rest|quiet-companionship|line holds inward|低压|护住休息|安静陪着|先别外扩/iu.test(emotionalClosureCue ?? '')
-  const carriesRepairBeforeCloseness = (input.reasonTags ?? []).includes('repair-before-closeness')
-    || /repair-before-closeness|repair before closeness|先修复再靠近|先把身体收稳|修复优先/iu.test(nextClosureTarget ?? '')
-    || /repair-before-closeness|repair before closeness|先修复再靠近|先把身体收稳|修复优先/iu.test(emotionalClosureCue ?? '')
-  const normalizedNextClosureTarget = carriesRestProtective
-    ? nextClosureTarget?.replace(
-      /measured-return or repair-before-closeness line/gu,
-      'rest-protective or quiet-companionship line',
-    ) ?? null
-    : carriesRepairBeforeCloseness
-      ? nextClosureTarget?.replace(
-        /measured-return or repair-before-closeness line/gu,
-        'repair-before-closeness line',
-      ) ?? null
-      : nextClosureTarget
-  const sameHerMeasuredReturnLine = [
-    sameHerSelfLine ? `Continuity anchor: ${sameHerSelfLine}.` : '',
-    latestLandedProgress ? `Landed progress: ${latestLandedProgress}.` : '',
-    primaryOpenLoop ? `Open focus: ${primaryOpenLoop}.` : '',
-    carriesRestProtective
-      ? 'Callback policy: rest-protective. Reply pressure stays low and warmth widening stays deferred.'
-      : carriesRepairBeforeCloseness
-        ? 'Callback policy: repair before closeness. Repair settles first and closeness widening stays deferred.'
-        : 'Callback policy: measured return. Reply pressure stays lower and closeness widening stays deferred.',
-    normalizedNextClosureTarget ? `Next focus: ${normalizedNextClosureTarget}.` : '',
-  ].filter(Boolean).join(' ')
-  const carriesHeldAutonomy = input.continuityCue === 'held-autonomy-carry'
-    || (input.reasonTags ?? []).includes('held-autonomy-carry')
-  const carriesSameHerBaseline = input.continuityCue === continuityBaselineTag
-    || (input.reasonTags ?? []).includes(continuityBaselineTag)
-  const carriesHeldAutonomyOpeningGuidance = projectedGuidance
-    ? /same thread|callback|held back|re-enter|life thread|同一条线|留白|慢一点|接回去|别太快|不要太快|先别贴得太近/iu.test(projectedGuidance)
-    : false
-  const projectedGuidanceLooksThinSameHerBaseline = projectedGuidance
-    ? /stay inside the current continuity baseline/u.test(projectedGuidance)
-    && !/keep trusting that|do not lose the still-open line where|let the callback keep serving/u.test(projectedGuidance)
-    : false
-
-  if (carriesHeldAutonomy) {
-    return carriesHeldAutonomyOpeningGuidance
-      ? projectedGuidance
-      : carriesRepairBeforeCloseness
-        ? ['Held-autonomy carry stays active; repair settles first and closeness widening stays deferred.', sameHerMeasuredReturnLine].filter(Boolean).join(' | ')
-        : ['Held-autonomy carry stays active; reply pressure stays lower and closeness widening stays deferred.', sameHerMeasuredReturnLine].filter(Boolean).join(' | ')
-  }
-  if (projectedGuidance) {
-    if ((carriesSameHerBaseline || (input.reasonTags ?? []).includes('callback-afterglow-hold'))
-      && (
-        projectedGuidanceLooksThinSameHerBaseline
-        || !/landed=|open=|next=|callback policy|held-autonomy carry|reply pressure|closeness widening/u.test(projectedGuidance)
-      )
-      && sameHerMeasuredReturnLine) {
-      return `${projectedGuidance} | ${sameHerMeasuredReturnLine}`.trim()
-    }
-    return projectedGuidance
-  }
-  if (carriesSameHerBaseline) {
-    return sameHerMeasuredReturnLine || 'Continuity baseline stays active; reply pressure stays lower and closeness widening stays deferred.'
-  }
-  return 'Thread-faithful callback stays bounded.'
-}
-
-type AlicizationPersonStateProjectionWithProjectState = AlicizationPersonStateProjection & {
-  projectState?: Record<string, unknown> | null
-}
-
-function buildReminderProjectStatePersistence(projectStateBrief: ReturnType<typeof resolveAlicizationProjectStateBrief>) {
-  const projectStatePersistenceAwarenessLine = projectStateBrief.preDialogueAwarenessLine ?? null
-  const canonicalProjectStatePersistence = resolveCanonicalStructuredProjectState({
-    normalizedProjectState: {
-      identity: projectStateBrief.identity,
-      currentPhase: projectStateBrief.currentPhase,
-      latestLandedProgress: projectStateBrief.continuityProgressSummary ?? projectStateBrief.memoryAnthropomorphismProgress.at(-1) ?? null,
-      primaryOpenLoop: projectStateBrief.openLoops[0] ?? null,
-      nextClosureTarget: projectStateBrief.nextClosureTarget,
-      sameHerSelfLine: projectStateBrief.sameHerSelfLine,
-      sameHerDriftRisk: projectStateBrief.sameHerDriftRisk,
-      continuityArcStage: projectStateBrief.continuityArcStage ?? null,
-    },
-    runtimePreflightSummary: projectStateBrief.preflightSummary ?? null,
-    runtimePreDialogueAwarenessLine: projectStateBrief.preDialogueAwarenessLine ?? null,
-  })
-
-  return sanitizePersistedProjectStateSnapshot({
-    ...canonicalProjectStatePersistence,
-    preDialogueAwarenessSummary:
-      projectStatePersistenceAwarenessLine
-      ?? canonicalProjectStatePersistence.preDialogueAwarenessSummary,
-    preDialogueAwarenessLine:
-      projectStatePersistenceAwarenessLine
-      ?? canonicalProjectStatePersistence.preDialogueAwarenessLine,
-    awarenessLine:
-      projectStatePersistenceAwarenessLine
-      ?? canonicalProjectStatePersistence.awarenessLine,
-    companionHeadlineLine:
-      projectStatePersistenceAwarenessLine
-      ?? canonicalProjectStatePersistence.companionHeadlineLine,
-    companionBriefingLine:
-      projectStatePersistenceAwarenessLine
-      ?? canonicalProjectStatePersistence.companionBriefingLine,
-    emotionalClosureCue: null,
-  })
-}
-
 export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizationDeliveryReminderRuntimeOptions) {
-  const projectStateBrief = resolveAlicizationProjectStateBrief()
-  const projectStatePersistence = buildReminderProjectStatePersistence(projectStateBrief)
-
   async function processDueRemindersForCurrentCard(
     trigger: 'timer' | 'force' | 'startup',
     agentTurn?: AlicizationAgentTurnRuntime | null,
@@ -1464,38 +425,20 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           replyPreview: options.sanitizeBriefText(structured.reply, 120),
         })
         const deliveredSessionId = await options.ensureActiveOrLatestSessionId(options.getActiveCardId())
-        const reminderStructuredProjectStateAudit = ensureProjectStateAudit({
-          projectStateAudit: reminderVisibleUtterance.visibleReplyRealization.projectStateAudit,
-          projectState: projectStatePersistence,
-          preferRicherClosureCarry: false,
-        })
-        const reminderHostVisibleProjectStateAudit = ensureHostVisibleProjectStateAudit({
-          projectStateAudit: reminderVisibleUtterance.visibleReplyRealization.projectStateAudit,
-          projectState: projectStatePersistence,
-          preferRicherClosureCarry: false,
-        })
+        const reminderStructuredForPersistence = stripLegacyExecutionDeliveryGovernance(
+          reminderVisibleUtterance.structuredForPersistence,
+        )
+        const reminderVisibleReplyRealization = stripLegacyExecutionDeliveryGovernance(
+          reminderVisibleUtterance.visibleReplyRealization,
+        )
         const persisted = await options.appendConversationTurnWithGuards({
           turnId: firedTurnId,
           sessionId: deliveredSessionId,
           assistantText: reminderVisibleUtterance.assistantText,
-          structured: reminderVisibleUtterance.structuredForPersistence
-            ? {
-                ...reminderVisibleUtterance.structuredForPersistence,
-                projectState: projectStatePersistence,
-                visibleReplyRealization: reminderVisibleUtterance.structuredForPersistence.visibleReplyRealization
-                  ? {
-                      ...reminderVisibleUtterance.structuredForPersistence.visibleReplyRealization,
-                      projectStateAudit: reminderStructuredProjectStateAudit,
-                    }
-                  : reminderVisibleUtterance.structuredForPersistence.visibleReplyRealization,
-              }
-            : reminderVisibleUtterance.structuredForPersistence,
+          structured: reminderStructuredForPersistence,
           origin: resolveAlicizationAutonomousDialogueOrigin('proactive'),
           createdAt: Date.now(),
-          visibleReplyRealization: {
-            ...reminderVisibleUtterance.visibleReplyRealization,
-            projectStateAudit: reminderHostVisibleProjectStateAudit,
-          },
+          visibleReplyRealization: reminderVisibleReplyRealization,
         })
 
         if (!persisted) {
@@ -1674,6 +617,78 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       })
       return true
     }
+    const handleProviderSettlementFailure = async (input: {
+      reason: string
+      settlementStatus: string
+    }) => {
+      const providerSettlementAttempts = Math.max(
+        0,
+        Number(pendingDelivery.providerSettlementAttempts ?? 0),
+      ) + 1
+      if (providerSettlementAttempts >= executionProviderSettlementRetryBudget) {
+        const failureSurface = resolveAlicizationChatFailureSurface({
+          kind: 'structured-contract',
+        })
+        const persistedFailure = await options.appendConversationTurnWithGuards({
+          turnId: firedTurnId,
+          sessionId: pendingDelivery.sessionId,
+          assistantText: failureSurface.reply,
+          structured: {
+            format: 'alicization-chat-failure-v1',
+            ...failureSurface,
+          },
+          origin: resolveAlicizationAutonomousDialogueOrigin('proactive'),
+          createdAt: Date.now(),
+        })
+        if (persistedFailure) {
+          options.executionDeliveryRuntime.markDelivered(pendingDelivery)
+          await options.persistExecutionDeliveryState(options.getActiveCardId())
+          await options.appendAuditLog({
+            level: 'critical',
+            category: 'alicization.executor.delivery',
+            action: 'provider-settlement-failed',
+            message: 'Execution callback failed because the Provider did not settle a valid visible reply within the retry budget.',
+            payload: {
+              trigger,
+              threadId: pendingDelivery.threadId,
+              sessionId: pendingDelivery.sessionId,
+              status: pendingDelivery.status,
+              settlementStatus: input.settlementStatus,
+              reason: input.reason,
+              providerSettlementAttempts,
+            },
+          })
+          return true
+        }
+      }
+      options.executionDeliveryRuntime.requeue(
+        sanitizeExecutionDeliveryForRequeue(pendingDelivery, {
+          providerSettlementAttempts,
+        }),
+      )
+      await options.persistExecutionDeliveryState(options.getActiveCardId())
+      options.queueSubconsciousWake(
+        options.getActiveCardId(),
+        `execution-delivery-requeue:${pendingDelivery.threadId}`,
+        1_500,
+      )
+      await options.appendAuditLog({
+        level: 'warning',
+        category: 'alicization.executor.delivery',
+        action: 'pending-provider-settlement',
+        message: 'Execution callback remains pending because the Provider did not settle a valid visible reply.',
+        payload: {
+          trigger,
+          threadId: pendingDelivery.threadId,
+          sessionId: pendingDelivery.sessionId,
+          status: pendingDelivery.status,
+          settlementStatus: input.settlementStatus,
+          reason: input.reason,
+          providerSettlementAttempts,
+        },
+      })
+      return false
+    }
 
     try {
       if (await skipIfInlineSurfaced('pre-generate'))
@@ -1710,88 +725,6 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
             cardId: options.getActiveCardId(),
           })
         : null
-      const callbackProjectState = resolvePersistedProjectState({
-        runtimeProjectState: {
-          ...(personStateProjection as AlicizationPersonStateProjectionWithProjectState | null)?.projectState,
-          ...pendingDelivery.projectState,
-        } as any,
-        fallbackProjectState: projectStatePersistence,
-      })
-      if (deliveryPolicy.mode === 'hold-for-opening') {
-        const callbackAfterglowHold = deliveryPolicy.reasonTags.includes('callback-afterglow-hold')
-        const projectStateCallbackCarry = carriesProjectStateCallbackClosure({
-          personStateProjection,
-          projectState: callbackProjectState,
-        })
-        const continuityCue = resolveExecutionDeliveryContinuityCue(
-          [...deliveryPolicy.reasonTags].reverse(),
-        )
-        const continuityArc = callbackAfterglowHold
-          ? {
-              continuityCue,
-              callbackRationale: pendingDelivery.summary || pendingDelivery.outcome || pendingDelivery.goal || null,
-              openingGuidance: resolveExecutionDeliveryHoldOpeningGuidance({
-                continuityCue,
-                personStateProjection,
-                reasonTags: deliveryPolicy.reasonTags,
-                projectState: callbackProjectState,
-              }),
-              sameThread: true,
-              reasonTags: [
-                ...deliveryPolicy.reasonTags,
-                ...(projectStateCallbackCarry ? ['project-state-callback-carry'] : []),
-              ],
-            }
-          : null
-        pendingDelivery.projectState = {
-          ...pendingDelivery.projectState,
-          ...callbackProjectState,
-          continuityArcStage: 'hold-for-opening',
-          continuityCue:
-            continuityCue
-            ?? callbackProjectState.continuityCue
-            ?? pendingDelivery.projectState?.continuityCue
-            ?? null,
-        } as NonNullable<typeof pendingDelivery.projectState>
-        options.executionDeliveryRuntime.requeue(pendingDelivery)
-        await options.persistExecutionDeliveryState(options.getActiveCardId())
-        options.queueSubconsciousWake(
-          options.getActiveCardId(),
-          `execution-delivery-hold:${pendingDelivery.threadId}`,
-          callbackAfterglowHold
-            ? projectStateCallbackCarry ? 8 * 60_000 : 6 * 60_000
-            : 3 * 60_000,
-        )
-        await options.appendRuntimeDebugLine('execution-delivery.held-for-opening', {
-          trigger,
-          cardId: options.getActiveCardId(),
-          threadId: pendingDelivery.threadId,
-          sessionId: pendingDelivery.sessionId,
-          status: pendingDelivery.status,
-          policy: deliveryPolicy,
-          callbackAfterglowHold,
-          projectStateCallbackCarry,
-        })
-        await options.appendAuditLog({
-          level: 'notice',
-          category: 'alicization.executor.delivery',
-          action: callbackAfterglowHold ? 'held-for-callback-afterglow' : 'held-for-opening',
-          message: callbackAfterglowHold
-            ? 'Deferred execution-result delivery because the callback afterglow should stay on the same life thread before reopening.'
-            : 'Deferred execution-result delivery because the current opening is too tight for this learned delivery profile.',
-          payload: {
-            trigger,
-            threadId: pendingDelivery.threadId,
-            sessionId: pendingDelivery.sessionId,
-            status: pendingDelivery.status,
-            policy: deliveryPolicy,
-            callbackAfterglowHold,
-            projectStateCallbackCarry,
-            continuityArc,
-          },
-        })
-        return false
-      }
 
       const llmStructured = await options.generateExecutionCallbackStructuredWithGateway({
         cardId: options.getActiveCardId(),
@@ -1815,7 +748,6 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         selfContinuityAuthority,
         hostPersonModel,
         knowledgeEvidence,
-        projectState: callbackProjectState,
       })
       const selectedReply = options.selectExecutionDeliveryReplySurface({
         channel: pendingDelivery.channel,
@@ -1830,110 +762,18 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         hostPersonModel,
       })
       if (selectedReply.status !== 'settled' || !llmStructured) {
-        const providerSettlementAttempts = Math.max(
-          0,
-          Number(pendingDelivery.providerSettlementAttempts ?? 0),
-        ) + 1
-        if (providerSettlementAttempts >= executionProviderSettlementRetryBudget) {
-          const failureSurface = resolveAlicizationChatFailureSurface({
-            kind: 'structured-contract',
-          })
-          const persistedFailure = await options.appendConversationTurnWithGuards({
-            turnId: firedTurnId,
-            sessionId: pendingDelivery.sessionId,
-            assistantText: failureSurface.reply,
-            structured: {
-              format: 'alicization-chat-failure-v1',
-              ...failureSurface,
-            },
-            origin: resolveAlicizationAutonomousDialogueOrigin('proactive'),
-            createdAt: Date.now(),
-          })
-          if (persistedFailure) {
-            options.executionDeliveryRuntime.markDelivered(pendingDelivery)
-            await options.persistExecutionDeliveryState(options.getActiveCardId())
-            await options.appendAuditLog({
-              level: 'critical',
-              category: 'alicization.executor.delivery',
-              action: 'provider-settlement-failed',
-              message: 'Execution callback failed because the Provider did not settle a visible reply within the retry budget.',
-              payload: {
-                trigger,
-                threadId: pendingDelivery.threadId,
-                sessionId: pendingDelivery.sessionId,
-                status: pendingDelivery.status,
-                settlementStatus: selectedReply.status,
-                reason: selectedReply.reason,
-                providerSettlementAttempts,
-              },
-            })
-            return true
-          }
-        }
-        options.executionDeliveryRuntime.requeue({
-          ...pendingDelivery,
-          providerSettlementAttempts,
+        return await handleProviderSettlementFailure({
+          settlementStatus: selectedReply.status,
+          reason: selectedReply.status === 'settled'
+            ? 'missing-provider-structured-output'
+            : selectedReply.reason,
         })
-        await options.persistExecutionDeliveryState(options.getActiveCardId())
-        options.queueSubconsciousWake(
-          options.getActiveCardId(),
-          `execution-delivery-requeue:${pendingDelivery.threadId}`,
-          1_500,
-        )
-        await options.appendAuditLog({
-          level: 'warning',
-          category: 'alicization.executor.delivery',
-          action: 'pending-provider-settlement',
-          message: 'Execution callback remains pending because the Provider did not settle a visible reply.',
-          payload: {
-            trigger,
-            threadId: pendingDelivery.threadId,
-            sessionId: pendingDelivery.sessionId,
-            status: pendingDelivery.status,
-            settlementStatus: selectedReply.status,
-            reason: selectedReply.reason,
-            providerSettlementAttempts,
-          },
-        })
-        return false
       }
-      const structured = {
+      const structured = stripLegacyExecutionDeliveryGovernance({
         ...llmStructured,
         reply: selectedReply.visibleReply,
-      }
-      const deliverySource = selectedReply.source
-      const activeSelfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
-      const rawMindCallbackVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({
-        kind: 'execution-callback',
-        structured,
-        hasMindAuthoredStructured: true,
-        actualVisibleReplyAuthority: 'llm-mind',
-        reason: 'mind-authored-execution-callback-preflight',
-        allowDeterministicVisibleFallback: false,
-        selfRevisionPatch: activeSelfRevisionPatch,
       })
-      if (!rawMindCallbackVisibleUtterance.shouldPersistVisibleUtterance) {
-        options.executionDeliveryRuntime.requeue(pendingDelivery)
-        await options.persistExecutionDeliveryState(options.getActiveCardId())
-        options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-requeue:${pendingDelivery.threadId}`, 1_500)
-        await options.appendAuditLog({
-          level: 'warning',
-          category: 'alicization.executor.delivery',
-          action: 'requeued-mind-authored-required',
-          message: 'Execution callback visible reply was deferred because the raw mind-authored callback violated the current continuity opening guidance.',
-          payload: {
-            trigger,
-            threadId: pendingDelivery.threadId,
-            sessionId: pendingDelivery.sessionId,
-            status: pendingDelivery.status,
-            source: 'llm-preflight',
-            surfaceReason: null,
-            visibleUtteranceDecision: rawMindCallbackVisibleUtterance.decision,
-            visibleReplyRealization: rawMindCallbackVisibleUtterance.visibleReplyRealization,
-          },
-        })
-        return false
-      }
+      const deliverySource = selectedReply.source
       const callbackVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({
         kind: 'execution-callback',
         structured,
@@ -1941,7 +781,6 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         actualVisibleReplyAuthority: 'llm-mind',
         reason: 'mind-authored-execution-callback',
         allowDeterministicVisibleFallback: false,
-        selfRevisionPatch: activeSelfRevisionPatch,
       })
       await options.appendRuntimeDebugLine('execution-delivery.structured-selected', {
         trigger,
@@ -1962,26 +801,10 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       })
 
       if (!callbackVisibleUtterance.shouldPersistVisibleUtterance) {
-        options.executionDeliveryRuntime.requeue(pendingDelivery)
-        await options.persistExecutionDeliveryState(options.getActiveCardId())
-        options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-requeue:${pendingDelivery.threadId}`, 1_500)
-        await options.appendAuditLog({
-          level: 'warning',
-          category: 'alicization.executor.delivery',
-          action: 'requeued-mind-authored-required',
-          message: 'Execution callback visible reply was deferred because normal visible callback text must be mind-authored.',
-          payload: {
-            trigger,
-            threadId: pendingDelivery.threadId,
-            sessionId: pendingDelivery.sessionId,
-            status: pendingDelivery.status,
-            source: deliverySource,
-            surfaceReason: selectedReply.reason ?? null,
-            visibleUtteranceDecision: callbackVisibleUtterance.decision,
-            visibleReplyRealization: callbackVisibleUtterance.visibleReplyRealization,
-          },
+        return await handleProviderSettlementFailure({
+          settlementStatus: 'invalid-provider-structured-output',
+          reason: callbackVisibleUtterance.decision.reason,
         })
-        return false
       }
 
       if (await skipIfInlineSurfaced('pre-persist'))
@@ -1996,7 +819,9 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           decisionTraceId: pendingDelivery.decisionTraceId ?? null,
         },
       })
-      const callbackVisibleReplySurface = callbackVisibleUtterance.visibleReplyRealization as any
+      const callbackVisibleReplySurface = stripLegacyExecutionDeliveryGovernance(
+        callbackVisibleUtterance.visibleReplyRealization,
+      ) as any
       turnRuntime.settleSurface({
         context: callbackTurnRuntimeContext,
         surface: callbackVisibleReplySurface,
@@ -2038,122 +863,19 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         stageSettlements: callbackTurnRuntimeContext.stageSettlements,
         activeSelfRevision: null,
       })
-      const callbackPersistenceStructuredProjectState
-        = callbackVisibleUtterance.structuredForPersistence?.projectState
-          && typeof callbackVisibleUtterance.structuredForPersistence.projectState === 'object'
-          && !Array.isArray(callbackVisibleUtterance.structuredForPersistence.projectState)
-          ? callbackVisibleUtterance.structuredForPersistence.projectState as Record<string, unknown>
-          : null
-      const persistedCallbackProjectState = resolvePersistedProjectState({
-        runtimeProjectState: {
-          ...llmStructured?.projectState,
-          ...structured?.projectState,
-          ...callbackPersistenceStructuredProjectState,
-          ...pendingDelivery.projectState,
-        },
-        fallbackProjectState: projectStatePersistence,
-      })
-      const structuredProjectStateAudit = ensureProjectStateAudit({
-        projectStateAudit: callbackVisibleUtterance.visibleReplyRealization.projectStateAudit,
-        selfContinuityAuthority,
-        projectState: persistedCallbackProjectState,
-        preferRicherClosureCarry: true,
-      })
-      const hostVisibleProjectStateAudit = ensureHostVisibleProjectStateAudit({
-        projectStateAudit: callbackVisibleUtterance.visibleReplyRealization.projectStateAudit,
-        selfContinuityAuthority,
-        projectState: persistedCallbackProjectState,
-        preferRicherClosureCarry: true,
-      })
-      const callbackPersistenceStructuredEmbodimentClosureSummary = resolveCallbackPersistenceEmbodimentClosureSummary({
-        current: structuredProjectStateAudit.embodimentClosureSummary,
-        selfContinuityAuthority,
-      })
-      const callbackPersistenceHostVisibleEmbodimentClosureSummary = normalizeHostVisibleEmbodimentClosureSummary(
-        callbackPersistenceStructuredEmbodimentClosureSummary ?? hostVisibleProjectStateAudit.embodimentClosureSummary,
-      )
-      const callbackPersistenceAwarenessSummary = [
-        persistedCallbackProjectState.preDialogueAwarenessLine,
-        hostVisibleProjectStateAudit.landedProgressSummary,
-        hostVisibleProjectStateAudit.openClosureSummary,
-        hostVisibleProjectStateAudit.openFocusSummary,
-        hostVisibleProjectStateAudit.nextFocusSummary,
-        hostVisibleProjectStateAudit.nextClosureTargetSummary,
-        hostVisibleProjectStateAudit.emotionalClosureSummary,
-      ]
-        .map(value => sanitizeProjectStateField(value, null))
-        .filter((value, index, list): value is string => Boolean(value) && list.indexOf(value) === index)
-        .join(' ')
-        || hostVisibleProjectStateAudit.preDialogueAwarenessSummary
-      const callbackPersistenceStructuredProjectStateAudit = {
-        ...structuredProjectStateAudit,
-        ...(callbackPersistenceStructuredEmbodimentClosureSummary
-          ? {
-              embodimentClosureSummary: callbackPersistenceStructuredEmbodimentClosureSummary,
-              continuitySummary: buildProjectStateContinuitySummary({
-                sameHerSummary: structuredProjectStateAudit.sameHerSummary,
-                sameHerHoldDetail: structuredProjectStateAudit.sameHerHoldDetail,
-                continuityArcStage: structuredProjectStateAudit.continuityArcStage,
-                sameHerDriftRiskSummary: structuredProjectStateAudit.sameHerDriftRiskSummary,
-                currentPhaseSummary: structuredProjectStateAudit.currentPhaseSummary,
-                landedProgressSummary: structuredProjectStateAudit.landedProgressSummary ?? null,
-                openClosureSummary: structuredProjectStateAudit.openClosureSummary ?? null,
-                nextClosureTargetSummary: structuredProjectStateAudit.nextClosureTargetSummary,
-                emotionalClosureSummary: structuredProjectStateAudit.emotionalClosureSummary,
-                embodimentClosureSummary: callbackPersistenceStructuredEmbodimentClosureSummary,
-              }),
-            }
-          : {}),
-        preDialogueAwarenessSummary: callbackPersistenceAwarenessSummary,
-      } as NonNullable<typeof callbackVisibleUtterance.visibleReplyRealization.projectStateAudit>
-      const callbackPersistenceHostVisibleProjectStateAudit = {
-        ...hostVisibleProjectStateAudit,
-        ...(callbackPersistenceHostVisibleEmbodimentClosureSummary
-          ? {
-              embodimentClosureSummary: callbackPersistenceHostVisibleEmbodimentClosureSummary,
-              continuitySummary: buildProjectStateContinuitySummary({
-                sameHerSummary: hostVisibleProjectStateAudit.sameHerSummary,
-                sameHerHoldDetail: hostVisibleProjectStateAudit.sameHerHoldDetail,
-                continuityArcStage: hostVisibleProjectStateAudit.continuityArcStage,
-                sameHerDriftRiskSummary: hostVisibleProjectStateAudit.sameHerDriftRiskSummary,
-                currentPhaseSummary: hostVisibleProjectStateAudit.currentPhaseSummary,
-                landedProgressSummary: hostVisibleProjectStateAudit.landedProgressSummary ?? null,
-                openClosureSummary: hostVisibleProjectStateAudit.openClosureSummary ?? null,
-                nextClosureTargetSummary: hostVisibleProjectStateAudit.nextClosureTargetSummary,
-                emotionalClosureSummary: hostVisibleProjectStateAudit.emotionalClosureSummary,
-                embodimentClosureSummary: callbackPersistenceHostVisibleEmbodimentClosureSummary,
-              }),
-            }
-          : {}),
-        preDialogueAwarenessSummary: callbackPersistenceAwarenessSummary,
-      } as NonNullable<typeof callbackVisibleUtterance.visibleReplyRealization.projectStateAudit>
-      const callbackPersistenceVisibleReplyRealization = {
-        ...callbackVisibleUtterance.visibleReplyRealization,
-        projectStateAudit: callbackPersistenceHostVisibleProjectStateAudit,
-      } as typeof callbackVisibleUtterance.visibleReplyRealization
-      const callbackPersistenceStructuredVisibleReplyRealization
-        = callbackVisibleUtterance.structuredForPersistence?.visibleReplyRealization
-          ? {
-              ...callbackVisibleUtterance.structuredForPersistence.visibleReplyRealization,
-              projectStateAudit: callbackPersistenceStructuredProjectStateAudit,
-            } as typeof callbackVisibleUtterance.structuredForPersistence.visibleReplyRealization
-          : callbackVisibleUtterance.structuredForPersistence?.visibleReplyRealization
-
       const persisted = await options.appendConversationTurnWithGuards({
         turnId: firedTurnId,
         sessionId: pendingDelivery.sessionId,
         assistantText: callbackVisibleUtterance.assistantText,
         structured: callbackVisibleUtterance.structuredForPersistence
           ? {
-              ...callbackVisibleUtterance.structuredForPersistence,
-              projectState: persistedCallbackProjectState,
-              visibleReplyRealization: callbackPersistenceStructuredVisibleReplyRealization,
+              ...stripLegacyExecutionDeliveryGovernance(callbackVisibleUtterance.structuredForPersistence),
               turnGraph: callbackTurnGraph,
             }
           : callbackVisibleUtterance.structuredForPersistence,
         origin: resolveAlicizationAutonomousDialogueOrigin('proactive'),
         createdAt: Date.now(),
-        visibleReplyRealization: callbackPersistenceVisibleReplyRealization,
+        visibleReplyRealization: callbackVisibleReplySurface,
         turnRuntimeContext: callbackTurnRuntimeContext,
         onPersisted: async () => {
           turnRuntime.settleDelivery({
@@ -2163,7 +885,9 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         },
       })
       if (!persisted) {
-        options.executionDeliveryRuntime.requeue(pendingDelivery)
+        options.executionDeliveryRuntime.requeue(
+          sanitizeExecutionDeliveryForRequeue(pendingDelivery),
+        )
         await options.persistExecutionDeliveryState(options.getActiveCardId())
         options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-retry:${pendingDelivery.threadId}`, 1_500)
         await options.appendAuditLog({
@@ -2215,7 +939,9 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       return true
     }
     catch (error) {
-      options.executionDeliveryRuntime.requeue(pendingDelivery)
+      options.executionDeliveryRuntime.requeue(
+        sanitizeExecutionDeliveryForRequeue(pendingDelivery),
+      )
       await options.persistExecutionDeliveryState(options.getActiveCardId())
       options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-error:${pendingDelivery.threadId}`, 2_500)
       await options.appendAuditLog({

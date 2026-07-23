@@ -1,5 +1,3 @@
-import type { Message } from '@xsai/shared-chat'
-
 import type {
   AlicizationAuditLogInput,
   AlicizationDreamMetabolismPayload,
@@ -69,10 +67,6 @@ interface CreateAlicizationDreamRuntimeOptions {
     agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
   }) => Promise<void>
-  buildAgentTurnContinuitySystemMessages: (input: {
-    agentTurn: AlicizationAgentTurnRuntime
-    cardId: string
-  }) => Message[]
   truncateForDream: (value: string | null | undefined, maxChars: number) => string
   clampSoulDelta: (value: number, maxAbs?: number) => number
   normalizeOrganicMemoryItemText: (raw: unknown, maxChars: number) => string
@@ -122,7 +116,6 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     appendAuditLog,
     buildAgentRuntimeAuditSnapshot,
     hydrateAgentTurnFromCurrentCardState,
-    buildAgentTurnContinuitySystemMessages,
     truncateForDream,
     clampSoulDelta,
     normalizeOrganicMemoryItemText,
@@ -214,20 +207,12 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       agentTurn: dreamAgentTurn,
       cardId: dreamCardId,
     })
-    const dreamContinuitySystemBlocks = buildAgentTurnContinuitySystemMessages({
-      agentTurn: dreamAgentTurn,
-      cardId: dreamCardId,
-    })
-      .filter(message => message.role === 'system' && typeof message.content === 'string')
-      .map(message => message.content)
-      .filter(Boolean)
     const llmMetabolism = await generateDreamMetabolismWithGateway({
       serializedTurns,
       personality: dreamSoul.frontmatter.personality,
       hostAttitude: dreamSoul.frontmatter.host_attitude,
       coreIncarnation: dreamSoul.frontmatter.core_incarnation,
       activeThoughts: currentActiveThoughts,
-      continuitySystemBlocks: dreamContinuitySystemBlocks,
       agentTurn: dreamAgentTurn,
       agentTurnInput: {
         turnId: dreamTurnId,

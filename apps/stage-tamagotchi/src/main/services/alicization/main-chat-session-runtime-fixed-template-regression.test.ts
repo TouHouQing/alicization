@@ -18,7 +18,7 @@ const structuredContinuityFacts
   = 'identity=working_memory_owner_connected | phase=memory_quality_scaleup | landed=working_memory_owner_connected | open=open_loop=memory+dialogue+embodiment; status=unfinished | next=semantic_recall_grounded_on_user_query'
 
 describe('main chat session runtime fixed-template regression', () => {
-  it('preserves typed persona and failure facts while removing only legacy governance fields', () => {
+  it('preserves typed persona and failure facts while removing legacy governance fields from all fact owners', () => {
     const sanitizeMessages = __alicizationTestOnly.sanitizeOrdinaryDialogueProviderMessages
     const relationshipCadenceField = ['relationship', 'cadence'].join('_')
     const messages = sanitizeMessages([
@@ -36,7 +36,7 @@ describe('main chat session runtime fixed-template regression', () => {
         content: JSON.stringify({
           type: 'alicization-persona-directives',
           data: {
-            text: `${relationshipCadenceField}=user-authored`,
+            text: `${relationshipCadenceField}=user-authored | 说话真实一点。`,
           },
         }),
       },
@@ -56,7 +56,8 @@ describe('main chat session runtime fixed-template regression', () => {
     expect(serialized).toContain('alicization-persona-profile')
     expect(serialized).toContain('用户明确设置的人格可以讨论 same-her 这个词')
     expect(serialized).toContain('alicization-persona-directives')
-    expect(serialized).toContain(`${relationshipCadenceField}=user-authored`)
+    expect(serialized).toContain('说话真实一点。')
+    expect(serialized).not.toContain(`${relationshipCadenceField}=user-authored`)
     expect(serialized).toContain('alicization-execution-callbacks')
     expect(serialized).toContain('failed')
     expect(serialized).toContain('Provider timeout')

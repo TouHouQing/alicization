@@ -1,11 +1,14 @@
 import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   buildAlicizationVisibleReplyRealizationArtifact,
   deriveAlicizationVisibleReplyText,
+  resolveAlicizationTimeoutRecoveredVisibleReply,
   resolveVisibleReplyProjectAwarenessDisplayMode,
 } from './realization-engine'
+
+import * as projectStateBrief from '../project-state-brief'
 
 const generatedCuePattern
   = /\b[a-z][\w-]{2,}\s*=|runtime_personhood|life_core|local_desktop_life_loop|phase1_local_digital_life|cadence=|relationship_cadence=|continuity_identity|continuity_line|visibility=internal/iu
@@ -23,6 +26,10 @@ function expectNoTemplateOrGeneratedCue(value: unknown) {
   expect(containsAlicizationFixedTemplateResidue(text)).toBe(false)
   expect(text).not.toMatch(generatedCuePattern)
 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('visible-reply-realization-engine', () => {
   it('does not expose fixed-template residue from structured provider replies as visible text', () => {
@@ -129,5 +136,77 @@ describe('visible-reply-realization-engine', () => {
       preparedRuntimeCompanionHeadlineLine: null,
       isTimeoutRecovery: true,
     })).toBe('hidden')
+  })
+
+  it('keeps provider timeout recovery transparent without rebuilding governance sidecars', () => {
+    const canonicalProjectStateBriefSpy = vi.spyOn(projectStateBrief, 'resolveAlicizationProjectStateBrief')
+    const canonicalProjectStateSnapshotSpy = vi.spyOn(projectStateBrief, 'resolveAlicizationProjectStateSnapshot')
+    const recoveredText = JSON.stringify({
+      reply: '这是模型恢复后的真实回复。',
+      projectStateAudit: {
+        preDialogueAwarenessSummary: 'visibility=redacted_internal',
+        continuityCue: 'relationship_cadence=measured-return',
+      },
+    })
+    const recovered = resolveAlicizationTimeoutRecoveredVisibleReply({
+      prepared: {
+        hasVisualGrounding: false,
+        runtimeSurface: {
+          governance: {
+            openingMove: 'opening_policy=measured-return',
+          },
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              currentConsciousFrame: {
+                projectState: {
+                  preDialogueAwarenessLine: 'visibility=redacted_internal',
+                  sameHerSelfLine: 'same living line: keep the canonical project-state answer visible',
+                },
+              },
+            },
+          },
+        },
+      } as any,
+      recoveredText,
+      recoveryMode: 'provider-retry',
+    })
+
+    expect(recovered.fullText).toBe(recoveredText)
+    expect(recovered.visibleText).toBe('这是模型恢复后的真实回复。')
+    expect(recovered.realization.projectStateAudit).toBeNull()
+    expect(recovered.realization.openingGuidanceHoldDetail).toBeNull()
+    expect(recovered.realization.companionshipHoldMode).toBeNull()
+    expect(recovered.realization.openingEmbodimentAudit).toBeNull()
+    expect(canonicalProjectStateBriefSpy).not.toHaveBeenCalled()
+    expect(canonicalProjectStateSnapshotSpy).not.toHaveBeenCalled()
+    expectNoTemplateOrGeneratedCue(recovered.realization)
+  })
+
+  it('keeps local timeout fallback as an explicit error status without governance sidecars', () => {
+    const recovered = resolveAlicizationTimeoutRecoveredVisibleReply({
+      prepared: {
+        hasVisualGrounding: true,
+        runtimeSurface: {},
+      } as any,
+      recoveredText: JSON.stringify({
+        reply: '超时了。',
+        projectStateAudit: {
+          openingGuidanceHoldDetail: 'opening_policy=rest-protective',
+          preDialogueAwarenessSummary: 'visibility=redacted_internal',
+        },
+      }),
+      recoveryMode: 'local-fallback',
+    })
+
+    expect(recovered.visibleText).toBe('')
+    expect(recovered.visibleReplyExecution.actualVisibleReplyAuthority).toBe('local-deterministic-fallback')
+    expect(recovered.realization.nonHumanAuthoredStatus).toBe('timeout-recovered-local-fallback')
+    expect(recovered.realization.blockedReasons).toEqual(['non-human-authored-visible-fallback'])
+    expect(recovered.realization.projectStateEvidenceStatus).toBe('missing')
+    expect(recovered.realization.projectStateAudit).toBeNull()
+    expect(recovered.realization.openingGuidanceHoldDetail).toBeNull()
+    expect(recovered.realization.companionshipHoldMode).toBeNull()
+    expect(recovered.realization.openingEmbodimentAudit).toBeNull()
+    expectNoTemplateOrGeneratedCue(recovered.realization)
   })
 })

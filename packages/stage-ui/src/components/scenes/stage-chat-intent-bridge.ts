@@ -29,7 +29,9 @@ interface StageChatIntentBridge {
   cancel: (reason?: string) => void
 }
 
-const legacySpeechProjectStateCueKeys = new Set([
+const legacySpeechGovernanceKeys = new Set([
+  'projectState',
+  'projectStateContinuity',
   'preDialogueAwarenessLine',
   'preDialogueAwarenessSummary',
   'awarenessLine',
@@ -48,8 +50,17 @@ const legacySpeechProjectStateCueKeys = new Set([
   'continuityAnchor',
   'continuityHold',
   'continuityDriftRisk',
+  'continuityRestraint',
+  'continuityArcStage',
+  'continuityPreferredTiming',
+  'continuityCadence',
   'proactiveSameHerGap',
   'proactiveSameHerGapSummary',
+  'openingPolicy',
+  'opening_policy',
+  'relationshipCadence',
+  'relationship_cadence',
+  'redacted_internal',
 ])
 
 function isLegacySpeechGovernanceKey(key: string) {
@@ -57,7 +68,7 @@ function isLegacySpeechGovernanceKey(key: string) {
     || key === 'preDialogueAwareness'
     || key === 'preDialogueClosure'
     || key === 'visibleReplyRealization'
-    || legacySpeechProjectStateCueKeys.has(key)
+    || legacySpeechGovernanceKeys.has(key)
     || key.startsWith('companion')
     || key.startsWith('sameHer')
     || key.startsWith('emotionalClosure')
@@ -85,27 +96,6 @@ function sanitizeSpeechMetadataValue(value: unknown, key = ''): unknown {
   return value
 }
 
-function normalizeSpeechProjectStateRecord(value: unknown) {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    return null
-
-  const normalized: Record<string, unknown> = {}
-  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    if (isLegacySpeechGovernanceKey(key) || item == null)
-      continue
-    if (typeof item === 'string') {
-      const text = normalizeSpeechProjectStateText(item)
-      if (text)
-        normalized[key] = text
-      continue
-    }
-    const sanitized = sanitizeSpeechMetadataValue(item, key)
-    if (sanitized !== undefined && sanitized !== null)
-      normalized[key] = sanitized
-  }
-  return Object.keys(normalized).length > 0 ? normalized : null
-}
-
 function normalizeSpeechMetadataRecord(
   metadata: SpeechIntentMetadata | null | undefined,
 ): SpeechIntentMetadata | null {
@@ -113,17 +103,6 @@ function normalizeSpeechMetadataRecord(
     return null
 
   return sanitizeSpeechMetadataValue(metadata) as SpeechIntentMetadata
-}
-
-function normalizeSpeechMetadataText(value: unknown) {
-  if (typeof value !== 'string')
-    return null
-
-  const normalized = value.trim()
-  if (!normalized)
-    return null
-
-  return sanitizeAlicizationProviderFacingText(normalized, 800, '') || null
 }
 
 function normalizeSpeechMetadataNumber(value: unknown) {
@@ -150,44 +129,23 @@ function countSpeechRuntimeDigestSignals(digest: ReturnType<typeof normalizeAlic
   if (!digest)
     return -1
 
-  const projectState = digest.projectState
   const currentConsciousFrame = digest.currentConsciousFrame
   const activeLoop = digest.activeLoop
 
   let score = 0
-  const projectStateSignals = [
-    projectState?.preflightSummary,
-    projectState?.identity,
-    projectState?.currentPhase,
-    projectState?.latestLandedProgress,
-    projectState?.memoryClosureSummary,
-    projectState?.primaryOpenLoop,
-    projectState?.nextClosureTarget,
-    projectState?.continuityRestraint,
-    projectState?.continuityArcStage,
-    projectState?.continuityPreferredTiming,
-    projectState?.continuityCadence,
-    projectState?.preferredBlinkCadence,
-    projectState?.preferredGazeMode,
-  ]
-  score += projectStateSignals.filter(Boolean).length * 10
-
   const frameSignals = [
     currentConsciousFrame?.signature,
     currentConsciousFrame?.focusAnchor,
     currentConsciousFrame?.consciousNeed,
     currentConsciousFrame?.speakingIntention,
-    currentConsciousFrame?.continuityArcStage,
-    currentConsciousFrame?.continuityPreferredTiming,
-    currentConsciousFrame?.continuityCadence,
   ]
   score += frameSignals.filter(Boolean).length * 6
   score += (currentConsciousFrame?.reasonTags.length ?? 0) * 2
 
   const activeLoopSignals = [
+    activeLoop?.phase,
+    activeLoop?.dominantChannel,
     activeLoop?.handoffTarget,
-    activeLoop?.continuityArcStage,
-    activeLoop?.continuityPreferredTiming,
     activeLoop?.summary,
   ]
   score += activeLoopSignals.filter(Boolean).length * 4
@@ -200,46 +158,9 @@ function countSpeechRuntimeDigestSignals(digest: ReturnType<typeof normalizeAlic
   return score
 }
 
-function normalizeSpeechProjectStateText(value: unknown) {
-  if (typeof value !== 'string')
-    return ''
-
-  const normalized = value.trim()
-  if (!normalized)
-    return ''
-
-  return sanitizeAlicizationProviderFacingText(normalized, 800, '')
-}
-
-function mergeSpeechProjectState(
-  existingValue: Record<string, unknown> | null,
-  incomingValue: Record<string, unknown> | null,
-) {
-  const existing = normalizeSpeechProjectStateRecord(existingValue)
-  const incoming = normalizeSpeechProjectStateRecord(incomingValue)
-  if (!existing)
-    return incoming
-  if (!incoming)
-    return existing
-
-  const merged: Record<string, unknown> = { ...existing }
-  for (const [key, incomingItem] of Object.entries(incoming)) {
-    const existingItem = merged[key]
-    if (typeof existingItem === 'string' && typeof incomingItem === 'string') {
-      merged[key] = incomingItem.length > existingItem.length ? incomingItem : existingItem
-      continue
-    }
-    if (existingItem == null)
-      merged[key] = incomingItem
-  }
-  return merged
-}
-
 function mergeSpeechRuntimeDigest(input: {
   existing: unknown
   incoming?: unknown
-  projectState?: Record<string, unknown> | null
-  emotionalClosureCue?: string | null
 }) {
   const existingDigest = normalizeSpeechRuntimeDigest(input.existing)
   const incomingDigest = normalizeSpeechRuntimeDigest(input.incoming)
@@ -250,22 +171,6 @@ function mergeSpeechRuntimeDigest(input: {
     ? existingDigest
     : incomingDigest
   const secondaryDigest = preferredDigest === existingDigest ? incomingDigest : existingDigest
-  const mergedProjectState = mergeSpeechProjectState(
-    mergeSpeechProjectState(
-      secondaryDigest?.projectState as Record<string, unknown> | null ?? null,
-      preferredDigest?.projectState as Record<string, unknown> | null ?? null,
-    ),
-    input.projectState ?? null,
-  )
-  const mergedEmotionalClosureCue = normalizeSpeechMetadataText(input.emotionalClosureCue)
-    ?? normalizeSpeechMetadataText(
-      typeof mergedProjectState?.emotionalClosureCue === 'string'
-        ? mergedProjectState.emotionalClosureCue
-        : null,
-    )
-    ?? normalizeSpeechMetadataText(preferredDigest?.emotionalClosureCue)
-    ?? normalizeSpeechMetadataText(secondaryDigest?.emotionalClosureCue)
-    ?? null
   const mergedDerivedMindStateBundle = preferredDigest?.derivedMindStateBundle
     ?? secondaryDigest?.derivedMindStateBundle
     ?? null
@@ -281,8 +186,6 @@ function mergeSpeechRuntimeDigest(input: {
           },
         }
       : {}),
-    ...(mergedProjectState ? { projectState: mergedProjectState } : {}),
-    ...(mergedEmotionalClosureCue ? { emotionalClosureCue: mergedEmotionalClosureCue } : {}),
     ...(mergedDerivedMindStateBundle ? { derivedMindStateBundle: mergedDerivedMindStateBundle } : {}),
   })
 }
@@ -294,9 +197,15 @@ export function attachEmbodimentScriptToSpeechMetadata(
   if (!embodimentScript || typeof embodimentScript !== 'object' || Array.isArray(embodimentScript))
     return normalizeSpeechMetadataRecord(metadata)
 
+  const normalizedEmbodimentScript = sanitizeSpeechMetadataValue(
+    embodimentScript,
+  )
+
   return {
     ...normalizeSpeechMetadataRecord(metadata),
-    embodimentScript,
+    ...(normalizedEmbodimentScript
+      ? { embodimentScript: normalizedEmbodimentScript }
+      : {}),
   }
 }
 
@@ -353,19 +262,13 @@ export function attachRuntimeDigestToSpeechMetadata(
   if (!normalizedRuntimeDigest)
     return normalizedMetadata
 
-  const mergedProjectState = mergeSpeechProjectState(
-    normalizeSpeechProjectStateRecord(normalizedMetadata?.projectState),
-    normalizeSpeechProjectStateRecord(normalizedRuntimeDigest.projectState),
-  )
   const mergedRuntimeDigest = mergeSpeechRuntimeDigest({
     existing: normalizedMetadata?.runtimeDigest,
     incoming: normalizedRuntimeDigest,
-    projectState: mergedProjectState,
   })
 
   return normalizeSpeechMetadataRecord({
     ...normalizedMetadata,
-    ...(mergedProjectState ? { projectState: mergedProjectState } : {}),
     ...(mergedRuntimeDigest ? { runtimeDigest: mergedRuntimeDigest } : {}),
   })
 }
@@ -379,17 +282,11 @@ export function attachFallbackDialogueMetadataToSpeechMetadata(
   if (!normalizedFallbackMetadata)
     return normalizedMetadata
 
-  const mergedProjectState = mergeSpeechProjectState(
-    normalizeSpeechProjectStateRecord(normalizedMetadata?.projectState),
-    normalizeSpeechProjectStateRecord(normalizedFallbackMetadata.projectState),
-  )
   const mergedRuntimeDigest = mergeSpeechRuntimeDigest({
     existing: normalizedMetadata?.runtimeDigest,
     incoming: normalizedFallbackMetadata.runtimeDigest,
-    projectState: mergedProjectState,
   })
   const {
-    projectState: _fallbackProjectState,
     runtimeDigest: _fallbackRuntimeDigest,
     embodimentScript,
     ...fallbackFacts
@@ -399,7 +296,6 @@ export function attachFallbackDialogueMetadataToSpeechMetadata(
     {
       ...fallbackFacts,
       ...normalizedMetadata,
-      ...(mergedProjectState ? { projectState: mergedProjectState } : {}),
       ...(mergedRuntimeDigest ? { runtimeDigest: mergedRuntimeDigest } : {}),
     },
     embodimentScript,

@@ -145,7 +145,6 @@ import {
 import { readTransportContentAsText } from './runtime-transport-content'
 import {
   buildSessionContinuityRecallSeed,
-  buildSessionMirrorRuntimeContinuitySeed,
   deriveOrganicMemoryBudgetClass,
   filterMainGatewayToolsForRoutingIntent,
   mergeUniqueRules,
@@ -528,8 +527,6 @@ function normalizeSessionPhases(phases: string[]) {
   return [...new Set(phases.map(phase => phase.trim()).filter(Boolean))]
 }
 
-const projectAwarenessFieldMaxChars = 4000
-
 function normalizePreparedExecutionText(raw: unknown, maxChars = 320) {
   if (typeof raw !== 'string')
     return null
@@ -566,18 +563,11 @@ const ordinaryDialogueProjectStateLinePattern
 const ordinaryDialogueProjectStateTextPattern
   = /Current Phase 1 project context|Some closure already landed|Unfinished closure still needs|Same Phase 1 digital life|Phase 1:\s*Local Digital Life|latest landed Phase 1 progress|still-open closure work explicit|next closure target explicit|when the host asks for project status|phase1_local_digital_life_anchor|memory_dialogue_embodiment|verified_closure_progress|project_context=phase1_local_digital_life|local-first digital life project|same-her|same digital life project|project-state|Project identity carry|Phase 1 route carry|Unresolved closure carry/iu
 
-const ordinaryDialoguePersonaOwnerFactTypes = new Set([
-  'alicization-persona-directives',
-  'alicization-persona-profile',
-  'alicization-personality-state',
-  'alicization-personality-thresholds',
-])
-
 const ordinaryDialogueFixedGovernanceCuePattern
-  = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved)\s*=|visibility\s*=\s*redacted_internal|projectState(?:PreflightSummary|PreDialogueAwarenessLine)/iu
+  = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectState(?:Continuity|PreflightSummary|PreDialogueAwarenessLine)?|continuity(?:ArcStage|Cadence|Cue|PreferredTiming|Restraint)?|emotionalClosureCue|openingStyle|relationshipPosture|initiativeRestraint|governing(?:Project|Focus|Concern|Commitment|Inquiry)|must(?:Do|NotDo))\s*=|visibility\s*=\s*redacted_internal/iu
 
 const ordinaryDialogueFixedGovernanceFieldNamePattern
-  = /^(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectStatePreflightSummary|projectStatePreDialogueAwarenessLine)$/iu
+  = /^(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectState|projectStateContinuity|projectStatePreflightSummary|projectStatePreDialogueAwarenessLine|continuityArcStage|continuityCadence|continuityCue|continuityPreferredTiming|continuityRestraint|initiativeRestraint|emotionalClosureCue|governingFocus|governingConcern|governingCommitment|governingInquiry|governingProject|mustDo|mustNotDo|openingGuidance|openingStyle|relationshipPosture|relationshipLine|inwardLine|selfLine|sameHerSelfLine|sameHerHoldDetail|sameHerDriftRisk|preDialogueAwarenessLine|preDialogueAwarenessSummary|preflightSummary|surfacePolicy|shouldStayInward|shouldDelayUntilAfterPayoff|suppressionTags)$/iu
 
 function sanitizeOrdinaryDialogueTypedFactText(raw: string) {
   return raw
@@ -622,9 +612,6 @@ function sanitizeOrdinaryDialogueTypedProviderFact(block: string) {
     ) {
       return null
     }
-
-    if (ordinaryDialoguePersonaOwnerFactTypes.has(parsed.type))
-      return block
 
     return JSON.stringify(sanitizeOrdinaryDialogueTypedFactValue(parsed))
   }
@@ -778,6 +765,27 @@ function isOrdinaryDialogueProjectStatePlanningText(raw: unknown) {
   return ordinaryDialogueProjectStateLinePattern.test(normalized)
     || ordinaryDialogueProjectStateTextPattern.test(normalized)
     || /same project-aware self line|same digital-life closure seam|same-her continuity|project-state question|project narrator shell|fresh assistant restart|detached project narrator/iu.test(normalized)
+}
+
+function isolateProviderMindTurnContractFromProjectGovernance(
+  contract: AlicizationMindTurnContractSnapshot,
+) {
+  return {
+    ...contract,
+    mustDo: [],
+    mustNotDo: [],
+    governingFocus: '',
+    governingConcern: null,
+    governingCommitment: null,
+    governingInquiry: null,
+    governingProject: null,
+    emotionalClosureCue: null,
+    emotionalClosureSummary: null,
+    relationshipTruthDoctrine: null,
+    projectState: null,
+    preDialogueClosure: null,
+    reasons: [],
+  } satisfies AlicizationMindTurnContractSnapshot
 }
 
 function sanitizeOrdinaryDialogueAnswerPlanner(
@@ -1086,11 +1094,12 @@ function readPreparedExecutionProjectStateDiagnostics(
 }
 
 function readProjectStateAwarenessFields(projectState: Record<string, unknown> | null | undefined) {
+  void projectState
   return {
-    preDialogueAwarenessLine: normalizePreparedExecutionText(projectState?.preDialogueAwarenessLine, projectAwarenessFieldMaxChars),
-    preDialogueAwarenessSummary: normalizePreparedExecutionText(projectState?.preDialogueAwarenessSummary, projectAwarenessFieldMaxChars),
-    awarenessLine: normalizePreparedExecutionText(projectState?.awarenessLine, projectAwarenessFieldMaxChars),
-    companionHeadlineLine: normalizePreparedExecutionText(projectState?.companionHeadlineLine, projectAwarenessFieldMaxChars),
+    preDialogueAwarenessLine: null,
+    preDialogueAwarenessSummary: null,
+    awarenessLine: null,
+    companionHeadlineLine: null,
   }
 }
 
@@ -1099,35 +1108,9 @@ function writeProjectStateAwarenessFields(
   awarenessLine: string | null,
   companionHeadlineLine?: string | null,
 ) {
-  if (!projectState)
-    return projectState
-
-  const preferredAwarenessSummary = preferProjectAwarenessSummary({
-    awarenessLine,
-    summaryCandidates: [
-      projectState.preDialogueAwarenessSummary,
-    ],
-    latestLandedProgress: projectState.latestLandedProgress ?? projectState.latestProgress,
-    primaryOpenLoop: projectState.primaryOpenLoop,
-    nextClosureTarget: projectState.nextClosureTarget,
-    maxChars: projectAwarenessFieldMaxChars,
-  })
-  const preferredCompanionHeadlineLine = preferProjectAwarenessAuxiliaryLine({
-    awarenessLine,
-    candidate:
-      companionHeadlineLine
-      ?? normalizePreparedExecutionText(projectState.companionHeadlineLine, projectAwarenessFieldMaxChars),
-    projectState,
-    maxChars: projectAwarenessFieldMaxChars,
-  })
-
-  return {
-    ...projectState,
-    preDialogueAwarenessLine: awarenessLine,
-    awarenessLine,
-    preDialogueAwarenessSummary: preferredAwarenessSummary ?? awarenessLine,
-    companionHeadlineLine: preferredCompanionHeadlineLine ?? awarenessLine,
-  }
+  void awarenessLine
+  void companionHeadlineLine
+  return projectState
 }
 
 function buildIdentityAwarePreparedDiagnosticsAwarenessLine(
@@ -1764,40 +1747,6 @@ function normalizeProviderFacingPacingMode(
   return normalized === 'slower' || normalized === 'natural'
     ? normalized
     : null
-}
-
-function resolveProjectStateAwarenessCarry(input: {
-  runtimeProjectState?: Record<string, unknown> | null
-  fallbackProjectState?: Record<string, unknown> | null
-}) {
-  return normalizeProviderFacingProjectText(resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: input.runtimeProjectState
-      ? {
-          preDialogueAwarenessLine: input.runtimeProjectState.preDialogueAwarenessLine,
-          awarenessLine: input.runtimeProjectState.awarenessLine,
-          companionHeadlineLine: input.runtimeProjectState.companionHeadlineLine,
-          companionBriefingLine: input.runtimeProjectState.companionBriefingLine,
-          preDialogueAwarenessSummary: input.runtimeProjectState.preDialogueAwarenessSummary,
-          preflightSummary: input.runtimeProjectState.preflightSummary,
-          sameHerDriftRiskSummary:
-            input.runtimeProjectState.sameHerDriftRiskSummary
-            ?? input.runtimeProjectState.sameHerDriftRisk,
-        }
-      : null,
-    fallbackProjectState: input.fallbackProjectState
-      ? {
-          preDialogueAwarenessLine: input.fallbackProjectState.preDialogueAwarenessLine,
-          awarenessLine: input.fallbackProjectState.awarenessLine,
-          companionHeadlineLine: input.fallbackProjectState.companionHeadlineLine,
-          companionBriefingLine: input.fallbackProjectState.companionBriefingLine,
-          preDialogueAwarenessSummary: input.fallbackProjectState.preDialogueAwarenessSummary,
-          preflightSummary: input.fallbackProjectState.preflightSummary,
-          sameHerDriftRiskSummary:
-            input.fallbackProjectState.sameHerDriftRiskSummary
-            ?? input.fallbackProjectState.sameHerDriftRisk,
-        }
-      : null,
-  }), 1600)
 }
 
 function pickStrongerProjectAwarenessLine(
@@ -2941,93 +2890,9 @@ function buildProviderFacingProjectAwarenessLine(input: {
   latestLandedProgress?: string | null
   primaryOpenLoop?: string | null
   nextClosureTarget?: string | null
-}) {
-  const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
-  const canonicalProjectIdentity = normalizeProviderFacingProjectText(
-    canonicalProjectStateBrief.identity,
-    1600,
-  )
-  const preferredIdentity = canonicalProjectIdentity
-    && /same local-first digital life project|not a new shell|not a fresh shell|detached callback worker|rebuilt each turn|rebuilt for this turn/iu.test(input.identity)
-    ? canonicalProjectIdentity
-    : input.identity
-  const canonicalSameHerSelfLine = normalizeProviderFacingProjectText(
-    canonicalProjectStateBrief.sameHerSelfLine,
-    1600,
-  )
-  const canonicalLatestLandedProgress = normalizeProviderFacingProjectText(
-    canonicalProjectStateBrief.latestProgress ?? canonicalProjectStateBrief.continuityProgressSummary,
-    1600,
-  )
-  const canonicalPrimaryOpenLoop = normalizeProviderFacingProjectText(
-    canonicalProjectStateBrief.primaryOpenLoop ?? canonicalProjectStateBrief.openLoops[0],
-    1600,
-  )
-  const canonicalNextClosureTarget = normalizeProviderFacingProjectText(
-    canonicalProjectStateBrief.nextClosureTarget,
-    1600,
-  )
-  const runtimeCarriesSpecificProjectClosure
-    = Boolean(
-      normalizeProviderFacingProjectText(input.latestLandedProgress, 1600)
-      && canonicalLatestLandedProgress
-      && normalizeProviderFacingProjectText(input.latestLandedProgress, 1600) !== canonicalLatestLandedProgress,
-    )
-    || Boolean(
-      normalizeProviderFacingProjectText(input.primaryOpenLoop, 1600)
-      && canonicalPrimaryOpenLoop
-      && normalizeProviderFacingProjectText(input.primaryOpenLoop, 1600) !== canonicalPrimaryOpenLoop,
-    )
-    || Boolean(
-      normalizeProviderFacingProjectText(input.nextClosureTarget, 1600)
-      && canonicalNextClosureTarget
-      && normalizeProviderFacingProjectText(input.nextClosureTarget, 1600) !== canonicalNextClosureTarget,
-    )
-  const preferredSameHerSelfLine = (
-    canonicalSameHerSelfLine
-    && preferredIdentity === canonicalProjectIdentity
-    && !runtimeCarriesSpecificProjectClosure
-    && !/callback return|same thread/iu.test(input.sameHerSelfLine ?? '')
-    && (
-      !normalizeProviderFacingProjectText(input.sameHerSelfLine, 1600)
-      || /one same her must stay explicit|same project-aware self|same unfinished phase 1 digital-life line/iu.test(input.sameHerSelfLine ?? '')
-    )
-  )
-    ? canonicalSameHerSelfLine
-    : normalizeProviderFacingProjectText(input.sameHerSelfLine, 1600) ?? ''
-  const preferredLatestLandedProgress = normalizeProviderFacingProjectText(
-    input.latestLandedProgress
-      ? compactProjectLatestProgressForSystemBlock(input.latestLandedProgress, 360)
-      : null,
-    800,
-  )
-  const preferredPrimaryOpenLoop = normalizeProviderFacingProjectText(input.primaryOpenLoop, 1600)
-  const preferredNextClosureTarget = normalizeProviderFacingProjectText(input.nextClosureTarget, 1600)
-
-  if (
-    canonicalProjectIdentity
-    && preferredIdentity === canonicalProjectIdentity
-    && canonicalSameHerSelfLine
-    && preferredSameHerSelfLine === canonicalSameHerSelfLine
-    && preferredLatestLandedProgress === canonicalLatestLandedProgress
-    && preferredPrimaryOpenLoop === canonicalPrimaryOpenLoop
-    && preferredNextClosureTarget === canonicalNextClosureTarget
-  ) {
-    return normalizeProviderFacingProjectText(
-      canonicalProjectStateBrief.preDialogueAwarenessLine,
-      4000,
-    )
-  }
-
-  return normalizeProviderFacingProjectText(formatAlicizationProjectStateAwarenessFields({
-    identity: preferredIdentity,
-    currentPhase: input.currentPhase,
-    latestLandedProgress: preferredLatestLandedProgress,
-    primaryOpenLoop: preferredPrimaryOpenLoop,
-    nextClosureTarget: preferredNextClosureTarget,
-    sameHerSelfLine: preferredSameHerSelfLine,
-    maxChars: 1600,
-  }), 1600)
+}): string | null {
+  void input
+  return null
 }
 
 function readRuntimeProjectStateFromSurface(
@@ -3850,67 +3715,91 @@ function stripProjectStateContinuityTiming(
   if (!surface)
     return surface
 
-  const stripProjectState = (projectState: Record<string, unknown> | null | undefined) => {
-    if (!projectState)
-      return projectState
+  const stripCurrentConsciousFrame = (
+    frame: AlicizationDigitalLifeRuntimeSurface['dialogue']['currentConsciousFrame'],
+  ) => {
+    if (!frame)
+      return frame
 
-    const {
-      continuityPreferredTiming: _continuityPreferredTiming,
-      continuityCadence: _continuityCadence,
-      preferredBlinkCadence: _preferredBlinkCadence,
-      preferredGazeMode: _preferredGazeMode,
-      preferredPauseMode: _preferredPauseMode,
-      preferredLipsyncMode: _preferredLipsyncMode,
-      preferredVoiceMode: _preferredVoiceMode,
-      preferredPacingMode: _preferredPacingMode,
-      ...rest
-    } = projectState
+    const reasonTags = (frame.reasonTags ?? []).filter(
+      reason => !isOrdinaryDialogueProjectStatePlanningText(reason)
+        && !ordinaryDialogueFixedGovernanceCuePattern.test(reason),
+    )
+    const keepFrameText = (raw: unknown) => {
+      const normalized = normalizePreparedExecutionText(raw, 1600)
+      return normalized
+        && !isOrdinaryDialogueProjectStatePlanningText(normalized)
+        && !ordinaryDialogueFixedGovernanceCuePattern.test(normalized)
+        && !isBlockedProviderFacingTemplateLine(normalized)
+        ? normalized
+        : null
+    }
 
-    return rest
+    return {
+      ...frame,
+      reasonTags,
+      consciousNeed: keepFrameText(frame.consciousNeed) ?? '',
+      speakingIntention: keepFrameText(frame.speakingIntention) ?? '',
+      continuityArcStage: undefined,
+      continuityPreferredTiming: undefined,
+      continuityCadence: undefined,
+      projectState: undefined,
+    }
+  }
+
+  const stripRuntimeDigest = <T extends Record<string, unknown> | null | undefined>(digest: T) => {
+    if (!digest)
+      return digest
+
+    const activeLoop = digest.activeLoop && typeof digest.activeLoop === 'object'
+      ? {
+          ...(digest.activeLoop as Record<string, unknown>),
+          continuityArcStage: undefined,
+          continuityPreferredTiming: undefined,
+          summary: isOrdinaryDialogueProjectStatePlanningText(
+            (digest.activeLoop as Record<string, unknown>).summary,
+          )
+            ? ''
+            : (digest.activeLoop as Record<string, unknown>).summary,
+        }
+      : digest.activeLoop
+
+    return {
+      ...digest,
+      activeLoop,
+      projectState: undefined,
+      continuityRestraint: undefined,
+      emotionalClosureCue: undefined,
+      currentConsciousFrame: stripCurrentConsciousFrame(
+        digest.currentConsciousFrame as AlicizationDigitalLifeRuntimeSurface['dialogue']['currentConsciousFrame'],
+      ),
+    }
   }
 
   return {
     ...surface,
     dialogue: {
       ...surface.dialogue,
-      currentConsciousFrame: surface.dialogue.currentConsciousFrame
-        ? {
-            ...surface.dialogue.currentConsciousFrame,
-            projectState: stripProjectState(
-              surface.dialogue.currentConsciousFrame.projectState as Record<string, unknown> | null | undefined,
-            ) as typeof surface.dialogue.currentConsciousFrame.projectState,
-          }
-        : surface.dialogue.currentConsciousFrame,
+      currentConsciousFrame: stripCurrentConsciousFrame(surface.dialogue.currentConsciousFrame) as typeof surface.dialogue.currentConsciousFrame,
+      runtimeDigest: stripRuntimeDigest(
+        surface.dialogue.runtimeDigest as Record<string, unknown> | null | undefined,
+      ) as typeof surface.dialogue.runtimeDigest,
+      answerPlanner: sanitizeOrdinaryDialogueAnswerPlanner(surface.dialogue.answerPlanner),
     },
     raw: {
       ...surface.raw,
-      runtimeDigest: surface.raw?.runtimeDigest
-        ? {
-            ...surface.raw.runtimeDigest,
-            projectState: stripProjectState(
-              surface.raw.runtimeDigest.projectState as Record<string, unknown> | null | undefined,
-            ) as typeof surface.raw.runtimeDigest.projectState,
-          }
-        : surface.raw?.runtimeDigest,
-      runtime: surface.raw?.runtime
-        ? {
-            ...surface.raw.runtime,
-            projectState: stripProjectState(
-              surface.raw.runtime.projectState as Record<string, unknown> | null | undefined,
-            ) as typeof surface.raw.runtime.projectState,
-          }
-        : surface.raw?.runtime,
+      runtimeDigest: stripRuntimeDigest(
+        surface.raw?.runtimeDigest as Record<string, unknown> | null | undefined,
+      ) as any,
+      runtime: stripRuntimeDigest(
+        surface.raw?.runtime as Record<string, unknown> | null | undefined,
+      ) as any,
     },
     cognition: {
       ...surface.cognition,
-      runtimeDigest: surface.cognition.runtimeDigest
-        ? {
-            ...surface.cognition.runtimeDigest,
-            projectState: stripProjectState(
-              surface.cognition.runtimeDigest.projectState as Record<string, unknown> | null | undefined,
-            ) as typeof surface.cognition.runtimeDigest.projectState,
-          }
-        : surface.cognition.runtimeDigest,
+      runtimeDigest: stripRuntimeDigest(
+        surface.cognition.runtimeDigest as Record<string, unknown> | null | undefined,
+      ) as typeof surface.cognition.runtimeDigest,
     },
   }
 }
@@ -4050,8 +3939,10 @@ function restorePreparedRuntimeRelationshipCarry(
 function ensurePreparedRuntimeSurfaceShape(
   surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
 ): AlicizationDigitalLifeRuntimeSurface | null {
-  if (!surface)
+  const strippedSurface = stripProjectStateContinuityTiming(surface ?? null)
+  if (!strippedSurface)
     return null
+  surface = strippedSurface
 
   return {
     version: 'digital-life-runtime-surface-v1',
@@ -5918,7 +5809,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
 
   const nextClosureTarget = normalizeProviderFacingProjectText(projectState?.nextClosureTarget, 1600) ?? null
 
-  return {
+  const rebuiltContract = {
     ...baseContract,
     answerIntent: input.governance?.answerIntent ?? baseContract.answerIntent ?? null,
     answerAct: input.governance?.answerAct ?? baseContract.answerAct ?? null,
@@ -6006,6 +5897,8 @@ export function rebuildProviderFacingMindTurnContract(input: {
     reasons: input.governance?.reasons ?? baseContract.reasons,
     updatedAt: Date.now(),
   } satisfies AlicizationMindTurnContractSnapshot
+
+  return isolateProviderMindTurnContractFromProjectGovernance(rebuiltContract)
 }
 
 export function normalizeProviderFacingMindTurnContract(
@@ -6013,1032 +5906,11 @@ export function normalizeProviderFacingMindTurnContract(
   rawPayload: AlicizationChatStartPayload | null | undefined,
   runtimeSurface: AlicizationMainChatRuntimeSurface | null,
 ) {
-  if (!contract)
-    return null
-
-  const payloadProjectState = readProviderFacingPayloadProjectState(rawPayload)
-  const payloadHeadline = payloadProjectState.hasDirectPayloadProjectHeadline
-    ? payloadProjectState.explicitPayloadProjectHeadline
+  void rawPayload
+  void runtimeSurface
+  return contract
+    ? isolateProviderMindTurnContractFromProjectGovernance(contract)
     : null
-  const selectedRuntimeSurface = resolvePreferredRuntimeSurface({
-    preparedRuntimeSurface: runtimeSurface?.digitalLifeRuntimeSurface ?? null,
-    spineRuntimeSurface: runtimeSurface?.digitalLifeSpine?.runtimeSurface ?? null,
-  })
-  const liveRuntimeProjectState = readRuntimeProjectStateFromSurface(selectedRuntimeSurface)
-  const preparedRuntimeProjectState = readRuntimeProjectStateFromSurface(runtimeSurface?.digitalLifeRuntimeSurface ?? null)
-  const spineRuntimeProjectState = readRuntimeProjectStateFromSurface(runtimeSurface?.digitalLifeSpine?.runtimeSurface ?? null)
-  const directPreparedRuntimeAwarenessLine = pickProjectAwarenessLineWithoutCompactSummaryShell([
-    runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.awarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState?.awarenessLine,
-  ], 1600)
-  const explicitContractAwarenessLine = normalizeProviderFacingProjectText(
-    (contract.projectState as Record<string, unknown> | null)?.preDialogueAwarenessLine
-    ?? (contract.projectState as Record<string, unknown> | null)?.awarenessLine,
-    1600,
-  )
-  const preservedDirectPreparedRuntimeAwarenessLine = (
-    directPreparedRuntimeAwarenessLine
-    && shouldPreserveProjectAwarenessLineVerbatim(
-      directPreparedRuntimeAwarenessLine,
-      explicitContractAwarenessLine ?? liveRuntimeProjectState.preDialogueAwarenessLine,
-    )
-  )
-    ? directPreparedRuntimeAwarenessLine
-    : null
-  const shouldPreferDirectPreparedRuntimeAwarenessLine = Boolean(
-    preservedDirectPreparedRuntimeAwarenessLine
-    && (
-      /callback return|same thread/iu.test(preservedDirectPreparedRuntimeAwarenessLine)
-      || !explicitContractAwarenessLine
-      || isThinProjectAwarenessAuthorityLine(explicitContractAwarenessLine)
-      || isCompactProjectStatePreflightSummary(explicitContractAwarenessLine)
-    ),
-  )
-  const preferredExplicitAwarenessLine
-    = shouldPreferDirectPreparedRuntimeAwarenessLine
-      ? preservedDirectPreparedRuntimeAwarenessLine
-      : explicitContractAwarenessLine
-  const currentAwarenessLine = explicitContractAwarenessLine
-    && preferredExplicitAwarenessLine === explicitContractAwarenessLine
-    && shouldPreserveProjectAwarenessLineVerbatim(
-      preferredExplicitAwarenessLine,
-      liveRuntimeProjectState.preDialogueAwarenessLine,
-    )
-    ? preferredExplicitAwarenessLine
-    : preferredExplicitAwarenessLine
-      && preservedDirectPreparedRuntimeAwarenessLine
-      ? preferredExplicitAwarenessLine
-      : pickProjectAwarenessLineWithoutCompactSummaryShell([
-          contract.projectState ? (contract.projectState as Record<string, unknown>).preDialogueAwarenessLine : null,
-          contract.projectState ? (contract.projectState as Record<string, unknown>).awarenessLine : null,
-          preservedDirectPreparedRuntimeAwarenessLine,
-          contract.projectState && !isCompactProjectStatePreflightSummary((contract.projectState as Record<string, unknown>).preDialogueAwarenessSummary)
-            ? (contract.projectState as Record<string, unknown>).preDialogueAwarenessSummary
-            : null,
-          liveRuntimeProjectState.preDialogueAwarenessLine,
-          !isCompactProjectStatePreflightSummary(liveRuntimeProjectState.preDialogueAwarenessSummary)
-            ? liveRuntimeProjectState.preDialogueAwarenessSummary
-            : null,
-          resolveProjectStateAwarenessCarry({
-            runtimeProjectState: contract.projectState as Record<string, unknown> | null,
-            fallbackProjectState: liveRuntimeProjectState as unknown as Record<string, unknown>,
-          }),
-        ], 1600)
-  const canonicalProjectSameHerSelfLine = normalizeProviderFacingProjectText(
-    resolveAlicizationProjectStateBrief().sameHerSelfLine,
-    1600,
-  )
-  const preferredRebuiltSameHerSelfLine = (() => {
-    const preferredAnySameHerSelfLine = pickPreferredRuntimeProjectStateDetail([
-      normalizeProviderFacingProjectText((contract.projectState as Record<string, unknown> | null)?.sameHerSelfLine, 1600),
-      liveRuntimeProjectState.sameHerSelfLine,
-    ], 'same-her', 1600)
-    if (
-      preferredAnySameHerSelfLine
-      && canonicalProjectSameHerSelfLine
-      && preferredAnySameHerSelfLine === canonicalProjectSameHerSelfLine
-      && liveRuntimeProjectState.sameHerSelfLine
-      && liveRuntimeProjectState.sameHerSelfLine !== canonicalProjectSameHerSelfLine
-      && !looksLikeThinRuntimeProjectStateDetail(liveRuntimeProjectState.sameHerSelfLine, 'same-her')
-    ) {
-      return liveRuntimeProjectState.sameHerSelfLine
-    }
-
-    return preferredAnySameHerSelfLine
-  })()
-  const preferredRebuiltLatestLandedProgress = pickPreferredRuntimeProjectStateDetail([
-    normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.latestLandedProgress
-      ?? (contract.projectState as Record<string, unknown> | null)?.latestProgress,
-      12000,
-    ),
-    liveRuntimeProjectState.latestLandedProgress,
-    liveRuntimeProjectState.latestProgress,
-  ], 'landed', 12000)
-  const preferredRebuiltPrimaryOpenLoop = pickPreferredRuntimeProjectStateDetail([
-    normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.primaryOpenLoop,
-      12000,
-    ),
-    liveRuntimeProjectState.primaryOpenLoop,
-  ], 'open', 12000)
-  const preferredRebuiltNextClosureTarget = pickPreferredRuntimeProjectStateDetail([
-    normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.nextClosureTarget,
-      12000,
-    ),
-    liveRuntimeProjectState.nextClosureTarget,
-  ], 'next', 12000)
-  const rebuiltAwarenessLine = buildProviderFacingProjectAwarenessLine({
-    identity: liveRuntimeProjectState.identity,
-    currentPhase: liveRuntimeProjectState.currentPhase,
-    sameHerSelfLine: preferredRebuiltSameHerSelfLine,
-    latestLandedProgress: preferredRebuiltLatestLandedProgress,
-    primaryOpenLoop: preferredRebuiltPrimaryOpenLoop,
-    nextClosureTarget: preferredRebuiltNextClosureTarget,
-  })
-  const payloadAwarenessLine = payloadProjectState.hasDirectPayloadProjectAwarenessLine
-    ? resolvePreferredPayloadAwarenessLine({
-        awarenessLine: payloadProjectState.explicitPayloadProjectAwarenessLine,
-        headlineLine: payloadHeadline,
-      })
-    : null
-  const payloadAwarenessLineLooksThin = Boolean(
-    payloadAwarenessLine
-    && (
-      isThinProjectAwarenessAuthorityLine(payloadAwarenessLine)
-      || isCompactProjectStatePreflightSummary(payloadAwarenessLine)
-    ),
-  )
-  const payloadPreflightSummaryLooksThin = Boolean(
-    payloadProjectState.explicitPayloadProjectPreflightSummary
-    && (
-      isThinProjectAwarenessAuthorityLine(payloadProjectState.explicitPayloadProjectPreflightSummary)
-      || isCompactProjectStatePreflightSummary(payloadProjectState.explicitPayloadProjectPreflightSummary)
-    ),
-  )
-  const directPayloadPreflightSummary = normalizeProviderFacingProjectText(
-    readDirectPayloadPreflightSummary(rawPayload, 1600),
-    1600,
-  )
-  const directPayloadPreflightSummaryLooksThin = Boolean(
-    directPayloadPreflightSummary
-    && (
-      isThinProjectAwarenessAuthorityLine(directPayloadPreflightSummary)
-      || isCompactProjectStatePreflightSummary(directPayloadPreflightSummary)
-    ),
-  )
-  const payloadThinPreflightSummaryRequested
-    = payloadPreflightSummaryLooksThin || directPayloadPreflightSummaryLooksThin
-  const payloadPreflightSummaryHasExplicitSameHerPhase1Carry = Boolean(
-    payloadProjectState.explicitPayloadProjectPreflightSummary
-    && /same local-first digital life project(?: in)? phase 1|same digital life project(?: in)? phase 1/iu.test(
-      payloadProjectState.explicitPayloadProjectPreflightSummary,
-    ),
-  )
-  const rebuildAlreadyCarriesDirectPayloadAwareness = Boolean(
-    payloadAwarenessLine
-    && normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.preDialogueAwarenessLine,
-      1600,
-    ) === payloadAwarenessLine,
-  )
-  const shouldPreferPayloadHeadline = Boolean(
-    payloadAwarenessLine
-    && !payloadAwarenessLineLooksThin
-    && (
-      rebuildAlreadyCarriesDirectPayloadAwareness
-      || shouldPreserveProjectAwarenessLineVerbatim(
-        payloadAwarenessLine,
-        rebuiltAwarenessLine ?? currentAwarenessLine,
-      )
-      || (
-        (!carriesExplicitProjectClosureTriplet(rebuiltAwarenessLine)
-          || carriesExplicitProjectClosureTriplet(payloadAwarenessLine)
-          || hasDistinctEmbodimentClosureCue(payloadAwarenessLine)
-          || shouldPreserveProjectAwarenessLineVerbatim(
-            payloadAwarenessLine,
-            rebuiltAwarenessLine,
-          )
-          || isStrongerSameHerProjectHeadline(
-            payloadAwarenessLine,
-            rebuiltAwarenessLine,
-          ))
-          && (
-            (payloadHeadline && isStrongerSameHerProjectHeadline(payloadHeadline))
-            || (
-              !payloadHeadline
-              && !isThinProjectAwarenessAuthorityLine(payloadProjectState.explicitPayloadProjectAwarenessLine)
-              && !isThinProjectAwarenessAuthorityLine(payloadAwarenessLine)
-            )
-            || isStrongerSameHerProjectHeadline(payloadProjectState.explicitPayloadProjectAwarenessLine, currentAwarenessLine)
-            || (
-              !isThinProjectAwarenessAuthorityLine(payloadAwarenessLine)
-              && (
-                isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
-                || !currentAwarenessLine
-              )
-            )
-          )
-      )
-    ),
-  )
-  const shouldPreferPayloadCompanionHeadlineAsAwareness = Boolean(
-    payloadHeadline
-    && !isThinProjectAwarenessAuthorityLine(payloadHeadline)
-    && hasDistinctEmbodimentClosureCue(payloadHeadline)
-    && (
-      payloadAwarenessLine === payloadHeadline
-      || isThinProjectAwarenessAuthorityLine(payloadAwarenessLine)
-      || !/same living line|same-her|same her|one living her|one continuous her|同一个 her|同一个她/u.test(
-        normalizeProviderFacingProjectText(payloadAwarenessLine, 1600)?.toLowerCase() ?? '',
-      )
-    )
-    && !carriesExplicitProjectClosureTriplet(payloadAwarenessLine)
-    && !/phase 1|memory|initiative|generic assistant shell|detached project shell|same-life seam|landed farther/u.test(
-      normalizeProviderFacingProjectText(payloadAwarenessLine, 1600)?.toLowerCase() ?? '',
-    )
-    && (
-      !currentAwarenessLine
-      || isCanonicalStructuredProjectAwareness(currentAwarenessLine)
-      || !hasDistinctEmbodimentClosureCue(currentAwarenessLine)
-      || shouldPreserveProjectAwarenessLineVerbatim(payloadHeadline, currentAwarenessLine)
-      || isStrongerSameHerProjectHeadline(payloadHeadline, currentAwarenessLine)
-    )
-    && (!rebuiltAwarenessLine
-      || !carriesExplicitProjectClosureTriplet(rebuiltAwarenessLine)
-      && !/phase 1|memory|initiative|generic assistant shell|detached project shell|same-life seam|landed farther/u.test(
-        rebuiltAwarenessLine.toLowerCase(),
-      )
-      || shouldPreserveProjectAwarenessLineVerbatim(payloadHeadline, rebuiltAwarenessLine)
-      || isStrongerSameHerProjectHeadline(payloadHeadline, rebuiltAwarenessLine)),
-  )
-  const shouldPreferThinPayloadAwarenessTransportedHeadline = Boolean(
-    payloadHeadline
-    && !isThinProjectAwarenessAuthorityLine(payloadHeadline)
-    && hasDistinctEmbodimentClosureCue(payloadHeadline)
-    && /same living line|same-her|same her|one living her|one continuous her/u.test(payloadHeadline.toLowerCase())
-    && payloadAwarenessLine
-    && isThinProjectAwarenessAuthorityLine(payloadAwarenessLine)
-    && rebuiltAwarenessLine
-    && /face|motion|lipsync|voice|same-life seam|same living line|one living her|one continuous her/u.test(
-      rebuiltAwarenessLine.toLowerCase(),
-    ),
-  )
-  const shouldPreferTransportedPayloadCompanionHeadline = Boolean(
-    payloadHeadline
-    && !isThinProjectAwarenessAuthorityLine(payloadHeadline)
-    && hasDistinctEmbodimentClosureCue(payloadHeadline)
-    && /same living line|same-her|same her|one living her|one continuous her/u.test(
-      payloadHeadline.toLowerCase(),
-    )
-    && payloadAwarenessLine
-    && (
-      isThinProjectAwarenessAuthorityLine(payloadAwarenessLine)
-      || !shouldPreserveProjectAwarenessLineVerbatim(payloadAwarenessLine, payloadHeadline)
-    )
-    && rebuiltAwarenessLine
-    && /face|motion|lipsync|voice|same-life seam|same living line|one living her|one continuous her/u.test(
-      rebuiltAwarenessLine.toLowerCase(),
-    )
-    && !shouldPreserveProjectAwarenessLineVerbatim(payloadAwarenessLine, rebuiltAwarenessLine)
-    && isStrongerSameHerProjectHeadline(payloadHeadline, rebuiltAwarenessLine),
-  )
-  const currentAwarenessCarriesExplicitClosureTriplet = carriesExplicitProjectClosureTriplet(currentAwarenessLine)
-  const rebuiltAwarenessCarriesExplicitClosureTriplet = carriesExplicitProjectClosureTriplet(rebuiltAwarenessLine)
-  const explicitPreparedRuntimeAwarenessSeed = pickProjectAwarenessLineWithoutCompactSummaryShell([
-    runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.awarenessLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtimeDigest?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtimeDigest?.projectState?.awarenessLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtimeDigest?.projectState?.preDialogueAwarenessSummary,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtime?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtime?.projectState?.awarenessLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtime?.projectState?.preDialogueAwarenessSummary,
-    runtimeSurface?.digitalLifeRuntimeSurface?.cognition?.runtimeDigest?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.cognition?.runtimeDigest?.projectState?.awarenessLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.cognition?.runtimeDigest?.projectState?.preDialogueAwarenessSummary,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState?.awarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessSummary,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtimeDigest?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtimeDigest?.projectState?.awarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtimeDigest?.projectState?.preDialogueAwarenessSummary,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtime?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtime?.projectState?.awarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtime?.projectState?.preDialogueAwarenessSummary,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.cognition?.runtimeDigest?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.cognition?.runtimeDigest?.projectState?.awarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.cognition?.runtimeDigest?.projectState?.preDialogueAwarenessSummary,
-  ], 1600)
-  const canonicalProjectAwarenessLine = normalizeProviderFacingProjectText(
-    resolveAlicizationProjectStateBrief().preDialogueAwarenessLine,
-    1600,
-  )
-  const shouldPreferCanonicalAwarenessFoundation = Boolean(
-    !payloadProjectState.hasDirectPayloadProjectAwarenessLine
-    && currentAwarenessLine
-    && !currentAwarenessLine.includes('one continuous "her"')
-    && !/memory still needs stronger end-to-end closure/iu.test(currentAwarenessLine)
-    && !/live project awareness already|already survives into the current conscious frame|not a new shell|not a fresh shell|rebuilt each turn|provider-facing answer contract before reply authoring|landed farther/iu.test(currentAwarenessLine)
-    && !/callback return|same thread/iu.test(currentAwarenessLine)
-    && (
-      !hasDistinctEmbodimentClosureCue(currentAwarenessLine)
-      || currentAwarenessCarriesExplicitClosureTriplet
-    ),
-  )
-  const runtimeCompanionPriorityLine = pickPreferredRuntimeProjectStateDetail([
-    (contract.projectState as Record<string, unknown> | null)?.companionHeadlineLine,
-    (contract.projectState as Record<string, unknown> | null)?.companionBriefingLine,
-    liveRuntimeProjectState.companionHeadlineLine,
-    liveRuntimeProjectState.companionBriefingLine,
-  ], 'awareness', 1600)
-  const runtimeCompanionPriorityLineIsSpecificEmbodimentHeadline = Boolean(
-    runtimeCompanionPriorityLine
-    && hasModalitySpecificEmbodimentCue(runtimeCompanionPriorityLine)
-    && !carriesExplicitProjectClosureTriplet(runtimeCompanionPriorityLine)
-    && !isCanonicalStructuredProjectAwareness(runtimeCompanionPriorityLine),
-  )
-  const runtimeCompanionPriorityLineIsSpecificSameHerAuthority = Boolean(
-    runtimeCompanionPriorityLine
-    && carriesSpecificSameHerAuthorityLine(runtimeCompanionPriorityLine)
-    && !carriesExplicitProjectClosureTriplet(runtimeCompanionPriorityLine)
-    && !isCanonicalStructuredProjectAwareness(runtimeCompanionPriorityLine),
-  )
-  const runtimeCompanionWouldOverNarrowCurrentAwareness = Boolean(
-    runtimeCompanionPriorityLine
-    && currentAwarenessLine
-    && !carriesSpecificSameHerAuthorityLine(runtimeCompanionPriorityLine)
-    && !isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
-    && /phase 1|memory|initiative|embodiment|closure/u.test(currentAwarenessLine.toLowerCase())
-    && hasDistinctEmbodimentClosureCue(runtimeCompanionPriorityLine)
-    && !/phase 1|memory|initiative|closure/u.test(runtimeCompanionPriorityLine.toLowerCase()),
-  )
-  const shouldPreferRuntimeCompanionHeadline = Boolean(
-    runtimeCompanionPriorityLine
-    && runtimeCompanionPriorityLineIsSpecificSameHerAuthority
-    && !shouldPreferPayloadHeadline
-    && (
-      !shouldPreferCanonicalAwarenessFoundation
-      || runtimeCompanionPriorityLineIsSpecificSameHerAuthority
-    )
-    && !runtimeCompanionWouldOverNarrowCurrentAwareness
-    && (
-      !isCompactProjectStatePreflightSummary(runtimeCompanionPriorityLine)
-      || runtimeCompanionPriorityLineIsSpecificSameHerAuthority
-    )
-    && (
-      isStrongerSameHerProjectHeadline(runtimeCompanionPriorityLine, currentAwarenessLine)
-      || isStrongerSameHerProjectHeadline(runtimeCompanionPriorityLine, rebuiltAwarenessLine)
-      || isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
-      || runtimeCompanionPriorityLineIsSpecificEmbodimentHeadline
-      || runtimeCompanionPriorityLineIsSpecificSameHerAuthority
-    ),
-  )
-  const strongerCompanionHeadlineCandidate = pickProjectAwarenessLineWithoutCompactSummaryShell([
-    (contract.projectState as Record<string, unknown> | null)?.companionHeadlineLine,
-    liveRuntimeProjectState.companionHeadlineLine,
-    runtimeCompanionPriorityLine,
-  ], 1600)
-  const rebuiltRuntimeCarryLatestLandedProgress = normalizeProviderFacingProjectText(
-    preferredRebuiltLatestLandedProgress,
-    1600,
-  )
-  const rebuiltRuntimeCarryPrimaryOpenLoop = normalizeProviderFacingProjectText(
-    preferredRebuiltPrimaryOpenLoop,
-    1600,
-  )
-  const rebuiltRuntimeCarryNextClosureTarget = normalizeProviderFacingProjectText(
-    preferredRebuiltNextClosureTarget,
-    1600,
-  )
-  const currentAwarenessLineMissesSpecificRuntimeCarry = Boolean(
-    rebuiltAwarenessLine
-    && currentAwarenessLine
-    && isCanonicalStructuredProjectAwareness(currentAwarenessLine)
-    && carriesProjectIdentityAnchor(rebuiltAwarenessLine)
-    && (
-      (
-        rebuiltRuntimeCarryLatestLandedProgress
-        && !currentAwarenessLine.includes(rebuiltRuntimeCarryLatestLandedProgress)
-        && rebuiltAwarenessLine.includes(rebuiltRuntimeCarryLatestLandedProgress)
-      )
-      || (
-        rebuiltRuntimeCarryPrimaryOpenLoop
-        && !currentAwarenessLine.includes(rebuiltRuntimeCarryPrimaryOpenLoop)
-        && rebuiltAwarenessLine.includes(rebuiltRuntimeCarryPrimaryOpenLoop)
-      )
-      || (
-        rebuiltRuntimeCarryNextClosureTarget
-        && !currentAwarenessLine.includes(rebuiltRuntimeCarryNextClosureTarget)
-        && rebuiltAwarenessLine.includes(rebuiltRuntimeCarryNextClosureTarget)
-      )
-    ),
-  )
-  const shouldPreferRebuiltRuntimeCarryAwareness = Boolean(
-    explicitPreparedRuntimeAwarenessSeed
-    && rebuiltAwarenessLine
-    && currentAwarenessLine
-    && !/callback return|same thread/iu.test(currentAwarenessLine)
-    && (
-      currentAwarenessLineMissesSpecificRuntimeCarry
-      || (
-        isCanonicalStructuredProjectAwareness(currentAwarenessLine)
-        && !shouldPreserveProjectAwarenessLineVerbatim(currentAwarenessLine, rebuiltAwarenessLine)
-        && !hasDistinctEmbodimentClosureCue(currentAwarenessLine)
-        && awarenessLineMissesRuntimeCarry({
-          awarenessLine: currentAwarenessLine,
-          latestLandedProgress: liveRuntimeProjectState.latestLandedProgress,
-          primaryOpenLoop: liveRuntimeProjectState.primaryOpenLoop,
-          nextClosureTarget: liveRuntimeProjectState.nextClosureTarget,
-        })
-        && !awarenessLineMissesRuntimeCarry({
-          awarenessLine: rebuiltAwarenessLine,
-          latestLandedProgress: liveRuntimeProjectState.latestLandedProgress,
-          primaryOpenLoop: liveRuntimeProjectState.primaryOpenLoop,
-          nextClosureTarget: liveRuntimeProjectState.nextClosureTarget,
-        })
-      )
-      || (
-        /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation|owner=project_state_governance/iu.test(
-          currentAwarenessLine,
-        )
-        && currentAwarenessLineMissesSpecificRuntimeCarry
-        && !shouldPreserveProjectAwarenessLineVerbatim(currentAwarenessLine, rebuiltAwarenessLine)
-        && !awarenessLineMissesRuntimeCarry({
-          awarenessLine: rebuiltAwarenessLine,
-          latestLandedProgress: liveRuntimeProjectState.latestLandedProgress,
-          primaryOpenLoop: liveRuntimeProjectState.primaryOpenLoop,
-          nextClosureTarget: liveRuntimeProjectState.nextClosureTarget,
-        })
-      )
-    ),
-  )
-  const shouldForceRebuiltRuntimeCarryOverCanonicalCurrent = Boolean(
-    !payloadProjectState.hasDirectPayloadProjectAwarenessLine
-    && !payloadProjectState.hasDirectPayloadProjectHeadline
-    && payloadPreflightSummaryLooksThin
-    && currentAwarenessLineMissesSpecificRuntimeCarry
-    && shouldPreferRebuiltRuntimeCarryAwareness,
-  )
-  const finalAwarenessLine = shouldPreferPayloadHeadline
-    ? (
-        payloadHeadline
-        && !isThinProjectAwarenessAuthorityLine(payloadHeadline)
-        && (
-          payloadAwarenessLine === payloadHeadline
-          || isStrongerSameHerProjectHeadline(payloadHeadline, payloadAwarenessLine)
-        )
-          ? payloadHeadline
-          : payloadAwarenessLine
-      )
-    : shouldPreferThinPayloadAwarenessTransportedHeadline
-      ? payloadHeadline
-      : shouldPreferTransportedPayloadCompanionHeadline
-        ? payloadHeadline
-        : shouldPreferPayloadCompanionHeadlineAsAwareness
-          ? payloadHeadline
-          : shouldPreferRuntimeCompanionHeadline
-            ? runtimeCompanionPriorityLine
-            : shouldForceRebuiltRuntimeCarryOverCanonicalCurrent
-              ? rebuiltAwarenessLine
-              : shouldPreferRebuiltRuntimeCarryAwareness
-                ? rebuiltAwarenessLine
-                : shouldPreferCanonicalAwarenessFoundation
-                  ? canonicalProjectAwarenessLine
-                  : currentAwarenessLine
-                    && !isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
-                    && (
-                      currentAwarenessCarriesExplicitClosureTriplet
-                      || carriesSpecificSameHerAuthorityLine(currentAwarenessLine)
-                      || shouldPreserveProjectAwarenessLineVerbatim(currentAwarenessLine, rebuiltAwarenessLine)
-                      || (
-                        !rebuiltAwarenessCarriesExplicitClosureTriplet
-                        && isStrongerSameHerProjectHeadline(currentAwarenessLine, rebuiltAwarenessLine)
-                      )
-                      || (
-                        hasDistinctEmbodimentClosureCue(currentAwarenessLine)
-                        && isStrongerSameHerProjectHeadline(currentAwarenessLine, rebuiltAwarenessLine)
-                      )
-                    )
-                    ? currentAwarenessLine
-                    : rebuiltAwarenessLine
-                      ?? currentAwarenessLine
-                      ?? payloadAwarenessLine
-                      ?? canonicalProjectAwarenessLine
-  const rescuedRuntimeAwarenessLine = pickProjectAwarenessLineWithoutCompactSummaryShell([
-    rebuiltAwarenessLine,
-    runtimeCompanionPriorityLine,
-    liveRuntimeProjectState.preDialogueAwarenessLine,
-    liveRuntimeProjectState.companionHeadlineLine,
-    liveRuntimeProjectState.preDialogueAwarenessSummary,
-  ], 1600)
-  const shouldKeepFinalAwarenessLineVerbatim = shouldPreserveProjectAwarenessLineVerbatim(
-    finalAwarenessLine,
-    rescuedRuntimeAwarenessLine,
-  )
-  const rescuedRuntimeAwarenessLineCarriesLivingSameHerClosure = Boolean(
-    rescuedRuntimeAwarenessLine
-    && /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(
-      rescuedRuntimeAwarenessLine,
-    )
-    && /(?:^|\b)(?:landed|open|next|identity|phase)=|open_loop=|closure_status=|runtime_context=/iu.test(rescuedRuntimeAwarenessLine),
-  )
-  const finalAwarenessLineMissesLivingSameHerClosure = !/identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(
-    finalAwarenessLine ?? '',
-  )
-  const rescuedFinalAwarenessLine = shouldKeepFinalAwarenessLineVerbatim
-    ? finalAwarenessLine
-    : (
-        rescuedRuntimeAwarenessLine
-        && !isThinProjectAwarenessAuthorityLine(rescuedRuntimeAwarenessLine)
-        && (
-          (finalAwarenessLine && isThinProjectAwarenessAuthorityLine(finalAwarenessLine))
-          || (
-            rescuedRuntimeAwarenessLineCarriesLivingSameHerClosure
-            && finalAwarenessLineMissesLivingSameHerClosure
-          )
-        )
-      )
-        ? rescuedRuntimeAwarenessLine
-        : finalAwarenessLine
-  const preparedRuntimePreflightAwarenessLine = [
-    runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine,
-  ]
-    .map(value => normalizeProviderFacingProjectText(value, 1600))
-    .find(value =>
-      value
-      && !containsAlicizationFixedTemplateResidue(value)
-      && !isLegacyProjectAwarenessTemplateShell(value)
-      && !isThinProjectAwarenessAuthorityLine(value)
-      && !isCompactProjectStatePreflightSummary(value)
-      && (
-        shouldPreserveProjectAwarenessLineVerbatim(value, rescuedFinalAwarenessLine)
-        || /(?:^|\|\s*)(identity|phase|landed|open|next|continuity_anchor)=|phase1_local_digital_life|project_state_review|runtime_loop_validation/iu.test(value)
-      ),
-    )
-    ?? null
-  const shouldPreferPreparedRuntimePreflightAwareness = Boolean(
-    preparedRuntimePreflightAwarenessLine
-    && !payloadProjectState.hasDirectPayloadProjectAwarenessLine
-    && !payloadProjectState.hasDirectPayloadProjectHeadline
-    && rescuedFinalAwarenessLine
-    && !isLegacyProjectAwarenessTemplateShell(rescuedFinalAwarenessLine)
-    && awarenessCarriesBroaderProjectFrame(rescuedFinalAwarenessLine)
-    && (
-      !currentAwarenessLine
-      || isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
-      || isCompactProjectStatePreflightSummary(currentAwarenessLine)
-      || isLegacyProjectAwarenessTemplateShell(currentAwarenessLine)
-    )
-    && shouldPreserveProjectAwarenessLineVerbatim(
-      preparedRuntimePreflightAwarenessLine,
-      rescuedFinalAwarenessLine,
-    ),
-  )
-  const shouldPreferExactRuntimeCompanionHeadline = Boolean(
-    runtimeCompanionPriorityLine
-    && runtimeCompanionPriorityLineIsSpecificSameHerAuthority
-    && !shouldPreferPayloadHeadline
-    && !shouldPreferPayloadCompanionHeadlineAsAwareness
-    && !shouldPreferThinPayloadAwarenessTransportedHeadline
-    && !shouldPreferTransportedPayloadCompanionHeadline
-    && !isThinProjectAwarenessAuthorityLine(runtimeCompanionPriorityLine)
-    && (
-      shouldPreserveProjectAwarenessLineVerbatim(runtimeCompanionPriorityLine, rescuedFinalAwarenessLine)
-      || isStrongerSameHerProjectHeadline(runtimeCompanionPriorityLine, rescuedFinalAwarenessLine)
-    ),
-  )
-  const effectiveFinalAwarenessLine = shouldPreferExactRuntimeCompanionHeadline
-    ? runtimeCompanionPriorityLine
-    : shouldPreferPreparedRuntimePreflightAwareness
-      ? preparedRuntimePreflightAwarenessLine
-      : rescuedFinalAwarenessLine
-  const focusedCompanionHeadlineCandidate = [
-    runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.companionHeadlineLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtimeDigest?.projectState?.companionHeadlineLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtime?.projectState?.companionHeadlineLine,
-    runtimeSurface?.digitalLifeRuntimeSurface?.cognition?.runtimeDigest?.projectState?.companionHeadlineLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState?.companionHeadlineLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtimeDigest?.projectState?.companionHeadlineLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtime?.projectState?.companionHeadlineLine,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.cognition?.runtimeDigest?.projectState?.companionHeadlineLine,
-    preparedRuntimeProjectState.companionHeadlineLine,
-    spineRuntimeProjectState.companionHeadlineLine,
-    (contract.projectState as Record<string, unknown> | null)?.companionHeadlineLine,
-    liveRuntimeProjectState.companionHeadlineLine,
-  ]
-    .map(value => normalizeProviderFacingProjectText(value, 1600))
-    .find(value =>
-      value
-      && !isThinProjectAwarenessAuthorityLine(value)
-      && !carriesExplicitProjectClosureTriplet(value)
-      && !isCanonicalStructuredProjectAwareness(value),
-    )
-    ?? normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.companionHeadlineLine,
-      1600,
-    )
-    ?? normalizeProviderFacingProjectText(liveRuntimeProjectState.companionHeadlineLine, 1600)
-  const focusedSameHerAwarenessHeadline = (
-    currentAwarenessLine
-    && !carriesExplicitProjectClosureTriplet(currentAwarenessLine)
-    && shouldPreserveProjectAwarenessLineVerbatim(currentAwarenessLine, finalAwarenessLine)
-  )
-    ? currentAwarenessLine
-    : null
-  const preservedFocusedCompanionHeadline = focusedSameHerAwarenessHeadline
-    ?? (
-      focusedCompanionHeadlineCandidate
-      && !carriesExplicitProjectClosureTriplet(focusedCompanionHeadlineCandidate)
-      && shouldPreserveProjectAwarenessLineVerbatim(
-        focusedCompanionHeadlineCandidate,
-        finalAwarenessLine,
-      )
-        ? focusedCompanionHeadlineCandidate
-        : null
-    )
-  const finalCompanionHeadlineLine = shouldPreferPayloadHeadline
-    ? (payloadHeadline ?? payloadProjectState.explicitPayloadProjectAwarenessLine)
-    : shouldPreferPayloadCompanionHeadlineAsAwareness
-      ? payloadHeadline
-      : shouldPreferRuntimeCompanionHeadline
-        ? runtimeCompanionPriorityLine
-        : preservedFocusedCompanionHeadline
-          && !isThinProjectAwarenessAuthorityLine(preservedFocusedCompanionHeadline)
-          ? preservedFocusedCompanionHeadline
-          : strongerCompanionHeadlineCandidate
-            && (
-              shouldPreserveProjectAwarenessLineVerbatim(
-                strongerCompanionHeadlineCandidate,
-                finalAwarenessLine,
-              )
-              || isStrongerSameHerProjectHeadline(
-                strongerCompanionHeadlineCandidate,
-                finalAwarenessLine,
-              )
-            )
-            ? strongerCompanionHeadlineCandidate
-            : payloadHeadline && isStrongerSameHerProjectHeadline(
-              payloadHeadline,
-              (contract.projectState as Record<string, unknown> | null)?.companionHeadlineLine,
-            )
-              ? payloadHeadline
-              : normalizeProviderFacingProjectText(
-                (contract.projectState as Record<string, unknown> | null)?.companionHeadlineLine,
-                1600,
-              )
-              ?? liveRuntimeProjectState.companionHeadlineLine
-              ?? effectiveFinalAwarenessLine
-  const shouldPreferPayloadPreflightSummary = Boolean(
-    payloadProjectState.hasDirectPayloadProjectPreflightSummary
-    && payloadProjectState.explicitPayloadProjectPreflightSummary
-    && !payloadPreflightSummaryLooksThin
-    && (
-      shouldPreferPayloadHeadline
-      || !normalizeProviderFacingProjectText(
-        (contract.projectState as Record<string, unknown> | null)?.preflightSummary,
-        1600,
-      )
-      || isThinProjectAwarenessAuthorityLine((contract.projectState as Record<string, unknown> | null)?.preflightSummary)
-      || isCompactProjectStatePreflightSummary((contract.projectState as Record<string, unknown> | null)?.preflightSummary)
-      || (
-        payloadPreflightSummaryHasExplicitSameHerPhase1Carry
-        && !/same local-first digital life project(?: in)? phase 1|same digital life project(?: in)? phase 1/iu.test(
-          normalizeProviderFacingProjectText(
-            (contract.projectState as Record<string, unknown> | null)?.preflightSummary,
-            1600,
-          ) ?? liveRuntimeProjectState.preflightSummary ?? '',
-        )
-      )
-    ),
-  )
-  const finalPreflightSummary = shouldPreferPayloadPreflightSummary
-    ? payloadProjectState.explicitPayloadProjectPreflightSummary
-    : pickPreferredProjectPreflightSummary([
-        normalizeProviderFacingProjectText(
-          (contract.projectState as Record<string, unknown> | null)?.preflightSummary,
-          1600,
-        ),
-        liveRuntimeProjectState.preflightSummary,
-        normalizeProviderFacingProjectText(resolveAlicizationProjectStateBrief().preflightSummary, 1600),
-      ], 1600)
-  const finalSameHerDriftRisk = payloadProjectState.hasDirectPayloadProjectSameHerDriftRisk
-    ? payloadProjectState.explicitPayloadProjectSameHerDriftRisk
-    : (
-        normalizeProviderFacingProjectText(
-          (contract.projectState as Record<string, unknown> | null)?.sameHerDriftRisk,
-          1600,
-        )
-        ?? liveRuntimeProjectState.sameHerDriftRisk
-      )
-  const currentAwarenessNeedsProjectStatePreflightRescue = Boolean(
-    !currentAwarenessLine
-    || isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
-    || isCompactProjectStatePreflightSummary(currentAwarenessLine)
-    || isLegacyProjectAwarenessTemplateShell(currentAwarenessLine),
-  )
-  const effectiveFinalAwarenessCarriesBroadPhase1ProjectClosureFrame = Boolean(
-    effectiveFinalAwarenessLine
-    && /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(
-      effectiveFinalAwarenessLine,
-    )
-    && (
-      /landed=|continuity_progress=|already survives into the current conscious frame/iu.test(
-        effectiveFinalAwarenessLine,
-      )
-      || /memory|initiative|embodiment|open=|open_loop=|closure_status=unfinished/iu.test(
-        effectiveFinalAwarenessLine,
-      )
-      || /project-state awareness explicit|first visible answer beat|next=|embodiment_scale_validation/iu.test(
-        effectiveFinalAwarenessLine,
-      )
-    ),
-  )
-  const finalAwarenessCarriesPhase1SameHerFollowThrough = Boolean(
-    effectiveFinalAwarenessLine
-    && /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation/iu.test(effectiveFinalAwarenessLine)
-    && (
-      /landed=|open=|next=|closure_status=unfinished|continuity_progress=/iu.test(effectiveFinalAwarenessLine)
-      || /memory_dialogue_embodiment_closure|embodiment_scale_validation|project_identity_route_carry/iu.test([
-        liveRuntimeProjectState.primaryOpenLoop,
-        liveRuntimeProjectState.nextClosureTarget,
-      ].filter(Boolean).join(' '))
-    ),
-  )
-  const shouldCarryPhase1ProjectStateAnswerGovernance = Boolean(
-    !payloadProjectState.hasDirectPayloadProjectAwarenessLine
-    && (
-      (
-        isPhase1ProjectStatePreflightAwarenessLine(effectiveFinalAwarenessLine)
-        && (
-          shouldPreferCanonicalAwarenessFoundation
-          || currentAwarenessNeedsProjectStatePreflightRescue
-        )
-      )
-      || finalAwarenessCarriesPhase1SameHerFollowThrough
-      || (
-        payloadThinPreflightSummaryRequested
-        && currentAwarenessNeedsProjectStatePreflightRescue
-        && effectiveFinalAwarenessCarriesBroadPhase1ProjectClosureFrame
-      )
-    ),
-  )
-  const phase1ProjectStatePreflightRescueAwarenessLine = (
-    !payloadProjectState.hasDirectPayloadProjectAwarenessLine
-    && !payloadProjectState.hasDirectPayloadProjectHeadline
-    && payloadThinPreflightSummaryRequested
-    && currentAwarenessNeedsProjectStatePreflightRescue
-    && effectiveFinalAwarenessLine
-    && !carriesSpecificSameHerAuthorityLine(effectiveFinalAwarenessLine)
-    && !hasModalitySpecificEmbodimentCue(effectiveFinalAwarenessLine)
-    && shouldCarryPhase1ProjectStateAnswerGovernance
-  )
-    ? buildProviderFacingProjectAwarenessLine({
-        identity: liveRuntimeProjectState.identity,
-        currentPhase: liveRuntimeProjectState.currentPhase,
-        sameHerSelfLine: liveRuntimeProjectState.sameHerSelfLine,
-        latestLandedProgress: liveRuntimeProjectState.latestLandedProgress,
-        primaryOpenLoop: liveRuntimeProjectState.primaryOpenLoop,
-        nextClosureTarget: liveRuntimeProjectState.nextClosureTarget,
-      })
-    : null
-  const finalProjectStateAwarenessLine = phase1ProjectStatePreflightRescueAwarenessLine
-    ?? effectiveFinalAwarenessLine
-  const providerSafeFinalProjectStateAwarenessLine = isLegacyProjectAwarenessTemplateShell(finalProjectStateAwarenessLine)
-    ? buildProviderFacingProjectAwarenessLine({
-        identity: liveRuntimeProjectState.identity,
-        currentPhase: liveRuntimeProjectState.currentPhase,
-        sameHerSelfLine: liveRuntimeProjectState.sameHerSelfLine,
-        latestLandedProgress: preferredRebuiltLatestLandedProgress ?? liveRuntimeProjectState.latestLandedProgress,
-        primaryOpenLoop: preferredRebuiltPrimaryOpenLoop ?? liveRuntimeProjectState.primaryOpenLoop,
-        nextClosureTarget: preferredRebuiltNextClosureTarget ?? liveRuntimeProjectState.nextClosureTarget,
-      })
-    : finalProjectStateAwarenessLine
-  const providerSafeFinalCompanionHeadlineLine = isLegacyProjectAwarenessTemplateShell(finalCompanionHeadlineLine)
-    ? providerSafeFinalProjectStateAwarenessLine
-    : finalCompanionHeadlineLine
-  const providerSafeFinalProjectStateAwarenessSummary = (() => {
-    const existingSummary = normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.preDialogueAwarenessSummary,
-      1600,
-    )
-    if (
-      existingSummary
-      && !isLegacyProjectAwarenessTemplateShell(existingSummary)
-      && !isThinProjectAwarenessAuthorityLine(existingSummary)
-      && !isCompactProjectStatePreflightSummary(existingSummary)
-      && (!/callback return|same thread/iu.test(existingSummary)
-        || carriesExplicitProjectClosureTriplet(existingSummary))
-    ) {
-      return existingSummary
-    }
-
-    const awarenessLineIsOpeningOnly = Boolean(
-      providerSafeFinalProjectStateAwarenessLine
-      && /callback return|same thread/iu.test(providerSafeFinalProjectStateAwarenessLine)
-      && !carriesExplicitProjectClosureTriplet(providerSafeFinalProjectStateAwarenessLine),
-    )
-    if (!awarenessLineIsOpeningOnly)
-      return providerSafeFinalProjectStateAwarenessLine
-
-    return buildProviderFacingProjectAwarenessLine({
-      identity: liveRuntimeProjectState.identity,
-      currentPhase: liveRuntimeProjectState.currentPhase,
-      sameHerSelfLine: liveRuntimeProjectState.sameHerSelfLine,
-      latestLandedProgress: preferredRebuiltLatestLandedProgress ?? liveRuntimeProjectState.latestLandedProgress,
-      primaryOpenLoop: preferredRebuiltPrimaryOpenLoop ?? liveRuntimeProjectState.primaryOpenLoop,
-      nextClosureTarget: preferredRebuiltNextClosureTarget ?? liveRuntimeProjectState.nextClosureTarget,
-    }) ?? providerSafeFinalProjectStateAwarenessLine
-  })()
-  const normalizedMustDo = contract.mustDo
-  const normalizedMustNotDo = contract.mustNotDo
-  const preferredNormalizedLatestLandedProgress = pickPreferredRuntimeProjectStateDetail([
-    normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.latestLandedProgress
-      ?? (contract.projectState as Record<string, unknown> | null)?.latestProgress,
-      12000,
-    ),
-    liveRuntimeProjectState.latestLandedProgress,
-  ], 'landed', 12000)
-  const preferredNormalizedPrimaryOpenLoop = pickPreferredRuntimeProjectStateDetail([
-    normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.primaryOpenLoop,
-      12000,
-    ),
-    liveRuntimeProjectState.primaryOpenLoop,
-  ], 'open', 12000)
-  const preferredNormalizedNextClosureTarget = pickPreferredRuntimeProjectStateDetail([
-    normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.nextClosureTarget,
-      12000,
-    ),
-    liveRuntimeProjectState.nextClosureTarget,
-  ], 'next', 12000)
-  const canonicalSameHerHoldDetail = normalizeProviderFacingProjectText(
-    resolveAlicizationProjectStateBrief().sameHerHoldDetail,
-    1600,
-  )
-  const explicitRuntimeSameHerHoldDetail = pickPreferredRuntimeProjectStateDetail([
-    runtimeSurface?.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.sameHerHoldDetail,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtimeDigest?.projectState?.sameHerHoldDetail,
-    runtimeSurface?.digitalLifeRuntimeSurface?.raw?.runtime?.projectState?.sameHerHoldDetail,
-    runtimeSurface?.digitalLifeRuntimeSurface?.cognition?.runtimeDigest?.projectState?.sameHerHoldDetail,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState?.sameHerHoldDetail,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtimeDigest?.projectState?.sameHerHoldDetail,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.raw?.runtime?.projectState?.sameHerHoldDetail,
-    runtimeSurface?.digitalLifeSpine?.runtimeSurface?.cognition?.runtimeDigest?.projectState?.sameHerHoldDetail,
-  ], 'same-her', 1600)
-  const preferredNormalizedSameHerHoldDetail = pickPreferredRuntimeProjectStateDetail([
-    liveRuntimeProjectState.sameHerHoldDetail,
-    spineRuntimeProjectState.sameHerHoldDetail,
-    preparedRuntimeProjectState.sameHerHoldDetail,
-    normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.sameHerHoldDetail,
-      1600,
-    ),
-  ], 'same-her', 1600)
-  const rescuedNormalizedSameHerHoldDetail = (
-    preferredNormalizedSameHerHoldDetail
-    && canonicalSameHerHoldDetail
-    && preferredNormalizedSameHerHoldDetail === canonicalSameHerHoldDetail
-    && explicitRuntimeSameHerHoldDetail
-    && explicitRuntimeSameHerHoldDetail !== canonicalSameHerHoldDetail
-    && !looksLikeThinRuntimeProjectStateDetail(explicitRuntimeSameHerHoldDetail, 'same-her')
-  )
-    ? explicitRuntimeSameHerHoldDetail
-    : preferredNormalizedSameHerHoldDetail
-  const preferredNormalizedContinuityCue = pickPreferredRuntimeProjectStateDetail([
-    liveRuntimeProjectState.continuityCue,
-    spineRuntimeProjectState.continuityCue,
-    preparedRuntimeProjectState.continuityCue,
-    normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.continuityCue,
-      1600,
-    ),
-  ], 'awareness', 1600)
-  const preferredNormalizedContinuityArcStage = [
-    liveRuntimeProjectState.continuityArcStage,
-    spineRuntimeProjectState.continuityArcStage,
-    preparedRuntimeProjectState.continuityArcStage,
-    normalizeProviderFacingProjectText(
-      (contract.projectState as Record<string, unknown> | null)?.continuityArcStage,
-      120,
-    ),
-  ]
-    .map(value => normalizeProviderFacingProjectText(value, 120))
-    .filter((value): value is string => Boolean(value))
-    .sort((left, right) => {
-      const score = (value: string) => {
-        if (value === 'same-thread-continuation')
-          return 4
-        if (value === 'next-open-window')
-          return 3
-        if (value === 'hold-for-opening')
-          return 2
-        return 1
-      }
-      return score(right) - score(left)
-    })[0] ?? null
-  const normalizedContract = overrideMindTurnContractNextClosureTarget({
-    contract: {
-      ...contract,
-      mustDo: normalizedMustDo,
-      mustNotDo: normalizedMustNotDo,
-      projectState: {
-        ...contract.projectState,
-        ...liveRuntimeProjectState,
-        preflightSummary: finalPreflightSummary ?? null,
-        preDialogueAwarenessLine: providerSafeFinalProjectStateAwarenessLine ?? null,
-        awarenessLine: providerSafeFinalProjectStateAwarenessLine ?? null,
-        preDialogueAwarenessSummary: providerSafeFinalProjectStateAwarenessSummary ?? null,
-        companionHeadlineLine: providerSafeFinalCompanionHeadlineLine ?? providerSafeFinalProjectStateAwarenessLine ?? null,
-        companionBriefingLine:
-          normalizeProviderFacingProjectText(
-            (contract.projectState as Record<string, unknown> | null)?.companionBriefingLine,
-            1600,
-          )
-          ?? liveRuntimeProjectState.companionBriefingLine
-          ?? null,
-        latestLandedProgress: preferredNormalizedLatestLandedProgress ?? null,
-        latestProgress: preferredNormalizedLatestLandedProgress ?? null,
-        primaryOpenLoop: preferredNormalizedPrimaryOpenLoop ?? null,
-        nextClosureTarget: preferredNormalizedNextClosureTarget ?? null,
-        sameHerHoldDetail: rescuedNormalizedSameHerHoldDetail ?? null,
-        sameHerDriftRisk: finalSameHerDriftRisk ?? null,
-        sameHerDriftRiskSummary: finalSameHerDriftRisk ?? null,
-        emotionalClosureSummary:
-          pickPreferredRuntimeProjectStateDetail([
-            (contract.projectState as Record<string, unknown> | null)?.emotionalClosureSummary,
-            liveRuntimeProjectState.emotionalClosureSummary,
-            spineRuntimeProjectState.emotionalClosureSummary,
-            preparedRuntimeProjectState.emotionalClosureSummary,
-          ], 'awareness', 1600)
-          ?? null,
-        continuityRestraint:
-          pickPreferredContinuityRestraint([
-            (contract.projectState as Record<string, unknown> | null)?.continuityRestraint,
-            liveRuntimeProjectState.continuityRestraint,
-            spineRuntimeProjectState.continuityRestraint,
-            preparedRuntimeProjectState.continuityRestraint,
-          ])
-          ?? null,
-        continuityArcStage: preferredNormalizedContinuityArcStage,
-        continuityCue: preferredNormalizedContinuityCue ?? null,
-        continuityPreferredTiming:
-          pickProviderFacingContinuityPreferredTiming([
-            (contract.projectState as Record<string, unknown> | null)?.continuityPreferredTiming,
-            liveRuntimeProjectState.continuityPreferredTiming,
-            spineRuntimeProjectState.continuityPreferredTiming,
-            preparedRuntimeProjectState.continuityPreferredTiming,
-          ]),
-        continuityCadence:
-          pickProviderFacingContinuityCadence([
-            (contract.projectState as Record<string, unknown> | null)?.continuityCadence,
-            liveRuntimeProjectState.continuityCadence,
-            spineRuntimeProjectState.continuityCadence,
-            preparedRuntimeProjectState.continuityCadence,
-          ]),
-        preferredBlinkCadence:
-          normalizeProviderFacingProjectText(
-            (contract.projectState as Record<string, unknown> | null)?.preferredBlinkCadence,
-            32,
-          )
-          ?? liveRuntimeProjectState.preferredBlinkCadence
-          ?? spineRuntimeProjectState.preferredBlinkCadence
-          ?? preparedRuntimeProjectState.preferredBlinkCadence
-          ?? null,
-        preferredGazeMode:
-          normalizeProviderFacingProjectText(
-            (contract.projectState as Record<string, unknown> | null)?.preferredGazeMode,
-            32,
-          )
-          ?? liveRuntimeProjectState.preferredGazeMode
-          ?? spineRuntimeProjectState.preferredGazeMode
-          ?? preparedRuntimeProjectState.preferredGazeMode
-          ?? null,
-        preferredVoiceMode:
-          normalizeProviderFacingVoiceMode(
-            (contract.projectState as Record<string, unknown> | null)?.preferredVoiceMode,
-          )
-          ?? liveRuntimeProjectState.preferredVoiceMode
-          ?? spineRuntimeProjectState.preferredVoiceMode
-          ?? preparedRuntimeProjectState.preferredVoiceMode
-          ?? null,
-        preferredPacingMode:
-          normalizeProviderFacingPacingMode(
-            (contract.projectState as Record<string, unknown> | null)?.preferredPacingMode,
-          )
-          ?? liveRuntimeProjectState.preferredPacingMode
-          ?? spineRuntimeProjectState.preferredPacingMode
-          ?? preparedRuntimeProjectState.preferredPacingMode
-          ?? null,
-      } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>,
-    } satisfies AlicizationMindTurnContractSnapshot,
-    nextClosureTarget: pickPreferredRuntimeProjectStateDetail([
-      payloadProjectState.hasDirectPayloadNextClosureTarget
-        ? payloadProjectState.explicitPayloadNextClosureTarget
-        : null,
-      normalizeProviderFacingProjectText(
-        (contract.projectState as Record<string, unknown> | null)?.nextClosureTarget,
-        1600,
-      ),
-      liveRuntimeProjectState.nextClosureTarget,
-    ], 'next', 1600),
-  })
-
-  return normalizedContract
-    ? {
-        ...normalizedContract,
-        projectState: sanitizeProviderFacingProjectStateRecord(
-          normalizedContract.projectState as Record<string, unknown> | null,
-        ) as AlicizationMindTurnContractSnapshot['projectState'],
-      }
-    : normalizedContract
 }
 
 function readDirectPayloadPreflightSummary(
@@ -7740,250 +6612,16 @@ function applyProviderFacingProjectStateToRuntimeSurface(input: {
   runtimeSurface: AlicizationMainChatRuntimeSurface
   projectState: AlicizationMindTurnContractSnapshot['projectState'] | null | undefined
 }) {
-  const projectState = input.projectState
-    ? JSON.parse(JSON.stringify(input.projectState)) as Record<string, unknown>
-    : null
-  if (!projectState)
-    return null
-
-  const spineProjectState = input.runtimeSurface.digitalLifeSpine?.runtimeSurface?.dialogue?.currentConsciousFrame?.projectState as Record<string, unknown> | null | undefined
-  const preservedProjectStateKeys = [
-    'identity',
-    'currentPhase',
-    'latestLandedProgress',
-    'latestProgress',
-    'primaryOpenLoop',
-    'nextClosureTarget',
-    'sameHerSelfLine',
-    'sameHerDriftRisk',
-    'sameHerHoldDetail',
-    'emotionalClosureSummary',
-    'continuityRestraint',
-    'continuityArcStage',
-    'continuityCue',
-    'continuityPreferredTiming',
-    'continuityCadence',
-    'preferredBlinkCadence',
-    'preferredGazeMode',
-    'preferredPauseMode',
-    'preferredLipsyncMode',
-    'preferredVoiceMode',
-    'preferredPacingMode',
-  ] as const
-
-  const readPreferredProjectStateValue = (
-    key: typeof preservedProjectStateKeys[number],
-    incomingProjectState: Record<string, unknown> | null | undefined,
-    existingProjectState: Record<string, unknown> | null | undefined,
-    fallbackProjectState: Record<string, unknown> | null | undefined,
-  ) => {
-    if (key === 'sameHerHoldDetail') {
-      return pickPreferredRuntimeProjectStateDetail([
-        existingProjectState?.[key],
-        fallbackProjectState?.[key],
-        incomingProjectState?.[key],
-      ], 'same-her', 1600) ?? incomingProjectState?.[key] ?? existingProjectState?.[key] ?? fallbackProjectState?.[key]
-    }
-    if (key === 'continuityCue') {
-      return pickPreferredRuntimeProjectStateDetail([
-        existingProjectState?.[key],
-        fallbackProjectState?.[key],
-        incomingProjectState?.[key],
-      ], 'awareness', 1600) ?? incomingProjectState?.[key] ?? existingProjectState?.[key] ?? fallbackProjectState?.[key]
-    }
-    if (key === 'emotionalClosureSummary') {
-      return pickPreferredRuntimeProjectStateDetail([
-        existingProjectState?.[key],
-        fallbackProjectState?.[key],
-        incomingProjectState?.[key],
-      ], 'awareness', 1600) ?? incomingProjectState?.[key] ?? existingProjectState?.[key] ?? fallbackProjectState?.[key]
-    }
-    if (key === 'continuityRestraint') {
-      return pickPreferredContinuityRestraint([
-        existingProjectState?.[key],
-        fallbackProjectState?.[key],
-        incomingProjectState?.[key],
-      ]) ?? incomingProjectState?.[key] ?? existingProjectState?.[key] ?? fallbackProjectState?.[key]
-    }
-    if (key === 'continuityPreferredTiming') {
-      return pickProviderFacingContinuityPreferredTiming([
-        existingProjectState?.[key],
-        fallbackProjectState?.[key],
-        incomingProjectState?.[key],
-      ]) ?? incomingProjectState?.[key] ?? existingProjectState?.[key] ?? fallbackProjectState?.[key]
-    }
-    if (key === 'continuityCadence') {
-      return pickProviderFacingContinuityCadence([
-        existingProjectState?.[key],
-        fallbackProjectState?.[key],
-        incomingProjectState?.[key],
-      ]) ?? incomingProjectState?.[key] ?? existingProjectState?.[key] ?? fallbackProjectState?.[key]
-    }
-    if (key === 'continuityArcStage') {
-      const score = (value: unknown) => {
-        const normalized = normalizeProviderFacingProjectText(value, 120)
-        if (!normalized)
-          return Number.NEGATIVE_INFINITY
-        if (normalized === 'same-thread-continuation')
-          return 4
-        if (normalized === 'next-open-window')
-          return 3
-        if (normalized === 'hold-for-opening')
-          return 2
-        return 1
-      }
-      return [
-        existingProjectState?.[key],
-        fallbackProjectState?.[key],
-        incomingProjectState?.[key],
-      ]
-        .map(value => ({
-          value: normalizeProviderFacingProjectText(value, 120),
-          score: score(value),
-        }))
-        .filter((candidate): candidate is { score: number, value: string } => Boolean(candidate.value))
-        .sort((left, right) => right.score - left.score)[0]
-        ?.value
-        ?? incomingProjectState?.[key]
-        ?? existingProjectState?.[key]
-        ?? fallbackProjectState?.[key]
-    }
-    if (key === 'preferredVoiceMode') {
-      return pickPreferredRuntimeProjectStateDetail([
-        normalizeProviderFacingVoiceMode(existingProjectState?.[key]),
-        normalizeProviderFacingVoiceMode(fallbackProjectState?.[key]),
-        normalizeProviderFacingVoiceMode(incomingProjectState?.[key]),
-      ], 'awareness', 32)
-      ?? normalizeProviderFacingVoiceMode(incomingProjectState?.[key])
-      ?? normalizeProviderFacingVoiceMode(existingProjectState?.[key])
-      ?? normalizeProviderFacingVoiceMode(fallbackProjectState?.[key])
-    }
-    if (key === 'preferredPacingMode') {
-      return pickPreferredRuntimeProjectStateDetail([
-        normalizeProviderFacingPacingMode(existingProjectState?.[key]),
-        normalizeProviderFacingPacingMode(fallbackProjectState?.[key]),
-        normalizeProviderFacingPacingMode(incomingProjectState?.[key]),
-      ], 'awareness', 32)
-      ?? normalizeProviderFacingPacingMode(incomingProjectState?.[key])
-      ?? normalizeProviderFacingPacingMode(existingProjectState?.[key])
-      ?? normalizeProviderFacingPacingMode(fallbackProjectState?.[key])
-    }
-    if (key === 'preferredPauseMode') {
-      return pickPreferredRuntimeProjectStateDetail([
-        normalizeProviderFacingPauseMode(existingProjectState?.[key]),
-        normalizeProviderFacingPauseMode(fallbackProjectState?.[key]),
-        normalizeProviderFacingPauseMode(incomingProjectState?.[key]),
-      ], 'awareness', 32)
-      ?? normalizeProviderFacingPauseMode(incomingProjectState?.[key])
-      ?? normalizeProviderFacingPauseMode(existingProjectState?.[key])
-      ?? normalizeProviderFacingPauseMode(fallbackProjectState?.[key])
-    }
-    if (key === 'preferredLipsyncMode') {
-      return pickPreferredRuntimeProjectStateDetail([
-        normalizeProviderFacingLipsyncMode(existingProjectState?.[key]),
-        normalizeProviderFacingLipsyncMode(fallbackProjectState?.[key]),
-        normalizeProviderFacingLipsyncMode(incomingProjectState?.[key]),
-      ], 'awareness', 32)
-      ?? normalizeProviderFacingLipsyncMode(incomingProjectState?.[key])
-      ?? normalizeProviderFacingLipsyncMode(existingProjectState?.[key])
-      ?? normalizeProviderFacingLipsyncMode(fallbackProjectState?.[key])
-    }
-
-    const incomingValue = incomingProjectState?.[key]
-    if (typeof incomingValue === 'string')
-      return incomingValue.trim() ? incomingValue : existingProjectState?.[key] ?? fallbackProjectState?.[key] ?? incomingValue
-    if (incomingValue !== null && incomingValue !== undefined)
-      return incomingValue
-    return existingProjectState?.[key] ?? fallbackProjectState?.[key] ?? incomingValue
-  }
-
-  const applyToSurface = (
-    surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
-    fallbackProjectState?: Record<string, unknown> | null | undefined,
-  ) => {
-    if (!surface)
-      return null
-
-    const dialogue = surface.dialogue as Record<string, unknown> | null | undefined
-    if (!dialogue)
-      return null
-
-    const emotionalKernelAuthority = surface.memory?.emotionalKernel ?? null
-    const existingProjectState = ((dialogue.currentConsciousFrame as Record<string, unknown> | null | undefined)?.projectState as Record<string, unknown> | null | undefined) ?? {}
-    const mergedProjectState = {
-      ...existingProjectState,
-      ...projectState,
-    }
-    for (const key of preservedProjectStateKeys)
-      mergedProjectState[key] = readPreferredProjectStateValue(key, projectState, existingProjectState, fallbackProjectState)
-
-    const dialogueRuntimeDigest = (dialogue.runtimeDigest as Record<string, unknown> | null | undefined) ?? {}
-    const existingDialogueProjectState = (dialogueRuntimeDigest.projectState as Record<string, unknown> | null | undefined) ?? {}
-    const mergedDialogueProjectState = {
-      ...existingDialogueProjectState,
-      ...projectState,
-    }
-    for (const key of preservedProjectStateKeys)
-      mergedDialogueProjectState[key] = readPreferredProjectStateValue(key, projectState, existingDialogueProjectState, mergedProjectState)
-
-    const currentConsciousFrame = {
-      ...((dialogue.currentConsciousFrame as Record<string, unknown> | null | undefined) ?? {}),
-      projectState: mergedProjectState,
-    }
-    dialogue.currentConsciousFrame = currentConsciousFrame
-    dialogue.runtimeDigest = {
-      ...dialogueRuntimeDigest,
-      emotionalKernel: emotionalKernelAuthority,
-      projectState: mergedDialogueProjectState,
-    }
-
-    const rawRuntimeDigest = (surface.raw?.runtimeDigest as Record<string, unknown> | null | undefined) ?? {}
-    const existingRawProjectState = (rawRuntimeDigest.projectState as Record<string, unknown> | null | undefined) ?? {}
-    const mergedRawProjectState = {
-      ...existingRawProjectState,
-      ...projectState,
-    }
-    for (const key of preservedProjectStateKeys)
-      mergedRawProjectState[key] = readPreferredProjectStateValue(key, projectState, existingRawProjectState, mergedProjectState)
-    surface.raw = {
-      ...surface.raw,
-      runtimeDigest: {
-        ...rawRuntimeDigest,
-        emotionalKernel: emotionalKernelAuthority,
-        projectState: mergedRawProjectState,
-      },
-    } as unknown as typeof surface.raw
-
-    const cognition = (surface.cognition as Record<string, unknown> | null | undefined) ?? {}
-    const cognitionRuntimeDigest = (cognition.runtimeDigest as Record<string, unknown> | null | undefined) ?? {}
-    const existingCognitionProjectState = (cognitionRuntimeDigest.projectState as Record<string, unknown> | null | undefined) ?? {}
-    const mergedCognitionProjectState = {
-      ...existingCognitionProjectState,
-      ...projectState,
-    }
-    for (const key of preservedProjectStateKeys)
-      mergedCognitionProjectState[key] = readPreferredProjectStateValue(key, projectState, existingCognitionProjectState, mergedProjectState)
-    surface.cognition = {
-      ...cognition,
-      runtimeDigest: {
-        ...cognitionRuntimeDigest,
-        emotionalKernel: emotionalKernelAuthority,
-        projectState: mergedCognitionProjectState,
-      },
-    } as unknown as AlicizationDigitalLifeRuntimeSurface['cognition']
-
-    return currentConsciousFrame.projectState as Record<string, unknown>
-  }
-
-  const preparedProjectState = applyToSurface(
+  void input.projectState
+  input.runtimeSurface.digitalLifeRuntimeSurface = stripProjectStateContinuityTiming(
     input.runtimeSurface.digitalLifeRuntimeSurface,
-    spineProjectState,
   )
-  applyToSurface(
-    input.runtimeSurface.digitalLifeSpine?.runtimeSurface ?? null,
-    preparedProjectState,
-  )
-  return preparedProjectState ?? projectState
+  if (input.runtimeSurface.digitalLifeSpine?.runtimeSurface) {
+    input.runtimeSurface.digitalLifeSpine.runtimeSurface = stripProjectStateContinuityTiming(
+      input.runtimeSurface.digitalLifeSpine.runtimeSurface,
+    ) ?? input.runtimeSurface.digitalLifeSpine.runtimeSurface
+  }
+  return null
 }
 
 function buildProviderFacingAwarenessResolutionDiagnostics(input: {
@@ -7991,29 +6629,17 @@ function buildProviderFacingAwarenessResolutionDiagnostics(input: {
   rebuiltProjectState: Record<string, unknown> | null | undefined
   normalizedProjectState: Record<string, unknown> | null | undefined
 }) {
-  const payloadProjectState = readProviderFacingPayloadProjectState(input.rawPayload)
-  const rebuiltPreDialogueAwarenessLine = normalizePreparedExecutionText(
-    input.rebuiltProjectState?.preDialogueAwarenessLine,
-    1600,
-  )
-  const normalizedPreDialogueAwarenessLine = normalizePreparedExecutionText(
-    input.normalizedProjectState?.preDialogueAwarenessLine,
-    1600,
-  )
+  void input
   return {
-    explicitPayloadProjectAwarenessLine: payloadProjectState.explicitPayloadProjectAwarenessLine ?? null,
-    explicitPayloadProjectPreflightSummary: payloadProjectState.explicitPayloadProjectPreflightSummary ?? null,
-    explicitPayloadProjectSameHerDriftRisk: payloadProjectState.explicitPayloadProjectSameHerDriftRisk ?? null,
-    rebuiltPreDialogueAwarenessLine:
-      isCompactProjectStatePreflightSummary(rebuiltPreDialogueAwarenessLine)
-        ? normalizedPreDialogueAwarenessLine
-        ?? normalizePreparedExecutionText(resolveAlicizationProjectStateBrief().preDialogueAwarenessLine, 1600)
-        : rebuiltPreDialogueAwarenessLine,
-    normalizedPreDialogueAwarenessLine,
-    rebuiltPreflightSummary: normalizePreparedExecutionText(input.rebuiltProjectState?.preflightSummary, 1600),
-    normalizedPreflightSummary: normalizePreparedExecutionText(input.normalizedProjectState?.preflightSummary, 1600),
-    rebuiltSameHerDriftRisk: normalizePreparedExecutionText(input.rebuiltProjectState?.sameHerDriftRisk, 1600),
-    normalizedSameHerDriftRisk: normalizePreparedExecutionText(input.normalizedProjectState?.sameHerDriftRisk, 1600),
+    explicitPayloadProjectAwarenessLine: null,
+    explicitPayloadProjectPreflightSummary: null,
+    explicitPayloadProjectSameHerDriftRisk: null,
+    rebuiltPreDialogueAwarenessLine: null,
+    normalizedPreDialogueAwarenessLine: null,
+    rebuiltPreflightSummary: null,
+    normalizedPreflightSummary: null,
+    rebuiltSameHerDriftRisk: null,
+    normalizedSameHerDriftRisk: null,
   }
 }
 
@@ -8026,380 +6652,36 @@ function buildStructuredPreDialogueClosureBriefingLine(input: {
   emotionalClosureCue?: unknown
   sameHerSelfLine?: unknown
 }) {
-  return normalizeProviderFacingProjectText(formatAlicizationProjectStateAwarenessFields({
-    identity: normalizeProviderFacingProjectStateScalar(input.identity, 1600),
-    currentPhase: pickPreferredRuntimeProjectPhase([
-      input.currentPhase,
-    ], 1600),
-    latestLandedProgress: input.latestLandedProgress,
-    primaryOpenLoop: input.primaryOpenLoop,
-    nextClosureTarget: input.nextClosureTarget,
-    continuityAnchor: normalizeProviderFacingProjectStateScalar(input.sameHerSelfLine, 1600),
-    emotionalClosureCue: input.emotionalClosureCue,
-    maxChars: 1600,
-  }), 1600)
+  void input
+  return null
 }
 
 function overrideMindTurnContractNextClosureTarget(input: {
   contract: AlicizationMindTurnContractSnapshot | null
   nextClosureTarget: string | null | undefined
 }) {
-  if (!input.contract)
-    return null
-
-  const nextClosureTarget = normalizeProviderFacingProjectText(input.nextClosureTarget, 1600)
-  if (!nextClosureTarget)
-    return input.contract
-
-  const projectState = input.contract.projectState
-    ? {
-        ...(input.contract.projectState as Record<string, unknown>),
-      }
-    : null
-  const currentAwarenessLine = normalizeProviderFacingProjectText(
-    projectState?.preDialogueAwarenessLine ?? projectState?.awarenessLine,
-    1600,
-  )
-  const currentCompanionHeadlineLine = normalizeProviderFacingProjectText(
-    projectState?.companionHeadlineLine,
-    1600,
-  )
-  const shouldRefreshAwarenessLine = Boolean(
-    projectState
-    && currentAwarenessLine
-    && !currentAwarenessLine.includes(nextClosureTarget)
-    && (
-      isCanonicalStructuredProjectAwareness(currentAwarenessLine)
-      || isPhase1ProjectStatePreflightAwarenessLine(currentAwarenessLine)
-      || (
-        carriesExplicitProjectClosureTriplet(currentAwarenessLine)
-        && !hasDistinctEmbodimentClosureCue(currentAwarenessLine)
-      )
-    ),
-  )
-  const shouldAppendNextClosureTarget = Boolean(
-    currentAwarenessLine
-    && /identity=runtime_personhood|phase=life_core|owner=project_state_governance|project shell|memory_dialogue_embodiment_closure|project_identity_route_carry/iu.test(currentAwarenessLine),
-  )
-  const currentAwareness = currentAwarenessLine ?? ''
-  const refreshedAwarenessLine = shouldRefreshAwarenessLine
-    ? normalizeProviderFacingProjectText(
-        formatAlicizationProjectStateAwarenessFields({
-          identity: normalizeProviderFacingProjectStateScalar(projectState?.identity, 1600),
-          currentPhase: pickPreferredRuntimeProjectPhase([
-            projectState?.currentPhase,
-          ], 1600),
-          latestLandedProgress: projectState?.latestLandedProgress ?? projectState?.latestProgress,
-          primaryOpenLoop: projectState?.primaryOpenLoop,
-          nextClosureTarget,
-          continuityAnchor: normalizeProviderFacingProjectStateScalar(projectState?.sameHerSelfLine, 1600),
-          sameHerHoldDetail: projectState?.sameHerHoldDetail,
-          continuityDriftRisk: projectState?.sameHerDriftRisk,
-          proactiveSameHerGap: projectState?.proactiveSameHerGap,
-          emotionalClosureCue: projectState?.emotionalClosureCue ?? projectState?.emotionalClosureSummary,
-          status: shouldAppendNextClosureTarget ? currentAwareness : null,
-          visibility: 'internal',
-          maxChars: 1600,
-        }),
-        1600,
-      )
-    : null
-  const refreshedCompanionHeadlineLine = refreshedAwarenessLine
-    && (
-      !currentCompanionHeadlineLine
-      || currentCompanionHeadlineLine === currentAwarenessLine
-      || isCanonicalStructuredProjectAwareness(currentCompanionHeadlineLine)
-    )
-    ? refreshedAwarenessLine
-    : currentCompanionHeadlineLine
-
-  return {
-    ...input.contract,
-    projectState: projectState
-      ? {
-          ...projectState,
-          nextClosureTarget,
-          preDialogueAwarenessLine: refreshedAwarenessLine ?? projectState.preDialogueAwarenessLine,
-          awarenessLine: refreshedAwarenessLine ?? projectState.awarenessLine,
-          preDialogueAwarenessSummary: refreshedAwarenessLine ?? projectState.preDialogueAwarenessSummary,
-          companionHeadlineLine: refreshedCompanionHeadlineLine ?? projectState.companionHeadlineLine,
-        } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>
-      : input.contract.projectState,
-    preDialogueClosure: input.contract.preDialogueClosure
-      ? {
-          ...input.contract.preDialogueClosure,
-          summaryLine:
-          refreshedAwarenessLine
-          ?? input.contract.preDialogueClosure.summaryLine
-          ?? null,
-          companionNextClosureLine: nextClosureTarget,
-          briefingLines: mergeUniqueRules([
-            ...input.contract.preDialogueClosure.briefingLines.filter((line) => {
-              const normalized = String(line)
-              return !/^(?:Project identity|Current phase|Landed continuity progress|Still-open closure gap|Next closure target):/u.test(normalized)
-            }),
-            buildStructuredPreDialogueClosureBriefingLine({
-              identity: input.contract.projectState?.identity,
-              currentPhase: input.contract.projectState?.currentPhase,
-              latestLandedProgress: input.contract.projectState?.latestLandedProgress ?? input.contract.projectState?.latestProgress,
-              primaryOpenLoop: input.contract.projectState?.primaryOpenLoop,
-              nextClosureTarget,
-              emotionalClosureCue: input.contract.projectState?.emotionalClosureCue ?? input.contract.projectState?.emotionalClosureSummary,
-              sameHerSelfLine: input.contract.projectState?.sameHerSelfLine,
-            }) ?? '',
-          ].filter(Boolean)),
-          reasons: mergeUniqueRules([
-            ...input.contract.preDialogueClosure.reasons.filter(reason => reason !== nextClosureTarget),
-            nextClosureTarget,
-          ]),
-        }
-      : input.contract.preDialogueClosure,
-  } satisfies AlicizationMindTurnContractSnapshot
+  void input.nextClosureTarget
+  return input.contract
 }
 
 function backfillMindTurnContractProjectRhythmFromRuntime(
   contract: AlicizationMindTurnContractSnapshot | null,
   runtimeProjectState: Record<string, unknown> | null | undefined,
 ) {
-  if (!contract?.projectState || !runtimeProjectState)
-    return contract
-
-  const projectState = contract.projectState as Record<string, unknown>
-  return {
-    ...contract,
-    projectState: {
-      ...projectState,
-      continuityPreferredTiming: projectState.continuityPreferredTiming ?? null,
-      continuityCadence:
-        pickProviderFacingContinuityCadence([
-          projectState.continuityCadence,
-          runtimeProjectState.continuityCadence,
-        ]),
-      preferredBlinkCadence:
-        normalizeProviderFacingBlinkCadence(projectState.preferredBlinkCadence)
-        ?? normalizeProviderFacingBlinkCadence(runtimeProjectState.preferredBlinkCadence)
-        ?? null,
-      preferredGazeMode:
-        normalizeProviderFacingGazeMode(projectState.preferredGazeMode)
-        ?? normalizeProviderFacingGazeMode(runtimeProjectState.preferredGazeMode)
-        ?? null,
-      preferredPauseMode:
-        normalizeProviderFacingPauseMode(projectState.preferredPauseMode)
-        ?? normalizeProviderFacingPauseMode(runtimeProjectState.preferredPauseMode)
-        ?? null,
-      preferredLipsyncMode:
-        normalizeProviderFacingLipsyncMode(projectState.preferredLipsyncMode)
-        ?? normalizeProviderFacingLipsyncMode(runtimeProjectState.preferredLipsyncMode)
-        ?? null,
-      preferredVoiceMode:
-        normalizeProviderFacingVoiceMode(projectState.preferredVoiceMode)
-        ?? normalizeProviderFacingVoiceMode(runtimeProjectState.preferredVoiceMode)
-        ?? null,
-      preferredPacingMode:
-        normalizeProviderFacingPacingMode(projectState.preferredPacingMode)
-        ?? normalizeProviderFacingPacingMode(runtimeProjectState.preferredPacingMode)
-        ?? null,
-    } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>,
-  } satisfies AlicizationMindTurnContractSnapshot
+  void runtimeProjectState
+  return contract
 }
 
 function rescueReturnedProviderFacingProjectAwareness(input: {
   contract: AlicizationMindTurnContractSnapshot | null
-  rawPayload: AlicizationChatStartPayload | null | undefined
-  prelude: AlicizationPreparedMainChatPrelude
+  rawPayload?: AlicizationChatStartPayload | null
+  prelude?: AlicizationPreparedMainChatPrelude
 }) {
-  const contract = input.contract
-  const projectState = contract?.projectState as Record<string, unknown> | null | undefined
-  if (!contract || !projectState)
-    return contract
-
-  const payloadProjectState = readProviderFacingPayloadProjectState(input.rawPayload)
-  if (payloadProjectState.hasDirectPayloadProjectAwarenessLine || payloadProjectState.hasDirectPayloadProjectHeadline)
-    return contract
-
-  const shouldTreatReturnAsProjectStateAnswer = Boolean(
-    input.prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.answerSubject === 'project-state'
-    || input.prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.reasonTags?.includes('project-state'),
-  )
-  if (!shouldTreatReturnAsProjectStateAnswer)
-    return contract
-
-  const currentAwarenessLine = normalizePreparedExecutionText(
-    projectState.preDialogueAwarenessLine ?? projectState.awarenessLine,
-    1600,
-  )
-  const directPreludeAwarenessLine = normalizePreparedExecutionText(
-    input.prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.preDialogueAwarenessLine
-    ?? input.prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame?.projectState?.awarenessLine,
-    1600,
-  )
-  const currentAwarenessSummary = normalizePreparedExecutionText(
-    projectState.preDialogueAwarenessSummary,
-    1600,
-  )
-  if (
-    directPreludeAwarenessLine
-    && !isThinProjectAwarenessAuthorityLine(directPreludeAwarenessLine)
-    && /callback return|same thread/iu.test(directPreludeAwarenessLine)
-    && !carriesExplicitProjectClosureTriplet(directPreludeAwarenessLine)
-    && shouldPreserveProjectAwarenessLineVerbatim(
-      directPreludeAwarenessLine,
-      currentAwarenessLine,
-    )
-  ) {
-    const currentCompanionHeadlineLine = normalizePreparedExecutionText(
-      projectState.companionHeadlineLine,
-      1600,
-    )
-    const rescuedStructuredAwarenessLine = normalizePreparedExecutionText(resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        ...projectState,
-        preDialogueAwarenessLine: directPreludeAwarenessLine,
-        awarenessLine: directPreludeAwarenessLine,
-        preDialogueAwarenessSummary: currentAwarenessSummary,
-      },
-      fallbackProjectState: projectState,
-    }), 1600) ?? directPreludeAwarenessLine
-    const rescuedAwarenessSummary = preferProjectAwarenessSummary({
-      awarenessLine: rescuedStructuredAwarenessLine,
-      summaryCandidates: [
-        currentAwarenessSummary,
-        projectState.preflightSummary,
-        directPreludeAwarenessLine,
-      ],
-      maxChars: 1600,
-    }) ?? rescuedStructuredAwarenessLine
-
-    return overrideMindTurnContractNextClosureTarget({
-      contract: {
-        ...contract,
-        projectState: {
-          ...projectState,
-          preDialogueAwarenessLine: rescuedStructuredAwarenessLine,
-          awarenessLine: rescuedStructuredAwarenessLine,
-          preDialogueAwarenessSummary: rescuedAwarenessSummary,
-          companionHeadlineLine:
-            !currentCompanionHeadlineLine
-            || currentCompanionHeadlineLine === currentAwarenessLine
-            || isCanonicalStructuredProjectAwareness(currentCompanionHeadlineLine)
-              ? rescuedStructuredAwarenessLine
-              : projectState.companionHeadlineLine,
-        } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>,
-        preDialogueClosure: contract.preDialogueClosure
-          ? {
-              ...contract.preDialogueClosure,
-              summaryLine: rescuedAwarenessSummary,
-            }
-          : contract.preDialogueClosure,
-      } satisfies AlicizationMindTurnContractSnapshot,
-      nextClosureTarget: normalizePreparedExecutionText(projectState.nextClosureTarget, 1600),
-    })
-  }
-  if (
-    currentAwarenessLine
-    && !isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
-    && (
-      carriesSpecificSameHerAuthorityLine(currentAwarenessLine)
-      || hasModalitySpecificEmbodimentCue(currentAwarenessLine)
-    )
-    && !carriesExplicitProjectClosureTriplet(currentAwarenessLine)
-  ) {
-    return contract
-  }
-
-  const identity = normalizeProviderFacingProjectStateScalar(projectState.identity, 1600)
-  const currentPhase = pickPreferredRuntimeProjectPhase([
-    projectState.currentPhase,
-  ], 1600)
-  const latestLandedProgress = normalizePreparedExecutionText(
-    projectState.latestLandedProgress ?? projectState.latestProgress,
-    12000,
-  )
-  const primaryOpenLoop = normalizePreparedExecutionText(projectState.primaryOpenLoop, 12000)
-  const nextClosureTarget = normalizePreparedExecutionText(projectState.nextClosureTarget, 12000)
-  const sameHerSelfLine = normalizeProviderFacingProjectStateScalar(projectState.sameHerSelfLine, 1600)
-  const rebuiltAwarenessLine = buildProviderFacingProjectAwarenessLine({
-    identity: identity ?? '',
-    currentPhase: currentPhase ?? '',
-    sameHerSelfLine,
-    latestLandedProgress,
-    primaryOpenLoop,
-    nextClosureTarget,
-  })
-  if (!rebuiltAwarenessLine || !carriesExplicitProjectClosureTriplet(rebuiltAwarenessLine))
-    return contract
-
-  const rebuiltAwarenessCarriesRuntimeClosure = !awarenessLineMissesRuntimeCarry({
-    awarenessLine: rebuiltAwarenessLine,
-    latestLandedProgress,
-    primaryOpenLoop,
-    nextClosureTarget,
-  })
-  const currentAwarenessMissesRuntimeClosure = awarenessLineMissesRuntimeCarry({
-    awarenessLine: currentAwarenessLine,
-    latestLandedProgress,
-    primaryOpenLoop,
-    nextClosureTarget,
-  })
-  const currentSummaryNeedsRescue = Boolean(
-    currentAwarenessSummary
-    && (
-      isLegacyProjectAwarenessTemplateShell(currentAwarenessSummary)
-      || !currentAwarenessLine
-      || isLegacyProjectAwarenessTemplateShell(currentAwarenessLine)
-      || currentAwarenessMissesRuntimeClosure
-    ),
-  )
-  const currentLineNeedsRescue = Boolean(
-    !currentAwarenessLine
-    || isThinProjectAwarenessAuthorityLine(currentAwarenessLine)
-    || isCompactProjectStatePreflightSummary(currentAwarenessLine)
-    || isLegacyProjectAwarenessTemplateShell(currentAwarenessLine)
-    || (
-      currentAwarenessMissesRuntimeClosure
-      && rebuiltAwarenessCarriesRuntimeClosure
-    ),
-  )
-  if (!currentLineNeedsRescue && !currentSummaryNeedsRescue)
-    return contract
-
-  const currentCompanionHeadlineLine = normalizePreparedExecutionText(
-    projectState.companionHeadlineLine,
-    1600,
-  )
-  const rescuedAwarenessSummary = preferProjectAwarenessSummary({
-    awarenessLine: rebuiltAwarenessLine,
-    summaryCandidates: [
-      currentAwarenessSummary,
-      projectState.preflightSummary,
-    ],
-    maxChars: 1600,
-  }) ?? rebuiltAwarenessLine
-
-  return overrideMindTurnContractNextClosureTarget({
-    contract: {
-      ...contract,
-      projectState: {
-        ...projectState,
-        preDialogueAwarenessLine: rebuiltAwarenessLine,
-        awarenessLine: rebuiltAwarenessLine,
-        preDialogueAwarenessSummary: rescuedAwarenessSummary,
-        companionHeadlineLine:
-            !currentCompanionHeadlineLine
-            || currentCompanionHeadlineLine === currentAwarenessLine
-            || isCanonicalStructuredProjectAwareness(currentCompanionHeadlineLine)
-              ? rebuiltAwarenessLine
-              : projectState.companionHeadlineLine,
-      } as AlicizationMindTurnContractSnapshot['projectState'] & Record<string, unknown>,
-      preDialogueClosure: contract.preDialogueClosure
-        ? {
-            ...contract.preDialogueClosure,
-            summaryLine: rescuedAwarenessSummary,
-          }
-        : contract.preDialogueClosure,
-    } satisfies AlicizationMindTurnContractSnapshot,
-    nextClosureTarget,
-  })
+  void input.rawPayload
+  void input.prelude
+  return input.contract
+    ? isolateProviderMindTurnContractFromProjectGovernance(input.contract)
+    : null
 }
 
 export const __alicizationTestOnly = {
@@ -8609,7 +6891,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       prelude.perceptionAugmentation.memoryRecallSeed,
       memoryCarryPolicy.recallSeed,
       buildSessionContinuityRecallSeed(sessionContinuitySignals ?? []),
-      buildSessionMirrorRuntimeContinuitySeed(previousSessionMirror),
     ].filter(Boolean).join('\n')
     const organicMemoryBudgetClass = deriveOrganicMemoryBudgetClass(
       prelude.perceptionAugmentation.recallGovernor,
@@ -11209,12 +9490,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       })
       const providerFacingNormalization = {
         normalizedProjectStatePreDialogueAwarenessExplicit: normalizePreparedExecutionText(
-          normalizedProjectState.preDialogueAwarenessLine,
+          (normalizedProjectState as Record<string, unknown>).preDialogueAwarenessLine,
           1600,
         ),
         normalizedProjectStatePreDialogueAwarenessFallback:
-          normalizePreparedExecutionText(normalizedProjectState.companionHeadlineLine, 1600)
-          ?? normalizePreparedExecutionText(normalizedProjectState.preDialogueAwarenessLine, 1600),
+          normalizePreparedExecutionText((normalizedProjectState as Record<string, unknown>).companionHeadlineLine, 1600)
+          ?? normalizePreparedExecutionText((normalizedProjectState as Record<string, unknown>).preDialogueAwarenessLine, 1600),
         normalizedProjectState: normalizedProjectState as Record<string, unknown>,
         finalProjectState: (finalReturnedRuntimeSurfaceProjectState ?? normalizedProjectState) as Record<string, unknown>,
         normalizedReturnProjectState: (normalizedMindTurnContract?.projectState as Record<string, unknown> | null | undefined)

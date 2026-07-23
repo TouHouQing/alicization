@@ -21,6 +21,7 @@ import { errorMessageFrom } from '@moeru/std'
 import {
   buildAlicizationProviderFactBlock,
   buildAlicizationScreenSurfaceCue,
+  containsAlicizationFixedTemplateResidue,
   isWeakAlicizationScreenSurfaceCue,
 } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
@@ -121,10 +122,6 @@ interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
   }) => Promise<{ digitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null, sessionContinuitySignals: AlicizationAgentSessionContinuityInput[] }>
   getPerformanceManifest: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
   buildPerformanceManifestSystemBlocks: (manifest: CharacterPerformanceCapabilitiesManifest | null) => string[]
-  buildAgentTurnContinuitySystemMessages: (input: {
-    agentTurn: AlicizationAgentTurnRuntime
-    cardId: string
-  }) => Message[]
   syncAgentTurnSessionMirror: (input: {
     agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
@@ -373,9 +370,11 @@ function hasUsableDigitalLifeRuntimeSurface(
 
 export function createAlicizationMainGatewayOneShotRuntime(options: CreateAlicizationMainGatewayOneShotRuntimeOptions) {
   const fixedGovernanceCuePattern
-    = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved)\s*=|visibility\s*=\s*redacted_internal|projectState(?:PreflightSummary|PreDialogueAwarenessLine)/iu
+    = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectState(?:Continuity|PreflightSummary|PreDialogueAwarenessLine)?|continuity(?:ArcStage|Cadence|Cue|PreferredTiming|Restraint)?|emotionalClosureCue|openingStyle|relationshipPosture|initiativeRestraint|governing(?:Project|Focus|Concern|Commitment|Inquiry)|must(?:Do|NotDo))\s*=|visibility\s*=\s*redacted_internal/iu
   const fixedGovernanceFieldNamePattern
-    = /^(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectStatePreflightSummary|projectStatePreDialogueAwarenessLine)$/iu
+    = /^(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectState|projectStateContinuity|projectStatePreflightSummary|projectStatePreDialogueAwarenessLine|reasonTags|reasonCodes|continuityArcStage|continuityCadence|continuityCue|continuityPreferredTiming|continuityRestraint|initiativeRestraint|emotionalClosureCue|governingFocus|governingConcern|governingCommitment|governingInquiry|governingProject|mustDo|mustNotDo|openingGuidance|openingStyle|relationshipPosture|relationshipLine|inwardLine|selfLine|sameHerSelfLine|sameHerHoldDetail|sameHerDriftRisk|preDialogueAwarenessLine|preDialogueAwarenessSummary|preflightSummary|surfacePolicy|shouldStayInward|shouldDelayUntilAfterPayoff|suppressionTags)$/iu
+  const fixedGovernanceInstructionPattern
+    = /\b(?:answer like the same-person line matters|hold continuity gently|repair continuity first|prefer repair-first|manifest with lower pressure|keep the opening lower-pressure|avoid eager warmth|avoid theatrical intimacy|repair-before-closeness|measured-return|hold-for-opening|next-open-window)\b/iu
   const userOriginTextFieldNames = new Set([
     'currentUserText',
     'latestUserText',
@@ -392,11 +391,20 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       .split('\n')
       .map((line) => {
         const trimmed = line.trim()
-        if (!fixedGovernanceCuePattern.test(trimmed))
+        if (
+          !fixedGovernanceCuePattern.test(trimmed)
+          && !containsAlicizationFixedTemplateResidue(trimmed)
+          && !fixedGovernanceInstructionPattern.test(trimmed)
+        ) {
           return trimmed
+        }
         return trimmed
           .split(/\s+\|\s+|;\s+/u)
-          .filter(segment => !fixedGovernanceCuePattern.test(segment))
+          .filter(segment =>
+            !fixedGovernanceCuePattern.test(segment)
+            && !containsAlicizationFixedTemplateResidue(segment)
+            && !fixedGovernanceInstructionPattern.test(segment),
+          )
           .join(' | ')
           .trim()
       })
@@ -533,11 +541,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
             title: sanitizeBriefText(input.foregroundWindow.title ?? '', 240) || null,
           }
         : null,
-      evidencePolicy: {
-        visiblePixelsAuthoritative: true,
-        windowMetadataFallbackOnly: true,
-        inventedDetailsAllowed: false,
-      },
     })
   }
 
@@ -824,9 +827,10 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
 
     const executionCallbackSystemBlock = sanitizeOneShotInternalSystemBlock(executionCallbackContext.systemBlock)
     const callerSystemBlock = sanitizeOneShotInternalSystemBlock(generateOptions.system)
+    const sanitizedCustomDirectiveBlock = sanitizeOneShotProviderSystemBlock(customDirectiveBlock)
     const systemMessages: Message[] = [
-      ...(customDirectiveBlock
-        ? [{ role: 'system', content: customDirectiveBlock } as Message]
+      ...(sanitizedCustomDirectiveBlock
+        ? [{ role: 'system', content: sanitizedCustomDirectiveBlock } as Message]
         : []),
       ...(executionCallbackSystemBlock
         ? [{ role: 'system', content: executionCallbackSystemBlock } as Message]

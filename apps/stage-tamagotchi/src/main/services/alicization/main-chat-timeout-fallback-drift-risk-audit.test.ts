@@ -4,15 +4,15 @@ import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationMainGatewayTimeoutFallbackReply } from './main-chat-timeout-fallback'
 
-describe('main chat timeout fallback drift-risk audit', () => {
-  it('keeps same-her drift risk explicit in timeout fallback project-state audit continuity when drift risk is the only surviving anti-shell authority', () => {
-    const driftRisk
-      = 'If timeout fallback reopens as a generic assistant shell or project-summary voice, treat that as unfinished same-her drift instead of closure.'
+describe('main chat timeout fallback drift-risk isolation', () => {
+  it('keeps the provider timeout visible without replaying same-her drift-risk prose', () => {
+    const legacyDriftRisk
+      = 'If timeout fallback reopens as a generic assistant shell, restore same-her continuity.'
     const reply = buildAlicizationMainGatewayTimeoutFallbackReply({
-      turnId: 'turn-timeout-drift-risk-audit-only',
+      turnId: 'turn-timeout-drift-risk-isolation',
       actionKind: 'answer',
       messages: [
-        { role: 'user', content: '继续，但超时兜底别把 same-her drift risk 再压回 generic shell。' },
+        { role: 'user', content: '继续。' },
       ] as Message[],
       runtimeDigest: {
         version: 'alicization-runtime-digest-v1',
@@ -22,38 +22,25 @@ describe('main chat timeout fallback drift-risk audit', () => {
         continuityPressure: 0.87,
         companionshipPressure: 0.69,
         channels: [],
-        summary: 'timeout fallback should keep drift-risk-only anti-shell authority explicit',
+        summary: 'visibility=redacted_internal',
         projectState: {
-          identity: '',
-          currentPhase: '',
-          preflightSummary: '',
-          preDialogueAwarenessLine: '',
-          latestLandedProgress: '',
-          primaryOpenLoop: '',
-          nextClosureTarget: '',
-          sameHerSelfLine: '',
-          sameHerHoldDetail: '',
-          continuityCue: '',
-          sameHerDriftRisk: driftRisk,
+          sameHerDriftRisk: legacyDriftRisk,
         },
       } as any,
     })
 
-    const payload = JSON.parse(reply) as {
-      projectState?: {
-        sameHerDriftRisk?: string | null
-      } | null
-      projectStateAudit?: {
-        sameHerDriftRiskSummary?: string | null
-        continuitySummary?: string | null
-      } | null
-    }
+    const payload = JSON.parse(reply) as Record<string, any>
 
-    expect(payload.projectState?.sameHerDriftRisk).toBe(driftRisk)
-    expect(payload.projectStateAudit?.sameHerDriftRiskSummary).toBe(driftRisk)
-    expect(payload.projectStateAudit?.continuitySummary).toContain(`drift=${driftRisk}`)
-    expect(payload.projectStateAudit?.continuitySummary).toContain('same-her=')
-    expect(payload.projectStateAudit?.continuitySummary).toContain('phase=')
-    expect(payload.projectStateAudit?.continuitySummary).not.toContain('generic shell | phase=')
+    expect(payload.reply).toBe('超时了。')
+    expect(payload.visibleReplyBlocked).toBe(true)
+    expect(payload.visibleReplyAuthority).toBe('non-human-authored-blocked')
+    expect(payload.excludeFromPersonaLearning).toBe(true)
+    expect(payload.excludeFromMemoryCondensation).toBe(true)
+    expect(payload.transportFailure.stage).toBe('main-gateway-timeout')
+    expect(payload.transportFailure.reason).toBe('main-gateway-timeout-recovery-exhausted')
+    expect(payload.projectState).toBeUndefined()
+    expect(payload.projectStateAudit).toBeUndefined()
+    expect(reply).not.toContain(legacyDriftRisk)
+    expect(reply).not.toContain('visibility=redacted_internal')
   })
 })

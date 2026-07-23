@@ -5,6 +5,7 @@ import type {
   AlicizationVisibleReplyExecutionMode,
 } from '../../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
+import type { AlicizationProjectStateSnapshot } from '../project-state-brief'
 import type { AlicizationVisibleReplyCriticArtifact } from './critic'
 
 import {
@@ -24,12 +25,10 @@ import {
   resolvePreferredPreparedRuntimeSurface,
   resolvePreparedRuntimeProjectPreDialogueAwarenessSummary,
   resolvePreparedRuntimeProjectState,
-  resolvePreparedRuntimeProjectStateSnapshot,
   resolvePreparedRuntimeSelfContinuityAuthority,
 } from '../prepared-runtime-continuity'
 import {
   buildAlicizationProjectPreDialogueAwarenessLine,
-  buildAlicizationProjectStatePreflightSummary,
   isAlicizationThinProjectAwarenessLine,
   resolveAlicizationProjectPreDialogueAwarenessLine,
   resolveAlicizationProjectStateBrief,
@@ -250,17 +249,6 @@ function looksLikeProjectStateSameHerPreserveInstruction(value: string | null | 
     || normalized.includes('同一个 her')
     || normalized.includes('同一个她')
   )
-}
-
-function looksLikeMeaningfulTimeoutRecoveryProjectCarry(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-
-  if (/^contract fallback\b|^thin runtime\b/u.test(normalized))
-    return false
-
-  return /same phase 1 digital life|same living line|one continuous her|project-state continuity|already survives|runtime preparation|memory|initiative|embodiment|closure|same-her|cross-modal|visible reply|project identity|landed continuity|host-visible/u.test(normalized)
 }
 
 export interface AlicizationVisibleReplyClosureArtifact {
@@ -1370,69 +1358,6 @@ function looksLikeEmbodimentClosureHeadline(value: string | null | undefined) {
     && !/before answering|before i answer/iu.test(normalized)
 }
 
-function resolveTimeoutRecoveredProjectAwarenessSummary(input: {
-  preferredAwarenessSummary: string | null
-  companionHeadlineLine: string | null
-  embodimentClosureSummary: string | null
-  canonicalProjectAwarenessLine: string | null
-  explicitRuntimeAwarenessLine: string | null
-  explicitRuntimeAwarenessSummary: string | null
-}) {
-  const preferredAwarenessSummary = typeof input.preferredAwarenessSummary === 'string'
-    ? input.preferredAwarenessSummary.trim() || null
-    : null
-  const companionHeadlineLine = typeof input.companionHeadlineLine === 'string'
-    ? input.companionHeadlineLine.trim() || null
-    : null
-  const canonicalProjectAwarenessLine = typeof input.canonicalProjectAwarenessLine === 'string'
-    ? input.canonicalProjectAwarenessLine.trim() || null
-    : null
-  const explicitRuntimeAwarenessLine = typeof input.explicitRuntimeAwarenessLine === 'string'
-    ? input.explicitRuntimeAwarenessLine.trim() || null
-    : null
-  const explicitRuntimeAwarenessSummary = typeof input.explicitRuntimeAwarenessSummary === 'string'
-    ? input.explicitRuntimeAwarenessSummary.trim() || null
-    : null
-  const thinExplicitRuntimeAwarenessSummary = shouldTreatAsThinAwarenessShell(explicitRuntimeAwarenessSummary)
-    ? explicitRuntimeAwarenessSummary
-    : null
-  const hasExplicitRuntimeProjectReanchor = Boolean(
-    explicitRuntimeAwarenessLine
-    || (
-      explicitRuntimeAwarenessSummary
-      && !shouldTreatAsThinAwarenessShell(explicitRuntimeAwarenessSummary)
-    ),
-  )
-
-  if (thinExplicitRuntimeAwarenessSummary && !hasExplicitRuntimeProjectReanchor)
-    return thinExplicitRuntimeAwarenessSummary
-
-  if (!preferredAwarenessSummary)
-    return canonicalProjectAwarenessLine
-
-  if (shouldTreatAsThinAwarenessShell(preferredAwarenessSummary)) {
-    if (!hasExplicitRuntimeProjectReanchor)
-      return preferredAwarenessSummary
-    return canonicalProjectAwarenessLine
-  }
-
-  const displayMode = resolveVisibleReplyProjectAwarenessDisplayMode({
-    rawSummary: null,
-    preparedRuntimePreferredAwarenessSummary: preferredAwarenessSummary,
-    preparedRuntimeCompanionHeadlineLine: companionHeadlineLine,
-    projectStateEmbodimentClosureSummary: input.embodimentClosureSummary,
-    isTimeoutRecovery: false,
-  })
-
-  if (displayMode === 'embodiment-headline')
-    return companionHeadlineLine ?? null
-
-  if (!hasExplicitRuntimeProjectReanchor)
-    return canonicalProjectAwarenessLine ?? preferredAwarenessSummary
-
-  return preferredAwarenessSummary
-}
-
 function preferStrongerSameHerSummary(input: {
   current?: string | null
   candidate?: string | null
@@ -1635,7 +1560,7 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
       ? projectStateSameHerSummary
       : null
   const preparedRuntimeProjectState = input.prepared
-    ? resolvePreparedRuntimeProjectState(input.prepared)
+    ? resolvePreparedRuntimeProjectState(input.prepared) as AlicizationProjectStateSnapshot | null
     : null
   const preparedRuntimeProjectStateRecord = preparedRuntimeProjectState as Record<string, unknown> | null
   const projectStateCurrentPhaseSummary = preferRicherProjectStateAuditText({
@@ -2231,169 +2156,58 @@ export function buildAlicizationResolvedVisibleReply(input: {
   }
 }
 
+function buildAlicizationTransparentRecoveryVisibleReply(input: {
+  fullText: string
+  visibleReplyExecution: AlicizationVisibleReplyExecution
+}): AlicizationResolvedVisibleReply {
+  const localDeterministicFallback = isLocalDeterministicVisibleFallback(input.visibleReplyExecution)
+  const visibleText = localDeterministicFallback
+    ? ''
+    : deriveAlicizationVisibleReplyText(input.fullText)
+  const reason = input.visibleReplyExecution.reason
+
+  const realization: AlicizationVisibleReplyRealizationArtifact = {
+    version: 'visible-reply-realization-v1',
+    expectedAuthority: input.visibleReplyExecution.expectedVisibleReplyAuthority ?? 'llm-mind',
+    actualAuthority: input.visibleReplyExecution.actualVisibleReplyAuthority ?? null,
+    providerMindExecuted: input.visibleReplyExecution.providerMindExecuted,
+    mode: input.visibleReplyExecution.mode,
+    visibleText: visibleText || null,
+    visibleReplyValidationStatus: 'unknown',
+    projectStateEvidenceStatus: 'missing',
+    sameHerInwardCarry: null,
+    nonHumanAuthoredStatus: localDeterministicFallback
+      ? reason ?? 'visible-reply-local-fallback'
+      : null,
+    blockedReasons: localDeterministicFallback
+      ? ['non-human-authored-visible-fallback']
+      : [],
+    emotionalClosureAudit: null,
+    selfAuthorityAudit: null,
+    projectStateAudit: null,
+    openingGuidanceHoldDetail: null,
+    companionshipHoldMode: null,
+    openingEmbodimentAudit: null,
+    reason,
+    critic: null,
+    closure: null,
+  }
+
+  return {
+    fullText: input.fullText,
+    visibleText,
+    visibleReplyExecution: input.visibleReplyExecution,
+    realization,
+  }
+}
+
 export function resolveAlicizationTimeoutRecoveredVisibleReply(input: {
   prepared: AlicizationPreparedMainChatExecutionResult
   recoveredText: string
   recoveryMode: string
 }): AlicizationResolvedVisibleReply {
   const localFallback = input.recoveryMode === 'local-fallback'
-  const canonicalProjectState = resolveAlicizationProjectStateBrief()
-  const explicitRuntimeProjectState = resolvePreparedRuntimeProjectState(input.prepared)
-  const runtimeProjectState = resolvePreparedRuntimeProjectStateSnapshot(input.prepared)
-  const explicitPreparedRuntimeAwarenessLine = resolveExplicitPreparedRuntimeProjectAwarenessLine(input.prepared)
-  const recoveredEmbodimentAuthority = resolvePreparedRuntimeEmbodimentClosureAuthority({
-    prepared: input.prepared,
-  })
-  const recoveredEmbodimentClosureSummary = buildAlicizationEmbodimentLoopSummary({
-    authoritySummary: recoveredEmbodimentAuthority.authoritySummary,
-    currentBodyState: recoveredEmbodimentAuthority.currentBodyState,
-  })
-  || describeAlicizationEmbodimentClosureReminder({
-    authoritySummary: recoveredEmbodimentAuthority.authoritySummary,
-    currentBodyState: recoveredEmbodimentAuthority.currentBodyState,
-  })
-  || null
-  const preferredRecoveredProjectAwarenessSummary
-    = (explicitPreparedRuntimeAwarenessLine && !shouldTreatAsThinAwarenessShell(explicitPreparedRuntimeAwarenessLine)
-      ? explicitPreparedRuntimeAwarenessLine
-      : null)
-    ?? resolvePreparedRuntimeProjectPreDialogueAwarenessSummary(input.prepared)
-    ?? pickStrongerPreparedAwarenessLine(
-      explicitPreparedRuntimeAwarenessLine,
-      explicitRuntimeProjectState?.preDialogueAwarenessLine ?? null,
-      explicitRuntimeProjectState?.awarenessLine ?? null,
-      explicitRuntimeProjectState?.preDialogueAwarenessSummary ?? null,
-      explicitRuntimeProjectState?.companionBriefingLine ?? null,
-      explicitRuntimeProjectState?.companionHeadlineLine ?? null,
-      explicitRuntimeProjectState?.preflightSummary ?? null,
-    )
-    ?? explicitRuntimeProjectState?.companionHeadlineLine
-    ?? explicitRuntimeProjectState?.preDialogueAwarenessLine
-    ?? explicitRuntimeProjectState?.awarenessLine
-    ?? explicitRuntimeProjectState?.companionBriefingLine
-    ?? null
-  const preferredRecoveredProjectAwarenessSummaryForRecovery
-    = preferredRecoveredProjectAwarenessSummary
-  const resolvedRecoveredProjectAwarenessSummary = resolveTimeoutRecoveredProjectAwarenessSummary({
-    preferredAwarenessSummary: preferredRecoveredProjectAwarenessSummaryForRecovery,
-    companionHeadlineLine: explicitRuntimeProjectState?.companionHeadlineLine
-      ?? null,
-    embodimentClosureSummary: recoveredEmbodimentClosureSummary,
-    canonicalProjectAwarenessLine: canonicalProjectState.preDialogueAwarenessLine ?? null,
-    explicitRuntimeAwarenessLine:
-      explicitRuntimeProjectState?.preDialogueAwarenessLine
-      ?? explicitRuntimeProjectState?.awarenessLine
-      ?? null,
-    explicitRuntimeAwarenessSummary:
-      explicitRuntimeProjectState?.preDialogueAwarenessSummary
-      ?? explicitRuntimeProjectState?.preflightSummary
-      ?? null,
-  })
-  const preferTimeoutRecoveryProjectStateField = (
-    current: string | null | undefined,
-    explicit: string | null | undefined,
-    canonical: string | null | undefined,
-  ) => {
-    const normalizedCurrent = typeof current === 'string' ? current.trim() || null : null
-    const normalizedExplicit = typeof explicit === 'string' ? explicit.trim() || null : null
-    const normalizedCanonical = typeof canonical === 'string' ? canonical.trim() || null : null
-
-    if (
-      normalizedCurrent
-      && normalizedCanonical
-      && normalizedCurrent === normalizedCanonical
-      && normalizedExplicit
-      && normalizedExplicit !== normalizedCanonical
-    ) {
-      return normalizedExplicit
-    }
-
-    return normalizedCurrent
-      ?? normalizedExplicit
-      ?? null
-  }
-  const timeoutRecoveredSameHerSummary = preferTimeoutRecoveryProjectStateField(
-    runtimeProjectState?.sameHerSelfLine ?? null,
-    explicitRuntimeProjectState?.sameHerSelfLine ?? null,
-    canonicalProjectState.sameHerSelfLine ?? null,
-  )
-  const timeoutRecoveredCurrentPhase = preferTimeoutRecoveryProjectStateField(
-    runtimeProjectState?.currentPhase ?? null,
-    explicitRuntimeProjectState?.currentPhase ?? null,
-    canonicalProjectState.currentPhase ?? null,
-  )
-  const timeoutRecoveredLandedProgress = preferTimeoutRecoveryProjectStateField(
-    runtimeProjectState?.latestLandedProgress ?? null,
-    explicitRuntimeProjectState?.latestLandedProgress ?? null,
-    canonicalProjectState.latestProgress ?? null,
-  )
-  const timeoutRecoveredOpenClosure = preferTimeoutRecoveryProjectStateField(
-    runtimeProjectState?.primaryOpenLoop ?? null,
-    explicitRuntimeProjectState?.primaryOpenLoop ?? null,
-    canonicalProjectState.primaryOpenLoop ?? null,
-  )
-  const timeoutRecoveredNextClosureTarget = preferTimeoutRecoveryProjectStateField(
-    runtimeProjectState?.nextClosureTarget ?? null,
-    explicitRuntimeProjectState?.nextClosureTarget ?? null,
-    canonicalProjectState.nextClosureTarget ?? null,
-  )
-  const timeoutRecoveredSameHerDriftRisk = preferTimeoutRecoveryProjectStateField(
-    runtimeProjectState?.sameHerDriftRisk ?? null,
-    explicitRuntimeProjectState?.sameHerDriftRisk ?? null,
-    canonicalProjectState.sameHerDriftRisk ?? null,
-  )
-  const hasMeaningfulTimeoutRecoveryProjectCarry = (
-    looksLikeMeaningfulTimeoutRecoveryProjectCarry(timeoutRecoveredSameHerSummary)
-    || looksLikeMeaningfulTimeoutRecoveryProjectCarry(timeoutRecoveredLandedProgress)
-    || looksLikeMeaningfulTimeoutRecoveryProjectCarry(timeoutRecoveredOpenClosure)
-  )
-  const shouldPreferCompactTimeoutRecoveryAwareness = Boolean(
-    hasMeaningfulTimeoutRecoveryProjectCarry
-    && (
-      !resolvedRecoveredProjectAwarenessSummary
-      || !/\bopen=/u.test(resolvedRecoveredProjectAwarenessSummary)
-    ),
-  )
-  const shouldRebuildTimeoutRecoveryAwareness = Boolean(
-    !shouldPreferCompactTimeoutRecoveryAwareness
-    && resolvedRecoveredProjectAwarenessSummary
-    && (
-      resolvedRecoveredProjectAwarenessSummary === canonicalProjectState.preDialogueAwarenessLine
-      || looksLikeCanonicalBeforeAnsweringProjectReanchor(resolvedRecoveredProjectAwarenessSummary)
-    )
-    && (
-      timeoutRecoveredSameHerSummary
-      || timeoutRecoveredLandedProgress
-      || timeoutRecoveredOpenClosure
-      || timeoutRecoveredNextClosureTarget
-    )
-    && (
-      timeoutRecoveredSameHerSummary !== canonicalProjectState.sameHerSelfLine
-      || timeoutRecoveredLandedProgress !== canonicalProjectState.latestProgress
-      || timeoutRecoveredOpenClosure !== canonicalProjectState.primaryOpenLoop
-      || timeoutRecoveredNextClosureTarget !== canonicalProjectState.nextClosureTarget
-    )
-    && hasMeaningfulTimeoutRecoveryProjectCarry,
-  )
-  const compactRecoveredProjectAwarenessSummary = shouldPreferCompactTimeoutRecoveryAwareness
-    ? buildAlicizationProjectStatePreflightSummary({
-        identity: explicitRuntimeProjectState?.identity ?? runtimeProjectState?.identity ?? canonicalProjectState.identity,
-        currentPhase: timeoutRecoveredCurrentPhase ?? canonicalProjectState.currentPhase,
-        primaryOpenLoop: timeoutRecoveredOpenClosure ?? canonicalProjectState.primaryOpenLoop,
-        nextClosureTarget: timeoutRecoveredNextClosureTarget ?? canonicalProjectState.nextClosureTarget,
-      })
-    : null
-  const rebuiltRecoveredProjectAwarenessSummary = shouldRebuildTimeoutRecoveryAwareness
-    ? buildAlicizationProjectPreDialogueAwarenessLine({
-        identity: explicitRuntimeProjectState?.identity ?? runtimeProjectState?.identity ?? canonicalProjectState.identity,
-        currentPhase: timeoutRecoveredCurrentPhase ?? canonicalProjectState.currentPhase,
-        latestLandedProgress: timeoutRecoveredLandedProgress ?? canonicalProjectState.latestProgress,
-        primaryOpenLoop: timeoutRecoveredOpenClosure ?? canonicalProjectState.primaryOpenLoop,
-        nextClosureTarget: timeoutRecoveredNextClosureTarget ?? canonicalProjectState.nextClosureTarget,
-        sameHerSelfLine: timeoutRecoveredSameHerSummary ?? canonicalProjectState.sameHerSelfLine,
-      })
-    : null
-  return buildAlicizationResolvedVisibleReply({
+  return buildAlicizationTransparentRecoveryVisibleReply({
     fullText: input.recoveredText,
     visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
       prepared: input.prepared,
@@ -2406,16 +2220,5 @@ export function resolveAlicizationTimeoutRecoveredVisibleReply(input: {
         ? 'timeout-recovered-local-fallback'
         : `timeout-recovered-${input.recoveryMode}`,
     }),
-    projectStateSameHerSummary: timeoutRecoveredSameHerSummary,
-    projectStateSameHerHoldDetail: runtimeProjectState?.sameHerHoldDetail ?? null,
-    projectStateCurrentPhaseSummary: timeoutRecoveredCurrentPhase,
-    projectStateLandedProgressSummary: timeoutRecoveredLandedProgress,
-    projectStateOpenClosureSummary: timeoutRecoveredOpenClosure,
-    projectStateNextClosureTargetSummary: timeoutRecoveredNextClosureTarget,
-    projectStateSameHerDriftRiskSummary: timeoutRecoveredSameHerDriftRisk,
-    projectStatePreDialogueAwarenessSummary: compactRecoveredProjectAwarenessSummary
-      ?? rebuiltRecoveredProjectAwarenessSummary
-      ?? resolvedRecoveredProjectAwarenessSummary,
-    prepared: input.prepared,
   })
 }

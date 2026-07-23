@@ -6,11 +6,7 @@ import type {
 } from './working-memory'
 import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
 
-import {
-  alicizationFixedTemplateReplacement,
-  containsAlicizationFixedTemplateResidue,
-  sanitizeAlicizationProviderFacingText,
-} from '@proj-alicization/stage-shared'
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
 import {
   normalizeWorkingMemoryText,
@@ -51,19 +47,11 @@ function numberOrZero(raw: unknown) {
 
 function compact(raw: unknown, maxChars = 220) {
   const normalized = normalizeWorkingMemoryText(raw, maxChars)
-  if (!normalized)
-    return ''
-  if (
-    containsAlicizationFixedTemplateResidue(normalized)
-    && /(?:不要|别|不想要|禁止|移除|清除|别再|不要再)[^。.!?]*(?:固定模板|固定回复|模板化|same-her|one continuous her|Before (?:answering|speaking|acting)|Right now I am|local-first digital life project|同一个她|同一个\s*her|数字生命主线)/iu.test(normalized)
-  ) {
-    return 'Correction: fixed template rejection. Use this only when it helps the visible answer payoff.'
-  }
-  return sanitizeAlicizationProviderFacingText(
-    normalized,
-    maxChars,
-    alicizationFixedTemplateReplacement,
-  )
+  return sanitizeAlicizationProviderFacingText(normalized, maxChars)
+}
+
+function compactRaw(raw: unknown, maxChars = 220) {
+  return normalizeWorkingMemoryText(raw, maxChars)
 }
 
 function uniqueLines(values: string[], maxItems = 10) {
@@ -75,29 +63,26 @@ function uniqueLines(values: string[], maxItems = 10) {
 }
 
 function buildOwnerObligations(snapshot: WorkingMemorySnapshot) {
-  return uniqueLines([
+  return uniqueWorkingMemoryTexts([
     ...snapshot.userCorrections.map(correction =>
-      `respect_correction(${correction.scope}):${compact(correction.text, 220)}`,
+      correction.text,
     ),
     ...snapshot.unresolvedQuestions.map(question =>
-      `answer_unresolved_question:${compact(question.text, 220)}`,
+      question.text,
     ),
     ...snapshot.commitments.map(commitment =>
-      `honor_commitment:${compact(commitment.text, 220)}`,
+      commitment.text,
     ),
     snapshot.activeTask?.summary && snapshot.activeTask.status !== 'settled'
-      ? `carry_task(${snapshot.activeTask.status}):${compact(snapshot.activeTask.summary, 220)}`
+      ? compact(snapshot.activeTask.summary, 220)
       : '',
     snapshot.currentThread?.shouldHold && snapshot.currentThread.title
-      ? `hold_thread:${compact(snapshot.currentThread.title, 220)}`
+      ? compact(snapshot.currentThread.title, 220)
       : '',
     snapshot.executionState?.summary
-      ? `carry_execution:${compact(snapshot.executionState.summary, 220)}`
+      ? compactRaw(snapshot.executionState.summary, 220)
       : '',
-    snapshot.audit.failureTurnIds.length > 0
-      ? `failure_audit_only:${snapshot.audit.failureTurnIds.join(',')}`
-      : '',
-  ].filter(Boolean), 12)
+  ].filter(Boolean), 12, 220)
 }
 
 export function buildWorkingMemoryOwnerContext(snapshot: WorkingMemorySnapshot): WorkingMemoryOwnerContext {
@@ -117,7 +102,7 @@ export function buildWorkingMemoryOwnerContext(snapshot: WorkingMemorySnapshot):
       threadTitle: compact(snapshot.currentThread?.title, 220) || null,
       threadMode: snapshot.currentThread?.mode ?? null,
       shouldHoldThread: Boolean(snapshot.currentThread?.shouldHold),
-      currentUserMove: compact(snapshot.currentThread?.currentUserMove, 220) || null,
+      currentUserMove: normalizeWorkingMemoryText(snapshot.currentThread?.currentUserMove, 220) || null,
       activeTask: compact(snapshot.activeTask?.summary, 220) || null,
       taskStatus: snapshot.activeTask?.status ?? null,
     },
@@ -154,8 +139,7 @@ function buildOwnerEpisodeSummary(context: WorkingMemoryOwnerContext) {
     context.current.activeTask && context.current.taskStatus
       ? `task=${context.current.taskStatus}:${context.current.activeTask}`
       : '',
-    context.obligations.find(line => line.startsWith('respect_correction('))?.replace(/^respect_correction\([^)]*\):/u, 'correction=') ?? '',
-    context.obligations.find(line => line.startsWith('answer_unresolved_question:'))?.replace(/^answer_unresolved_question:/u, 'question=') ?? '',
+    context.obligations[0] ?? '',
     context.audit.failureTurnIds.length > 0 ? `audit_failures=${context.audit.failureTurnIds.join(',')}` : '',
   ], 6, 260).join(' | ')
 }

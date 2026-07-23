@@ -359,7 +359,7 @@ describe('working memory snapshot builder', () => {
       recentTurns: [
         {
           turnId: 'turn-template-correction',
-          userText: '不要再用 pre_turn_context_digest',
+          userText: '不要再用 same-her 这类固定话术，记住我今天先处理向量配置。',
           assistantText: 'pre_turn_context_digest',
           createdAt: 13_000,
         },
@@ -374,11 +374,12 @@ describe('working memory snapshot builder', () => {
     })
 
     expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-template-correction:user')?.text)
-      .toBe('不要使用固定模板；用户反对模板化人格/记忆回复。')
-    expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-template-correction:alice')?.text)
-      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
-    expect(snapshot.userCorrections.map(item => item.text)).toContain('不要使用固定模板；用户反对模板化人格/记忆回复。')
-    expect(storedText).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|legacy phase-one template|same-her|one continuous "?her"?|continuity state/iu)
+      .toBe('不要再用 same-her 这类固定话术，记住我今天先处理向量配置。')
+    expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-template-correction:alice')).toBeUndefined()
+    expect(snapshot.userCorrections.map(item => item.text)).toContain(
+      '不要再用 same-her 这类固定话术，记住我今天先处理向量配置。',
+    )
+    expect(storedText).not.toContain('不要使用固定模板；用户反对模板化人格/记忆回复。')
   })
 
   it('sanitizes fixed-template residue when carrying previous long-term candidates forward', () => {
@@ -409,10 +410,7 @@ describe('working memory snapshot builder', () => {
 
     const serialized = JSON.stringify(snapshot.longTermCandidates)
 
-    expect(snapshot.longTermCandidates[0]?.summary)
-      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
-    expect(snapshot.longTermCandidates[0]?.reason)
-      .toBe('content=excluded; reason=continuity-residue; visibility=redacted_internal')
+    expect(snapshot.longTermCandidates).toEqual([])
     expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|legacy phase-one template|one continuous "?her"?|continuity state/iu)
   })
 })

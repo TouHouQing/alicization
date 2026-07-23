@@ -5,253 +5,90 @@ import {
   buildAlicizationProjectPreDialogueAwarenessLine,
   buildAlicizationProjectPreDialogueClosure,
   buildAlicizationProjectStateClosureDashboard,
-  buildAlicizationProjectStateExtraSystemBlocks,
   buildAlicizationProjectStatePreflightSummary,
-  buildAlicizationProjectStateSystemBlock,
   buildAlicizationProviderFacingProjectStateClosureDashboard,
-  buildAlicizationProviderFacingProjectStateExtraSystemBlocks,
-  buildAlicizationProviderFacingProjectStateSystemBlock,
-  describeAlicizationEmbodimentClosureReminder,
   resolveAlicizationProjectStateBrief,
+  resolveAlicizationProjectStateCoverage,
   resolveAlicizationProjectStateSnapshot,
-  resolveAlicizationProjectStatusBrief,
 } from './project-state-brief'
 
-const oldProjectStateTemplatePattern
-  = /local_desktop_life_loop|visibility=internal|surface=structured|content=excluded|pending[-_]rejoin|cross_modal_continuity_proof|project_state_continuity|life_loop_continuity|continuity_anchor=|continuity=embodiment|continuity_hold=|Same Phase 1|Pre-reply|Right now I am still holding|same-her|same her|continuity state|identity continuity/iu
-
-function expectNoOldProjectStateTemplate(value: unknown) {
-  expect(JSON.stringify(value)).not.toMatch(oldProjectStateTemplatePattern)
-}
-
-function parseProviderFactBlock(value: string) {
-  const parsed = JSON.parse(value) as {
-    type?: unknown
-    data?: unknown
-  }
-
-  expect(typeof parsed.type).toBe('string')
-  expect(parsed.data).toBeTruthy()
-  return parsed
-}
-
-describe('project-state-brief', () => {
-  it('keeps canonical project-state brief as memory governance facts without old templates', () => {
+describe('project state brief governance isolation', () => {
+  it('does not provide canonical project or persona governance fallback', () => {
     const brief = resolveAlicizationProjectStateBrief()
+    const snapshot = resolveAlicizationProjectStateSnapshot({
+      runtimeProjectState: {
+        identity: 'phase1_local_digital_life_anchor',
+        preDialogueAwarenessLine: 'Before answering, keep the same-her line.',
+        continuityRestraint: 'measured-return',
+      },
+    })
 
     expect(brief.identity).toBe('')
     expect(brief.currentPhase).toBe('')
-    expect(brief.latestProgress).toContain('WorkingMemory owns short-term memory')
-    expect(brief.latestProgress).toContain('LongTermMemoryRecall owns long-term recall')
-    expect(brief.latestProgress).toContain('Template cleanup is active')
-    expect(brief.latestProgress).toContain('timeout, provider failure, tool failure, and invalid structured reply')
-    expect(brief.memoryAnthropomorphismProgress).toEqual(expect.arrayContaining([
-      expect.stringContaining('WorkingMemory owns short-term dialogue carry'),
-      expect.stringContaining('LongTermMemoryRecall owns long-term recall'),
-      expect.stringContaining('Memory Workbench remains the visible governance entry'),
-    ]))
-    expectNoOldProjectStateTemplate({
-      identity: brief.identity,
-      currentPhase: brief.currentPhase,
-      latestProgress: brief.latestProgress,
-      preflightSummary: brief.preflightSummary,
-      preDialogueAwarenessLine: brief.preDialogueAwarenessLine,
-      sameHerSelfLine: brief.sameHerSelfLine,
-      sameHerDriftRisk: brief.sameHerDriftRisk,
-      emotionalClosureCue: brief.emotionalClosureCue,
-      sameHerHoldDetail: brief.sameHerHoldDetail,
-      continuityCue: brief.continuityCue,
-      continuityProgressSummary: brief.continuityProgressSummary,
-      proactiveSameHerGap: brief.proactiveSameHerGap,
-      memoryAnthropomorphismProgress: brief.memoryAnthropomorphismProgress,
-      openLoops: brief.openLoops,
-      nextClosureTarget: brief.nextClosureTarget,
-    })
+    expect(brief.latestProgress).toBe('')
+    expect(brief.primaryOpenLoop).toBe('')
+    expect(brief.nextClosureTarget).toBe('')
+    expect(brief.openLoops).toEqual([])
+    expect(brief.continuityRestraint).toBeNull()
+    expect(brief.preDialogueAwarenessLine).toBeNull()
+    expect(snapshot.identity).toBe('')
+    expect(snapshot.preDialogueAwarenessLine).toBeNull()
+    expect(snapshot.continuityRestraint).toBeNull()
   })
 
-  it('does not turn project identity and phase prose into pre-dialogue cue templates', () => {
-    const summary = buildAlicizationProjectStatePreflightSummary({
-      identity: 'Alicization is a local-first digital life companion with memory governance on the host computer.',
-      currentPhase: 'Phase 1: Local Digital Life.',
-      primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-      nextClosureTarget: 'Extend cleaned recall proof across longer desktop runs.',
-    })
-    const awareness = buildAlicizationProjectPreDialogueAwarenessLine({
-      identity: 'Alicization is a local-first digital life companion with memory governance on the host computer.',
-      currentPhase: 'Phase 1: Local Digital Life.',
-      primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-      nextClosureTarget: 'Extend cleaned recall proof across longer desktop runs.',
-      sameHerSelfLine: 'runtime_personhood=present; memory_owner=WorkingMemory; recall_owner=LongTermMemoryRecall.',
-    })
-
-    expect(summary).toContain('Open focus: Memory still needs stronger end-to-end closure')
-    expect(awareness).toContain('Primary open loop: memory still needs stronger end-to-end closure')
-    expect(awareness).not.toContain('next=cross_modal_continuity_proof')
-    expectNoOldProjectStateTemplate({ summary, awareness })
-  })
-
-  it('builds shared awareness and closure structures without continuity cue fields', () => {
-    const proactiveGap = 'Visible proactive hold, subconscious carry, next-session feedback carry, hover-first restraint, and noisy desktop runs still need tighter proof.'
-    const preDialogueAwareness = buildAlicizationProjectPreDialogueAwareness({
-      preflightSummary: null,
+  it('does not synthesize pre-dialogue awareness or closure copy', () => {
+    const input = {
+      preflightSummary: 'project-state=keep same-her',
       runtimeProjectState: {
-        latestLandedProgress: 'memory_dialogue_loop=connected; short_term_owner=WorkingMemory; long_term_recall_owner=LongTermMemoryRecall.',
-        proactiveSameHerGap: proactiveGap,
+        identity: 'Alicization is a local-first digital life project',
+        currentPhase: 'Phase 1: Local Digital Life',
       },
-      primaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete.',
-      nextClosureTarget: 'embedding_reindex_required_when_model_changes=true.',
-    })
-    const preDialogueClosure = buildAlicizationProjectPreDialogueClosure({
-      preflightSummary: null,
-      runtimeProjectState: {
-        latestLandedProgress: 'memory_dialogue_loop=connected; short_term_owner=WorkingMemory; long_term_recall_owner=LongTermMemoryRecall.',
-        proactiveSameHerGap: proactiveGap,
-      },
-      primaryOpenLoop: 'memory_dialogue_embodiment_closure=end_to_end_proof_incomplete.',
-      nextClosureTarget: 'embedding_reindex_required_when_model_changes=true.',
-    })
+      primaryOpenLoop: 'Memory and embodiment still need closure.',
+      nextClosureTarget: 'Continue the next closure.',
+    }
 
-    expect(preDialogueAwareness.reasonPreview).toEqual(expect.arrayContaining([
-      expect.stringContaining('Initiative gap:'),
-    ]))
-    expect(preDialogueAwareness.reasonPreview).not.toEqual(expect.arrayContaining([
-      expect.stringContaining('continuity_anchor='),
-      expect.stringContaining('continuity_drift_risk='),
-    ]))
-    expect(preDialogueClosure.reasons).toEqual(expect.arrayContaining([
-      expect.stringContaining('Initiative gap:'),
-    ]))
-    expectNoOldProjectStateTemplate({ preDialogueAwareness, preDialogueClosure })
+    expect(buildAlicizationProjectStatePreflightSummary({
+      identity: input.runtimeProjectState.identity,
+      currentPhase: input.runtimeProjectState.currentPhase,
+      primaryOpenLoop: input.primaryOpenLoop,
+      nextClosureTarget: input.nextClosureTarget,
+    })).toBeNull()
+    expect(buildAlicizationProjectPreDialogueAwarenessLine({
+      identity: input.runtimeProjectState.identity,
+      currentPhase: input.runtimeProjectState.currentPhase,
+      primaryOpenLoop: input.primaryOpenLoop,
+      nextClosureTarget: input.nextClosureTarget,
+    })).toBeNull()
+    expect(buildAlicizationProjectPreDialogueAwareness(input).summaryLine).toBe('')
+    expect(buildAlicizationProjectPreDialogueAwareness(input).awarenessLine).toBeNull()
+    expect(buildAlicizationProjectPreDialogueClosure(input).briefingLines).toEqual([])
   })
 
-  it('does not build project-state system blocks for dialogue providers', () => {
-    const internalBlock = buildAlicizationProjectStateSystemBlock()
-    const providerBlock = buildAlicizationProviderFacingProjectStateSystemBlock()
-    const internalExtraBlocks = buildAlicizationProjectStateExtraSystemBlocks()
-    const providerExtraBlocks = buildAlicizationProviderFacingProjectStateExtraSystemBlocks()
+  it('keeps non-prompt ownership coverage separate from dialogue shaping', () => {
+    const coverage = resolveAlicizationProjectStateCoverage()
 
-    expect(internalBlock).toBe('')
-    expect(providerBlock).toBe('')
-    expect(internalExtraBlocks).toEqual([])
-    expect(providerExtraBlocks).toEqual([])
-  })
-
-  it('builds dashboard blocks as typed audit facts without legacy cue fields', () => {
-    const internalDashboard = buildAlicizationProjectStateClosureDashboard({
-      architecture: {
-        operatingMode: 'speaking',
-        dominantSystem: 'dialogue',
-        closureAudit: {
-          summary: 'memory closure still needs latency and error transparency',
-          activeClosurePressures: ['memory', 'embedding'],
-        },
-      },
-      runtimeDigest: {
-        dominantChannel: 'dialogue',
-        habitMode: 'return-with-proof',
-        shouldProactivelySpeak: false,
-        shouldProactivelyAct: false,
-        projectState: {
-          continuityArcStage: 'same-thread-continuation',
-          continuityCue: 'legacy cue should be ignored',
-        },
-      },
-    })
-    const providerDashboard = buildAlicizationProviderFacingProjectStateClosureDashboard({
-      runtimeDigest: {
-        dominantChannel: 'dialogue',
-        habitMode: 'return-with-proof',
-        shouldProactivelySpeak: false,
-        shouldProactivelyAct: false,
-        projectState: {
-          continuityArcStage: 'same-thread-continuation',
-          continuityCue: 'legacy cue should be ignored',
-        },
-      },
-    })
-
-    const internalFactBlock = parseProviderFactBlock(internalDashboard)
-    const providerFactBlock = parseProviderFactBlock(providerDashboard)
-
-    expect(internalFactBlock.type).toBe('alicization-memory-governance-dashboard')
-    expect(providerFactBlock.type).toBe('alicization-memory-governance-dashboard')
-    expect(internalFactBlock.data).toMatchObject({
-      audience: 'internal',
-      runtime: {
-        arcStage: 'same-thread-continuation',
-        dominantChannel: 'dialogue',
-        shouldAct: false,
-        shouldSpeak: false,
-      },
-      scope: 'memory-governance-audit',
-      version: 'alicization-memory-governance-dashboard-v1',
-    })
-    expect(providerFactBlock.data).toMatchObject({
-      audience: 'provider',
-      owners: {
-        longTermRecall: 'LongTermMemoryRecall',
-        shortTerm: 'WorkingMemory',
-      },
-      runtime: {
-        arcStage: 'same-thread-continuation',
-        dominantChannel: 'dialogue',
-        shouldAct: false,
-        shouldSpeak: false,
-      },
-      scope: 'memory-governance-audit',
-      version: 'alicization-memory-governance-dashboard-v1',
-    })
-    expect(providerDashboard).not.toContain('Memory governance dashboard context.')
-    expect(providerDashboard).not.toContain('legacy cue should be ignored')
-    expectNoOldProjectStateTemplate({ internalDashboard, providerDashboard })
-  })
-
-  it('keeps missing project-state facts transparent instead of filling a persona template', () => {
-    const status = resolveAlicizationProjectStatusBrief({
-      runtimeProjectState: {
-        identity: '',
-        currentPhase: '',
-        latestProgress: '',
-        primaryOpenLoop: '',
-        proactiveSameHerGap: '',
-        nextClosureTarget: '',
-        sameHerSelfLine: '',
-        preDialogueAwarenessLine: '',
-      },
-    })
-
-    expect(status.closureReadiness).toBe('partial')
-    expect(status.missingClosureItems).toEqual(expect.arrayContaining([
-      'project identity missing',
-      'project phase missing',
-      'latest landed progress missing',
-      'primary open loop missing',
-      'proactive continuity gap missing',
-      'next closure target missing',
-      'continuity anchor missing',
-      'awareness line missing',
+    expect(coverage.map(entry => entry.id)).toEqual([
+      'working-memory-owner',
+      'long-term-memory-recall-owner',
+      'provider-failure-surface',
+      'ownership-registry-isolation',
+    ])
+    expect(coverage).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'working-memory-owner',
+        responsibility: expect.stringContaining('WorkingMemory owns short-term'),
+      }),
+      expect.objectContaining({
+        id: 'long-term-memory-recall-owner',
+        responsibility: expect.stringContaining('LongTermMemoryRecall owns long-term'),
+      }),
+      expect.objectContaining({
+        id: 'provider-failure-surface',
+        responsibility: expect.stringContaining('failures remain explicit'),
+      }),
     ]))
-    expectNoOldProjectStateTemplate(status)
-  })
-
-  it('keeps snapshots and embodiment reminders free of old structured templates', () => {
-    const snapshot = resolveAlicizationProjectStateSnapshot({
-      runtimeProjectState: {
-        identity: 'runtime_personhood=present; memory_owner=WorkingMemory.',
-        currentPhase: 'Phase 1: Local Digital Life.',
-        preDialogueAwarenessLine: 'memory_owner=WorkingMemory | recall_owner=LongTermMemoryRecall',
-        sameHerSelfLine: 'memory_dialogue_loop=connected.',
-        sameHerDriftRisk: 'generic shell risk remains blocked.',
-        primaryOpenLoop: 'Memory still needs stronger end-to-end closure.',
-        nextClosureTarget: 'Extend cleaned recall proof across longer desktop runs.',
-      },
-    })
-    const reminder = describeAlicizationEmbodimentClosureReminder({
-      authoritySummary: '当前 continuity continuity 主要由 voice-lipsync-carry 承担，身体、表情、动作 还没重新接回。',
-      currentBodyState: null,
-    })
-
-    expect(reminder).toBe('')
-    expectNoOldProjectStateTemplate({ snapshot, reminder })
+    expect(JSON.stringify(coverage)).not.toMatch(/same-her|opening_policy|relationship_cadence|continuity_(?:anchor|hold|cue)/iu)
+    expect(buildAlicizationProjectStateClosureDashboard()).toBe('')
+    expect(buildAlicizationProviderFacingProjectStateClosureDashboard()).toBe('')
   })
 })

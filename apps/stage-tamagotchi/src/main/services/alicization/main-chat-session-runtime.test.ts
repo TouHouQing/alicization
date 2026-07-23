@@ -2226,7 +2226,8 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       recallSeed?: string
     }
     expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('memory_recall_mode:thread')
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('mirror_memory:')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('mirror_memory:')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
 
     expect(secondResult.sessionMirror).toBeTruthy()
     expect(secondResult.messages.some(message =>
@@ -2404,7 +2405,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       recallSeed?: string
       sessionMirrorRecollection?: unknown
     }
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('mirror_runtime_continuity:')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
     expect(secondOrganicInput.sessionMirrorRecollection).toEqual(firstResult.sessionMirror?.recollection)
     expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('mirror_recollection_afterthought')
     expect(secondResult.messages.map(message => String(message.content ?? '')).join('\n'))
@@ -2493,11 +2494,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       recallSeed?: string
     }
 
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('mirror_runtime_continuity:')
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('loop:')
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toMatch(/dominant:[^|]+/u)
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toMatch(/phase:[^|]+/u)
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toMatch(/handoff:[^|]+/u)
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('loop:')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toMatch(/dominant:[^|]+/u)
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toMatch(/phase:[^|]+/u)
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toMatch(/handoff:[^|]+/u)
   })
 
   it('preserves same-line scene-switch continuity through a quiet carry turn so later turns still reopen the same living thread', async () => {
@@ -2604,12 +2605,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       recallSeed?: string
     }
 
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('mirror_runtime_continuity:')
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('stage: same-thread-continuation')
-    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('thread: QQMusic follow-up')
-    expect(second.sessionMirror?.continuityArcSummary).toContain('stage: same-thread-continuation')
-    expect(second.sessionMirror?.continuityArcSummary).toContain('thread: QQMusic follow-up')
-    expect(second.sessionMirror?.continuityArcSummary).toContain('carry: shared-attention-continuation')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('stage: same-thread-continuation')
+    expect(second.sessionMirror?.continuityArcSummary).toBeNull()
 
     now += 20_000
 
@@ -2630,9 +2628,8 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       recallSeed?: string
     }
 
-    expect(String(thirdOrganicInput?.recallSeed ?? '')).toContain('mirror_runtime_continuity:')
-    expect(String(thirdOrganicInput?.recallSeed ?? '')).toContain('stage: same-thread-continuation')
-    expect(String(thirdOrganicInput?.recallSeed ?? '')).toContain('thread: QQMusic follow-up')
+    expect(String(thirdOrganicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
+    expect(String(thirdOrganicInput?.recallSeed ?? '')).not.toContain('stage: same-thread-continuation')
 
     now += 12 * 60_000
 
@@ -2654,9 +2651,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }
 
     expect(String(fourthOrganicInput?.recallSeed ?? '')).toContain('runtime continuity')
-    expect(fourth.sessionMirror?.continuityArcSummary).toContain('stage: same-thread-continuation')
-    expect(fourth.sessionMirror?.continuityArcSummary).toContain('thread: QQMusic follow-up')
-    expect(fourth.sessionMirror?.continuityArcSummary).toContain('carry: shared-attention-continuation')
+    expect(fourth.sessionMirror?.continuityArcSummary).toBeNull()
   }, 15_000)
 
   it('feeds cross-session autobiographical afterglow continuity into the next turn recall seed', async () => {
@@ -2942,11 +2937,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const organicInput = (lastOrganicCall?.[0] ?? {}) as {
       recallSeed?: string
     }
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Continuity held autonomy.')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Thread: thread-runtime')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Intent: follow-through')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Continuity open focus: emotion/memory/initiative/embodiment/same-line/closure-seam')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Continuity next focus: project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('continuity_held_autonomy:')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('thread=thread-runtime')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('intent=follow-through')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('same-line/closure-seam')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('project-carry/phase-1')
   })
 
   it('injects cadence reconfirmation continuity recall seeds so runtime memory and steering can keep measured-return in view', async () => {
@@ -3071,13 +3066,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const organicInput = (lastOrganicCall?.[0] ?? {}) as {
       recallSeed?: string
     }
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Continuity cadence reconfirmation.')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Thread: thread-cadence-runtime')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Cadence: measured-return')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Relationship line: keep the relationship return measured until the surface fully cools')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Body mode: measured-return')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Blink cadence: linger')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Gaze mode: soften')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('continuity_cadence_reconfirmation:')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('cadence=')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('blink=')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('gaze=')
   })
 
   it('keeps the same held-autonomy callback line alive across the next runtime turn', async () => {
@@ -3216,11 +3208,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const organicInput = (lastOrganicCall?.[0] ?? {}) as {
       recallSeed?: string
     }
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Continuity held autonomy.')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('mirror_runtime_continuity:')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('loop:')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Thread: thread-held-autonomy-later')
-    expect(second.sessionMirror?.continuityArcSummary).toMatch(/(?:stage|handoff|thread):/u)
+    expect(String(organicInput?.recallSeed ?? '')).toContain('continuity_held_autonomy:')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('loop:')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('thread=thread-held-autonomy-later')
+    expect(second.sessionMirror?.continuityArcSummary).toBeNull()
     expect(second.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.personalityContinuityState?.rhythmState?.cadenceMode).toBe('measured-return')
   })
 
@@ -3361,11 +3353,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const organicInput = (lastOrganicCall?.[0] ?? {}) as {
       recallSeed?: string
     }
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Continuity held autonomy.')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Thread: thread-runtime-deferred')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Defer reason: busy-host')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('Why now: Stay near the unresolved compile seam without reopening visible speech.')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('mirror_runtime_continuity:')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('continuity_held_autonomy:')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('thread=thread-runtime-deferred')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('defer_reason=busy-host')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('why_now=Stay near the unresolved compile seam without reopening visible speech.')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
     expect(second.sessionMirror).toBeTruthy()
   })
 
@@ -4737,7 +4729,12 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude: reflectivePrelude,
     })
     expect(findAlicizationProviderFact(result.messages, 'alicization-project-state-facts')).toBeNull()
-    expect(result.mindTurnContract?.projectState?.emotionalClosureCue ?? null).toBeNull()
+    expect(result.mindTurnContract?.projectState).toBeNull()
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState).toBeUndefined()
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.runtimeDigest?.projectState).toBeUndefined()
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.raw?.runtime?.projectState).toBeUndefined()
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.raw?.runtimeDigest?.projectState).toBeUndefined()
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.cognition.runtimeDigest?.projectState).toBeUndefined()
     expect(String(
       result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingProject
       ?? '',
@@ -5126,9 +5123,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     const { context } = findOnlyAlicizationTurnMemoryContextMessage(result.messages)
     const workingMemoryText = JSON.stringify(context.workingMemory)
-    expect(workingMemoryText).toContain('respect_correction(persona):')
+    expect(workingMemoryText).not.toContain('respect_correction(')
     expect(workingMemoryText).toContain('不是这个，别再用旧模板了。')
-    expect(workingMemoryText).toContain('carry_execution:')
+    expect(workingMemoryText).not.toContain('carry_execution:')
+    expect(workingMemoryText).toContain('execution_callback_status:failed')
     expect(context.workingMemory.audit.failureTurnIds.length).toBeGreaterThan(0)
     expect(context.workingMemory).not.toHaveProperty('longTermQueue')
   })
@@ -5629,7 +5627,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     const { context } = findOnlyAlicizationTurnMemoryContextMessage(secondResult.messages)
     const workingMemoryText = JSON.stringify(context.workingMemory)
-    expect(workingMemoryText).toContain('respect_correction(persona):')
+    expect(workingMemoryText).not.toContain('respect_correction(')
     expect(workingMemoryText).toContain('不是这个，别再用旧模板了。')
     expect(context.workingMemory.current.currentUserMove).toBe('继续')
   })

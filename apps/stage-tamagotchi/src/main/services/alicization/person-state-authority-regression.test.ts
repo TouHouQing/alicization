@@ -428,7 +428,9 @@ describe('person-state-authority-regression', () => {
 
     expect(projection.activeClosenessContext).toBe('focused-work')
     expect(projection.activeClosenessRung).toBe('space-first')
-    expect(surface.contract.mustNotDo).toContain('Do not let visible warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.')
+    expect(projection.burdenText).toContain('Focused work gets overloaded quickly')
+    expect(surface.contract.mustDo).toEqual([])
+    expect(surface.contract.mustNotDo).toEqual([])
   })
 
   it('does not let execution continuity drift into companionship tone', () => {
@@ -487,8 +489,9 @@ describe('person-state-authority-regression', () => {
 
     expect(projection.activeClosenessContext).toBe('execution-callback')
     expect(projection.activeClosenessRung).toBe('measured-room')
-    expect(surface.contract.mustDo).toContain('Keep callback delivery thread-faithful and bounded to the same result line.')
-    expect(surface.contract.mustNotDo).toContain('Do not widen a bounded execution callback into generic companionship tone.')
+    expect(projection.burdenText).toContain('Callbacks become burdensome')
+    expect(surface.contract.mustDo).toEqual([])
+    expect(surface.contract.mustNotDo).toEqual([])
   })
 
   it('keeps landed and still-open phase-1 closure carry explicit in callback lower-pressure opening guidance on the real authority-to-projection path', () => {
@@ -544,10 +547,9 @@ describe('person-state-authority-regression', () => {
       } as any,
     })
 
-    expect(projection.openingGuidance).toContain('same callback line')
-    expect(projection.openingGuidance).toContain('lower-pressure')
-    expect(projection.openingGuidance).toContain('what already landed visible from inside the same her')
-    expect(projection.openingGuidance).toContain('still-open closure work')
+    expect(projection.openingGuidance).toBeNull()
+    expect(projection.manifestationCadenceSummary).toBeNull()
+    expect(projection.preferredProactiveStyle).toBe('silent-observe')
   })
 
   it('splits the same silent interval by persona authority while keeping repair and room boundaries intact', () => {
@@ -607,11 +609,11 @@ describe('person-state-authority-regression', () => {
     })
 
     expect(direct.relationshipPosture).toBe('restrained')
-    expect(direct.openingGuidance).toBeTruthy()
+    expect(direct.openingGuidance).toBeNull()
     expect(direct.preferredProactiveStyle).toBe('light-nudge')
     expect(direct.activeClosenessRung).toBe('space-first')
     expect(guarded.relationshipPosture).toBe('restrained')
-    expect(guarded.openingGuidance).toContain('Repair the seam before leaning closer')
+    expect(guarded.openingGuidance).toBeNull()
     expect(guarded.preferredProactiveStyle).toBe('light-nudge')
     expect(guarded.activeClosenessRung).toBe('space-first')
   })

@@ -46,10 +46,10 @@ function createContext(overrides: Partial<AlicizationProactiveLayeredContext> = 
       matchedLabels: ['error'],
     },
     relationship: {
-      hostAttitude: '礼貌而克制，保持观察',
-      boredom: 40,
-      loneliness: 32,
-      fatigue: 24,
+      hostAttitude: 'focused',
+      boredom: 94,
+      loneliness: 72,
+      fatigue: 28,
       minutesSinceLastUserTurn: 18,
       reminderBacklog: 0,
       lateNightActiveMinutes: 0,
@@ -59,231 +59,105 @@ function createContext(overrides: Partial<AlicizationProactiveLayeredContext> = 
   }
 }
 
-function createPrivateThought(overrides: Record<string, unknown> = {}) {
+function createSpeakableInput() {
   return {
-    stance: 'nudge' as const,
-    confidence: 0.84,
-    rationaleTags: ['semantic-friction'],
-    thoughtText: 'I can nudge here.',
-    shouldSpeak: true,
-    suggestedStyle: 'light-nudge' as const,
-    embodiedPresence: 'attentive' as const,
-    expiresAt: 120_000,
-    afterglowFromScenario: null,
-    emotionalTension: 'focused-flow' as const,
-    ...overrides,
-  } as any
-}
-
-function createRuntimeDigest(overrides: Record<string, unknown> = {}) {
-  return {
-    version: 'alicization-runtime-digest-v1',
-    dominantChannel: 'active-memory',
-    shouldProactivelySpeak: false,
-    shouldProactivelyAct: false,
-    continuityPressure: 0.78,
-    companionshipPressure: 0.42,
-    channels: [],
-    summary: 'dominant=active-memory | continuity=0.78',
-    ...overrides,
-  } as any
+    now: 1_000,
+    context: createContext(),
+    proactiveState: createDefaultProactiveLoopState(1_000),
+    killSwitchSuspended: false,
+    watchMode: 'symbiotic-vision' as const,
+    privateThought: {
+      stance: 'nudge',
+      confidence: 0.84,
+      rationaleTags: ['error-visible'],
+      thoughtText: 'I can help.',
+      shouldSpeak: true,
+      suggestedStyle: 'light-nudge',
+      embodiedPresence: 'attentive',
+      expiresAt: 120_000,
+      afterglowFromScenario: null,
+      emotionalTension: 'tense-debug',
+    } as any,
+    initiative: {
+      shouldSpeak: true,
+      shouldAct: false,
+      confidence: 0.82,
+      speakDrive: 0.8,
+      silenceDrive: 0.1,
+      selectedAction: 'speak',
+      preferredStyle: 'light-nudge',
+    } as any,
+  }
 }
 
 describe('proactive restraint regression', () => {
-  it('does not interrupt when remembered continuity is relevant but explicitly inward-only', () => {
-    const decision = evaluateProactivePolicy({
-      now: 1_000,
-      context: createContext(),
-      proactiveState: createDefaultProactiveLoopState(1_000),
-      killSwitchSuspended: false,
-      watchMode: 'symbiotic-vision',
-      privateThought: createPrivateThought(),
-      runtimeDigest: createRuntimeDigest(),
+  it('does not let legacy continuity deliberation alter a real decision', () => {
+    const input = createSpeakableInput()
+    const baseline = evaluateProactivePolicy(input)
+    const legacyInjected = evaluateProactivePolicy({
+      ...input,
       continuityDeliberation: {
-        kind: 'memory-follow-up',
+        kind: 'execution-callback',
         arcStage: 'hold-for-opening',
-        summary: 'The remembered seam should stay inward until the host opens the door again.',
-        whyNow: 'The seam is relevant, but surfacing it now would crowd the current line.',
-        pressure: 0.82,
+        summary: 'same-her fixed line',
+        whyNow: 'opening_policy=hover-first',
+        pressure: 1,
         intrusionRisk: 'high',
-        payoffDependency: 'memory-only',
+        payoffDependency: 'requires-current-payoff',
         preferredTiming: 'internal-only',
         shouldStayOnThread: true,
         shouldSpeakNow: false,
-        sourceTags: ['memory-deliberation'],
+        sourceTags: ['project-state-callback-carry'],
       },
     })
 
-    expect(decision.shouldInterrupt).toBe(false)
-    expect(decision.reasonCodes).toContain('continuity-internal-only')
-    expect(decision.whyNow).toContain('timing=continuity_hold_for_later')
-    expect(decision.whyNow).toContain('reason=continuity-internal-only')
-    expect(decision.whyNotLater).toContain('reason=continuity-internal-only')
+    expect(legacyInjected).toEqual(baseline)
   })
 
-  it('holds an after-payoff continuity mention instead of proactively interrupting early', () => {
+  it('keeps blocked dispatch behind explicit confirmation', () => {
     const decision = evaluateProactivePolicy({
-      now: 1_000,
-      context: createContext(),
-      proactiveState: createDefaultProactiveLoopState(1_000),
-      killSwitchSuspended: false,
-      watchMode: 'symbiotic-vision',
-      privateThought: createPrivateThought(),
-      runtimeDigest: createRuntimeDigest({
-        dominantChannel: 'active-dialogue',
-        continuityPressure: 0.8,
-      }),
-      continuityDeliberation: {
-        kind: 'dialogue-carry',
-        arcStage: 'hold-for-opening',
-        summary: 'The remembered seam is relevant, but it belongs after the current payoff lands.',
-        whyNow: 'This continuity should contour the current answer after it has already paid off the live ask.',
-        pressure: 0.8,
-        intrusionRisk: 'medium',
-        payoffDependency: 'requires-current-payoff',
-        preferredTiming: 'after-payoff',
-        shouldStayOnThread: true,
-        shouldSpeakNow: false,
-        sourceTags: ['memory-deliberation'],
-      },
+      ...createSpeakableInput(),
+      currentConsciousFrame: {
+        reasonTags: [
+          'execution-safety-gate blocked-before-dispatch confirmation=required no-process-started permission=none',
+        ],
+      } as any,
     })
 
     expect(decision.shouldInterrupt).toBe(false)
-    expect(decision.reasonCodes).toContain('continuity-after-payoff')
-    expect(decision.whyNotLater).toContain('reason=continuity-after-payoff')
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.whyNotLater).toContain('safety_gate=blocked_dispatch_confirmation_required')
   })
 
-  it('does not let execution callback continuity steal the opening from the current answer lane', () => {
+  it('does not convert one host confirmation into permanent permission', () => {
     const decision = evaluateProactivePolicy({
-      now: 1_000,
-      context: createContext(),
-      proactiveState: createDefaultProactiveLoopState(1_000),
-      killSwitchSuspended: false,
-      watchMode: 'symbiotic-vision',
-      privateThought: createPrivateThought(),
-      runtimeDigest: createRuntimeDigest({
-        dominantChannel: 'active-control',
-        continuityPressure: 0.84,
-      }),
-      continuityDeliberation: {
-        kind: 'execution-callback',
-        arcStage: 'same-thread-continuation',
-        summary: 'A settled callback is waiting, but it should not jump ahead of the current answer.',
-        whyNow: 'The callback is real, but it still needs the live answer or payoff window first.',
-        pressure: 0.88,
-        intrusionRisk: 'medium',
-        payoffDependency: 'requires-current-payoff',
-        preferredTiming: 'same-turn-if-invited',
-        shouldStayOnThread: true,
-        shouldSpeakNow: true,
-        sourceTags: ['execution-callback'],
-      },
+      ...createSpeakableInput(),
+      replyDeliberation: {
+        mustInclude: [],
+        narrative: [
+          'execution-resume-confirmation host-confirmed-before-redispatch confirmation boundary not permanent autonomous permission',
+        ],
+      } as any,
     })
 
     expect(decision.shouldInterrupt).toBe(false)
-    expect(decision.reasonCodes).toContain('continuity-execution-callback')
-    expect(decision.whyNotLater).toContain('reason=continuity-execution-callback')
+    expect(decision.whyNotLater).toContain('confirmation_boundary=host_confirmed_before_redispatch')
   })
 
-  it('keeps repair scenes from drifting into remembered continuity even under high continuity pressure', () => {
-    const decision = evaluateProactivePolicy({
-      now: 1_000,
-      context: createContext(),
-      proactiveState: createDefaultProactiveLoopState(1_000),
-      killSwitchSuspended: false,
-      watchMode: 'recovering',
-      privateThought: createPrivateThought({
-        stance: 'uncertain',
-        shouldSpeak: false,
-        suggestedStyle: 'silent-observe',
-      }),
-      runtimeDigest: createRuntimeDigest({
-        dominantChannel: 'active-memory',
-        continuityPressure: 0.86,
-      }),
-      relationshipModel: {
-        climate: 'guarded',
-        approachVector: 'give-space',
-        receptivity: 0.46,
-        sharedAttentionTrust: 0.44,
-        correctionSensitivity: 0.72,
-        reciprocityExpectation: 0.3,
-        activeBoundaries: [],
-        narrative: [],
-        updatedAt: 1_000,
-      } as any,
-      selfGovernor: {
-        dominantDrive: 'repair',
-        dominantIntentionId: 'repair-1',
-        focusObjectId: null,
-        activeIntentions: [{
-          id: 'repair-1',
-          kind: 'repair-misread',
-          status: 'active',
-          drive: 'repair',
-          title: 'repair seam',
-          summary: 'Repair the current seam before any remembered carry opens.',
-          urgency: 0.84,
-          confidence: 0.8,
-          patience: 0.68,
-          targetObjectId: null,
-          targetThreadId: null,
-          targetGoalId: null,
-          targetCommitmentId: null,
-          formedAt: 0,
-          lastUpdatedAt: 1_000,
-          expiresAt: 120_000,
-        }],
-        inhibition: 0.74,
-        persistence: 0.7,
-        socialRiskTolerance: 0.22,
-        revisionReadiness: 0.64,
-        narrative: [],
-        updatedAt: 1_000,
-      } as any,
-      worldModel: {
-        continuity: {
-          label: 'scene-shift',
-          sceneAgeMs: 8_000,
-          attentionAgeMs: 8_000,
-          sameSceneAsBefore: false,
-          sameAttentionAsBefore: false,
-          afterglowOpen: false,
-        },
-        epistemicState: {
-          certainty: 'lingering',
-          freshness: 'stale',
-          seenNow: [],
-          inferredNow: [],
-          openQuestions: [],
-          staleRisks: [],
-        },
-      } as any,
-      actionEcology: {
-        mode: 'repair-before-speaking',
-        surfacePressure: 0.22,
-        silencePressure: 0.72,
-        shouldSpeak: false,
-      } as any,
-      continuityDeliberation: {
-        kind: 'dialogue-carry',
-        arcStage: 'hold-for-opening',
-        summary: 'The remembered line is still relevant, but it should wait for the next safer opening.',
-        whyNow: 'The remembered line would be relevant later, but not while the repair seam is still unstable.',
-        pressure: 0.82,
-        intrusionRisk: 'high',
-        payoffDependency: 'can-surface-softly',
-        preferredTiming: 'next-open-window',
-        shouldStayOnThread: true,
-        shouldSpeakNow: false,
-        sourceTags: ['memory-deliberation'],
+  it('keeps an actively busy host non-interruptible', () => {
+    const context = createContext({
+      system: {
+        ...createContext().system,
+        cpuUsage: 76,
+        inputActivity: 'active',
       },
+    })
+    const decision = evaluateProactivePolicy({
+      ...createSpeakableInput(),
+      context,
     })
 
     expect(decision.shouldInterrupt).toBe(false)
-    expect(decision.reasonCodes).toContain('continuity-next-open-window')
-    expect(decision.reasonCodes).toContain('governor-repair')
-    expect(decision.reasonCodes).toContain('relationship-correction-sensitive')
-    expect(decision.whyNotLater).toContain('reason=continuity-next-open-window')
+    expect(decision.reasonCodes).toContain('busy-host')
   })
 })

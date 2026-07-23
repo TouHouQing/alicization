@@ -1,4 +1,3 @@
-import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -356,32 +355,20 @@ describe('digital life architecture', () => {
       operatingMode: 'speaking',
       dominantSystem: 'dialogue',
       supportingSystems: expect.arrayContaining(['mind', 'control']),
-      governingFocus: expect.stringContaining('repair the runtime spine'),
+      governingFocus: null,
     }))
+    expect(architecture?.summary).not.toContain('repair the runtime spine before adding more features')
+    expect(architecture?.systems.dialogue.summary).not.toContain('repair the runtime spine before adding more features')
+    expect(JSON.stringify(architecture)).not.toContain('repair the runtime spine before adding more features')
     expect(architecture?.systems.perception.state).toBe('hot')
     expect(architecture?.systems.dialogue.summary).toContain('subject=task-knot')
     expect(architecture?.systems.control.summary).toContain('action=speak')
     expect(architecture?.systems.memory.summary).toContain('goal=unify the runtime spine')
-    expect(architecture?.closureAudit?.currentPhase).toContain('local_desktop_life_loop')
-    expect(architecture?.closureAudit?.primaryOpenLoop).toContain('memory_dialogue_embodiment_closure=end_to_end_proof_incomplete')
-    expect(architecture?.closureAudit?.selfAuthoritySummary).toContain('living thread')
-    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(architecture?.closureAudit ?? ''))).toBe(false)
-    expect(architecture?.closureAudit?.activeClosurePressures).toEqual(expect.arrayContaining([
-      'ecology:surface-care',
-      'private-thought:observe',
-    ]))
-    expect(block).toContain('[ALICIZATION_DIGITAL_LIFE_ARCHITECTURE]')
-    expect(block).toContain('operating_mode=speaking')
-    expect(block).toContain('dominant_system=dialogue')
-    expect(block).toContain('project_state_closure=')
-    expect(block).toContain('same_her_self_authority=')
-    expect(block).toContain('supporting_systems=')
-    expect(block).toContain('- [HOT')
-    expect(block).toContain('dialogue')
-    expect(block).toContain('perception')
+    expect(architecture).not.toHaveProperty('closureAudit')
+    expect(block).toBe('')
   })
 
-  it('degrades into a sparse but usable architecture when only project-state and continuity-carry lanes survive the runtime surface', () => {
+  it('degrades into a sparse but usable architecture when only live runtime lanes survive', () => {
     const architecture = buildAlicizationDigitalLifeArchitecture({
       version: 'digital-life-runtime-surface-v1',
       perception: {
@@ -396,29 +383,12 @@ describe('digital life architecture', () => {
       },
       dialogue: {
         currentConsciousFrame: {
-          reasonTags: ['continuity-arc:same-thread-continuation'],
-          projectState: {
-            currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'structured continuity digest.',
-          },
+          reasonTags: ['subject:task-knot'],
         },
       },
       memory: {
         concerns: [],
         workingMemoryEpisodes: [],
-        derivedMindStateBundle: {
-          activeContinuityGovernance: {
-            mode: 'same-her-baseline',
-            summary: 'same-her-baseline | lower-pressure | same callback seam',
-            reasonCodes: ['hold-for-opening'],
-            lanes: ['reply', 'embodiment'],
-          },
-        },
-        personStateProjection: {
-          selfContinuityAuthority: {
-            authoritySummary: 'structured continuity digest.',
-          },
-        },
       },
     } as any)
 
@@ -427,8 +397,6 @@ describe('digital life architecture', () => {
       dominantSystem: expect.any(String),
       operatingMode: expect.any(String),
     }))
-    expect(architecture?.closureAudit?.currentPhase).toContain('local_desktop_life_loop')
-    expect(String(architecture?.closureAudit?.selfAuthoritySummary ?? '')).toContain('unresolved_closure=continuity_line')
-    expect(containsAlicizationFixedTemplateResidue(JSON.stringify(architecture?.closureAudit ?? ''))).toBe(false)
+    expect(architecture).not.toHaveProperty('closureAudit')
   })
 })

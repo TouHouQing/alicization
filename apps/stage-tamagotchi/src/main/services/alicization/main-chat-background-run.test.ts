@@ -4,7 +4,10 @@ import { readFileSync } from 'node:fs'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { runAlicizationMainChatBackground } from './main-chat-background-run'
+import {
+  mainChatBackgroundRunTestInternals,
+  runAlicizationMainChatBackground,
+} from './main-chat-background-run'
 import { generateAlicizationMainChatNonStreaming } from './main-chat-one-shot'
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import { recoverAlicizationRequiredToolDeterministically } from './main-chat-required-tool-recovery'
@@ -98,10 +101,8 @@ function buildObservedRealization(
     mode,
     visibleText: reply,
     visibleReplyValidationStatus: 'approved',
-    projectStateEvidenceStatus: 'unknown',
     nonHumanAuthoredStatus: null,
     blockedReasons: [],
-    projectStateAudit: null,
   }
 }
 
@@ -518,8 +519,6 @@ describe('main chat background run', () => {
       },
       visibleReplyRealization: {
         visibleText: '命令已经完成。',
-        projectStateEvidenceStatus: 'unknown',
-        projectStateAudit: null,
       },
     })
     expect(JSON.parse(String(finishPayload?.fullText))).not.toHaveProperty('parsePath')
@@ -632,6 +631,44 @@ describe('main chat background run', () => {
     expect(source).not.toContain('ensureStructuredProjectStateHostVisibleClosure')
     expect(source).not.toContain('ensureStructuredVisibleReplyProjectStateAudit')
     expect(source).not.toContain('normalizeTopLevelProjectStateAwarenessFromRealization')
+  })
+
+  it('does not rebuild project governance or legacy cues into the runtime digest fallback', () => {
+    const prepared = createPrepared({
+      runtimeSurface: {
+        ...createPrepared().runtimeSurface,
+        digitalLifeRuntimeSurface: {
+          dialogue: {
+            currentConsciousFrame: {
+              projectState: {
+                identity: 'project-state identity',
+                currentPhase: 'project-state phase',
+                continuityCue: 'continuityCue=legacy',
+              },
+              reasonTags: ['reasonTags=legacy'],
+              focusAnchor: '真实的当前对话焦点',
+            },
+          },
+          memory: {
+            emotionalKernel: {
+              version: 'emotional-kernel-v1',
+              dominantEmotion: 'calm',
+              initiativeMode: 'responsive',
+              memoryRecallMode: 'working-and-long-term',
+              embodimentTone: 'steady',
+            },
+          },
+        },
+      },
+    })
+
+    const digest = mainChatBackgroundRunTestInternals.buildPreparedRuntimeDigestFallback(prepared)
+
+    expect(digest?.projectState).toBeNull()
+    expect(digest?.currentConsciousFrame).toBeNull()
+    expect(JSON.stringify(digest)).not.toMatch(
+      /project-state identity|project-state phase|continuityCue|reasonTags|reasonCodes|opening_policy|relationship_cadence|governingFocus|mustDo|mustNotDo/iu,
+    )
   })
 
   it('delegates failures without installing timeout reply recovery callbacks', async () => {

@@ -3,9 +3,6 @@ import type { AlicizationExecutionRuntimeMemoryClosureExecution } from '@proj-al
 import type { AlicizationAuditLogInput, AlicizationMindTurnEventInput } from '../../../shared/eventa'
 import type { AlicizationMemoryRecollectionIntentLite } from './memory-episodic-retrieval'
 
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
-import { resolveCanonicalStructuredProjectState } from './structured-project-state'
-
 type AlicizationDialogueReplyFeedbackKind = 'robotic' | 'missed' | 'intrusive' | 'interrupted' | 'received'
 type AlicizationExecutionResultFeedbackKind = 'valued' | 'doubted' | 'intrusive' | 'interrupted'
 
@@ -329,81 +326,18 @@ function collectRecallSituations(
 export function buildDialogueFeedbackReconsolidationRationale(
   feedback: AlicizationDialogueReplyFeedbackKind,
 ) {
-  if (feedback === 'robotic')
-    return 'The host corrected this thread for sounding robotic, so the remembered way of replying should now move toward lived-in directness instead of shell fluency.'
-  if (feedback === 'missed')
-    return 'The host corrected this thread for missing the point, so the remembered way of replying should now repair the seam before continuing.'
-  if (feedback === 'intrusive')
-    return 'The host corrected this thread for landing too heavily, so the remembered way of replying should now leave more room and lower pressure.'
-  if (feedback === 'interrupted')
-    return 'The host turned away from this line before it landed, so the remembered way of replying should now wait for a fresher opening.'
-  return 'The host corrected this remembered line, so the recalled way of answering should change on the next similar turn.'
+  return `Dialogue feedback: ${feedback}.`
 }
 
 function buildExecutionResultFeedbackReconsolidationRationale(
   feedback: AlicizationExecutionResultFeedbackKind,
 ) {
-  if (feedback === 'valued')
-    return 'The host received this execution callback as useful, so the remembered way of returning after action should stay grounded and quietly continuous instead of collapsing into a detached utility notice.'
-  if (feedback === 'doubted')
-    return 'The host doubted this execution callback, so the remembered way of returning after action should verify more before sounding certain and should not widen into task-shell confidence.'
-  if (feedback === 'intrusive')
-    return 'The host felt this execution callback landed too heavily, so the remembered way of returning after action should leave more room and stay lower-pressure.'
-  return 'The host turned away from this execution callback before it fully landed, so the remembered way of returning after action should wait for a fresher opening while keeping continuity inwardly alive.'
+  return `Execution feedback: ${feedback}.`
 }
 
 export function createAlicizationRuntimeMemoryReconsolidation(
   options: CreateAlicizationRuntimeMemoryReconsolidationOptions,
 ) {
-  const projectStateBrief = resolveAlicizationProjectStateBrief()
-  const projectStatePrimaryOpenLoop = projectStateBrief.openLoops[0] ?? null
-  const projectStateLandedProgress = Array.isArray((projectStateBrief as { latestLandedProgress?: unknown[] }).latestLandedProgress)
-    ? ((projectStateBrief as { latestLandedProgress?: unknown[] }).latestLandedProgress?.[0] as string | null | undefined) ?? null
-    : null
-
-  const buildReconsolidatedProjectState = (input?: {
-    projectBriefing?: AlicizationExecutionFeedbackProjectBriefing | null
-    selfContinuityInwardLine?: string | null
-    selfContinuitySourceTags?: string[] | null
-  }) => {
-    const selfContinuityInwardLine = options.sanitizeText(input?.selfContinuityInwardLine, '').slice(0, 220) || null
-    const selfContinuitySourceTags = Array.isArray(input?.selfContinuitySourceTags)
-      ? input!.selfContinuitySourceTags!
-          .map(tag => options.sanitizeText(tag, '').slice(0, 64))
-          .filter(Boolean)
-          .slice(0, 12)
-      : []
-    const projectBriefing = input?.projectBriefing ?? null
-    const canonicalProjectState = resolveCanonicalStructuredProjectState({
-      normalizedProjectState: {
-        identity: projectBriefing?.identity ?? projectStateBrief.identity,
-        currentPhase: projectBriefing?.currentPhase ?? projectStateBrief.currentPhase,
-        latestLandedProgress: projectBriefing?.latestLandedProgress ?? projectStateLandedProgress,
-        primaryOpenLoop: projectBriefing?.primaryOpenLoop ?? projectStatePrimaryOpenLoop,
-        nextClosureTarget: projectBriefing?.nextClosureTarget ?? projectStateBrief.nextClosureTarget ?? '',
-        sameHerSelfLine: projectBriefing?.sameHerSelfLine ?? projectStateBrief.sameHerSelfLine,
-        sameHerDriftRisk: projectBriefing?.sameHerDriftRisk ?? projectStateBrief.sameHerDriftRisk,
-      },
-      runtimePreflightSummary: projectBriefing?.preflightSummary ?? projectStateBrief.preflightSummary ?? null,
-      runtimePreDialogueAwarenessLine: projectBriefing?.preDialogueAwarenessLine ?? projectStateBrief.preDialogueAwarenessLine ?? null,
-    })
-    return {
-      preflightSummary: canonicalProjectState.preflightSummary,
-      preDialogueAwarenessLine: canonicalProjectState.preDialogueAwarenessLine,
-      identity: canonicalProjectState.identity,
-      currentPhase: canonicalProjectState.currentPhase,
-      latestLandedProgress: canonicalProjectState.latestLandedProgress,
-      landedProgressSummary: canonicalProjectState.latestLandedProgress,
-      primaryOpenLoop: canonicalProjectState.primaryOpenLoop,
-      nextClosureTarget: canonicalProjectState.nextClosureTarget ?? null,
-      sameHerSelfLine: canonicalProjectState.sameHerSelfLine,
-      sameHerSummary: canonicalProjectState.sameHerSelfLine,
-      sameHerDriftRisk: canonicalProjectState.sameHerDriftRisk,
-      selfContinuityInwardLine,
-      selfContinuitySourceTags,
-    }
-  }
-
   const reconsolidateDialogueFeedbackMemoryTrace = async (input: {
     cardId: string
     decisionTraceId: string | null
@@ -437,12 +371,13 @@ export function createAlicizationRuntimeMemoryReconsolidation(
       ...feedbackExperienceTexts,
       ...collectRecallTelemetryTexts(recallEvent.payload, options.sanitizeText),
     ], 12)
-    const projectState = buildReconsolidatedProjectState({
-      selfContinuityInwardLine: input.selfContinuityInwardLine,
-      selfContinuitySourceTags: input.selfContinuitySourceTags,
-    })
-    const selfContinuityInwardLine = projectState.selfContinuityInwardLine
-    const selfContinuitySourceTags = projectState.selfContinuitySourceTags
+    const selfContinuityInwardLine = options.sanitizeText(input.selfContinuityInwardLine, '').slice(0, 220) || null
+    const selfContinuitySourceTags = Array.isArray(input.selfContinuitySourceTags)
+      ? input.selfContinuitySourceTags
+          .map(tag => options.sanitizeText(tag, '').slice(0, 64))
+          .filter(tag => Boolean(tag) && tag !== 'project-state-carry')
+          .slice(0, 12)
+      : []
     if (recallTexts.length === 0)
       return
 
@@ -466,8 +401,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         input.feedback === 'robotic' ? 'robotic shell repair pressure' : '',
         input.feedback === 'intrusive' ? 'intrusive closeness pressure' : '',
         input.feedback === 'interrupted' ? 'interrupted line pressure' : '',
-        projectStatePrimaryOpenLoop ? `project-open-loop:${projectStatePrimaryOpenLoop}` : '',
-        selfContinuitySourceTags.includes('project-state-carry') ? 'project-state-inward-carry' : '',
         ...selectedSituations.flatMap(item => ([
           item.affectiveResidue ? `situation-affective-residue:${item.affectiveResidue}` : '',
           item.executionCarry ? `situation-execution-carry:${item.executionCarry}` : '',
@@ -485,7 +418,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         ])),
         selfContinuityInwardLine ? `self-continuity:${selfContinuityInwardLine}` : '',
         coherence.coherenceState ? `reply-memory-coherence:${coherence.coherenceState}` : '',
-        projectStateBrief.currentPhase,
       ].filter(Boolean),
       carryAsMemory: true,
       recollectionIntent: {
@@ -495,12 +427,12 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         searchConversations: true,
         searchProceduralExperience: true,
         queryHints: recallTexts.slice(0, 10),
-        rationale: `${buildDialogueFeedbackReconsolidationRationale(input.feedback)} Keep Phase 1 digital-life closure pressure in view while updating this remembered reply way.`,
+        rationale: buildDialogueFeedbackReconsolidationRationale(input.feedback),
         confidence: 0.78,
         recollectionAgenda: {
           whyRecallNow: selfContinuityInwardLine
-            ? `The host corrected a recalled reply line, so the remembered way of answering should be updated without losing the current digital-life closure pressure carried inward as ${selfContinuityInwardLine}.`
-            : 'The host corrected a recalled reply line, so the remembered way of answering should be updated without losing the current digital-life closure pressure.',
+            ? `The host corrected a recalled reply line, so the remembered way of answering should be updated while retaining the relevant inward memory: ${selfContinuityInwardLine}.`
+            : 'The host corrected a recalled reply line, so the remembered way of answering should be updated for the next similar turn.',
           goalSimilarity: 0.78,
           relationshipNeed: 0.72,
           affectivePull: 0.44,
@@ -551,7 +483,8 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         feedback: input.feedback,
         feedbackExperience,
         selectedSituations,
-        projectState,
+        selfContinuityInwardLine,
+        selfContinuitySourceTags,
         recallCueCount: recallTexts.length,
         recalledEpisodeIds: reconsolidated.map(event => event.id),
         reconsolidatedCount: reconsolidated.length,
@@ -595,9 +528,7 @@ export function createAlicizationRuntimeMemoryReconsolidation(
     if (!decisionTraceId || !input.feedback)
       return
 
-    const projectState = buildReconsolidatedProjectState({
-      projectBriefing: input.projectBriefing ?? null,
-    })
+    void input.projectBriefing
     const safetyGateSummary = options.sanitizeText(input.safetyGateSummary, '').slice(0, 240) || null
     const resumeConfirmationSummary = options.sanitizeText(input.resumeConfirmationSummary, '').slice(0, 360) || null
     const feedbackExperience = sanitizeFeedbackMemoryExperience(input.feedbackExperience, options.sanitizeText)
@@ -613,10 +544,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
       resumeConfirmationSummary,
       options.sanitizeText(input.previousAssistantText, '').slice(0, 180),
       options.sanitizeText(input.userText, '').slice(0, 180),
-      options.sanitizeText(projectState.preDialogueAwarenessLine, '').slice(0, 180),
-      options.sanitizeText(projectState.primaryOpenLoop, '').slice(0, 180),
-      options.sanitizeText(projectState.nextClosureTarget, '').slice(0, 180),
-      options.sanitizeText(projectState.sameHerSelfLine, '').slice(0, 180),
     ], 12)
     if (recallTexts.length === 0)
       return
@@ -636,8 +563,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         ...(memoryClosureExecution?.reasonTags ?? []).map(tag => `memory-os-reason:${tag}`),
         safetyGateSummary ? `execution-safety-gate:${safetyGateSummary}` : '',
         resumeConfirmationSummary ? `execution-resume-confirmation:${resumeConfirmationSummary}` : '',
-        projectState.primaryOpenLoop ? `project-open-loop:${projectState.primaryOpenLoop}` : '',
-        projectState.sameHerDriftRisk ? `project-drift-risk:${projectState.sameHerDriftRisk}` : '',
         ...(feedbackExperience?.tags ?? []).map(tag => `experience-tag:${tag}`),
       ].filter((value): value is string => Boolean(value)),
       relationshipAnchors: [
@@ -652,8 +577,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         resumeConfirmationSummary ? options.sanitizeText(resumeConfirmationSummary.match(/\baudit=\S+/u)?.[0], '').slice(0, 80) : '',
         input.userText,
         feedbackExperience?.relationshipMeaning ?? '',
-        projectState.currentPhase,
-        projectState.sameHerSelfLine ?? '',
       ].filter((value): value is string => Boolean(value)),
       carryAsMemory: true,
       recollectionIntent: {
@@ -663,7 +586,12 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         searchConversations: true,
         searchProceduralExperience: true,
         queryHints: recallTexts,
-        rationale: `${buildExecutionResultFeedbackReconsolidationRationale(input.feedback)} ${memoryClosureExecution?.carry ? `Memory OS says the execution callback must be carried into the next reply as callback continuity evidence: ${memoryClosureExecution.carry}.` : ''} ${safetyGateSummary ? 'Treat this blocked dispatch as safety gate restraint, not a generic failed result.' : ''} ${resumeConfirmationSummary ? 'Treat this host-confirmed resume before redispatch as a confirmation boundary, not as ordinary autonomous continuation.' : ''} Keep callback return facts, safety boundaries, and unresolved follow-up explicit while remembering how execution returns should land.`,
+        rationale: [
+          buildExecutionResultFeedbackReconsolidationRationale(input.feedback),
+          memoryClosureExecution?.carry ? `Memory OS carry: ${memoryClosureExecution.carry}.` : '',
+          safetyGateSummary ? `Safety gate: ${safetyGateSummary}.` : '',
+          resumeConfirmationSummary ? `Resume confirmation: ${resumeConfirmationSummary}.` : '',
+        ].filter(Boolean).join(' '),
         confidence: 0.8,
         recollectionAgenda: {
           whyRecallNow: `The host just reacted to an execution callback return for ${options.sanitizeText(input.goal, 'this execution line').slice(0, 120)}, so Alicization should remember how the current execution context ought to come back after acting.`,
@@ -725,7 +653,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         safetyGateMemoryMode: safetyGateSummary ? 'blocked-dispatch-restraint' : null,
         resumeConfirmationSummary,
         resumeMemoryMode: resumeConfirmationSummary ? 'host-confirmed-before-redispatch' : null,
-        projectState,
         recallCueCount: recallTexts.length,
         recalledEpisodeIds: reconsolidated.map(event => event.id),
         reconsolidatedCount: reconsolidated.length,

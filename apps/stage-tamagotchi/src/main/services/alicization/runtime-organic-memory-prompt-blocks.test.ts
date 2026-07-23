@@ -289,8 +289,8 @@ describe('runtime-organic-memory-prompt-blocks', () => {
     expect(sourceText).not.toMatch(/\[ALICIZATION_/u)
   })
 
-  it('projects affective, relationship, and learning state as data instead of reply rules', () => {
-    const facts = parseFacts(buildOrganicMemoryProviderFactBlocks(buildContext({
+  it('does not forward derived affective or learning governance state to Provider', () => {
+    const blocks = buildOrganicMemoryProviderFactBlocks(buildContext({
       affectiveResidue: {
         version: 'affective-residue-memory-v1',
         updatedAt: 10,
@@ -341,23 +341,81 @@ describe('runtime-organic-memory-prompt-blocks', () => {
         sourceSignals: [],
         summary: '继续观察关系节律。',
       },
-    })))
-    const lifeState = facts.find(fact => fact.type === 'alicization-organic-life-state')
+    }))
 
-    expect(lifeState?.data).toEqual(expect.objectContaining({
-      affectiveResidue: expect.objectContaining({
+    expect(blocks.find(block => block.includes('"type":"alicization-organic-life-state"'))).toBeUndefined()
+    expect(blocks.join('\n')).not.toMatch(
+      /relationshipCadence|reasonTags|measured-return|relationship-cadence|mustDo|mustNotDo|replyTemplate|systemPrompt/u,
+    )
+  })
+
+  it('isolates person-state governance while preserving real long-term memory evidence', () => {
+    const blocks = buildOrganicMemoryProviderFactBlocks(buildContext({
+      retrievedFacts: [{
+        id: 'fact-real-memory',
+        subject: '用户',
+        predicate: '记得',
+        object: '上次向量召回成功后，继续沿用了真实的修复上下文。',
+        confidence: 0.94,
+        provenance: 'remembered',
+        source: 'long-term-memory-recall',
+      } as any],
+      recalledFragments: [{
+        id: 'fragment-real-memory',
+        text: '上次向量召回成功后，继续沿用了真实的修复上下文。',
+        sourceKind: 'conversation-turn',
+        provenance: 'remembered',
+        createdAt: 1,
+      } as any],
+      personStateProjection: {
+        contexts: [
+          'relationship-cadence:measured-return',
+          'same-her-inward-carry',
+          'continuity-execution-callback-afterglow-hold',
+        ],
+        activeClosenessContext: 'general',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        preferredProactiveStyle: 'quiet',
+        cautious: true,
+        restrained: true,
+        summary: 'opening_policy=continue_same_her',
+      } as any,
+      affectiveResidue: {
         dominantResidueKind: 'afterglow',
-        relationshipCadence: expect.objectContaining({
+        afterglowPressure: 0.6,
+        repairPressure: 0.2,
+        burdenPressure: 0.1,
+        trustPressure: 0.5,
+        restProtectivePressure: 0.2,
+        relationshipCadence: {
           cadenceMode: 'measured-return',
           distancePosture: 'measured-room',
+          companionshipDensity: 0.4,
+          repairRecovery: 0.3,
+          overreachRisk: 0.2,
+          fatigueGuard: 0.1,
+          afterglowCarry: 0.5,
           shouldDelayWarmth: true,
-        }),
-      }),
-      selfEvolution: expect.objectContaining({
-        nextLearningAction: 'reflect',
-        activeLearningFocuses: ['relationship-cadence'],
-      }),
+          shouldProtectRest: false,
+          reasonTags: [
+            'relationship-cadence:measured-return',
+            'repair-before-closeness',
+            'same-her-inward-carry',
+            'continuity-execution-callback-afterglow-hold',
+          ],
+        },
+        summary: '内部治理状态不应进入 Provider。',
+      } as any,
     }))
-    expect(JSON.stringify(lifeState)).not.toMatch(/mustDo|mustNotDo|replyTemplate|systemPrompt/u)
+    const serialized = blocks.join('\n')
+
+    expect(serialized).toContain('上次向量召回成功后，继续沿用了真实的修复上下文。')
+    expect(serialized).not.toContain('"person"')
+    expect(serialized).not.toContain('"relationshipCadence"')
+    expect(serialized).not.toContain('"reasonTags"')
+    expect(serialized).not.toMatch(
+      /relationship-cadence:measured-return|repair-before-closeness|same-her-inward-carry|continuity-execution-callback-afterglow-hold|opening_policy=/u,
+    )
   })
 })

@@ -62,7 +62,6 @@ import type {
   SubconsciousCardState,
 } from './runtime-soul'
 import type {
-  AlicizationProjectStateEvidenceStatus,
   AlicizationVisibleReplyRealizationArtifact,
   AlicizationVisibleReplyValidationStatus,
 } from './visible-reply/facade'
@@ -132,7 +131,6 @@ import {
 } from './attention-anchor'
 import { updateVisualAttentionModel } from './attention-model'
 import { createAlicizationBodyKernel } from './body-kernel'
-import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { setupAlicizationDb } from './db'
 import { createDesktopCaptureAccessRuntime } from './desktop-capture-runtime'
 import { buildDialogueIngressGovernor } from './dialogue-ingress-governor'
@@ -175,7 +173,7 @@ import {
 } from './local-desktop-inspection'
 import { resolveOpenAICompatibleLongTermMemoryEmbeddingProvider } from './long-term-memory-openai-embedding-provider'
 import { abortAlicizationDirectChatRun, abortAlicizationRunningChatRuns } from './main-chat-abort'
-import { mainChatBackgroundRunTestInternals, runAlicizationMainChatBackground } from './main-chat-background-run'
+import { runAlicizationMainChatBackground } from './main-chat-background-run'
 import { handleAlicizationDirectChatStart } from './main-chat-direct-start'
 import { syncAlicizationMainChatLlmRoute } from './main-chat-llm-route-sync'
 import { createAlicizationMainChatRunStateController } from './main-chat-run-state'
@@ -233,19 +231,6 @@ import { evaluateProactivePolicy } from './proactive-policy'
 import {
   rankScreenSemanticCaptureCandidates,
 } from './proactive-screen-semantic'
-import {
-  isAlicizationThinProjectAwarenessLine,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
-  resolveAlicizationProjectStateBrief,
-  resolveAlicizationProjectStateSnapshot,
-  resolveAlicizationProjectStatusBrief,
-  scoreAlicizationProjectAwarenessLine,
-} from './project-state-brief'
-import { preferProjectStateSpecificClosureSummary } from './project-state-closure-preference'
-import {
-  deriveCompactProjectStateNextFocusSummary,
-  deriveCompactProjectStateOpenFocusSummary,
-} from './project-state-focus'
 import { buildReflectionLedgerFragment } from './reflection-memory'
 import { createAlicizationReplayBenchmarkRuntime } from './replay-benchmark-runtime'
 import { createAlicizationAgentSessionMirrorRuntime } from './runtime-agent-session-mirror'
@@ -405,9 +390,6 @@ import { assessAlicizationTaskRouting } from './task-routing-assessor'
 import { createTaskThreadOrchestrator } from './task-thread-orchestrator'
 import { registerDialogueWorldThreadAssistantTurn } from './turn-outcome-reducer'
 import {
-  normalizeAlicizationProjectStateEvidenceStatus,
-} from './visible-reply/facade'
-import {
   buildVisualRecallSeed,
   buildVisualSedimentFragment,
   createDefaultVisualPresenceState,
@@ -477,418 +459,10 @@ function inferRuntimeProjectCarrySourceTags(input: {
   ]
 }
 
-function looksLikeSceneContaminatedRuntimeSameHerSelfLine(raw: unknown) {
-  if (typeof raw !== 'string')
-    return false
-
-  const normalized = raw.trim()
-  if (!normalized)
-    return false
-
-  const lowered = normalized.toLowerCase()
-  const carriesSameHerProjectBaseline
-    = lowered.includes('same phase 1 digital life')
-      || lowered.includes('same living line')
-      || lowered.includes('continuous her')
-      || lowered.includes('one continuous her')
-  const carriesSceneNarration
-    = /宿主正在|宿主还在沿着|host is|host is still following|runtime\.ts|index\.ts|callback result seam|foreground|scene|window|screen|工作线程|work thread|trust seam/u.test(normalized)
-
-  return carriesSameHerProjectBaseline && carriesSceneNarration
-}
-
-function preferStrongerPersistedSameHerSelfLine(input: {
-  current?: unknown
-  candidate?: unknown
-}) {
-  const current = typeof input.current === 'string' ? input.current.trim() : ''
-  const candidate = typeof input.candidate === 'string' ? input.candidate.trim() : ''
-
-  if (!current)
-    return candidate || ''
-  if (!candidate)
-    return current
-  if (current === candidate)
-    return current
-
-  const currentCarriesFixedTemplateResidue = sanitizeAlicizationProviderFacingText(current, 1600, '') === ''
-  const candidateCarriesFixedTemplateResidue = sanitizeAlicizationProviderFacingText(candidate, 1600, '') === ''
-
-  if (currentCarriesFixedTemplateResidue && !candidateCarriesFixedTemplateResidue)
-    return candidate
-  if (candidateCarriesFixedTemplateResidue && !currentCarriesFixedTemplateResidue)
-    return current
-  if (currentCarriesFixedTemplateResidue && candidateCarriesFixedTemplateResidue)
-    return ''
-
-  const currentLower = current.toLowerCase()
-  const candidateLower = candidate.toLowerCase()
-  const currentCarriesStructuredContinuity
-    = /(?:^|\s|\|)(?:identity|continuity_anchor|project_state_review|runtime_loop_validation)=|runtime_personhood/u.test(currentLower)
-  const candidateCarriesStructuredContinuity
-    = /(?:^|\s|\|)(?:identity|continuity_anchor|project_state_review|runtime_loop_validation)=|runtime_personhood/u.test(candidateLower)
-
-  if (currentCarriesStructuredContinuity && !candidateCarriesStructuredContinuity)
-    return current
-  if (candidateCarriesStructuredContinuity && !currentCarriesStructuredContinuity)
-    return candidate
-
-  return candidate.length > current.length ? candidate : current
-}
-
 const alicizationSelfEvolutionVersionRuntimeMetaKey = 'self_evolution_version_runtime_v1'
 
-function resolvePreferredEmbodimentClosureSummary(...values: Array<unknown>) {
-  const candidates = values
-    .map((value) => {
-      const normalized = typeof value === 'string'
-        ? sanitizeText(value, '') || null
-        : null
-
-      if (!normalized)
-        return null
-
-      const lower = normalized.toLowerCase()
-      const laneScore = [
-        lower.includes('face'),
-        lower.includes('motion'),
-        lower.includes('lipsync'),
-        lower.includes('voice'),
-      ].filter(Boolean).length
-      let continuityStrength = 0
-      if (lower.includes('repair-before-closeness'))
-        continuityStrength += 10
-      if (lower.includes('rest-protective'))
-        continuityStrength += 10
-      if (lower.includes('quiet-companionship') || lower.includes('quiet accompaniment'))
-        continuityStrength += 8
-      if (
-        lower.includes('audible-body-carry')
-        || lower.includes('living audio thread')
-        || lower.includes('keep the same living line audible')
-        || lower.includes('same living line audible')
-      ) {
-        continuityStrength += 8
-      }
-      if (
-        lower.includes('body, lipsync, and voice')
-        || lower.includes('body, voice, and lipsync')
-        || lower.includes('body、lipsync 和 voice')
-      ) {
-        continuityStrength += 6
-      }
-      if (lower.includes('same living line') || lower.includes('one living her') || lower.includes('one continuous her'))
-        continuityStrength += 3
-      if (lower.includes('rejoin'))
-        continuityStrength += 2
-
-      return {
-        normalized,
-        laneScore,
-        continuityStrength,
-      }
-    })
-    .filter((value): value is { normalized: string, laneScore: number, continuityStrength: number } => Boolean(value))
-
-  if (candidates.length === 0)
-    return null
-
-  return candidates
-    .sort((left, right) => {
-      if (right.continuityStrength !== left.continuityStrength)
-        return right.continuityStrength - left.continuityStrength
-      if (right.laneScore !== left.laneScore)
-        return right.laneScore - left.laneScore
-      return right.normalized.length - left.normalized.length
-    })[0]
-    ?.normalized ?? null
-}
-
-function scoreProjectSameHerLine(value: string | null | undefined) {
-  const normalized = typeof value === 'string'
-    ? sanitizeText(value, '')?.trim().toLowerCase() ?? ''
-    : ''
-  if (!normalized)
-    return 0
-
-  let score = normalized.length >= 120 ? 2 : normalized.length >= 72 ? 1 : 0
-  if (/same digital life|same-her|one living her|one living digital life|one continuous her|同一个她|同一个 her/u.test(normalized))
-    score += 3
-  if (/holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure|unfinished closure/u.test(normalized))
-    score += 2
-  if (
-    /still-voiced face-and-mouth line|still-voiced motion-and-mouth line/u.test(normalized)
-    || /holding together mainly through face,\s*lipsync,\s*and voice|holding together mainly through motion,\s*lipsync,\s*and voice/u.test(normalized)
-  ) {
-    score += 2
-  }
-  if (isAlicizationThinProjectAwarenessLine(normalized))
-    score -= 2
-  return score
-}
-
-function looksLikeRicherLivingSelfSameHerLine(value: string | null | undefined) {
-  const normalized = typeof value === 'string'
-    ? sanitizeText(value, '')?.trim().toLowerCase() ?? ''
-    : ''
-  if (!normalized)
-    return false
-
-  return /one living her|one living digital life|holding together mainly through|face|motion|voice|lipsync|cross-modal|embodiment closure|same living line|without splitting her continuity|same phase 1 digital life|one continuous her/u.test(normalized)
-}
-
-function looksLikeThinProjectStateAwarenessGuidance(value: string | null | undefined) {
-  const normalized = typeof value === 'string'
-    ? sanitizeText(value, '')?.trim().toLowerCase() ?? ''
-    : ''
-  if (!normalized)
-    return false
-
-  const carriesStrongerSameHerAwareness
-    = /one living her|one living digital life|local-first digital life project|same living line|without splitting her continuity|unfinished phase 1 closure seam|holding together mainly through|still-voiced|resident body line|living mouth line/u.test(normalized)
-
-  if (carriesStrongerSameHerAwareness)
-    return false
-
-  return isAlicizationThinProjectAwarenessLine(normalized)
-    || /keep the latest landed project-state progress explicit in the answer|keep the still-open closure work explicit in the answer|keep extending cross-modal same-her proof across longer desktop runs|explicit in the visible reply|explicit in the rewritten answer/u.test(normalized)
-}
-
-function scoreProjectStateAuditPreDialogueAwarenessSummary(value: string | null | undefined) {
-  const normalized = typeof value === 'string'
-    ? sanitizeText(value, '')?.trim() ?? ''
-    : ''
-  if (!normalized)
-    return 0
-
-  let score = scoreAlicizationProjectAwarenessLine(normalized)
-  if (/one living her|one living digital life|local-first digital life project|same living line|without splitting her continuity|unfinished phase 1 closure seam|holding together mainly through|still-voiced|resident body line|living mouth line/u.test(normalized))
-    score += 3
-  if (looksLikeThinProjectStateAwarenessGuidance(normalized))
-    score -= 2
-  return score
-}
-
-function preferProjectStateAuditPreDialogueAwarenessSummary(...values: Array<unknown>) {
-  const normalizedValues = values
-    .map(value => typeof value === 'string' ? sanitizeText(value, '')?.trim() ?? '' : '')
-    .filter(Boolean)
-
-  if (normalizedValues.length === 0)
-    return null
-
-  return normalizedValues.slice(1).reduce<string>((best, candidate) => {
-    const bestScore = scoreProjectStateAuditPreDialogueAwarenessSummary(best)
-    const candidateScore = scoreProjectStateAuditPreDialogueAwarenessSummary(candidate)
-
-    if (candidateScore > bestScore)
-      return candidate
-
-    if (candidateScore === bestScore && candidate.length > best.length)
-      return candidate
-
-    return best
-  }, normalizedValues[0]!)
-}
-
-function resolvePreferredProjectSameHerSummary(...values: Array<unknown>) {
-  const normalizedValues = values
-    .map(value => typeof value === 'string' ? sanitizeText(value, '')?.trim() ?? '' : '')
-    .filter(Boolean)
-
-  if (normalizedValues.length === 0)
-    return null
-
-  return normalizedValues.slice(1).reduce<string>((best, candidate) => {
-    if (
-      looksLikeRicherLivingSelfSameHerLine(candidate)
-      && scoreProjectSameHerLine(candidate) >= scoreProjectSameHerLine(best) + 2
-    ) {
-      return candidate
-    }
-
-    return best
-  }, normalizedValues[0]!)
-}
-
-function buildProjectStateAuditContinuitySummary(input: {
-  sameHerSummary: string | null | undefined
-  sameHerHoldDetail?: string | null | undefined
-  sameHerDriftRiskSummary?: string | null | undefined
-  proactiveSameHerGapSummary?: string | null | undefined
-  currentPhaseSummary: string | null | undefined
-  landedProgressSummary: string | null | undefined
-  openClosureSummary: string | null | undefined
-  openFocusSummary?: string | null | undefined
-  nextFocusSummary?: string | null | undefined
-  nextClosureTargetSummary: string | null | undefined
-  memoryClosureSummary?: string | null | undefined
-  recallWhySummary?: string | null | undefined
-  emotionalClosureSummary?: string | null | undefined
-  embodimentClosureSummary: string | null | undefined
-}) {
-  return [
-    input.sameHerSummary ? `Continuity anchor: ${input.sameHerSummary}.` : '',
-    input.sameHerHoldDetail ? `Hold detail: ${input.sameHerHoldDetail}.` : '',
-    input.sameHerDriftRiskSummary ? `Drift risk: ${input.sameHerDriftRiskSummary}.` : '',
-    input.proactiveSameHerGapSummary ? `Proactive gap: ${input.proactiveSameHerGapSummary}.` : '',
-    input.currentPhaseSummary ? `Phase: ${input.currentPhaseSummary}.` : '',
-    input.landedProgressSummary ? `Landed progress: ${input.landedProgressSummary}.` : '',
-    input.openClosureSummary ? `Open focus: ${input.openClosureSummary}.` : '',
-    input.openFocusSummary ? `Open focus summary: ${input.openFocusSummary}.` : '',
-    input.nextFocusSummary ? `Next focus summary: ${input.nextFocusSummary}.` : '',
-    input.nextClosureTargetSummary ? `Next focus: ${input.nextClosureTargetSummary}.` : '',
-    input.memoryClosureSummary ? `Memory closure: ${input.memoryClosureSummary}.` : '',
-    input.recallWhySummary ? `Recall reason: ${input.recallWhySummary}.` : '',
-    input.emotionalClosureSummary ? `Emotional closure: ${input.emotionalClosureSummary}.` : '',
-    input.embodimentClosureSummary ? `Embodiment closure: ${input.embodimentClosureSummary}.` : '',
-  ].filter(Boolean).join(' ') || null
-}
-
-function preferRicherProjectStateAuditText(input: {
-  current?: unknown
-  candidate?: unknown
-}) {
-  const current = typeof input.current === 'string'
-    ? sanitizeText(input.current, '') || null
-    : null
-  const candidate = typeof input.candidate === 'string'
-    ? sanitizeText(input.candidate, '') || null
-    : null
-
-  if (!current)
-    return candidate
-  if (!candidate)
-    return current
-  if (current === candidate)
-    return current
-
-  const preferredClosureAuthority = preferStrongerContinuityClosureAuthority(current, candidate)
-  if (preferredClosureAuthority)
-    return preferredClosureAuthority
-
-  if (candidate.startsWith(current) && candidate.length >= current.length + 24)
-    return candidate
-  if (current.startsWith(candidate) && current.length >= candidate.length + 24)
-    return current
-
-  return candidate.length > current.length ? candidate : current
-}
-
-function looksLikeVisibleReplyOpenClosureGuidance(value: string | null) {
-  if (!value)
-    return false
-
-  const lower = value.toLowerCase()
-  return lower.includes('explicit in the answer')
-    || lower.includes('explicit in the visible reply')
-    || lower.includes('explicit in the rewritten answer')
-    || lower.includes('before the answer widens outward')
-    || lower.includes('stay on the repair-before-closeness line')
-}
-
-function mergeProjectStateAuditOpenClosureSummary(input: {
-  current?: unknown
-  candidate?: unknown
-}) {
-  const current = typeof input.current === 'string'
-    ? sanitizeText(input.current, '') || null
-    : null
-  const candidate = typeof input.candidate === 'string'
-    ? sanitizeText(input.candidate, '') || null
-    : null
-
-  const preferred = preferRicherProjectStateAuditText({
-    current,
-    candidate,
-  })
-  if (!preferred)
-    return null
-
-  const secondary = preferred === current ? candidate : current
-  if (!secondary || preferred.includes(secondary))
-    return preferred
-
-  const preferredLooksLikeGuidance = looksLikeVisibleReplyOpenClosureGuidance(preferred)
-  const secondaryLooksLikeGuidance = looksLikeVisibleReplyOpenClosureGuidance(secondary)
-
-  if (preferredLooksLikeGuidance === secondaryLooksLikeGuidance)
-    return preferred
-
-  const canonicalOpenClosureTruth = preferredLooksLikeGuidance ? secondary : preferred
-  const visibleReplyGuidance = preferredLooksLikeGuidance ? preferred : secondary
-  return `${canonicalOpenClosureTruth} Visible reply guidance: ${visibleReplyGuidance}`
-}
-
-function mergeProjectStateAuditFocusSummary(input: {
-  current?: unknown
-  candidate?: unknown
-}) {
-  const segments = [
-    ...(typeof input.current === 'string' ? sanitizeText(input.current, '') : '')
-      .split('/'),
-    ...(typeof input.candidate === 'string' ? sanitizeText(input.candidate, '') : '')
-      .split('/'),
-  ]
-    .map(segment => segment.trim())
-    .filter(Boolean)
-
-  if (segments.length === 0)
-    return null
-
-  return [...new Set(segments)].join('/')
-}
-
-function scoreProjectStateAuditPhaseSummary(value: string) {
-  const normalized = value.trim()
-  if (!normalized)
-    return 0
-
-  let score = 0
-  if (/phase 1:\s*local digital life/i.test(normalized))
-    score += 6
-  if (/phase 1 local digital life/i.test(normalized))
-    score += 4
-  if (/phase 1/i.test(normalized))
-    score += 2
-  if (/alicization/i.test(normalized))
-    score += 1
-  if (/closure|same-her|living her|digital life/i.test(normalized))
-    score += 1
-
-  return score
-}
-
-function preferProjectStateAuditPhaseSummary(...values: Array<unknown>) {
-  const normalizedValues = values
-    .map(value => typeof value === 'string' ? sanitizeText(value, '')?.trim() ?? '' : '')
-    .filter(Boolean)
-
-  if (normalizedValues.length === 0)
-    return null
-
-  return normalizedValues.slice(1).reduce<string>((best, candidate) => {
-    const bestScore = scoreProjectStateAuditPhaseSummary(best)
-    const candidateScore = scoreProjectStateAuditPhaseSummary(candidate)
-
-    if (candidateScore > bestScore)
-      return candidate
-
-    if (candidateScore === bestScore && candidate.length > best.length)
-      return candidate
-
-    return best
-  }, normalizedValues[0]!)
-}
-
-type VisibleReplyProjectStateAuditEvidence
-  = NonNullable<AlicizationVisibleReplyRealizationArtifact['projectStateAudit']>
-type VisibleReplyProjectStateAuditInput = Partial<VisibleReplyProjectStateAuditEvidence>
 type VisibleReplyPublicCriticSummary
   = NonNullable<AlicizationVisibleReplyRealizationArtifact['critic']>
-type VisibleReplyOpeningEmbodimentAudit
-  = NonNullable<AlicizationVisibleReplyRealizationArtifact['openingEmbodimentAudit']>
-
 interface PendingVisibleReplyRealizationTelemetry {
   version: 'visible-reply-realization-v1'
   expectedAuthority: 'llm-mind' | null
@@ -897,290 +471,11 @@ interface PendingVisibleReplyRealizationTelemetry {
   mode: string | null
   visibleText: string | null
   visibleReplyValidationStatus: AlicizationVisibleReplyValidationStatus
-  projectStateEvidenceStatus: AlicizationProjectStateEvidenceStatus
-  sameHerInwardCarry: string | null
   nonHumanAuthoredStatus: string | null
   blockedReasons: string[]
-  emotionalClosureAudit: AlicizationVisibleReplyRealizationArtifact['emotionalClosureAudit']
-  selfAuthorityAudit: AlicizationVisibleReplyRealizationArtifact['selfAuthorityAudit']
-  projectStateAudit: AlicizationVisibleReplyRealizationArtifact['projectStateAudit']
-  openingGuidanceHoldDetail: string | null
-  companionshipHoldMode: AlicizationVisibleReplyRealizationArtifact['companionshipHoldMode']
-  openingEmbodimentAudit: AlicizationVisibleReplyRealizationArtifact['openingEmbodimentAudit']
   reason: string | null
   critic: AlicizationVisibleReplyRealizationArtifact['critic']
   closure: AlicizationVisibleReplyRealizationArtifact['closure']
-}
-
-const visibleReplyProjectStateEvidenceKeys = [
-  'sameHerSummary',
-  'sameHerHoldDetail',
-  'continuityArcStage',
-  'continuityCue',
-  'sameHerDriftRiskSummary',
-  'proactiveSameHerGapSummary',
-  'currentPhaseSummary',
-  'landedProgressSummary',
-  'openClosureSummary',
-  'openFocusSummary',
-  'nextFocusSummary',
-  'nextClosureTargetSummary',
-  'memoryClosureSummary',
-  'recallWhySummary',
-  'emotionalClosureSummary',
-  'emotionalClosureCue',
-  'continuitySummary',
-  'embodimentClosureSummary',
-  'preDialogueAwarenessSummary',
-] as const satisfies ReadonlyArray<keyof VisibleReplyProjectStateAuditEvidence>
-
-function hasVisibleReplyProjectStateEvidence(
-  audit: VisibleReplyProjectStateAuditInput | null | undefined,
-) {
-  return Boolean(
-    audit
-    && visibleReplyProjectStateEvidenceKeys.some((key) => {
-      const value = audit[key]
-      return typeof value === 'string' && value.trim().length > 0
-    }),
-  )
-}
-
-function mergeVisibleReplyProjectStateAudit<TInput extends {
-  primary?: VisibleReplyProjectStateAuditInput | null
-  payload?: VisibleReplyProjectStateAuditInput | null
-  structured?: VisibleReplyProjectStateAuditInput | null
-}>(input: TInput) {
-  if (!input.primary && !input.payload && !input.structured)
-    return null
-
-  const mergedSameHerSummary = resolvePreferredProjectSameHerSummary(
-    input.primary?.sameHerSummary,
-    input.payload?.sameHerSummary,
-    input.structured?.sameHerSummary,
-  )
-  const mergedSameHerHoldDetail
-    = preferRicherProjectStateAuditText({
-      current: input.primary?.sameHerHoldDetail,
-      candidate: preferRicherProjectStateAuditText({
-        current: input.payload?.sameHerHoldDetail,
-        candidate: input.structured?.sameHerHoldDetail,
-      }),
-    })
-    ?? null
-  const mergedContinuityArcStage = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.continuityArcStage,
-      candidate: input.payload?.continuityArcStage,
-    }),
-    candidate: input.structured?.continuityArcStage,
-  })
-  const mergedContinuityCue = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.continuityCue,
-      candidate: input.payload?.continuityCue,
-    }),
-    candidate: input.structured?.continuityCue,
-  })
-  const mergedSameHerDriftRiskSummary = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.sameHerDriftRiskSummary,
-      candidate: input.payload?.sameHerDriftRiskSummary,
-    }),
-    candidate: input.structured?.sameHerDriftRiskSummary,
-  })
-  const mergedProactiveSameHerGapSummary = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.proactiveSameHerGapSummary,
-      candidate: input.payload?.proactiveSameHerGapSummary,
-    }),
-    candidate: input.structured?.proactiveSameHerGapSummary,
-  })
-  const mergedLandedProgressSummary = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.landedProgressSummary,
-      candidate: input.payload?.landedProgressSummary,
-    }),
-    candidate: input.structured?.landedProgressSummary,
-  })
-  const mergedCurrentPhaseSummary = preferProjectStateAuditPhaseSummary(
-    input.primary?.currentPhaseSummary,
-    input.payload?.currentPhaseSummary,
-    input.structured?.currentPhaseSummary,
-  )
-  const mergedOpenClosureSummary = mergeProjectStateAuditOpenClosureSummary({
-    current: mergeProjectStateAuditOpenClosureSummary({
-      current: input.primary?.openClosureSummary,
-      candidate: input.payload?.openClosureSummary,
-    }),
-    candidate: input.structured?.openClosureSummary,
-  })
-  const mergedOpenFocusSummary = mergeProjectStateAuditFocusSummary({
-    current: mergeProjectStateAuditFocusSummary({
-      current: input.primary?.openFocusSummary,
-      candidate: input.payload?.openFocusSummary,
-    }),
-    candidate: input.structured?.openFocusSummary,
-  })
-  const mergedNextFocusSummary = mergeProjectStateAuditFocusSummary({
-    current: mergeProjectStateAuditFocusSummary({
-      current: input.primary?.nextFocusSummary,
-      candidate: input.payload?.nextFocusSummary,
-    }),
-    candidate: input.structured?.nextFocusSummary,
-  })
-  const mergedNextClosureTargetSummary = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.nextClosureTargetSummary,
-      candidate: input.payload?.nextClosureTargetSummary,
-    }),
-    candidate: input.structured?.nextClosureTargetSummary,
-  })
-  const mergedMemoryClosureSummary = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.memoryClosureSummary,
-      candidate: input.payload?.memoryClosureSummary,
-    }),
-    candidate: input.structured?.memoryClosureSummary,
-  })
-  const mergedRecallWhySummary = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.recallWhySummary,
-      candidate: input.payload?.recallWhySummary,
-    }),
-    candidate: input.structured?.recallWhySummary,
-  })
-  const mergedEmotionalClosureSummary = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.emotionalClosureSummary,
-      candidate: input.payload?.emotionalClosureSummary,
-    }),
-    candidate: input.structured?.emotionalClosureSummary,
-  })
-  const mergedEmotionalClosureCue = preferRicherProjectStateAuditText({
-    current: preferRicherProjectStateAuditText({
-      current: input.primary?.emotionalClosureCue,
-      candidate: input.payload?.emotionalClosureCue,
-    }),
-    candidate: input.structured?.emotionalClosureCue,
-  })
-  const structuredPreDialogueAwarenessSummary = input.structured?.preDialogueAwarenessSummary ?? null
-  const primaryPreDialogueAwarenessSummary = input.primary?.preDialogueAwarenessSummary ?? null
-  const payloadPreDialogueAwarenessSummary = input.payload?.preDialogueAwarenessSummary ?? null
-  const richerCarriedPreDialogueAwarenessSummary = preferProjectStateAuditPreDialogueAwarenessSummary(
-    primaryPreDialogueAwarenessSummary,
-    payloadPreDialogueAwarenessSummary,
-    structuredPreDialogueAwarenessSummary,
-  )
-  const mergedEmbodimentClosureSummary = resolvePreferredEmbodimentClosureSummary(
-    input.primary?.embodimentClosureSummary,
-    input.structured?.embodimentClosureSummary,
-    input.payload?.embodimentClosureSummary,
-  )
-
-  const mergedAudit = {
-    sameHerSummary: mergedSameHerSummary,
-    sameHerHoldDetail: mergedSameHerHoldDetail,
-    continuityArcStage: mergedContinuityArcStage,
-    continuityCue: mergedContinuityCue,
-    sameHerDriftRiskSummary: mergedSameHerDriftRiskSummary,
-    proactiveSameHerGapSummary: mergedProactiveSameHerGapSummary,
-    currentPhaseSummary: mergedCurrentPhaseSummary,
-    landedProgressSummary: mergedLandedProgressSummary,
-    openClosureSummary: mergedOpenClosureSummary,
-    openFocusSummary: mergedOpenFocusSummary,
-    nextFocusSummary: mergedNextFocusSummary,
-    nextClosureTargetSummary: mergedNextClosureTargetSummary,
-    memoryClosureSummary: mergedMemoryClosureSummary,
-    recallWhySummary: mergedRecallWhySummary,
-    emotionalClosureSummary: mergedEmotionalClosureSummary,
-    emotionalClosureCue: mergedEmotionalClosureCue,
-    preDialogueAwarenessSummary:
-      resolveAlicizationProjectPreDialogueAwarenessLine({
-        runtimeProjectState: {
-          preDialogueAwarenessLine: richerCarriedPreDialogueAwarenessSummary,
-          preDialogueAwarenessSummary: richerCarriedPreDialogueAwarenessSummary,
-          companionHeadlineLine: mergedSameHerSummary ?? null,
-          sameHerSelfLine: mergedSameHerSummary ?? null,
-          sameHerHoldDetail: mergedSameHerHoldDetail ?? null,
-          companionBriefingLine: mergedEmotionalClosureSummary ?? null,
-          proactiveSameHerGap: mergedProactiveSameHerGapSummary ?? null,
-          landedProgressSummary: mergedLandedProgressSummary ?? null,
-          openClosureSummary: mergedOpenClosureSummary ?? null,
-          nextClosureTargetSummary: mergedNextClosureTargetSummary ?? null,
-          emotionalClosureSummary: mergedEmotionalClosureSummary ?? null,
-          sameHerDriftRiskSummary: mergedSameHerDriftRiskSummary ?? null,
-        },
-        fallbackProjectState: {
-          preDialogueAwarenessLine: payloadPreDialogueAwarenessSummary,
-          preDialogueAwarenessSummary: payloadPreDialogueAwarenessSummary,
-          companionHeadlineLine: input.payload?.sameHerSummary ?? null,
-          sameHerSelfLine: input.payload?.sameHerSummary ?? null,
-          sameHerHoldDetail: input.payload?.sameHerHoldDetail ?? null,
-          companionBriefingLine: input.payload?.emotionalClosureSummary ?? null,
-          proactiveSameHerGap: input.payload?.proactiveSameHerGapSummary ?? null,
-          landedProgressSummary: input.payload?.landedProgressSummary ?? null,
-          openClosureSummary: input.payload?.openClosureSummary ?? null,
-          nextClosureTargetSummary: input.payload?.nextClosureTargetSummary ?? null,
-          emotionalClosureSummary: input.payload?.emotionalClosureSummary ?? null,
-          sameHerDriftRiskSummary: input.payload?.sameHerDriftRiskSummary ?? null,
-        },
-      })
-      ?? richerCarriedPreDialogueAwarenessSummary
-      ?? payloadPreDialogueAwarenessSummary,
-    continuitySummary: buildProjectStateAuditContinuitySummary({
-      sameHerSummary: mergedSameHerSummary,
-      sameHerHoldDetail: mergedSameHerHoldDetail,
-      sameHerDriftRiskSummary: mergedSameHerDriftRiskSummary,
-      proactiveSameHerGapSummary: mergedProactiveSameHerGapSummary,
-      currentPhaseSummary: mergedCurrentPhaseSummary,
-      landedProgressSummary: mergedLandedProgressSummary,
-      openClosureSummary: mergedOpenClosureSummary,
-      openFocusSummary: mergedOpenFocusSummary,
-      nextFocusSummary: mergedNextFocusSummary,
-      nextClosureTargetSummary: mergedNextClosureTargetSummary,
-      memoryClosureSummary: mergedMemoryClosureSummary,
-      recallWhySummary: mergedRecallWhySummary,
-      emotionalClosureSummary: mergedEmotionalClosureSummary,
-      embodimentClosureSummary: mergedEmbodimentClosureSummary,
-    }),
-    embodimentClosureSummary: mergedEmbodimentClosureSummary,
-  }
-
-  return hasVisibleReplyProjectStateEvidence(mergedAudit)
-    ? mergedAudit
-    : null
-}
-
-function normalizeVisibleReplyProjectStateAudit(raw: unknown) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-
-  const normalizedAudit = {
-    sameHerSummary: sanitizeText((raw as any).sameHerSummary, '') || null,
-    sameHerHoldDetail: sanitizeText((raw as any).sameHerHoldDetail, '') || null,
-    continuityArcStage: sanitizeText((raw as any).continuityArcStage, '') || null,
-    continuityCue: sanitizeText((raw as any).continuityCue, '') || null,
-    sameHerDriftRiskSummary: sanitizeText((raw as any).sameHerDriftRiskSummary, '') || null,
-    proactiveSameHerGapSummary: sanitizeText((raw as any).proactiveSameHerGapSummary, '') || null,
-    currentPhaseSummary: sanitizeText((raw as any).currentPhaseSummary, '') || null,
-    landedProgressSummary: sanitizeText((raw as any).landedProgressSummary, '') || null,
-    openClosureSummary: sanitizeText((raw as any).openClosureSummary, '') || null,
-    openFocusSummary: sanitizeText((raw as any).openFocusSummary, '') || null,
-    nextFocusSummary: sanitizeText((raw as any).nextFocusSummary, '') || null,
-    nextClosureTargetSummary: sanitizeText((raw as any).nextClosureTargetSummary, '') || null,
-    memoryClosureSummary: sanitizeText((raw as any).memoryClosureSummary, '') || null,
-    recallWhySummary: sanitizeText((raw as any).recallWhySummary, '') || null,
-    emotionalClosureSummary: sanitizeText((raw as any).emotionalClosureSummary, '') || null,
-    emotionalClosureCue: sanitizeText((raw as any).emotionalClosureCue, '') || null,
-    preDialogueAwarenessSummary: sanitizeText((raw as any).preDialogueAwarenessSummary, '') || null,
-    continuitySummary: sanitizeText((raw as any).continuitySummary, '') || null,
-    embodimentClosureSummary: sanitizeText((raw as any).embodimentClosureSummary, '') || null,
-  }
-
-  return hasVisibleReplyProjectStateEvidence(normalizedAudit)
-    ? normalizedAudit
-    : null
 }
 
 function normalizeVisibleReplyReasonCodes(raw: unknown, limit = 12) {
@@ -1231,74 +526,6 @@ function normalizeVisibleReplyPublicClosureSummary(raw: unknown): AlicizationVis
   }
 }
 
-interface VisibleReplyRealizationFactSource {
-  visibleReplyValidationStatus?: unknown
-  projectStateEvidenceStatus?: unknown
-  closure?: unknown
-}
-
-function resolveVisibleReplyRealizationFacts(input: {
-  sources: Array<VisibleReplyRealizationFactSource | null | undefined>
-  projectStateAudit: AlicizationVisibleReplyRealizationArtifact['projectStateAudit']
-}) {
-  const normalizedClosures = input.sources
-    .map(source => normalizeVisibleReplyPublicClosureSummary(source?.closure))
-    .filter((closure): closure is NonNullable<AlicizationVisibleReplyRealizationArtifact['closure']> => Boolean(closure))
-  const closure = normalizedClosures.find(candidate => candidate.status === 'blocked')
-    ?? normalizedClosures.find(candidate => candidate.status === 'approved')
-    ?? null
-  const visibleReplyValidationStatus: AlicizationVisibleReplyValidationStatus
-    = closure?.status ?? 'unknown'
-  const evidenceWasComputed = input.sources.some(source =>
-    normalizeAlicizationProjectStateEvidenceStatus(source?.projectStateEvidenceStatus) !== 'unknown',
-  )
-  const projectStateEvidenceStatus: AlicizationProjectStateEvidenceStatus = evidenceWasComputed
-    ? hasVisibleReplyProjectStateEvidence(input.projectStateAudit)
-      ? 'present'
-      : 'missing'
-    : 'unknown'
-
-  return {
-    visibleReplyValidationStatus,
-    projectStateEvidenceStatus,
-    closure,
-  }
-}
-
-function normalizeVisibleReplyOpeningEmbodimentAudit(
-  raw: unknown,
-): AlicizationVisibleReplyRealizationArtifact['openingEmbodimentAudit'] {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-
-  const firstBeatPosture = (raw as any).firstBeatPosture
-  const facialCue = (raw as any).facialCue
-  const actionCue = (raw as any).actionCue
-  const derivedFrom = sanitizeText((raw as any).derivedFrom, '')
-  if (
-    firstBeatPosture !== 'quiet-companionship'
-    && firstBeatPosture !== 'measured-return'
-    && firstBeatPosture !== 'repair-before-closeness'
-    && firstBeatPosture !== 'rest-protective'
-  ) {
-    return null
-  }
-  if (facialCue !== 'soften' && facialCue !== 'settle-repair' && facialCue !== 'quiet' && facialCue !== 'rest-soften')
-    return null
-  if (actionCue !== 'stillness' && actionCue !== 'leave-room' && actionCue !== 'repair-settle' && actionCue !== 'rest-settle')
-    return null
-  if ((raw as any).delivery !== 'calm' || !derivedFrom)
-    return null
-
-  return {
-    firstBeatPosture: firstBeatPosture as VisibleReplyOpeningEmbodimentAudit['firstBeatPosture'],
-    delivery: 'calm',
-    facialCue: facialCue as VisibleReplyOpeningEmbodimentAudit['facialCue'],
-    actionCue: actionCue as VisibleReplyOpeningEmbodimentAudit['actionCue'],
-    derivedFrom,
-  }
-}
-
 function normalizeVisibleReplyRealizationTelemetry(raw: unknown): PendingVisibleReplyRealizationTelemetry | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
@@ -1312,42 +539,7 @@ function normalizeVisibleReplyRealizationTelemetry(raw: unknown): PendingVisible
     || rawActualAuthority === 'non-human-authored-blocked'
     ? rawActualAuthority
     : null
-  const rawEmotionalClosureAudit = (raw as any).emotionalClosureAudit
-  const emotionalClosureAudit = rawEmotionalClosureAudit
-    && typeof rawEmotionalClosureAudit === 'object'
-    && !Array.isArray(rawEmotionalClosureAudit)
-    ? {
-        activeCue: sanitizeText(rawEmotionalClosureAudit.activeCue, '') || null,
-        lowPressureRequired: rawEmotionalClosureAudit.lowPressureRequired === true,
-        antiRestartRequired: rawEmotionalClosureAudit.antiRestartRequired === true,
-      }
-    : null
-  const rawSelfAuthorityAudit = (raw as any).selfAuthorityAudit
-  const selfAuthorityAudit = rawSelfAuthorityAudit
-    && typeof rawSelfAuthorityAudit === 'object'
-    && !Array.isArray(rawSelfAuthorityAudit)
-    ? {
-        authoritySummary: sanitizeText(rawSelfAuthorityAudit.authoritySummary, '') || null,
-        closenessPosture: sanitizeText(rawSelfAuthorityAudit.closenessPosture, '') || null,
-      }
-    : null
-  const rawCompanionshipHoldMode = (raw as any).companionshipHoldMode
-  const companionshipHoldMode = rawCompanionshipHoldMode === 'quiet-companionship'
-    || rawCompanionshipHoldMode === 'measured-return'
-    || rawCompanionshipHoldMode === 'repair-before-closeness'
-    || rawCompanionshipHoldMode === 'rest-protective'
-    ? rawCompanionshipHoldMode
-    : null
-  const projectStateAudit = normalizeVisibleReplyProjectStateAudit((raw as any).projectStateAudit)
   const closure = normalizeVisibleReplyPublicClosureSummary((raw as any).closure)
-  const realizationFacts = resolveVisibleReplyRealizationFacts({
-    sources: [{
-      visibleReplyValidationStatus: (raw as any).visibleReplyValidationStatus,
-      projectStateEvidenceStatus: (raw as any).projectStateEvidenceStatus,
-      closure,
-    }],
-    projectStateAudit,
-  })
 
   return {
     version: 'visible-reply-realization-v1',
@@ -1358,20 +550,12 @@ function normalizeVisibleReplyRealizationTelemetry(raw: unknown): PendingVisible
       : null,
     mode: sanitizeText((raw as any).mode, '') || null,
     visibleText: sanitizeText((raw as any).visibleText, '') || null,
-    visibleReplyValidationStatus: realizationFacts.visibleReplyValidationStatus,
-    projectStateEvidenceStatus: realizationFacts.projectStateEvidenceStatus,
-    sameHerInwardCarry: sanitizeText((raw as any).sameHerInwardCarry, '') || null,
+    visibleReplyValidationStatus: closure?.status ?? 'unknown',
     nonHumanAuthoredStatus: sanitizeText((raw as any).nonHumanAuthoredStatus, '') || null,
     blockedReasons: normalizeVisibleReplyReasonCodes((raw as any).blockedReasons),
-    emotionalClosureAudit,
-    selfAuthorityAudit,
-    projectStateAudit,
-    openingGuidanceHoldDetail: sanitizeText((raw as any).openingGuidanceHoldDetail, '') || null,
-    companionshipHoldMode,
-    openingEmbodimentAudit: normalizeVisibleReplyOpeningEmbodimentAudit((raw as any).openingEmbodimentAudit),
     reason: sanitizeText((raw as any).reason, '') || null,
     critic: normalizeVisibleReplyPublicCriticSummary((raw as any).critic),
-    closure: realizationFacts.closure,
+    closure,
   }
 }
 
@@ -1391,18 +575,9 @@ function mergeVisibleReplyRealizationTelemetry(input: {
     return null
 
   const base = primary ?? payload ?? structured ?? pending!
-  const projectStateAudit = mergeVisibleReplyProjectStateAudit({
-    primary: mergeVisibleReplyProjectStateAudit({
-      primary: pending?.projectStateAudit ?? null,
-      structured: primary?.projectStateAudit ?? null,
-    }),
-    payload: payload?.projectStateAudit ?? null,
-    structured: structured?.projectStateAudit ?? null,
-  })
-  const realizationFacts = resolveVisibleReplyRealizationFacts({
-    sources,
-    projectStateAudit,
-  })
+  const closure = sources.find(source => source.closure?.status === 'blocked')?.closure
+    ?? sources.find(source => source.closure?.status === 'approved')?.closure
+    ?? null
   const blockedReasons = sources.find(source => source.blockedReasons.length > 0)?.blockedReasons ?? []
 
   return {
@@ -1432,14 +607,7 @@ function mergeVisibleReplyRealizationTelemetry(input: {
       ?? structured?.visibleText
       ?? pending?.visibleText
       ?? null,
-    visibleReplyValidationStatus: realizationFacts.visibleReplyValidationStatus,
-    projectStateEvidenceStatus: realizationFacts.projectStateEvidenceStatus,
-    sameHerInwardCarry:
-      primary?.sameHerInwardCarry
-      ?? payload?.sameHerInwardCarry
-      ?? structured?.sameHerInwardCarry
-      ?? pending?.sameHerInwardCarry
-      ?? null,
+    visibleReplyValidationStatus: closure?.status ?? 'unknown',
     nonHumanAuthoredStatus:
       primary?.nonHumanAuthoredStatus
       ?? payload?.nonHumanAuthoredStatus
@@ -1447,51 +615,14 @@ function mergeVisibleReplyRealizationTelemetry(input: {
       ?? pending?.nonHumanAuthoredStatus
       ?? null,
     blockedReasons: [...blockedReasons],
-    emotionalClosureAudit:
-      primary?.emotionalClosureAudit
-      ?? payload?.emotionalClosureAudit
-      ?? structured?.emotionalClosureAudit
-      ?? pending?.emotionalClosureAudit
-      ?? null,
-    selfAuthorityAudit:
-      primary?.selfAuthorityAudit
-      ?? payload?.selfAuthorityAudit
-      ?? structured?.selfAuthorityAudit
-      ?? pending?.selfAuthorityAudit
-      ?? null,
-    projectStateAudit,
-    openingGuidanceHoldDetail:
-      primary?.openingGuidanceHoldDetail
-      ?? payload?.openingGuidanceHoldDetail
-      ?? structured?.openingGuidanceHoldDetail
-      ?? pending?.openingGuidanceHoldDetail
-      ?? null,
-    companionshipHoldMode:
-      primary?.companionshipHoldMode
-      ?? payload?.companionshipHoldMode
-      ?? structured?.companionshipHoldMode
-      ?? pending?.companionshipHoldMode
-      ?? null,
-    openingEmbodimentAudit:
-      primary?.openingEmbodimentAudit
-      ?? payload?.openingEmbodimentAudit
-      ?? structured?.openingEmbodimentAudit
-      ?? pending?.openingEmbodimentAudit
-      ?? null,
     reason: primary?.reason ?? payload?.reason ?? structured?.reason ?? pending?.reason ?? null,
     critic: primary?.critic ?? payload?.critic ?? structured?.critic ?? pending?.critic ?? null,
-    closure: realizationFacts.closure,
+    closure,
   }
 }
 
 export const runtimeTestInternals = {
-  buildProjectStateAuditContinuitySummary,
-  mergeVisibleReplyProjectStateAudit,
-  mergeVisibleReplyRealizationTelemetry,
   normalizeVisibleReplyRealizationTelemetry,
-  normalizePersistedProjectStateForConversationTurn,
-  resolveVisibleReplyRealizationFacts,
-  buildPreparedProjectStateClosureSnapshot: mainChatBackgroundRunTestInternals.buildPreparedProjectStateClosureSnapshot,
   getProactiveLoopStateCache: (cache: unknown, cardId: string) => {
     if (!(cache instanceof Map))
       return undefined
@@ -1508,405 +639,33 @@ export const runtimeTestInternals = {
   currentDesktopInspectScene: null as ((input: AlicizationLocalDesktopInspectSceneInput) => Promise<unknown>) | null,
 }
 
-function normalizePersistedProjectStateForConversationTurn(input: {
-  assistantText?: string | null
+function normalizePersistedConversationTurnStructure(input: {
   structured?: Record<string, unknown> | null
-  projectStatePersistence: {
-    identity: string
-    currentPhase: string
-    latestLandedProgress: string | null
-    primaryOpenLoop: string | null
-    proactiveSameHerGap?: string | null
-    openFocusSummary?: string | null
-    nextClosureTarget: string
-    nextFocusSummary?: string | null
-    emotionalClosureCue?: string | null
-    sameHerHoldDetail?: string | null
-  }
 }) {
-  const assistantText = sanitizeText(input.assistantText ?? '', '')
-  const structured = input.structured && typeof input.structured === 'object'
-    ? { ...input.structured }
-    : null
-  if (!structured)
-    return structured
-  const hasVisibleReplyRealization = Object.prototype.hasOwnProperty.call(
-    structured,
-    'visibleReplyRealization',
-  )
-  const currentVisibleReplyRealization = normalizeVisibleReplyRealizationTelemetry(
-    structured.visibleReplyRealization,
-  )
-  if (hasVisibleReplyRealization)
-    structured.visibleReplyRealization = currentVisibleReplyRealization
-  if (!assistantText)
+  if (!input.structured || typeof input.structured !== 'object')
+    return input.structured ?? null
+
+  const {
+    projectState: _projectState,
+    projectStateContinuity: _projectStateContinuity,
+    projectStatePreflightSummary: _projectStatePreflightSummary,
+    projectStatePreDialogueAwarenessLine: _projectStatePreDialogueAwarenessLine,
+    preDialogueAwareness: _preDialogueAwareness,
+    ...structured
+  } = input.structured
+
+  if (!Object.prototype.hasOwnProperty.call(input.structured, 'visibleReplyRealization'))
     return structured
 
-  const currentProjectState = structured.projectState && typeof structured.projectState === 'object'
-    ? structured.projectState as Record<string, unknown>
-    : null
-  const currentProjectSameHerSelfLine = currentProjectState?.sameHerSelfLine
-  const sanitizedRuntimeSameHerSelfLine = looksLikeSceneContaminatedRuntimeSameHerSelfLine(currentProjectSameHerSelfLine)
-    ? null
-    : currentProjectSameHerSelfLine
-  const explicitCurrentLatestLandedProgress
-    = sanitizeText(
-      currentProjectState?.latestLandedProgress ?? currentProjectState?.latestProgress,
-      '',
-    )?.slice(0, 320) || null
-  const explicitCurrentPrimaryOpenLoop = sanitizeText(currentProjectState?.primaryOpenLoop, '')?.slice(0, 420) || null
-  const explicitCurrentNextClosureTarget = sanitizeText(currentProjectState?.nextClosureTarget, '')?.slice(0, 420) || null
-  const explicitCurrentPreflightSummary = sanitizeText(currentProjectState?.preflightSummary, '')?.slice(0, 420) || null
-  const explicitCurrentPreDialogueAwarenessLine = sanitizeText(currentProjectState?.preDialogueAwarenessLine, '')?.slice(0, 420) || null
-  const explicitCurrentAwarenessLine = sanitizeText(
-    currentProjectState?.awarenessLine ?? currentProjectState?.preDialogueAwarenessLine,
-    '',
-  )?.slice(0, 420) || null
-  const explicitCurrentCompanionHeadlineLine = sanitizeText(currentProjectState?.companionHeadlineLine, '')?.slice(0, 320) || null
-  const explicitCurrentCompanionBriefingLine = sanitizeText(currentProjectState?.companionBriefingLine, '')?.slice(0, 320) || null
-  const explicitCurrentSameHerDriftRisk = sanitizeText(currentProjectState?.sameHerDriftRisk, '')?.slice(0, 320) || null
-  const explicitCurrentProactiveSameHerGap = sanitizeText(
-    currentProjectState?.proactiveSameHerGap ?? currentProjectState?.proactiveSameHerGapSummary,
-    '',
-  )?.slice(0, 320) || null
-  const explicitCurrentEmotionalClosureCue = sanitizeText(currentProjectState?.emotionalClosureCue, '')?.slice(0, 320) || null
-  const explicitCurrentMemoryClosureSummary = sanitizeText(currentProjectState?.memoryClosureSummary, '')?.slice(0, 420) || null
-  const explicitCurrentSameHerHoldDetail = sanitizeText(currentProjectState?.sameHerHoldDetail, '')?.slice(0, 420) || null
-
-  const canonicalProjectState = resolveAlicizationProjectStateSnapshot({
-    runtimeProjectState: {
-      identity: currentProjectState?.identity,
-      currentPhase: currentProjectState?.currentPhase,
-      latestLandedProgress: explicitCurrentLatestLandedProgress,
-      primaryOpenLoop: explicitCurrentPrimaryOpenLoop,
-      nextClosureTarget: explicitCurrentNextClosureTarget,
-      sameHerSelfLine: sanitizedRuntimeSameHerSelfLine,
-      sameHerDriftRisk: explicitCurrentSameHerDriftRisk,
-      proactiveSameHerGap: explicitCurrentProactiveSameHerGap,
-      sameHerHoldDetail: explicitCurrentSameHerHoldDetail,
-      preflightSummary: explicitCurrentPreflightSummary,
-      preDialogueAwarenessLine: explicitCurrentPreDialogueAwarenessLine,
-      awarenessLine: explicitCurrentAwarenessLine,
-      companionHeadlineLine: explicitCurrentCompanionHeadlineLine,
-      companionBriefingLine: explicitCurrentCompanionBriefingLine,
-      emotionalClosureCue: explicitCurrentEmotionalClosureCue,
-    },
-    fallbackProjectState: {
-      identity: input.projectStatePersistence.identity,
-      currentPhase: input.projectStatePersistence.currentPhase,
-      latestLandedProgress: input.projectStatePersistence.latestLandedProgress,
-      primaryOpenLoop: input.projectStatePersistence.primaryOpenLoop,
-      proactiveSameHerGap: input.projectStatePersistence.proactiveSameHerGap,
-      nextClosureTarget: input.projectStatePersistence.nextClosureTarget,
-      sameHerHoldDetail: input.projectStatePersistence.sameHerHoldDetail,
-    },
-  })
-  const canonicalProjectStatusBrief = resolveAlicizationProjectStatusBrief({
-    runtimeProjectState: {
-      identity: canonicalProjectState.identity,
-      currentPhase: canonicalProjectState.currentPhase,
-      latestLandedProgress: canonicalProjectState.latestLandedProgress,
-      latestProgress: canonicalProjectState.latestProgress,
-      primaryOpenLoop: canonicalProjectState.primaryOpenLoop,
-      nextClosureTarget: canonicalProjectState.nextClosureTarget,
-      sameHerSelfLine: canonicalProjectState.sameHerSelfLine,
-      sameHerDriftRisk: canonicalProjectState.sameHerDriftRisk,
-      preflightSummary: canonicalProjectState.preflightSummary,
-      preDialogueAwarenessLine: canonicalProjectState.preDialogueAwarenessLine,
-      awarenessLine: canonicalProjectState.awarenessLine,
-      companionHeadlineLine: canonicalProjectState.companionHeadlineLine,
-      companionBriefingLine: canonicalProjectState.companionBriefingLine,
-      emotionalClosureCue: canonicalProjectState.emotionalClosureCue,
-    },
-  })
-  const strongerPersistedSameHerSelfLine = preferStrongerPersistedSameHerSelfLine({
-    current: sanitizedRuntimeSameHerSelfLine,
-    candidate: canonicalProjectState.sameHerSelfLine,
-  }) || canonicalProjectState.sameHerSelfLine
-  const preferredLatestLandedProgress = explicitCurrentLatestLandedProgress || preferProjectStateSpecificClosureSummary({
-    canonical: canonicalProjectState.latestLandedProgress,
-    persisted: input.projectStatePersistence.latestLandedProgress,
-    canonicalFallback: resolveAlicizationProjectStateBrief().continuityProgressSummary
-      ?? resolveAlicizationProjectStateBrief().memoryAnthropomorphismProgress.at(-1)
-      ?? null,
-  })
-  const preferredPrimaryOpenLoop = explicitCurrentPrimaryOpenLoop || preferProjectStateSpecificClosureSummary({
-    canonical: canonicalProjectState.primaryOpenLoop,
-    persisted: input.projectStatePersistence.primaryOpenLoop,
-    canonicalFallback: resolveAlicizationProjectStateBrief().primaryOpenLoop,
-  })
-  const preferredNextClosureTarget = explicitCurrentNextClosureTarget || preferProjectStateSpecificClosureSummary({
-    canonical: canonicalProjectState.nextClosureTarget,
-    persisted: input.projectStatePersistence.nextClosureTarget,
-    canonicalFallback: resolveAlicizationProjectStateBrief().nextClosureTarget,
-  })
-  const preferredSameHerHoldDetail = preferRicherProjectStateAuditText({
-    current: explicitCurrentSameHerHoldDetail,
-    candidate: canonicalProjectState.sameHerHoldDetail,
-  }) ?? null
-  const preferredPreDialogueAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: {
-      preDialogueAwarenessLine: explicitCurrentPreDialogueAwarenessLine ?? canonicalProjectState.preDialogueAwarenessLine,
-      awarenessLine: explicitCurrentAwarenessLine ?? canonicalProjectState.preDialogueAwarenessLine,
-      companionHeadlineLine:
-        explicitCurrentCompanionHeadlineLine
-        ?? canonicalProjectState.companionHeadlineLine
-        ?? strongerPersistedSameHerSelfLine
-        ?? canonicalProjectStatusBrief.companionHeadlineLine
-        ?? null,
-      companionBriefingLine:
-        explicitCurrentCompanionBriefingLine
-        ?? canonicalProjectState.companionBriefingLine
-        ?? canonicalProjectStatusBrief.companionBriefingLine
-        ?? null,
-      preflightSummary:
-        explicitCurrentPreflightSummary
-        ?? canonicalProjectState.preflightSummary
-        ?? canonicalProjectStatusBrief.preflightSummary
-        ?? null,
-      landedProgressSummary: preferredLatestLandedProgress,
-      openClosureSummary: preferredPrimaryOpenLoop,
-      proactiveSameHerGap: explicitCurrentProactiveSameHerGap ?? canonicalProjectState.proactiveSameHerGap ?? null,
-      nextClosureTargetSummary: preferredNextClosureTarget,
-      emotionalClosureSummary: explicitCurrentEmotionalClosureCue ?? canonicalProjectState.emotionalClosureCue ?? null,
-      sameHerDriftRiskSummary:
-        explicitCurrentSameHerDriftRisk
-        ?? canonicalProjectStatusBrief.sameHerDriftRisk
-        ?? canonicalProjectState.sameHerDriftRisk
-        ?? null,
-    },
-    fallbackProjectState: {
-      preDialogueAwarenessLine: canonicalProjectState.preDialogueAwarenessLine,
-      awarenessLine: canonicalProjectState.preDialogueAwarenessLine,
-      companionHeadlineLine:
-        canonicalProjectState.companionHeadlineLine
-        ?? strongerPersistedSameHerSelfLine
-        ?? canonicalProjectStatusBrief.companionHeadlineLine
-        ?? null,
-      companionBriefingLine: canonicalProjectState.companionBriefingLine ?? canonicalProjectStatusBrief.companionBriefingLine ?? null,
-      preflightSummary: canonicalProjectState.preflightSummary ?? canonicalProjectStatusBrief.preflightSummary ?? null,
-      landedProgressSummary: preferredLatestLandedProgress,
-      openClosureSummary: preferredPrimaryOpenLoop,
-      proactiveSameHerGap: canonicalProjectState.proactiveSameHerGap ?? input.projectStatePersistence.proactiveSameHerGap ?? null,
-      nextClosureTargetSummary: preferredNextClosureTarget,
-      emotionalClosureSummary: canonicalProjectState.emotionalClosureCue ?? null,
-      sameHerDriftRiskSummary:
-        canonicalProjectStatusBrief.sameHerDriftRisk
-        ?? canonicalProjectState.sameHerDriftRisk
-        ?? null,
-    },
-  }) ?? canonicalProjectState.preDialogueAwarenessLine
-  const preferredCompanionHeadlineLine
-    = explicitCurrentCompanionHeadlineLine
-      || sanitizeText(canonicalProjectState.companionHeadlineLine, '')?.slice(0, 320)
-      || sanitizeText(canonicalProjectStatusBrief.companionHeadlineLine, '')?.slice(0, 320)
-      || sanitizeText(strongerPersistedSameHerSelfLine, '')?.slice(0, 320)
-      || null
-  const preferredCompanionHeadlineLooksLikeStrongerSameHerLine = Boolean(
-    preferredCompanionHeadlineLine
-    && /same living line|without splitting her continuity|same local-first digital life project|unfinished phase 1 closure seam|one living her|same phase 1 digital life/i.test(preferredCompanionHeadlineLine),
+  const realization = normalizeVisibleReplyRealizationTelemetry(
+    input.structured.visibleReplyRealization,
   )
-  const preferredAwarenessLooksThinOrCanonical = Boolean(
-    preferredPreDialogueAwarenessLine
-    && (
-      isAlicizationThinProjectAwarenessLine(preferredPreDialogueAwarenessLine)
-      || /alicization is a local-first digital life project/i.test(preferredPreDialogueAwarenessLine)
-      || preferredPreDialogueAwarenessLine.includes('open=')
-      || preferredPreDialogueAwarenessLine.includes('next=')
-    ),
-  )
-  const strongerStatusAwarenessLine
-    = sanitizeText(canonicalProjectStatusBrief.awarenessLine, '')?.slice(0, 420)
-      || sanitizeText(strongerPersistedSameHerSelfLine, '')?.slice(0, 320)
-      || null
-  const finalNormalizedPreDialogueAwarenessLine = (() => {
-    if (
-      preferredCompanionHeadlineLine
-      && preferredCompanionHeadlineLooksLikeStrongerSameHerLine
-      && (
-        !preferredPreDialogueAwarenessLine
-        || preferredAwarenessLooksThinOrCanonical
-        || scoreAlicizationProjectAwarenessLine(preferredCompanionHeadlineLine)
-        >= scoreAlicizationProjectAwarenessLine(preferredPreDialogueAwarenessLine) + 2
-      )
-    ) {
-      return preferredCompanionHeadlineLine
-    }
-
-    if (
-      strongerStatusAwarenessLine
-      && (
-        !preferredPreDialogueAwarenessLine
-        || preferredAwarenessLooksThinOrCanonical
-        || !/same phase 1 digital life|same living line|one living her|one continuous her/i.test(preferredPreDialogueAwarenessLine)
-      )
-      && /same phase 1 digital life|same living line|one living her|one continuous her/i.test(strongerStatusAwarenessLine)
-    ) {
-      return strongerStatusAwarenessLine
-    }
-
-    return preferredPreDialogueAwarenessLine
-  })()
-
-  structured.projectState = {
-    ...currentProjectState,
-    identity: canonicalProjectState.identity,
-    currentPhase: canonicalProjectState.currentPhase,
-    preflightSummary: explicitCurrentPreflightSummary || canonicalProjectStatusBrief.preflightSummary || canonicalProjectState.preflightSummary,
-    preDialogueAwarenessLine: finalNormalizedPreDialogueAwarenessLine,
-    companionHeadlineLine: preferredCompanionHeadlineLine,
-    latestLandedProgress: preferredLatestLandedProgress,
-    primaryOpenLoop: preferredPrimaryOpenLoop,
-    proactiveSameHerGap:
-      explicitCurrentProactiveSameHerGap
-      || canonicalProjectState.proactiveSameHerGap
-      || input.projectStatePersistence.proactiveSameHerGap
-      || null,
-    nextClosureTarget: preferredNextClosureTarget,
-    sameHerSelfLine: strongerPersistedSameHerSelfLine || canonicalProjectStatusBrief.sameHerSelfLine || null,
-    sameHerHoldDetail: preferredSameHerHoldDetail,
-    sameHerDriftRisk: explicitCurrentSameHerDriftRisk || canonicalProjectStatusBrief.sameHerDriftRisk || canonicalProjectState.sameHerDriftRisk,
-    emotionalClosureCue:
-      explicitCurrentEmotionalClosureCue
-      || canonicalProjectState.emotionalClosureCue
-      || canonicalProjectStatusBrief.companionBriefingLine
-      || null,
-    memoryClosureSummary: explicitCurrentMemoryClosureSummary,
+  if (!realization) {
+    structured.visibleReplyRealization = null
+    return structured
   }
 
-  const canonicalProjectStateAudit = {
-    sameHerSummary: strongerPersistedSameHerSelfLine,
-    sameHerHoldDetail: preferredSameHerHoldDetail,
-    sameHerDriftRiskSummary: canonicalProjectStatusBrief.sameHerDriftRisk || canonicalProjectState.sameHerDriftRisk,
-    proactiveSameHerGapSummary:
-      explicitCurrentProactiveSameHerGap
-      || canonicalProjectState.proactiveSameHerGap
-      || input.projectStatePersistence.proactiveSameHerGap
-      || null,
-    currentPhaseSummary: canonicalProjectState.currentPhase
-      ?? input.projectStatePersistence.currentPhase
-      ?? null,
-    landedProgressSummary: preferredLatestLandedProgress
-      ?? null,
-    openClosureSummary: preferredPrimaryOpenLoop
-      ?? preferredNextClosureTarget,
-    openFocusSummary: deriveCompactProjectStateOpenFocusSummary(
-      preferredPrimaryOpenLoop
-      ?? preferredNextClosureTarget
-      ?? canonicalProjectState.nextClosureTarget,
-      {
-        emotionalClosureCue:
-          explicitCurrentEmotionalClosureCue
-          || canonicalProjectState.emotionalClosureCue
-          || canonicalProjectStatusBrief.companionBriefingLine
-          || null,
-      },
-    ),
-    nextFocusSummary: deriveCompactProjectStateNextFocusSummary(
-      preferredNextClosureTarget
-      ?? canonicalProjectState.nextClosureTarget
-      ?? null,
-      {
-        emotionalClosureCue:
-          explicitCurrentEmotionalClosureCue
-          || canonicalProjectState.emotionalClosureCue
-          || canonicalProjectStatusBrief.companionBriefingLine
-          || null,
-      },
-    ),
-    nextClosureTargetSummary: preferredNextClosureTarget
-      ?? null,
-    memoryClosureSummary: explicitCurrentMemoryClosureSummary,
-    emotionalClosureCue:
-      explicitCurrentEmotionalClosureCue
-      || canonicalProjectState.emotionalClosureCue
-      || canonicalProjectStatusBrief.companionBriefingLine
-      || null,
-    preDialogueAwarenessSummary:
-      finalNormalizedPreDialogueAwarenessLine
-      ?? canonicalProjectState.preflightSummary
-      ?? `identity-continuity | ${strongerPersistedSameHerSelfLine}`,
-    continuitySummary: buildProjectStateAuditContinuitySummary({
-      sameHerSummary: strongerPersistedSameHerSelfLine,
-      sameHerDriftRiskSummary:
-        canonicalProjectStatusBrief.sameHerDriftRisk
-        || canonicalProjectState.sameHerDriftRisk
-        || 'unfinished closure drift still needs continuity',
-      proactiveSameHerGapSummary:
-        explicitCurrentProactiveSameHerGap
-        || canonicalProjectState.proactiveSameHerGap
-        || input.projectStatePersistence.proactiveSameHerGap
-        || null,
-      currentPhaseSummary:
-        canonicalProjectState.currentPhase
-        ?? input.projectStatePersistence.currentPhase
-        ?? null,
-      landedProgressSummary:
-        preferredLatestLandedProgress
-        ?? null,
-      openClosureSummary:
-        preferredPrimaryOpenLoop
-        ?? preferredNextClosureTarget
-        ?? canonicalProjectState.nextClosureTarget,
-      openFocusSummary: deriveCompactProjectStateOpenFocusSummary(
-        preferredPrimaryOpenLoop
-        ?? preferredNextClosureTarget
-        ?? canonicalProjectState.nextClosureTarget,
-        {
-          emotionalClosureCue:
-            explicitCurrentEmotionalClosureCue
-            || canonicalProjectState.emotionalClosureCue
-            || canonicalProjectStatusBrief.companionBriefingLine
-            || null,
-        },
-      ),
-      nextFocusSummary: deriveCompactProjectStateNextFocusSummary(
-        preferredNextClosureTarget
-        ?? canonicalProjectState.nextClosureTarget
-        ?? null,
-        {
-          emotionalClosureCue:
-            explicitCurrentEmotionalClosureCue
-            || canonicalProjectState.emotionalClosureCue
-            || canonicalProjectStatusBrief.companionBriefingLine
-            || null,
-        },
-      ),
-      nextClosureTargetSummary:
-        preferredNextClosureTarget
-        ?? canonicalProjectState.nextClosureTarget
-        ?? null,
-      memoryClosureSummary: explicitCurrentMemoryClosureSummary,
-      emotionalClosureSummary:
-        explicitCurrentEmotionalClosureCue
-        || canonicalProjectState.emotionalClosureCue
-        || canonicalProjectStatusBrief.companionBriefingLine
-        || null,
-      embodimentClosureSummary: null,
-    }),
-  }
-
-  const currentStructuredProjectStateAudit = currentVisibleReplyRealization?.projectStateAudit ?? null
-
-  const mergedStructuredProjectStateAudit = mergeVisibleReplyProjectStateAudit({
-    primary: currentStructuredProjectStateAudit,
-    structured: canonicalProjectStateAudit,
-  })
-  const realizationFacts = resolveVisibleReplyRealizationFacts({
-    sources: [currentVisibleReplyRealization],
-    projectStateAudit: mergedStructuredProjectStateAudit,
-  })
-
-  if (currentVisibleReplyRealization || mergedStructuredProjectStateAudit) {
-    structured.visibleReplyRealization = {
-      ...currentVisibleReplyRealization,
-      version: 'visible-reply-realization-v1',
-      visibleReplyValidationStatus: realizationFacts.visibleReplyValidationStatus,
-      projectStateEvidenceStatus: realizationFacts.projectStateEvidenceStatus,
-      projectStateAudit: mergedStructuredProjectStateAudit,
-      closure: realizationFacts.closure,
-    }
-  }
+  structured.visibleReplyRealization = realization
 
   return structured
 }
@@ -2310,21 +1069,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const memoryTrace = buildMindTraceMemorySnapshotFromPrepared(input.prepared)
     const surface = input.prepared.turnGraph?.surface ?? null
     const normalizedSurfaceRealization = normalizeVisibleReplyRealizationTelemetry(surface)
-    const realizationFacts = resolveVisibleReplyRealizationFacts({
-      sources: [normalizedSurfaceRealization],
-      projectStateAudit: normalizedSurfaceRealization?.projectStateAudit ?? null,
-    })
     const visibleReplyRealization: PendingVisibleReplyRealizationTelemetry | null = surface
       ? {
           ...(
             normalizedSurfaceRealization
             ?? normalizeVisibleReplyRealizationTelemetry({})!
           ),
-          visibleReplyValidationStatus: realizationFacts.visibleReplyValidationStatus,
-          projectStateEvidenceStatus: realizationFacts.projectStateEvidenceStatus,
-          projectStateAudit: normalizedSurfaceRealization?.projectStateAudit ?? null,
           reason: normalizedSurfaceRealization?.reason ?? null,
-          closure: realizationFacts.closure,
         }
       : null
 
@@ -2485,19 +1236,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildPerformanceManifestSystemBlocks,
     resolveOrganicMemoryPromptContext: resolveBaseOrganicMemoryPromptContext,
   } = memoryRuntime
-  const projectStateBrief = resolveAlicizationProjectStateBrief()
   const resolveOrganicMemoryPromptContext = resolveBaseOrganicMemoryPromptContext
-  const projectStatePersistence = {
-    identity: projectStateBrief.identity,
-    currentPhase: projectStateBrief.currentPhase,
-    latestLandedProgress: projectStateBrief.continuityProgressSummary ?? projectStateBrief.memoryAnthropomorphismProgress.at(-1) ?? null,
-    primaryOpenLoop: projectStateBrief.openLoops[0] ?? null,
-    openFocusSummary: deriveCompactProjectStateOpenFocusSummary(projectStateBrief.openLoops[0] ?? null),
-    nextClosureTarget: projectStateBrief.nextClosureTarget,
-    nextFocusSummary: deriveCompactProjectStateNextFocusSummary(projectStateBrief.nextClosureTarget),
-    emotionalClosureCue: projectStateBrief.emotionalClosureCue ?? null,
-    sameHerHoldDetail: projectStateBrief.sameHerHoldDetail ?? null,
-  }
   const {
     executeLearningTask: _executeLearningTask,
     learningActionScheduler,
@@ -2688,7 +1427,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   })
   const {
     buildAgentRuntimeAuditSnapshot,
-    buildAgentTurnContinuitySystemMessages,
     hydrateAgentTurnFromCurrentCardState,
     syncAgentTurnSessionMirror,
     syncSessionMirrorFromCurrentCardState,
@@ -2706,7 +1444,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveAgentSessionContinuityContext: async (cardId, input) => await resolveAgentSessionContinuityContext(cardId, input),
     getPerformanceManifest,
     buildPerformanceManifestSystemBlocks,
-    buildAgentTurnContinuitySystemMessages,
     syncAgentTurnSessionMirror,
     appendAuditLog,
     describePerceptionTarget,
@@ -5062,12 +3799,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     normalizedPayload = {
       ...governedTurn.payload,
-      structured: normalizePersistedProjectStateForConversationTurn({
-        assistantText: governedTurn.payload.assistantText ?? null,
+      structured: normalizePersistedConversationTurnStructure({
         structured: governedTurn.payload.structured && typeof governedTurn.payload.structured === 'object'
           ? governedTurn.payload.structured as Record<string, unknown>
           : null,
-        projectStatePersistence,
       }) ?? governedTurn.payload.structured,
     }
     if (governedTurn.tookOver && governedTurn.governance) {
@@ -5770,14 +4505,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             mergedStructured.performance = dialoguePayload.structured.performance
           }
         }
+        const enrichedStructured = normalizePersistedConversationTurnStructure({
+          structured: mergedStructured as unknown as Record<string, unknown>,
+        }) as typeof dialoguePayload.structured | null
         const enrichedDialoguePayload = {
           ...dialoguePayload,
-          structured: mergedStructured,
-        }
-        if (!enrichedDialoguePayload.structured.projectState || typeof enrichedDialoguePayload.structured.projectState !== 'object') {
-          enrichedDialoguePayload.structured.projectState = {
-            ...projectStatePersistence,
-          }
+          structured: enrichedStructured ?? dialoguePayload.structured,
         }
         const mergedVisibleReplyRealization = mergeVisibleReplyRealizationTelemetry({
           primary: enrichedDialoguePayload.visibleReplyRealization,
@@ -5794,16 +4527,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             mode: (mergedVisibleReplyRealization.mode as any) ?? 'provider-stream',
             visibleText: mergedVisibleReplyRealization.visibleText,
             visibleReplyValidationStatus: mergedVisibleReplyRealization.visibleReplyValidationStatus,
-            projectStateEvidenceStatus: mergedVisibleReplyRealization.projectStateEvidenceStatus,
-            sameHerInwardCarry: mergedVisibleReplyRealization.sameHerInwardCarry,
             nonHumanAuthoredStatus: mergedVisibleReplyRealization.nonHumanAuthoredStatus,
             blockedReasons: [...mergedVisibleReplyRealization.blockedReasons],
-            emotionalClosureAudit: mergedVisibleReplyRealization.emotionalClosureAudit,
-            selfAuthorityAudit: mergedVisibleReplyRealization.selfAuthorityAudit,
-            projectStateAudit: mergedVisibleReplyRealization.projectStateAudit,
-            openingGuidanceHoldDetail: mergedVisibleReplyRealization.openingGuidanceHoldDetail,
-            companionshipHoldMode: mergedVisibleReplyRealization.companionshipHoldMode,
-            openingEmbodimentAudit: mergedVisibleReplyRealization.openingEmbodimentAudit,
             reason: mergedVisibleReplyRealization.reason,
             critic: mergedVisibleReplyRealization.critic,
             closure: mergedVisibleReplyRealization.closure,
@@ -5841,9 +4566,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             assistantText: proactiveAssistantText,
             learningAction: learningAction ?? null,
             learningFocuses,
-            projectStateOpenFocusSummary: projectStatePersistence.openFocusSummary,
-            projectStateNextFocusSummary: projectStatePersistence.nextFocusSummary,
-            projectStateEmotionalClosureCue: projectStatePersistence.emotionalClosureCue,
             emotionalTransitionLedger: derivedBundleForLearning?.emotionalTransitionLedger ?? null,
             affectiveResidue: derivedBundleForLearning?.affectiveResidue ?? null,
           })
@@ -5904,19 +4626,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         const structuredVisibleReplyRealization = normalizeVisibleReplyRealizationTelemetry(
           (normalizedPayload.structured as Record<string, unknown> | undefined)?.visibleReplyRealization,
         )
-        const mergedRuntimeSamplingProjectStateAudit = mergeVisibleReplyProjectStateAudit({
-          primary: pendingMindTraceTelemetry?.visibleReplyRealization?.projectStateAudit ?? null,
-          payload: payloadVisibleReplyRealization?.projectStateAudit ?? null,
-          structured: structuredVisibleReplyRealization?.projectStateAudit ?? null,
-        })
-        const runtimeSamplingRealizationFacts = resolveVisibleReplyRealizationFacts({
-          sources: [
-            pendingMindTraceTelemetry?.visibleReplyRealization,
-            payloadVisibleReplyRealization,
-            structuredVisibleReplyRealization,
-          ],
-          projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
-        })
+        const runtimeSamplingSources = [
+          pendingMindTraceTelemetry?.visibleReplyRealization,
+          payloadVisibleReplyRealization,
+          structuredVisibleReplyRealization,
+        ].filter((source): source is PendingVisibleReplyRealizationTelemetry => Boolean(source))
+        const runtimeSamplingClosure = runtimeSamplingSources
+          .find(source => source.closure?.status === 'blocked')
+          ?.closure
+          ?? runtimeSamplingSources.find(source => source.closure?.status === 'approved')?.closure
+          ?? null
+        const runtimeSamplingVisibleReplyValidationStatus
+          = runtimeSamplingClosure?.status ?? 'unknown'
         await replayBenchmarkRuntime.ingestRuntimeSamplingConversationTurn({
           row: {
             turnId: normalizedPayload.turnId ?? null,
@@ -5935,31 +4656,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                 providerMindExecuted: pendingMindTraceTelemetry.visibleReplyRealization.providerMindExecuted ?? false,
                 mode: (pendingMindTraceTelemetry.visibleReplyRealization.mode as any) ?? 'provider-stream',
                 visibleText: pendingMindTraceTelemetry.visibleReplyRealization.visibleText,
-                visibleReplyValidationStatus: runtimeSamplingRealizationFacts.visibleReplyValidationStatus,
-                projectStateEvidenceStatus: runtimeSamplingRealizationFacts.projectStateEvidenceStatus,
-                sameHerInwardCarry: pendingMindTraceTelemetry.visibleReplyRealization.sameHerInwardCarry,
+                visibleReplyValidationStatus: runtimeSamplingVisibleReplyValidationStatus,
                 nonHumanAuthoredStatus: pendingMindTraceTelemetry.visibleReplyRealization.nonHumanAuthoredStatus,
                 blockedReasons: [...pendingMindTraceTelemetry.visibleReplyRealization.blockedReasons],
-                emotionalClosureAudit: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit
-                  ? {
-                      activeCue: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit.activeCue,
-                      lowPressureRequired: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit.lowPressureRequired,
-                      antiRestartRequired: pendingMindTraceTelemetry.visibleReplyRealization.emotionalClosureAudit.antiRestartRequired,
-                    }
-                  : null,
-                selfAuthorityAudit: pendingMindTraceTelemetry.visibleReplyRealization.selfAuthorityAudit
-                  ? {
-                      authoritySummary: pendingMindTraceTelemetry.visibleReplyRealization.selfAuthorityAudit.authoritySummary,
-                      closenessPosture: pendingMindTraceTelemetry.visibleReplyRealization.selfAuthorityAudit.closenessPosture,
-                    }
-                  : null,
-                projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
-                openingGuidanceHoldDetail: pendingMindTraceTelemetry.visibleReplyRealization.openingGuidanceHoldDetail,
-                companionshipHoldMode: pendingMindTraceTelemetry.visibleReplyRealization.companionshipHoldMode,
-                openingEmbodimentAudit: pendingMindTraceTelemetry.visibleReplyRealization.openingEmbodimentAudit,
                 reason: pendingMindTraceTelemetry.visibleReplyRealization.reason,
                 critic: pendingMindTraceTelemetry.visibleReplyRealization.critic,
-                closure: runtimeSamplingRealizationFacts.closure,
+                closure: runtimeSamplingClosure,
               }
             : payloadVisibleReplyRealization?.expectedAuthority
               && payloadVisibleReplyRealization.actualAuthority
@@ -5970,31 +4672,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                   providerMindExecuted: payloadVisibleReplyRealization.providerMindExecuted ?? false,
                   mode: (payloadVisibleReplyRealization.mode as any) ?? 'provider-stream',
                   visibleText: payloadVisibleReplyRealization.visibleText,
-                  visibleReplyValidationStatus: runtimeSamplingRealizationFacts.visibleReplyValidationStatus,
-                  projectStateEvidenceStatus: runtimeSamplingRealizationFacts.projectStateEvidenceStatus,
-                  sameHerInwardCarry: payloadVisibleReplyRealization.sameHerInwardCarry,
+                  visibleReplyValidationStatus: runtimeSamplingVisibleReplyValidationStatus,
                   nonHumanAuthoredStatus: payloadVisibleReplyRealization.nonHumanAuthoredStatus,
                   blockedReasons: [...payloadVisibleReplyRealization.blockedReasons],
-                  emotionalClosureAudit: payloadVisibleReplyRealization.emotionalClosureAudit
-                    ? {
-                        activeCue: payloadVisibleReplyRealization.emotionalClosureAudit.activeCue,
-                        lowPressureRequired: payloadVisibleReplyRealization.emotionalClosureAudit.lowPressureRequired,
-                        antiRestartRequired: payloadVisibleReplyRealization.emotionalClosureAudit.antiRestartRequired,
-                      }
-                    : null,
-                  selfAuthorityAudit: payloadVisibleReplyRealization.selfAuthorityAudit
-                    ? {
-                        authoritySummary: payloadVisibleReplyRealization.selfAuthorityAudit.authoritySummary,
-                        closenessPosture: payloadVisibleReplyRealization.selfAuthorityAudit.closenessPosture,
-                      }
-                    : null,
-                  projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
-                  openingGuidanceHoldDetail: payloadVisibleReplyRealization.openingGuidanceHoldDetail,
-                  companionshipHoldMode: payloadVisibleReplyRealization.companionshipHoldMode,
-                  openingEmbodimentAudit: payloadVisibleReplyRealization.openingEmbodimentAudit,
                   reason: payloadVisibleReplyRealization.reason,
                   critic: payloadVisibleReplyRealization.critic,
-                  closure: runtimeSamplingRealizationFacts.closure,
+                  closure: runtimeSamplingClosure,
                 }
               : structuredVisibleReplyRealization?.expectedAuthority
                 && structuredVisibleReplyRealization.actualAuthority
@@ -6005,31 +4688,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                     providerMindExecuted: structuredVisibleReplyRealization.providerMindExecuted ?? false,
                     mode: (structuredVisibleReplyRealization.mode as any) ?? 'provider-stream',
                     visibleText: structuredVisibleReplyRealization.visibleText,
-                    visibleReplyValidationStatus: runtimeSamplingRealizationFacts.visibleReplyValidationStatus,
-                    projectStateEvidenceStatus: runtimeSamplingRealizationFacts.projectStateEvidenceStatus,
-                    sameHerInwardCarry: structuredVisibleReplyRealization.sameHerInwardCarry,
+                    visibleReplyValidationStatus: runtimeSamplingVisibleReplyValidationStatus,
                     nonHumanAuthoredStatus: structuredVisibleReplyRealization.nonHumanAuthoredStatus,
                     blockedReasons: [...structuredVisibleReplyRealization.blockedReasons],
-                    emotionalClosureAudit: structuredVisibleReplyRealization.emotionalClosureAudit
-                      ? {
-                          activeCue: structuredVisibleReplyRealization.emotionalClosureAudit.activeCue,
-                          lowPressureRequired: structuredVisibleReplyRealization.emotionalClosureAudit.lowPressureRequired,
-                          antiRestartRequired: structuredVisibleReplyRealization.emotionalClosureAudit.antiRestartRequired,
-                        }
-                      : null,
-                    selfAuthorityAudit: structuredVisibleReplyRealization.selfAuthorityAudit
-                      ? {
-                          authoritySummary: structuredVisibleReplyRealization.selfAuthorityAudit.authoritySummary,
-                          closenessPosture: structuredVisibleReplyRealization.selfAuthorityAudit.closenessPosture,
-                        }
-                      : null,
-                    projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
-                    openingGuidanceHoldDetail: structuredVisibleReplyRealization.openingGuidanceHoldDetail,
-                    companionshipHoldMode: structuredVisibleReplyRealization.companionshipHoldMode,
-                    openingEmbodimentAudit: structuredVisibleReplyRealization.openingEmbodimentAudit,
                     reason: structuredVisibleReplyRealization.reason,
                     critic: structuredVisibleReplyRealization.critic,
-                    closure: runtimeSamplingRealizationFacts.closure,
+                    closure: runtimeSamplingClosure,
                   }
                 : payloadVisibleReplyExecution?.expectedVisibleReplyAuthority
                   && payloadVisibleReplyExecution.actualVisibleReplyAuthority
@@ -6040,18 +4704,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                       providerMindExecuted: payloadVisibleReplyExecution.providerMindExecuted,
                       mode: payloadVisibleReplyExecution.mode,
                       visibleText: sanitizeText(normalizedPayload.assistantText, '') || null,
-                      visibleReplyValidationStatus: runtimeSamplingRealizationFacts.visibleReplyValidationStatus,
-                      projectStateEvidenceStatus: runtimeSamplingRealizationFacts.projectStateEvidenceStatus,
+                      visibleReplyValidationStatus: runtimeSamplingVisibleReplyValidationStatus,
                       nonHumanAuthoredStatus: payloadVisibleReplyExecution.providerMindExecuted
                         ? null
                         : payloadVisibleReplyExecution.reason ?? 'visible-reply-local-fallback',
                       blockedReasons: payloadVisibleReplyExecution.providerMindExecuted
                         ? []
                         : ['non-human-authored-visible-fallback'],
-                      projectStateAudit: mergedRuntimeSamplingProjectStateAudit,
                       reason: payloadVisibleReplyExecution.reason,
                       critic: null,
-                      closure: runtimeSamplingRealizationFacts.closure,
+                      closure: runtimeSamplingClosure,
                     }
                   : undefined,
           traceRecords: buildAlicizationMemoryDecisionTraceRecords(
@@ -6761,7 +5423,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         scenario: policyDecision.scenario,
         style: policyDecision.style,
         urgency: policyDecision.urgency,
-        reasonCodes: policyDecision.reasonCodes,
         cooldownMs: policyDecision.cooldownMs,
         policyVersion: policyDecision.policyVersion,
       },
@@ -6836,7 +5497,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     hostAttitude: string
     coreIncarnation: string
     activeThoughts: AlicizationActiveThought[]
-    continuitySystemBlocks?: string[]
     agentTurnInput?: {
       turnId: string
       decisionTraceId?: string | null
@@ -6889,9 +5549,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         activeThoughts: input.activeThoughts,
         retrievedFacts: [],
         recalledFragments: [],
-      }).concat(
-        input.continuitySystemBlocks?.filter(Boolean) ?? [],
-      ),
+      }),
     })
     if (!raw)
       return null
@@ -7474,7 +6132,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     appendAuditLog,
     buildAgentRuntimeAuditSnapshot,
     hydrateAgentTurnFromCurrentCardState,
-    buildAgentTurnContinuitySystemMessages,
     truncateForDream,
     clampSoulDelta,
     normalizeOrganicMemoryItemText,

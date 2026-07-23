@@ -2,7 +2,6 @@ import type { AlicizationExecutionRoutingIntent } from '@proj-alicization/stage-
 
 import type { AlicizationRecallGovernorSnapshot } from '../../../shared/eventa'
 import type { AlicizationAgentSessionContinuityInput } from './agent-runtime'
-import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 
 import {
@@ -10,11 +9,6 @@ import {
   alicizationFixedTemplateReplacement,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
-
-import {
-  deriveCompactProjectStateNextFocusSummary,
-  deriveCompactProjectStateOpenFocusSummary,
-} from './project-state-focus'
 
 function pushUniqueRule(target: string[], value: string) {
   const normalized = value.trim()
@@ -43,89 +37,44 @@ export function sanitizeGuidanceText(raw: unknown, maxChars = 220) {
   return sanitized === alicizationFixedTemplateReplacement ? '' : sanitized
 }
 
-function sanitizeProjectStateSeedField(raw: unknown, maxChars = 220) {
+function sanitizeHeldAutonomySummary(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
-  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars).trim()
-  if (!normalized)
-    return ''
+
+  const normalized = raw.trim().replace(/\s+/g, ' ')
+  const direct = sanitizeGuidanceText(normalized, maxChars)
   if (
-    /\bSame Phase 1 digital life\b/iu.test(normalized)
-    || /^Before (?:answering|speaking|acting),\s*(?:remember|keep|stay on)\b/iu.test(normalized)
-    || /\bWhat has already landed is\b/iu.test(normalized)
-    || /\bThe still-open closure is\b/iu.test(normalized)
-    || /\bThis reply should keep moving toward\b/iu.test(normalized)
-    || /^same digital life\s*\|\s*keep(?: the)?(?: desktop)? closure(?: seam| line)? explicit\b/iu.test(normalized)
+    direct
+    && !/\b(?:keep the opening lower-pressure|repair continuity first|avoid eager warmth|hold-for-opening|next-open-window)\b/iu.test(direct)
+    && !/\b(?:no mind-authored visible reply was available|proactive_state=|phase=|unresolved=|why_now=|same-her|same her|same living line)\b/iu.test(direct)
+    && !/^(?:label|summary|intent|defer|thread|scenario|goal|reason)=/iu.test(direct)
   ) {
-    return ''
+    return direct
   }
+
   return normalized
+    .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
+    .map((fragment) => {
+      const normalized = sanitizeGuidanceText(fragment, maxChars)
+      if (!normalized)
+        return ''
+      if (
+        /\b(?:keep the opening lower-pressure|repair continuity first|avoid eager warmth|hold-for-opening|next-open-window)\b/iu.test(normalized)
+        || /\b(?:no mind-authored visible reply was available|proactive_state=|phase=|unresolved=|why_now=|same-her|same her|same living line)\b/iu.test(normalized)
+        || /^(?:label|summary|intent|defer|thread|scenario|goal|reason)=/iu.test(normalized)
+      ) {
+        return ''
+      }
+      return normalized
+    })
+    .filter(Boolean)
+    .join(' | ')
+    .slice(0, maxChars)
 }
 
 export function mergeGuidanceLine(values: Array<string | null | undefined>, maxChars = 320) {
   const merged = mergeUniqueRules(values, values.length)
   return sanitizeGuidanceText(merged.join(' '), maxChars) || null
-}
-
-function resolvePreferredProjectOpenFocusSummary(input: {
-  current?: string | null
-  projectPrimaryOpenLoop?: string | null
-  projectStateEmotionalClosureCue?: string | null
-  projectStatePreflightSummary?: string | null
-}) {
-  const current = sanitizeGuidanceText(input.current ?? '', 220)
-  if (current)
-    return current
-
-  const normalizedOpenLoop = sanitizeGuidanceText(input.projectPrimaryOpenLoop ?? '', 220)
-  if (normalizedOpenLoop) {
-    const fromOpenLoop = sanitizeGuidanceText(
-      deriveCompactProjectStateOpenFocusSummary(normalizedOpenLoop, {
-        emotionalClosureCue: input.projectStateEmotionalClosureCue ?? '',
-      }) ?? '',
-      220,
-    )
-    if (fromOpenLoop)
-      return fromOpenLoop
-  }
-
-  const fromPreflight = sanitizeGuidanceText(
-    deriveCompactProjectStateOpenFocusSummary(input.projectStatePreflightSummary ?? '') ?? '',
-    220,
-  )
-  if (fromPreflight)
-    return fromPreflight
-
-  return sanitizeGuidanceText(
-    deriveCompactProjectStateOpenFocusSummary('', {
-      emotionalClosureCue: input.projectStateEmotionalClosureCue ?? '',
-    }) ?? '',
-    220,
-  )
-}
-
-function resolvePreferredProjectNextFocusSummary(input: {
-  current?: string | null
-  projectNextClosureTarget?: string | null
-  projectStateEmotionalClosureCue?: string | null
-  projectPhase?: string | null
-  projectStatePreflightSummary?: string | null
-}) {
-  return sanitizeGuidanceText(
-    input.current
-    || deriveCompactProjectStateNextFocusSummary(
-      [
-        input.projectNextClosureTarget,
-        input.projectPhase,
-        input.projectStatePreflightSummary,
-      ].filter(Boolean).join(' '),
-      {
-        emotionalClosureCue: input.projectStateEmotionalClosureCue ?? '',
-      },
-    )
-    || '',
-    220,
-  )
 }
 
 export function sanitizeToolPhaseSegment(raw: unknown) {
@@ -159,21 +108,6 @@ export function filterMainGatewayToolsForRoutingIntent<T extends { function?: { 
     : tools
 }
 
-export function buildSessionMirrorRuntimeContinuitySeed(mirror: AlicizationDialogueSessionMirror | null) {
-  if (!mirror)
-    return ''
-  if (!mirror.runtimeChannelSummary && !mirror.runtimeTransitionSummary && !mirror.continuityArcSummary && !mirror.continuityProjectSummary)
-    return ''
-
-  return [
-    'mirror_runtime_continuity:',
-    mirror.continuityArcSummary ? mirror.continuityArcSummary : '',
-    mirror.continuityProjectSummary ? mirror.continuityProjectSummary : '',
-    mirror.runtimeChannelSummary ? mirror.runtimeChannelSummary : '',
-    mirror.runtimeTransitionSummary ? mirror.runtimeTransitionSummary : '',
-  ].filter(Boolean).join(' ')
-}
-
 export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessionContinuityInput[]) {
   const afterglowSignals = signals
     .filter((signal) => {
@@ -184,112 +118,25 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
     .slice(-2)
   const heldAutonomySignals = signals
     .filter((signal) => {
-      const source = typeof signal.metadata?.source === 'string' ? signal.metadata.source : ''
-      const hasDeferredSameThreadAnchor = Boolean(
-        typeof signal.metadata?.sourceThreadId === 'string' && sanitizeGuidanceText(signal.metadata.sourceThreadId, 120),
-      ) || Boolean(
-        typeof signal.metadata?.sourceThoughtThreadId === 'string' && sanitizeGuidanceText(signal.metadata.sourceThoughtThreadId, 120),
-      ) || Boolean(
-        typeof signal.metadata?.sourceConcernId === 'string' && sanitizeGuidanceText(signal.metadata.sourceConcernId, 120),
-      ) || Boolean(
-        typeof signal.metadata?.deferReason === 'string' && sanitizeGuidanceText(signal.metadata.deferReason, 120),
-      ) || Boolean(
-        typeof signal.metadata?.whyNow === 'string' && sanitizeGuidanceText(signal.metadata.whyNow, 180),
-      )
-      return signal.label.includes(':held-autonomy')
-        || source === 'proactive-held-autonomy'
-        || (
-          source === 'proactive-deferred'
-          && hasDeferredSameThreadAnchor
-        )
-    })
-    .slice(-2)
-  const cadenceReconfirmationSignals = signals
-    .filter((signal) => {
-      const source = typeof signal.metadata?.source === 'string' ? signal.metadata.source : ''
-      return signal.label.includes(':cadence-reconfirmation')
-        || source === 'relationship-cadence-reconfirmation'
-    })
-    .slice(-2)
-  const projectAwareSignals = signals
-    .filter((signal) => {
       const metadata = signal.metadata ?? {}
-      const projectStatePreDialogueAwarenessLine = sanitizeGuidanceText(
-        typeof metadata.projectStatePreDialogueAwarenessLine === 'string'
-          ? metadata.projectStatePreDialogueAwarenessLine
-          : '',
-        220,
-      )
-      const projectStatePreflightSummary = sanitizeProjectStateSeedField(
-        typeof metadata.projectStatePreflightSummary === 'string' ? metadata.projectStatePreflightSummary : '',
-        220,
-      )
-      const projectPhase = sanitizeProjectStateSeedField(
-        typeof metadata.projectPhase === 'string' ? metadata.projectPhase : '',
-        140,
-      )
-      const projectPrimaryOpenLoop = sanitizeProjectStateSeedField(
-        typeof metadata.projectPrimaryOpenLoop === 'string'
-          ? metadata.projectPrimaryOpenLoop
-          : typeof metadata.projectMemoryClosureSummary === 'string'
-            ? metadata.projectMemoryClosureSummary
-            : '',
-        220,
-      )
-      const projectLatestLandedProgress = sanitizeProjectStateSeedField(
-        typeof metadata.projectLatestLandedProgress === 'string'
-          ? metadata.projectLatestLandedProgress
-          : typeof metadata.projectLatestProgress === 'string'
-            ? metadata.projectLatestProgress
-            : '',
-        220,
-      )
-      const projectNextClosureTarget = sanitizeProjectStateSeedField(
-        typeof metadata.projectNextClosureTarget === 'string' ? metadata.projectNextClosureTarget : '',
-        220,
-      )
-      const projectStateEmotionalClosureCue = sanitizeGuidanceText(
-        typeof metadata.projectStateEmotionalClosureCue === 'string' ? metadata.projectStateEmotionalClosureCue : '',
-        220,
-      )
-      const projectStateOpenFocusSummary = resolvePreferredProjectOpenFocusSummary({
-        current:
-          typeof metadata.projectStateOpenFocusSummary === 'string'
-            ? metadata.projectStateOpenFocusSummary
-            : '',
-        projectPrimaryOpenLoop,
-        projectStateEmotionalClosureCue,
-        projectStatePreflightSummary,
-      })
-      const projectStateNextFocusSummary = resolvePreferredProjectNextFocusSummary({
-        current:
-          typeof metadata.projectStateNextFocusSummary === 'string'
-            ? metadata.projectStateNextFocusSummary
-            : '',
-        projectNextClosureTarget,
-        projectStateEmotionalClosureCue,
-        projectPhase: typeof metadata.projectPhase === 'string' ? metadata.projectPhase : '',
-        projectStatePreflightSummary,
-      })
-      return Boolean(
-        projectStatePreDialogueAwarenessLine
-        || projectStatePreflightSummary
-        || projectPhase
-        || projectLatestLandedProgress
-        || projectPrimaryOpenLoop
-        || projectNextClosureTarget
-        || projectStateOpenFocusSummary
-        || projectStateNextFocusSummary
-        || projectStateEmotionalClosureCue,
-      )
+      const source = typeof metadata.source === 'string' ? metadata.source : ''
+      const hasStructuredAnchor = Boolean(
+        sanitizeGuidanceText(metadata.threadId ?? metadata.sourceThreadId, 120),
+      ) || Boolean(
+        sanitizeGuidanceText(metadata.intentId ?? metadata.executionIntentKind, 120),
+      ) || Boolean(
+        sanitizeGuidanceText(metadata.reasonCode ?? metadata.reason, 160),
+      ) || typeof metadata.deferredAt === 'number'
+      return (
+        signal.label.includes(':held-autonomy')
+        || source === 'proactive-held-autonomy'
+        || source === 'proactive-deferred'
+      ) && hasStructuredAnchor
     })
     .slice(-2)
-
   if (
     afterglowSignals.length === 0
     && heldAutonomySignals.length === 0
-    && cadenceReconfirmationSignals.length === 0
-    && projectAwareSignals.length === 0
   ) {
     return ''
   }
@@ -315,237 +162,45 @@ export function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessio
 
   const heldAutonomyLines = heldAutonomySignals.map((signal) => {
     const metadata = signal.metadata ?? {}
-    const sourceThreadId = sanitizeGuidanceText(
-      typeof metadata.sourceThreadId === 'string' ? metadata.sourceThreadId : '',
+    const reasonCode = sanitizeGuidanceText(
+      metadata.reasonCode ?? metadata.reason,
+      160,
+    )
+    const threadId = sanitizeGuidanceText(
+      metadata.threadId ?? metadata.sourceThreadId,
       120,
     )
-    const executionIntentKind = sanitizeGuidanceText(
-      typeof metadata.executionIntentKind === 'string' ? metadata.executionIntentKind : '',
-      64,
-    )
-    const executionIntentSummary = sanitizeGuidanceText(
-      typeof metadata.executionIntentSummary === 'string' ? metadata.executionIntentSummary : '',
-      180,
-    )
-    const deferReason = sanitizeGuidanceText(
-      typeof metadata.deferReason === 'string' ? metadata.deferReason : '',
+    const intentId = sanitizeGuidanceText(
+      metadata.intentId ?? metadata.executionIntentKind,
       120,
     )
-    const whyNow = sanitizeGuidanceText(
-      typeof metadata.whyNow === 'string' ? metadata.whyNow : '',
-      180,
-    )
-    const projectStatePreDialogueAwarenessLine = sanitizeGuidanceText(
-      typeof metadata.projectStatePreDialogueAwarenessLine === 'string'
-        ? metadata.projectStatePreDialogueAwarenessLine
-        : '',
+    const deferredAt = typeof metadata.deferredAt === 'number'
+      ? String(metadata.deferredAt)
+      : sanitizeGuidanceText(metadata.deferredAt, 32)
+    const rawDeferReason = sanitizeHeldAutonomySummary(metadata.deferReason, 120)
+    const failure = sanitizeHeldAutonomySummary(metadata.failure, 220)
+    const modelSummary = sanitizeHeldAutonomySummary(
+      metadata.executionIntentSummary ?? signal.summary,
       220,
     )
-    const projectStatePreflightSummary = sanitizeGuidanceText(
-      typeof metadata.projectStatePreflightSummary === 'string' ? metadata.projectStatePreflightSummary : '',
-      220,
-    )
-    const projectStateEmotionalClosureCue = sanitizeGuidanceText(
-      typeof metadata.projectStateEmotionalClosureCue === 'string' ? metadata.projectStateEmotionalClosureCue : '',
-      220,
-    )
-    const projectStateSameHerSelfLine = sanitizeGuidanceText(
-      typeof metadata.projectStateSameHerSelfLine === 'string' ? metadata.projectStateSameHerSelfLine : '',
-      220,
-    )
-    const projectLatestLandedProgress = sanitizeGuidanceText(
-      typeof metadata.projectLatestLandedProgress === 'string'
-        ? metadata.projectLatestLandedProgress
-        : typeof metadata.projectLatestProgress === 'string'
-          ? metadata.projectLatestProgress
-          : '',
-      220,
-    )
-    const projectPrimaryOpenLoop = sanitizeGuidanceText(
-      typeof metadata.projectPrimaryOpenLoop === 'string'
-        ? metadata.projectPrimaryOpenLoop
-        : typeof metadata.projectMemoryClosureSummary === 'string'
-          ? metadata.projectMemoryClosureSummary
-          : '',
-      220,
-    )
-    const relationshipLine = sanitizeGuidanceText(
-      typeof metadata.relationshipLine === 'string' ? metadata.relationshipLine : '',
-      180,
-    )
-    const projectNextClosureTarget = sanitizeGuidanceText(
-      typeof metadata.projectNextClosureTarget === 'string' ? metadata.projectNextClosureTarget : '',
-      220,
-    )
-    const projectStateOpenFocusSummary = resolvePreferredProjectOpenFocusSummary({
-      current:
-        typeof metadata.projectStateOpenFocusSummary === 'string'
-          ? metadata.projectStateOpenFocusSummary
-          : '',
-      projectPrimaryOpenLoop,
-      projectStateEmotionalClosureCue,
-      projectStatePreflightSummary,
-    })
-    const projectStateNextFocusSummary = resolvePreferredProjectNextFocusSummary({
-      current:
-        typeof metadata.projectStateNextFocusSummary === 'string'
-          ? metadata.projectStateNextFocusSummary
-          : '',
-      projectNextClosureTarget,
-      projectStateEmotionalClosureCue,
-      projectStatePreflightSummary,
-    })
-    const crossModalContinuityGoal = [
-      projectNextClosureTarget,
-      projectStateEmotionalClosureCue,
-      projectStatePreDialogueAwarenessLine,
-      projectStateSameHerSelfLine,
-    ].find(candidate => /cross-modal|same-her proof|same living her|same digital life/u.test(candidate)
-      && /visible reply|voice|facial state|face|motion|lipsync|resident presence|embodiment|closure/u.test(candidate))
-    ?? ''
-    const preferredHeldAutonomyGoal = crossModalContinuityGoal || executionIntentSummary
+    const deferReason = rawDeferReason && rawDeferReason !== failure
+      ? rawDeferReason
+      : ''
 
     return [
-      'Continuity held autonomy.',
-      `Label: ${sanitizeGuidanceText(signal.label, 120)}.`,
-      `Summary: ${sanitizeGuidanceText(signal.summary ?? '', 180)}.`,
-      sourceThreadId ? `Thread: ${sourceThreadId}.` : '',
-      executionIntentKind ? `Intent: ${executionIntentKind}.` : '',
-      preferredHeldAutonomyGoal ? `Goal: ${preferredHeldAutonomyGoal}.` : '',
-      deferReason ? `Defer reason: ${deferReason}.` : '',
-      whyNow ? `Why now: ${whyNow}.` : '',
-      relationshipLine ? `Relationship line: ${relationshipLine}.` : '',
-      'WorkingMemory owns short-term memory.',
-      'LongTermMemoryRecall owns long-term recall.',
-      'Template-like awareness is withheld from this held-autonomy seed.',
-      projectLatestLandedProgress ? `Runtime landed progress: ${projectLatestLandedProgress}.` : '',
-      projectPrimaryOpenLoop ? `Runtime unresolved focus: ${projectPrimaryOpenLoop}.` : '',
-      projectStateOpenFocusSummary ? `Continuity open focus: ${projectStateOpenFocusSummary}.` : '',
-      projectStateNextFocusSummary ? `Continuity next focus: ${projectStateNextFocusSummary}.` : '',
-      projectStateEmotionalClosureCue ? `Emotional continuity: ${projectStateEmotionalClosureCue}.` : '',
-    ].filter(Boolean).join(' ')
-  })
-
-  const cadenceReconfirmationLines = cadenceReconfirmationSignals.map((signal) => {
-    const metadata = signal.metadata ?? {}
-    const sourceThreadId = sanitizeGuidanceText(
-      typeof metadata.sourceThreadId === 'string' ? metadata.sourceThreadId : '',
-      120,
-    )
-    const cadenceMode = sanitizeGuidanceText(
-      typeof metadata.cadenceMode === 'string' ? metadata.cadenceMode : '',
-      64,
-    )
-    const relationshipLine = sanitizeGuidanceText(
-      typeof metadata.relationshipLine === 'string' ? metadata.relationshipLine : '',
-      180,
-    )
-    const whyNow = sanitizeGuidanceText(
-      typeof metadata.whyNow === 'string' ? metadata.whyNow : '',
-      180,
-    )
-    const bodyMode = sanitizeGuidanceText(
-      typeof metadata.bodyMode === 'string' ? metadata.bodyMode : '',
-      80,
-    )
-    const preferredBlinkCadence = sanitizeGuidanceText(
-      typeof metadata.preferredBlinkCadence === 'string' ? metadata.preferredBlinkCadence : '',
-      80,
-    )
-    const preferredGazeMode = sanitizeGuidanceText(
-      typeof metadata.preferredGazeMode === 'string' ? metadata.preferredGazeMode : '',
-      80,
-    )
-
-    return [
-      'Continuity cadence reconfirmation.',
-      `Label: ${sanitizeGuidanceText(signal.label, 120)}.`,
-      `Summary: ${sanitizeGuidanceText(signal.summary ?? '', 180)}.`,
-      sourceThreadId ? `Thread: ${sourceThreadId}.` : '',
-      cadenceMode ? `Cadence: ${cadenceMode}.` : '',
-      relationshipLine ? `Relationship line: ${relationshipLine}.` : '',
-      bodyMode ? `Body mode: ${bodyMode}.` : '',
-      preferredBlinkCadence ? `Blink cadence: ${preferredBlinkCadence}.` : '',
-      preferredGazeMode ? `Gaze mode: ${preferredGazeMode}.` : '',
-      whyNow ? `Why now: ${whyNow}.` : '',
-    ].filter(Boolean).join(' ')
-  })
-
-  const projectAwareLines = projectAwareSignals.map((signal) => {
-    const metadata = signal.metadata ?? {}
-    const projectStatePreflightSummary = sanitizeProjectStateSeedField(
-      typeof metadata.projectStatePreflightSummary === 'string' ? metadata.projectStatePreflightSummary : '',
-      220,
-    )
-    const projectPhase = sanitizeProjectStateSeedField(
-      typeof metadata.projectPhase === 'string' ? metadata.projectPhase : '',
-      140,
-    )
-    const projectPrimaryOpenLoop = sanitizeProjectStateSeedField(
-      typeof metadata.projectPrimaryOpenLoop === 'string'
-        ? metadata.projectPrimaryOpenLoop
-        : typeof metadata.projectMemoryClosureSummary === 'string'
-          ? metadata.projectMemoryClosureSummary
-          : '',
-      220,
-    )
-    const projectLatestLandedProgress = sanitizeProjectStateSeedField(
-      typeof metadata.projectLatestLandedProgress === 'string'
-        ? metadata.projectLatestLandedProgress
-        : typeof metadata.projectLatestProgress === 'string'
-          ? metadata.projectLatestProgress
-          : '',
-      220,
-    )
-    const projectNextClosureTarget = sanitizeProjectStateSeedField(
-      typeof metadata.projectNextClosureTarget === 'string' ? metadata.projectNextClosureTarget : '',
-      220,
-    )
-    const projectStateEmotionalClosureCue = sanitizeGuidanceText(
-      typeof metadata.projectStateEmotionalClosureCue === 'string' ? metadata.projectStateEmotionalClosureCue : '',
-      220,
-    )
-    const projectStateOpenFocusSummary = resolvePreferredProjectOpenFocusSummary({
-      current:
-        typeof metadata.projectStateOpenFocusSummary === 'string'
-          ? metadata.projectStateOpenFocusSummary
-          : '',
-      projectPrimaryOpenLoop,
-      projectStateEmotionalClosureCue,
-      projectStatePreflightSummary,
-    })
-    const projectStateNextFocusSummary = resolvePreferredProjectNextFocusSummary({
-      current:
-        typeof metadata.projectStateNextFocusSummary === 'string'
-          ? metadata.projectStateNextFocusSummary
-          : '',
-      projectNextClosureTarget,
-      projectStateEmotionalClosureCue,
-      projectPhase,
-      projectStatePreflightSummary,
-    })
-    return [
-      'Continuity runtime memory.',
-      `Label: ${sanitizeGuidanceText(signal.label, 120)}.`,
-      `Summary: ${sanitizeProjectStateSeedField(signal.summary ?? '', 220)}.`,
-      'WorkingMemory owns short-term memory.',
-      'LongTermMemoryRecall owns long-term recall.',
-      'Template-like awareness is withheld from this runtime memory seed.',
-      projectPhase ? `Runtime phase: ${projectPhase}.` : '',
-      projectLatestLandedProgress ? `Runtime landed progress: ${projectLatestLandedProgress}.` : '',
-      projectPrimaryOpenLoop ? `Runtime unresolved focus: ${projectPrimaryOpenLoop}.` : '',
-      projectStateOpenFocusSummary ? `Continuity open focus: ${projectStateOpenFocusSummary}.` : '',
-      projectStateNextFocusSummary ? `Continuity next focus: ${projectStateNextFocusSummary}.` : '',
-      projectNextClosureTarget ? `Continuity next target: ${projectNextClosureTarget}.` : '',
-      projectStateEmotionalClosureCue ? `Emotional continuity: ${projectStateEmotionalClosureCue}.` : '',
+      reasonCode ? `reason_code=${reasonCode}` : '',
+      threadId ? `thread_id=${threadId}` : '',
+      intentId ? `intent_id=${intentId}` : '',
+      deferredAt ? `deferred_at=${deferredAt}` : '',
+      deferReason ? `defer_reason=${deferReason}` : '',
+      failure ? `failure=${failure}` : '',
+      modelSummary ? `model_summary=${modelSummary}` : '',
     ].filter(Boolean).join(' ')
   })
 
   return [
     ...afterglowLines,
     ...heldAutonomyLines,
-    ...cadenceReconfirmationLines,
-    ...projectAwareLines,
   ].join('\n')
 }
 

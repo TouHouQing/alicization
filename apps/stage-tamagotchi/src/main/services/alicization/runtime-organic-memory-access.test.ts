@@ -274,6 +274,7 @@ describe('runtime-organic-memory-access', () => {
     const snapshot = await runtime.getOrganicMemorySnapshot()
 
     expect(snapshot.memoryConsolidations).toEqual([])
+    expect(snapshot.hostPersonModel).toBeNull()
     expect(JSON.stringify(snapshot)).not.toMatch(/same-her-inward-carry|quiet inward continuity|Preserve inward lower-pressure continuity/iu)
   })
 
@@ -397,21 +398,38 @@ describe('runtime-organic-memory-access', () => {
       assistantText: '我们聊过 runtime seam。',
       createdAt: 1,
     }])
-    const searchMemoryConsolidations = vi.fn(async () => [{
-      id: 'consolidation-1',
-      kind: 'autobiographical' as const,
-      facet: 'task-era' as const,
-      periodKey: '2026-04-runtime',
-      periodStartedAt: 1,
-      periodEndedAt: 2,
-      summary: 'That period kept returning to the runtime seam.',
-      lesson: 'Return to the seam before branching.',
-      cues: ['runtime seam'],
-      confidence: 0.82,
-      dominantProvenance: 'remembered' as const,
-      derivedEventIds: ['episode-1'],
-      updatedAt: 2,
-    }])
+    const searchMemoryConsolidations = vi.fn(async () => [
+      {
+        id: 'consolidation-1',
+        kind: 'autobiographical' as const,
+        facet: 'task-era' as const,
+        periodKey: '2026-04-runtime',
+        periodStartedAt: 1,
+        periodEndedAt: 2,
+        summary: 'The host discussed the project state, then returned to the same line in the debugging conversation.',
+        lesson: 'Keep the next explanation direct and lower-pressure.',
+        cues: ['runtime seam'],
+        confidence: 0.82,
+        dominantProvenance: 'remembered' as const,
+        derivedEventIds: ['episode-1'],
+        updatedAt: 2,
+      },
+      {
+        id: 'consolidation-legacy-policy',
+        kind: 'autobiographical' as const,
+        facet: 'self-era' as const,
+        periodKey: '2026-04-policy',
+        periodStartedAt: 1,
+        periodEndedAt: 2,
+        summary: 'opening_policy=observe_first; relationship_cadence=measured_return; visibility=redacted_internal',
+        lesson: null,
+        cues: ['runtime policy'],
+        confidence: 0.86,
+        dominantProvenance: 'remembered' as const,
+        derivedEventIds: [],
+        updatedAt: 2,
+      },
+    ])
 
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
@@ -475,8 +493,8 @@ describe('runtime-organic-memory-access', () => {
 
     expect(firstConversation).toHaveLength(1)
     expect(secondConversation).toHaveLength(1)
-    expect(firstConsolidation).toHaveLength(1)
-    expect(secondConsolidation).toHaveLength(1)
+    expect(firstConsolidation.map(item => item.id)).toEqual(['consolidation-1'])
+    expect(secondConsolidation.map(item => item.id)).toEqual(['consolidation-1'])
     expect(searchConversationTurnsForRecall).toHaveBeenCalledTimes(1)
     expect(searchMemoryConsolidations).toHaveBeenCalledTimes(1)
   })

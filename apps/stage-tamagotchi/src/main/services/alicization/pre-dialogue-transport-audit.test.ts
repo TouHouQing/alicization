@@ -41,11 +41,9 @@ describe('pre-dialogue-transport-audit', () => {
     expect(/^function collectPreDialogueTransportFiles\(/m.test(source)).toBe(false)
   })
 
-  it('keeps identity-construction discovery broad enough to catch future package-level transport wrappers instead of only stage-ui store-local seams', () => {
-    const source = readFileSync(new URL('./pre-dialogue-transport-entrypoint-audit.ts', import.meta.url), 'utf8')
-
-    expect(source).toContain('toAlicizationChatStartPreDialogueSendIdentity\\\\(')
-    expect(source).toContain('\'packages\'')
+  it('treats the removed fixed identity constructor as an empty discovery family', () => {
+    expect(collectAlicizationPreDialogueIdentityConstructionFiles()).toEqual([])
+    expect(alicizationPreDialogueIdentityConstructionFiles).toEqual([])
   })
 
   it('keeps bridge-forwarding discovery broad enough to catch future package-level transport wrappers instead of only stage-ui store-local seams', () => {
@@ -55,17 +53,14 @@ describe('pre-dialogue-transport-audit', () => {
     expect(source).toContain('\'packages\'')
   })
 
-  it('requires identity-construction boundaries to explicitly materialize outbound pre-dialogue send identity', () => {
-    for (const relativePath of alicizationPreDialogueIdentityConstructionFiles) {
-      const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
+  it('allows discovery scans with no remaining fixed constructor to return an empty set', () => {
+    const source = readFileSync(new URL('./pre-dialogue-transport-entrypoint-audit.ts', import.meta.url), 'utf8')
 
-      expect(resolveAlicizationPreDialogueTransportAuditMode(relativePath)).toBe('identity-construction')
-      expect(source).toContain('toAlicizationChatStartPreDialogueSendIdentity(')
-      expect(source).toContain('preDialogueSendIdentity:')
-    }
+    expect(source).toContain('if (result.status === 1)')
+    expect(source).toContain('return []')
   })
 
-  it('requires transport-sanitization boundaries to preserve pre-dialogue send identity while sanitizing renderer payloads', () => {
+  it('requires transport-sanitization boundaries to pass only the current chat-start payload', () => {
     for (const relativePath of alicizationPreDialogueTransportSanitizationFiles) {
       const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
 
@@ -73,7 +68,7 @@ describe('pre-dialogue-transport-audit', () => {
       expect(source).toContain('sanitizeAlicizationChatStartPayloadForTransport({')
       expect(source).toContain('summarizeAlicizationChatStartPayloadForTransport(transportPayload)')
       expect(source).toContain('transportPayload: transportPayloadSummary')
-      expect(source).toContain('...payload,')
+      expect(source).not.toContain('preDialogueSendIdentity:')
     }
   })
 
@@ -88,14 +83,7 @@ describe('pre-dialogue-transport-audit', () => {
     expect(source).toContain('sanitizeAlicizationChatStartPayloadForTransport({')
     expect(source).toContain('transportPayload: transportPayloadSummary')
     expect(source).toContain('transportSanitization: transportPayloadResult.report.changed')
-    expect(transportSummarySource).toContain('hasPreDialogueCompanionHeadlineLine')
-    expect(transportSummarySource).toContain('hasPreDialogueCompanionBriefingLine')
-    expect(transportSummarySource).toContain('hasPreDialogueEmotionalClosureCue')
-    expect(transportSummarySource).toContain('hasPreDialogueReasonPreview')
-    expect(transportSummarySource).toContain('hasPreDialogueContinuitySummary')
-    expect(transportSummarySource).toContain('hasPreDialogueContinuityAnchor')
-    expect(transportSummarySource).toContain('hasPreDialogueContinuityDriftRisk')
-    expect(transportSummarySource).toContain('hasPreDialogueContinuityHoldDetail')
+    expect(transportSummarySource).not.toMatch(/hasPreDialogue|continuityAnchor|continuityDriftRisk|sameHer/iu)
   })
 
   it('requires every current pre-dialogue transport boundary to stay explicitly mirrored into chat-entry governance so send-identity seams cannot drift into a side registry', () => {
@@ -106,34 +94,19 @@ describe('pre-dialogue-transport-audit', () => {
       .toEqual(resolveAlicizationPreDialogueTransportAuditFiles().slice().sort())
     expect(mirrors).toEqual([
       expect.objectContaining({
-        transportRelativePath: '../../../../../../packages/stage-ui/src/stores/chat.ts',
-        chatEntryRelativePath: './chat.ts',
-      }),
-      expect.objectContaining({
         transportRelativePath: '../../../renderer/App.vue',
         chatEntryRelativePath: '../../../../apps/stage-tamagotchi/src/renderer/App.vue',
-      }),
-      expect.objectContaining({
-        transportRelativePath: '../../../../../../packages/stage-ui/src/stores/mods/api/context-bridge.ts',
-        chatEntryRelativePath: './mods/api/context-bridge.ts',
       }),
     ])
 
     for (const mirror of mirrors)
       expect(chatEntryFiles).toContain(mirror.chatEntryRelativePath)
 
-    expect(resolveRendererChatEntryAwarenessMode('./chat.ts')).toBe('explicit-pre-dialogue-identity')
     expect(resolveRendererChatEntryAwarenessMode('../../../../apps/stage-tamagotchi/src/renderer/App.vue')).toBe('direct-bridge-canonical-awareness')
-    expect(resolveRendererChatEntryAwarenessMode('./mods/api/context-bridge.ts')).toBe('explicit-pre-dialogue-identity')
   })
 
-  it('requires bridge-forwarding boundaries to intentionally forward pre-dialogue send identity across remote chat channels', () => {
-    for (const relativePath of alicizationPreDialogueBridgeForwardingFiles) {
-      const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
-
-      expect(resolveAlicizationPreDialogueTransportAuditMode(relativePath)).toBe('bridge-forwarding')
-      expect(source).toContain('context.preDialogueSendIdentity')
-      expect(source).toContain('? { preDialogueSendIdentity: context.preDialogueSendIdentity ?? null }')
-    }
+  it('keeps removed bridge-forwarding cues out of current transport ownership', () => {
+    expect(alicizationPreDialogueBridgeForwardingFiles).toEqual([])
+    expect(collectAlicizationPreDialogueBridgeForwardingFiles()).toEqual([])
   })
 })

@@ -11,6 +11,10 @@ import {
   deriveAlicizationDigitalLifeSpineFromSurface,
   projectAlicizationDigitalLifeSpineDigest,
 } from './digital-life-spine'
+import {
+  buildAlicizationChatMetaPayload,
+  sanitizeAlicizationRuntimeDigestForTransport,
+} from './main-chat-stream-meta'
 
 type AlicizationMainChatStartGovernance = AlicizationChatMetaEvent['governance']
 
@@ -44,9 +48,11 @@ function resolveMainChatStartRuntimeDigest(
   if (!runtimeSurface)
     return null
 
-  return runtimeSurface.raw?.runtimeDigest
+  return sanitizeAlicizationRuntimeDigestForTransport(
+    runtimeSurface.raw?.runtimeDigest
     ?? runtimeSurface.cognition?.runtimeDigest
-    ?? null
+    ?? null,
+  )
 }
 
 function hasUsableMainChatStartRuntimeSurface(
@@ -183,22 +189,44 @@ export async function resolveAlicizationMainChatStartResult(
     : eagerPreludeSettled
       ? eagerPreludeRuntimeDigest
       : null
-  const eagerEmbodimentMeta = input.buildEmbodimentMeta({
-    governance: eagerGovernance,
-    digitalLifeSpine: eagerDigitalLifeSpine,
+  const transportSeed = buildAlicizationChatMetaPayload({
+    cardId: input.cardId,
     turnId: input.turnId,
+    governance: eagerGovernance,
+    embodiment: null,
+    embodimentScript: null,
+    speechTimeline: null,
+    digitalLife: null,
+    digitalLifeSpine: eagerDigitalLifeSpine,
+    runtimeDigest: eagerRuntimeDigest,
+  })
+  const eagerEmbodimentMeta = input.buildEmbodimentMeta({
+    governance: transportSeed.governance,
+    digitalLifeSpine: transportSeed.digitalLifeSpine,
+    turnId: input.turnId,
+  })
+  const transportMeta = buildAlicizationChatMetaPayload({
+    cardId: input.cardId,
+    turnId: input.turnId,
+    governance: transportSeed.governance,
+    embodiment: eagerEmbodimentMeta.embodiment,
+    embodimentScript: eagerEmbodimentMeta.embodimentScript,
+    speechTimeline: eagerEmbodimentMeta.speechTimeline,
+    digitalLife: eagerEmbodimentMeta.digitalLife,
+    digitalLifeSpine: transportSeed.digitalLifeSpine,
+    runtimeDigest: transportSeed.runtimeDigest,
   })
 
   return {
     accepted: true,
     turnId: input.turnId,
     state: 'accepted',
-    governance: eagerGovernance,
-    embodiment: eagerEmbodimentMeta.embodiment,
-    embodimentScript: eagerEmbodimentMeta.embodimentScript,
-    speechTimeline: eagerEmbodimentMeta.speechTimeline,
-    digitalLife: eagerEmbodimentMeta.digitalLife,
-    digitalLifeSpine: eagerDigitalLifeSpine,
-    runtimeDigest: eagerRuntimeDigest,
+    governance: transportMeta.governance,
+    embodiment: transportMeta.embodiment,
+    embodimentScript: transportMeta.embodimentScript,
+    speechTimeline: transportMeta.speechTimeline,
+    digitalLife: transportMeta.digitalLife,
+    digitalLifeSpine: transportMeta.digitalLifeSpine,
+    runtimeDigest: transportMeta.runtimeDigest,
   }
 }

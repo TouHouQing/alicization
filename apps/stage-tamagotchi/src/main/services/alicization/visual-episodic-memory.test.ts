@@ -14,6 +14,55 @@ import {
 } from './visual-episodic-memory'
 
 describe('visual episodic memory', () => {
+  it('does not rebuild fixed hold prose into current inward preoccupation or emotional-kernel why', () => {
+    const next = updateVisualPresenceState({
+      now: 50_000,
+      previousState: normalizeVisualPresenceState({
+        ...createDefaultVisualPresenceState(49_800),
+        currentBodyState: 'recovering',
+        continuityMode: 'protective-watch',
+        quietLineMs: 180_000,
+        currentInwardPreoccupation: 'body_preoccupation=rest_protection; direction=inward',
+      }, 49_800),
+      watchMode: 'recovering',
+      scene: null,
+      attention: null,
+      privateThought: {
+        thoughtText: 'Care is still present, but this presence-only hold is protecting rest first.',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+      } as any,
+      initiative: {
+        shouldSpeak: false,
+        preferredStyle: 'silent-observe',
+        preferredPresence: 'concerned',
+        continuityRestraint: 'rest-protective',
+        why: 'Care is still present, but this presence-only hold is protecting rest first, so memory, initiative, and embodiment should stay quietly nearby on the same inward line.',
+      } as any,
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'rest-protective-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'rest-protective-presence',
+        embodimentTone: 'rest-protective',
+        valence: 0.4,
+        arousal: 0.2,
+        guardedness: 0.8,
+        closenessDrive: 0.2,
+        repairNeed: 0.3,
+        initiativePressure: 0.1,
+        reasonTags: ['rest-protective'],
+        why: 'Care is still present, but this presence-only hold is protecting rest first, so memory, initiative, and embodiment should stay quietly nearby on the same inward line.',
+      } as any,
+      captureState: { permission: 'granted', lastGroundedAt: 49_900 },
+      nextSuggestedProbeMs: 5_000,
+    })
+
+    expect(next.currentInwardPreoccupation).toBeNull()
+    expect(next.emotionalKernel?.why).not.toContain('presence-only hold')
+    expect(JSON.stringify(next)).not.toContain('body_preoccupation=rest_protection')
+  })
+
   it('creates default visual presence state with baseline authority fields', () => {
     expect(createDefaultVisualPresenceState(12_345)).toMatchObject({
       currentBodyState: 'idle',

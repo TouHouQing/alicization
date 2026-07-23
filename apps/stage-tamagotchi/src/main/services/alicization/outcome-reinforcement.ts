@@ -12,7 +12,10 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationEmbodimentContinuityLedger } from './embodiment-continuity-ledger'
 import type { AlicizationRecentProactiveOutcome } from './proactive-feedback'
 
-import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+import {
+  containsAlicizationFixedTemplateResidue,
+  sanitizeAlicizationMemoryEvidenceText,
+} from '@proj-alicization/stage-shared'
 
 import { computeEpisodicEventSalience, sanitizeHumanlikeMemoryText, summarizeRelationshipShift } from './humanlike-memory'
 import {
@@ -32,6 +35,28 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+const legacyOutcomeBodyPreoccupationPattern
+  = /body_preoccupation\s*=|posture\s*=|presence-only hold|stay near in the current phase 1 context|landed closure keeps growing|still-open loop stays|ordinary proactive closeness/iu
+
+function sanitizeOutcomeDynamicMindText(raw: unknown, maxChars = 180) {
+  if (typeof raw !== 'string')
+    return ''
+
+  const normalized = sanitizeText(raw, maxChars * 4)
+  if (!normalized)
+    return ''
+
+  return normalized
+    .split(/(?<=[.!?。！？])\s+|[|\n]+/u)
+    .map(segment => segment.trim())
+    .filter(segment => segment && !legacyOutcomeBodyPreoccupationPattern.test(segment))
+    .map(segment => sanitizeAlicizationMemoryEvidenceText(segment, maxChars))
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, maxChars)
+    .trim()
 }
 
 const outcomeMemoryFactFixedTemplatePattern = /Same Phase 1 digital life|Before answering|Right now I am|one continuous her|same[- ]?her|same living line|same digital[- ]life line|same local-first digital life project/iu
@@ -145,7 +170,7 @@ function readReplyRuntimeEmbodiment(surface: AlicizationDigitalLifeRuntimeSurfac
   return {
     currentBodyState: sanitizeText(surface?.perception?.currentBodyState, 64),
     continuityMode: sanitizeText(surface?.perception?.continuityMode, 64),
-    currentInwardPreoccupation: sanitizeText(surface?.perception?.currentInwardPreoccupation, 180),
+    currentInwardPreoccupation: sanitizeOutcomeDynamicMindText(surface?.perception?.currentInwardPreoccupation, 180),
     dominantResidueKind: sanitizeText(surface?.memory?.affectiveResidue?.dominantResidueKind, 64),
     relationshipCadenceSummary: sanitizeText(surface?.memory?.affectiveResidue?.relationshipCadence?.summary, 180),
     manifestationCadenceSummary: sanitizeText(surface?.memory?.personStateProjection?.manifestationCadenceSummary, 180),
@@ -947,9 +972,7 @@ export function buildReplyOutcomeClosure(input: {
           : runtimeEmbodiment.continuityMode
             ? `Runtime continuity stayed ${runtimeEmbodiment.continuityMode}.`
             : '',
-      runtimeEmbodiment.currentInwardPreoccupation
-        ? `I kept ${runtimeEmbodiment.currentInwardPreoccupation}.`
-        : '',
+      runtimeEmbodiment.currentInwardPreoccupation,
     ].filter(Boolean).join(' '),
     220,
   )

@@ -127,6 +127,28 @@ const longTermRecallFixture: LongTermMemoryEvidenceBundle = {
 }
 
 describe('main chat memory context', () => {
+  it('removes legacy owner prefixes while preserving the underlying working-memory text', () => {
+    const rawCorrection = '不是这个，今天先处理长期记忆分页。'
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: {
+        ...workingMemoryFixture,
+        obligations: [
+          `respect_correction(persona):${rawCorrection}`,
+          'honor_commitment:保留用户的任务和时间事实',
+        ],
+      },
+      longTermRecall: null,
+    })
+    const parsed = JSON.parse(context.providerSystemBlock)
+
+    expect(parsed.workingMemory.obligations).toEqual([
+      rawCorrection,
+      '保留用户的任务和时间事实',
+    ])
+    expect(context.providerSystemBlock).not.toContain('respect_correction(')
+    expect(context.providerSystemBlock).not.toContain('honor_commitment:')
+  })
+
   it('drops fixed governance residue from provider evidence while keeping confirmed memory', () => {
     const openingPolicyCue = `${['opening', 'policy'].join('_')}=legacy`
     const contaminatedEvidence = createEvidence('memory-contaminated')
@@ -153,6 +175,60 @@ describe('main chat memory context', () => {
     expect(context.longTermRecall?.evidence.map(item => item.candidate.id)).toEqual([
       'memory-confirmed',
     ])
+  })
+
+  it('sanitizes provider planning metadata at the memory boundary without rewriting the user move', () => {
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: {
+        ...workingMemoryFixture,
+        current: {
+          ...workingMemoryFixture.current,
+          threadTitle: 'opening_policy=legacy thread title',
+          currentUserMove: '用户正在讨论 opening_policy 这个代码字段。',
+        },
+        obligations: [
+          'opening_policy=legacy obligation',
+          'Provider timed out after 30 seconds.',
+        ],
+        queryHints: [
+          'relationship_cadence=legacy query hint',
+          '长期记忆分页',
+        ],
+        audit: {
+          ...workingMemoryFixture.audit,
+          notes: [
+            'visibility=redacted_internal',
+            'Provider failure remains visible.',
+          ],
+        },
+      },
+      longTermRecall: {
+        ...longTermRecallFixture,
+        intent: {
+          ...longTermRecallFixture.intent,
+          rationale: 'relationship_cadence=legacy rationale',
+          queryHints: ['opening_policy=legacy query'],
+        },
+        plan: {
+          ...longTermRecallFixture.plan,
+          rawQuery: 'opening_policy=legacy raw query',
+          keywordQueries: ['relationship_cadence=legacy keyword'],
+        },
+      },
+    })
+    const parsed = JSON.parse(context.providerSystemBlock)
+
+    expect(parsed.workingMemory.current.threadTitle).toBeNull()
+    expect(parsed.workingMemory.current.currentUserMove)
+      .toContain('opening_policy')
+    expect(parsed.workingMemory.obligations).toEqual([
+      'Provider timed out after 30 seconds.',
+    ])
+    expect(parsed.workingMemory.queryHints).toEqual(['长期记忆分页'])
+    expect(parsed.workingMemory.audit.notes).toEqual(['Provider failure remains visible.'])
+    expect(JSON.stringify(parsed.longTermRecall)).not.toMatch(
+      /opening_policy=|relationship_cadence=|visibility=redacted_internal/iu,
+    )
   })
 
   it('keeps a confirmed user correction that discusses fixed-template terminology', () => {
@@ -193,7 +269,7 @@ describe('main chat memory context', () => {
       owner: workingMemoryFixture.owner,
       scope: workingMemoryFixture.scope,
       current: workingMemoryFixture.current,
-      obligations: workingMemoryFixture.obligations,
+      obligations: ['finish the typed memory context foundation'],
       queryHints: workingMemoryFixture.queryHints,
       audit: workingMemoryFixture.audit,
     })
@@ -262,7 +338,7 @@ describe('main chat memory context', () => {
     expect(context.workingMemory.scope.cardId).toBe('card-1')
     expect(context.workingMemory.current.currentUserMove).toBe('Continue Task 2A')
     expect(context.workingMemory.obligations).toEqual([
-      'honor_commitment:finish the typed memory context foundation',
+      'finish the typed memory context foundation',
     ])
     expect(context.workingMemory.audit.notes).toEqual([
       'Keep pending review material outside provider context.',
@@ -283,7 +359,7 @@ describe('main chat memory context', () => {
           currentUserMove: 'Continue Task 2A',
         },
         obligations: [
-          'honor_commitment:finish the typed memory context foundation',
+          'finish the typed memory context foundation',
         ],
         audit: {
           notes: [

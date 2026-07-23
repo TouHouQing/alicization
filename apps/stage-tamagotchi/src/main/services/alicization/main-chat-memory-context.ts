@@ -33,17 +33,57 @@ function projectProviderWorkingMemory(
     version: context.version,
     owner: context.owner,
     scope: context.scope,
-    current: context.current,
-    obligations: context.obligations,
-    queryHints: context.queryHints,
-    audit: context.audit,
+    current: {
+      ...context.current,
+      threadTitle: sanitizeAlicizationMemoryEvidenceText(context.current.threadTitle, 220) || null,
+      currentUserMove: context.current.currentUserMove,
+      activeTask: sanitizeAlicizationMemoryEvidenceText(context.current.activeTask, 220) || null,
+    },
+    obligations: context.obligations
+      .map(normalizeProviderWorkingMemoryLine)
+      .map(value => sanitizeAlicizationMemoryEvidenceText(value, 260))
+      .filter(Boolean),
+    queryHints: context.queryHints
+      .map(value => sanitizeAlicizationMemoryEvidenceText(value, 180))
+      .filter(Boolean),
+    audit: {
+      ...context.audit,
+      notes: context.audit.notes
+        .map(value => sanitizeAlicizationMemoryEvidenceText(value, 260))
+        .filter(Boolean),
+    },
   }
+}
+
+function normalizeProviderWorkingMemoryLine(raw: string) {
+  return raw
+    .trim()
+    .replace(/^(?:respect_correction\([^)]*\):|answer_unresolved_question:|honor_commitment:|carry_task\([^)]*\):|hold_thread:|carry_execution:|failure_audit_only:)\s*/u, '')
+    .trim()
 }
 
 function normalizeAvailableLongTermEvidenceId(raw: unknown) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim()
+}
+
+function sanitizeProviderMemoryMetadataValue(raw: unknown): unknown {
+  if (typeof raw === 'string')
+    return sanitizeAlicizationMemoryEvidenceText(raw, 360)
+  if (Array.isArray(raw)) {
+    return raw
+      .map(sanitizeProviderMemoryMetadataValue)
+      .filter(value => value !== '' && value !== null && value !== undefined)
+  }
+  if (!raw || typeof raw !== 'object')
+    return raw
+  return Object.fromEntries(
+    Object.entries(raw).map(([key, value]) => [
+      key,
+      sanitizeProviderMemoryMetadataValue(value),
+    ]),
+  )
 }
 
 function isProviderEligibleReviewStatus(reviewStatus: unknown) {
@@ -91,6 +131,8 @@ function normalizeLongTermRecallProviderContext(
   context: LongTermMemoryEvidenceBundle,
 ): AlicizationLongTermMemoryRecallProviderContext {
   const cloned = structuredClone(context) as AlicizationLongTermMemoryRecallProviderContext
+  cloned.intent = sanitizeProviderMemoryMetadataValue(cloned.intent) as typeof cloned.intent
+  cloned.plan = sanitizeProviderMemoryMetadataValue(cloned.plan) as typeof cloned.plan
   const evidence: AlicizationLongTermMemoryRecallProviderContext['evidence'] = []
   const seen = new Set<string>()
 

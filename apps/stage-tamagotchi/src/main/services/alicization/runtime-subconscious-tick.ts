@@ -113,6 +113,16 @@ function containsPresenceOnlyFixedTemplateCue(raw: unknown) {
     || /\bvalidation=noisy_desktop_runs\b/iu.test(normalized)
     || /\btiming=measured_return_or_repair_before_closeness\b/iu.test(normalized)
     || /\blocal_desktop_life_loop\b/iu.test(normalized)
+    || /\bkeep the opening lower-pressure\b/iu.test(normalized)
+    || /\brepair continuity first\b/iu.test(normalized)
+    || /\bavoid eager warmth\b/iu.test(normalized)
+    || /\bhold-for-opening\b/iu.test(normalized)
+    || /\bnext-open-window\b/iu.test(normalized)
+    || /\bno mind-authored visible reply was available\b/iu.test(normalized)
+    || /\bproactive_state=held_for_opening\b/iu.test(normalized)
+    || /\b(?:phase|next|unresolved)=/iu.test(normalized)
+    || /\brepair-before-closeness\b/iu.test(normalized)
+    || /\bmeasured-return\b/iu.test(normalized)
 }
 
 function sanitizePresenceOnlyReasonTags(reasonTags: readonly unknown[]) {
@@ -190,7 +200,7 @@ function normalizePresenceOnlyHoldCarryText(raw: unknown, maxChars = 420) {
   if (sanitized && !containsPresenceOnlyFixedTemplateCue(sanitized))
     return sanitized
   const fragments = normalized
-    .split(/\s*(?:[。!?！？]\s+|\s\|\s+|;\s+)/u)
+    .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
     .map((fragment) => {
       const fragmentTokens = resolvePresenceOnlyHoldStructuredTokens(fragment)
       if (fragmentTokens)
@@ -201,41 +211,129 @@ function normalizePresenceOnlyHoldCarryText(raw: unknown, maxChars = 420) {
   return fragments.join(' | ')
 }
 
-function appendPresenceOnlyHoldCarryText(base: unknown, addition: unknown, maxChars = 420) {
-  const normalizedBase = normalizePresenceOnlyHoldCarryText(base, maxChars)
-  const normalizedAddition = normalizePresenceOnlyHoldCarryText(addition, maxChars)
-  if (!normalizedAddition)
-    return normalizedBase || ''
-  if (!normalizedBase)
-    return normalizedAddition
-  if (normalizedBase.includes(normalizedAddition))
-    return normalizedBase
-  if (normalizedAddition.includes(normalizedBase))
-    return normalizedAddition
-  return normalizePresenceOnlyHoldCarryText(`${normalizedBase} ${normalizedAddition}`, maxChars)
-}
-
-function normalizePresenceOnlyHoldDisplayText(raw: unknown, maxChars = 420) {
-  const normalized = normalizePresenceOnlyHoldCarryText(raw, maxChars)
-  if (!normalized || normalized === alicizationFixedTemplateReplacement)
+function normalizePresenceOnlyContinuitySummary(raw: unknown, maxChars = 560) {
+  if (typeof raw !== 'string')
     return ''
+
+  const normalized = raw.trim().replace(/\s+/g, ' ')
+  if (!normalized)
+    return ''
+
+  const direct = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
+  if (
+    direct
+    && !containsPresenceOnlyFixedTemplateCue(direct)
+    && !/^(?:label|summary|intent|defer|thread|scenario|goal|reason|phase|next|unresolved)=/iu.test(direct)
+  ) {
+    return direct
+  }
+
   return normalized
-}
-
-function normalizePresenceOnlyHoldMetadataText(raw: unknown, maxChars = 420) {
-  return normalizePresenceOnlyHoldCarryText(raw, maxChars) || null
-}
-
-function preferPresenceOnlyDeferredSummaryAuthority(candidates: Array<string | null | undefined>) {
-  const normalizedCandidates = candidates
-    .map(candidate => normalizePresenceOnlyHoldDisplayText(candidate, 560))
+    .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
+    .map((fragment) => {
+      const candidate = normalizePresenceOnlyHoldCarryText(fragment, maxChars)
+      if (!candidate || /^(?:label|summary|intent|defer|thread|scenario|goal|reason|phase|next|unresolved)=/iu.test(candidate))
+        return ''
+      return candidate
+    })
     .filter(Boolean)
-  if (!normalizedCandidates.length)
-    return ''
+    .join(' | ')
+    .slice(0, maxChars)
+}
 
-  return normalizedCandidates.find(candidate =>
-    /failed|failure|error|timed? out|timeout|unavailable|blocked|denied|失败|错误|超时|不可用|被阻止|拒绝/iu.test(candidate),
-  ) ?? normalizedCandidates[0]
+function resolvePresenceOnlyTransparentFailure(candidates: unknown[]) {
+  return candidates
+    .map(candidate => normalizePresenceOnlyContinuitySummary(candidate, 560))
+    .find(candidate =>
+      /failed|failure|error|timed? out|timeout|unavailable|blocked|denied|settlement|失败|错误|超时|不可用|被阻止|拒绝|结算/iu.test(candidate),
+    ) ?? ''
+}
+
+export function normalizeDeferredAutonomyContinuitySignal(signal: Record<string, any> | null | undefined) {
+  if (!signal || typeof signal !== 'object')
+    return signal
+
+  const metadata = signal.metadata && typeof signal.metadata === 'object'
+    ? signal.metadata as Record<string, unknown>
+    : {}
+  const source = typeof metadata.source === 'string'
+    ? metadata.source.trim()
+    : ''
+  const turnId = typeof metadata.turnId === 'string'
+    ? metadata.turnId.trim()
+    : ''
+  const scenario = typeof metadata.scenario === 'string'
+    ? metadata.scenario.trim()
+    : ''
+  const reasonCode = typeof metadata.reasonCode === 'string'
+    ? metadata.reasonCode.trim()
+    : typeof metadata.reason === 'string'
+      ? metadata.reason.trim()
+      : ''
+  const sourceThreadId = typeof metadata.sourceThreadId === 'string'
+    ? metadata.sourceThreadId.trim()
+    : ''
+  const sourceThoughtThreadId = typeof metadata.sourceThoughtThreadId === 'string'
+    ? metadata.sourceThoughtThreadId.trim()
+    : ''
+  const sourceConcernId = typeof metadata.sourceConcernId === 'string'
+    ? metadata.sourceConcernId.trim()
+    : ''
+  const targetThreadId = typeof metadata.targetThreadId === 'string'
+    ? metadata.targetThreadId.trim()
+    : ''
+  const threadId = typeof metadata.threadId === 'string'
+    ? metadata.threadId.trim()
+    : sourceThreadId || targetThreadId
+  const intentId = typeof metadata.intentId === 'string'
+    ? metadata.intentId.trim()
+    : typeof metadata.executionIntentKind === 'string'
+      ? metadata.executionIntentKind.trim()
+      : ''
+  const deferredAt = typeof metadata.deferredAt === 'number' && Number.isFinite(metadata.deferredAt)
+    ? metadata.deferredAt
+    : typeof signal.createdAt === 'number' && Number.isFinite(signal.createdAt)
+      ? signal.createdAt
+      : null
+  const modelSummary = normalizePresenceOnlyContinuitySummary(
+    metadata.executionIntentSummary ?? signal.summary,
+    560,
+  )
+  const normalizedDeferReason = normalizePresenceOnlyContinuitySummary(metadata.deferReason, 240)
+  const failure = resolvePresenceOnlyTransparentFailure([
+    metadata.failure,
+    modelSummary,
+    metadata.whyNow,
+    normalizedDeferReason,
+  ])
+  const continuitySummary = Array.from(new Set([
+    modelSummary,
+    failure,
+  ].filter(Boolean))).join(' | ')
+  const structuredDeferReason = normalizedDeferReason && normalizedDeferReason !== failure
+    ? normalizedDeferReason
+    : null
+
+  return {
+    ...signal,
+    summary: continuitySummary || null,
+    metadata: {
+      source: source || null,
+      turnId: turnId || null,
+      scenario: scenario || null,
+      reasonCode: reasonCode || null,
+      threadId: threadId || null,
+      intentId: intentId || null,
+      deferredAt,
+      deferReason: structuredDeferReason,
+      failure: failure || null,
+      executionIntentSummary: modelSummary || null,
+      sourceThreadId: sourceThreadId || null,
+      sourceThoughtThreadId: sourceThoughtThreadId || null,
+      sourceConcernId: sourceConcernId || null,
+      targetThreadId: targetThreadId || null,
+    },
+  }
 }
 
 type PresenceOnlyPersistedEmotionalKernelInput = Parameters<typeof buildAlicizationEmotionalKernel>[0]
@@ -279,33 +377,23 @@ export function buildPresenceOnlyHoldContinuityProjection(input: {
   }
 
   const previousProjection = input.previousProjection ?? null
-  const guidanceCandidates = [
-    String(input.openingGuidance ?? '').trim(),
-    String(previousProjection?.openingGuidance ?? '').trim(),
-    String(input.projectContinuityCue ?? '').trim(),
-    String(input.initiativeWhy ?? '').trim(),
-  ].filter(Boolean)
-  const meaningfullySpecificGuidance = guidanceCandidates.find(candidate =>
-    Boolean(normalizePresenceOnlyHoldCarryText(candidate, 320)),
-  )
   const openingGuidance = normalizePresenceOnlyHoldCarryText(
-    meaningfullySpecificGuidance ?? '',
+    previousProjection?.openingGuidance,
     320,
   )
-  const inwardLine = [
-    normalizePresenceOnlyHoldCarryText(previousProjection?.selfContinuityAuthority?.inwardLine, 240),
-    normalizePresenceOnlyHoldCarryText(input.projectContinuityCue, 240),
-    normalizePresenceOnlyHoldCarryText(input.initiativeWhy, 240),
-    openingGuidance,
-  ].filter(Boolean).join(' | ')
+  const inwardLine = normalizePresenceOnlyHoldCarryText(
+    previousProjection?.selfContinuityAuthority?.inwardLine,
+    240,
+  )
 
   return {
     ...previousProjection,
-    summary: String(previousProjection?.summary ?? '').trim()
-      || '',
+    summary: normalizePresenceOnlyHoldCarryText(previousProjection?.summary, 420),
     openingGuidance,
-    manifestationCadenceSummary: String(previousProjection?.manifestationCadenceSummary ?? '').trim()
-      || '',
+    manifestationCadenceSummary: normalizePresenceOnlyHoldCarryText(
+      previousProjection?.manifestationCadenceSummary,
+      420,
+    ),
     sameHerHoldDetail: null,
     selfContinuityAuthority: {
       ...previousProjection?.selfContinuityAuthority,
@@ -483,12 +571,6 @@ export function buildPresenceOnlyHoldInitiativeFallback(input: {
     return null
   }
 
-  const why = [
-    String(input.decision?.whyNow ?? '').trim(),
-    String(input.projectContinuityCue ?? '').trim(),
-    String(input.privateThought?.thoughtText ?? '').trim(),
-  ].filter(Boolean)[0] || ''
-
   const preferredPresence = continuityRestraint === 'repair-before-closeness'
     ? 'concerned'
     : continuityRestraint === 'rest-protective'
@@ -503,7 +585,6 @@ export function buildPresenceOnlyHoldInitiativeFallback(input: {
       preferredStyle: preferredStyle ?? input.existingInitiative.preferredStyle ?? 'silent-observe',
       preferredPresence,
       continuityRestraint: continuityRestraint ?? input.existingInitiative.continuityRestraint ?? null,
-      why: why || input.existingInitiative.why,
       shouldSurface: false,
       shouldSpeak: false,
       silenceDrive: 1,
@@ -532,7 +613,7 @@ export function buildPresenceOnlyHoldInitiativeFallback(input: {
     preferredStyle: preferredStyle ?? 'silent-observe',
     preferredPresence,
     continuityRestraint,
-    why,
+    why: null,
     shouldSurface: false,
     shouldSpeak: false,
   }
@@ -570,6 +651,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
     sourceThoughtThreadId?: string | null
     sourceConcernId?: string | null
     executionIntent?: {
+      id?: string | null
       kind?: string | null
       summary?: string | null
       targetThreadId?: string | null
@@ -578,7 +660,8 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
 }) {
   const scenario = String(input.scenario ?? '').trim() || 'general'
   const turnId = String(input.turnId ?? '').trim()
-  const reason = String(input.reason ?? '').trim()
+  const reasonCode = String(input.reason ?? '').trim()
+  const explicitIntentId = String(input.autonomy?.executionIntent?.id ?? '').trim()
   const executionIntentKind = String(input.autonomy?.executionIntent?.kind ?? '').trim()
   const executionIntentSummary = String(input.autonomy?.executionIntent?.summary ?? '').trim()
   const deferReason = String(input.autonomy?.deferReason ?? '').trim()
@@ -587,147 +670,75 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
   const sourceThoughtThreadId = String(input.autonomy?.sourceThoughtThreadId ?? '').trim()
   const sourceConcernId = String(input.autonomy?.sourceConcernId ?? '').trim()
   const targetThreadId = String(input.autonomy?.executionIntent?.targetThreadId ?? '').trim()
+  const threadId = sourceThreadId || targetThreadId
+  const intentId = explicitIntentId || executionIntentKind
   const hasHeldAutonomyThreadAnchor = Boolean(sourceThoughtThreadId)
     || Boolean(sourceConcernId)
-  const explicitHeldAutonomyIntent = Boolean(executionIntentKind)
+  const explicitHeldAutonomyIntent = Boolean(intentId)
     || Boolean(executionIntentSummary)
     || hasHeldAutonomyThreadAnchor
   const visibleUtteranceWasDeferred
-    = reason === 'proactive-visible-presence-without-utterance'
-      || reason === 'provider-mind-unavailable-for-proactive-visible-utterance'
+    = reasonCode === 'proactive-visible-presence-without-utterance'
+      || reasonCode === 'provider-mind-unavailable-for-proactive-visible-utterance'
   const shouldUseDeferredProactiveLine
     = visibleUtteranceWasDeferred
       && (
         !explicitHeldAutonomyIntent
         || executionIntentKind === 'repair'
       )
-  const projectStatePreflightSummary = null
-  const projectStatePreDialogueAwarenessLine = null
-  const projectStateCompanionHeadlineLine = null
-  const projectStateEmotionalClosureCue = null
-  const projectStateEmotionalClosureSummary = null
-  const projectIdentity = null
-  const projectPhase = null
-  const projectPrimaryOpenLoop = null
-  const projectNextClosureTarget = null
-  const projectStateSameHerSelfLine = null
-  const projectStateSameHerDriftRisk = null
-  const projectStateSameHerHoldDetail = null
-  const deferredSummaryAuthority = preferPresenceOnlyDeferredSummaryAuthority([
-    executionIntentSummary,
-    whyNow,
-    deferReason,
-  ])
-  const deferredWhyNow = normalizePresenceOnlyHoldMetadataText(whyNow, 560)
-  const deferredExecutionIntentSummary = normalizePresenceOnlyHoldMetadataText(executionIntentSummary, 560)
-  const deferredProjectStatePreflightSummary = normalizePresenceOnlyHoldMetadataText(projectStatePreflightSummary, 560)
-  const deferredProjectStatePreDialogueAwarenessLine = normalizePresenceOnlyHoldMetadataText(projectStatePreDialogueAwarenessLine, 560)
-  const deferredProjectStateCompanionHeadlineLine = normalizePresenceOnlyHoldMetadataText(projectStateCompanionHeadlineLine, 560)
-  const deferredProjectStateEmotionalClosureCue = normalizePresenceOnlyHoldMetadataText(projectStateEmotionalClosureCue, 560)
-  const deferredProjectStateEmotionalClosureSummary = normalizePresenceOnlyHoldMetadataText(projectStateEmotionalClosureSummary, 560)
-  const deferredProjectIdentity = normalizePresenceOnlyHoldMetadataText(projectIdentity, 360)
-  const deferredProjectPhase = normalizePresenceOnlyHoldMetadataText(projectPhase, 360)
-  const deferredProjectPrimaryOpenLoop = normalizePresenceOnlyHoldMetadataText(projectPrimaryOpenLoop, 560)
-  const deferredProjectNextClosureTarget = normalizePresenceOnlyHoldMetadataText(projectNextClosureTarget, 560)
-  const deferredProjectStateSameHerSelfLine = normalizePresenceOnlyHoldMetadataText(projectStateSameHerSelfLine, 560)
-  const deferredProjectStateSameHerDriftRisk = normalizePresenceOnlyHoldMetadataText(projectStateSameHerDriftRisk, 560)
-  const deferredProjectStateSameHerHoldDetail = normalizePresenceOnlyHoldMetadataText(projectStateSameHerHoldDetail, 560)
-
-  if (shouldUseDeferredProactiveLine) {
-    return {
-      kind: 'proactive',
-      state: 'pending',
-      label: `proactive:${scenario}:deferred`,
-      summary: [
-        'no mind-authored visible reply was available',
-        reason ? `reason=${reason}` : '',
-        deferredSummaryAuthority,
-        deferredProjectNextClosureTarget ? `next=${deferredProjectNextClosureTarget}` : '',
-        deferredProjectPhase ? `phase=${deferredProjectPhase}` : '',
-        deferredProjectPrimaryOpenLoop ? `unresolved=${deferredProjectPrimaryOpenLoop}` : '',
-        sourceThreadId ? `thread=${sourceThreadId}` : '',
-        `scenario=${scenario}`,
-      ].filter(Boolean).join(' | '),
-      signature: [
-        'proactive-deferred',
-        turnId || 'turn',
-        sourceThreadId || targetThreadId || 'global',
-        scenario,
-      ].join(':'),
-      createdAt: input.now,
-      metadata: {
-        source: 'proactive-deferred',
-        turnId: turnId || null,
-        scenario,
-        reason: reason || null,
-        deferReason: deferReason || null,
-        whyNow: deferredWhyNow,
-        sourceThreadId: sourceThreadId || null,
-        sourceThoughtThreadId: sourceThoughtThreadId || null,
-        sourceConcernId: sourceConcernId || null,
-        executionIntentKind: null,
-        executionIntentSummary: deferredExecutionIntentSummary,
-        targetThreadId: targetThreadId || null,
-        projectStatePreflightSummary: deferredProjectStatePreflightSummary,
-        projectStatePreDialogueAwarenessLine: deferredProjectStatePreDialogueAwarenessLine,
-        projectStateCompanionHeadlineLine: deferredProjectStateCompanionHeadlineLine,
-        projectStateEmotionalClosureCue: deferredProjectStateEmotionalClosureCue,
-        projectStateEmotionalClosureSummary: deferredProjectStateEmotionalClosureSummary,
-        projectIdentity: deferredProjectIdentity,
-        projectPhase: deferredProjectPhase,
-        projectPrimaryOpenLoop: deferredProjectPrimaryOpenLoop,
-        projectNextClosureTarget: deferredProjectNextClosureTarget,
-        projectStateSameHerSelfLine: deferredProjectStateSameHerSelfLine,
-        projectStateSameHerDriftRisk: deferredProjectStateSameHerDriftRisk,
-        projectStateSameHerHoldDetail: deferredProjectStateSameHerHoldDetail,
-      },
-    }
-  }
+  const modelSummary = normalizePresenceOnlyContinuitySummary(executionIntentSummary, 560)
+  const normalizedDeferReason = normalizePresenceOnlyContinuitySummary(deferReason, 240)
+  const failure = [
+    modelSummary,
+    normalizePresenceOnlyHoldCarryText(whyNow, 560),
+    normalizedDeferReason,
+  ].find(candidate =>
+    /failed|failure|error|timed? out|timeout|unavailable|blocked|denied|settlement|失败|错误|超时|不可用|被阻止|拒绝|结算/iu.test(candidate),
+  ) ?? ''
+  const continuitySummary = Array.from(new Set([
+    modelSummary,
+    failure,
+  ].filter(Boolean))).join(' | ')
+  const structuredDeferReason = normalizedDeferReason && normalizedDeferReason !== failure
+    ? normalizedDeferReason
+    : null
+  const source = shouldUseDeferredProactiveLine
+    ? 'proactive-deferred'
+    : 'proactive-held-autonomy'
+  const state = shouldUseDeferredProactiveLine
+    ? 'pending'
+    : 'observed'
+  const label = shouldUseDeferredProactiveLine
+    ? `proactive:${scenario}:deferred`
+    : `proactive:${intentId || scenario}:held-autonomy`
 
   return {
     kind: 'proactive',
-    state: 'observed',
-    label: `proactive:${executionIntentKind || scenario}:held-autonomy`,
-    summary: [
-      deferredSummaryAuthority || deferredExecutionIntentSummary || deferredWhyNow || 'proactive_state=held_for_opening',
-      executionIntentKind ? `intent=${executionIntentKind}` : '',
-      deferReason ? `defer=${deferReason}` : '',
-      reason ? `reason=${reason}` : '',
-      sourceThreadId ? `thread=${sourceThreadId}` : '',
-      `scenario=${scenario}`,
-    ].filter(Boolean).join(' | '),
+    state,
+    label,
+    summary: continuitySummary || null,
     signature: [
-      'proactive-held-autonomy',
+      source,
       turnId || 'turn',
-      sourceThreadId || targetThreadId || 'global',
-      executionIntentKind || scenario,
+      threadId || 'global',
+      intentId || scenario,
     ].join(':'),
     createdAt: input.now,
     metadata: {
-      source: 'proactive-held-autonomy',
+      source,
       turnId: turnId || null,
       scenario,
-      reason: reason || null,
-      deferReason: deferReason || null,
-      whyNow: deferredWhyNow,
+      reasonCode: reasonCode || null,
+      threadId: threadId || null,
+      intentId: intentId || null,
+      deferredAt: input.now,
+      deferReason: structuredDeferReason,
+      failure: failure || null,
+      executionIntentSummary: modelSummary || null,
       sourceThreadId: sourceThreadId || null,
       sourceThoughtThreadId: sourceThoughtThreadId || null,
       sourceConcernId: sourceConcernId || null,
-      executionIntentKind: executionIntentKind || null,
-      executionIntentSummary: deferredExecutionIntentSummary,
       targetThreadId: targetThreadId || null,
-      projectStatePreflightSummary: deferredProjectStatePreflightSummary,
-      projectStatePreDialogueAwarenessLine: deferredProjectStatePreDialogueAwarenessLine,
-      projectStateCompanionHeadlineLine: deferredProjectStateCompanionHeadlineLine,
-      projectStateEmotionalClosureCue: deferredProjectStateEmotionalClosureCue,
-      projectStateEmotionalClosureSummary: deferredProjectStateEmotionalClosureSummary,
-      projectIdentity: deferredProjectIdentity,
-      projectPhase: deferredProjectPhase,
-      projectPrimaryOpenLoop: deferredProjectPrimaryOpenLoop,
-      projectNextClosureTarget: deferredProjectNextClosureTarget,
-      projectStateSameHerSelfLine: deferredProjectStateSameHerSelfLine,
-      projectStateSameHerDriftRisk: deferredProjectStateSameHerDriftRisk,
-      projectStateSameHerHoldDetail: deferredProjectStateSameHerHoldDetail,
     },
   }
 }
@@ -805,36 +816,9 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
       ])
       .filter(([, value]) => value !== ''),
   )
-  const continuityCue = normalizePresenceOnlyHoldCarryText(
-    input.projectStateCarry?.continuityCue
-    ?? projectState.continuityCue
-    ?? null,
-    320,
-  )
-  if (continuityCue)
-    nextProjectState.continuityCue = continuityCue
-  else
-    delete nextProjectState.continuityCue
-
-  const transparentFailureOrBoundary = [
-    input.holdDetail,
-    input.projectStateCarry?.emotionalClosureSummary,
-    input.projectStateCarry?.continuityCue,
-  ]
-    .map(candidate => normalizePresenceOnlyHoldCarryText(candidate, 320))
-    .find(candidate =>
-      /failed|failure|error|timed? out|timeout|unavailable|blocked|denied|confirmation|required|失败|错误|超时|不可用|被阻止|拒绝|等待确认/iu.test(candidate),
-    ) ?? ''
-  const nextConsciousNeed = normalizePresenceOnlyHoldCarryText(frame.consciousNeed, 520)
-  const normalizedFrameSpeakingIntention = normalizePresenceOnlyHoldCarryText(frame.speakingIntention, 520)
-  const nextSpeakingIntention = transparentFailureOrBoundary
-    ? appendPresenceOnlyHoldCarryText(normalizedFrameSpeakingIntention, transparentFailureOrBoundary, 520)
-    : normalizedFrameSpeakingIntention
 
   return {
     ...frame,
-    consciousNeed: nextConsciousNeed,
-    speakingIntention: nextSpeakingIntention,
     reasonTags: nextReasonTags,
     projectState: nextProjectState,
   }
@@ -891,7 +875,6 @@ export function rebuildPresenceOnlyPersistedEmotionalKernel(input: {
       'rest-protective',
       'quiet-companionship',
     ])),
-    why: 'Care is still present, but this presence-only hold is protecting rest first, so memory, initiative, and embodiment should stay quietly nearby on the same inward line.',
   }
 }
 
@@ -1009,16 +992,17 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       } | null
     } | null
   }) {
-    if (typeof buildDeferredAutonomyContinuitySignal === 'function') {
-      return buildDeferredAutonomyContinuitySignal({
-        ...input,
-        projectState: input.projectState ?? null,
-      })
-    }
-    return buildDeferredAutonomyContinuitySignalFallback({
-      ...input,
-      projectState: input.projectState ?? null,
-    })
+    const signal = typeof buildDeferredAutonomyContinuitySignal === 'function'
+      ? buildDeferredAutonomyContinuitySignal({
+          ...input,
+          projectState: input.projectState ?? null,
+        })
+      : buildDeferredAutonomyContinuitySignalFallback({
+          ...input,
+          projectState: input.projectState ?? null,
+        })
+
+    return normalizeDeferredAutonomyContinuitySignal(signal)
   }
 
   async function runSubconsciousTickForCurrentCard(trigger: 'timer' | 'force') {
@@ -1409,7 +1393,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         knowledgeEvidence: committedDigitalLifeSpine.current.runtimeSurface.memory.knowledgeEvidence ?? null,
         perception: perceptionSignals,
         runtimeDigest: proactiveRuntimeSnapshot,
-        projectState: proactiveRuntimeSnapshot?.projectState ?? null,
         selfRevisionPatch: activeSelfRevisionPatch,
         ...committedDigitalLifeSpine.current.proactivePolicy,
       })
@@ -1927,17 +1910,11 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               },
             ) ?? policyAdjustedRuntimeSnapshot ?? proactiveRuntimeSnapshot
             const projectContinuityCue
-              = persistedPresenceRuntimeSnapshot?.projectState?.continuityCue
-                ?? proactiveRuntimeSnapshot?.projectState?.continuityCue
-                ?? latestRuntimeSurface.dialogue?.currentConsciousFrame?.projectState?.continuityCue
-                ?? latestRuntimeSurface.dialogue?.currentConsciousFrame?.continuityCue
-                ?? persistedPresenceState.privateThought?.thoughtText
+              = persistedPresenceState.privateThought?.thoughtText
                 ?? null
             const authoritativePresenceOnlyContinuityRestraint = derivePresenceOnlyHoldAuthorityContinuityRestraint({
               currentContinuityRestraint:
-                (policyAdjustedRuntimeSnapshot?.continuityRestraint as 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'lower-pressure' | null | undefined)
-                ?? (proactiveRuntimeSnapshot?.continuityRestraint as 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'lower-pressure' | null | undefined)
-                ?? digitalLifeRuntimeSurface.mind?.initiative?.continuityRestraint
+                digitalLifeRuntimeSurface.mind?.initiative?.continuityRestraint
                 ?? (deliveryDecision.style === 'silent-observe' ? 'lower-pressure' : null),
             })
             const persistedInitiative = buildPresenceOnlyHoldInitiativeFallback({

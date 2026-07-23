@@ -138,6 +138,43 @@ function sanitizeText(raw: unknown, maxChars = 240) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+const legacyVisualInwardPreoccupationPattern
+  = /body_preoccupation\s*=|posture\s*=|presence-only hold|stay near in the current phase 1 context|landed closure keeps growing|still-open loop stays|ordinary proactive closeness/iu
+
+function sanitizeVisualDynamicMindText(raw: unknown, maxChars = 180) {
+  if (typeof raw !== 'string')
+    return ''
+
+  const normalized = sanitizeText(raw, maxChars * 4)
+  if (!normalized)
+    return ''
+
+  return normalized
+    .split(/(?<=[.!?。！？])\s+|[|\n]+/u)
+    .map(segment => segment.trim())
+    .filter(segment => segment && !legacyVisualInwardPreoccupationPattern.test(segment))
+    .map(segment => sanitizeAlicizationMemoryEvidenceText(segment, maxChars))
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, maxChars)
+    .trim()
+}
+
+function sanitizeVisualDynamicEmotionalKernel(kernel: AlicizationEmotionalKernelSnapshot | null): AlicizationEmotionalKernelSnapshot | null {
+  if (!kernel)
+    return null
+
+  if (!Object.prototype.hasOwnProperty.call(kernel, 'why'))
+    return kernel
+
+  const why = sanitizeVisualDynamicMindText(kernel.why, 240)
+  if (why)
+    return { ...kernel, why }
+
+  const { why: _why, ...withoutFixedWhy } = kernel
+  return withoutFixedWhy as AlicizationEmotionalKernelSnapshot
+}
+
 function hasOwnField(candidate: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(candidate, key)
 }
@@ -550,7 +587,7 @@ function normalizePresenceAuthorityQuietLineMs(raw: unknown) {
 }
 
 function normalizePresenceAuthorityCurrentInwardPreoccupation(raw: unknown) {
-  const value = sanitizeText(raw, 160)
+  const value = sanitizeVisualDynamicMindText(raw, 160)
   return value || null
 }
 
@@ -3033,7 +3070,7 @@ function derivePresenceOnlyResidentHoldInwardPreoccupation(input: {
   derivedMindStateBundle: AlicizationDerivedMindStateBundle | null
   fallback: string | null | undefined
 }) {
-  const fallback = sanitizeText(input.fallback, 160)
+  const fallback = sanitizeVisualDynamicMindText(input.fallback, 160)
   const recollectionIntent = readRecollectionIntentFromDerivedMindStateBundle<AlicizationRecallGovernorSnapshot['recollectionIntent']>(
     input.derivedMindStateBundle,
   )
@@ -3172,7 +3209,7 @@ function rebuildPresenceOnlyResidentHoldEmotionalKernel(input: {
       && continuityRestraint !== 'rest-protective'
     )
   ) {
-    return input.fallbackEmotionalKernel
+    return sanitizeVisualDynamicEmotionalKernel(input.fallbackEmotionalKernel)
   }
 
   const rebuiltKernel = buildAlicizationEmotionalKernel({
@@ -3188,10 +3225,11 @@ function rebuildPresenceOnlyResidentHoldEmotionalKernel(input: {
   })
 
   if (continuityRestraint !== 'rest-protective')
-    return rebuiltKernel
+    return sanitizeVisualDynamicEmotionalKernel(rebuiltKernel)
 
+  const sanitizedKernel = sanitizeVisualDynamicEmotionalKernel(rebuiltKernel)
   return {
-    ...rebuiltKernel,
+    ...sanitizedKernel!,
     dominantEmotion: 'rest-protective-companionship',
     initiativeMode: 'observe',
     memoryRecallMode: 'rest-protective-presence',
@@ -3201,7 +3239,6 @@ function rebuildPresenceOnlyResidentHoldEmotionalKernel(input: {
       'rest-protective',
       'quiet-companionship',
     ])),
-    why: 'Care is still present, but this presence-only hold is protecting rest first, so memory, initiative, and embodiment should stay quietly nearby on the same inward line.',
   }
 }
 
@@ -3300,13 +3337,13 @@ export function updateVisualPresenceState(input: {
           ? 'protective-watch' as const
           : 'quiet-accompaniment' as const,
         quietLineMs: Math.max(previousState.quietLineMs, 180_000),
-        currentInwardPreoccupation: sanitizeText(
+        currentInwardPreoccupation: sanitizeVisualDynamicMindText(
           input.initiative.why
           || input.privateThought?.thoughtText
           || previousState.currentInwardPreoccupation
           || '',
           160,
-        ) || previousState.currentInwardPreoccupation,
+        ) || normalizePresenceAuthorityCurrentInwardPreoccupation(previousState.currentInwardPreoccupation),
       }
     : null
 
@@ -3409,7 +3446,8 @@ export function updateVisualPresenceState(input: {
     currentBodyState: initiativePresenceRetune?.currentBodyState ?? previousState.currentBodyState,
     continuityMode: initiativePresenceRetune?.continuityMode ?? previousState.continuityMode,
     quietLineMs: initiativePresenceRetune?.quietLineMs ?? previousState.quietLineMs,
-    currentInwardPreoccupation: retunedInwardPreoccupation ?? previousState.currentInwardPreoccupation,
+    currentInwardPreoccupation: retunedInwardPreoccupation
+      ?? normalizePresenceAuthorityCurrentInwardPreoccupation(previousState.currentInwardPreoccupation),
     watchMode: input.watchMode,
     currentScene: input.scene,
     attention: input.attention,

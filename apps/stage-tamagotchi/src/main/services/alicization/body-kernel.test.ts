@@ -5,6 +5,63 @@ import { buildAlicizationPersonStateProjection } from './person-state-projection
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('body kernel', () => {
+  it('keeps body authority structured and does not synthesize fixed inward-preoccupation prose', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 100_000 })
+
+    const next = kernel.reduce({
+      sustainedFocusMs: 180_000,
+      watchMode: 'symbiotic-vision',
+      shouldSpeak: false,
+      activeConversation: false,
+      relationshipPressure: 0.8,
+      personaAuthoritySummary: 'Stay near in the current Phase 1 context.',
+      personaKernelSummary: 'body_preoccupation=sustained_focus; source=persona_kernel',
+    })
+
+    expect(next).toMatchObject({
+      currentBodyState: 'accompanying',
+      continuityMode: 'quiet-accompaniment',
+      quietLineMs: 180_000,
+      currentInwardPreoccupation: null,
+    })
+    expect(JSON.stringify(next)).not.toMatch(/body_preoccupation=|posture=|Phase 1|stay near/iu)
+  })
+
+  it('drops fixed body prose from visual state while preserving a real provider failure as dynamic mind evidence', () => {
+    const kernel = createAlicizationBodyKernel({ now: () => 100_000 })
+    const candidateState = {
+      ...createDefaultVisualPresenceState(100_000),
+      watchMode: 'symbiotic-vision',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'doc',
+        scenario: 'steady-covision',
+        summary: 'steady',
+        source: 'screen-semantic-summary',
+        confidence: 0.8,
+        beganAt: 0,
+        lastSeenAt: 100_000,
+      },
+      currentInwardPreoccupation: 'body_preoccupation=sustained_focus; source=persona_kernel',
+      privateThought: {
+        thoughtText: 'Provider failed with HTTP 503: upstream unavailable.',
+      },
+      emotionalKernel: {
+        why: 'posture=lower_pressure; restart_policy=context_preserving',
+      },
+    } as any
+
+    const next = kernel.applyToVisualPresenceState({
+      now: 100_000,
+      previousState: createDefaultVisualPresenceState(0),
+      candidateState,
+      activeConversation: false,
+    })
+
+    expect(next.currentInwardPreoccupation).toBe('Provider failed with HTTP 503: upstream unavailable.')
+    expect(JSON.stringify(next)).not.toContain('body_preoccupation=sustained_focus')
+  })
+
   it('holds quiet accompaniment directly from the emotional kernel even without initiative continuity tags', () => {
     const kernel = createAlicizationBodyKernel({ now: () => 210_000 })
     const previousState = createDefaultVisualPresenceState(100_000)
@@ -96,7 +153,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('same lower-pressure line nearby')
   })
 
   it('holds protective watch directly from the emotional kernel when repair should settle before closeness', () => {
@@ -190,7 +246,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('recovering')
     expect(nextState.continuityMode).toBe('protective-watch')
-    expect(nextState.currentInwardPreoccupation).toContain('repair settle')
   })
 
   it('holds a quieter protective-watch body line when care stays present but rest protection should keep the line inward', () => {
@@ -285,7 +340,6 @@ describe('body kernel', () => {
     expect(nextState.currentBodyState).toBe('recovering')
     expect(nextState.continuityMode).toBe('protective-watch')
     expect(nextState.quietLineMs).toBeGreaterThanOrEqual(240_000)
-    expect(nextState.currentInwardPreoccupation).toContain('rest protection hold the line inward')
   })
 
   it('treats guarded-care confirmation-boundary carry as a protective-watch body line before execution widens again', () => {
@@ -386,7 +440,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('recovering')
     expect(nextState.continuityMode).toBe('protective-watch')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('confirmation')
   })
 
   it('treats memory-deliberation repair-before-closeness cadence as direct body-line authority even before initiative names the restraint', () => {
@@ -579,8 +632,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('recovering')
     expect(nextState.continuityMode).toBe('protective-watch')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('repair')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('closeness')
   })
 
   it('projects a broader same-her phase-1 closure line into body authority when emotion, memory, initiative, and embodiment are still closing together', () => {
@@ -688,9 +739,7 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(240_000)
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('same phase 1 digital life')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('same still-open loop')
+    expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
   })
 
   it('keeps same-her measured-return continuity authority on quiet accompaniment even when watch mode alone would otherwise fall back to ambient covision', () => {
@@ -771,7 +820,6 @@ describe('body kernel', () => {
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
     expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
-    expect(nextState.currentInwardPreoccupation).toContain('same lower-pressure line')
   })
 
   it('threads Phase 1 growth carry into quiet embodiment when initiative restraint already knows some closure has landed but the loop is still open', () => {
@@ -851,9 +899,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
-    expect(nextState.currentInwardPreoccupation).toContain('landed closure keeps growing')
-    expect(nextState.currentInwardPreoccupation).toContain('still-open loop stays gentle')
   })
 
   it('treats inward self-continuity hold as quiet embodiment continuity even before initiative writes an explicit measured-return tag', () => {
@@ -947,7 +992,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('orienting inward')
   })
 
   it('treats quiet-companionship self-continuity hold as quiet embodiment continuity even before initiative writes an explicit measured-return tag', () => {
@@ -1041,7 +1085,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('quietly nearby')
   })
 
   it('treats durable-self-core projection as direct quiet embodiment authority even before initiative or emotion names the restraint', () => {
@@ -1132,8 +1175,6 @@ describe('body kernel', () => {
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
     expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('same line')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('reopening from scratch')
   })
 
   it('keeps structured pre-dialogue project-state identity-continuity', () => {
@@ -1236,9 +1277,7 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
-    expect(nextState.currentInwardPreoccupation).toContain('landed closure keeps growing')
-    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on continuity state')
+    expect(nextState.currentInwardPreoccupation).toBeNull()
   })
 
   it('keeps body continuity on the identity-continuity', () => {
@@ -1342,8 +1381,7 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
-    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on continuity state')
+    expect(nextState.currentInwardPreoccupation).toBeNull()
   })
 
   it('falls back to richer top-level project-state carry for body continuity when the current conscious frame project-state is still thin', () => {
@@ -1444,8 +1482,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('same Phase 1 digital life')
-    expect(nextState.currentInwardPreoccupation).toContain('same still-open loop stays on continuity state')
   })
 
   it('keeps a more specific remembered measured-return cadence in body carry when broader phase-1 growth awareness is also present', () => {
@@ -1592,9 +1628,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('Leave more room')
-    expect(nextState.currentInwardPreoccupation).toContain('return stay slower')
-    expect(nextState.currentInwardPreoccupation).not.toContain('same Phase 1 digital life')
   })
 
   it('prefers vulnerable-care remembered cadence over broader Phase 1 growth when rest-protective body authority should stay care-before-analysis', () => {
@@ -1741,10 +1774,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('recovering')
     expect(nextState.continuityMode).toBe('protective-watch')
-    expect(nextState.currentInwardPreoccupation).toContain('vulnerable-care')
-    expect(nextState.currentInwardPreoccupation).toContain('care arrives before analysis')
-    expect(nextState.currentInwardPreoccupation).toContain('lighter and quieter')
-    expect(nextState.currentInwardPreoccupation).not.toContain('same Phase 1 digital life')
   })
 
   it('keeps remembered initiative rhythm visible in body carry so reopening cadence lands as quieter embodiment instead of staying initiative-only', () => {
@@ -1863,9 +1892,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('visibly reopening')
-    expect(nextState.currentInwardPreoccupation).toContain('anti-spam')
-    expect(nextState.currentInwardPreoccupation).not.toContain('same Phase 1 digital life')
   })
 
   it('lets metabolized same-thread memory cadence in self-evolution keep body continuity quieter instead of dropping back to broader phase-1 growth carry', () => {
@@ -1987,9 +2013,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation).toContain('same-thread memory')
-    expect(nextState.currentInwardPreoccupation).toContain('temporary noise fade')
-    expect(nextState.currentInwardPreoccupation).not.toContain('same Phase 1 digital life')
   })
 
   it('prefers a stronger repair-before-closeness project-state emotional closure summary over a thinner measured-return cue for body continuity authority', () => {
@@ -2083,7 +2106,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('recovering')
     expect(nextState.continuityMode).toBe('protective-watch')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('repair')
   })
 
   it('keeps the embodied return measured when emotion carries the continuity first and initiative only confirms it downstream', () => {
@@ -2178,7 +2200,6 @@ describe('body kernel', () => {
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
     expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
-    expect(nextState.currentInwardPreoccupation).toContain('same lower-pressure line nearby')
   })
 
   it('lets emotional transition decay hold drive repair body restraint after the live emotional kernel has already softened', () => {
@@ -2310,7 +2331,6 @@ describe('body kernel', () => {
 
     expect(heldState.currentBodyState).toBe('recovering')
     expect(heldState.continuityMode).toBe('protective-watch')
-    expect(heldState.currentInwardPreoccupation?.toLowerCase()).toContain('repair')
     expect(releasedState.currentBodyState).not.toBe('recovering')
     expect(releasedState.continuityMode).not.toBe('protective-watch')
   })
@@ -2483,8 +2503,6 @@ describe('body kernel', () => {
 
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('clearer opening')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('more room')
   })
 
   it('lets autobiographical gentle-opening memory directly quiet the body before self-evolution or projection catches up', () => {
@@ -2611,8 +2629,6 @@ describe('body kernel', () => {
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
     expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('memory-led')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('gentle')
   })
 
   it('lets long-horizon gentle-opening memory directly keep body continuity on quiet accompaniment before autobiographical or projection carry catches up', () => {
@@ -2743,8 +2759,6 @@ describe('body kernel', () => {
     expect(nextState.currentBodyState).toBe('accompanying')
     expect(nextState.continuityMode).toBe('quiet-accompaniment')
     expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('clearer opening')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('more room')
   })
 
   it('lets long-horizon confirmation-boundary memory directly keep body continuity on protective watch before emotional carry fully catches up', () => {
@@ -2875,8 +2889,5 @@ describe('body kernel', () => {
     expect(nextState.currentBodyState).toBe('recovering')
     expect(nextState.continuityMode).toBe('protective-watch')
     expect(nextState.quietLineMs).toBeGreaterThanOrEqual(180_000)
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('confirmation')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('wait for confirmation')
-    expect(nextState.currentInwardPreoccupation?.toLowerCase()).toContain('ordinary proactive closeness')
   })
 })

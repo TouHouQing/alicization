@@ -16,7 +16,6 @@ import type {
 
 import { sanitizeAlicizationStructuredInternalText } from '@proj-alicization/stage-shared'
 
-import { deriveAlicizationContinuityDeliberationFromSpine } from './continuity-deliberation'
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import {
   buildAlicizationDigitalLifeContinuitySignal,
@@ -27,7 +26,6 @@ import {
 } from './digital-life-kernel'
 import { buildAlicizationDigitalLifeMemoryDigest } from './digital-life-memory'
 import { buildMindEcology } from './mind-ecology'
-import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 
 export interface AlicizationDigitalLifeSpineSnapshot {
   version: 'digital-life-spine-v1'
@@ -64,36 +62,95 @@ function sanitizeDigitalLifeSpineDigestText(raw: unknown, maxChars = 160) {
   return sanitizeAlicizationStructuredInternalText(normalized, maxChars)
 }
 
-function isDigitalLifeSpineGenericTemplateCarryLine(raw: unknown) {
-  if (typeof raw !== 'string')
-    return false
-  return raw.includes('runtime_personhood')
-    && raw.includes('landed_progress=present')
-    && raw.includes('unresolved_closure=continuity_line')
+const digitalLifeArchitectureOperatingModes = new Set([
+  'observing',
+  'thinking',
+  'speaking',
+  'acting',
+  'remembering',
+])
+
+const digitalLifeArchitectureSubsystemIds = new Set([
+  'dialogue',
+  'perception',
+  'proactive',
+  'control',
+  'mind',
+  'memory',
+  'runtime',
+])
+
+function projectDigitalLifeArchitectureDigest(
+  architecture: AlicizationDigitalLifeArchitectureSnapshot | null | undefined,
+): AlicizationDigitalLifeSpineDigest['architecture'] {
+  if (!architecture)
+    return null
+
+  const operatingMode = digitalLifeArchitectureOperatingModes.has(architecture.operatingMode)
+    ? architecture.operatingMode
+    : null
+  const dominantSystem = digitalLifeArchitectureSubsystemIds.has(architecture.dominantSystem)
+    ? architecture.dominantSystem
+    : null
+  const supportingSystems = Array.isArray(architecture.supportingSystems)
+    ? architecture.supportingSystems.filter(system => digitalLifeArchitectureSubsystemIds.has(system))
+    : []
+  const summary = [
+    operatingMode ? `mode=${operatingMode}` : '',
+    dominantSystem ? `dominant=${dominantSystem}` : '',
+    supportingSystems.length > 0 ? `support=${supportingSystems.join(',')}` : '',
+  ].filter(Boolean).join(' | ')
+
+  return {
+    operatingMode,
+    dominantSystem,
+    supportingSystems,
+    governingFocus: null,
+    summary: summary || null,
+  }
 }
 
-function looksLikeSceneContaminatedProjectSameHerLine(raw: unknown) {
-  const text = sanitizeDigitalLifeSpineDigestText(raw, 320)
-  if (!text)
-    return false
+const legacyGovernanceTextPattern
+  = /project[-_ ]?state|same[-_ ]?her|opening[-_ ]?policy|opening[-_ ]?guidance|relationship[-_ ]?cadence|continuity[-_ ]?(?:arc|carry|closure|cue|hold|timing|restraint)|measured[-_ ]?return|repair[-_ ]?before[-_ ]?closeness|next[-_ ]?open[-_ ]?window/iu
 
-  const lowered = text.toLowerCase()
-  const carriesProjectSameHerBaseline
-    = lowered.includes('phase 1 continuity')
-      || lowered.includes('continuity line')
-      || lowered.includes('continuous her')
-      || lowered.includes('identity continuity')
-  const carriesForegroundSceneNarration
-    = /宿主正在|宿主还在沿着|host is|host is still following|runtime\.ts|index\.ts|callback result seam|foreground|screen|window|scene|工作线程|work thread|trust seam/u.test(text)
-
-  return carriesProjectSameHerBaseline && carriesForegroundSceneNarration
+function hasLegacyGovernanceAuthority(
+  authority: { sourceTags?: unknown, inwardLine?: unknown, authoritySummary?: unknown } | null | undefined,
+) {
+  const sourceTags = Array.isArray(authority?.sourceTags) ? authority.sourceTags : []
+  return sourceTags.some(tag => legacyGovernanceTextPattern.test(String(tag)))
+    || legacyGovernanceTextPattern.test(String(authority?.inwardLine ?? ''))
+    || legacyGovernanceTextPattern.test(String(authority?.authoritySummary ?? ''))
 }
 
-function sanitizeProjectSameHerCarryCandidate(raw: unknown, maxChars = 220) {
-  const text = sanitizeDigitalLifeSpineDigestText(raw, maxChars)
-  if (!text)
-    return ''
-  return looksLikeSceneContaminatedProjectSameHerLine(text) ? '' : text
+const legacyGovernanceKeys = new Set([
+  'projectState',
+  'projectStateContinuity',
+  'sameHerSelfLine',
+  'sameHerHoldDetail',
+  'sameHerDriftRisk',
+  'continuityArcStage',
+  'continuityPreferredTiming',
+  'continuityCue',
+  'continuityCadence',
+  'continuityRestraint',
+  'openingGuidance',
+  'manifestationCadenceSummary',
+  'relationshipCadenceSummary',
+])
+
+function stripLegacyGovernanceProjection(raw: unknown): unknown {
+  if (typeof raw === 'string')
+    return legacyGovernanceTextPattern.test(raw) ? null : raw
+  if (Array.isArray(raw))
+    return raw.map(stripLegacyGovernanceProjection)
+  if (!raw || typeof raw !== 'object')
+    return raw
+
+  return Object.fromEntries(
+    Object.entries(raw)
+      .filter(([key]) => !legacyGovernanceKeys.has(key))
+      .map(([key, value]) => [key, stripLegacyGovernanceProjection(value)]),
+  )
 }
 
 function normalizeDigitalLifeSpineDigestNumber(raw: unknown) {
@@ -176,21 +233,6 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
   const comfortStyle = sanitizeDigitalLifeSpineDigestText(personality?.initiativeBaseline?.comfortStyle, 48) || null
   const preferredProactiveStyle = sanitizeDigitalLifeSpineDigestText(projection?.preferredProactiveStyle ?? '', 48) || null
   const capsulePreferredProactiveStyle = sanitizeDigitalLifeSpineDigestText(capsule?.modules.initiative.proactiveStyle ?? '', 48) || null
-  const capsuleCadenceSummary = sanitizeDigitalLifeSpineDigestText(
-    capsule?.modules.initiative.cadenceSummary
-    ?? capsule?.modules.embodiment.hint
-    ?? '',
-    220,
-  ) || null
-  const manifestationCadenceSummary = capsuleCadenceSummary ?? buildPersonaManifestationCadenceSummary({
-    initiativeStyle,
-    silenceReconnect,
-    relationshipPosture,
-    comfortStyle,
-    preferredProactiveStyle: capsulePreferredProactiveStyle ?? preferredProactiveStyle,
-  })
-  const rawOpeningGuidance = sanitizeDigitalLifeSpineDigestText(projection?.openingGuidance ?? '', 220) || null
-  const capsuleOpeningGuidance = sanitizeDigitalLifeSpineDigestText(capsule?.modules.dialogue.openingGuidance ?? '', 220) || null
   const rawWhySummary = sanitizeDigitalLifeSpineDigestText(
     surface.agency?.autonomy?.whyNow
     ?? surface.agency?.initiative?.why
@@ -198,75 +240,9 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
     ?? '',
     320,
   ) || null
-  const currentConsciousProjectState = surface.dialogue?.currentConsciousFrame?.projectState ?? null
-  const rawPhaseLine = sanitizeDigitalLifeSpineDigestText(currentConsciousProjectState?.currentPhase ?? '', 80) || null
-  const phaseLine = rawPhaseLine && /phase\s*1\s*:\s*local digital life/iu.test(rawPhaseLine)
-    ? ''
-    : rawPhaseLine
-  const landedLine = sanitizeDigitalLifeSpineDigestText(
-    currentConsciousProjectState?.latestLandedProgress
-    ?? currentConsciousProjectState?.latestProgress
-    ?? currentConsciousProjectState?.landedProgressSummary
-    ?? '',
-    140,
-  ) || null
-  const openLoopLine = sanitizeDigitalLifeSpineDigestText(
-    currentConsciousProjectState?.primaryOpenLoop
-    ?? currentConsciousProjectState?.openClosureSummary
-    ?? '',
-    180,
-  ) || null
-  const nextClosureLine = sanitizeDigitalLifeSpineDigestText(
-    currentConsciousProjectState?.nextClosureTarget
-    ?? currentConsciousProjectState?.nextClosureTargetSummary
-    ?? '',
-    180,
-  ) || null
-  const sameHerLine = sanitizeDigitalLifeSpineDigestText(currentConsciousProjectState?.sameHerSelfLine ?? '', 180) || null
-  const combinedCarry = [
-    rawOpeningGuidance,
-    rawWhySummary,
-    sameHerLine,
-    openLoopLine,
-    nextClosureLine,
-  ].filter(Boolean).join(' | ').toLowerCase()
-  const carriesPhase1SameHerClosure
-    = /phase1_local_digital_life|phase 1|local digital life|runtime_personhood/u.test([
-      phaseLine,
-      sameHerLine,
-      openLoopLine,
-      nextClosureLine,
-    ].filter(Boolean).join(' | ').toLowerCase())
-    && /continuity line|continuity_line|identity-continuity|identity continuity|continuity_identity|continuous her|same living line|same-her|runtime_personhood|project_state_review/u.test(combinedCarry)
-    && /memory|initiative|embodiment|voice|face|motion|lipsync/u.test(combinedCarry)
-  const projectClosureCarrySuffix = carriesPhase1SameHerClosure
-    ? sanitizeDigitalLifeSpineDigestText([
-      phaseLine ? `phase=${phaseLine}` : '',
-      landedLine ? `landed=${landedLine}` : '',
-      openLoopLine ? `open=${openLoopLine}` : '',
-      nextClosureLine ? `next=${nextClosureLine}` : '',
-    ].filter(Boolean).join(' | '), 420) || null
-    : null
-  const openingGuidance = projectClosureCarrySuffix
-    ? sanitizeDigitalLifeSpineDigestText([
-      rawOpeningGuidance,
-      `project_context=continuity_evidence_present; source=project_state.`,
-    ].filter(Boolean).join(' '), 220) || rawOpeningGuidance
-    : rawOpeningGuidance
-  const combinedProjectClosureWhySummary = projectClosureCarrySuffix
-    ? [rawWhySummary, projectClosureCarrySuffix].filter(Boolean).join(' | ')
-    : null
-  const whySummary = projectClosureCarrySuffix
-    ? sanitizeDigitalLifeSpineDigestText(
-      combinedProjectClosureWhySummary
-      && combinedProjectClosureWhySummary.length <= 420
-        ? combinedProjectClosureWhySummary
-        : projectClosureCarrySuffix,
-      420,
-    ) || rawWhySummary
-    : rawWhySummary
+  const whySummary = rawWhySummary
 
-  if (!relationshipPosture && !initiativeStyle && !silenceReconnect && !comfortStyle && !preferredProactiveStyle && !capsulePreferredProactiveStyle && !capsuleCadenceSummary && !manifestationCadenceSummary && !openingGuidance && !capsuleOpeningGuidance && !whySummary)
+  if (!relationshipPosture && !initiativeStyle && !silenceReconnect && !comfortStyle && !preferredProactiveStyle && !capsulePreferredProactiveStyle && !whySummary)
     return null
 
   return {
@@ -275,174 +251,20 @@ function extractPersonaBiasSummary(surface: Partial<AlicizationDigitalLifeRuntim
     silenceReconnect,
     comfortStyle,
     preferredProactiveStyle: capsulePreferredProactiveStyle ?? preferredProactiveStyle,
-    manifestationCadenceSummary,
-    openingGuidance: capsuleOpeningGuidance ?? openingGuidance,
+    manifestationCadenceSummary: null,
+    openingGuidance: null,
     whySummary,
   }
 }
 
-function buildPersonaManifestationCadenceSummary(input: {
-  initiativeStyle: string | null
-  silenceReconnect: string | null
-  relationshipPosture: string | null
-  comfortStyle: string | null
-  preferredProactiveStyle: string | null
-}) {
-  const observeFirst = input.initiativeStyle === 'observant'
-    || input.silenceReconnect === 'hold'
-    || input.preferredProactiveStyle === 'silent-observe'
-  if (observeFirst) {
-    return 'persona prefers observe-first room, so visible return cadence should stay slower until the opening softens.'
-  }
-
-  const directReconnect = input.initiativeStyle === 'high-participation'
-    || input.silenceReconnect === 'direct-approach'
-  if (directReconnect) {
-    return 'persona leans toward direct reconnect once the opening is real, so the return cadence can loosen earlier.'
-  }
-
-  const guardianCare = input.relationshipPosture === 'guardian'
-    || input.comfortStyle === 'take-charge'
-  if (guardianCare) {
-    return 'persona keeps a care-first cadence, so she can surface sooner when the host needs a steadier kind of presence.'
-  }
-
-  return null
-}
-
-function extractProjectContinuitySummary(surface: Partial<AlicizationDigitalLifeRuntimeSurface>) {
-  const rawSummary = surface.memory?.personStateProjection?.summary
-  if (typeof rawSummary !== 'string')
-    return null
-
-  return rawSummary
-    .trim()
-    .replace(/\s+/g, ' ')
-    .split('|')
-    .map(part => sanitizeDigitalLifeSpineDigestText(part, 220))
-    .filter(Boolean)
-    .find(part => part.startsWith('project_continuity=')) ?? null
-}
-
-function extractProjectStateCarrySummary(surface: Partial<AlicizationDigitalLifeRuntimeSurface>) {
-  const selfContinuityAuthority = surface.memory?.personStateProjection?.selfContinuityAuthority ?? null
-  const sourceTags = Array.isArray(selfContinuityAuthority?.sourceTags)
-    ? selfContinuityAuthority.sourceTags
-    : []
-  if (!sourceTags.includes('project-state-carry'))
-    return null
-
-  const inwardLine = sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority?.inwardLine ?? '', 220)
-  if (
-    !inwardLine
-    || isDigitalLifeSpineGenericTemplateCarryLine(inwardLine)
-  ) {
-    return null
-  }
-
-  return inwardLine
-}
-
-function resolveRuntimeContinuityCue(input: {
-  projectContinuitySummary?: string | null
-  projectStateCarrySummary?: string | null
-}) {
-  const projectContinuitySummary = sanitizeDigitalLifeSpineDigestText(input.projectContinuitySummary ?? '', 220)
-  const rawProjectStateCarrySummary = sanitizeDigitalLifeSpineDigestText(input.projectStateCarrySummary ?? '', 220)
-  const projectStateCarrySummary = isDigitalLifeSpineGenericTemplateCarryLine(rawProjectStateCarrySummary)
-    ? ''
-    : rawProjectStateCarrySummary
-
-  const callbackLikeContinuitySummary = /project_continuity=.*(?:callback|same-thread|same thread|same line|同一条线|沿着刚才那条线)/u
-    .test(projectContinuitySummary)
-  const callbackLikeCarrySummary = /callback|same-thread|same thread|same line|同一条线|沿着刚才那条线/u
-    .test(projectStateCarrySummary)
-  const explicitSameHerCarrySummary = /phase 1 continuity|continuity line|continuity_line|same digital life|identity-continuity|identity continuity|continuity_identity|continuous her|runtime_personhood|project_state_review|连续性/iu
-    .test(projectStateCarrySummary)
-
-  if (callbackLikeContinuitySummary && explicitSameHerCarrySummary && !callbackLikeCarrySummary)
-    return projectContinuitySummary
-
-  return projectStateCarrySummary || projectContinuitySummary || null
-}
-
-function normalizeSelfContinuitySourceTags(surface: Partial<AlicizationDigitalLifeRuntimeSurface>, sourceTags: unknown) {
+function normalizeSelfContinuitySourceTags(_surface: Partial<AlicizationDigitalLifeRuntimeSurface>, sourceTags: unknown) {
   const normalizedTags = Array.isArray(sourceTags)
     ? sourceTags
         .map(tag => sanitizeDigitalLifeSpineDigestText(tag, 64))
-        .filter(Boolean)
+        .filter(tag => Boolean(tag) && !legacyGovernanceTextPattern.test(tag))
         .slice(0, 8)
     : []
-  const sameHerProjectCarryLine = sanitizeDigitalLifeSpineDigestText([
-    surface.memory?.personStateProjection?.selfContinuityAuthority?.inwardLine ?? '',
-    surface.memory?.personStateProjection?.summary ?? '',
-    surface.memory?.autobiographicalSelf?.latestInflection ?? '',
-    surface.memory?.autobiographicalSelf?.relationshipDoctrine ?? '',
-    surface.memory?.longHorizonMemory?.rememberedConstraintSummary ?? '',
-    surface.memory?.longHorizonMemory?.rememberedPreferenceSummary ?? '',
-    surface.memory?.longHorizonMemory?.dominantCueSummary ?? '',
-    surface.cognition?.privateThought?.thoughtText ?? '',
-    surface.cognition?.privateThought?.emotionalTension ?? '',
-    surface.dialogue?.currentConsciousFrame?.focusAnchor ?? '',
-    sanitizeProjectSameHerCarryCandidate((surface.dialogue?.currentConsciousFrame as { projectState?: { sameHerSelfLine?: unknown, continuityCue?: unknown } | null } | null | undefined)?.projectState?.sameHerSelfLine ?? '', 220),
-    sanitizeProjectSameHerCarryCandidate((surface.dialogue?.currentConsciousFrame as { projectState?: { sameHerSelfLine?: unknown, continuityCue?: unknown } | null } | null | undefined)?.projectState?.continuityCue ?? '', 220),
-    surface.agency?.initiative?.why ?? '',
-    surface.agency?.initiative?.continuityRestraint ?? '',
-  ].filter(Boolean).join(' | '), 1200)
-  const loweredProjectCarryLine = sameHerProjectCarryLine.toLowerCase()
-  const carriesProjectStateCarry
-    = /phase 1 continuity|continuity line|continuity_line|identity continuity|identity-continuity|continuity_identity|continuous her|runtime_personhood|project_state_review/iu.test(loweredProjectCarryLine)
-      && /unfinished|still needs|continuing|unfinished closure|keep the same|leave room|measured-return|lower-pressure/iu.test(loweredProjectCarryLine)
-  const carriesExecutionCallbackProjectCarry
-    = loweredProjectCarryLine.includes('continuity-execution-callback-project-carry')
-      || loweredProjectCarryLine.includes('execution-callback project-carry')
-      || loweredProjectCarryLine.includes('callback project-carry')
-      || (
-        (
-          loweredProjectCarryLine.includes('execution-callback afterglow')
-          || loweredProjectCarryLine.includes('callback afterglow')
-          || loweredProjectCarryLine.includes('same callback line')
-          || loweredProjectCarryLine.includes('callback return')
-        )
-        && (
-          loweredProjectCarryLine.includes('same-thread-continuation')
-          || loweredProjectCarryLine.includes('still continuing')
-          || loweredProjectCarryLine.includes('measured-return')
-          || loweredProjectCarryLine.includes('lower-pressure')
-          || loweredProjectCarryLine.includes('reopen eagerly')
-        )
-      )
-  const rebuiltAuthority = surface.perception && surface.world && surface.memory && surface.cognition && surface.agency && surface.dialogue
-    ? buildSelfContinuityAuthorityFromRuntimeSurface(surface as AlicizationDigitalLifeRuntimeSurface)
-    : null
-  const rebuiltTags = Array.isArray(rebuiltAuthority?.sourceTags)
-    ? rebuiltAuthority.sourceTags.map(tag => sanitizeDigitalLifeSpineDigestText(tag, 64)).filter(Boolean)
-    : []
-  const fallbackTags = !rebuiltTags.length && sameHerProjectCarryLine
-    ? [
-        ...(carriesProjectStateCarry
-          ? ['project-state-carry']
-          : []),
-        ...(carriesExecutionCallbackProjectCarry
-          ? ['continuity-execution-callback-project-carry']
-          : []),
-      ]
-    : []
-  const promotedCarryTags = [
-    ...(rebuiltTags.includes('project-state-carry') || fallbackTags.includes('project-state-carry')
-      ? ['project-state-carry']
-      : []),
-    ...(rebuiltTags.includes('continuity-execution-callback-project-carry') || fallbackTags.includes('continuity-execution-callback-project-carry')
-      ? ['continuity-execution-callback-project-carry']
-      : []),
-  ]
-
-  return Array.from(new Set([
-    ...promotedCarryTags,
-    ...normalizedTags,
-    ...rebuiltTags,
-    ...fallbackTags,
-  ])).slice(0, 8)
+  return [...new Set(normalizedTags)].slice(0, 8)
 }
 
 function resolveSpineHybridRuntimeSurface(
@@ -494,14 +316,6 @@ export function projectAlicizationDigitalLifeSpineDigest(
       digestLikeContinuity,
       'preferredPresence',
     )
-    const continuityWatchMode = readLegacyDigitalLifeContinuitySignalField(
-      digestLikeContinuity,
-      'watchMode',
-    )
-    const continuitySceneScenario = readLegacyDigitalLifeContinuitySignalField(
-      digestLikeContinuity,
-      'sceneScenario',
-    )
     const legacyPersonStateProjection = spine.memory?.personStateProjection
       && typeof spine.memory.personStateProjection === 'object'
       ? spine.memory.personStateProjection
@@ -511,7 +325,7 @@ export function projectAlicizationDigitalLifeSpineDigest(
       ? legacyPersonStateProjection.selfContinuityAuthority
       : null
 
-    return {
+    const legacyDigest = {
       version: 'digital-life-spine-digest-v1',
       runtime: {
         watchMode: sanitizeDigitalLifeSpineDigestText(digestLikeRuntime?.watchMode ?? '', 48) || null,
@@ -545,57 +359,18 @@ export function projectAlicizationDigitalLifeSpineDigest(
           digestLikeProactive?.selectedAction ?? digestLikeRuntime?.selectedAction ?? '',
           48,
         ) || null,
-        continuityArcStage: sanitizeDigitalLifeSpineDigestText(
-          digestLikeRuntime?.continuityArcStage ?? '',
-          120,
-        ) || null,
-        continuityPreferredTiming: sanitizeDigitalLifeSpineDigestText(
-          digestLikeRuntime?.continuityPreferredTiming ?? '',
-          120,
-        ) || null,
-        continuityCue: sanitizeDigitalLifeSpineDigestText(
-          digestLikeRuntime?.continuityCue ?? '',
-          220,
-        ) || null,
+        continuityArcStage: null,
+        continuityPreferredTiming: null,
+        continuityCue: null,
         updatedAt: Number.isFinite(digestLikeRuntime?.updatedAt) ? Number(digestLikeRuntime?.updatedAt) : 0,
       },
-      architecture: spine.architecture
-        ? {
-            operatingMode: spine.architecture.operatingMode ?? null,
-            dominantSystem: spine.architecture.dominantSystem ?? null,
-            supportingSystems: Array.isArray(spine.architecture.supportingSystems)
-              ? [...spine.architecture.supportingSystems]
-              : [],
-            governingFocus: sanitizeDigitalLifeSpineDigestText(spine.architecture.governingFocus ?? '', 160) || null,
-            summary: sanitizeDigitalLifeSpineDigestText(spine.architecture.summary ?? '', 220) || null,
-          }
-        : null,
-      continuitySignal: digestLikeContinuity
-        ? ({
-            label: sanitizeDigitalLifeSpineDigestText(
-              ('label' in digestLikeContinuity ? digestLikeContinuity.label : '') ?? '',
-              96,
-            ) || 'digital-life-line',
-            summary: sanitizeDigitalLifeSpineDigestText(digestLikeContinuity.summary ?? '', 220),
-            signature: sanitizeDigitalLifeSpineDigestText(digestLikeContinuity.signature ?? '', 512),
-            createdAt: Number.isFinite(digestLikeContinuity.createdAt) ? Number(digestLikeContinuity.createdAt) : 0,
-            watchMode: continuityWatchMode,
-            sceneScenario: continuitySceneScenario,
-            activeThreadId: continuityActiveThreadId,
-            dominantMode: continuityDominantMode,
-            dominantDrive: continuityDominantDrive,
-            answerIntent: continuityAnswerIntent,
-            preferredPresence: continuityPreferredPresence,
-          } as NonNullable<AlicizationDigitalLifeSpineDigest['continuitySignal']>)
-        : null,
+      architecture: projectDigitalLifeArchitectureDigest(spine.architecture),
+      continuitySignal: null,
       proactive: digestLikeProactive
         ? {
             selectedAction: sanitizeDigitalLifeSpineDigestText(digestLikeProactive.selectedAction ?? '', 48) || null,
             preferredStyle: sanitizeDigitalLifeSpineDigestText(digestLikeProactive.preferredStyle ?? '', 48) || null,
-            continuityRestraint: sanitizeDigitalLifeSpineDigestText(
-              digestLikeProactive.continuityRestraint ?? '',
-              64,
-            ) || null,
+            continuityRestraint: null,
             confidence: normalizeDigitalLifeSpineDigestUnit(digestLikeProactive.confidence),
             shouldSpeak: typeof digestLikeProactive.shouldSpeak === 'boolean'
               ? digestLikeProactive.shouldSpeak
@@ -611,7 +386,6 @@ export function projectAlicizationDigitalLifeSpineDigest(
         : null,
       memory: spine.memory
         ? {
-            ...spine.memory,
             summary: sanitizeDigitalLifeSpineDigestText(spine.memory.summary ?? '', 220) || null,
             recentEpisodeSummary: sanitizeDigitalLifeSpineDigestText(spine.memory.recentEpisodeSummary ?? '', 120) || null,
             recentEpisodeCount: Number.isFinite(spine.memory.recentEpisodeCount)
@@ -629,7 +403,7 @@ export function projectAlicizationDigitalLifeSpineDigest(
             selfEvolution: spine.memory.selfEvolution && typeof spine.memory.selfEvolution === 'object'
               ? {
                   relationshipDoctrine: sanitizeDigitalLifeSpineDigestText(spine.memory.selfEvolution.relationshipDoctrine ?? '', 220) || null,
-                  relationshipCadenceSummary: sanitizeDigitalLifeSpineDigestText(spine.memory.selfEvolution.relationshipCadenceSummary ?? '', 220) || null,
+                  relationshipCadenceSummary: null,
                   latestInflection: sanitizeDigitalLifeSpineDigestText(spine.memory.selfEvolution.latestInflection ?? '', 220) || null,
                   burdenLine: sanitizeDigitalLifeSpineDigestText(spine.memory.selfEvolution.burdenLine ?? '', 220) || null,
                   trustMeaning: sanitizeDigitalLifeSpineDigestText(spine.memory.selfEvolution.trustMeaning ?? '', 220) || null,
@@ -650,21 +424,26 @@ export function projectAlicizationDigitalLifeSpineDigest(
                         relationshipLine: sanitizeDigitalLifeSpineDigestText(legacySelfContinuityAuthority.relationshipLine ?? '', 220) || null,
                         motiveLine: sanitizeDigitalLifeSpineDigestText(legacySelfContinuityAuthority.motiveLine ?? '', 220) || null,
                         habitLine: sanitizeDigitalLifeSpineDigestText(legacySelfContinuityAuthority.habitLine ?? '', 220) || null,
-                        inwardLine: sanitizeDigitalLifeSpineDigestText(legacySelfContinuityAuthority.inwardLine ?? '', 220) || null,
-                        authoritySummary: sanitizeDigitalLifeSpineDigestText(legacySelfContinuityAuthority.authoritySummary ?? '', 220) || null,
+                        inwardLine: hasLegacyGovernanceAuthority(legacySelfContinuityAuthority)
+                          ? null
+                          : sanitizeDigitalLifeSpineDigestText(legacySelfContinuityAuthority.inwardLine ?? '', 220) || null,
+                        authoritySummary: hasLegacyGovernanceAuthority(legacySelfContinuityAuthority)
+                          ? null
+                          : sanitizeDigitalLifeSpineDigestText(legacySelfContinuityAuthority.authoritySummary ?? '', 220) || null,
                       }
                     : spine.memory.personStateProjection?.selfContinuityAuthority ?? null,
                   activeClosenessContext: sanitizeDigitalLifeSpineDigestText(legacyPersonStateProjection.activeClosenessContext ?? '', 64) || null,
                   activeClosenessRung: sanitizeDigitalLifeSpineDigestText(legacyPersonStateProjection.activeClosenessRung ?? '', 64) || null,
                   relationshipPosture: sanitizeDigitalLifeSpineDigestText(legacyPersonStateProjection.relationshipPosture ?? '', 64) || null,
-                  openingGuidance: sanitizeDigitalLifeSpineDigestText(legacyPersonStateProjection.openingGuidance ?? '', 220) || null,
+                  openingGuidance: null,
                   preferredProactiveStyle: sanitizeDigitalLifeSpineDigestText(legacyPersonStateProjection.preferredProactiveStyle ?? '', 64) || null,
-                  manifestationCadenceSummary: sanitizeDigitalLifeSpineDigestText(legacyPersonStateProjection.manifestationCadenceSummary ?? '', 220) || null,
+                  manifestationCadenceSummary: null,
                 }
               : spine.memory.personStateProjection ?? null,
           }
         : null,
     }
+    return stripLegacyGovernanceProjection(legacyDigest) as AlicizationDigitalLifeSpineDigest
   }
 
   const surface = (spine.runtimeSurface as Partial<AlicizationDigitalLifeRuntimeSurface> | undefined) ?? {}
@@ -686,6 +465,7 @@ export function projectAlicizationDigitalLifeSpineDigest(
   const autobiographicalSelf = memory?.autobiographicalSelf ?? null
   const personStateProjection = memory?.personStateProjection ?? null
   const selfContinuityAuthority = personStateProjection?.selfContinuityAuthority ?? null
+  const hasLegacySelfContinuityAuthority = hasLegacyGovernanceAuthority(selfContinuityAuthority)
   const motiveEngine = memory?.motiveEngine ?? null
   const relationshipModel = world?.relationshipModel ?? null
   const selfState = agency?.selfState ?? null
@@ -701,7 +481,6 @@ export function projectAlicizationDigitalLifeSpineDigest(
       ? latestReflectionCandidate
       : reflectionEntries.find(entry => entry.outcome !== 'released')
   ) ?? reflectionEntries[0] ?? null
-  const continuityDeliberation = deriveAlicizationContinuityDeliberationFromSpine(spine)
   const motiveLongTermGoals = asArray(motiveEngine?.longTermGoals)
   const motiveBackgroundAgendas = asArray(motiveEngine?.backgroundAgendas)
   const leadingMotiveGoal = motiveLongTermGoals[0] ?? null
@@ -713,12 +492,6 @@ export function projectAlicizationDigitalLifeSpineDigest(
     privateThought?.embodiedPresence ?? initiative?.preferredPresence ?? '',
     48,
   ) || null
-  const projectContinuitySummary = extractProjectContinuitySummary(surface)
-  const projectStateCarrySummary = extractProjectStateCarrySummary(surface)
-  const runtimeContinuityCue = resolveRuntimeContinuityCue({
-    projectContinuitySummary,
-    projectStateCarrySummary,
-  })
   const personaBias = extractPersonaBiasSummary(surface)
   const mindEcology = buildMindEcology({
     now: perception?.updatedAt ?? 0,
@@ -760,22 +533,12 @@ export function projectAlicizationDigitalLifeSpineDigest(
       answerIntent: sanitizeDigitalLifeSpineDigestText(dialogue?.answerPlanner?.answerIntent ?? '', 64) || null,
       preferredPresence,
       selectedAction: sanitizeDigitalLifeSpineDigestText(autonomy?.visibleAction ?? initiative?.selectedAction ?? '', 48) || null,
-      continuityArcStage: continuityDeliberation.arcStage !== 'none' ? continuityDeliberation.arcStage : null,
-      continuityPreferredTiming: continuityDeliberation.preferredTiming !== 'internal-only'
-        ? continuityDeliberation.preferredTiming
-        : null,
-      continuityCue: runtimeContinuityCue,
+      continuityArcStage: null,
+      continuityPreferredTiming: null,
+      continuityCue: null,
       updatedAt: normalizeDigitalLifeSpineDigestNumber(perception?.updatedAt),
     },
-    architecture: architecture
-      ? {
-          operatingMode: architecture.operatingMode,
-          dominantSystem: architecture.dominantSystem,
-          supportingSystems: [...architecture.supportingSystems],
-          governingFocus: sanitizeDigitalLifeSpineDigestText(architecture.governingFocus ?? '', 160) || null,
-          summary: sanitizeDigitalLifeSpineDigestText(architecture.summary, 200) || null,
-        }
-      : null,
+    architecture: projectDigitalLifeArchitectureDigest(architecture),
     continuitySignal: continuitySignal
       ? {
           label: 'digital-life-line',
@@ -797,10 +560,7 @@ export function projectAlicizationDigitalLifeSpineDigest(
         initiative?.preferredStyle ?? privateThought?.suggestedStyle ?? '',
         48,
       ) || null,
-      continuityRestraint: sanitizeDigitalLifeSpineDigestText(
-        initiative?.continuityRestraint ?? '',
-        64,
-      ) || null,
+      continuityRestraint: null,
       confidence: normalizeDigitalLifeSpineDigestUnit(
         autonomy?.confidence ?? initiative?.confidence ?? privateThought?.confidence,
       ),
@@ -1094,16 +854,20 @@ export function projectAlicizationDigitalLifeSpineDigest(
                     relationshipLine: sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority.relationshipLine ?? '', 220) || null,
                     motiveLine: sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority.motiveLine ?? '', 220) || null,
                     habitLine: sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority.habitLine ?? '', 220) || null,
-                    inwardLine: sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority.inwardLine ?? '', 220) || null,
-                    authoritySummary: sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority.authoritySummary ?? '', 220) || null,
+                    inwardLine: hasLegacySelfContinuityAuthority
+                      ? null
+                      : sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority.inwardLine ?? '', 220) || null,
+                    authoritySummary: hasLegacySelfContinuityAuthority
+                      ? null
+                      : sanitizeDigitalLifeSpineDigestText(selfContinuityAuthority.authoritySummary ?? '', 220) || null,
                   }
                 : memoryDigest.personStateProjection?.selfContinuityAuthority ?? null,
               activeClosenessContext: sanitizeDigitalLifeSpineDigestText(personStateProjection.activeClosenessContext ?? '', 64) || null,
               activeClosenessRung: sanitizeDigitalLifeSpineDigestText(personStateProjection.activeClosenessRung ?? '', 64) || null,
               relationshipPosture: sanitizeDigitalLifeSpineDigestText(personStateProjection.relationshipPosture ?? '', 64) || null,
-              openingGuidance: sanitizeDigitalLifeSpineDigestText(personStateProjection.openingGuidance ?? '', 220) || null,
+              openingGuidance: null,
               preferredProactiveStyle: sanitizeDigitalLifeSpineDigestText(personStateProjection.preferredProactiveStyle ?? '', 64) || null,
-              manifestationCadenceSummary: sanitizeDigitalLifeSpineDigestText(personStateProjection.manifestationCadenceSummary ?? '', 220) || null,
+              manifestationCadenceSummary: null,
             }
           : memoryDigest.personStateProjection ?? null,
       }

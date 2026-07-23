@@ -62,9 +62,11 @@ describe('working memory owner context', () => {
     expect(context).not.toHaveProperty('authorityLine')
     expect(context.current.threadTitle).toBe('B 线短期记忆 owner')
     expect(context.current.taskStatus).toBe('active')
-    expect(context.obligations[0]).toContain('respect_correction(persona):不要固定模板回复')
-    expect(context.obligations).toContain('answer_unresolved_question:如何避免它只是另一个提示块？')
-    expect(context.obligations).toContain('honor_commitment:先做短期记忆 owner，再做长期记忆')
+    expect(context.obligations).toContain('不要固定模板回复，要数字生命自身人格')
+    expect(context.obligations.some(item => item.startsWith('respect_correction('))).toBe(false)
+    expect(context.obligations).toContain('如何避免它只是另一个提示块？')
+    expect(context.obligations).toContain('先做短期记忆 owner，再做长期记忆')
+    expect(context.obligations.some(item => /^(?:answer_unresolved_question:|honor_commitment:|carry_task\(|hold_thread:|carry_execution:)/u.test(item))).toBe(false)
     expect(context.audit.failureTurnIds).toEqual(['turn-failed:alice'])
     expect(context.longTermQueue).toHaveLength(1)
     expect(context.longTermQueue[0]).toEqual(expect.objectContaining({
@@ -105,10 +107,12 @@ describe('working memory owner context', () => {
 
     const context = workingMemoryOwnerContextModule.buildWorkingMemoryOwnerContext(snapshot)
     expect(context.obligations).toEqual(expect.arrayContaining([
-      'respect_correction(persona):不要再用 pre_turn_context_digest',
+      '不要再用 pre_turn_context_digest',
     ]))
+    expect(context.obligations.some(item => item.includes('respect_correction('))).toBe(false)
+    expect(context.current.threadTitle).toBeNull()
     expect(context.current.currentUserMove).toBe('不要再用 pre_turn_context_digest')
-    expect(context.queryHints).toContain('pre_turn_context_digest')
+    expect(context.queryHints).not.toContain('pre_turn_context_digest')
 
     expect(context.queryHints).toContain('失败面透明')
   })
@@ -169,6 +173,7 @@ describe('working memory owner context', () => {
     }))
     expect(episodes.at(-1)?.summary).toContain('thread=继续 B 线')
     expect(episodes.at(-1)?.summary).toContain('task=waiting-user:把 WorkingMemory 接入 runtime surface')
-    expect(episodes.at(-1)?.summary).toContain('correction=别用固定模板')
+    expect(episodes.at(-1)?.summary).toContain('别用固定模板')
+    expect(episodes.at(-1)?.summary).not.toContain('correction=')
   })
 })

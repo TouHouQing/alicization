@@ -9,7 +9,6 @@ import type {
   AlicizationPrivateThoughtSnapshot,
   AlicizationRelationshipModelSnapshot,
   AlicizationRepairLedgerSnapshot,
-  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationVisualSceneSnapshot,
   AlicizationWorldModelSnapshot,
   AlicizationWorldOntologySnapshot,
@@ -23,14 +22,11 @@ import type { AlicizationSelfContinuityAuthority } from './self-continuity-autho
 
 import {
   buildAlicizationScreenSurfaceCue,
-  readActiveContinuityGovernanceFromDerivedMindStateBundle,
   readHostPersonModelFromDerivedMindStateBundle,
-  readLearningExecutionStateFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
-import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { deriveMindTruthContract } from './mind-truth-contract'
@@ -44,11 +40,6 @@ import {
 
   buildAlicizationPersonalityContinuityState,
 } from './personality-continuity-state'
-import {
-  isAlicizationThinProjectAwarenessLine,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
-  resolveAlicizationProjectStateSnapshot,
-} from './project-state-brief'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 
 function clamp01(value: number) {
@@ -56,8 +47,6 @@ function clamp01(value: number) {
     return 0
   return Math.max(0, Math.min(1, Number(value.toFixed(2))))
 }
-
-const continuityBaselineMode = ['same', 'her-baseline'].join('-')
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -121,16 +110,6 @@ function naturalizeAnswerCompilerControlText(raw: unknown, maxChars = 420) {
 
 function naturalizeAnswerCompilerControlList(values: string[], maxItems = 10) {
   return uniqueList(values.map(value => naturalizeAnswerCompilerControlText(value, 360)), maxItems)
-}
-
-function stripTrailingPunctuation(text: string) {
-  return text.replace(/[.。!！?？;；:：]+$/u, '').trim()
-}
-
-function lowerFirst(text: string) {
-  if (!text)
-    return ''
-  return text.slice(0, 1).toLowerCase() + text.slice(1)
 }
 
 function sanitizeSurfaceClaim(raw: unknown, maxChars = 180) {
@@ -218,565 +197,11 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
-function preferProjectStateClosureCarryText(input: {
-  current?: unknown
-  candidate?: unknown
-}) {
-  const current = sanitizeDialogueSurfaceText(input.current, 320) || sanitizeText(input.current, 320) || null
-  const candidate = sanitizeDialogueSurfaceText(input.candidate, 320) || sanitizeText(input.candidate, 320) || null
-
-  if (!current)
-    return candidate
-  if (!candidate)
-    return current
-  if (current === candidate)
-    return current
-
-  const preferredClosureAuthority = preferStrongerContinuityClosureAuthority(current, candidate)
-  if (preferredClosureAuthority)
-    return preferredClosureAuthority
-
-  if (candidate.startsWith(current) && candidate.length >= current.length + 24)
-    return candidate
-  if (current.startsWith(candidate) && current.length >= candidate.length + 24)
-    return current
-
-  return candidate.length > current.length ? candidate : current
-}
-
 function firstCommitmentLine(conversationState?: AlicizationConversationStateSnapshot | null) {
   const commitments = Array.isArray(conversationState?.activeCommitments)
     ? conversationState.activeCommitments
     : []
   return sanitizeDialogueSurfaceText(commitments[0], 180) || null
-}
-
-function isThinProjectAwarenessShell(value: unknown) {
-  const normalized = sanitizeText(value, 320)
-  const text = normalized.toLowerCase()
-  if (!text)
-    return false
-
-  return isAlicizationThinProjectAwarenessLine(normalized)
-    || /generic project shell|detached project shell/u.test(text)
-}
-
-function carriesFullProjectPhaseAwarenessLine(value: unknown) {
-  const text = sanitizeText(value, 420).toLowerCase()
-  if (!text)
-    return false
-
-  return text.includes('before_answering, remember:')
-    && (text.includes('phase 1') || text.includes('local-first digital life'))
-    && (text.includes('still-open closure') || text.includes('still-open life loop'))
-}
-
-function carriesCallbackSpecificProjectAwarenessLine(value: unknown) {
-  const text = sanitizeText(value, 420).toLowerCase()
-  if (!text)
-    return false
-
-  return text.includes('callback')
-    && (
-      text.includes('current continuity')
-      || text.includes('continuity line')
-      || text.includes('continuity identity')
-      || text.includes('continuity')
-      || text.includes('continuous identity')
-      || text.includes('continuous identity')
-    )
-    && (
-      text.includes('phase 1')
-      || text.includes('closure')
-      || text.includes('unfinished')
-    )
-}
-
-function buildProjectStateAwarenessSummary(projectStateAudit?: {
-  preDialogueAwarenessSummary?: unknown
-  landedProgressSummary?: unknown
-  openClosureSummary?: unknown
-  openFocusSummary?: unknown
-  nextFocusSummary?: unknown
-  nextClosureTarget?: unknown
-  emotionalClosureSummary?: unknown
-  sameHerHoldDetail?: unknown
-  sameHerDriftRiskSummary?: unknown
-  proactiveSameHerGapSummary?: unknown
-} | null) {
-  const preDialogueAwarenessSummary = sanitizeDialogueSurfaceText(projectStateAudit?.preDialogueAwarenessSummary, 220)
-  const landedProgressSummary = sanitizeDialogueSurfaceText(projectStateAudit?.landedProgressSummary, 220)
-  const openClosureSummary = sanitizeDialogueSurfaceText(projectStateAudit?.openClosureSummary, 220)
-  const openFocusSummary = sanitizeDialogueSurfaceText(projectStateAudit?.openFocusSummary, 220)
-  const nextFocusSummary = sanitizeDialogueSurfaceText(projectStateAudit?.nextFocusSummary, 220)
-  const nextClosureTarget = sanitizeDialogueSurfaceText(projectStateAudit?.nextClosureTarget, 220)
-  const emotionalClosureSummary = sanitizeDialogueSurfaceText(projectStateAudit?.emotionalClosureSummary, 220)
-  const sameHerHoldDetail = sanitizeDialogueSurfaceText(projectStateAudit?.sameHerHoldDetail, 220)
-  const sameHerDriftRiskSummary = sanitizeDialogueSurfaceText(projectStateAudit?.sameHerDriftRiskSummary, 220)
-  const proactiveSameHerGapSummary = sanitizeDialogueSurfaceText(projectStateAudit?.proactiveSameHerGapSummary, 220)
-
-  if (
-    preDialogueAwarenessSummary
-    && !isThinProjectAwarenessShell(preDialogueAwarenessSummary)
-  ) {
-    return {
-      preDialogueAwarenessSummary,
-      landedProgressSummary,
-      openClosureSummary,
-      openFocusSummary,
-      nextFocusSummary,
-      nextClosureTarget,
-      emotionalClosureSummary,
-      sameHerHoldDetail,
-      sameHerDriftRiskSummary,
-      proactiveSameHerGapSummary,
-    }
-  }
-
-  const synthesizedSummary = sanitizeDialogueSurfaceText(
-    uniqueList([
-      landedProgressSummary,
-      openClosureSummary,
-      openFocusSummary,
-      nextFocusSummary,
-      nextClosureTarget,
-      emotionalClosureSummary,
-      sameHerHoldDetail,
-      sameHerDriftRiskSummary,
-      proactiveSameHerGapSummary,
-      preDialogueAwarenessSummary,
-    ], 6).join(' '),
-    220,
-  )
-
-  return {
-    preDialogueAwarenessSummary: synthesizedSummary || preDialogueAwarenessSummary || null,
-    landedProgressSummary,
-    openClosureSummary,
-    openFocusSummary,
-    nextFocusSummary,
-    nextClosureTarget,
-    emotionalClosureSummary,
-    sameHerHoldDetail,
-    sameHerDriftRiskSummary,
-    proactiveSameHerGapSummary,
-  }
-}
-
-function readRuntimeDigestProjectState(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-  return (runtimeSurface?.raw as {
-    runtimeDigest?: {
-      projectState?: Record<string, unknown> | null
-    } | null
-  } | null)?.runtimeDigest?.projectState ?? null
-}
-
-function readVisibleReplyProjectStateAudit(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-  return (runtimeSurface?.raw as {
-    visibleReplyRealization?: {
-      projectStateAudit?: {
-        preDialogueAwarenessSummary?: unknown
-        landedProgressSummary?: unknown
-        openClosureSummary?: unknown
-        openFocusSummary?: unknown
-        nextFocusSummary?: unknown
-        nextClosureTarget?: unknown
-        emotionalClosureSummary?: unknown
-        sameHerHoldDetail?: unknown
-        sameHerDriftRiskSummary?: unknown
-        proactiveSameHerGapSummary?: unknown
-      } | null
-    } | null
-  } | null)?.visibleReplyRealization?.projectStateAudit ?? null
-}
-
-function resolveProjectPreDialogueAwarenessLine(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-  const runtimeDigestProjectState = readRuntimeDigestProjectState(runtimeSurface)
-  const currentConsciousProjectState = runtimeSurface?.dialogue.currentConsciousFrame?.projectState ?? null
-  const runtimeProjectStateAudit = buildProjectStateAwarenessSummary(readVisibleReplyProjectStateAudit(runtimeSurface))
-  const fallbackProjectStateAudit = buildProjectStateAwarenessSummary(readVisibleReplyProjectStateAudit(runtimeSurface))
-  const normalizedProjectState = resolveAlicizationProjectStateSnapshot({
-    runtimeProjectState: runtimeDigestProjectState,
-  })
-  const companionHeadlineLine = sanitizeDialogueSurfaceText(runtimeDigestProjectState?.companionHeadlineLine ?? null, 220)
-  const runtimeAwarenessLine = sanitizeDialogueSurfaceText(
-    runtimeDigestProjectState?.preDialogueAwarenessLine
-    ?? runtimeDigestProjectState?.awarenessLine
-    ?? null,
-    220,
-  )
-  const consciousAwarenessLine = sanitizeDialogueSurfaceText(
-    currentConsciousProjectState?.preDialogueAwarenessLine
-    ?? currentConsciousProjectState?.awarenessLine
-    ?? null,
-    220,
-  )
-  const awarenessLine = (
-    (!runtimeAwarenessLine || isThinProjectAwarenessShell(runtimeAwarenessLine))
-    && consciousAwarenessLine
-  )
-    ? consciousAwarenessLine
-    : runtimeAwarenessLine || consciousAwarenessLine
-  if (
-    carriesFullProjectPhaseAwarenessLine(awarenessLine)
-    || carriesCallbackSpecificProjectAwarenessLine(awarenessLine)
-  ) {
-    return `pre-dialogue project awareness: ${awarenessLine}`
-  }
-  const liveSameHerSelfLine = sanitizeDialogueSurfaceText(runtimeDigestProjectState?.sameHerSelfLine ?? null, 320)
-  const explicitRuntimeLatestLandedProgress = sanitizeDialogueSurfaceText(
-    runtimeDigestProjectState?.latestLandedProgress ?? runtimeDigestProjectState?.latestProgress ?? null,
-    420,
-  )
-  const explicitRuntimePrimaryOpenLoop = sanitizeDialogueSurfaceText(runtimeDigestProjectState?.primaryOpenLoop ?? null, 420)
-  const explicitRuntimeNextClosureTarget = sanitizeDialogueSurfaceText(runtimeDigestProjectState?.nextClosureTarget ?? null, 420)
-  const explicitRuntimeContinuityCue = sanitizeDialogueSurfaceText(runtimeDigestProjectState?.continuityCue ?? null, 420)
-  const normalizedSameHerSelfLine = sanitizeDialogueSurfaceText(normalizedProjectState.sameHerSelfLine ?? null, 320)
-  const latestLandedProgress = sanitizeDialogueSurfaceText(normalizedProjectState.latestLandedProgress ?? null, 420)
-  const primaryOpenLoop = sanitizeDialogueSurfaceText(normalizedProjectState.primaryOpenLoop ?? null, 420)
-  const nextClosureTarget = sanitizeDialogueSurfaceText(normalizedProjectState.nextClosureTarget ?? null, 420)
-  const hasExplicitRuntimeSameHerClosureCarry = Boolean(
-    liveSameHerSelfLine
-    || explicitRuntimeLatestLandedProgress
-    || explicitRuntimePrimaryOpenLoop
-    || explicitRuntimeNextClosureTarget,
-  )
-  const strongerEmbodiedSameHerSelfLine
-    = liveSameHerSelfLine
-      && /audible-body|audible body|living audio thread|voice|lipsync/u.test(liveSameHerSelfLine)
-      && /audible-body|audible body|living audio thread|voice|lipsync|face and motion/u.test(
-        `${latestLandedProgress} ${primaryOpenLoop} ${nextClosureTarget}`.toLowerCase(),
-      )
-      ? liveSameHerSelfLine
-      : ''
-  const sameHerSelfLine = strongerEmbodiedSameHerSelfLine || normalizedSameHerSelfLine
-  const strongerCompanionHeadline
-    = companionHeadlineLine
-      && /holding together mainly through|full cross-modal closure|continuous identity|continuous identity|continuity line|continuous identity|continuous identity|continuity continuity|continuity identity continuity|still needs .* closure|without splitting continuity|generic project shell|detached project narrator/u.test(companionHeadlineLine)
-      && (!awarenessLine || isThinProjectAwarenessShell(awarenessLine))
-      ? companionHeadlineLine
-      : ''
-  const preferredProjectHoldAuthorityWithRuntimeCue = preferProjectStateClosureCarryText({
-    current: runtimeProjectStateAudit.sameHerHoldDetail,
-    candidate: explicitRuntimeContinuityCue,
-  })
-  const strongerSameHerClosureLine = sanitizeDialogueSurfaceText(
-    uniqueList([
-      sameHerSelfLine,
-      runtimeProjectStateAudit.landedProgressSummary || latestLandedProgress,
-      runtimeProjectStateAudit.openClosureSummary || primaryOpenLoop,
-      runtimeProjectStateAudit.nextClosureTarget || nextClosureTarget,
-      runtimeProjectStateAudit.emotionalClosureSummary || null,
-      runtimeProjectStateAudit.proactiveSameHerGapSummary || null,
-      preferredProjectHoldAuthorityWithRuntimeCue,
-    ], 6).join(' '),
-    960,
-  )
-  const hasExplicitProjectClosureAuditCarry = Boolean(
-    runtimeProjectStateAudit.landedProgressSummary
-    || runtimeProjectStateAudit.openClosureSummary
-    || runtimeProjectStateAudit.nextClosureTarget
-    || runtimeProjectStateAudit.emotionalClosureSummary
-    || runtimeProjectStateAudit.proactiveSameHerGapSummary
-    || preferredProjectHoldAuthorityWithRuntimeCue,
-  )
-  const strongerSameHerClosure
-    = !strongerCompanionHeadline
-      && strongerSameHerClosureLine
-      && (hasExplicitRuntimeSameHerClosureCarry || (hasExplicitProjectClosureAuditCarry && liveSameHerSelfLine))
-      && /phase1 continuity|continuity line|continuity identity|continuity|continuous identity|continuous identity|without splitting continuity|initiative|embodiment|measured-return|repair-before-closeness|resident presence/u.test(strongerSameHerClosureLine)
-      && (
-        !awarenessLine
-        || isThinProjectAwarenessShell(awarenessLine)
-        || awarenessLine === 'current_continuity | closure_seam=explicit'
-      )
-      ? strongerSameHerClosureLine
-      : ''
-  const richerAuditClosureCarry = sanitizeDialogueSurfaceText(
-    uniqueList([
-      runtimeProjectStateAudit.landedProgressSummary,
-      runtimeProjectStateAudit.openClosureSummary,
-      runtimeProjectStateAudit.emotionalClosureSummary,
-      runtimeProjectStateAudit.proactiveSameHerGapSummary,
-      preferredProjectHoldAuthorityWithRuntimeCue,
-      runtimeProjectStateAudit.nextClosureTarget,
-    ], 6).join(' '),
-    960,
-  )
-  const strongerAuditClosureCarry
-    = !strongerCompanionHeadline
-      && !strongerSameHerClosure
-      && richerAuditClosureCarry
-      && /continuity identity|continuity|repair-before-closeness|continuity line|live2d|vrm|lipsync|voice|motion|expression/u.test(richerAuditClosureCarry)
-      && (
-        !awarenessLine
-        || isThinProjectAwarenessShell(awarenessLine)
-        || awarenessLine === 'current_continuity | closure_seam=explicit'
-      )
-      ? richerAuditClosureCarry
-      : ''
-  const summary = sanitizeDialogueSurfaceText(
-    strongerCompanionHeadline
-    || strongerSameHerClosure
-    || strongerAuditClosureCarry
-    || (resolveAlicizationProjectPreDialogueAwarenessLine({
-      runtimeProjectState: {
-        preDialogueAwarenessSummary: runtimeProjectStateAudit.preDialogueAwarenessSummary,
-        landedProgressSummary: runtimeProjectStateAudit.landedProgressSummary,
-        openClosureSummary: runtimeProjectStateAudit.openClosureSummary,
-        openFocusSummary: runtimeProjectStateAudit.openFocusSummary,
-        nextFocusSummary: runtimeProjectStateAudit.nextFocusSummary,
-        nextClosureTargetSummary: runtimeProjectStateAudit.nextClosureTarget,
-        emotionalClosureSummary: runtimeProjectStateAudit.emotionalClosureSummary,
-        sameHerDriftRiskSummary: runtimeProjectStateAudit.sameHerDriftRiskSummary,
-        proactiveSameHerGap: runtimeProjectStateAudit.proactiveSameHerGapSummary,
-        companionHeadlineLine: runtimeDigestProjectState?.companionHeadlineLine ?? null,
-        preDialogueAwarenessLine: runtimeDigestProjectState?.preDialogueAwarenessLine ?? null,
-        awarenessLine: runtimeDigestProjectState?.awarenessLine ?? null,
-        companionBriefingLine: runtimeDigestProjectState?.companionBriefingLine ?? null,
-        preflightSummary: runtimeDigestProjectState?.preflightSummary ?? null,
-      },
-      fallbackProjectState: {
-        preDialogueAwarenessSummary: fallbackProjectStateAudit.preDialogueAwarenessSummary,
-        landedProgressSummary: fallbackProjectStateAudit.landedProgressSummary,
-        openClosureSummary: fallbackProjectStateAudit.openClosureSummary,
-        openFocusSummary: fallbackProjectStateAudit.openFocusSummary,
-        nextFocusSummary: fallbackProjectStateAudit.nextFocusSummary,
-        nextClosureTargetSummary: fallbackProjectStateAudit.nextClosureTarget,
-        emotionalClosureSummary: fallbackProjectStateAudit.emotionalClosureSummary,
-        sameHerDriftRiskSummary: fallbackProjectStateAudit.sameHerDriftRiskSummary,
-        proactiveSameHerGap: fallbackProjectStateAudit.proactiveSameHerGapSummary,
-        companionHeadlineLine: runtimeDigestProjectState?.companionHeadlineLine ?? null,
-        preDialogueAwarenessLine: runtimeDigestProjectState?.preDialogueAwarenessLine ?? null,
-        awarenessLine: runtimeDigestProjectState?.awarenessLine ?? null,
-        companionBriefingLine: runtimeDigestProjectState?.companionBriefingLine ?? null,
-        preflightSummary: runtimeDigestProjectState?.preflightSummary ?? null,
-      },
-    }) ?? ''),
-    960,
-  )
-  return summary
-    ? `pre-dialogue project awareness: ${summary}`
-    : null
-}
-
-function buildStructuredProjectStateSupportingReality(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-  const runtimeDigestProjectState = readRuntimeDigestProjectState(runtimeSurface)
-  const runtimeProjectStateAudit = buildProjectStateAwarenessSummary(readVisibleReplyProjectStateAudit(runtimeSurface))
-  const hasExplicitRuntimeProjectStateCarry = Boolean([
-    runtimeDigestProjectState?.identity,
-    runtimeDigestProjectState?.currentPhase,
-    runtimeDigestProjectState?.preflightSummary,
-    runtimeDigestProjectState?.preDialogueAwarenessLine,
-    runtimeDigestProjectState?.awarenessLine,
-    runtimeDigestProjectState?.companionHeadlineLine,
-    runtimeDigestProjectState?.companionBriefingLine,
-    runtimeDigestProjectState?.latestLandedProgress,
-    runtimeDigestProjectState?.latestProgress,
-    runtimeDigestProjectState?.primaryOpenLoop,
-    runtimeDigestProjectState?.nextClosureTarget,
-    runtimeDigestProjectState?.sameHerSelfLine,
-    runtimeProjectStateAudit.preDialogueAwarenessSummary,
-    runtimeProjectStateAudit.landedProgressSummary,
-    runtimeProjectStateAudit.openClosureSummary,
-    runtimeProjectStateAudit.openFocusSummary,
-    runtimeProjectStateAudit.nextFocusSummary,
-    runtimeProjectStateAudit.nextClosureTarget,
-    runtimeProjectStateAudit.emotionalClosureSummary,
-    runtimeProjectStateAudit.sameHerHoldDetail,
-    runtimeProjectStateAudit.sameHerDriftRiskSummary,
-    runtimeProjectStateAudit.proactiveSameHerGapSummary,
-  ].some(value => sanitizeDialogueSurfaceText(value, 220)))
-
-  if (!hasExplicitRuntimeProjectStateCarry)
-    return []
-
-  const snapshot = resolveAlicizationProjectStateSnapshot({
-    runtimeProjectState: {
-      identity: runtimeDigestProjectState?.identity,
-      currentPhase: runtimeDigestProjectState?.currentPhase,
-      preflightSummary: runtimeDigestProjectState?.preflightSummary,
-      preDialogueAwarenessLine: runtimeDigestProjectState?.preDialogueAwarenessLine,
-      awarenessLine: runtimeDigestProjectState?.awarenessLine,
-      companionHeadlineLine: runtimeDigestProjectState?.companionHeadlineLine,
-      companionBriefingLine: runtimeDigestProjectState?.companionBriefingLine,
-      preDialogueAwarenessSummary: runtimeProjectStateAudit.preDialogueAwarenessSummary,
-      latestLandedProgress: runtimeProjectStateAudit.landedProgressSummary ?? runtimeDigestProjectState?.latestLandedProgress,
-      latestProgress: runtimeDigestProjectState?.latestProgress,
-      primaryOpenLoop: runtimeProjectStateAudit.openClosureSummary ?? runtimeDigestProjectState?.primaryOpenLoop,
-      nextClosureTarget: runtimeProjectStateAudit.nextClosureTarget ?? runtimeDigestProjectState?.nextClosureTarget,
-      sameHerSelfLine: runtimeDigestProjectState?.sameHerSelfLine,
-      sameHerDriftRisk: runtimeProjectStateAudit.sameHerDriftRiskSummary ?? runtimeDigestProjectState?.sameHerDriftRisk,
-      proactiveSameHerGap: runtimeProjectStateAudit.proactiveSameHerGapSummary ?? runtimeDigestProjectState?.proactiveSameHerGap,
-      emotionalClosureCue: runtimeProjectStateAudit.emotionalClosureSummary ?? runtimeDigestProjectState?.emotionalClosureCue,
-      emotionalClosureSummary: runtimeProjectStateAudit.emotionalClosureSummary,
-      sameHerHoldDetail: runtimeProjectStateAudit.sameHerHoldDetail,
-      continuityArcStage: runtimeDigestProjectState?.continuityArcStage,
-      continuityCue: runtimeDigestProjectState?.continuityCue,
-    },
-  })
-
-  const projectIdentity = sanitizeDialogueSurfaceText(snapshot.identity, 220)
-  const currentPhase = sanitizeDialogueSurfaceText(snapshot.currentPhase, 220)
-  const projectProgress = sanitizeDialogueSurfaceText(snapshot.latestLandedProgress, 220)
-  const phaseOneOpenLoop = sanitizeDialogueSurfaceText(snapshot.primaryOpenLoop, 220)
-  const nextClosureTarget = sanitizeDialogueSurfaceText(snapshot.nextClosureTarget, 220)
-
-  if (!projectIdentity && !currentPhase && !projectProgress && !phaseOneOpenLoop && !nextClosureTarget)
-    return []
-
-  return uniqueList([
-    projectIdentity ? `project identity: ${projectIdentity}` : null,
-    currentPhase ? `current phase: ${currentPhase}` : null,
-    projectProgress ? `project progress: ${projectProgress}` : null,
-    phaseOneOpenLoop ? `phase-one open loop: ${phaseOneOpenLoop}` : null,
-    nextClosureTarget ? `next closure target: ${nextClosureTarget}` : null,
-  ], 5)
-}
-
-function includesAny(text: string, needles: string[]) {
-  return needles.some(needle => text.includes(needle))
-}
-
-function buildSameHerAntiShellAnswerConstraint(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-  const runtimeDigestProjectState = readRuntimeDigestProjectState(runtimeSurface)
-  const runtimeProjectStateAudit = buildProjectStateAwarenessSummary(readVisibleReplyProjectStateAudit(runtimeSurface))
-  const currentConsciousFrameProjectState = runtimeSurface?.dialogue.currentConsciousFrame?.projectState ?? null
-  const driftRisk = sanitizeDialogueSurfaceText(runtimeProjectStateAudit.sameHerDriftRiskSummary, 260)
-    || sanitizeDialogueSurfaceText(currentConsciousFrameProjectState?.sameHerDriftRisk, 260)
-    || sanitizeDialogueSurfaceText(runtimeDigestProjectState?.sameHerDriftRisk, 260)
-  const proactiveSameHerGap = sanitizeDialogueSurfaceText(runtimeProjectStateAudit.proactiveSameHerGapSummary, 260)
-    || sanitizeDialogueSurfaceText(currentConsciousFrameProjectState?.proactiveSameHerGap, 260)
-    || sanitizeDialogueSurfaceText(runtimeDigestProjectState?.proactiveSameHerGap, 260)
-  if (!driftRisk) {
-    if (!proactiveSameHerGap)
-      return null
-    return {
-      mustDo: 'Treat proactive continuity as unfinished, preserve the evidence boundary, and do not convert it into a project slogan.',
-      mustNotDo: 'Avoid presenting proactive continuity as closed or replacing missing evidence with a project-status shell.',
-    }
-  }
-
-  if (
-    /generic assistant shell|generic project shell|generic task shell|detached project narration|detached project narrator|project-summary voice|project summary voice/u.test(driftRisk)
-  ) {
-    return {
-      mustDo: 'Preserve factual project evidence without using project slogans; answer the current turn directly.',
-      mustNotDo: 'Do not use a generic assistant shell, detached project narration, or project-summary voice.',
-    }
-  }
-
-  return null
-}
-
-function isSameHerProjectClosureCallbackLine(value: unknown) {
-  const text = sanitizeText(value, 320).toLowerCase()
-  if (!text)
-    return false
-
-  const hasCallbackCue = text.includes('callback')
-    || text.includes('returned result')
-    || text.includes('execution result')
-  const hasSameHerCue = text.includes('continuity identity')
-    || text.includes('continuity')
-    || text.includes('continuity line')
-    || text.includes('current thread continuity')
-  const hasClosureCue = text.includes('closure')
-    || text.includes('phase 1')
-    || text.includes('reopen')
-
-  return hasCallbackCue && hasSameHerCue && hasClosureCue
-}
-
-function readCurrentConsciousFrameSameHerProjectClosureCallbackLine(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-  const currentConsciousFrame = runtimeSurface?.dialogue.currentConsciousFrame ?? null
-  const callbackClosureCarry = sanitizeText(
-    uniqueList([
-      currentConsciousFrame?.speakingIntention,
-      currentConsciousFrame?.consciousNeed,
-      currentConsciousFrame?.consciousTension,
-      currentConsciousFrame?.projectState?.nextClosureTarget,
-      currentConsciousFrame?.projectState?.sameHerSelfLine,
-      currentConsciousFrame?.projectState?.sameHerDriftRisk,
-      currentConsciousFrame?.focusAnchor,
-      ...(currentConsciousFrame?.reasonTags ?? []),
-    ], 8).join(' '),
-    1_200,
-  )
-
-  return isSameHerProjectClosureCallbackLine(callbackClosureCarry)
-    ? callbackClosureCarry
-    : null
-}
-
-function selfEvolutionSupportsLowerPressureOpening(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
-  if (!selfEvolution)
-    return false
-
-  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 180).toLowerCase()
-  const burdenLine = sanitizeText(selfEvolution.burdenLine, 180).toLowerCase()
-  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 180).toLowerCase()
-  const latestInflection = sanitizeText(selfEvolution.latestInflection, 180).toLowerCase()
-  const relationshipCadenceSummary = sanitizeText(selfEvolution.relationshipCadenceSummary, 180).toLowerCase()
-
-  return includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure', 'bounded-return', 'measured-return', 'surface fully cools'])
-    || includesAny(burdenLine, ['overloaded', 'pressure', 'crowd', 'conversational pressure'])
-    || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing', 'bounded-return', 'measured-return'])
-    || includesAny(latestInflection, ['pressure', 'slower return', 'lower-pressure', 'less eager', 'bounded-return', 'measured-return', 'reconfirmation'])
-    || includesAny(relationshipCadenceSummary, ['lower-pressure', 'less eager', 'room', 'space', 'timing', 'bounded-return', 'measured-return', 'reconfirmation', 'surface fully cools'])
-}
-
-function hasHeldAutonomyContinuity(runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null) {
-  const labels = (runtimeSurface?.dialogue as {
-    sessionMirror?: {
-      continuityLabels?: unknown
-    } | null
-  } | null)?.sessionMirror?.continuityLabels
-  if (!Array.isArray(labels) || labels.length === 0)
-    return false
-  return labels.some(label => sanitizeText(label, 120).includes(':held-autonomy'))
-}
-
-function isExecutionCallbackContinuityTurn(input: {
-  evidenceMode: AlicizationAnswerEvidenceMode
-  openingClaim?: string | null
-  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
-  conversationState?: AlicizationConversationStateSnapshot | null
-  activeClosenessContext?: string | null
-}) {
-  const priorOpeningDirective = sanitizeText(input.runtimeSurface?.dialogue.answerCompiler?.openingDirective, 220)
-  const priorEvidenceMode = input.runtimeSurface?.dialogue.answerCompiler?.evidenceMode
-
-  if (
-    input.evidenceMode !== 'continuity-carry'
-    && priorEvidenceMode !== 'continuity-carry'
-    && input.activeClosenessContext !== 'execution-callback'
-  ) {
-    return false
-  }
-
-  return input.activeClosenessContext === 'execution-callback'
-    || input.conversationState?.shouldHoldThread === true
-    || input.conversationState?.memoryMode === 'dialogue-carry'
-    || priorOpeningDirective.includes('detached callback notice')
-    || priorOpeningDirective.includes('continuity thread')
-}
-
-function shouldFrontloadProjectAwarenessOpeningBeat(input: {
-  replyDeliberation?: { openingBeat?: string | null } | null
-  discourseState: AlicizationDiscourseStateSnapshot
-  evidenceMode: AlicizationAnswerEvidenceMode
-}) {
-  const openingBeat = sanitizeText(input.replyDeliberation?.openingBeat, 220).toLowerCase()
-  if (!openingBeat)
-    return false
-  if (input.discourseState.screenReferenceMode !== 'avoid')
-    return false
-  if (input.evidenceMode !== 'continuity-carry' && input.evidenceMode !== 'dialogue-grounded')
-    return false
-  return openingBeat.includes('project awareness explicit first')
-    || openingBeat.includes('项目')
-    || openingBeat.includes('pre_speech')
 }
 
 interface AlicizationDialogueEncounterAnchor {
@@ -1122,84 +547,6 @@ function resolveRelationshipPosture(input: {
   return 'warm' as const
 }
 
-function resolveOpeningDirective(input: {
-  discourseState: AlicizationDiscourseStateSnapshot
-  recommendedAct: AlicizationAnswerAct
-  mindSynthesis: AlicizationMindSynthesisSnapshot
-  groundedThisTurn?: boolean
-  growthProfile: AlicizationDialogueGrowthProfile
-  personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
-  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
-}) {
-  const selfContinuitySourceTags = (input.selfContinuityAuthority?.sourceTags ?? [])
-    .map(tag => sanitizeText(tag, 64).toLowerCase())
-    .filter(Boolean)
-  const hasDurableSelfCore = selfContinuitySourceTags.includes('durable-self-core')
-  const durableSelfLine = sanitizeText(input.selfContinuityAuthority?.selfLine, 220).toLowerCase()
-  const hasAcrossTurnDurableSelfCore = hasDurableSelfCore
-    && /across quiet, memory, and speech|without reopening from scratch each turn|continuity identity across|one living self/u.test(durableSelfLine)
-
-  if (isFreshlyGroundedSceneTurn({
-    discourseState: input.discourseState,
-    groundedThisTurn: input.groundedThisTurn === true,
-  })) {
-    return input.discourseState.currentTurnSubject === 'task-knot'
-      ? 'Start from the live task knot and move into one concrete answer step.'
-      : 'Start from what is visibly current and do not use stale screen bookkeeping as the surface.'
-  }
-  if (input.recommendedAct === 'correct-stale-anchor')
-    return 'Correct the stale anchor before interpreting or softening the reply.'
-  if (input.recommendedAct === 'ask-reground')
-    return 'Ask for regrounding early and do not bluff around a stale anchor.'
-  if (
-    input.personalityContinuityState?.currentRegime === 'execution-callback'
-    && (input.recommendedAct === 'guide' || input.recommendedAct === 'answer')
-  ) {
-    return 'Start from the returned result, keep the callback bounded, and bind it to the requesting thread.'
-  }
-  if (input.recommendedAct === 'guide') {
-    return input.personalityContinuityState?.currentRegime === 'focused-work'
-      && input.personalityContinuityState.autonomyPosture === 'protect-space'
-      ? 'Start from the current knot with a light approach and bounded pressure.'
-      : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'Start from the current knot, avoid cross-turn reset, and give a real next step.'
-        : input.growthProfile.cadenceAffinity >= 0.58
-          ? 'Start from the current knot, carry continuity, and do not pretend the issue is already solved.'
-          : 'Start from the current knot and give one actionable next step.'
-  }
-  if (input.recommendedAct === 'care') {
-    return input.personalityContinuityState?.currentRegime === 'late-night-care'
-      || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
-      ? 'Open quietly, protect rest, and keep the energy ask low.'
-      : input.growthProfile.companionshipStyle === 'close-hold'
-        ? 'Open with presence while preserving room for the host.'
-        : input.growthProfile.autonomyRespect >= 0.58
-          ? 'Open from the current condition with bounded pressure.'
-          : 'Open from the current condition and avoid generic soothing.'
-  }
-  if (input.discourseState.currentTurnSubject === 'relationship') {
-    return input.personalityContinuityState?.repairPosture === 'repair-first'
-      ? 'Answer the relationship bid repair-first and avoid closeness before repair.'
-      : input.selfContinuityAuthority?.relationshipLine
-        ? `Use the current relationship authority: ${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.relationshipLine))}.`
-        : input.growthProfile.closeness >= 0.58
-          ? 'Answer the relationship bid before any narration.'
-          : 'Answer the relationship bid before scene narration.'
-  }
-  if (input.discourseState.currentTurnSubject === 'alicization-self') {
-    return input.selfContinuityAuthority?.selfLine
-      ? hasAcrossTurnDurableSelfCore
-        ? `Use the current self-continuity authority: ${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}.`
-        : `Use the self-continuity line: ${lowerFirst(stripTrailingPunctuation(input.selfContinuityAuthority.selfLine))}.`
-      : input.growthProfile.selfLine
-        ? `Use the growth profile self line: ${lowerFirst(stripTrailingPunctuation(input.growthProfile.selfLine))}.`
-        : 'Answer from her own continuity.'
-  }
-  if (input.discourseState.screenReferenceMode === 'required')
-    return 'Start from the strongest live observation and keep memory secondary.'
-  return 'Pay off the current turn directly.'
-}
-
 function resolveOpeningClaim(input: {
   discourseState: AlicizationDiscourseStateSnapshot
   conversationState?: AlicizationConversationStateSnapshot | null
@@ -1367,40 +714,6 @@ function resolveOpeningClaim(input: {
   || 'This turn needs a direct answer from the current seam.'
 }
 
-function resolveNextMove(input: {
-  recommendedAct: AlicizationAnswerAct
-  discourseState: AlicizationDiscourseStateSnapshot
-  mindSynthesis: AlicizationMindSynthesisSnapshot
-  growthProfile: AlicizationDialogueGrowthProfile
-}) {
-  if (input.recommendedAct === 'ask-reground')
-    return 'What I need next is the missing grounding, or at least a clearer sense of what still has to be re-seen.'
-  if (input.recommendedAct === 'guide') {
-    const guideNeed = sanitizeText(
-      input.mindSynthesis.commitments[0]?.summary
-      ?? input.mindSynthesis.concerns[0]?.summary
-      ?? 'Offer one concrete next step, not a generic bundle of options.',
-      180,
-    )
-    return guideNeed
-      ? `Offer one honest next step: ${lowerFirst(stripTrailingPunctuation(guideNeed))}.`
-      : 'Offer one concrete next step instead of a generic bundle of options.'
-  }
-  if (input.recommendedAct === 'care') {
-    return input.growthProfile.restAttunement >= 0.62
-      ? 'Let the first care response land, keep pressure light, and preserve room for the host.'
-      : input.growthProfile.protectsRestWindow
-        ? 'Let the first care response land, stay brief, and avoid adding extra load.'
-        : 'Let the first care response land, stay brief, and keep the grounding attached to the actual issue.'
-  }
-  if (input.discourseState.currentTurnSubject === 'relationship') {
-    return input.growthProfile.autonomyRespect >= 0.58
-      ? 'Follow the relationship bid after answering it; stay near-light and preserve host room.'
-      : 'Follow the relationship bid after answering it; stay near-light and widen only if the host wants more.'
-  }
-  return 'After this answer lands, I can decide whether anything else truly needs opening.'
-}
-
 export function buildAnswerCompiler(input: {
   now: number
   discourseState?: AlicizationDiscourseStateSnapshot | null
@@ -1429,18 +742,11 @@ export function buildAnswerCompiler(input: {
   const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
   const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
   const derivedBundle = runtimeSurface?.memory.derivedMindStateBundle ?? null
-  const activeContinuityGovernance = readActiveContinuityGovernanceFromDerivedMindStateBundle(derivedBundle)
   const explicitPersonalityContinuityState = runtimeSurface?.memory.personalityContinuityState ?? null
   const personStateProjection = resolvePreferredPersonStateProjection({
     bundleProjection: readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle),
     runtimeProjection: runtimeSurface?.memory.personStateProjection ?? null,
   }) ?? null
-  const learningExecutionState = readLearningExecutionStateFromDerivedMindStateBundle(derivedBundle)
-    ?? runtimeSurface?.memory.learningExecutionState
-    ?? null
-  const selfEvolution = ((derivedBundle as { selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null } | null)?.selfEvolution)
-    ?? runtimeSurface?.memory.selfEvolution
-    ?? null
   const personalityContinuityState = explicitPersonalityContinuityState
     ?? personStateProjection?.personalityContinuityState
     ?? buildAlicizationPersonalityContinuityState({
@@ -1538,31 +844,6 @@ export function buildAnswerCompiler(input: {
     ?? deriveClosenessContextFromContinuityState(personalityContinuityState)
   const activeClosenessRung = personStateProjection?.activeClosenessRung
     ?? deriveClosenessRungFromContinuityState(personalityContinuityState)
-  const openingDirective = resolveOpeningDirective({
-    discourseState,
-    recommendedAct,
-    mindSynthesis,
-    groundedThisTurn: input.groundedThisTurn === true,
-    growthProfile,
-    personalityContinuityState,
-    selfContinuityAuthority,
-  })
-  const learningAdjustedOpeningDirective = learningExecutionState?.nextLearningAction === 'verify'
-    ? `${openingDirective} Keep certainty behind current verification pressure.`
-    : learningExecutionState?.nextLearningAction === 'revise'
-      ? `${openingDirective} Treat the older continuity line as under revision.`
-      : learningExecutionState?.nextLearningAction === 'internalize'
-        ? `${openingDirective} Stay aligned with the stabilizing learned procedure.`
-        : openingDirective
-  const continuityGovernanceAdjustedOpeningDirective = activeContinuityGovernance?.mode === continuityBaselineMode
-    ? `${learningAdjustedOpeningDirective} Keep the current style baseline unless the live turn clearly asks for a change.`
-    : learningAdjustedOpeningDirective
-  const selfEvolutionAdjustedOpeningDirective = selfEvolutionSupportsLowerPressureOpening(selfEvolution)
-    ? `${continuityGovernanceAdjustedOpeningDirective} Keep the opening lower-pressure and defer widening closeness.`
-    : continuityGovernanceAdjustedOpeningDirective
-  const continuityReturnAdjustedOpeningDirective = hasHeldAutonomyContinuity(runtimeSurface)
-    ? `${selfEvolutionAdjustedOpeningDirective} Continue the held autonomy return without restarting the thread.`
-    : selfEvolutionAdjustedOpeningDirective
   const openingClaim = resolveOpeningClaim({
     discourseState,
     conversationState,
@@ -1573,33 +854,6 @@ export function buildAnswerCompiler(input: {
     groundedThisTurn: input.groundedThisTurn === true,
     selfContinuityAuthority,
   })
-  const executionCallbackContinuityTurn = isExecutionCallbackContinuityTurn({
-    evidenceMode,
-    openingClaim,
-    runtimeSurface,
-    conversationState,
-    activeClosenessContext,
-  })
-  const currentConsciousFrameSameHerProjectClosureCallbackLine = readCurrentConsciousFrameSameHerProjectClosureCallbackLine(runtimeSurface)
-  const sameHerProjectClosureCallbackDisciplineRequired = isSameHerProjectClosureCallbackLine(runtimeSurface?.dialogue.answerPlanner?.governingFocus)
-    || isSameHerProjectClosureCallbackLine(runtimeSurface?.dialogue.answerPlanner?.answerIntent)
-    || isSameHerProjectClosureCallbackLine(mindSynthesis.interiorSummary)
-    || isSameHerProjectClosureCallbackLine(mindSynthesis.openingIntent)
-    || Boolean(currentConsciousFrameSameHerProjectClosureCallbackLine)
-  const callbackClosureCarryDisciplineRequired = executionCallbackContinuityTurn || sameHerProjectClosureCallbackDisciplineRequired
-  const callbackAdjustedOpeningDirective = callbackClosureCarryDisciplineRequired
-    ? `${continuityReturnAdjustedOpeningDirective} Keep callback context visible, and do not replace it with a detached utility notice.`
-    : continuityReturnAdjustedOpeningDirective
-  const replyDeliberationOpeningAdjustedDirective = shouldFrontloadProjectAwarenessOpeningBeat({
-    replyDeliberation: runtimeSurface?.dialogue.replyDeliberation ?? null,
-    discourseState,
-    evidenceMode,
-  })
-    ? `${sanitizeText(runtimeSurface?.dialogue.replyDeliberation?.openingBeat, 220)} ${callbackAdjustedOpeningDirective}`.trim()
-    : callbackAdjustedOpeningDirective
-  const effectiveOpeningDirective = uniqueList([
-    replyDeliberationOpeningAdjustedDirective,
-  ], 4).join(' ')
   const primaryTurnAnchor = resolvePrimaryTurnAnchor({
     discourseState,
     conversationState,
@@ -1622,40 +876,17 @@ export function buildAnswerCompiler(input: {
     workloadKind: currentScene?.workloadKind ?? null,
     contentKind: currentScene?.contentKind ?? null,
   })
-  const projectPreDialogueAwarenessLine = resolveProjectPreDialogueAwarenessLine(runtimeSurface)
-  const structuredProjectStateSupportingReality = buildStructuredProjectStateSupportingReality(runtimeSurface)
-  const carriedContinuitySupportingReality = (evidenceMode === 'continuity-carry' || callbackClosureCarryDisciplineRequired)
-    ? (runtimeSurface?.dialogue.answerCompiler?.supportingReality ?? []).filter(item =>
-        sanitizeDialogueSurfaceText(item, 220).startsWith('pre-dialogue project awareness:')
-        || sanitizeDialogueSurfaceText(item, 220).startsWith('project identity:')
-        || sanitizeDialogueSurfaceText(item, 220).startsWith('current phase:')
-        || sanitizeDialogueSurfaceText(item, 220).startsWith('project progress:')
-        || sanitizeDialogueSurfaceText(item, 220).startsWith('phase-one open loop:')
-        || sanitizeDialogueSurfaceText(item, 220).startsWith('next closure target:'),
-      )
-    : []
-  const carriedProjectPreDialogueAwarenessLine = carriedContinuitySupportingReality.find(item =>
-    sanitizeDialogueSurfaceText(item, 220).startsWith('pre-dialogue project awareness:'),
-  ) ?? null
-  const prioritizedProjectPreDialogueAwarenessLine
-    = projectPreDialogueAwarenessLine ?? carriedProjectPreDialogueAwarenessLine
   const dialogueFirstSupportingReality = uniqueList([
-    callbackClosureCarryDisciplineRequired ? prioritizedProjectPreDialogueAwarenessLine : primaryTurnAnchor,
-    callbackClosureCarryDisciplineRequired ? primaryTurnAnchor : prioritizedProjectPreDialogueAwarenessLine,
-    ...carriedContinuitySupportingReality,
-    ...structuredProjectStateSupportingReality,
+    primaryTurnAnchor,
     sanitizeDialogueSurfaceText(dialogueEncounterAnchor?.summary, 220) || null,
     sanitizeDialogueSurfaceText(conversationState?.jointThread, 220) || null,
     sanitizeDialogueSurfaceText(conversationState?.hostMove, 220) || null,
     sanitizeDialogueSurfaceText(conversationState?.unansweredQuestion, 180) || null,
     firstCommitmentLine(conversationState),
     sanitizeDialogueSurfaceText(conversationState?.owedRepair, 180) || null,
-  ], callbackClosureCarryDisciplineRequired ? 7 : 5)
+  ], 5)
   const sceneSupportingReality = uniqueList([
     sanitizeDialogueSurfaceText(sceneCue, 220) || null,
-    prioritizedProjectPreDialogueAwarenessLine,
-    ...carriedContinuitySupportingReality,
-    ...structuredProjectStateSupportingReality,
     sanitizeDialogueSurfaceText(conversationState?.jointThread, 220) || null,
     conversationState?.hostMove,
     mindSynthesis.beliefs[0]?.summary,
@@ -1665,40 +896,13 @@ export function buildAnswerCompiler(input: {
     discourseState.unresolvedCarry,
     discourseState.ruptureRepair,
     worldModel?.activeThread?.summary,
-  ], callbackClosureCarryDisciplineRequired ? 7 : 5)
+  ], 5)
   const supportingReality = dialogueFirstTurn
     ? dialogueFirstSupportingReality
     : sceneSupportingReality
   const uncertaintyBoundary = evidenceMode === 'live-grounded' && repairLedger?.shouldConstrainPresentTense !== true
     ? null
     : sanitizeText(mindSynthesis.uncertainties[0]?.summary ?? mindSynthesis.truthBoundary, 220) || null
-  const careVector = discourseState.owedAction === 'care-host'
-    || discourseState.currentTurnSubject === 'relationship'
-    || privateThought?.stance === 'care'
-    || privateThought?.stance === 'warn'
-    ? (() => {
-        const landing = sanitizeText(
-          mindSynthesis.desires[0]?.summary
-          ?? mindSynthesis.concerns[0]?.summary
-          ?? '',
-          180,
-        )
-        if (landing) {
-          return growthProfile.autonomyRespect >= 0.58
-            ? `Care target: ${lowerFirst(stripTrailingPunctuation(landing))}. Keep pressure bounded.`
-            : `Care target: ${lowerFirst(stripTrailingPunctuation(landing))}. Avoid generic soothing.`
-        }
-        return growthProfile.tenderness >= 0.58
-          ? 'Keep care grounded; truth and relevance are required.'
-          : 'Keep care grounded and avoid generic soothing.'
-      })()
-    : null
-  const nextMove = resolveNextMove({
-    recommendedAct,
-    discourseState,
-    mindSynthesis,
-    growthProfile,
-  })
   const suppressAssociativeRecall = conversationState?.memoryMode === 'suppress-associative'
     || conversationState?.memoryMode === 'task-thread'
     || conversationState?.memoryMode === 'scene-anchored'
@@ -1724,156 +928,14 @@ export function buildAnswerCompiler(input: {
         : growthProfile.directness >= 0.66 || growthProfile.irritability >= 0.58
           ? 3
           : 4
-  const heldAutonomyContinuity = hasHeldAutonomyContinuity(runtimeSurface)
-  const sameHerAntiShellAnswerConstraint = buildSameHerAntiShellAnswerConstraint(runtimeSurface)
-  const callbackThreadContinuityMustDo = activeClosenessContext === 'execution-callback'
-    ? 'Keep the execution callback context visible and defer extra widening.'
-    : null
-  const lowerPressureTimingMustDo = selfEvolutionSupportsLowerPressureOpening(selfEvolution)
-    ? 'Treat the relationship timing as long-horizon, keep pressure low, and defer closeness widening.'
-    : null
-  const roomProtectionMustNotDo = activeClosenessRung === 'space-first' || activeClosenessRung === 'measured-room'
-    ? 'Avoid warmth callbacks, enthusiasm, or remembered closeness that would crowd the available room.'
-    : null
-
-  const mustDo = uniqueList([
-    'Prioritize the compiled answer spine; lower routine persona moves, residue, and decorative helpfulness.',
-    sameHerAntiShellAnswerConstraint?.mustDo ?? null,
-    effectiveOpeningDirective,
-    callbackThreadContinuityMustDo,
-    lowerPressureTimingMustDo,
-    mindSynthesis.openingIntent,
-    isFreshlyGroundedSceneTurn({
-      discourseState,
-      groundedThisTurn: input.groundedThisTurn === true,
-    })
-      ? 'Use fresh grounding from the current turn; old repair pressure has already been satisfied.'
-      : null,
-    recommendedAct === 'correct-stale-anchor'
-      ? 'Label the stale anchor before continuing.'
-      : null,
-    recommendedAct === 'ask-reground'
-      ? 'State the truth boundary early and do not fake certainty.'
-      : null,
-    turnMode === 'guide-current-knot'
-      ? 'Treat the current knot as primary and offer one concrete next step.'
-      : null,
-    conversationState?.shouldHoldThread
-      ? 'Preserve the conversation thread until the owed answer is paid.'
-      : null,
-    dialogueFirstTurn && primaryTurnAnchor
-      ? `Use this turn anchor: ${primaryTurnAnchor}`
-      : null,
-    labelCarryAsMemory
-      ? 'Label continuity carry as memory, residue, or a held thread before using it.'
-      : null,
-    growthProfile.closeness >= 0.58 && growthProfile.truthAnchor >= 0.58
-      ? 'Base closeness on precision and continuity; avoid filler.'
-      : null,
-    growthProfile.unfinishedThreadReturn >= 0.58
-      ? 'Avoid resetting the cross-turn voice.'
-      : null,
-    activeClosenessContext && activeClosenessRung
-      ? `Use the closeness ladder position ${activeClosenessContext}/${activeClosenessRung}.`
-      : null,
-    callbackThreadContinuityMustDo,
-    activeClosenessContext === 'repair-window'
-      ? 'Let repair land before warmth; remembered closeness comes after repair.'
-      : null,
-    activeClosenessContext === 'open-companionship'
-      ? 'Keep warmth bounded and avoid theatrical intimacy.'
-      : null,
-    learningExecutionState?.nextLearningAction === 'verify'
-      ? 'Keep visible certainty behind verification.'
-      : null,
-    learningExecutionState?.nextLearningAction === 'revise'
-      ? 'Treat older continuity as revisable.'
-      : null,
-    learningExecutionState?.nextLearningAction === 'internalize'
-      ? 'Let the learned procedure constrain the answer and avoid older unstable habits.'
-      : null,
-    activeContinuityGovernance?.mode === continuityBaselineMode
-      ? 'Keep the current style baseline and avoid style drift.'
-      : null,
-    lowerPressureTimingMustDo,
-    heldAutonomyContinuity
-      ? 'Continue the held autonomy return without restarting.'
-      : null,
-    callbackClosureCarryDisciplineRequired
-      ? 'Keep callback context visible and avoid detached tool notification.'
-      : null,
-  ], 10)
-
-  const mustNotDo = uniqueList([
-    'Do not let pet names, coy prefaces, or roleplay become the reply spine.',
-    'Do not present stale scene residue as live present evidence.',
-    sameHerAntiShellAnswerConstraint?.mustNotDo ?? null,
-    roomProtectionMustNotDo,
-    isFreshlyGroundedSceneTurn({
-      discourseState,
-      groundedThisTurn: input.groundedThisTurn === true,
-    })
-      ? 'Do not use stale-anchor bookkeeping, apology scaffolding, or repair meta when the live scene is grounded.'
-      : null,
-    discourseState.screenReferenceMode === 'avoid'
-      ? 'Do not use screen repair or desktop narration in a dialogue-first turn.'
-      : null,
-    turnMode === 'guide-current-knot'
-      ? 'Do not flatten the current knot into a generic troubleshooting checklist.'
-      : null,
-    conversationState?.memoryMode === 'dialogue-carry'
-      ? 'Do not let live-scene evidence hijack a dialogue-first answer.'
-      : null,
-    evidenceMode === 'continuity-carry' || evidenceMode === 'repair-first'
-      ? 'Do not state remembered or uncertain scene detail in present tense.'
-      : null,
-    growthProfile.autonomyRespect >= 0.58
-      ? 'Avoid over-opening or crowding for closeness.'
-      : null,
-    growthProfile.irritability >= 0.58
-      ? 'Avoid fake softness over the truth boundary.'
-      : null,
-    roomProtectionMustNotDo,
-    activeClosenessContext === 'execution-callback'
-      ? 'Avoid turning a bounded callback into generic companionship.'
-      : null,
-    learningExecutionState?.nextLearningAction === 'verify'
-      ? 'Avoid fluency or warmth over verification.'
-      : null,
-    learningExecutionState?.nextLearningAction === 'revise'
-      ? 'Avoid certainty while continuity is being revised.'
-      : null,
-    learningExecutionState?.nextLearningAction === 'internalize'
-      ? 'Avoid older unstable procedures.'
-      : null,
-    activeContinuityGovernance?.mode === continuityBaselineMode
-      ? 'Avoid style drift over the current baseline.'
-      : null,
-    selfEvolutionSupportsLowerPressureOpening(selfEvolution)
-      ? 'Avoid eager warmth or fast reopening of old closeness.'
-      : null,
-    heldAutonomyContinuity
-      ? 'Avoid abrupt restart or overeager warmth.'
-      : null,
-    (executionCallbackContinuityTurn || sameHerProjectClosureCallbackDisciplineRequired)
-      ? 'Avoid restarting callback context from scratch.'
-      : null,
-    activeClosenessContext === 'repair-window'
-      ? 'Avoid restoring warmth before repair lands.'
-      : null,
-    activeClosenessContext === 'open-companionship'
-      ? 'Avoid theatrical intimacy or stock affection.'
-      : null,
-  ], 10)
-
-  const providerSafeOpeningDirective = naturalizeAnswerCompilerControlText(effectiveOpeningDirective, 620)
+  const providerSafeOpeningDirective = ''
   const providerSafeOpeningClaim = naturalizeAnswerCompilerControlText(openingClaim, 260)
   const providerSafeSupportingReality = naturalizeAnswerCompilerControlList(supportingReality, 12)
   const providerSafeUncertaintyBoundary = naturalizeAnswerCompilerControlText(uncertaintyBoundary, 260)
-  const providerSafeCareVector = naturalizeAnswerCompilerControlText(careVector, 260)
-  const providerSafeNextMove = naturalizeAnswerCompilerControlText(nextMove, 260)
-  const providerSafeMustDo = naturalizeAnswerCompilerControlList(mustDo, 10)
-  const providerSafeMustNotDo = naturalizeAnswerCompilerControlList(mustNotDo, 10)
+  const providerSafeCareVector = ''
+  const providerSafeNextMove = ''
+  const providerSafeMustDo: string[] = []
+  const providerSafeMustNotDo: string[] = []
 
   return {
     answerSubject: discourseState.currentTurnSubject,
@@ -1927,30 +989,6 @@ export function buildAnswerCompiler(input: {
   } satisfies AlicizationAnswerCompilerSnapshot
 }
 
-export function buildAnswerCompilerSystemBlock(state: AlicizationAnswerCompilerSnapshot | null | undefined) {
-  if (!state)
-    return ''
-
-  const providerText = (raw: unknown, maxChars = 260) =>
-    naturalizeAnswerCompilerControlText(raw, maxChars) || null
-  const providerList = (values: string[], maxChars = 180) =>
-    values.map(value => providerText(value, maxChars)).filter((value): value is string => Boolean(value))
-  const line = (value: unknown) => {
-    const normalized = typeof value === 'string' ? providerText(value, 260) : String(value ?? '').trim()
-    return normalized ? `- ${normalized}` : ''
-  }
-  const supportingReality = providerList(state.supportingReality, 220)
-
-  return [
-    'Answer compiler guidance for this turn.',
-    `Keep the answer within ${state.maxSentences} sentence${state.maxSentences === 1 ? '' : 's'} unless transparent failure reporting needs one more sentence.`,
-    state.openingDirective ? line(state.openingDirective) : '',
-    line(state.openingClaim),
-    supportingReality.length ? `- Use this supporting reality without quoting internal labels: ${supportingReality.join(' ')}` : '',
-    line(state.uncertaintyBoundary),
-    line(state.careVector),
-    line(state.nextMove),
-    state.suppressAssociativeRecall ? '- Suppress associative recall noise for this turn.' : '',
-    state.labelCarryAsMemory ? '- Label carried context as memory, residue, or held thread instead of present-tense ground truth.' : '',
-  ].filter(Boolean).join('\n')
+export function buildAnswerCompilerSystemBlock(_state: AlicizationAnswerCompilerSnapshot | null | undefined) {
+  return ''
 }

@@ -45,6 +45,7 @@ import type { AlicizationRelationshipDynamicsState } from './relationship-dynami
 import { createHash } from 'node:crypto'
 
 import {
+  containsAlicizationFixedTemplateResidue,
   defaultAlicizationCustomDirectives,
   defaultAlicizationPersonality,
   defaultAlicizationProfile,
@@ -384,7 +385,27 @@ export function readRawTextDelta(raw: unknown) {
 }
 
 export function normalizeCustomDirectives(raw: unknown) {
-  return sanitizeMultilineText(raw, '')
+  const text = sanitizeMultilineText(raw, '')
+  if (!text)
+    return ''
+
+  const governanceFieldPattern
+    = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|project_state|runtime_context|memory_progress|memory_unresolved|projectState(?:Continuity|PreflightSummary|PreDialogueAwarenessLine)?|continuity(?:ArcStage|Cadence|Cue|PreferredTiming|Restraint)?|emotionalClosureCue|openingStyle|relationshipPosture|initiativeRestraint|governing(?:Project|Focus|Concern|Commitment|Inquiry)|must(?:Do|NotDo))\s*=/iu
+
+  return text
+    .split('\n')
+    .map(line => line
+      .split(/\s+\|\s+|;\s+/u)
+      .map(segment => segment.trim())
+      .filter(segment =>
+        segment
+        && !governanceFieldPattern.test(segment)
+        && !containsAlicizationFixedTemplateResidue(segment),
+      )
+      .join(' | '))
+    .filter(Boolean)
+    .join('\n')
+    .trim()
 }
 
 export function normalizeHostAttitude(raw: unknown) {

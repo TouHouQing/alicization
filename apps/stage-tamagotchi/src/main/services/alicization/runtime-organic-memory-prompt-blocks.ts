@@ -20,17 +20,6 @@ function sanitizeOrganicMemoryProviderText(raw: unknown, maxChars = 220) {
   return normalized
 }
 
-function sanitizeOrganicMemoryProviderList(
-  values: Array<unknown> | null | undefined,
-  maxItems: number,
-  maxChars = 180,
-) {
-  return (values ?? [])
-    .slice(0, maxItems)
-    .map(value => sanitizeOrganicMemoryProviderText(value, maxChars))
-    .filter(Boolean)
-}
-
 function sanitizeOrganicMemoryEvidenceText(raw: unknown, maxChars = 220) {
   return sanitizeAlicizationMemoryEvidenceText(raw, maxChars)
 }
@@ -139,133 +128,6 @@ function projectMemorySelection(context: OrganicMemoryPromptContext) {
           confidence: speech.confidence,
         }
       : null,
-  }
-}
-
-function projectOrganicLifeState(context: OrganicMemoryPromptContext) {
-  const host = context.hostPersonModel
-    ? {
-        summary: sanitizeOrganicMemoryProviderText(context.hostPersonModel.summary, 260) || null,
-        routines: sanitizeOrganicMemoryProviderList(context.hostPersonModel.routines, 6, 160),
-        sensitivities: sanitizeOrganicMemoryProviderList(context.hostPersonModel.sensitivities, 6, 160),
-        repairTriggers: sanitizeOrganicMemoryProviderList(context.hostPersonModel.repairTriggers, 6, 160),
-        recurrentBurdens: sanitizeOrganicMemoryProviderList(context.hostPersonModel.recurrentBurdens, 6, 160),
-        trust: {
-          stage: context.hostPersonModel.trustLadder.stage,
-          score: context.hostPersonModel.trustLadder.score,
-          rationale: sanitizeOrganicMemoryProviderText(context.hostPersonModel.trustLadder.rationale, 220) || null,
-        },
-        preferredClosenessByContext: context.hostPersonModel.preferredClosenessByContext
-          .slice(0, 6)
-          .map(item => ({
-            context: sanitizeOrganicMemoryProviderText(item.context, 100) || null,
-            preference: sanitizeOrganicMemoryProviderText(item.preference, 160) || null,
-            confidence: item.confidence,
-          })),
-      }
-    : null
-  const person = context.personStateProjection
-    ? {
-        contexts: context.personStateProjection.contexts.slice(0, 8),
-        activeClosenessContext: context.personStateProjection.activeClosenessContext,
-        activeClosenessRung: context.personStateProjection.activeClosenessRung,
-        relationshipPosture: context.personStateProjection.relationshipPosture,
-        preferredProactiveStyle: context.personStateProjection.preferredProactiveStyle,
-        cautious: context.personStateProjection.cautious,
-        restrained: context.personStateProjection.restrained,
-        summary: sanitizeOrganicMemoryProviderText(context.personStateProjection.summary, 260) || null,
-      }
-    : null
-  const affectiveResidue = context.affectiveResidue
-    ? {
-        dominantResidueKind: context.affectiveResidue.dominantResidueKind,
-        afterglowPressure: context.affectiveResidue.afterglowPressure,
-        repairPressure: context.affectiveResidue.repairPressure,
-        burdenPressure: context.affectiveResidue.burdenPressure,
-        trustPressure: context.affectiveResidue.trustPressure,
-        restProtectivePressure: context.affectiveResidue.restProtectivePressure,
-        relationshipCadence: {
-          cadenceMode: context.affectiveResidue.relationshipCadence.cadenceMode,
-          distancePosture: context.affectiveResidue.relationshipCadence.distancePosture,
-          companionshipDensity: context.affectiveResidue.relationshipCadence.companionshipDensity,
-          repairRecovery: context.affectiveResidue.relationshipCadence.repairRecovery,
-          overreachRisk: context.affectiveResidue.relationshipCadence.overreachRisk,
-          fatigueGuard: context.affectiveResidue.relationshipCadence.fatigueGuard,
-          afterglowCarry: context.affectiveResidue.relationshipCadence.afterglowCarry,
-          shouldDelayWarmth: context.affectiveResidue.relationshipCadence.shouldDelayWarmth,
-          shouldProtectRest: context.affectiveResidue.relationshipCadence.shouldProtectRest,
-          reasonTags: context.affectiveResidue.relationshipCadence.reasonTags.slice(0, 8),
-        },
-        summary: sanitizeOrganicMemoryProviderText(context.affectiveResidue.summary, 260) || null,
-      }
-    : null
-  const selfEvolution = context.selfEvolution
-    ? {
-        evolutionMomentum: context.selfEvolution.evolutionMomentum,
-        learningReadiness: context.selfEvolution.learningReadiness,
-        contradictionPressure: context.selfEvolution.contradictionPressure,
-        revisionPressure: context.selfEvolution.revisionPressure,
-        autobiographicalStability: context.selfEvolution.autobiographicalStability,
-        nextLearningAction: context.selfEvolution.nextLearningAction,
-        activeLearningFocuses: sanitizeOrganicMemoryProviderList(
-          context.selfEvolution.activeLearningFocuses,
-          8,
-          140,
-        ),
-        summary: sanitizeOrganicMemoryProviderText(context.selfEvolution.summary, 260) || null,
-      }
-    : null
-  const learning = context.learningExecutionState
-    ? {
-        currentTaskId: context.learningExecutionState.currentTaskId,
-        currentStatus: context.learningExecutionState.currentStatus,
-        nextLearningAction: context.learningExecutionState.nextLearningAction,
-        shouldRecord: context.learningExecutionState.shouldRecord,
-        shouldReflect: context.learningExecutionState.shouldReflect,
-        shouldVerify: context.learningExecutionState.shouldVerify,
-        shouldRevise: context.learningExecutionState.shouldRevise,
-        shouldInternalize: context.learningExecutionState.shouldInternalize,
-        activeLearningFocuses: sanitizeOrganicMemoryProviderList(
-          context.learningExecutionState.activeLearningFocuses,
-          8,
-          140,
-        ),
-        queuedTaskCount: context.learningExecutionState.queuedTaskCount,
-        runningTaskCount: context.learningExecutionState.runningTaskCount,
-        blockedTaskCount: context.learningExecutionState.blockedTaskCount,
-        lastFailureKind: context.learningExecutionState.lastFailureKind,
-      }
-    : null
-  const executionCallback = context.executionCallbackCarry
-    ? {
-        carryMode: context.executionCallbackCarry.carryMode,
-        confidence: context.executionCallbackCarry.confidence,
-        threadAnchor: sanitizeOrganicMemoryProviderText(context.executionCallbackCarry.threadAnchor, 160) || null,
-        episodeId: context.executionCallbackCarry.episodeId ?? null,
-        summary: sanitizeOrganicMemoryProviderText(context.executionCallbackCarry.summary, 260) || null,
-      }
-    : null
-
-  if (
-    !host
-    && !person
-    && !affectiveResidue
-    && !selfEvolution
-    && !learning
-    && !context.knowledgeEvidence
-    && !executionCallback
-  ) {
-    return null
-  }
-
-  return {
-    host,
-    person,
-    affectiveResidue,
-    selfEvolution,
-    learning,
-    knowledgeEvidence: context.knowledgeEvidence ?? null,
-    executionCallback,
   }
 }
 
@@ -419,10 +281,6 @@ export function buildOrganicMemoryProviderFactBlocks(
       surface,
     }))
   }
-
-  const lifeState = projectOrganicLifeState(context)
-  if (lifeState)
-    blocks.push(buildAlicizationProviderFactBlock('alicization-organic-life-state', lifeState))
 
   return blocks
 }

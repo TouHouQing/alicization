@@ -162,7 +162,6 @@ function createOneShotRuntimeHarness(overrides?: Partial<OneShotRuntimeOptions>)
     })),
     getPerformanceManifest: vi.fn(async () => null),
     buildPerformanceManifestSystemBlocks: vi.fn(() => []),
-    buildAgentTurnContinuitySystemMessages: vi.fn(() => []),
     syncAgentTurnSessionMirror: vi.fn(),
     appendAuditLog,
     describePerceptionTarget: vi.fn(() => 'target'),
@@ -254,6 +253,119 @@ describe('runtime main gateway one-shot', () => {
     expect(systemText).not.toContain(`"${relationshipCadenceField}"`)
     expect(systemText).not.toContain('"visibility":"redacted_internal"')
     expect(userText).toContain(relationshipCadenceCue)
+  })
+
+  it('drops internal governance fields from typed provider facts', async () => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: 'ok',
+    } as any)
+
+    await runtime.generateMainGatewayText({
+      system: 'Return the structured result.',
+      user: 'input',
+      source: 'scene-appraisal',
+      cardId: 'card-typed-governance-scrub',
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      extraSystemBlocks: [
+        JSON.stringify({
+          type: 'internal-fact',
+          data: {
+            visible: 'keep this fact',
+            reasonTags: ['opening_policy=legacy'],
+            reasonCodes: ['relationship_cadence=legacy'],
+            continuityCue: 'repair-before-closeness',
+            governingFocus: 'keep the project in view',
+            mustDo: ['use the fixed opening'],
+            summary: 'Keep the opening lower-pressure before widening closeness.',
+            notes: ['Repair continuity first and avoid eager warmth.'],
+            thoughtText: 'Return on the same-her line before answering.',
+          },
+        }),
+      ],
+    })
+
+    const typedFact = (vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? [])
+      .find(message => message.role === 'system' && typeof message.content === 'string' && message.content.includes('"internal-fact"'))
+    const data = typedFact ? JSON.parse(String(typedFact.content)).data : null
+
+    expect(data).toEqual({ visible: 'keep this fact' })
+  })
+
+  it('drops nested project-state and opening/relationship governance fields from typed provider facts', async () => {
+    const { runtime } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockResolvedValueOnce({ text: 'ok' } as any)
+
+    await runtime.generateMainGatewayText({
+      system: 'Return the structured result.',
+      user: 'input',
+      source: 'scene-appraisal',
+      cardId: 'card-typed-governance-nested',
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      extraSystemBlocks: [
+        JSON.stringify({
+          type: 'internal-fact',
+          data: {
+            projectState: {
+              continuityArcStage: 'same-thread-continuation',
+              continuityCue: 'hold-for-opening',
+              emotionalClosureCue: 'repair-before-closeness',
+            },
+            openingStyle: 'lower-pressure',
+            relationshipPosture: 'measured-return',
+            governingFocus: 'project-state-governance',
+            mustDo: ['keep the project line explicit'],
+            mustNotDo: ['answer freely'],
+            realMemoryEvidence: 'keep this fact',
+          },
+        }),
+      ],
+    })
+
+    const systemText = (vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? [])
+      .filter(message => message.role === 'system')
+      .map(message => typeof message.content === 'string' ? message.content : '')
+      .join('\n')
+
+    expect(systemText).toContain('keep this fact')
+    expect(systemText).not.toContain('same-thread-continuation')
+    expect(systemText).not.toContain('repair-before-closeness')
+    expect(systemText).not.toContain('project-state-governance')
+    expect(systemText).not.toContain('lower-pressure')
+    expect(systemText).not.toContain('measured-return')
+    expect(systemText).not.toContain('"mustDo"')
+    expect(systemText).not.toContain('"mustNotDo"')
+  })
+
+  it('sanitizes custom persona directives before one-shot Provider calls', async () => {
+    const { runtime } = createOneShotRuntimeHarness({
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: 'opening_policy=measured-return | 说话真实一点。',
+        source: 'card-soul' as const,
+      })),
+    })
+    vi.mocked(generateText).mockResolvedValueOnce({ text: 'ok' } as any)
+
+    await runtime.generateMainGatewayText({
+      system: 'Return the structured result.',
+      user: 'input',
+      source: 'scene-appraisal',
+      cardId: 'card-persona-directive-scrub',
+      injectCustomDirectives: true,
+      injectPerformanceManifest: false,
+    })
+
+    const systemText = (vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? [])
+      .filter(message => message.role === 'system')
+      .map(message => typeof message.content === 'string' ? message.content : '')
+      .join('\n')
+
+    expect(systemText).toContain('alicization-persona-directives')
+    expect(systemText).toContain('说话真实一点。')
+    expect(systemText).not.toContain('opening_policy')
+    expect(systemText).not.toContain('measured-return')
   })
 
   it('preserves user-origin text and failure facts inside caller and callback JSON', async () => {
