@@ -10,18 +10,9 @@ import { createAlicizationExecutionDeliveryRuntime } from './execution-delivery-
 import { createAlicizationRuntimeExecutionDelivery } from './runtime-execution-delivery'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
-const blockedProjectTemplatePattern = new RegExp([
-  ['content=', 'excluded'].join(''),
-  'local_desktop_life_loop',
-  'visibility=redacted_internal',
-  ['Same Phase 1', ' digital life'].join(''),
-  ['Before answer', 'ing'].join(''),
-].join('|'), 'iu')
-
 function expectNoFixedProjectTemplateResidue(value: unknown) {
   const serialized = typeof value === 'string' ? value : JSON.stringify(value ?? '')
   expect(containsAlicizationFixedTemplateResidue(serialized), serialized).toBe(false)
-  expect(serialized).not.toMatch(blockedProjectTemplatePattern)
 }
 
 function createExecutionSelfRevisionStatePatch(input: {
@@ -88,6 +79,16 @@ function createExecutionSelfRevisionStatePatch(input: {
 }
 
 describe('runtime execution delivery', () => {
+  it('does not select execution project briefing text by historical persona phrasing', () => {
+    const source = readFileSync(new URL('./runtime-execution-delivery.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toMatch(
+      /looksLikeThinExecutionDeliveryProject(?:Identity|Phase|Preflight|Awareness)|preferStrongerPersistedSameHerSelfLine|preferStrongerSameHerDriftRisk/u,
+    )
+    expect(source).not.toContain(['template', 'residue', 'shell'].join('-'))
+    expect(source).not.toContain(['same', 'living', 'line'].join(' '))
+  })
+
   it('does not retain execution callback governance cue prose', () => {
     const source = readFileSync(new URL('./runtime-execution-delivery.ts', import.meta.url), 'utf8')
 
@@ -417,7 +418,7 @@ describe('runtime execution delivery', () => {
     expect(queuedAudit?.payload).not.toHaveProperty('projectContinuity')
   })
 
-  it('persists thread runtime project briefing into queued execution delivery state so restart callback can reopen on the continuity state', async () => {
+  it('persists only structured callback timing and embodiment state', async () => {
     const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
       getNow: () => 10_000,
     })
@@ -468,26 +469,19 @@ describe('runtime execution delivery', () => {
         turnId: 'turn-1',
         sessionId: 'session-1',
         origin: 'user-turn',
-        goal: 'Carry the callback result back on the continuity state after restart.',
+        goal: 'Return the callback result after restart.',
         kind: 'task',
         status: 'completed',
         selectedChannel: 'cli',
         proposedChannel: 'cli',
-        summary: 'Restart callback continuity still needs its own identity-continuity',
+        summary: 'The callback result is ready.',
         metadata: {
           execution: {
             runtimeContext: {
               projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-                currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-                latestLandedProgress: 'Restart callback continuity already survives pending delivery persistence instead of dropping back to a generic project shell.',
-                primaryOpenLoop: 'Execution callback continuity still needs stronger identity-continuity',
-                nextClosureTarget: 'Keep restart callback delivery on the continuity state before expansion',
-                sameHerSelfLine: 'This callback turn still belongs to the identity continuity, so keep the return on the same callback line after restart.',
-                sameHerDriftRisk: 'If restart delivery falls back to a generic Phase 1 shell, treat it as unfinished callback drift.',
-                preflightSummary: 'identity=Alicization | phase=Phase 1 | open=restart callback continuity | next=same callback line',
-                preDialogueAwarenessLine: 'pre_turn_context_digest',
-                companionHeadlineLine: 'Right now she is still holding together mainly through voice, face, motion, and lipsync, so this restart callback must reopen on that continuity state.',
+                continuityArcStage: 'callback-ready',
+                continuityPreferredTiming: 'next-open-window',
+                preferredVoiceMode: 'even',
               },
             },
           },
@@ -502,25 +496,17 @@ describe('runtime execution delivery', () => {
     expect(queued).toEqual(expect.objectContaining({
       threadId: 'thread-1',
       projectState: expect.objectContaining({
-        identity: null,
-        currentPhase: null,
-        latestLandedProgress: 'Restart callback continuity already survives pending delivery persistence instead of dropping back to a generic project shell.',
-        primaryOpenLoop: null,
-        nextClosureTarget: null,
-        sameHerSelfLine: null,
-        sameHerDriftRisk: null,
-        preDialogueAwarenessLine: null,
-        companionHeadlineLine: null,
-        preflightSummary: null,
+        continuityArcStage: 'callback-ready',
+        continuityPreferredTiming: 'next-open-window',
+        preferredVoiceMode: 'even',
       }),
     }))
     expectNoFixedProjectTemplateResidue(queued?.projectState)
     const pendingProjectState = executionDeliveryRuntime.snapshot('default').pending[0]?.projectState
     expect(pendingProjectState).toEqual(expect.objectContaining({
-      latestLandedProgress: 'Restart callback continuity already survives pending delivery persistence instead of dropping back to a generic project shell.',
-      sameHerSelfLine: null,
-      sameHerDriftRisk: null,
-      companionHeadlineLine: null,
+      continuityArcStage: 'callback-ready',
+      continuityPreferredTiming: 'next-open-window',
+      preferredVoiceMode: 'even',
     }))
     expectNoFixedProjectTemplateResidue(pendingProjectState)
     expect(executionDeliveryRuntime.snapshot('default')).toEqual(expect.objectContaining({
@@ -530,7 +516,7 @@ describe('runtime execution delivery', () => {
     }))
   })
 
-  it('folds blocked-dispatch safety gate restraint into queued execution delivery project state so later callback persistence keeps the same held line visible', async () => {
+  it('keeps a blocked execution fact without synthesizing project prose', async () => {
     const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
       getNow: () => 10_000,
     })
@@ -594,24 +580,8 @@ describe('runtime execution delivery', () => {
         status: 'blocked',
         selectedChannel: 'codex',
         proposedChannel: 'codex',
-        summary: 'Blocked before dispatch, and the later callback still needs to keep that restraint visible instead of flattening into a generic blocked shell.',
-        metadata: {
-          execution: {
-            runtimeContext: {
-              projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-                currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-                latestLandedProgress: 'Execution callback continuity already survives pending delivery persistence instead of collapsing into a generic result shell.',
-                primaryOpenLoop: 'Blocked-dispatch restraint still needs to stay explicit when the callback returns later through the host-visible path.',
-                nextClosureTarget: 'Keep blocked execution explainable before any wider execution-shaped reopening.',
-                sameHerSelfLine: 'She remains one same-her digital life even when she chooses not to dispatch.',
-                sameHerDriftRisk: 'A blocked execution can flatten into a generic failure if the safety restraint disappears before callback persistence.',
-                preflightSummary: 'identity=Alicization | phase=Phase 1 | open=blocked-dispatch callback restraint',
-                preDialogueAwarenessLine: 'pre_turn_context_digest',
-              },
-            },
-          },
-        },
+        summary: 'Blocked before dispatch.',
+        metadata: null,
         createdAt: 9_000,
         updatedAt: 9_500,
         lastEventAt: 9_500,
@@ -622,23 +592,19 @@ describe('runtime execution delivery', () => {
     expect(queued).toEqual(expect.objectContaining({
       threadId: 'thread-blocked-1',
       status: 'blocked',
-      projectState: expect.objectContaining({
-        sameHerHoldDetail: expect.stringMatching(/blocked-dispatch safety gate says/i),
-      }),
+      summary: 'Blocked before dispatch.',
+      projectState: null,
     }))
-    expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toMatch(/confirmation is required/i)
-    expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toContain('no-process-started')
     expect(executionDeliveryRuntime.snapshot('default')).toEqual(expect.objectContaining({
       pending: [expect.objectContaining({
         threadId: 'thread-blocked-1',
-        projectState: expect.objectContaining({
-          sameHerHoldDetail: expect.stringMatching(/confirmation is required/i),
-        }),
+        summary: 'Blocked before dispatch.',
+        projectState: null,
       })],
     }))
   })
 
-  it('folds host-confirmed resume-before-dispatch confirmation boundaries into queued execution delivery project state so later callback persistence keeps the bounded redispatch line visible', async () => {
+  it('keeps a confirmed execution result without synthesizing project prose', async () => {
     const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
       getNow: () => 10_000,
     })
@@ -714,24 +680,8 @@ describe('runtime execution delivery', () => {
         status: 'completed',
         selectedChannel: 'codex',
         proposedChannel: 'codex',
-        summary: 'Host-confirmed redispatch finished, but the later callback still needs to keep that confirmation boundary visible instead of treating it as ordinary autonomous continuation.',
-        metadata: {
-          execution: {
-            runtimeContext: {
-              projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-                currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-                latestLandedProgress: 'Host-confirmed resume writes an execution event before redispatch and should keep that confirmation boundary visible through later callback persistence.',
-                primaryOpenLoop: 'Resume confirmation still needs to survive as a bounded redispatch line when the execution callback returns later.',
-                nextClosureTarget: 'Keep host confirmation, auditability, and interruptibility visible across execution returns.',
-                sameHerSelfLine: 'legacy phase-one template resumes only after the host confirms the boundary.',
-                sameHerDriftRisk: 'Resume can look like generic execution if confirmation is not remembered as a bounded redispatch line.',
-                preflightSummary: 'identity=Alicization | phase=Phase 1 | open=resume confirmation callback restraint',
-                preDialogueAwarenessLine: 'pre_turn_context_digest',
-              },
-            },
-          },
-        },
+        summary: 'Resumed execution completed after host confirmation.',
+        metadata: null,
         createdAt: 9_000,
         updatedAt: 9_500,
         lastEventAt: 9_500,
@@ -742,24 +692,20 @@ describe('runtime execution delivery', () => {
     expect(queued).toEqual(expect.objectContaining({
       threadId: 'thread-resume-1',
       status: 'completed',
-      projectState: expect.objectContaining({
-        sameHerHoldDetail: expect.stringContaining('execution-resume-confirmation approval=host-confirmed'),
-      }),
+      summary: 'Resumed execution completed after host confirmation.',
+      outcome: 'resumed execution completed after host confirmation',
+      projectState: null,
     }))
-    expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toContain('host-confirmed-before-redispatch')
-    expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toContain('resume-before-dispatch')
-    expect(String(queued?.projectState?.sameHerHoldDetail ?? '')).toContain('process-not-yet-restarted')
     expect(executionDeliveryRuntime.snapshot('default')).toEqual(expect.objectContaining({
       pending: [expect.objectContaining({
         threadId: 'thread-resume-1',
-        projectState: expect.objectContaining({
-          sameHerHoldDetail: expect.stringContaining('host-confirmed-before-redispatch'),
-        }),
+        summary: 'Resumed execution completed after host confirmation.',
+        projectState: null,
       })],
     }))
   })
 
-  it('prefers richer latest execution event project briefing over a thinner stored thread shell when queuing later delivery carry', async () => {
+  it('merges structured timing from the latest execution event', async () => {
     const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
       getNow: () => 10_000,
     })
@@ -779,18 +725,12 @@ describe('runtime execution delivery', () => {
           createdAt: 9_500,
           kind: 'result',
           payload: {
-            summary: 'callback continuity repaired after a richer event-side project carry survived',
+            summary: 'callback completed',
             runtimeContext: {
               projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-                currentPhase: 'Phase 1: Local Digital Life. The primary proving ground remains apps/stage-tamagotchi.',
-                latestLandedProgress: 'Event-side callback project carry now survives pending delivery even when thread metadata stayed on a thinner shell.',
-                primaryOpenLoop: 'Execution return continuity still needs memory, initiative, and embodiment to stay on one continuity state.',
-                nextClosureTarget: 'Keep this later callback carry on one same-her Phase 1 line instead of letting thread-shell project narration win.',
-                sameHerSelfLine: 'structured continuity digest.',
-                sameHerDriftRisk: 'If a thin stored thread shell outranks the richer event-side callback carry, treat that as unfinished same-her drift.',
-                preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=one continuity state still needs closure',
-                preDialogueAwarenessLine: 'pre_turn_context_digest',
+                continuityArcStage: 'callback-settled',
+                continuityPreferredTiming: 'after-payoff',
+                preferredPacingMode: 'natural',
               },
             },
           },
@@ -823,25 +763,17 @@ describe('runtime execution delivery', () => {
         turnId: 'turn-rich-project-1',
         sessionId: 'session-1',
         origin: 'user-turn',
-        goal: 'Carry later callback continuity back on the continuity state.',
+        goal: 'Return the callback result.',
         kind: 'task',
         status: 'completed',
         selectedChannel: 'codex',
         proposedChannel: 'codex',
-        summary: 'Thread metadata stayed thin, so the event-side callback project carry should win.',
+        summary: 'The callback result is ready.',
         metadata: {
           execution: {
             runtimeContext: {
               projectBriefing: {
-                identity: 'same digital life',
-                currentPhase: 'phase 1',
-                latestLandedProgress: 'project continuity exists',
-                primaryOpenLoop: 'still needs closure',
-                nextClosureTarget: 'generic next closure',
-                sameHerSelfLine: 'same digital life',
-                sameHerDriftRisk: 'generic guidance could flatten her continuity into a detached project shell.',
-                preflightSummary: 'project',
-                preDialogueAwarenessLine: 'template-residue-shell',
+                continuityArcStage: 'queued',
               },
             },
           },
@@ -854,19 +786,14 @@ describe('runtime execution delivery', () => {
     })
 
     expect(queued?.projectState).toEqual(expect.objectContaining({
-      latestLandedProgress: 'Event-side callback project carry now survives pending delivery even when thread metadata stayed on a thinner shell.',
-      identity: null,
-      nextClosureTarget: null,
-      sameHerSelfLine: null,
-      sameHerDriftRisk: null,
-      preDialogueAwarenessLine: null,
+      continuityArcStage: 'callback-settled',
+      continuityPreferredTiming: 'after-payoff',
+      preferredPacingMode: 'natural',
     }))
     expectNoFixedProjectTemplateResidue(queued?.projectState)
-    expect(String(queued?.projectState?.latestLandedProgress ?? '')).not.toBe('project continuity exists')
-    expect(String(queued?.projectState?.nextClosureTarget ?? '')).not.toBe('generic next closure')
   })
 
-  it('prefers richer host-confirmed resume event project carry over a thinner stored thread shell when later delivery is queued after redispatch', async () => {
+  it('keeps structured resume timing without copying confirmation prose into project state', async () => {
     const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
       getNow: () => 10_000,
     })
@@ -897,23 +824,10 @@ describe('runtime execution delivery', () => {
               confirmationBoundary: 'host-confirmed-before-redispatch',
               auditability: 'resume-before-dispatch',
               interruptibility: 'process-not-yet-restarted',
-              projectIdentity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-              projectPhase: 'Phase 1: Local Digital Life. The primary proving ground remains apps/stage-tamagotchi.',
-              latestLandedProgress: 'Resume event project carry now stays rich enough to survive later delivery queuing even when thread metadata remained a thinner shell.',
-              primaryOpenLoop: 'Host-confirmed redispatch still needs to stay a bounded confirmation boundary on one continuity state.',
-              nextClosureTarget: 'Keep host-confirmed redispatch and later callback persistence on one same-her Phase 1 line.',
-              sameHerLine: 'legacy phase-one template resumes only after the host confirms the boundary, and that boundary still belongs to continuity state.',
-              sameHerDriftRisk: 'If a thin stored thread shell outranks the richer resume event carry, bounded confirmation can flatten back into generic execution.',
-              projectPreflight: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=bounded redispatch line still needs closure',
-              projectAwareness: 'pre_turn_context_digest',
-              projectCompanionBriefing: 'pre_turn_context_digest',
-              projectSameHerHoldDetail: 'identity-continuity',
               projectContinuityArcStage: 'same-thread-continuation',
               projectContinuityRestraint: 'measured-return',
-              projectContinuityCue: 'Keep this host-confirmed redispatch on the continuity state before expansion',
               projectContinuityPreferredTiming: 'next-open-window',
               projectContinuityCadence: 'measured-return',
-              projectEmotionalClosure: 'identity-continuity',
               projectBlinkCadence: 'linger',
               projectGazeMode: 'soften',
               projectPauseMode: 'longer',
@@ -964,20 +878,12 @@ describe('runtime execution delivery', () => {
         status: 'completed',
         selectedChannel: 'codex',
         proposedChannel: 'codex',
-        summary: 'Thread metadata stayed thin, so the richer resume event carry should own later delivery project continuity.',
+        summary: 'The resumed execution completed.',
         metadata: {
           execution: {
             runtimeContext: {
               projectBriefing: {
-                identity: 'same digital life',
-                currentPhase: 'phase 1',
-                latestLandedProgress: 'project continuity exists',
-                primaryOpenLoop: 'still needs closure',
-                nextClosureTarget: 'generic next closure',
-                sameHerSelfLine: 'same digital life',
-                sameHerDriftRisk: 'generic guidance could flatten her continuity into a detached project shell.',
-                preflightSummary: 'project',
-                preDialogueAwarenessLine: 'template-residue-shell',
+                continuityArcStage: 'queued',
               },
             },
           },
@@ -990,29 +896,18 @@ describe('runtime execution delivery', () => {
     })
 
     expect(queued?.projectState).toEqual(expect.objectContaining({
-      latestLandedProgress: 'Resume event project carry now stays rich enough to survive later delivery queuing even when thread metadata remained a thinner shell.',
-      identity: null,
-      nextClosureTarget: null,
-      sameHerSelfLine: null,
-      companionBriefingLine: null,
-      sameHerHoldDetail: expect.stringContaining('approval=host-confirmed'),
       continuityArcStage: 'same-thread-continuation',
       continuityRestraint: 'measured-return',
-      continuityCue: null,
       continuityPreferredTiming: 'next-open-window',
       continuityCadence: 'measured-return',
-      emotionalClosureSummary: null,
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      preDialogueAwarenessLine: null,
       preferredPauseMode: 'longer',
       preferredLipsyncMode: 'restrained',
       preferredVoiceMode: 'lower-pressure',
       preferredPacingMode: 'slower',
     }))
     expectNoFixedProjectTemplateResidue(queued?.projectState)
-    expect(String(queued?.projectState?.latestLandedProgress ?? '')).not.toBe('project continuity exists')
-    expect(queued?.projectState?.preDialogueAwarenessLine).toBeNull()
   })
 
   it('keeps richer execution-result feedback project companion carry from thread metadata when later delivery is queued', async () => {
@@ -1678,29 +1573,29 @@ describe('runtime execution delivery', () => {
     expect(authority?.habitLine).toContain('Measured return first')
   })
 
-  it('prefers fresher live self authority when the session snapshot stays on an older warmer callback line', async () => {
+  it('does not let authority wording make live state outrank the session owner', async () => {
     const sessionAuthority = {
-      selfLine: 'I close the gap quickly and let the callback warm up right away.',
-      relationshipLine: 'Lean closer as soon as the result is ready.',
-      motiveLine: 'Make the result feel immediately intimate again.',
-      habitLine: 'Warmth first, then precision.',
-      inwardLine: 'Don\'t hold back the callback closeness.',
-      authoritySummary: 'Warmth first callback line.',
-      sourceTags: ['session', 'execution-callback'],
+      selfLine: 'session self line',
+      relationshipLine: 'session relationship line',
+      motiveLine: 'session motive line',
+      habitLine: 'session habit line',
+      inwardLine: 'session inward line',
+      authoritySummary: 'session authority summary',
+      sourceTags: ['session-owner', 'execution-callback'],
     } as any
     const liveAuthority = {
-      selfLine: 'I stay the same her who brings the result back measured before it grows closer again.',
-      relationshipLine: 'Leave room and keep the callback lower-pressure until the opening loosens.',
-      motiveLine: 'Carry the task result back without crowding the host.',
-      habitLine: 'Measured return first, warmth later.',
-      inwardLine: 'Stay on the same bounded-return line instead of snapping warmer just because the task ended.',
-      authoritySummary: 'Measured identity-continuity',
-      sourceTags: ['live-runtime', 'execution-callback', 'continuity-arc'],
+      selfLine: 'live self line with more words',
+      relationshipLine: 'live relationship line with more words',
+      motiveLine: 'live motive line with more words',
+      habitLine: 'live habit line with more words',
+      inwardLine: 'live inward line with more words',
+      authoritySummary: 'live authority summary with more words',
+      sourceTags: ['live-runtime', 'execution-callback', 'recent-snapshot'],
     } as any
     const liveState = createDefaultVisualPresenceState(10_000)
     liveState.currentConsciousFrame = {
-      summary: 'continuity arc still holds for a quieter opening',
-      reasonTags: ['continuity-arc:hold-for-opening'],
+      summary: 'live runtime summary',
+      reasonTags: ['recent-snapshot'],
     } as any
     liveState.derivedMindStateBundle = {
       affectiveResidue: {
@@ -1771,13 +1666,12 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(authority?.selfLine).toBe(liveAuthority.selfLine)
-    expect(authority?.relationshipLine).toBe(liveAuthority.relationshipLine)
-    expect(authority?.authoritySummary).toBe(liveAuthority.authoritySummary)
+    expect(authority?.selfLine).toBe(sessionAuthority.selfLine)
+    expect(authority?.relationshipLine).toBe(sessionAuthority.relationshipLine)
+    expect(authority?.authoritySummary).toBe(sessionAuthority.authoritySummary)
     expect(authority?.sourceTags ?? []).toEqual(expect.arrayContaining([
-      'live-runtime',
+      'session-owner',
       'execution-callback',
-      'continuity-arc',
     ]))
   })
 

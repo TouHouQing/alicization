@@ -72,62 +72,36 @@ function areCompatibleContinuityThreadKinds(a: unknown, b: unknown) {
   return isProblemThreadLike(left) && isProblemThreadLike(right)
 }
 
-function looksExecutionAffordanceText(raw: unknown) {
-  return /execution|callback|result|listing|remaining|cli|执行|回调|结果|清单|剩下/iu.test(String(raw ?? ''))
-}
-
-function looksAntiRestartContinuationText(raw: unknown) {
-  return /without reopening from scratch|reopening from scratch|restart(?:ing)? from (?:zero|scratch)|not restarting from zero|do not restart(?: it)? outward again|不要重开|别重开|从头重开|另起一段|另起一条线/iu.test(String(raw ?? ''))
-}
-
 function deriveArcStage(input: {
-  summary: string | null
-  whyNow: string | null
   preferredTiming: AlicizationContinuityPreferredTiming
   sourceTags: string[]
 }) {
-  const source = `${input.summary ?? ''} ${input.whyNow ?? ''} ${input.sourceTags.join(' ')}`
-  if (!source.trim())
-    return 'none' as const
-  if (/mirror|same-session|session mirror/iu.test(source))
-    return 'mirror-carry' as const
-  const continuationLanguage = /continue|continuation|same line|往下|继续|still continuing|already continuing|沿着刚才那条线|同一条线/iu.test(source)
-  const antiRestartContinuationLanguage = looksAntiRestartContinuationText(source)
-  const gentleReopenLanguage = /reopen|re-enter|gently|gentle|stay on the same thread|接回来/iu.test(source)
-  const holdLanguage = /hold|afterglow|later opening|wait|requeue|先别|留 room/iu.test(source)
-  if (continuationLanguage || antiRestartContinuationLanguage)
+  const explicitArcStage = deriveArcStageFromReasonTags(input.sourceTags)
+  if (explicitArcStage !== 'none')
+    return explicitArcStage
+  if (input.sourceTags.includes('thread:continuation'))
     return 'same-thread-continuation' as const
-  if (gentleReopenLanguage)
-    return 'gentle-reopen' as const
-  if (holdLanguage || input.preferredTiming === 'next-open-window')
+  if (input.preferredTiming === 'next-open-window')
     return 'hold-for-opening' as const
+  if (input.preferredTiming === 'same-turn-if-invited')
+    return 'gentle-reopen' as const
   return 'none' as const
 }
 
 function deriveKindFromAffordance(input: {
-  summary: string | null
-  whyNow: string | null
   payoffDependency: AlicizationContinuityPayoffDependency
+  preferredTiming: AlicizationContinuityPreferredTiming
   speechShouldSurface: boolean
 }) {
-  const source = `${input.summary ?? ''} ${input.whyNow ?? ''}`
-  if (looksExecutionAffordanceText(source))
+  if (
+    input.payoffDependency === 'requires-current-payoff'
+    && input.preferredTiming === 'next-open-window'
+  ) {
     return 'execution-callback' as const
-  if (looksAntiRestartContinuationText(source) && input.payoffDependency !== 'memory-only')
-    return 'dialogue-carry' as const
+  }
   if (input.payoffDependency === 'memory-only' || input.speechShouldSurface === false)
     return 'memory-follow-up' as const
   return 'dialogue-carry' as const
-}
-
-function deriveProjectStateCallbackCarryTag(input: {
-  summary: string | null
-  whyNow: string | null
-}) {
-  const text = `${input.summary ?? ''} ${input.whyNow ?? ''}`.toLowerCase()
-  return /phase 1|local-first digital life|same digital life|unfinished closure|project identity carry|still-open closure|same-her/u.test(text)
-    ? 'project-state-callback-carry'
-    : null
 }
 
 function deriveArcStageFromReasonTags(reasonTags: readonly string[] | null | undefined) {
@@ -160,53 +134,31 @@ function deriveDialogueContinuityArcEvidence(input: {
   const dialogueWorldThread = input.dialogueWorldThread ?? null
 
   const explicitArcStage = deriveArcStageFromReasonTags(consciousFrame?.reasonTags ?? null)
-  const carryReason = sanitizeText(
-    dialogueWorldThread?.carryReason
-    ?? conversationState?.carryReason
-    ?? '',
-    140,
-  ).toLowerCase()
   const continuityPolicy = sanitizeText(conversationState?.continuityPolicy, 96).toLowerCase()
-  const stageSource = uniqueTextList([
-    carryReason,
-    conversationState?.jointThread,
-    conversationState?.hostMove,
-    ...(conversationState?.narrative ?? []),
-    dialogueWorldThread?.activeThread,
-    ...(dialogueWorldThread?.openLoops ?? []),
-    ...(dialogueWorldThread?.narrative ?? []),
-    dialogueWorldThread?.lastUserMove,
-    dialogueWorldThread?.lastAssistantMove,
-    consciousFrame?.focusAnchor,
-    consciousFrame?.consciousNeed,
-    consciousFrame?.speakingIntention,
-  ], 10).join(' | ').toLowerCase()
   const carryEligible = conversationState?.carryEligible === true
     || dialogueWorldThread?.carryEligible === true
   const stayOnThread = continuityPolicy === 'stay-on-thread'
-    || carryReason.includes('shared-attention-continuation')
-    || carryReason.includes('continuity-policy')
+    || conversationState?.shouldHoldThread === true
     || carryEligible
-  const continuationLanguage = /same line|same thread|continuation|continue|继续|沿着刚才那条线|living thread|living continuity|live seam|same living bond|shared-attention-continuation/u.test(stageSource)
-  const alreadyContinuingLanguage = /already continuing|still continuing|still in motion|same callback line is still live|沿着刚才那条线继续|还是同一条线|顺着这条 callback 线|callback 线继续/u.test(stageSource)
-  const proactiveSameLineReplyLanguage = /先别换线|刚才那条提醒|沿着刚才那条提醒继续|就沿着刚才那条提醒继续|不重新起势/u.test(stageSource)
-  const preferNextOpenWindow = /already reopened several times|already reopened multiple times|lower-pressure|measured-return|不要重开|别重开/u.test(stageSource)
+  const hasPendingOutcome = dialogueWorldThread?.lastOutcome === 'pending'
+  const hasActiveThread = Boolean(dialogueWorldThread?.activeThread || conversationState?.jointThread)
+  const projectStateTiming = sanitizeText(consciousFrame?.projectState?.continuityPreferredTiming, 64).toLowerCase()
+  const preferNextOpenWindow = projectStateTiming === 'next-open-window'
+    || continuityPolicy === 'next-open-window'
+  const alreadyContinuing = carryEligible && stayOnThread && (hasPendingOutcome || conversationState?.shouldHoldThread === true)
   const residentOverrideSameThread = explicitArcStage === 'hold-for-opening'
     && stayOnThread
-    && continuationLanguage
-    && (alreadyContinuingLanguage || proactiveSameLineReplyLanguage)
+    && alreadyContinuing
 
   const inferredArcStage: AlicizationContinuityArcStage = residentOverrideSameThread
     ? 'same-thread-continuation'
     : explicitArcStage !== 'none'
       ? explicitArcStage
-      : /continuity_held_autonomy|held-autonomy-carry|held back|wait|later opening|requeue|先别|留 room/u.test(stageSource)
+      : preferNextOpenWindow
         ? 'hold-for-opening'
-        : /reopen|re-enter|接回来|轻轻接|gently before widening/u.test(stageSource)
-          ? 'gentle-reopen'
-          : stayOnThread && continuationLanguage
-            ? 'same-thread-continuation'
-            : 'none'
+        : stayOnThread && hasActiveThread
+          ? 'same-thread-continuation'
+          : 'none'
 
   return {
     arcStage: inferredArcStage,
@@ -220,12 +172,11 @@ function deriveDialogueContinuityArcEvidence(input: {
     ) || null,
     sourceTags: uniqueTextList([
       explicitArcStage !== 'none' ? `frame:${explicitArcStage}` : null,
-      carryReason ? `carry:${carryReason}` : null,
       continuityPolicy ? `policy:${continuityPolicy}` : null,
-      alreadyContinuingLanguage ? 'line:already-continuing' : null,
-      proactiveSameLineReplyLanguage ? 'line:proactive-same-line-reply' : null,
       carryEligible ? 'carry:eligible' : null,
-    ], 5),
+      hasPendingOutcome ? 'thread:pending' : null,
+      alreadyContinuing ? 'thread:continuation' : null,
+    ], 6),
     preferNextOpenWindow,
   }
 }
@@ -266,32 +217,15 @@ function deriveBackgroundSceneShiftContinuityEvidence(input: {
     }
   }
 
-  const cadenceMode = sanitizeText(input.affectiveResidue?.relationshipCadence?.cadenceMode, 64).toLowerCase()
-  const cadenceSummary = sanitizeText(input.affectiveResidue?.relationshipCadence?.summary, 220).toLowerCase()
-  const openingGuidance = sanitizeText(input.personStateProjection?.openingGuidance, 220).toLowerCase()
-  const manifestationCadenceSummary = sanitizeText(input.personStateProjection?.manifestationCadenceSummary, 220).toLowerCase()
-  const measuredReturn = cadenceMode === 'measured-return'
-    || cadenceMode === 'cooldown'
-    || /lower-pressure|measured-return|less eager|repair-before-closeness|repair-first/u.test(`${cadenceSummary} ${openingGuidance} ${manifestationCadenceSummary}`)
-  const threadSource = uniqueTextList([
-    input.mindTurnFrame?.self?.thought,
-    input.mindTurnFrame?.world?.activeThread,
-    input.mindTurnFrame?.world?.visibleSurface,
-    input.mindTurnFrame?.obligation?.whyNow,
-    activeThread.title,
-    activeThread.summary,
-    unresolvedLingeringPeer.title,
-    unresolvedLingeringPeer.summary,
-  ], 8).join(' | ').toLowerCase()
-  const peerMarkers = uniqueTextList([
-    unresolvedLingeringPeer.title,
-    unresolvedLingeringPeer.summary,
-  ], 2).map(item => item.toLowerCase())
-  const carriesLingeringPeer = peerMarkers.some(marker => marker && threadSource.includes(marker))
+  const cadence = input.affectiveResidue?.relationshipCadence ?? null
+  const measuredReturn = cadence?.cadenceMode === 'measured-return'
+    || cadence?.cadenceMode === 'cooldown'
+    || cadence?.cadenceMode === 'repair'
+    || cadence?.shouldDelayWarmth === true
   const problemFocus = sanitizeText(input.mindTurnFrame?.relation?.hostGoal, 96).toLowerCase() === 'resolve-problem'
     || isProblemThreadLike(activeThread.kind)
 
-  if (!measuredReturn || !carriesLingeringPeer || !problemFocus) {
+  if (!measuredReturn || !problemFocus) {
     return {
       arcStage: 'none' as const,
       summary: null as string | null,
@@ -304,15 +238,12 @@ function deriveBackgroundSceneShiftContinuityEvidence(input: {
   const peerTitle = sanitizeText(unresolvedLingeringPeer.title ?? unresolvedLingeringPeer.summary, 120)
   return {
     arcStage: 'same-thread-continuation' as const,
-    summary: sanitizeText(
-      `continuation_state=active; from=${peerTitle || 'earlier_unresolved_context'}; to=${activeTitle || 'current_knot'}; restart_policy=context_preserving`,
-      180,
-    ) || activeTitle || peerTitle || null,
+    summary: activeTitle || peerTitle || null,
     sourceTags: uniqueTextList([
       'world:scene-shift',
       `thread-kind:${sanitizeText(activeThread.kind, 48).toLowerCase()}`,
       'lingering:unresolved-peer',
-      measuredReturn ? 'cadence:measured-return' : null,
+      `cadence:${sanitizeText(cadence?.cadenceMode, 48).toLowerCase()}`,
     ], 4),
     preferNextOpenWindow: false,
   }
@@ -353,35 +284,19 @@ function deriveStayingWithThreadContinuityEvidence(input: {
     }
   }
 
-  const cadenceMode = sanitizeText(input.affectiveResidue?.relationshipCadence?.cadenceMode, 64).toLowerCase()
-  const cadenceSummary = sanitizeText(input.affectiveResidue?.relationshipCadence?.summary, 220).toLowerCase()
-  const residueSummary = sanitizeText(input.affectiveResidue?.summary, 220).toLowerCase()
-  const openingGuidance = sanitizeText(input.personStateProjection?.openingGuidance, 220).toLowerCase()
-  const manifestationCadenceSummary = sanitizeText(input.personStateProjection?.manifestationCadenceSummary, 220).toLowerCase()
-  const threadSource = uniqueTextList([
-    input.mindTurnFrame?.memory?.carriedThread,
-    ...(input.mindTurnFrame?.memory?.carriedFacts ?? []),
-    ...(input.mindTurnFrame?.memory?.recallKeys ?? []),
-    input.mindTurnFrame?.self?.thought,
-    input.mindTurnFrame?.obligation?.openingMove,
-    input.mindTurnFrame?.obligation?.whyNow,
-    input.mindTurnFrame?.focusAnchor,
-    unresolvedLingeringPeer.title,
-    unresolvedLingeringPeer.summary,
-  ], 12).join(' | ').toLowerCase()
-  const measuredReturn = cadenceMode === 'measured-return'
-    || cadenceMode === 'cooldown'
-    || /measured-return|lower-pressure|less eager|repair-before-closeness|repair-first/u.test(`${cadenceSummary} ${residueSummary} ${openingGuidance} ${manifestationCadenceSummary}`)
-  const carriesLingeringPeer = [
-    unresolvedLingeringPeer.title,
-    unresolvedLingeringPeer.summary,
-  ]
-    .map(item => sanitizeText(item, 160).toLowerCase())
-    .filter(Boolean)
-    .some(marker => threadSource.includes(marker))
-  const continuationLanguage = /same line|same thread|continue-thread|continuation|continue|继续|同一条线|往下接|callback/u.test(threadSource)
+  const cadence = input.affectiveResidue?.relationshipCadence ?? null
+  const measuredReturn = cadence?.cadenceMode === 'measured-return'
+    || cadence?.cadenceMode === 'cooldown'
+    || cadence?.cadenceMode === 'repair'
+    || cadence?.shouldDelayWarmth === true
+  const carriedThread = sanitizeText(input.mindTurnFrame?.memory?.carriedThread, 160)
+  const recallKeys = Array.isArray(input.mindTurnFrame?.memory?.recallKeys)
+    ? input.mindTurnFrame.memory.recallKeys.map(key => sanitizeText(key, 160)).filter(Boolean)
+    : []
+  const carriesLingeringPeer = carriedThread === unresolvedLingeringPeer.id
+    || recallKeys.includes(unresolvedLingeringPeer.id)
 
-  if (!measuredReturn || !carriesLingeringPeer || !continuationLanguage) {
+  if (!measuredReturn || !carriesLingeringPeer) {
     return {
       arcStage: 'none',
       summary: null,
@@ -393,16 +308,13 @@ function deriveStayingWithThreadContinuityEvidence(input: {
   const peerTitle = sanitizeText(unresolvedLingeringPeer.title ?? unresolvedLingeringPeer.summary, 120)
   return {
     arcStage: 'same-thread-continuation',
-    summary: sanitizeText(
-      `continuation_state=active; foreground=drifted; underlying_context=${peerTitle || 'unresolved_callback'}; restart_policy=context_preserving`,
-      180,
-    ) || peerTitle || null,
+    summary: peerTitle || null,
     sourceTags: uniqueTextList([
       'world:staying-with-thread',
       'active:browsing-foreground',
       `thread-kind:${sanitizeText(unresolvedLingeringPeer.kind, 48).toLowerCase()}`,
       'lingering:unresolved-peer',
-      measuredReturn ? 'cadence:measured-return' : null,
+      `cadence:${sanitizeText(cadence?.cadenceMode, 48).toLowerCase()}`,
     ], 5),
     preferNextOpenWindow: false,
   }
@@ -419,68 +331,24 @@ function deriveThinResidentContinuityEvidence(input: {
   preferNextOpenWindow: boolean
 } {
   const initiative = input.initiative ?? null
-  const cadenceMode = sanitizeText(input.affectiveResidue?.relationshipCadence?.cadenceMode, 64).toLowerCase()
-  const cadenceSummary = sanitizeText(input.affectiveResidue?.relationshipCadence?.summary, 220).toLowerCase()
-  const residueSummary = sanitizeText(input.affectiveResidue?.summary, 220).toLowerCase()
-  const residueEntrySummaries = Array.isArray(input.affectiveResidue?.residues)
-    ? input.affectiveResidue?.residues
-        .flatMap(entry => [
-          sanitizeText(entry?.summary, 220).toLowerCase(),
-          ...(Array.isArray(entry?.sourceSignals)
-            ? entry.sourceSignals.map(signal => sanitizeText(signal, 220).toLowerCase())
-            : []),
-        ])
-        .filter(Boolean)
-    : []
-  const affectiveSourceSignals = Array.isArray(input.affectiveResidue?.sourceSignals)
-    ? input.affectiveResidue.sourceSignals
-        .map(signal => sanitizeText(signal, 220).toLowerCase())
-        .filter(Boolean)
-    : []
-  const projectionSummary = sanitizeText(input.personStateProjection?.summary, 220)
-  const projectionSummaryLower = projectionSummary.toLowerCase()
-  const openingGuidance = sanitizeText(input.personStateProjection?.openingGuidance, 220).toLowerCase()
-  const manifestationCadenceSummary = sanitizeText(input.personStateProjection?.manifestationCadenceSummary, 220).toLowerCase()
-  const initiativeWhy = sanitizeText(initiative?.why, 220).toLowerCase()
-  const preferredStyle = sanitizeText(initiative?.preferredStyle, 64).toLowerCase()
+  const cadence = input.affectiveResidue?.relationshipCadence ?? null
+  const cadenceMode = sanitizeText(cadence?.cadenceMode, 64).toLowerCase()
   const continuityRestraint = sanitizeText(initiative?.continuityRestraint, 64).toLowerCase()
-  const combined = [
-    cadenceSummary,
-    residueSummary,
-    ...residueEntrySummaries,
-    ...affectiveSourceSignals,
-    projectionSummaryLower,
-    openingGuidance,
-    manifestationCadenceSummary,
-    initiativeWhy,
-  ].filter(Boolean).join(' | ')
-
-  const hasRepairBeforeCloseness = continuityRestraint === 'repair-before-closeness'
+  const hasRepairState = continuityRestraint === 'repair-before-closeness'
+    || cadenceMode === 'repair'
+  const hasMeasuredReturn = continuityRestraint === 'measured-return'
+    || cadenceMode === 'measured-return'
     || cadenceMode === 'cooldown'
-    || /repair-before-closeness|repair-first|repair should settle before closeness expands|repair lands before closeness returns/u.test(combined)
-  const hasMeasuredReturn = cadenceMode === 'measured-return'
-    || continuityRestraint === 'measured-return'
-    || /measured-return|lower-pressure|stay slower|less eager/u.test(combined)
-  const hasSameLineContinuation = /same callback line|same line|same thread|continuation|continue|继续|沿着刚才那条线|往下接|callback line/u.test(combined)
-  const hasFreshReopenGuard = /fresh reopen|reopening from zero|fresh eager approach|fresh approach|不要另起一段|不要重开/u.test(combined)
-  const repeatedReopenGuard = /already reopened multiple times|already reopened several times|reopened multiple times|reopened several times|已经 reopen 多次|已经重开多次|已经接回来好几次/u.test(combined)
-  const alreadyContinuingSpokenLine = /still in motion|keep continuing|keep the return lower-pressure|stay on the same callback line|same callback line is still live|already continuing|already been spoken back into view|沿着刚才那条线继续|还是同一条线|顺着这条 callback 线|callback 线继续/u.test(combined)
-  const callbackAfterglowHold = /callback-afterglow-hold|callback afterglow|余韵|留 room|留白|later opening|等更自然的开口|same-her hold/u.test(combined)
-  const heldAutonomyCarry = /held-autonomy-carry|held autonomy|held back|requeue|wait|先别|先留 room/u.test(combined)
-  const repeatedReopenWindowGuard = repeatedReopenGuard
-    && /already reopened multiple times|already reopened several times|reopened multiple times|reopened several times|已经 reopen 多次|已经重开多次|已经接回来好几次/u.test(`${projectionSummaryLower} ${openingGuidance} ${manifestationCadenceSummary}`)
-  const explicitAlreadyContinuingWithoutRepeatedReopenGuard
-    = alreadyContinuingSpokenLine
-      && !repeatedReopenGuard
-      && (
-        /already continuing|already been spoken back into view|still in motion/u.test(combined)
-        || /already continuing|already been spoken back into view|still in motion/u.test(`${projectionSummaryLower} ${openingGuidance}`)
-      )
-  const silentObserveCarry = preferredStyle === 'silent-observe'
+    || cadence?.shouldDelayWarmth === true
+  const hasThreadCarry = Boolean(
+    initiative?.selectedThreadId
+    || initiative?.selectedRuntimeThreadId,
+  )
+  const silentObserveCarry = initiative?.preferredStyle === 'silent-observe'
     && initiative?.shouldSpeak === false
     && initiative?.selectedAction === 'recheck'
 
-  if ((!hasMeasuredReturn && !hasRepairBeforeCloseness) || !hasSameLineContinuation || !silentObserveCarry) {
+  if ((!hasMeasuredReturn && !hasRepairState) || !hasThreadCarry || !silentObserveCarry) {
     return {
       arcStage: 'none',
       summary: null,
@@ -491,41 +359,21 @@ function deriveThinResidentContinuityEvidence(input: {
 
   return {
     arcStage: 'same-thread-continuation',
-    summary: projectionSummary || sanitizeText(input.personStateProjection?.openingGuidance, 180) || sanitizeText(initiative?.why, 180) || null,
+    summary: sanitizeText(input.personStateProjection?.summary, 180)
+      || sanitizeText(initiative?.why, 180)
+      || null,
     sourceTags: uniqueTextList([
       'resident:thin-continuity',
-      alreadyContinuingSpokenLine ? 'line:already-continuing' : null,
-      repeatedReopenGuard ? 'guard:repeated-reopen' : null,
-      hasFreshReopenGuard ? 'guard:fresh-reopen' : null,
-      callbackAfterglowHold ? 'callback-afterglow-hold' : null,
-      heldAutonomyCarry ? 'held-autonomy-carry' : null,
-      hasRepairBeforeCloseness ? 'cadence:repair-before-closeness' : null,
-      hasMeasuredReturn ? 'cadence:measured-return' : null,
+      'thread:continuation',
+      initiative?.selectedThreadId ? 'thread:selected' : null,
+      hasRepairState ? 'cadence:repair' : null,
+      hasMeasuredReturn ? `cadence:${cadenceMode || continuityRestraint}` : null,
       silentObserveCarry ? 'initiative:silent-observe-recheck' : null,
     ], 8),
-    preferNextOpenWindow:
-      hasFreshReopenGuard
-      || repeatedReopenWindowGuard
-      || (!explicitAlreadyContinuingWithoutRepeatedReopenGuard && alreadyContinuingSpokenLine && hasMeasuredReturn)
-      || hasRepairBeforeCloseness,
+    preferNextOpenWindow: hasRepairState
+      || cadence?.shouldDelayWarmth === true
+      || cadenceMode === 'cooldown',
   }
-}
-
-function deriveDialogueContinuitySummaryFallback(input: {
-  affectiveResidue: AlicizationDigitalLifeRuntimeSurface['memory']['affectiveResidue']
-  personStateProjection: AlicizationDigitalLifeRuntimeSurface['memory']['personStateProjection']
-}) {
-  const candidates = uniqueTextList([
-    input.personStateProjection?.summary,
-    input.personStateProjection?.openingGuidance,
-    input.personStateProjection?.manifestationCadenceSummary,
-    input.affectiveResidue?.summary,
-    input.affectiveResidue?.relationshipCadence?.summary,
-  ], 5)
-
-  return candidates.find(candidate =>
-    /same callback line|same line|same thread|continuation|continue|callback|lower-pressure|measured-return|repair thread|repair-before-closeness|沿着刚才那条线|同一条线|往下接/u.test(candidate.toLowerCase()),
-  ) ?? null
 }
 
 function deriveAlicizationContinuityDeliberationCore(input: {
@@ -573,10 +421,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
     affectiveResidue: input.affectiveResidue ?? null,
     personStateProjection: input.personStateProjection ?? null,
   })
-  const dialogueContinuitySummaryFallback = deriveDialogueContinuitySummaryFallback({
-    affectiveResidue: input.affectiveResidue ?? null,
-    personStateProjection: input.personStateProjection ?? null,
-  })
   const thinResidentContinuityEvidence = deriveThinResidentContinuityEvidence({
     initiative: input.initiative ?? null,
     affectiveResidue: input.affectiveResidue ?? null,
@@ -586,31 +430,21 @@ function deriveAlicizationContinuityDeliberationCore(input: {
   const affordance = deliberation?.followUpAffordance ?? null
   if (affordance) {
     const kind = deriveKindFromAffordance({
-      summary: affordance.summary,
-      whyNow: affordance.whyNow,
       payoffDependency: affordance.payoffDependency,
+      preferredTiming: affordance.preferredTiming,
       speechShouldSurface: speechPlan?.shouldSurface === true,
     })
-    const affordanceProjectStateCallbackCarryTag = kind === 'execution-callback'
-      ? deriveProjectStateCallbackCarryTag({
-          summary: affordance.summary,
-          whyNow: affordance.whyNow,
-        })
-      : null
     const staleHoldAffordanceWhileLineAlreadyContinues
       = kind === 'execution-callback'
         && affordance.preferredTiming === 'next-open-window'
         && thinResidentContinuityEvidence.arcStage === 'same-thread-continuation'
-        && thinResidentContinuityEvidence.sourceTags.includes('line:already-continuing')
-        && (!thinResidentContinuityEvidence.sourceTags.includes('callback-afterglow-hold')
-          || thinResidentContinuityEvidence.sourceTags.includes('guard:repeated-reopen'))
-        && (!thinResidentContinuityEvidence.sourceTags.includes('held-autonomy-carry')
-          || thinResidentContinuityEvidence.sourceTags.includes('cadence:measured-return')
-          || thinResidentContinuityEvidence.sourceTags.includes('cadence:repair-before-closeness'))
-        && !affordanceProjectStateCallbackCarryTag
+        && thinResidentContinuityEvidence.sourceTags.includes('thread:continuation')
+        && (
+          thinResidentContinuityEvidence.sourceTags.includes('cadence:measured-return')
+          || thinResidentContinuityEvidence.sourceTags.includes('cadence:repair')
+        )
     if (staleHoldAffordanceWhileLineAlreadyContinues) {
-      // A previously correct "wait for the opening" callback affordance should not outrank
-      // fresher resident evidence once that same line is already back in motion.
+      // A stale callback affordance should not outrank fresher resident state.
       return {
         kind: 'dialogue-carry',
         arcStage: thinResidentContinuityEvidence.arcStage,
@@ -619,16 +453,10 @@ function deriveAlicizationContinuityDeliberationCore(input: {
         pressure: clamp01(0.4 + (thinResidentContinuityEvidence.arcStage === 'same-thread-continuation' ? 0.12 : 0.08)),
         intrusionRisk: 'medium',
         payoffDependency: 'can-surface-softly',
-        preferredTiming: thinResidentContinuityEvidence.sourceTags.includes('line:already-continuing')
-          ? (
-              thinResidentContinuityEvidence.sourceTags.includes('guard:repeated-reopen')
-            )
-              ? 'next-open-window'
-              : 'same-turn-if-invited'
-          : thinResidentContinuityEvidence.preferNextOpenWindow
-            || projectStateExplicitNextOpenWindow
-            ? 'next-open-window'
-            : 'same-turn-if-invited',
+        preferredTiming: thinResidentContinuityEvidence.preferNextOpenWindow
+          || projectStateExplicitNextOpenWindow
+          ? 'next-open-window'
+          : 'same-turn-if-invited',
         shouldStayOnThread: true,
         shouldSpeakNow: false,
         sourceTags: uniqueTextList([
@@ -649,8 +477,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       return {
         kind,
         arcStage: deriveArcStage({
-          summary: affordance.summary,
-          whyNow: affordance.whyNow,
           preferredTiming: affordance.preferredTiming,
           sourceTags: [
             'memory-deliberation',
@@ -675,7 +501,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
           `kind:${kind}`,
           `timing:${affordance.preferredTiming}`,
           `intrusion:${affordance.intrusionRisk}`,
-          affordanceProjectStateCallbackCarryTag,
         ], 5),
       }
     }
@@ -688,8 +513,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
     return {
       kind: 'execution-callback',
       arcStage: deriveArcStage({
-        summary: sanitizeText(autonomy.executionIntent?.summary, 180) || sanitizeText(autonomy.whyNow, 180) || null,
-        whyNow: sanitizeText(autonomy.whyNow, 220) || null,
         preferredTiming: autonomy.shouldSpeak === false ? 'after-payoff' : 'same-turn-if-invited',
         sourceTags: ['autonomy-follow-through', 'kind:execution-callback'],
       }),
@@ -704,10 +527,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       sourceTags: uniqueTextList([
         'autonomy-follow-through',
         'kind:execution-callback',
-        deriveProjectStateCallbackCarryTag({
-          summary: sanitizeText(autonomy.executionIntent?.summary, 180) || sanitizeText(autonomy.whyNow, 180) || null,
-          whyNow: sanitizeText(autonomy.whyNow, 220) || null,
-        }),
       ], 4),
     }
   }
@@ -737,8 +556,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       arcStage: dialogueContinuityEvidence.arcStage !== 'none'
         ? dialogueContinuityEvidence.arcStage
         : deriveArcStage({
-            summary,
-            whyNow,
             preferredTiming,
             sourceTags,
           }),
@@ -749,7 +566,8 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       payoffDependency: 'can-surface-softly',
       preferredTiming,
       shouldStayOnThread: true,
-      shouldSpeakNow: replyDeliberation.shouldSpeak === true,
+      shouldSpeakNow: replyDeliberation.shouldSpeak === true
+        && preferredTiming === 'same-turn-if-invited',
       sourceTags,
     }
   }
@@ -760,7 +578,7 @@ function deriveAlicizationContinuityDeliberationCore(input: {
     && thinResidentContinuityEvidence.preferNextOpenWindow
     && (
       thinResidentContinuityEvidence.sourceTags.includes('cadence:measured-return')
-      || thinResidentContinuityEvidence.sourceTags.includes('cadence:repair-before-closeness')
+      || thinResidentContinuityEvidence.sourceTags.includes('cadence:repair')
     )
   ) {
     return {
@@ -771,28 +589,24 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       pressure: clamp01(0.4 + (thinResidentContinuityEvidence.arcStage === 'same-thread-continuation' ? 0.12 : 0.08)),
       intrusionRisk: 'medium',
       payoffDependency: 'can-surface-softly',
-      preferredTiming: thinResidentContinuityEvidence.sourceTags.includes('line:already-continuing')
-        && !thinResidentContinuityEvidence.sourceTags.includes('guard:repeated-reopen')
-        && !thinResidentContinuityEvidence.sourceTags.includes('cadence:repair-before-closeness')
-        ? 'same-turn-if-invited'
-        : 'next-open-window',
+      preferredTiming: 'next-open-window',
       shouldStayOnThread: true,
       shouldSpeakNow: false,
       sourceTags: uniqueTextList([
         'resident-thin-continuity',
         'kind:dialogue-carry',
-        'timing:lower-pressure-same-thread',
+        'timing:continuation-deferred',
         ...thinResidentContinuityEvidence.sourceTags,
       ], 6),
     }
   }
 
-  if (dialogueContinuityEvidence.arcStage !== 'none' && (dialogueContinuityEvidence.summary || dialogueContinuitySummaryFallback)) {
+  if (dialogueContinuityEvidence.arcStage !== 'none' && dialogueContinuityEvidence.summary) {
     const preferredTiming = dialogueContinuityEvidence.preferNextOpenWindow
       || projectStateExplicitNextOpenWindow
       ? 'next-open-window'
       : 'same-turn-if-invited'
-    const summary = dialogueContinuityEvidence.summary ?? dialogueContinuitySummaryFallback
+    const summary = dialogueContinuityEvidence.summary
     return {
       kind: 'dialogue-carry',
       arcStage: dialogueContinuityEvidence.arcStage,
@@ -807,7 +621,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       sourceTags: uniqueTextList([
         'dialogue-continuity-evidence',
         'kind:dialogue-carry',
-        dialogueContinuityEvidence.summary ? null : 'summary:fallback-thin-continuity',
         ...dialogueContinuityEvidence.sourceTags,
       ], 6),
     }
@@ -854,14 +667,8 @@ function deriveAlicizationContinuityDeliberationCore(input: {
   }
 
   if (thinResidentContinuityEvidence.arcStage !== 'none' && thinResidentContinuityEvidence.summary) {
-    const preferredTiming = (thinResidentContinuityEvidence.preferNextOpenWindow || projectStateExplicitNextOpenWindow)
-      ? thinResidentContinuityEvidence.sourceTags.includes('line:already-continuing')
-      && !thinResidentContinuityEvidence.sourceTags.includes('guard:repeated-reopen')
-      && !thinResidentContinuityEvidence.sourceTags.includes('cadence:measured-return')
-      && !thinResidentContinuityEvidence.sourceTags.includes('cadence:repair-before-closeness')
-      && !projectStateExplicitNextOpenWindow
-        ? 'same-turn-if-invited'
-        : 'next-open-window'
+    const preferredTiming = thinResidentContinuityEvidence.preferNextOpenWindow || projectStateExplicitNextOpenWindow
+      ? 'next-open-window'
       : 'same-turn-if-invited'
     return {
       kind: 'dialogue-carry',

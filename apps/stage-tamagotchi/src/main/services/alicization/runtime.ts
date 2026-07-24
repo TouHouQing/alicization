@@ -1,4 +1,7 @@
-import type { AlicizationExecutionRuntimeContext } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationChatFailureKind,
+  AlicizationExecutionRuntimeContext,
+} from '@proj-alicization/stage-shared'
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 
 import type {
@@ -160,7 +163,7 @@ import {
 } from './execution-ledger-shared'
 import { createAlicizationExecutorRuntime } from './executor-runtime'
 import { buildAsyncFactMemoryFragments } from './fact-memory'
-import { inferHostSocialContextsFromText } from './host-social-guidance'
+import { buildHostSocialContexts } from './host-social-guidance'
 import { resolveAlicizationLearningEligibility } from './life-core/working-memory-policy'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import { buildQuietCompanionshipMindTurnEvent, deriveQuietCompanionshipOutcome } from './living-world-state'
@@ -209,7 +212,6 @@ import {
   deriveExecutionResultFeedbackKind,
 } from './outcome-reinforcement'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
-import { mergePreferredSelfContinuityAuthority } from './person-state-projection-resolution'
 import { progressProactiveCadenceState } from './proactive-cadence'
 import {
   createDefaultProactiveLoopState,
@@ -397,67 +399,6 @@ import {
   updateVisualPresenceState,
 } from './visual-episodic-memory'
 import { buildVisualHeartbeat } from './visual-heartbeat'
-
-function inferRuntimeProjectCarrySourceTags(input: {
-  sourceTags?: string[] | null
-  inwardLine?: string | null
-  summary?: string | null
-  openingGuidance?: string | null
-  carryReason?: string | null
-  carrySummary?: string | null
-  carryNarrative?: string | null
-  sameHerSelfLine?: string | null
-  sameHerHoldDetail?: string | null
-  nextClosureTarget?: string | null
-  companionHeadlineLine?: string | null
-}) {
-  const combined = [
-    ...(input.sourceTags ?? []),
-    input.inwardLine,
-    input.summary,
-    input.openingGuidance,
-    input.carryReason,
-    input.carrySummary,
-    input.carryNarrative,
-    input.sameHerSelfLine,
-    input.sameHerHoldDetail,
-    input.nextClosureTarget,
-    input.companionHeadlineLine,
-  ]
-    .map(value => typeof value === 'string' ? value.trim().toLowerCase() : '')
-    .filter(Boolean)
-    .join(' ')
-
-  const carriesSameHerProjectAuthority
-    = combined.includes('same phase 1 digital life')
-      || combined.includes('same living line')
-      || combined.includes('same-her')
-      || combined.includes('same her')
-      || combined.includes('one continuous her')
-      || combined.includes('continuous her')
-      || Boolean(typeof input.sameHerSelfLine === 'string' && input.sameHerSelfLine.trim())
-      || Boolean(typeof input.sameHerHoldDetail === 'string' && input.sameHerHoldDetail.trim())
-  const carriesNextClosureAuthority = Boolean(
-    typeof input.nextClosureTarget === 'string' && input.nextClosureTarget.trim(),
-  )
-  const carriesCompanionHeadlineAuthority = Boolean(
-    typeof input.companionHeadlineLine === 'string' && input.companionHeadlineLine.trim(),
-  )
-
-  return [
-    'project-state-carry',
-    ...(
-      combined.includes('continuity-execution-callback-project-carry')
-      || combined.includes('execution-callback project-carry')
-      || combined.includes('callback project-carry')
-        ? ['continuity-execution-callback-project-carry']
-        : []
-    ),
-    ...(carriesNextClosureAuthority ? ['project-state-next-closure'] : []),
-    ...(carriesSameHerProjectAuthority ? ['project-state-continuity'] : []),
-    ...(carriesCompanionHeadlineAuthority ? ['project-state-companion-headline'] : []),
-  ]
-}
 
 const alicizationSelfEvolutionVersionRuntimeMetaKey = 'self_evolution_version_runtime_v1'
 
@@ -2740,12 +2681,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return null
 
     const normalizedReasonTags = Array.from(new Set(privateThought.rationaleTags))
-    const carriesSameHerInwardCarry = normalizedReasonTags.includes('same-her-inward-carry')
-    const normalizedContinuityMode = carriesSameHerInwardCarry
-      && state.continuityMode === 'quiet-accompaniment'
-      && privateThought.stance === 'accompany'
-      ? 'quiet-accompaniment'
-      : state.continuityMode
 
     return {
       cardId,
@@ -2754,7 +2689,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       scenario,
       stance: privateThought.stance,
       currentBodyState: state.currentBodyState,
-      continuityMode: normalizedContinuityMode,
+      continuityMode: state.continuityMode,
       quietLineMs: state.quietLineMs,
       currentInwardPreoccupation: state.currentInwardPreoccupation,
       confidence: privateThought.confidence,
@@ -4064,6 +3999,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           }
       const allowDialogueLearning = learningEligibility.allowLongTermCondensation
         || learningEligibility.allowPersonaLearning
+      const visibleReplyExecution = structured?.visibleReplyExecution
+        && typeof structured.visibleReplyExecution === 'object'
+        && !Array.isArray(structured.visibleReplyExecution)
+        ? structured.visibleReplyExecution as Record<string, unknown>
+        : null
+      const visibleReplyAuthority = readStringValue(structured?.visibleReplyAuthority)
+        || readStringValue(visibleReplyExecution?.actualVisibleReplyAuthority)
+      const shouldTrackDialogueContinuity = artifactOrigin !== 'failure-surface'
+        && artifactOrigin !== 'authorization-surface'
+        && visibleReplyAuthority !== 'local-deterministic-fallback'
+        && visibleReplyAuthority !== 'non-human-authored-blocked'
       if (!allowDialogueLearning) {
         await appendAuditLog({
           level: 'notice',
@@ -4105,7 +4051,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }).catch(() => {})
       }
       if (
-        allowDialogueLearning
+        shouldTrackDialogueContinuity
         && normalizedPayload.origin === 'user-turn'
         && sanitizeText(normalizedPayload.assistantText).length > 0
       ) {
@@ -4124,12 +4070,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             const persistedRuntimeSurface = buildAlicizationDigitalLifeRuntimeSurface(visualPresenceState)
             const previousDialogueWorldThread = visualPresenceState.dialogueWorldThread
             const previousConversationState = visualPresenceState.conversationState
-            const proactiveHostContexts = inferHostSocialContextsFromText([
-              dialogueWorldThread.activeThread,
-              visualPresenceState.conversationState?.hostMove ?? '',
-              visualPresenceState.conversationState?.activeProject ?? '',
-              visualPresenceState.currentScene?.summary ?? '',
-            ].filter(Boolean).join(' '), ['general'])
+            const proactiveHostContexts = buildHostSocialContexts({
+              workloadKind: visualPresenceState.currentScene?.workloadKind ?? null,
+              extraContexts: ['open-window'],
+            })
             const basePersistedPersonStateProjection = buildAlicizationPersonStateProjection({
               now: normalizedCreatedAt,
               contexts: proactiveHostContexts,
@@ -4145,166 +4089,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               selfEvolution: persistedRuntimeSurface.memory.selfEvolution ?? null,
               previousContinuityState: persistedRuntimeSurface.memory.personalityContinuityState ?? null,
             })
-            const persistedPersonStateProjection = (() => {
-              const previousSummary = sanitizeBriefText(visualPresenceState.personStateProjection?.summary ?? '', 220)
-              const previousOpeningGuidance = sanitizeBriefText(visualPresenceState.personStateProjection?.openingGuidance ?? '', 220)
-              const previousCadenceSummary = sanitizeBriefText(visualPresenceState.personStateProjection?.manifestationCadenceSummary ?? '', 220)
-              const carrySummary = sanitizeBriefText(dialogueWorldThread.openLoops?.[0] ?? '', 220)
-              const carryNarrative = sanitizeBriefText(dialogueWorldThread.narrative?.[0] ?? '', 220)
-              const carryReason = sanitizeBriefText(visualPresenceState.conversationState?.carryReason ?? '', 220)
-              const latestProactiveOutcome = visualPresenceState.proactiveLoopState?.recentOutcomes?.at(-1) ?? null
-              const recentProactiveReplyCarry
-                = latestProactiveOutcome?.outcome === 'reply-within-120s'
-                  && normalizedCreatedAt - Number(latestProactiveOutcome.createdAt ?? 0) <= 10 * 60_000
-                  && /同一条线|沿着刚才那条线|先别换线|刚才那条提醒|继续/u.test([
-                    normalizedPayload.userText ?? '',
-                    normalizedPayload.assistantText ?? '',
-                    carrySummary,
-                    carryNarrative,
-                    carryReason,
-                  ].join(' | '))
-              const keepSameThread = recentProactiveReplyCarry || /same-thread-continuation|already continuing|still continuing|still in motion|同一条线|沿着刚才那条线|callback line/u.test([
-                previousSummary,
-                previousOpeningGuidance,
-                previousCadenceSummary,
-                carrySummary,
-                carryNarrative,
-                carryReason,
-              ].join(' | ').toLowerCase())
-              if (!keepSameThread)
-                return basePersistedPersonStateProjection
-
-              const proactiveSameLineCopy = recentProactiveReplyCarry
-                ? {
-                    continuitySummary: previousSummary.includes('project_continuity=')
-                      ? previousSummary
-                      : (carrySummary || carryNarrative || 'Continue the active thread with lower pressure and preserve context.'),
-                    openingGuidance: previousOpeningGuidance
-                      || 'Continue proactively with lower pressure and preserve context.',
-                    manifestationCadenceSummary: previousCadenceSummary
-                      || 'Quiet continuation on the active thread.',
-                  }
-                : null
-              const continuitySummary = previousSummary.includes('project_continuity=')
-                ? previousSummary
-                : proactiveSameLineCopy?.continuitySummary
-                  ?? (carrySummary || carryNarrative || 'Continue the active thread with lower pressure and preserve context.')
-              const openingGuidance = previousOpeningGuidance
-                || proactiveSameLineCopy?.openingGuidance
-                || 'Return to the callback with lower pressure and preserve context.'
-              const manifestationCadenceSummary = previousCadenceSummary
-                || proactiveSameLineCopy?.manifestationCadenceSummary
-                || 'Quiet continuation on the active thread.'
-              const previousInwardLine = sanitizeBriefText(
-                visualPresenceState.personStateProjection?.selfContinuityAuthority?.inwardLine ?? '',
-                220,
-              )
-              const persistedRuntimeProjectState
-                = persistedRuntimeSurface.dialogue.runtimeDigest?.projectState
-                  ?? persistedRuntimeSurface.cognition.runtimeDigest?.projectState
-                  ?? null
-              const runtimeStructuredProjectState = structured?.projectState && typeof structured.projectState === 'object'
-                ? structured.projectState as Record<string, unknown>
-                : null
-              const currentConsciousProjectState = visualPresenceState.currentConsciousFrame?.projectState ?? null
-              const runtimeProjectSameHerHoldDetail = sanitizeBriefText(
-                [
-                  readStringValue(runtimeStructuredProjectState?.sameHerHoldDetail),
-                  persistedRuntimeProjectState?.sameHerHoldDetail ?? null,
-                  currentConsciousProjectState?.sameHerHoldDetail ?? null,
-                ].find(value => typeof value === 'string' && value.trim().length > 0) ?? '',
-                220,
-              )
-              const runtimeProjectNextClosureTarget = sanitizeBriefText(
-                [
-                  readStringValue(runtimeStructuredProjectState?.nextClosureTarget),
-                  persistedRuntimeProjectState?.nextClosureTarget ?? null,
-                  currentConsciousProjectState?.nextClosureTarget ?? null,
-                ].find(value => typeof value === 'string' && value.trim().length > 0) ?? '',
-                220,
-              )
-              const runtimeProjectCompanionHeadlineLine = sanitizeBriefText(
-                [
-                  readStringValue(runtimeStructuredProjectState?.companionHeadlineLine),
-                  persistedRuntimeProjectState?.companionHeadlineLine ?? null,
-                  currentConsciousProjectState?.companionHeadlineLine ?? null,
-                ].find(value => typeof value === 'string' && value.trim().length > 0) ?? '',
-                220,
-              )
-              const continuityInwardLine = previousInwardLine
-                || sanitizeBriefText(
-                  [
-                    carryReason,
-                    carrySummary,
-                    carryNarrative,
-                    continuitySummary,
-                    openingGuidance,
-                  ].filter(Boolean).join(' | '),
-                  220,
-                )
-              const runtimeProjectContinuityCue = sanitizeBriefText(
-                [
-                  runtimeStructuredProjectState
-                    ? readStringValue(runtimeStructuredProjectState.continuityCue)
-                    || readStringValue(runtimeStructuredProjectState.sameHerSelfLine)
-                    || readStringValue(runtimeStructuredProjectState.sameHerHoldDetail)
-                    || readStringValue(runtimeStructuredProjectState.nextClosureTarget)
-                    || readStringValue(runtimeStructuredProjectState.companionHeadlineLine)
-                    : null,
-                  persistedRuntimeProjectState?.continuityCue ?? null,
-                  persistedRuntimeProjectState?.sameHerSelfLine ?? null,
-                  persistedRuntimeProjectState?.sameHerHoldDetail ?? null,
-                  persistedRuntimeProjectState?.nextClosureTarget ?? null,
-                  persistedRuntimeProjectState?.companionHeadlineLine ?? null,
-                  currentConsciousProjectState?.continuityCue ?? null,
-                  currentConsciousProjectState?.sameHerSelfLine ?? null,
-                  currentConsciousProjectState?.sameHerHoldDetail ?? null,
-                  currentConsciousProjectState?.nextClosureTarget ?? null,
-                  currentConsciousProjectState?.companionHeadlineLine ?? null,
-                ].find(value => typeof value === 'string' && value.trim().length > 0) ?? '',
-                220,
-              )
-              const continuityAuthorityInwardLine = previousInwardLine
-                || runtimeProjectContinuityCue
-                || continuityInwardLine
-              const runtimeProjectCarrySourceTags = inferRuntimeProjectCarrySourceTags({
-                sourceTags: [
-                  ...((basePersistedPersonStateProjection.selfContinuityAuthority?.sourceTags ?? []) as string[]),
-                  ...((visualPresenceState.personStateProjection?.selfContinuityAuthority?.sourceTags ?? []) as string[]),
-                ],
-                inwardLine: continuityAuthorityInwardLine,
-                summary: continuitySummary,
-                openingGuidance,
-                carryReason,
-                carrySummary,
-                carryNarrative,
-                sameHerSelfLine: runtimeProjectContinuityCue,
-                sameHerHoldDetail: runtimeProjectSameHerHoldDetail,
-                nextClosureTarget: runtimeProjectNextClosureTarget,
-                companionHeadlineLine: runtimeProjectCompanionHeadlineLine,
-              })
-              const mergedSelfContinuityAuthority = mergePreferredSelfContinuityAuthority({
-                bundleAuthority: basePersistedPersonStateProjection.selfContinuityAuthority ?? null,
-                runtimeAuthority: visualPresenceState.personStateProjection?.selfContinuityAuthority ?? null,
-              })
-
-              return {
-                ...basePersistedPersonStateProjection,
-                summary: continuitySummary,
-                openingGuidance,
-                manifestationCadenceSummary,
-                selfContinuityAuthority: mergedSelfContinuityAuthority
-                  ? {
-                      ...mergedSelfContinuityAuthority,
-                      sourceTags: Array.from(new Set([
-                        ...(mergedSelfContinuityAuthority.sourceTags ?? []),
-                        ...runtimeProjectCarrySourceTags,
-                      ])),
-                      inwardLine: continuityAuthorityInwardLine || mergedSelfContinuityAuthority.inwardLine || null,
-                    }
-                  : null,
-              } satisfies AlicizationPersonStateProjection
-            })()
+            const persistedPersonStateProjection = basePersistedPersonStateProjection
             const preservedConversationState = (() => {
               const currentConversationState = visualPresenceState.conversationState ?? null
               if (
@@ -5276,10 +5061,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         && !input.decision.reasonCodes.includes('held-autonomy-carry')
         && !input.decision.reasonCodes.includes('continuity-execution-callback-project-carry')
         && !input.decision.reasonCodes.includes('continuity-execution-callback-afterglow-hold')
-        && (
-          openingGuidance == null
-          || /lower-pressure|measured-return|stay near|leave room|opening|same-her|same her/i.test(openingGuidance)
-        )
       )
         ? 'presence-only-hold'
         : null
@@ -5318,11 +5099,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const digitalLifeSpine = deriveAlicizationDigitalLifeSpine(visualPresenceState)
     const digitalLifeRuntimeSurface = digitalLifeSpine.runtimeSurface
     const hostPersonModel = organicPromptContext.hostPersonModel ?? null
-    const proactivePersonContexts = inferHostSocialContextsFromText([
-      policyDecision.scenario,
-      layeredContext.workload.kind,
-      layeredContext.content.kind,
-    ].join(' '))
+    const proactivePersonContexts = buildHostSocialContexts({
+      scenario: policyDecision.scenario,
+      workloadKind: layeredContext.workload.kind,
+    })
     const personStateProjection = buildAlicizationPersonStateProjection({
       now: Date.now(),
       contexts: proactivePersonContexts,
@@ -5443,6 +5223,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       decisionTraceId: agentTurnInput?.decisionTraceId ?? null,
     })
 
+    let providerFailure: {
+      reason: string
+      providerId: string
+      model: string
+      failureKind?: AlicizationChatFailureKind | null
+    } | null = null
     const raw = await mainGatewayTextProvider({
       system,
       user,
@@ -5455,13 +5241,31 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       extraSystemBlocks: [
         ...buildOrganicMemoryProviderFactBlocks(organicPromptContext),
       ],
+      onFailure: failure => providerFailure = {
+        reason: failure.reason,
+        providerId: failure.providerId,
+        model: failure.model,
+      },
     })
-    if (!raw)
-      return null
+    if (!raw) {
+      return {
+        structured: null,
+        providerFailure,
+      }
+    }
 
     const parsed = parseJsonObjectFromText(raw)
-    if (!parsed || parsed.format !== 'mind-turn-v1')
-      return null
+    if (!parsed || parsed.format !== 'mind-turn-v1') {
+      return {
+        structured: null,
+        providerFailure: {
+          reason: 'Provider returned an invalid proactive response.',
+          providerId: activeProviderId,
+          model: activeModelId,
+          failureKind: 'provider-schema-unsupported',
+        },
+      }
+    }
 
     const thought = sanitizeText(parsed.thought)
     const reply = sanitizeText(parsed.reply)
@@ -5472,22 +5276,34 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       performanceManifest,
       normalizedEmotion.emotion,
     ).performance
-    if (!thought || !reply || normalizedEmotion.downgraded)
-      return null
+    if (!thought || !reply || normalizedEmotion.downgraded) {
+      return {
+        structured: null,
+        providerFailure: {
+          reason: 'Provider returned an incomplete proactive response.',
+          providerId: activeProviderId,
+          model: activeModelId,
+          failureKind: 'provider-schema-unsupported',
+        },
+      }
+    }
 
     return {
-      thought,
-      emotion: performance.baseEmotion,
-      reply,
-      performance,
-      parsePath: 'json',
-      format: resolveAlicizationAutonomousDialogueStructuredFormat('subconscious-proactive-llm'),
-      proactive: buildProactiveMetadataFromDecision({
-        decision: policyDecision,
-        selfEvolution: organicPromptContext.selfEvolution ?? null,
-        learningExecutionState: organicPromptContext.learningExecutionState ?? null,
-        openingGuidance: personStateProjection.openingGuidance,
-      }),
+      structured: {
+        thought,
+        emotion: performance.baseEmotion,
+        reply,
+        performance,
+        parsePath: 'json',
+        format: resolveAlicizationAutonomousDialogueStructuredFormat('subconscious-proactive-llm'),
+        proactive: buildProactiveMetadataFromDecision({
+          decision: policyDecision,
+          selfEvolution: organicPromptContext.selfEvolution ?? null,
+          learningExecutionState: organicPromptContext.learningExecutionState ?? null,
+          openingGuidance: personStateProjection.openingGuidance,
+        }),
+      },
+      providerFailure: null,
     }
   }
 

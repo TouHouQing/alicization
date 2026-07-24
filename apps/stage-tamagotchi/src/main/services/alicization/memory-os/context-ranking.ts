@@ -7,7 +7,7 @@ import type { AlicizationPersonStateProjection } from '../person-state-projectio
 import type { MemoryClusterProbe, MemoryClusterState } from '../runtime-organic-memory-prompt-types'
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
-import { buildHostSocialGuidance, inferHostSocialContextsFromText } from '../host-social-guidance'
+import { buildHostSocialContexts, buildHostSocialGuidance } from '../host-social-guidance'
 import { buildAlicizationPersonStateProjection } from '../person-state-projection'
 import { buildRelationshipDoctrineGuidance } from '../relationship-doctrine-guidance'
 
@@ -323,21 +323,37 @@ export function deriveMemoryClusterKey(normalizeOrganicRecallText: (raw: string)
 }
 
 function deriveMemoryPromptProjectionContexts(input: {
-  recallSeed: string
   recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
 }) {
   const intentMode = input.recollectionIntent?.mode ?? ('none' satisfies AlicizationMemoryRecollectionMode)
-  return inferHostSocialContextsFromText([
-    input.recallSeed,
-    ...(input.recollectionIntent?.queryHints ?? []),
-  ].join(' '), [
-    intentMode === 'relationship-history' || intentMode === 'autobiographical-history'
-      ? 'open-window'
-      : 'general',
-    intentMode === 'execution-procedure' || intentMode === 'experience-pattern'
-      ? 'focused-work execution'
-      : 'general',
-  ])
+  const relationshipHistory = intentMode === 'relationship-history' || intentMode === 'autobiographical-history'
+  const executionHistory = intentMode === 'execution-procedure' || intentMode === 'experience-pattern'
+  return buildHostSocialContexts({
+    extraContexts: [
+      relationshipHistory ? 'open-window' : 'general',
+      executionHistory ? 'focused-work' : 'general',
+      executionHistory ? 'execution' : 'general',
+    ],
+  })
+}
+
+function buildMemoryRelationshipDoctrineGuidance(input: {
+  projection: OrganicMemoryPromptContext['personStateProjection'] | null
+  coreIncarnation: string
+  contexts: string[]
+}) {
+  const continuity = input.projection?.personalityContinuityState ?? null
+  const growthProfile = continuity?.growthProfile ?? null
+
+  return buildRelationshipDoctrineGuidance({
+    authority: input.projection?.selfContinuityAuthority ?? null,
+    doctrineText: input.projection?.relationshipDoctrine || input.coreIncarnation,
+    contexts: input.contexts,
+    conflictStyle: continuity?.repairPosture === 'repair-first' ? 'repair-first' : null,
+    quietObservation: growthProfile?.prefersQuietCompanionship ? 1 : null,
+    autonomyRespect: growthProfile?.autonomyRespect ?? null,
+    truthfulGrounding: growthProfile?.truthAnchor ?? null,
+  })
 }
 
 export function buildMemoryPromptPersonStateProjection(input: {
@@ -352,7 +368,6 @@ export function buildMemoryPromptPersonStateProjection(input: {
   return buildAlicizationPersonStateProjection({
     now: Date.now(),
     contexts: deriveMemoryPromptProjectionContexts({
-      recallSeed: input.recallSeed,
       recollectionIntent: input.recollectionIntent,
     }),
     hostPersonModel: input.hostPersonModel,
@@ -368,8 +383,9 @@ function deriveHostSocialRecallBias(input: {
   coreIncarnation: string
 }) {
   const projection = input.personStateProjection ?? null
-  const defaultDoctrineGuidance = buildRelationshipDoctrineGuidance({
-    doctrineText: projection?.relationshipDoctrine || input.coreIncarnation,
+  const defaultDoctrineGuidance = buildMemoryRelationshipDoctrineGuidance({
+    projection,
+    coreIncarnation: input.coreIncarnation,
     contexts: projection?.contexts ?? [],
   })
   const hostPersonModel = input.hostPersonModel ?? null
@@ -386,21 +402,18 @@ function deriveHostSocialRecallBias(input: {
   }
 
   const contexts = projection?.contexts ?? deriveMemoryPromptProjectionContexts({
-    recallSeed: input.recallSeed,
     recollectionIntent: input.recollectionIntent,
   })
   const guidance = buildHostSocialGuidance({
     hostPersonModel,
     contexts,
   })
-  const doctrineGuidance = buildRelationshipDoctrineGuidance({
-    doctrineText: projection?.relationshipDoctrine || input.coreIncarnation,
+  const doctrineGuidance = buildMemoryRelationshipDoctrineGuidance({
+    projection,
+    coreIncarnation: input.coreIncarnation,
     contexts,
   })
   const authority = projection?.selfContinuityAuthority ?? null
-  const authorityRelationshipLine = authority?.relationshipLine?.toLowerCase() ?? ''
-  const authorityRoomFirst = /room|space|leave more room|space-first|lighter|边界|空间|留白|轻一点/u.test(authorityRelationshipLine)
-  const authorityBondFirst = /living bond|bond line|same line|same her|foreground|关系线|同一条线|同一个她/u.test(authorityRelationshipLine)
   const biasTexts = uniqueList([
     authority?.relationshipLine,
     authority?.selfLine,
@@ -419,7 +432,6 @@ function deriveHostSocialRecallBias(input: {
     guidance.repairTriggerText,
     guidance.burdenText,
     guidance.trustRationale,
-    doctrineGuidance.doctrineSummary,
     ...(hostPersonModel?.routines ?? []),
     ...(hostPersonModel?.sensitivities ?? []),
     ...(hostPersonModel?.repairTriggers ?? []),
@@ -436,8 +448,6 @@ function deriveHostSocialRecallBias(input: {
     activeClosenessRung: projection?.activeClosenessRung ?? null,
     relationshipLine: authority?.relationshipLine ?? null,
     selfLine: authority?.selfLine ?? null,
-    authorityRoomFirst,
-    authorityBondFirst,
     biasTexts,
   }
 }
@@ -462,7 +472,6 @@ function deriveRelationshipStageAlignmentScore(input: {
   const repairLike = /repair|space|room|lighter|boundary|distance|pressure|back off|leave room|修复|空间|边界|轻一点|距离|压力/u.test(normalized)
   const warmLike = /warm|close|closeness|directness|companionship|tender|care|open window|温和|靠近|亲密|直接|陪伴/u.test(normalized)
   const procedureLike = /runtime|procedure|patch|verify|result|callback|task|execution|focused|bounded|thread-faithful|修复节奏|回调|执行|任务|线程/u.test(normalized)
-  const authorityRelationshipLike = /same line|living bond|bond line|same her|continuity|same self|同一条线|活的关系线|同一个她|连续性/u.test(normalized)
   let score = 0
   if ((socialBias.trustStage === 'guarded' || socialBias.trustStage === 'cautious-open') && repairLike)
     score += 0.22
@@ -504,13 +513,6 @@ function deriveRelationshipStageAlignmentScore(input: {
   }
   if ((socialBias.activeClosenessRung === 'warm-near' || socialBias.activeClosenessRung === 'close-hold') && warmLike)
     score += 0.08
-  if (authorityRelationshipLike) {
-    score += input.recollectionIntent?.mode === 'relationship-history'
-      ? 0.12
-      : input.recollectionIntent?.mode === 'autobiographical-history'
-        ? 0.08
-        : 0.04
-  }
   return score
 }
 
@@ -559,18 +561,6 @@ export function rankByHostSocialAffinity<T>(input: {
         score += relationshipLineOverlap * 0.34
       if (intentMode === 'autobiographical-history')
         score += selfLineOverlap * 0.28
-      if (intentMode === 'relationship-history' && socialBias.authorityRoomFirst) {
-        if (hasRepairBias)
-          score += 0.22
-        if (hasClosenessBias)
-          score -= 0.14
-      }
-      if (intentMode === 'relationship-history' && socialBias.authorityBondFirst) {
-        if (hasClosenessBias)
-          score += 0.18
-        if (hasRepairBias && !hasClosenessBias)
-          score -= 0.08
-      }
       if ((intentMode === 'relationship-history' || intentMode === 'autobiographical-history') && (socialBias.cautious || socialBias.restrained)) {
         if (hasRepairBias)
           score += 0.18

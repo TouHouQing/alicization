@@ -727,6 +727,7 @@ describe('runtime main gateway one-shot', () => {
 
   it('reports Provider failure through diagnostics instead of fabricating a reply', async () => {
     const { runtime, appendRuntimeDebugLine, appendAuditLog } = createOneShotRuntimeHarness()
+    const onFailure = vi.fn()
     vi.mocked(generateText).mockRejectedValueOnce(new Error('provider exploded'))
 
     const result = await runtime.generateMainGatewayText({
@@ -736,9 +737,17 @@ describe('runtime main gateway one-shot', () => {
       cardId: 'card-provider-error',
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
+      onFailure,
     })
 
     expect(result).toBeNull()
+    expect(onFailure).toHaveBeenCalledTimes(1)
+    expect(onFailure).toHaveBeenCalledWith({
+      reason: 'provider exploded',
+      providerId: 'provider-test',
+      model: 'model-test',
+      source: 'screen-semantic',
+    })
     expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
       'main-gateway.one-shot-failed',
       expect.objectContaining({
@@ -752,5 +761,59 @@ describe('runtime main gateway one-shot', () => {
         reason: 'provider exploded',
       }),
     }))
+  })
+
+  it('reports missing Provider configuration through the failure callback', async () => {
+    const { runtime } = createOneShotRuntimeHarness({
+      resolveMainGatewayConfig: vi.fn(() => null),
+    })
+    const onFailure = vi.fn()
+
+    const result = await runtime.generateMainGatewayText({
+      system: 'Return JSON.',
+      user: 'input',
+      source: 'proactive',
+      cardId: 'card-missing-config',
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      onFailure,
+    })
+
+    expect(result).toBeNull()
+    expect(onFailure).toHaveBeenCalledTimes(1)
+    expect(onFailure).toHaveBeenCalledWith({
+      reason: 'Main gateway Provider configuration is unavailable.',
+      providerId: 'provider-test',
+      model: 'model-test',
+      source: 'proactive',
+    })
+    expect(generateText).not.toHaveBeenCalled()
+  })
+
+  it('reports an empty Provider response through the failure callback', async () => {
+    const { runtime } = createOneShotRuntimeHarness()
+    const onFailure = vi.fn()
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: '   ',
+    } as any)
+
+    const result = await runtime.generateMainGatewayText({
+      system: 'Return JSON.',
+      user: 'input',
+      source: 'proactive',
+      cardId: 'card-empty-response',
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      onFailure,
+    })
+
+    expect(result).toBeNull()
+    expect(onFailure).toHaveBeenCalledTimes(1)
+    expect(onFailure).toHaveBeenCalledWith({
+      reason: 'Provider returned an empty response.',
+      providerId: 'provider-test',
+      model: 'model-test',
+      source: 'proactive',
+    })
   })
 })

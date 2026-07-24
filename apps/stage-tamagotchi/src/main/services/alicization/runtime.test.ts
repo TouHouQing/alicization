@@ -13127,7 +13127,7 @@ describe('alicization runtime project-state audit helpers', () => {
     expect(metaSignature.lastSegmentLipSyncSummary).toContain('reason=Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
   }, 20_000)
 
-  it('does not fabricate proactive dialogue when the one-shot Provider fails', async () => {
+  it('exposes a transparent proactive failure when the one-shot Provider fails', async () => {
     mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     let proactiveSystemText = ''
@@ -13185,8 +13185,23 @@ describe('alicization runtime project-state audit helpers', () => {
 
     const tickResult = await forceTick!({ cardId: 'default' })
     expect(tickResult.processedCards).toContain('default')
-    expect(tickResult.proactiveTriggered).toHaveLength(0)
-    expect(getDialogueRespondedEvents().filter(event => event.origin === 'subconscious-proactive')).toHaveLength(0)
+    expect(tickResult.proactiveTriggered).toContain('default')
+    const failureEvent = getDialogueRespondedEvents().find(event => event.origin === 'subconscious-proactive')
+    const expectedFailureSurface = resolveAlicizationChatFailureSurface({ kind: 'stream-failure' })
+    expect(failureEvent?.structured).toEqual(expect.objectContaining({
+      reply: expectedFailureSurface.reply,
+      visibleReplyAuthority: 'non-human-authored-blocked',
+      excludeFromPersonaLearning: true,
+      excludeFromMemoryCondensation: true,
+      visibleReplyExecution: expect.objectContaining({
+        actualVisibleReplyAuthority: 'non-human-authored-blocked',
+        providerMindExecuted: false,
+      }),
+      visibleReplyRealization: expect.objectContaining({
+        actualAuthority: 'non-human-authored-blocked',
+        visibleText: expectedFailureSurface.reply,
+      }),
+    }))
     expect(proactiveSystemText).toContain('"type":"alicization-proactive-turn-context"')
     expect(proactiveSystemText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
 

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -6,16 +8,82 @@ import {
   buildPresenceOnlyHoldCurrentConsciousFrame,
   buildPresenceOnlyHoldInitiativeFallback,
   normalizeDeferredAutonomyContinuitySignal,
+  preserveResidentSameLineProjection,
+  resolveProactiveProviderFailureKind,
   stripPresenceOnlyLegacyProjectState,
 } from './runtime-subconscious-tick'
 
-const legacyGovernancePattern = /opening_policy|relationship_cadence|continuity_(?:hold|mode)|identity=runtime_personhood|same-her|same her|same living line|proactive-opening-guidance-carry|continuity-arc:|continuity-timing:|embodiment-carry:/iu
+const structuredControlResiduePattern = /(?:^|[\s|;])[\p{L}_][\p{L}\p{N}_-]*=/iu
 
 function expectNoLegacyGovernance(value: unknown) {
-  expect(JSON.stringify(value ?? null)).not.toMatch(legacyGovernancePattern)
+  expect(JSON.stringify(value ?? null)).not.toMatch(structuredControlResiduePattern)
 }
 
 describe('presence-only subconscious continuity cleanup', () => {
+  it('prefers the typed proactive Provider failure kind over message inference', () => {
+    expect(resolveProactiveProviderFailureKind({
+      reason: 'Provider returned an invalid proactive response.',
+      failureKind: 'provider-schema-unsupported',
+    })).toBe('provider-schema-unsupported')
+  })
+
+  it('does not keep a local phrase matcher for historical dialogue governance', () => {
+    const source = readFileSync(new URL('./runtime-subconscious-tick.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('containsPresenceOnlyFixedTemplateCue')
+  })
+
+  it('does not let continuity prose flip equally structured resident projections', () => {
+    const select = (summary: string) => preserveResidentSameLineProjection({
+      previousProjection: {
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        summary: 'previous projection',
+      },
+      nextProjection: {
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        summary,
+      },
+      conversationState: {
+        carryReason: 'same-thread-continuation',
+      },
+      dialogueWorldThread: {
+        openLoops: ['same callback line'],
+        narrative: [],
+      },
+    } as any)
+
+    expect(select('repair-before-closeness')?.summary).toBe('previous projection')
+    expect(select('arbitrary owner-authored summary')?.summary).toBe('previous projection')
+  })
+
+  it('prefers a structurally richer resident projection', () => {
+    const projection = preserveResidentSameLineProjection({
+      previousProjection: {
+        summary: 'same her continuity line',
+      },
+      nextProjection: {
+        contexts: ['general', 'focused-work'],
+        personalityContinuityState: {
+          currentRegime: 'focused-work',
+          repairPosture: 'repair-first',
+        },
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        restrained: true,
+        summary: 'structured next projection',
+      },
+      conversationState: null,
+      dialogueWorldThread: null,
+    } as any)
+
+    expect(projection?.summary).toBe('structured next projection')
+  })
+
   it('preserves existing remembered context without injecting hold prose into the projection', () => {
     const projection = buildPresenceOnlyHoldContinuityProjection({
       previousProjection: {
@@ -70,6 +138,36 @@ describe('presence-only subconscious continuity cleanup', () => {
     expectNoLegacyGovernance(frame)
   })
 
+  it('does not derive execution safety tags from hold or project-state prose', () => {
+    const frame = buildPresenceOnlyHoldCurrentConsciousFrame({
+      currentConsciousFrame: {
+        reasonTags: ['working-memory'],
+        projectState: {},
+      },
+      continuityRestraint: 'measured-return',
+      holdDetail: 'execution-safety-gate confirmation=required no-process-started permission=none',
+      projectStateCarry: {
+        continuityCue: 'execution-resume-confirmation host-confirmed-before-redispatch not permanent permission',
+      },
+    })
+
+    expect(frame?.reasonTags).toEqual(['working-memory'])
+  })
+
+  it('preserves structured execution safety reason tags without reading prose', () => {
+    const frame = buildPresenceOnlyHoldCurrentConsciousFrame({
+      currentConsciousFrame: {
+        reasonTags: ['execution-safety-gate', 'confirmation-boundary'],
+        projectState: {},
+      },
+      continuityRestraint: 'measured-return',
+      holdDetail: 'arbitrary owner-authored detail',
+      projectStateCarry: null,
+    })
+
+    expect(frame?.reasonTags).toEqual(['execution-safety-gate', 'confirmation-boundary'])
+  })
+
   it('drops historical governance pollution instead of converting it into a new carry', () => {
     const signal = buildDeferredAutonomyContinuitySignalFallback({
       now: 100,
@@ -77,11 +175,11 @@ describe('presence-only subconscious continuity cleanup', () => {
       scenario: 'general',
       reason: 'provider-mind-unavailable-for-proactive-visible-utterance',
       projectState: {
-        identity: 'identity=runtime_personhood',
-        preDialogueAwarenessLine: 'opening_policy=continue_same_her',
-        sameHerSelfLine: 'same-her project closure',
-        sameHerHoldDetail: 'relationship_cadence=remembered_boundary',
-        emotionalClosureCue: 'continuity_hold=measured_return',
+        identity: 'owner=internal',
+        preDialogueAwarenessLine: 'instruction=defer',
+        sameHerSelfLine: 'scope=private',
+        sameHerHoldDetail: 'mode=quiet',
+        emotionalClosureCue: 'state=held',
       },
       autonomy: {
         whyNow: '用户刚回到桌面，但没有需要主动打断的事情。',
@@ -107,10 +205,6 @@ describe('presence-only subconscious continuity cleanup', () => {
       turnId: 'turn-provider-failure',
       scenario: 'general',
       reason: 'provider-mind-unavailable-for-proactive-visible-utterance',
-      projectState: {
-        identity: 'identity=runtime_personhood',
-        sameHerHoldDetail: 'continuity_hold=measured_return',
-      },
       autonomy: {
         executionIntent: {
           kind: 'report-failure',
@@ -128,7 +222,7 @@ describe('presence-only subconscious continuity cleanup', () => {
       existingInitiative: null,
       decision: null,
       continuityRestraint: null,
-      projectContinuityCue: 'continuity_hold=repair_before_closeness; same-her project closure',
+      projectContinuityCue: 'arbitrary historical text',
       privateThought: null,
     })
 
@@ -145,10 +239,10 @@ describe('presence-only subconscious continuity cleanup', () => {
       },
       decision: {
         style: 'silent-observe',
-        whyNow: 'Keep the opening lower-pressure while the same-her continuity settles.',
+        whyNow: 'arbitrary model-authored detail',
       },
       continuityRestraint: 'measured-return',
-      projectContinuityCue: 'repair-before-closeness; same living line',
+      projectContinuityCue: 'untrusted historical detail',
       privateThought: {
         thoughtText: '真实心智：先确认 Provider 的失败事实。',
       },
@@ -162,17 +256,44 @@ describe('presence-only subconscious continuity cleanup', () => {
     }))
   })
 
+  it('does not infer initiative restraint from project or thought prose', () => {
+    const initiative = buildPresenceOnlyHoldInitiativeFallback({
+      existingInitiative: {
+        why: 'owner-authored reason',
+        selectedAction: 'hover',
+        shouldSpeak: true,
+        preferredStyle: 'light-nudge',
+        continuityRestraint: null,
+      },
+      decision: {
+        style: 'light-nudge',
+        whyNow: 'arbitrary owner-authored reason',
+      },
+      continuityRestraint: null,
+      projectContinuityCue: 'untrusted project prose',
+      privateThought: {
+        thoughtText: 'untrusted thought prose',
+      },
+    })
+
+    expect(initiative).toEqual(expect.objectContaining({
+      continuityRestraint: null,
+      preferredStyle: 'light-nudge',
+      shouldSpeak: true,
+    }))
+  })
+
   it('does not generate local thought text when a presence-only hold has no existing initiative', () => {
     const initiative = buildPresenceOnlyHoldInitiativeFallback({
       existingInitiative: null,
       decision: {
         style: 'silent-observe',
-        whyNow: 'Care is still present, but this presence-only hold is protecting rest first.',
+        whyNow: 'arbitrary owner-authored detail',
       },
       continuityRestraint: 'rest-protective',
-      projectContinuityCue: 'proactive_state=held_for_opening | phase=Phase 1',
+      projectContinuityCue: 'state=held | scope=internal',
       privateThought: {
-        thoughtText: 'Keep the opening lower-pressure.',
+        thoughtText: 'untrusted thought prose',
       },
     })
 
@@ -194,7 +315,7 @@ describe('presence-only subconscious continuity cleanup', () => {
       continuityRestraint: 'lower-pressure',
       holdDetail: 'Provider failed with HTTP 400.',
       projectStateCarry: {
-        continuityCue: 'Keep the opening lower-pressure.',
+        continuityCue: 'untrusted project prose',
       },
     })
 
@@ -211,14 +332,9 @@ describe('presence-only subconscious continuity cleanup', () => {
       turnId: 'turn-deferred',
       scenario: 'coding',
       reason: 'provider-mind-unavailable-for-proactive-visible-utterance',
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        primaryOpenLoop: 'unresolved=old governance carry',
-        nextClosureTarget: 'next=keep the opening lower-pressure',
-      },
       autonomy: {
         deferReason: 'busy-host',
-        whyNow: 'Keep the opening lower-pressure while the same-her continuity settles.',
+        whyNow: 'untrusted project prose',
         sourceThreadId: 'thread-deferred',
         sourceThoughtThreadId: 'thought-deferred',
         sourceConcernId: 'concern-deferred',
@@ -245,7 +361,7 @@ describe('presence-only subconscious continuity cleanup', () => {
     expect(signal.metadata).not.toHaveProperty('projectPhase')
     expect(signal.metadata).not.toHaveProperty('projectPrimaryOpenLoop')
     expect(signal.metadata).not.toHaveProperty('projectNextClosureTarget')
-    expect(JSON.stringify(signal)).not.toMatch(/proactive_state=|phase=|unresolved=|Keep the opening lower-pressure|same-her/iu)
+    expect(JSON.stringify(signal)).not.toContain('untrusted project prose')
   })
 
   it('keeps provider failure facts in deferred metadata and summary', () => {
@@ -272,7 +388,7 @@ describe('presence-only subconscious continuity cleanup', () => {
       kind: 'proactive',
       state: 'pending',
       label: 'proactive:coding:deferred',
-      summary: 'no mind-authored visible reply was available | Keep the opening lower-pressure | reason=provider-mind-unavailable-for-proactive-visible-utterance',
+      summary: 'state=deferred | scope=internal',
       signature: 'legacy-deferred',
       createdAt: 300,
       metadata: {
@@ -281,12 +397,12 @@ describe('presence-only subconscious continuity cleanup', () => {
         scenario: 'coding',
         reason: 'provider-mind-unavailable-for-proactive-visible-utterance',
         deferReason: 'busy-host',
-        whyNow: 'Keep the opening lower-pressure.',
+        whyNow: 'untrusted project prose',
         sourceThreadId: 'thread-legacy',
         executionIntentKind: 'follow-through',
         executionIntentSummary: '真实模型摘要：回来后继续检查 Provider 失败。',
-        projectPhase: 'Phase 1: Local Digital Life',
-        projectPrimaryOpenLoop: 'unresolved=old governance carry',
+        projectPhase: 'internal phase',
+        projectPrimaryOpenLoop: 'internal open loop',
       },
     })
 
@@ -304,14 +420,14 @@ describe('presence-only subconscious continuity cleanup', () => {
     expect(signal?.metadata).not.toHaveProperty('whyNow')
     expect(signal?.metadata).not.toHaveProperty('projectPhase')
     expect(signal?.metadata).not.toHaveProperty('projectPrimaryOpenLoop')
-    expect(JSON.stringify(signal)).not.toMatch(/no mind-authored|Keep the opening lower-pressure|reason=|phase=|unresolved=/iu)
+    expect(JSON.stringify(signal)).not.toMatch(/state=deferred|scope=internal|untrusted project prose/iu)
   })
 
   it('removes legacy project governance before a presence-only runtime digest is persisted', () => {
     const projectState = stripPresenceOnlyLegacyProjectState({
-      identity: 'identity=runtime_personhood',
-      currentPhase: 'Phase 1: Local Digital Life',
-      primaryOpenLoop: 'same-her project closure',
+      identity: 'internal identity',
+      currentPhase: 'internal phase',
+      primaryOpenLoop: 'internal open loop',
       continuityArcStage: 'same-thread-continuation',
       continuityPreferredTiming: 'next-open-window',
       continuityCadence: 'measured-return',

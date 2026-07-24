@@ -40,8 +40,16 @@ export function buildAlicizationMindAuthoringFailureArtifact(input: {
     kind: failureKind,
     userText: input.userText,
   })
+  const learningPolicy = {
+    allowLongTermCondensation: false,
+    allowPersonaLearning: false,
+    allowTraining: false,
+  } as const
   return {
     format: 'mind-turn-v1',
+    origin: failureSurface.origin,
+    learningPolicy,
+    failureSurface,
     thought: `transport_failure=${input.stage}; visible_reply=blocked; reason=${reason}`,
     emotion: 'thinking',
     reply: failureSurface.reply,

@@ -27,7 +27,6 @@ import type { AlicizationSelfContinuityAuthority } from './self-continuity-autho
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import {
-  alicizationFixedTemplateReplacement,
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
@@ -50,7 +49,7 @@ import {
   readTaskThreadActivityAt,
   sanitizeExecutionLedgerText,
 } from './execution-ledger-shared'
-import { inferHostSocialContextsFromText } from './host-social-guidance'
+import { buildHostSocialContexts } from './host-social-guidance'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import {
@@ -58,12 +57,6 @@ import {
   resolvePreferredPersonStateProjection,
   resolvePreferredSelfContinuityAuthority,
 } from './person-state-projection-resolution'
-import {
-  isAlicizationThinProjectAwarenessLine,
-  looksLikeThinProjectClosureShell,
-  preferStrongerPersistedSameHerSelfLine,
-  preferStrongerSameHerDriftRisk,
-} from './project-state-brief'
 import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
 import { parseJsonObjectFromText } from './runtime-transport-content'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
@@ -73,32 +66,18 @@ function sanitizeExecutionDeliveryProjectFreeText(raw: unknown, maxChars = 320) 
   const ledgerText = sanitizeExecutionLedgerText(raw, maxChars)
   if (!ledgerText)
     return null
-  const providerSafe = sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '')
-  if (
-    !providerSafe
-    || providerSafe === alicizationFixedTemplateReplacement
-    || /pre_turn_context_digest|template-residue-shell|legacy phase-one template|right now she is still holding together mainly through/iu.test(providerSafe)
-  ) {
-    return null
-  }
-  return providerSafe
+  return sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '') || null
 }
 
 function sanitizeExecutionDeliveryProjectControlText(raw: unknown, maxChars = 120) {
   const ledgerText = sanitizeExecutionLedgerText(raw, maxChars)
   if (!ledgerText)
     return null
-  const providerSafe = sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '')
-  return providerSafe && providerSafe !== alicizationFixedTemplateReplacement ? providerSafe : null
+  return sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '') || null
 }
 
 function sanitizeExecutionProjectionCarryText(raw: unknown, maxChars = 320) {
-  const safe = sanitizeExecutionDeliveryProjectFreeText(raw, maxChars)
-  if (!safe)
-    return null
-  if (/Same Phase 1 digital life|same living line|same-her baseline|Before answering/iu.test(safe))
-    return null
-  return safe
+  return sanitizeExecutionDeliveryProjectFreeText(raw, maxChars)
 }
 
 function sanitizeExecutionProjectionRequiredText(raw: unknown, maxChars = 320) {
@@ -182,14 +161,8 @@ function normalizeExecutionDeliveryProjectBriefing(
 
   const record = projectBriefing as Record<string, unknown>
   const normalized = {
-    identity: sanitizeExecutionDeliveryProjectFreeText(record.identity, 220),
-    currentPhase: sanitizeExecutionDeliveryProjectFreeText(record.currentPhase, 220),
-    companionHeadlineLine: sanitizeExecutionDeliveryProjectFreeText(record.companionHeadlineLine, 320),
-    companionBriefingLine: sanitizeExecutionDeliveryProjectFreeText(record.companionBriefingLine, 320),
-    emotionalClosureSummary: sanitizeExecutionDeliveryProjectFreeText(record.emotionalClosureSummary, 220),
     continuityArcStage: sanitizeExecutionDeliveryProjectControlText(record.continuityArcStage, 120),
     continuityRestraint: sanitizeExecutionDeliveryProjectControlText(record.continuityRestraint, 64),
-    continuityCue: sanitizeExecutionDeliveryProjectControlText(record.continuityCue, 220),
     continuityPreferredTiming: sanitizeExecutionDeliveryProjectControlText(record.continuityPreferredTiming, 120),
     continuityCadence: sanitizeExecutionDeliveryProjectControlText(record.continuityCadence, 120),
     preferredBlinkCadence: sanitizeExecutionDeliveryProjectControlText(record.preferredBlinkCadence, 32),
@@ -198,82 +171,14 @@ function normalizeExecutionDeliveryProjectBriefing(
     preferredLipsyncMode: sanitizeExecutionDeliveryProjectControlText(record.preferredLipsyncMode, 32),
     preferredVoiceMode: sanitizeExecutionDeliveryProjectControlText(record.preferredVoiceMode, 32),
     preferredPacingMode: sanitizeExecutionDeliveryProjectControlText(record.preferredPacingMode, 32),
-    latestLandedProgress: sanitizeExecutionDeliveryProjectFreeText(record.latestLandedProgress, 320),
-    latestProgress: sanitizeExecutionDeliveryProjectFreeText(record.latestProgress, 320),
-    landedProgressSummary: sanitizeExecutionDeliveryProjectFreeText(record.landedProgressSummary, 320),
-    primaryOpenLoop: sanitizeExecutionDeliveryProjectFreeText(record.primaryOpenLoop, 320),
-    openClosureSummary: sanitizeExecutionDeliveryProjectFreeText(record.openClosureSummary, 320),
-    nextClosureTarget: sanitizeExecutionDeliveryProjectFreeText(record.nextClosureTarget, 320),
-    nextClosureTargetSummary: sanitizeExecutionDeliveryProjectFreeText(record.nextClosureTargetSummary, 320),
-    sameHerSelfLine: sanitizeExecutionDeliveryProjectFreeText(record.sameHerSelfLine, 220),
-    sameHerHoldDetail: sanitizeExecutionDeliveryProjectFreeText(record.sameHerHoldDetail, 320),
-    sameHerDriftRisk: sanitizeExecutionDeliveryProjectFreeText(record.sameHerDriftRisk, 320),
-    sameHerDriftRiskSummary: sanitizeExecutionDeliveryProjectFreeText(record.sameHerDriftRiskSummary, 320),
-    preflightSummary: looksLikeThinExecutionDeliveryProjectPreflight(record.preflightSummary)
-      ? null
-      : sanitizeExecutionDeliveryProjectFreeText(record.preflightSummary, 320),
-    preDialogueAwarenessLine: looksLikeThinExecutionDeliveryProjectAwareness(record.preDialogueAwarenessLine)
-      ? null
-      : sanitizeExecutionDeliveryProjectFreeText(record.preDialogueAwarenessLine, 320),
-    preDialogueAwarenessSummary: looksLikeThinExecutionDeliveryProjectAwareness(record.preDialogueAwarenessSummary)
-      ? null
-      : sanitizeExecutionDeliveryProjectFreeText(record.preDialogueAwarenessSummary, 320),
   } satisfies AlicizationPendingExecutionDeliveryProjectState
 
   return Object.values(normalized).some(Boolean) ? normalized : null
 }
 
-function looksLikeThinExecutionDeliveryProjectIdentity(value: string | null | undefined) {
-  const normalized = sanitizeExecutionLedgerText(value, 220)?.toLowerCase() ?? ''
-  if (!normalized)
-    return true
-
-  return normalized === 'project'
-    || normalized === 'digital life'
-    || normalized === 'same digital life'
-    || normalized === 'same digital life project'
-    || normalized === 'this local-first digital life project'
-    || (!normalized.includes('alicization') && !normalized.includes('local-first digital life'))
-}
-
-function looksLikeThinExecutionDeliveryProjectPhase(value: string | null | undefined) {
-  const normalized = sanitizeExecutionLedgerText(value, 220)?.toLowerCase() ?? ''
-  if (!normalized)
-    return true
-
-  return normalized === 'phase 1'
-    || normalized === 'phase i'
-    || !normalized.includes('phase 1')
-}
-
-function looksLikeThinExecutionDeliveryProjectPreflight(value: unknown) {
-  const normalized = sanitizeExecutionLedgerText(value, 320)?.toLowerCase() ?? ''
-  if (!normalized)
-    return true
-
-  return normalized === 'project'
-    || normalized === 'phase 1'
-    || isAlicizationThinProjectAwarenessLine(normalized)
-    || /^identity=|^open=|^next=/u.test(normalized)
-}
-
-function looksLikeThinExecutionDeliveryProjectAwareness(value: unknown) {
-  const normalized = sanitizeExecutionLedgerText(value, 320) ?? ''
-  if (!normalized)
-    return true
-
-  const lowered = normalized.toLowerCase()
-  return isAlicizationThinProjectAwarenessLine(normalized)
-    || lowered === 'same digital life'
-    || lowered === 'same digital life project'
-    || lowered === 'same digital life | keep the closure seam explicit'
-    || (!/alicization|local-first digital life|phase 1|same living line|continuous her|one living her/u.test(lowered))
-}
-
 function preferExecutionDeliveryProjectBriefingText(input: {
   current?: string | null
   candidate?: string | null
-  isThin?: (value: string | null | undefined) => boolean
 }) {
   const current = sanitizeExecutionLedgerText(input.current, 320) || ''
   const candidate = sanitizeExecutionLedgerText(input.candidate, 320) || ''
@@ -284,16 +189,6 @@ function preferExecutionDeliveryProjectBriefingText(input: {
     return current || null
   if (current === candidate)
     return current
-
-  const isThin = input.isThin
-  if (isThin) {
-    const currentThin = isThin(current)
-    const candidateThin = isThin(candidate)
-    if (currentThin && !candidateThin)
-      return candidate
-    if (candidateThin && !currentThin)
-      return current
-  }
 
   if (candidate.startsWith(current) && candidate.length >= current.length + 24)
     return candidate
@@ -308,30 +203,6 @@ function mergeExecutionDeliveryProjectBriefingPair(input: {
   candidate: AlicizationPendingExecutionDeliveryProjectState
 }): AlicizationPendingExecutionDeliveryProjectState {
   return {
-    identity: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.identity,
-      candidate: input.candidate.identity,
-      isThin: looksLikeThinExecutionDeliveryProjectIdentity,
-    }),
-    currentPhase: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.currentPhase,
-      candidate: input.candidate.currentPhase,
-      isThin: looksLikeThinExecutionDeliveryProjectPhase,
-    }),
-    companionHeadlineLine: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.companionHeadlineLine,
-      candidate: input.candidate.companionHeadlineLine,
-      isThin: looksLikeThinExecutionDeliveryProjectAwareness,
-    }),
-    companionBriefingLine: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.companionBriefingLine,
-      candidate: input.candidate.companionBriefingLine,
-      isThin: looksLikeThinExecutionDeliveryProjectAwareness,
-    }),
-    emotionalClosureSummary: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.emotionalClosureSummary,
-      candidate: input.candidate.emotionalClosureSummary,
-    }),
     continuityArcStage: preferExecutionDeliveryProjectBriefingText({
       current: input.current.continuityArcStage,
       candidate: input.candidate.continuityArcStage,
@@ -339,10 +210,6 @@ function mergeExecutionDeliveryProjectBriefingPair(input: {
     continuityRestraint: preferExecutionDeliveryProjectBriefingText({
       current: input.current.continuityRestraint,
       candidate: input.candidate.continuityRestraint,
-    }),
-    continuityCue: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.continuityCue,
-      candidate: input.candidate.continuityCue,
     }),
     continuityPreferredTiming: preferExecutionDeliveryProjectBriefingText({
       current: input.current.continuityPreferredTiming,
@@ -375,72 +242,6 @@ function mergeExecutionDeliveryProjectBriefingPair(input: {
     preferredPacingMode: preferExecutionDeliveryProjectBriefingText({
       current: input.current.preferredPacingMode,
       candidate: input.candidate.preferredPacingMode,
-    }),
-    latestLandedProgress: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.latestLandedProgress,
-      candidate: input.candidate.latestLandedProgress,
-      isThin: value => looksLikeThinProjectClosureShell(value, 'landed'),
-    }),
-    latestProgress: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.latestProgress,
-      candidate: input.candidate.latestProgress,
-      isThin: value => looksLikeThinProjectClosureShell(value, 'landed'),
-    }),
-    landedProgressSummary: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.landedProgressSummary,
-      candidate: input.candidate.landedProgressSummary,
-      isThin: value => looksLikeThinProjectClosureShell(value, 'landed'),
-    }),
-    primaryOpenLoop: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.primaryOpenLoop,
-      candidate: input.candidate.primaryOpenLoop,
-      isThin: value => looksLikeThinProjectClosureShell(value, 'open'),
-    }),
-    openClosureSummary: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.openClosureSummary,
-      candidate: input.candidate.openClosureSummary,
-      isThin: value => looksLikeThinProjectClosureShell(value, 'open'),
-    }),
-    nextClosureTarget: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.nextClosureTarget,
-      candidate: input.candidate.nextClosureTarget,
-      isThin: value => looksLikeThinProjectClosureShell(value, 'next'),
-    }),
-    nextClosureTargetSummary: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.nextClosureTargetSummary,
-      candidate: input.candidate.nextClosureTargetSummary,
-      isThin: value => looksLikeThinProjectClosureShell(value, 'next'),
-    }),
-    sameHerSelfLine: preferStrongerPersistedSameHerSelfLine({
-      current: input.current.sameHerSelfLine,
-      candidate: input.candidate.sameHerSelfLine,
-    }) || null,
-    sameHerHoldDetail: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.sameHerHoldDetail,
-      candidate: input.candidate.sameHerHoldDetail,
-    }),
-    sameHerDriftRisk: preferStrongerSameHerDriftRisk({
-      current: input.current.sameHerDriftRisk,
-      candidate: input.candidate.sameHerDriftRisk,
-    }) || null,
-    sameHerDriftRiskSummary: preferStrongerSameHerDriftRisk({
-      current: input.current.sameHerDriftRiskSummary,
-      candidate: input.candidate.sameHerDriftRiskSummary,
-    }) || null,
-    preflightSummary: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.preflightSummary,
-      candidate: input.candidate.preflightSummary,
-      isThin: looksLikeThinExecutionDeliveryProjectPreflight,
-    }),
-    preDialogueAwarenessLine: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.preDialogueAwarenessLine,
-      candidate: input.candidate.preDialogueAwarenessLine,
-      isThin: looksLikeThinExecutionDeliveryProjectAwareness,
-    }),
-    preDialogueAwarenessSummary: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.preDialogueAwarenessSummary,
-      candidate: input.candidate.preDialogueAwarenessSummary,
-      isThin: looksLikeThinExecutionDeliveryProjectAwareness,
     }),
   }
 }
@@ -512,92 +313,10 @@ function readExecutionDeliveryPayloadObject(payload: unknown) {
     : null
 }
 
-function readExecutionDeliveryBooleanOrNull(raw: unknown) {
-  if (raw === true || raw === false)
-    return raw
-  return null
-}
-
-function readExecutionDeliveryStringArray(raw: unknown) {
-  if (!Array.isArray(raw))
-    return []
-  return raw
-    .map(value => sanitizeExecutionLedgerText(value, 80))
-    .filter(Boolean)
-}
-
 type AlicizationExecutionDeliveryEventSnapshot = Pick<
   AlicizationExecutionEventRecord,
   'createdAt' | 'kind' | 'payload'
 >
-
-function buildExecutionDeliverySafetyGateHoldDetail(
-  events: AlicizationExecutionDeliveryEventSnapshot[] | null | undefined,
-) {
-  const latestEvent = readLatestExecutionEvent(events ?? [])
-  const payload = readExecutionDeliveryPayloadObject(latestEvent?.payload)
-  const safetyGate = readExecutionDeliveryPayloadObject(payload?.safetyGate)
-  if (!safetyGate)
-    return null
-
-  const effect = sanitizeExecutionLedgerText(safetyGate.effect, 80) || null
-  const permissionMode = sanitizeExecutionLedgerText(safetyGate.permissionMode, 80) || null
-  const confirmationRequired = readExecutionDeliveryBooleanOrNull(safetyGate.confirmationRequired)
-  const riskPolicy = sanitizeExecutionLedgerText(safetyGate.riskPolicy, 120) || null
-  const auditability = sanitizeExecutionLedgerText(safetyGate.auditability, 80) || null
-  const interruptibility = sanitizeExecutionLedgerText(safetyGate.interruptibility, 80) || null
-  const isBlockedBeforeDispatch = auditability === 'blocked-before-dispatch'
-    || interruptibility === 'no-process-started'
-    || (confirmationRequired === true && permissionMode === 'none')
-  if (!isBlockedBeforeDispatch)
-    return null
-
-  return sanitizeExecutionLedgerText([
-    'Blocked-dispatch safety gate says',
-    confirmationRequired === true
-      ? 'confirmation is required'
-      : confirmationRequired === false
-        ? 'confirmation is not required'
-        : '',
-    permissionMode ? `permission is ${permissionMode}` : '',
-    riskPolicy ? `risk is ${riskPolicy}` : '',
-    auditability ? `audit state is ${auditability}` : '',
-    interruptibility ? `interruptibility is ${interruptibility}` : '',
-    effect ? `effect is ${effect}` : '',
-    'before another execution-shaped opening.',
-  ].filter(Boolean).join(' '), 320) || null
-}
-
-function buildExecutionDeliveryResumeConfirmationHoldDetail(
-  events: AlicizationExecutionDeliveryEventSnapshot[] | null | undefined,
-) {
-  const latestResumeEvent = readLatestExecutionEvent(events ?? [], ['resume'])
-  const payload = readExecutionDeliveryPayloadObject(latestResumeEvent?.payload)
-  if (!payload)
-    return null
-
-  const approval = sanitizeExecutionLedgerText(payload.approval, 80) || null
-  const confirmationBoundary = sanitizeExecutionLedgerText(payload.confirmationBoundary, 120) || null
-  const auditability = sanitizeExecutionLedgerText(payload.auditability, 80) || null
-  const interruptibility = sanitizeExecutionLedgerText(payload.interruptibility, 80) || null
-  const affirmationReasonCodes = readExecutionDeliveryStringArray(payload.affirmationReasonCodes)
-  const isHostConfirmedBeforeRedispatch = approval === 'host-confirmed'
-    || confirmationBoundary === 'host-confirmed-before-redispatch'
-    || auditability === 'resume-before-dispatch'
-    || interruptibility === 'process-not-yet-restarted'
-  if (!isHostConfirmedBeforeRedispatch)
-    return null
-
-  return sanitizeExecutionLedgerText([
-    'execution-resume-confirmation',
-    approval ? `approval=${approval}` : '',
-    confirmationBoundary ? `confirmation=${confirmationBoundary}` : '',
-    auditability ? `audit=${auditability}` : '',
-    interruptibility ? `interrupt=${interruptibility}` : '',
-    affirmationReasonCodes.length > 0 ? `affirmation=${affirmationReasonCodes.join(',')}` : '',
-    'Keep this as a bounded confirmation boundary before another execution-shaped opening.',
-  ].filter(Boolean).join(' '), 320) || null
-}
 
 function readExecutionDeliveryProjectBriefingFromLatestEvent(
   events: AlicizationExecutionDeliveryEventSnapshot[] | null | undefined,
@@ -644,55 +363,15 @@ function readExecutionDeliveryProjectBriefingFromResumeEvent(
   })
 }
 
-function executionDeliveryHoldDetailAlreadyCarried(existing: string | null | undefined, candidate: string) {
-  const normalizedExisting = sanitizeExecutionLedgerText(existing, 320).toLowerCase()
-  if (!normalizedExisting)
-    return false
-
-  if (/execution-resume-confirmation|host-confirmed-before-redispatch|resume-before-dispatch|process-not-yet-restarted/iu.test(candidate)) {
-    return /execution-resume-confirmation|host-confirmed-before-redispatch|resume-before-dispatch|process-not-yet-restarted/iu.test(normalizedExisting)
-  }
-
-  if (/blocked-dispatch|blocked before dispatch|blocked-before-dispatch|confirmation=required|no-process-started/iu.test(candidate)) {
-    return /blocked-dispatch|blocked before dispatch|blocked-before-dispatch|confirmation=required|no-process-started/iu.test(normalizedExisting)
-  }
-
-  return normalizedExisting.includes(candidate.toLowerCase())
-}
-
 function mergeExecutionDeliveryProjectState(input: {
   threadProjectState: AlicizationPendingExecutionDeliveryProjectState | null
   events: AlicizationExecutionDeliveryEventSnapshot[]
 }) {
-  const mergedProjectBriefing = mergeExecutionDeliveryProjectBriefings(
+  return mergeExecutionDeliveryProjectBriefings(
     input.threadProjectState,
     readExecutionDeliveryProjectBriefingFromResumeEvent(input.events),
     readExecutionDeliveryProjectBriefingFromLatestEvent(input.events),
   )
-  const eventHoldDetails = [
-    buildExecutionDeliverySafetyGateHoldDetail(input.events),
-    buildExecutionDeliveryResumeConfirmationHoldDetail(input.events),
-  ].filter((value, index, list): value is string => Boolean(value) && list.indexOf(value) === index)
-  if (eventHoldDetails.length === 0)
-    return mergedProjectBriefing
-
-  const existingHoldDetail = sanitizeExecutionLedgerText(mergedProjectBriefing?.sameHerHoldDetail, 320) || null
-  const missingEventHoldDetails = eventHoldDetails.filter(candidate => !executionDeliveryHoldDetailAlreadyCarried(existingHoldDetail, candidate))
-  const mergedHoldDetail = missingEventHoldDetails.length === 0
-    ? existingHoldDetail
-    : sanitizeExecutionLedgerText(
-      [...missingEventHoldDetails, existingHoldDetail]
-        .filter((value, index, list): value is string => Boolean(value) && list.indexOf(value) === index)
-        .join(' '),
-      320,
-    ) || missingEventHoldDetails[0]
-
-  const mergedProjectState = {
-    ...mergedProjectBriefing,
-    sameHerHoldDetail: mergedHoldDetail,
-  } satisfies AlicizationPendingExecutionDeliveryProjectState
-
-  return Object.values(mergedProjectState).some(Boolean) ? mergedProjectState : null
 }
 
 interface CreateAlicizationRuntimeExecutionDeliveryOptions {
@@ -757,8 +436,10 @@ function formatExecutionDeliveryStatus(status: AlicizationTaskThreadRecord['stat
   return 'failed'
 }
 
-function inferExecutionPersonStateContexts(goal: string | null | undefined) {
-  return inferHostSocialContextsFromText(goal ?? '', ['execution-callback', 'execution'])
+function inferExecutionPersonStateContexts() {
+  return buildHostSocialContexts({
+    extraContexts: ['execution-callback', 'execution'],
+  })
 }
 
 export function createAlicizationRuntimeExecutionDelivery(
@@ -1200,7 +881,7 @@ export function createAlicizationRuntimeExecutionDelivery(
       now: Date.now(),
       contexts: [
         ...new Set([
-          ...inferExecutionPersonStateContexts(input.goal),
+          ...inferExecutionPersonStateContexts(),
           'execution-callback',
           'execution',
         ]),

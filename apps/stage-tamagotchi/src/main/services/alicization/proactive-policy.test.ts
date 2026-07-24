@@ -322,192 +322,30 @@ function createNeutralAffectiveResidue() {
 }
 
 describe('evaluateProactivePolicy', () => {
-  it('ignores legacy project-state and cadence governance inputs', () => {
-    const affectiveResidue = createNeutralAffectiveResidue()
-    const autobiographicalSelf = {
-      relationshipDoctrine: '',
-      latestInflection: '',
-      identityNarrative: '',
-    } as any
-    const selfEvolution = {
-      relationshipDoctrine: '',
-      burdenLine: '',
-      trustMeaning: '',
-      latestInflection: '',
-      dominantTrajectory: 'stable',
-      relationshipCadenceSummary: '',
-      contradictionPressure: 0,
-      nextLearningAction: 'internalize',
-      activeLearningFocuses: [],
-    } as any
-    const baseInput = createInput({
-      currentConsciousFrame: { reasonTags: [] } as any,
-      replyDeliberation: { mustInclude: [], narrative: [] } as any,
-      affectiveResidue,
-      longHorizonMemory: {
-        anchorFacts: [],
-        summary: '',
-      } as any,
-      autobiographicalSelf,
-      selfEvolution,
-      activeContinuityGovernance: {
-        mode: 'none',
-        summary: '',
-        reasonCodes: [],
-        lanes: [],
-      } as any,
-      personalityContinuityState: {
-        regime: 'stable',
-        rhythm: 'natural',
-      } as any,
-      motiveEngine: {
-        drives: {
-          companionship: 0,
-          selfDirection: 0,
-        },
-        backgroundAgendas: [],
-      } as any,
-      selfRevisionPatch: null,
-      projectState: null,
-      continuityDeliberation: null,
-      memoryClosureTrace: null,
-    })
-    const baseline = evaluateProactivePolicy(baseInput)
-    const legacyDecision = evaluateProactivePolicy({
-      ...baseInput,
-      initiative: createInitiative({
-        continuityRestraint: 'measured-return',
-      }),
-      runtimeDigest: createRuntimeSnapshot({
-        continuityRestraint: 'measured-return',
-        projectState: {
-          continuityArcStage: 'hold-for-opening',
-          continuityCue: 'same-her should wait for a later opening',
-          memoryClosureSummary: 'opening_policy=hover-first',
-          primaryOpenLoop: 'project_state_continuity=active',
-          nextClosureTarget: 'relationship_cadence=measured-return',
-          visibility: 'redacted_internal',
-        },
-      } as any),
-      currentConsciousFrame: {
-        reasonTags: [
-          'memory-deliberation-cadence:measured-return',
-          'opening_policy=hover-first',
-          'visibility=redacted_internal',
-        ],
-        projectState: {
-          continuityArcStage: 'hold-for-opening',
-          sameHerSelfLine: 'same-her fixed continuity line',
-        },
-      } as any,
-      replyDeliberation: {
-        mustInclude: ['memory_continuity_cadence=measured-return'],
-        narrative: ['relationship_cadence=measured-return'],
-      } as any,
-      affectiveResidue: {
-        ...affectiveResidue,
-        relationshipCadence: {
-          cadenceMode: 'measured-return',
-          shouldDelayWarmth: true,
-          shouldProtectRest: true,
-          fatigueGuard: 0.9,
-          repairRecovery: 0.9,
-          afterglowCarry: 0.9,
-          overreachRisk: 0.9,
-        },
-      },
-      longHorizonMemory: {
-        anchorFacts: [],
-        rememberedPlanSummary: 'wait for a later opening with a lower-pressure same-her return',
-        summary: 'relationship_cadence=measured-return',
-      } as any,
-      autobiographicalSelf: {
-        ...autobiographicalSelf,
-        relationshipDoctrine: 'same-her measured-return before widening outward',
-        latestInflection: 'relationship_cadence=lower-pressure',
-        identityNarrative: 'one continuous her',
-      },
-      selfEvolution: {
-        ...selfEvolution,
-        relationshipDoctrine: 'leave more room before closeness',
-        burdenLine: 'avoid eager reopening',
-        trustMeaning: 'lower-pressure timing',
-        relationshipCadenceSummary: 'same-thread memory lead should wait for a later opening',
-      },
-      activeContinuityGovernance: {
-        mode: 'same-her-baseline',
-        summary: 'project_state_review=active; continuity_hold=measured-return',
-        reasonCodes: ['same-her-baseline'],
-        lanes: ['relationship-policy'],
-      } as any,
-      personalityContinuityState: {
-        regime: 'same-her',
-        rhythm: 'hover-first',
-      } as any,
-      motiveEngine: {
-        drives: {
-          companionship: 0,
-          selfDirection: 0,
-        },
-        backgroundAgendas: [{
-          kind: 'return-open-loop',
-          summary: 'same living line with unfinished phase 1 digital-life closure',
-          sourceTags: ['autobiographical-self', 'project-state-carry'],
-        }],
-      } as any,
-      selfRevisionPatch: {
-        domain: 'relationship',
-        lanes: ['relationship-posture'],
-        reasonCodes: ['same-her-baseline'],
-        projectStateContinuity: {
-          continuityPressure: 0.92,
-          sameHerSelfLine: 'same-her fixed continuity line',
-          continuityGuard: 'opening_policy=hover-first',
-        },
-      } as any,
-      projectState: {
-        preflightSummary: 'project_state_continuity=active',
-        preDialogueAwarenessLine: 'same-her measured-return',
-        primaryOpenLoop: 'opening_policy=hover-first',
-        nextClosureTarget: 'relationship_cadence=measured-return',
-        sameHerSelfLine: 'one continuous her',
-        sameHerHoldDetail: 'wait for a later opening',
-        sameHerDriftRisk: 'visibility=redacted_internal',
-      },
+  it('lets structured continuity deliberation defer an otherwise speakable turn', () => {
+    const input = createInput()
+    const baseline = evaluateProactivePolicy(input)
+    const held = evaluateProactivePolicy({
+      ...input,
       continuityDeliberation: {
-        kind: 'memory-follow-up',
+        kind: 'dialogue-carry',
         arcStage: 'hold-for-opening',
-        summary: 'same-her should stay inward',
-        whyNow: 'opening_policy=hover-first',
-        pressure: 0.92,
-        intrusionRisk: 'high',
-        payoffDependency: 'memory-only',
-        preferredTiming: 'internal-only',
+        summary: 'owner-authored summary',
+        whyNow: 'owner-authored rationale',
+        pressure: 0.82,
+        intrusionRisk: 'medium',
+        payoffDependency: 'can-surface-softly',
+        preferredTiming: 'next-open-window',
         shouldStayOnThread: true,
         shouldSpeakNow: false,
-        sourceTags: ['project-state-callback-carry'],
+        sourceTags: ['thread:continuation'],
       },
-      memoryClosureTrace: {
-        authority: 'memory-os',
-        nextInfluence: {
-          initiative: {
-            restraint: 'measured-return',
-            preferredTiming: 'next-open-window',
-          },
-          embodiment: {
-            cadence: 'quiet',
-          },
-          execution: {
-            carry: null,
-          },
-        },
-      } as any,
     })
 
-    expect(legacyDecision).toEqual(baseline)
-    expect(JSON.stringify(legacyDecision).toLowerCase()).not.toMatch(
-      /project[_-]?state|same-her|continuity[_-]?arc|opening_policy|relationship_cadence|redacted_internal/,
-    )
+    expect(baseline.shouldInterrupt).toBe(true)
+    expect(held.shouldInterrupt).toBe(false)
+    expect(held.style).toBe('silent-observe')
+    expect(held.reasonCodes).toContain('continuity-next-open-window')
   })
 
   it('lets objective runtime and active-loop readiness drive a speakable decision', () => {
@@ -616,30 +454,47 @@ describe('evaluateProactivePolicy', () => {
     expect(participating.reasonCodes).toContain('persona-direct-reconnect')
   })
 
-  it('preserves explicit execution safety and confirmation boundaries', () => {
+  it('preserves explicit execution safety from structured emotional-kernel reason codes', () => {
     const safetyGate = evaluateProactivePolicy(createInput({
-      currentConsciousFrame: {
-        reasonTags: [
-          'execution-safety-gate blocked-before-dispatch confirmation=required no-process-started permission=none',
-        ],
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'guarded-care',
+        initiativeMode: 'hold',
+        memoryRecallMode: 'self-continuity',
+        embodimentTone: 'protective-watch',
+        valence: 0.42,
+        arousal: 0.38,
+        guardedness: 0.82,
+        closenessDrive: 0.36,
+        repairNeed: 0.74,
+        initiativePressure: 0.18,
+        reasonTags: ['execution-safety-gate', 'confirmation-boundary'],
+        why: 'arbitrary owner-authored explanation',
       } as any,
-    }))
-    const resumeBoundary = evaluateProactivePolicy(createInput({
-      replyDeliberation: {
-        mustInclude: [],
-        narrative: [
-          'execution-resume-confirmation host-confirmed-before-redispatch confirmation boundary not permanent autonomous permission',
-        ],
-      } as any,
-    }))
+    } as any))
 
     expect(safetyGate.shouldInterrupt).toBe(false)
     expect(safetyGate.style).toBe('silent-observe')
-    expect(safetyGate.consideredSignals).toContain('currentConsciousFrame.executionSafetyGateRestraint')
+    expect(safetyGate.consideredSignals).toContain('emotionalKernel.executionSafetyGateRestraint')
     expect(safetyGate.whyNow).toContain('safety_gate=blocked_dispatch_confirmation_required')
-    expect(resumeBoundary.shouldInterrupt).toBe(false)
-    expect(resumeBoundary.consideredSignals).toContain('replyDeliberation.executionResumeConfirmationBoundary')
-    expect(resumeBoundary.whyNow).toContain('confirmation_boundary=host_confirmed_before_redispatch')
+  })
+
+  it('does not derive execution safety policy from conscious-frame or reply prose', () => {
+    const baseline = evaluateProactivePolicy(createInput())
+    const proseOnly = evaluateProactivePolicy(createInput({
+      currentConsciousFrame: {
+        reasonTags: ['arbitrary narrative that says execution safety restraint and confirmation=required'],
+      } as any,
+      replyDeliberation: {
+        mustInclude: ['not permanent autonomous permission'],
+        narrative: ['confirmation boundary after host-confirmed redispatch'],
+      } as any,
+    }))
+
+    expect(proseOnly.shouldInterrupt).toBe(baseline.shouldInterrupt)
+    expect(proseOnly.style).toBe(baseline.style)
+    expect(proseOnly.consideredSignals).not.toContain('currentConsciousFrame.executionSafetyGateRestraint')
+    expect(proseOnly.consideredSignals).not.toContain('replyDeliberation.executionResumeConfirmationBoundary')
   })
 
   it('honors kill switch, fullscreen suppression, and global cooldown', () => {

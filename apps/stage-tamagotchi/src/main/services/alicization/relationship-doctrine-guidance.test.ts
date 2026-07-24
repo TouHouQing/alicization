@@ -3,20 +3,39 @@ import { describe, expect, it } from 'vitest'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 
 describe('relationship doctrine guidance', () => {
-  it('treats repair-before-closeness doctrine as a restrained behavioral bias', () => {
-    const guidance = buildRelationshipDoctrineGuidance({
-      doctrineText: 'Repair before closeness turns into pressure.',
+  it('uses autobiographical state instead of parsing doctrine prose', () => {
+    const create = (doctrineText: string) => buildRelationshipDoctrineGuidance({
+      doctrineText,
+      conflictStyle: 'repair-first',
+      quietObservation: 0.74,
+      autonomyRespect: 0.82,
+      truthfulGrounding: 0.76,
       contexts: ['focused-work'],
     })
 
-    expect(guidance.repairBeforeCloseness).toBe(true)
-    expect(guidance.leaveRoom).toBe(true)
-    expect(guidance.restrained).toBe(true)
+    const first = create('first owner-authored doctrine')
+    const second = create('different owner-authored doctrine')
+
+    expect(first.repairBeforeCloseness).toBe(true)
+    expect(first.leaveRoom).toBe(true)
+    expect(first.restrained).toBe(true)
+    expect(first.preferredProactiveStyle).toBe('light-nudge')
+    expect({
+      ...first,
+      doctrineSummary: '',
+    }).toEqual({
+      ...second,
+      doctrineSummary: '',
+    })
   })
 
-  it('treats rest doctrine as a proactive care bias during late-night contexts', () => {
+  it('uses structured quiet preference for late-night care', () => {
     const guidance = buildRelationshipDoctrineGuidance({
-      doctrineText: 'Rest deserves intervention.',
+      doctrineText: 'owner-authored doctrine',
+      conflictStyle: 'soften-first',
+      quietObservation: 0.82,
+      autonomyRespect: 0.74,
+      truthfulGrounding: 0.68,
       contexts: ['late-night'],
     })
 

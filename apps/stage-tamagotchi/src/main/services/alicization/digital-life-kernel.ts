@@ -15,10 +15,10 @@ import type { AlicizationContinuityDeliberation } from './continuity-deliberatio
 import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-architecture'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import type {
   AlicizationPersonStateProjection,
 } from './person-state-projection'
-import type { AlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 import type { AlicizationResponseCharter } from './response-charter'
 
@@ -28,53 +28,6 @@ import { buildMindEcology } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { mergePreferredSelfContinuityAuthority, resolvePreferredPersonStateProjection } from './person-state-projection-resolution'
 import { updateVisualPresenceState } from './visual-episodic-memory'
-
-function hasProjectStateCarryClosureSignal(raw: unknown) {
-  if (typeof raw !== 'string')
-    return false
-  return /same phase 1 digital life|same living line|one continuous her|continuous her|keep the same living line inward for now|leave room before widening outward again|same-her closure seam/u.test(raw.toLowerCase())
-}
-
-function looksLikeSceneContaminatedProjectSameHerLine(raw: unknown) {
-  if (typeof raw !== 'string')
-    return false
-
-  const text = raw.trim()
-  if (!text)
-    return false
-
-  const lowered = text.toLowerCase()
-  const carriesProjectSameHerBaseline
-    = lowered.includes('same phase 1 digital life')
-      || lowered.includes('same living line')
-      || lowered.includes('continuous her')
-      || lowered.includes('one continuous her')
-  const carriesForegroundSceneNarration
-    = /宿主正在|host is|runtime\.ts|callback result seam|foreground|screen|window|scene/u.test(text)
-
-  return carriesProjectSameHerBaseline && carriesForegroundSceneNarration
-}
-
-function mergeUniqueText(values: Array<string | null | undefined>, maxItems = 8) {
-  const merged: string[] = []
-  const seen = new Set<string>()
-
-  for (const value of values) {
-    if (typeof value !== 'string')
-      continue
-
-    const normalized = value.trim()
-    if (!normalized || seen.has(normalized))
-      continue
-
-    seen.add(normalized)
-    merged.push(normalized)
-    if (merged.length >= maxItems)
-      break
-  }
-
-  return merged
-}
 
 export interface AlicizationDigitalLifeMindStateCommitShape {
   mindTurnFrame?: AlicizationVisualPresenceStateSnapshot['mindTurnFrame']
@@ -226,6 +179,7 @@ export interface AlicizationDigitalLifeProactivePolicySnapshot {
   mindKernel: AlicizationDigitalLifeRuntimeSurface['cognition']['mindKernel']
   hypothesisGraph: AlicizationDigitalLifeRuntimeSurface['cognition']['hypothesisGraph']
   privateThought: AlicizationDigitalLifeRuntimeSurface['cognition']['privateThought']
+  emotionalKernel: AlicizationDigitalLifeRuntimeSurface['memory']['emotionalKernel']
   relationshipModel: AlicizationDigitalLifeRuntimeSurface['world']['relationshipModel']
   motiveEngine: AlicizationDigitalLifeRuntimeSurface['memory']['motiveEngine']
   selfGovernor: AlicizationDigitalLifeRuntimeSurface['agency']['selfGovernor']
@@ -296,47 +250,6 @@ interface RuntimeSurfaceMemoryClosureTraceCarry {
 
 type VisualPresenceStateWithMemoryClosureTrace = AlicizationVisualPresenceStateSnapshot & RuntimeSurfaceMemoryClosureTraceCarry & {
   raw?: (AlicizationVisualPresenceStateSnapshot['raw'] & RuntimeSurfaceMemoryClosureTraceCarry) | null
-}
-
-function hasProjectContinuitySummary(raw: unknown) {
-  return sanitizeDigitalLifeText(raw, 260).includes('project_continuity=')
-}
-
-function hasCallbackStyleContinuity(raw: unknown) {
-  return /callback|same-thread|same thread|same line|同一条线|沿着刚才那条线|刚才那条提醒/u
-    .test(sanitizeDigitalLifeText(raw, 260).toLowerCase())
-}
-
-function preferPersistedContinuityText(input: {
-  persisted?: unknown
-  derived?: unknown
-  requireProjectContinuity?: boolean
-}) {
-  const persisted = sanitizeDigitalLifeText(input.persisted, 260)
-  const derived = sanitizeDigitalLifeText(input.derived, 260)
-
-  if (!persisted)
-    return derived || null
-  if (!derived)
-    return persisted || null
-
-  const persistedCarriesProjectContinuity = hasProjectContinuitySummary(persisted)
-  const derivedCarriesProjectContinuity = hasProjectContinuitySummary(derived)
-  const persistedCarriesCallbackStyleContinuity = hasCallbackStyleContinuity(persisted)
-  const derivedCarriesCallbackStyleContinuity = hasCallbackStyleContinuity(derived)
-
-  if (
-    input.requireProjectContinuity
-    && persistedCarriesProjectContinuity
-    && !derivedCarriesProjectContinuity
-  ) {
-    return persisted
-  }
-
-  if (persistedCarriesCallbackStyleContinuity && !derivedCarriesCallbackStyleContinuity)
-    return persisted
-
-  return derived || persisted || null
 }
 
 function buildDigitalLifeContinuitySummary(surface: AlicizationDigitalLifeRuntimeSurface) {
@@ -575,12 +488,6 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
   const stateWithBundle = state as AlicizationVisualPresenceStateSnapshot & {
     derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   }
-  const currentConsciousProjectState = (
-    state.currentConsciousFrame?.projectState as {
-      sameHerSelfLine?: string | null
-      continuityCue?: string | null
-    } | null | undefined
-  ) ?? null
   const provisionalMindEcology = buildMindEcology({
     now: state.updatedAt,
     watchMode: state.watchMode,
@@ -630,76 +537,9 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
     bundleAuthority: persistedPersonStateProjection?.selfContinuityAuthority as typeof derivedPersonStateProjection.selfContinuityAuthority,
     runtimeAuthority: derivedPersonStateProjection.selfContinuityAuthority,
   }) ?? preferredPersonStateProjection.selfContinuityAuthority
-  const preserveDerivedRelationshipCarry = (
-    projectedSelfContinuityAuthority
-    && derivedPersonStateProjection.selfContinuityAuthority?.relationshipLine
-    && /repair-before-closeness|lower-pressure|same relationship line|same line|leave room/u.test(derivedPersonStateProjection.selfContinuityAuthority.relationshipLine)
-    && (
-      !projectedSelfContinuityAuthority.relationshipLine
-      || /relationship line is neutral|I can be warm|stay usefully oriented toward the host'?s knot/u.test(projectedSelfContinuityAuthority.relationshipLine)
-    )
-  )
-  const persistedAuthoritySourceTags = Array.isArray(persistedPersonStateProjection?.selfContinuityAuthority?.sourceTags)
-    ? persistedPersonStateProjection.selfContinuityAuthority.sourceTags
-    : []
-  const currentFrameSameHerSelfLine = looksLikeSceneContaminatedProjectSameHerLine(currentConsciousProjectState?.sameHerSelfLine)
-    ? ''
-    : currentConsciousProjectState?.sameHerSelfLine ?? ''
-  const projectStateCarryClosureLine = [
-    currentFrameSameHerSelfLine,
-    currentConsciousProjectState?.continuityCue ?? '',
-    state.autobiographicalSelf?.latestInflection ?? '',
-    state.autobiographicalSelf?.relationshipDoctrine ?? '',
-    state.personStateProjection?.selfContinuityAuthority?.inwardLine ?? '',
-    state.personStateProjection?.selfContinuityAuthority?.authoritySummary ?? '',
-  ]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .join(' | ')
-  const shouldCarryProjectStateAuthority
-    = hasProjectStateCarryClosureSignal(projectStateCarryClosureLine)
-  const mergedAuthoritySourceTags = Array.isArray(projectedSelfContinuityAuthority?.sourceTags)
-    ? Array.from(new Set([
-        ...persistedAuthoritySourceTags,
-        ...projectedSelfContinuityAuthority.sourceTags,
-        ...(shouldCarryProjectStateAuthority ? ['project-state-carry'] : []),
-      ]))
-    : Array.from(new Set([
-        ...persistedAuthoritySourceTags,
-        ...(shouldCarryProjectStateAuthority ? ['project-state-carry'] : []),
-      ]))
   const personStateProjection = {
     ...preferredPersonStateProjection,
-    summary: preferPersistedContinuityText({
-      persisted: persistedPersonStateProjection?.summary,
-      derived: preferredPersonStateProjection.summary,
-      requireProjectContinuity: true,
-    }) ?? preferredPersonStateProjection.summary ?? null,
-    openingGuidance: preferPersistedContinuityText({
-      persisted: persistedPersonStateProjection?.openingGuidance,
-      derived: preferredPersonStateProjection.openingGuidance,
-    }) ?? preferredPersonStateProjection.openingGuidance ?? null,
-    manifestationCadenceSummary: preferPersistedContinuityText({
-      persisted: persistedPersonStateProjection?.manifestationCadenceSummary,
-      derived: preferredPersonStateProjection.manifestationCadenceSummary,
-    }) ?? preferredPersonStateProjection.manifestationCadenceSummary ?? null,
-    selfContinuityAuthority: projectedSelfContinuityAuthority
-      ? {
-          ...projectedSelfContinuityAuthority,
-          relationshipLine: preserveDerivedRelationshipCarry
-            ? derivedPersonStateProjection.selfContinuityAuthority?.relationshipLine ?? projectedSelfContinuityAuthority.relationshipLine
-            : projectedSelfContinuityAuthority.relationshipLine,
-          authoritySummary: preserveDerivedRelationshipCarry
-            ? mergeUniqueText([
-              projectedSelfContinuityAuthority.selfLine,
-              derivedPersonStateProjection.selfContinuityAuthority?.relationshipLine,
-              projectedSelfContinuityAuthority.inwardLine,
-              projectedSelfContinuityAuthority.motiveLine,
-              projectedSelfContinuityAuthority.habitLine,
-            ], 3).join(' | ') || projectedSelfContinuityAuthority.authoritySummary
-            : projectedSelfContinuityAuthority.authoritySummary,
-          sourceTags: mergedAuthoritySourceTags,
-        }
-      : projectedSelfContinuityAuthority,
+    selfContinuityAuthority: projectedSelfContinuityAuthority,
   }
   const personalityContinuityState = personStateProjection.personalityContinuityState
   const derivedMindStateBundle = stateWithBundle.derivedMindStateBundle ?? null
@@ -929,6 +769,7 @@ export function buildAlicizationDigitalLifeProactivePolicySnapshot(
     mindKernel: normalizedSurface.cognition.mindKernel,
     hypothesisGraph: normalizedSurface.cognition.hypothesisGraph,
     privateThought: normalizedSurface.cognition.privateThought,
+    emotionalKernel: normalizedSurface.memory.emotionalKernel,
     relationshipModel: normalizedSurface.world.relationshipModel,
     motiveEngine: normalizedSurface.memory.motiveEngine ?? null,
     selfGovernor: normalizedSurface.agency.selfGovernor,

@@ -91,36 +91,36 @@ function createSpeakableInput() {
 }
 
 describe('proactive restraint regression', () => {
-  it('does not let legacy continuity deliberation alter a real decision', () => {
+  it('lets structured continuity timing restrain a real decision', () => {
     const input = createSpeakableInput()
     const baseline = evaluateProactivePolicy(input)
-    const legacyInjected = evaluateProactivePolicy({
+    const held = evaluateProactivePolicy({
       ...input,
       continuityDeliberation: {
-        kind: 'execution-callback',
+        kind: 'dialogue-carry',
         arcStage: 'hold-for-opening',
-        summary: 'same-her fixed line',
-        whyNow: 'opening_policy=hover-first',
+        summary: 'owner-authored summary',
+        whyNow: 'owner-authored rationale',
         pressure: 1,
-        intrusionRisk: 'high',
-        payoffDependency: 'requires-current-payoff',
-        preferredTiming: 'internal-only',
+        intrusionRisk: 'medium',
+        payoffDependency: 'can-surface-softly',
+        preferredTiming: 'next-open-window',
         shouldStayOnThread: true,
         shouldSpeakNow: false,
-        sourceTags: ['project-state-callback-carry'],
+        sourceTags: ['thread:continuation'],
       },
     })
 
-    expect(legacyInjected).toEqual(baseline)
+    expect(baseline.shouldInterrupt).toBe(true)
+    expect(held.shouldInterrupt).toBe(false)
+    expect(held.reasonCodes).toContain('continuity-next-open-window')
   })
 
   it('keeps blocked dispatch behind explicit confirmation', () => {
     const decision = evaluateProactivePolicy({
       ...createSpeakableInput(),
-      currentConsciousFrame: {
-        reasonTags: [
-          'execution-safety-gate blocked-before-dispatch confirmation=required no-process-started permission=none',
-        ],
+      emotionalKernel: {
+        reasonTags: ['execution-safety-gate'],
       } as any,
     })
 
@@ -132,11 +132,8 @@ describe('proactive restraint regression', () => {
   it('does not convert one host confirmation into permanent permission', () => {
     const decision = evaluateProactivePolicy({
       ...createSpeakableInput(),
-      replyDeliberation: {
-        mustInclude: [],
-        narrative: [
-          'execution-resume-confirmation host-confirmed-before-redispatch confirmation boundary not permanent autonomous permission',
-        ],
+      emotionalKernel: {
+        reasonTags: ['execution-resume-confirmation'],
       } as any,
     })
 

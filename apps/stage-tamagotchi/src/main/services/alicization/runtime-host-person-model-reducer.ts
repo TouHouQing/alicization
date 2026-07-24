@@ -4,19 +4,13 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
-import {
-  hasContinuityRestraintRelationshipSignal,
-  hasNeutralRelationshipSignal,
-  mergePreferredSelfContinuityAuthority,
-} from './person-state-projection-resolution'
+import { mergePreferredSelfContinuityAuthority } from './person-state-projection-resolution'
 
 function inferGovernanceHostSocialContexts(governance: AlicizationMindTurnGovernance) {
   const contexts = ['general']
-  const anchorText = `${governance.liveSurface ?? ''} ${governance.focusAnchor ?? ''} ${governance.answerIntent ?? ''}`
   if (
     governance.answerSubject === 'task-knot'
     || governance.answerAct === 'guide'
-    || /runtime|diff|code|patch|cursor|terminal|cli|debug|fix|verify|test/iu.test(anchorText)
   ) {
     contexts.push('focused-work', 'execution')
   }
@@ -125,21 +119,14 @@ export function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
       })
   const surfaceAuthority = surfaceMemory?.personStateProjection?.selfContinuityAuthority ?? null
   const projectionAuthority = projection.selfContinuityAuthority ?? null
-  const preserveSurfaceRelationshipCarry
-    = !!surfaceAuthority
-      && hasContinuityRestraintRelationshipSignal(surfaceAuthority.relationshipLine)
-      && (
-        !projectionAuthority
-        || hasNeutralRelationshipSignal(projectionAuthority.relationshipLine)
-        || !hasContinuityRestraintRelationshipSignal(projectionAuthority.relationshipLine)
-      )
-  const continuityAwareProjection = preserveSurfaceRelationshipCarry
+  const mergedAuthority = mergePreferredSelfContinuityAuthority({
+    bundleAuthority: projectionAuthority,
+    runtimeAuthority: surfaceAuthority,
+  })
+  const continuityAwareProjection = mergedAuthority && mergedAuthority !== projectionAuthority
     ? {
         ...projection,
-        selfContinuityAuthority: mergePreferredSelfContinuityAuthority({
-          bundleAuthority: projectionAuthority,
-          runtimeAuthority: surfaceAuthority,
-        }),
+        selfContinuityAuthority: mergedAuthority,
       }
     : projection
   const answerPlanner = surface.dialogue.answerPlanner

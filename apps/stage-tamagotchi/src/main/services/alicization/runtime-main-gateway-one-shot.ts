@@ -74,6 +74,12 @@ export interface AlicizationMainGatewayTextProviderOptions extends AlicizationMa
   captureAgentSensorySnapshot?: boolean
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   responseFormat?: AlicizationMainGatewayResponseFormat
+  onFailure?: (failure: {
+    reason: string
+    providerId: string
+    model: string
+    source: AlicizationMainGatewaySource
+  }) => void
 }
 
 export interface AlicizationMainGatewayTextProvider {
@@ -736,6 +742,12 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       cardId: oneShotCardId,
     })
     if (!config) {
+      generateOptions.onFailure?.({
+        reason: 'Main gateway Provider configuration is unavailable.',
+        providerId: options.getActiveProviderId(),
+        model: options.getActiveModelId(),
+        source: generateOptions.source ?? 'unknown',
+      })
       await options.appendRuntimeDebugLine('main-gateway.one-shot-missing-config', {
         cardId: options.getActiveCardId(),
         source: generateOptions.source ?? 'unknown',
@@ -909,6 +921,14 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
           rawChunkChars: fullText.length,
           finalChars: fullText.length,
         })
+        if (!fullText) {
+          generateOptions.onFailure?.({
+            reason: 'Provider returned an empty response.',
+            model: config.model,
+            providerId: config.providerId,
+            source: generateOptions.source ?? 'unknown',
+          })
+        }
         return fullText || null
       }
 
@@ -949,12 +969,19 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return fullText
     }
     catch (error) {
+      const reason = errorMessageFrom(error) ?? String(error)
+      generateOptions.onFailure?.({
+        reason,
+        model: config.model,
+        providerId: config.providerId,
+        source: generateOptions.source ?? 'unknown',
+      })
       await options.appendRuntimeDebugLine('main-gateway.one-shot-failed', {
         cardId: oneShotCardId,
         source: generateOptions.source ?? 'unknown',
         gatewayAuditFamily: gatewayAuditDescriptor.family,
         gatewaySourceRegistered: gatewayAuditDescriptor.registered,
-        reason: errorMessageFrom(error) ?? String(error),
+        reason,
         model: config.model,
         providerId: config.providerId,
       })
@@ -964,7 +991,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         action: 'one-shot-failed',
         message: 'Main gateway one-shot generation failed; fallback path used.',
         payload: {
-          reason: errorMessageFrom(error) ?? String(error),
+          reason,
           model: config.model,
           providerId: config.providerId,
           source: generateOptions.source ?? 'unknown',

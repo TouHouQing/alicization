@@ -2,11 +2,6 @@ import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa
 import type { AlicizationSelfRevisionStatePatch } from '../self-evolution/state-revision-bus'
 
 import {
-  containsAlicizationFixedTemplateResidue,
-  sanitizeAlicizationStructuredInternalText,
-} from '@proj-alicization/stage-shared'
-
-import {
   buildAlicizationVisibleReplyRealizationArtifact,
   createAlicizationVisibleReplyExecution,
 } from '../visible-reply/facade'
@@ -26,33 +21,9 @@ interface AlicizationProactiveMemorySurfaceRestraint {
   rationale?: string | null
 }
 
-function sanitizeStructuredForRealization(value: unknown): unknown {
-  if (typeof value === 'string') {
-    if (!value.trim())
-      return value
-    return containsAlicizationFixedTemplateResidue(value)
-      ? sanitizeAlicizationStructuredInternalText(value, 520)
-      : value
-  }
-
-  if (Array.isArray(value))
-    return value.map(item => sanitizeStructuredForRealization(item))
-
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
-        key,
-        sanitizeStructuredForRealization(item),
-      ]),
-    )
-  }
-
-  return value
-}
-
 function stringifyStructuredForRealization(structured: unknown) {
   try {
-    return JSON.stringify(sanitizeStructuredForRealization(structured ?? {}))
+    return JSON.stringify(structured ?? {})
   }
   catch {
     return ''
@@ -72,6 +43,7 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
   actualVisibleReplyAuthority?: AlicizationVisibleReplyExecution['actualVisibleReplyAuthority']
   reason?: string | null
   allowDeterministicVisibleFallback?: boolean
+  allowTransparentFailureSurface?: boolean
   preferPresenceOnlyHold?: boolean
   expectedVisibleReplyAuthority?: AlicizationVisibleReplyExecution['expectedVisibleReplyAuthority']
   selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
@@ -80,29 +52,36 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
   const reply = readVisibleReply(input.structured)
   const presenceOnlyHold = input.preferPresenceOnlyHold === true
   const hasMindAuthoredVisibleText = input.hasMindAuthoredStructured && Boolean(reply)
-  const fixedTemplateViolationReason = reply && containsAlicizationFixedTemplateResidue(reply)
-    ? 'proactive-visible-reply-fixed-template-contamination'
-    : null
+  const shouldPersistTransparentFailure = input.allowTransparentFailureSurface === true
+    && Boolean(reply)
   const shouldPersistMindReply = hasMindAuthoredVisibleText
-    && !fixedTemplateViolationReason
     && !presenceOnlyHold
   const actualVisibleReplyAuthority = hasMindAuthoredVisibleText
     ? input.actualVisibleReplyAuthority ?? 'llm-mind'
-    : 'local-deterministic-fallback'
-  const decision = decideAlicizationProactiveVisibleUtterance({
-    hasMindAuthoredStructured: shouldPersistMindReply,
-    allowDeterministicVisibleFallback: fixedTemplateViolationReason || presenceOnlyHold
-      ? true
-      : input.allowDeterministicVisibleFallback,
-    preferPresenceOnlyHold: presenceOnlyHold,
-    reason: fixedTemplateViolationReason
-      ?? (presenceOnlyHold ? 'proactive-visible-presence-without-utterance' : input.reason ?? null),
-    selfRevisionPatch: input.selfRevisionPatch ?? null,
-  })
+    : shouldPersistTransparentFailure
+      ? input.actualVisibleReplyAuthority ?? 'non-human-authored-blocked'
+      : 'local-deterministic-fallback'
+  const decision = shouldPersistTransparentFailure
+    ? {
+        version: 'proactive-visible-utterance-policy-v1' as const,
+        shouldPersistVisibleUtterance: true,
+        requiresMindAuthoredText: false,
+        action: 'persist' as const,
+        reason: input.reason ?? 'proactive-infrastructure-failure',
+      }
+    : decideAlicizationProactiveVisibleUtterance({
+        hasMindAuthoredStructured: shouldPersistMindReply,
+        allowDeterministicVisibleFallback: presenceOnlyHold
+          ? true
+          : input.allowDeterministicVisibleFallback,
+        preferPresenceOnlyHold: presenceOnlyHold,
+        reason: presenceOnlyHold ? 'proactive-visible-presence-without-utterance' : input.reason ?? null,
+        selfRevisionPatch: input.selfRevisionPatch ?? null,
+      })
   const visibleReplyExecution = createAlicizationVisibleReplyExecution({
     mode: shouldPersistMindReply ? 'provider-one-shot' : 'local-fallback',
     expectedVisibleReplyAuthority: input.expectedVisibleReplyAuthority ?? 'llm-mind',
-    actualVisibleReplyAuthority: shouldPersistMindReply
+    actualVisibleReplyAuthority: shouldPersistMindReply || shouldPersistTransparentFailure
       ? actualVisibleReplyAuthority
       : 'local-deterministic-fallback',
     providerMindExecuted: shouldPersistMindReply,
@@ -112,18 +91,15 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
     fullText: stringifyStructuredForRealization(input.structured),
     visibleReplyExecution,
   })
-  const visibleReplyRealization = {
-    ...baseVisibleReplyRealization,
-    blockedReasons: fixedTemplateViolationReason
-      ? [...baseVisibleReplyRealization.blockedReasons, fixedTemplateViolationReason]
-      : baseVisibleReplyRealization.blockedReasons,
-  }
+  const visibleReplyRealization = baseVisibleReplyRealization
   const structuredForPersistence: (Record<string, unknown> & { reply?: unknown }) | null
     = decision.shouldPersistVisibleUtterance && input.structured
       ? {
           ...input.structured,
           visibleReplyAuthority: actualVisibleReplyAuthority,
-          replyRealizationMode: 'provider-mind-required',
+          replyRealizationMode: shouldPersistTransparentFailure
+            ? 'transparent-failure-surface'
+            : 'provider-mind-required',
           visibleReplyExecution,
           visibleReplyRealization,
         }

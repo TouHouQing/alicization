@@ -33,210 +33,62 @@ function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
 }
 
-function includesAny(text: string, needles: string[]) {
-  return needles.some(needle => text.includes(needle))
-}
-
-const thinAffectiveResidueRoomMakingCueNeedles = [
-  'still glowing',
-  'still warm',
-  'leave room before warmth returns',
-  'leave room before warmth',
-  'do not widen yet',
-  'warmer reopen',
-  'room-making',
-  'lower-pressure',
-  '余韵',
-  '留白',
-  '别立刻把温度放大',
-  '别把温度放大',
-  '不要立刻把温度放大',
-  '这次更要留白',
-  '这次要更慢一点',
-  '不要重开得太快',
-  '上次太急',
-] as const
-
 function hasExecutionCallbackAfterglowHold(input: {
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
 }) {
-  const rhythmState = input.personalityContinuityState?.rhythmState ?? null
   const cadenceMemory = input.affectiveResidue?.relationshipCadence ?? null
-  const governanceSummary = sanitizeText(input.activeContinuityGovernance?.summary, 200).toLowerCase()
-  const governanceReasonCodes = asArray(input.activeContinuityGovernance?.reasonCodes)
-    .map(code => sanitizeText(code, 80).toLowerCase())
-  const rationale = asArray(rhythmState?.rationale)
-    .map(item => sanitizeText(item, 140).toLowerCase())
-    .join(' ')
-  const cadenceSummary = sanitizeText(cadenceMemory?.summary, 180).toLowerCase()
 
   return input.personalityContinuityState?.currentRegime === 'execution-callback'
     && cadenceMemory?.cadenceMode === 'measured-return'
     && cadenceMemory?.shouldDelayWarmth === true
     && (cadenceMemory?.afterglowCarry ?? 0) >= 0.18
-    && (
-      governanceReasonCodes.includes('same-her-baseline')
-      || governanceSummary.includes('same-her-baseline')
-      || includesAny(`${rationale} ${cadenceSummary} ${governanceSummary}`, [
-        'callback result should land on the same thread',
-        'hover first',
-        'leave room',
-        'lower-pressure',
-      ])
-    )
 }
 
 function hasThinAffectiveResidueRoomMakingHold(affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null) {
   const cadenceMemory = affectiveResidue?.relationshipCadence ?? null
-  const cadenceSummary = sanitizeText(cadenceMemory?.summary, 180).toLowerCase()
-  const residueSummary = sanitizeText(affectiveResidue?.summary, 200).toLowerCase()
-  const sourceSignals = (affectiveResidue?.sourceSignals ?? [])
-    .map(signal => sanitizeText(signal, 120).toLowerCase())
-    .join(' ')
-  const combined = `${cadenceSummary} ${residueSummary} ${sourceSignals}`.trim()
-
   if (cadenceMemory?.shouldDelayWarmth === true)
     return true
 
   return affectiveResidue?.dominantResidueKind === 'afterglow'
     && (cadenceMemory?.cadenceMode === 'measured-return' || cadenceMemory?.cadenceMode === 'cooldown')
     && (cadenceMemory?.afterglowCarry ?? 0) >= 0.18
-    && includesAny(combined, [...thinAffectiveResidueRoomMakingCueNeedles])
 }
 
 function deriveSelfEvolutionCadenceBias(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
   if (!selfEvolution)
     return null
 
-  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 160).toLowerCase()
-  const burdenLine = sanitizeText(selfEvolution.burdenLine, 160).toLowerCase()
-  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 160).toLowerCase()
-  const latestInflection = sanitizeText(selfEvolution.latestInflection, 160).toLowerCase()
-  const relationshipCadenceSummary = sanitizeText(selfEvolution.relationshipCadenceSummary, 160).toLowerCase()
-  const dominantTrajectory = sanitizeText(selfEvolution.dominantTrajectory, 160).toLowerCase()
-  const combined = `${relationshipDoctrine} ${burdenLine} ${trustMeaning} ${latestInflection} ${relationshipCadenceSummary} ${dominantTrajectory}`
-  const embodimentCadenceConfirmed = includesAny(latestInflection, [
-    'embodiment execution kept voice, face, motion, and lipsync on the same measured-return body line',
-    'embodiment execution kept voice, face, motion, and lipsync on the same repair-before-closeness body line',
-    'durable relationship rhythm',
-    'body line',
-    'lipsync',
-    'voice, face, motion',
-  ])
+  const learningAction = selfEvolution.nextLearningAction
+  const revisionActive = selfEvolution.shouldRevise
+    || selfEvolution.revisionPressure >= 0.4
+    || selfEvolution.contradictionPressure >= 0.4
+  const internalizing = learningAction === 'internalize'
+    || selfEvolution.shouldInternalize === true
+  const cadenceLearningActive = revisionActive
+    || internalizing
+    || learningAction === 'verify'
+    || learningAction === 'reflect'
 
-  const doctrineSoftensRoom = includesAny(relationshipDoctrine, [
-    'leave more room',
-    'more room',
-    'space first',
-    'space-before',
-    'slower return',
-    'lower-pressure',
-    'less eager',
-    'bounded-return',
-    'measured-return',
-    'surface fully cools',
-  ])
-  const burdenSoftensCadence = includesAny(burdenLine, [
-    'overloaded',
-    'pressure',
-    'crowd',
-    'conversational pressure',
-    'interrupt',
-    'eager',
-  ])
-  const trustSoftensCadence = includesAny(trustMeaning, [
-    'lower-pressure',
-    'less eager',
-    'room',
-    'space',
-    'timing',
-    'slower',
-    'bounded-return',
-    'measured-return',
-  ])
-  const summarySoftensCadence = includesAny(relationshipCadenceSummary, [
-    'lower-pressure',
-    'less eager',
-    'room',
-    'space',
-    'timing',
-    'slower',
-    'bounded-return',
-    'measured-return',
-    'surface fully cools',
-    'repair before closeness',
-  ])
-  const inflectionSoftensCadence = includesAny(latestInflection, [
-    'pressure',
-    'slower return',
-    'lower-pressure',
-    'less eager',
-    'room',
-    'bounded-return',
-    'measured-return',
-    'reconfirmation',
-  ])
-  const correctedSamePersonReconfirmation = includesAny(combined, [
-    'corrected same-person continuity',
-    'corrected same person continuity',
-    'corrected same-person line',
-    'keep the corrected same-person continuity authoritative',
-    'before any status recap',
-    '同一个人连续性',
-    '纠正后的同一人格连续性',
-  ])
-  const quieterEmbodimentSettlingHold = includesAny(combined, [
-    'keep embodiment quieter',
-    'embodiment quieter',
-    'body quieter',
-    'quieter embodiment',
-    'before making the return feel fully settled',
-    'before the return feel fully settled',
-    'quieter settling beat',
-    '先把身体收稳',
-    '身体更安静',
-  ])
-
-  if (
-    !doctrineSoftensRoom
-    && !burdenSoftensCadence
-    && !trustSoftensCadence
-    && !summarySoftensCadence
-    && !inflectionSoftensCadence
-    && !correctedSamePersonReconfirmation
-    && !quieterEmbodimentSettlingHold
-  ) {
+  if (!cadenceLearningActive)
     return null
-  }
 
-  const internalizing = selfEvolution.nextLearningAction === 'internalize' || selfEvolution.shouldInternalize === true
   const weighting = 0.7
     + Math.min(0.2, (selfEvolution.evolutionMomentum ?? 0) * 0.2)
     + Math.min(0.1, (selfEvolution.learningReadiness ?? 0) * 0.1)
 
   const baseSoftening = (
-    (doctrineSoftensRoom ? 0.04 : 0)
-    + (burdenSoftensCadence ? 0.05 : 0)
-    + (trustSoftensCadence ? 0.05 : 0)
-    + (summarySoftensCadence ? 0.05 : 0)
-    + (inflectionSoftensCadence ? 0.03 : 0)
-    + (embodimentCadenceConfirmed ? 0.04 : 0)
-    + (correctedSamePersonReconfirmation ? 0.04 : 0)
-    + (quieterEmbodimentSettlingHold ? 0.03 : 0)
-    + (internalizing ? 0.02 : 0)
+    (revisionActive ? 0.06 : 0)
+    + (internalizing ? 0.04 : 0)
+    + (learningAction === 'verify' ? 0.02 : 0)
+    + (learningAction === 'reflect' ? 0.02 : 0)
   ) * weighting
 
   return {
-    openingMomentumDamp: clamp01(Math.min(0.18, baseSoftening + (embodimentCadenceConfirmed ? 0.01 : 0) + (correctedSamePersonReconfirmation ? 0.02 : 0) + (quieterEmbodimentSettlingHold ? 0.02 : 0))),
-    cadencePressureDamp: clamp01(Math.min(0.2, baseSoftening + (internalizing ? 0.01 : 0) + (embodimentCadenceConfirmed ? 0.02 : 0) + (correctedSamePersonReconfirmation ? 0.02 : 0) + (quieterEmbodimentSettlingHold ? 0.02 : 0))),
-    reasonTags: [
-      'self-evolution:cadence-softened-by-burden-trust',
-      ...(embodimentCadenceConfirmed ? ['self-evolution:embodiment-cadence-confirmed'] : []),
-      ...(correctedSamePersonReconfirmation ? ['self-evolution:corrected-same-person-reconfirmation'] : []),
-      ...(quieterEmbodimentSettlingHold ? ['self-evolution:quieter-embodiment-settling-hold'] : []),
-    ],
+    openingMomentumDamp: clamp01(Math.min(0.18, baseSoftening)),
+    cadencePressureDamp: clamp01(Math.min(0.2, baseSoftening + (internalizing ? 0.01 : 0))),
+    reasonTags: ['self-evolution:cadence-policy'],
   }
 }
 
@@ -248,64 +100,13 @@ function deriveAutobiographicalCadenceBias(autobiographicalSelf?: AlicizationAut
     quietObservation: 0,
     autonomyRespect: 0,
   }
-  const relationshipDoctrine = sanitizeText(autobiographicalSelf.relationshipDoctrine, 160).toLowerCase()
-  const latestInflection = sanitizeText(autobiographicalSelf.latestInflection, 160).toLowerCase()
-  const identityNarrative = sanitizeText(autobiographicalSelf.identityNarrative, 160).toLowerCase()
-  const combined = `${relationshipDoctrine} ${latestInflection} ${identityNarrative}`
-  const correctedSamePersonReconfirmation = includesAny(combined, [
-    'corrected same-person continuity',
-    'corrected same person continuity',
-    'corrected same-person line',
-    'continuity-axis',
-    '同一个人连续性',
-    '纠正后的同一人格连续性',
-  ])
-  const quieterEmbodimentSettlingHold = includesAny(combined, [
-    'keep embodiment quieter',
-    'embodiment quieter',
-    'body quieter',
-    'quieter embodiment',
-    'more steadily',
-    'more slowly',
-    '先把身体收稳',
-    '身体更安静',
-  ])
-  const doctrineSoftensRoom = includesAny(relationshipDoctrine, [
-    'leave more room',
-    'more room',
-    'slower return',
-    'lower-pressure',
-    'less eager',
-    'bounded-return',
-    'measured-return',
-    'steadiness before closeness',
-  ])
-  const identitySoftensCadence = includesAny(identityNarrative, [
-    'return more slowly',
-    'return more steadily',
-    'less eagerly',
-    'continuity-axis',
-    '同一个她',
-  ])
-  const inflectionSoftensCadence = includesAny(latestInflection, [
-    'slower',
-    'steadier',
-    'lower-pressure',
-    'less eager',
-    'same-person continuity',
-    'same person continuity',
-    'measured-return',
-  ])
-
-  if (
-    !doctrineSoftensRoom
-    && !identitySoftensCadence
-    && !inflectionSoftensCadence
-    && !correctedSamePersonReconfirmation
-    && !quieterEmbodimentSettlingHold
-  ) {
+  const behaviorSignatures = asArray(autobiographicalSelf.behaviorSignatures)
+  const quietHabit = behaviorSignatures.includes('habit:choose-openings-carefully')
+    || behaviorSignatures.includes('habit:keep-gentle-openings')
+  const quietPreference = preferenceEvolution.quietObservation >= 0.65
+    || preferenceEvolution.autonomyRespect >= 0.72
+  if (!quietHabit && !quietPreference)
     return null
-  }
 
   const weighting = 0.72
     + Math.min(0.14, (autobiographicalSelf.stability ?? 0) * 0.14)
@@ -313,68 +114,37 @@ function deriveAutobiographicalCadenceBias(autobiographicalSelf?: AlicizationAut
     + Math.min(0.04, preferenceEvolution.autonomyRespect * 0.04)
 
   const baseSoftening = (
-    (doctrineSoftensRoom ? 0.04 : 0)
-    + (identitySoftensCadence ? 0.03 : 0)
-    + (inflectionSoftensCadence ? 0.04 : 0)
-    + (correctedSamePersonReconfirmation ? 0.04 : 0)
-    + (quieterEmbodimentSettlingHold ? 0.04 : 0)
+    (quietHabit ? 0.05 : 0)
+    + (quietPreference ? 0.04 : 0)
   ) * weighting
 
   return {
-    openingMomentumDamp: clamp01(Math.min(0.14, baseSoftening + (correctedSamePersonReconfirmation ? 0.02 : 0) + (quieterEmbodimentSettlingHold ? 0.02 : 0))),
-    cadencePressureDamp: clamp01(Math.min(0.16, baseSoftening + (correctedSamePersonReconfirmation ? 0.02 : 0) + (quieterEmbodimentSettlingHold ? 0.02 : 0))),
-    reasonTags: [
-      'autobiographical-self:cadence-softened-by-durable-memory',
-      ...(correctedSamePersonReconfirmation ? ['autobiographical-self:corrected-same-person-reconfirmation'] : []),
-      ...(quieterEmbodimentSettlingHold ? ['autobiographical-self:quieter-embodiment-settling-hold'] : []),
-    ],
+    openingMomentumDamp: clamp01(Math.min(0.14, baseSoftening)),
+    cadencePressureDamp: clamp01(Math.min(0.16, baseSoftening)),
+    reasonTags: ['autobiographical-self:cadence-policy'],
   }
 }
 
 function deriveContinuityGovernanceCadenceBias(
   activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null,
 ) {
-  const summary = sanitizeText(activeContinuityGovernance?.summary, 240).toLowerCase()
-  const mode = sanitizeText(activeContinuityGovernance?.mode, 80).toLowerCase()
   const reasonCodes = asArray(activeContinuityGovernance?.reasonCodes)
     .map(code => sanitizeText(code, 80).toLowerCase())
   const lanes = asArray(activeContinuityGovernance?.lanes)
     .map(lane => sanitizeText(lane, 80).toLowerCase())
-  const richerProjectClosureCarry = includesAny(summary, [
-    'phase 1',
-    'local-first digital life',
-    'same digital life',
-    'same-her',
-    'project identity carry',
-    'still-open closure',
-    'unfinished closure',
-    'memory, initiative, and embodiment',
-    'continuity-axis',
-    'identity-continuity',
-  ])
   const hasEmotionalGovernanceReason = reasonCodes.some(code =>
     code.startsWith('emotion-transition:')
     || code.startsWith('emotion-initiative:')
-    || code.startsWith('emotion-embodiment:')
-    || code === 'same-her-emotional-closure-carry-active',
+    || code.startsWith('emotion-embodiment:'),
   )
   const hasEmotionalProactiveLane = lanes.includes('proactive-policy')
-    && (
-      hasEmotionalGovernanceReason
-      || mode.includes('emotional')
-      || summary.includes('emotional carry')
-      || summary.includes('repair-first')
-      || summary.includes('rest-protective')
-    )
+    && hasEmotionalGovernanceReason
   const repairFirstEmotionalSuppression = reasonCodes.includes('emotion-transition:repair-shift')
     || reasonCodes.includes('emotion-initiative:repair-first')
-    || summary.includes('repair-first')
   const restGuardEmotionalSuppression = reasonCodes.includes('emotion-transition:rest-protective-shift')
     || reasonCodes.includes('emotion-initiative:rest-guard')
-    || summary.includes('rest-protective')
   const measuredReturnEmotionalSuppression = reasonCodes.includes('emotion-initiative:measured-return')
     || reasonCodes.includes('emotion-initiative:single-thread')
-    || summary.includes('measured-return')
 
   if (hasEmotionalProactiveLane) {
     const suppressionWeight = repairFirstEmotionalSuppression
@@ -393,123 +163,11 @@ function deriveContinuityGovernanceCadenceBias(
         ...(repairFirstEmotionalSuppression || restGuardEmotionalSuppression || measuredReturnEmotionalSuppression
           ? ['continuity-governance:emotion-initiative-suppression']
           : []),
-        ...(reasonCodes.includes('same-her-emotional-closure-carry-active')
-          ? ['continuity-governance:emotional-closure-carry']
-          : []),
       ],
     }
   }
 
-  if (activeContinuityGovernance?.mode !== 'same-her-baseline' && !richerProjectClosureCarry)
-    return null
-
-  const relationshipWeighted = lanes.includes('relationship-posture')
-    || lanes.includes('relationship-policy')
-    || reasonCodes.includes('domain:relationship')
-  const continuityWeighted = reasonCodes.includes('same-her-baseline')
-    || reasonCodes.includes('project-state-continuity-required')
-    || summary.includes('same-her-baseline')
-    || summary.includes('continuity=')
-    || summary.includes('slower')
-    || summary.includes('lower-pressure')
-    || richerProjectClosureCarry
-
-  if (!relationshipWeighted && !continuityWeighted)
-    return null
-
-  const weight = relationshipWeighted ? 1 : richerProjectClosureCarry ? 0.92 : 0.8
-
-  return {
-    openingMomentumDamp: clamp01(0.04 * weight),
-    cadencePressureDamp: clamp01(0.05 * weight),
-    reasonTags: [
-      'continuity-governance:same-her-baseline',
-      ...(richerProjectClosureCarry ? ['continuity-governance:project-closure-carry'] : []),
-    ],
-  }
-}
-
-function deriveSameHerInwardCarryCadenceBias(input: {
-  privateThought?: AlicizationPrivateThoughtSnapshot | null
-  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
-  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
-}) {
-  const privateThoughtTags = asArray(input.privateThought?.rationaleTags)
-    .map(tag => sanitizeText(tag, 120).toLowerCase())
-    .filter(Boolean)
-  const cadenceReasonTags = asArray(input.affectiveResidue?.relationshipCadence?.reasonTags)
-    .map(tag => sanitizeText(tag, 120).toLowerCase())
-    .filter(Boolean)
-  const residueSignals = asArray(input.affectiveResidue?.sourceSignals)
-    .map(signal => sanitizeText(signal, 140).toLowerCase())
-    .filter(Boolean)
-  const governanceReasonCodes = asArray(input.activeContinuityGovernance?.reasonCodes)
-    .map(code => sanitizeText(code, 120).toLowerCase())
-    .filter(Boolean)
-
-  const latestInflection = sanitizeText(input.selfEvolution?.latestInflection, 200).toLowerCase()
-  const governanceSummary = sanitizeText(input.activeContinuityGovernance?.summary, 240).toLowerCase()
-  const cadenceSummary = sanitizeText(input.affectiveResidue?.relationshipCadence?.summary, 200).toLowerCase()
-  const residueSummary = sanitizeText(input.affectiveResidue?.summary, 220).toLowerCase()
-  const combined = [
-    sanitizeText(input.privateThought?.thoughtText, 240).toLowerCase(),
-    latestInflection,
-    governanceSummary,
-    cadenceSummary,
-    residueSummary,
-    ...privateThoughtTags,
-    ...cadenceReasonTags,
-    ...residueSignals,
-    ...governanceReasonCodes,
-  ].join(' ')
-
-  const explicitSameHerInwardCarry = [
-    ...privateThoughtTags,
-    ...cadenceReasonTags,
-    ...residueSignals,
-    ...governanceReasonCodes,
-  ].includes('same-her-inward-carry')
-
-  const hasSelfContinuityAnchor = includesAny(combined, [
-    'self-continuity',
-    'same-her',
-    'same her',
-    'inward carry',
-    'inward self',
-    'nearby-soft',
-    'quiet companionship',
-    'quiet-companionship',
-  ])
-  const hasInwardHoldShape = includesAny(combined, [
-    'inward',
-    'hold back',
-    'held back',
-    'hover first',
-    'lower-pressure',
-    'nearby-soft',
-    'quiet companionship',
-    'quiet-companionship',
-    'quieter',
-  ])
-  const relationshipBackedInwardCarry = hasSelfContinuityAnchor && hasInwardHoldShape
-
-  if (!explicitSameHerInwardCarry && !relationshipBackedInwardCarry)
-    return null
-
-  const internalizing = input.selfEvolution?.nextLearningAction === 'internalize' || input.selfEvolution?.shouldInternalize === true
-  const weighting = 0.9
-    + (explicitSameHerInwardCarry ? 0.08 : 0)
-    + (internalizing ? 0.04 : 0)
-
-  return {
-    openingMomentumDamp: clamp01(Math.min(0.14, 0.06 * weighting)),
-    cadencePressureDamp: clamp01(Math.min(0.16, 0.07 * weighting)),
-    reasonTags: [
-      'same-her-inward-carry',
-      'continuity-same-her-inward-hold',
-    ],
-  }
+  return null
 }
 
 function foregroundThoughtThread(thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null) {
@@ -614,12 +272,6 @@ export function progressProactiveCadenceState(input: {
   const selfEvolutionCadenceBias = deriveSelfEvolutionCadenceBias(input.selfEvolution ?? null)
   const continuityGovernanceCadenceBias = deriveContinuityGovernanceCadenceBias(input.activeContinuityGovernance ?? null)
   const emotionalDecayCadenceBias = deriveEmotionalDecayCadenceBias(input.emotionalTransitionDecay ?? null)
-  const sameHerInwardCarryCadenceBias = deriveSameHerInwardCarryCadenceBias({
-    privateThought: input.privateThought ?? null,
-    affectiveResidue,
-    selfEvolution: input.selfEvolution ?? null,
-    activeContinuityGovernance: input.activeContinuityGovernance ?? null,
-  })
   const executionCallbackAfterglowHold = hasExecutionCallbackAfterglowHold({
     personalityContinuityState: input.personalityContinuityState ?? null,
     affectiveResidue,
@@ -657,8 +309,7 @@ export function progressProactiveCadenceState(input: {
     - (autobiographicalCadenceBias?.openingMomentumDamp ?? 0)
     - (selfEvolutionCadenceBias?.openingMomentumDamp ?? 0)
     - (continuityGovernanceCadenceBias?.openingMomentumDamp ?? 0)
-    - (emotionalDecayCadenceBias?.openingMomentumDamp ?? 0)
-    - (sameHerInwardCarryCadenceBias?.openingMomentumDamp ?? 0),
+    - (emotionalDecayCadenceBias?.openingMomentumDamp ?? 0),
   )
   const initiativeTrust = clamp01(
     input.state.initiativeTrust * 0.98
@@ -708,12 +359,6 @@ export function deriveProactiveCadenceSignal(input: {
   const selfEvolutionCadenceBias = deriveSelfEvolutionCadenceBias(input.selfEvolution ?? null)
   const continuityGovernanceCadenceBias = deriveContinuityGovernanceCadenceBias(input.activeContinuityGovernance ?? null)
   const emotionalDecayCadenceBias = deriveEmotionalDecayCadenceBias(input.emotionalTransitionDecay ?? null)
-  const sameHerInwardCarryCadenceBias = deriveSameHerInwardCarryCadenceBias({
-    privateThought: input.privateThought ?? null,
-    affectiveResidue,
-    selfEvolution: input.selfEvolution ?? null,
-    activeContinuityGovernance: input.activeContinuityGovernance ?? null,
-  })
   const executionCallbackAfterglowHold = hasExecutionCallbackAfterglowHold({
     personalityContinuityState: input.personalityContinuityState ?? null,
     affectiveResidue,
@@ -745,7 +390,6 @@ export function deriveProactiveCadenceSignal(input: {
   - (selfEvolutionCadenceBias?.cadencePressureDamp ?? 0)
   - (continuityGovernanceCadenceBias?.cadencePressureDamp ?? 0)
   - (emotionalDecayCadenceBias?.cadencePressureDamp ?? 0)
-  - (sameHerInwardCarryCadenceBias?.cadencePressureDamp ?? 0)
 
   const normalizedCadencePressure = clamp01(
     cadencePressure,
@@ -775,12 +419,6 @@ export function deriveProactiveCadenceSignal(input: {
       ...(thinAffectiveResidueHold ? ['residue-delay-warmth'] : []),
       ...(thinAffectiveResidueHold && (cadenceMemory?.afterglowCarry ?? 0) > 0.12 ? ['residue-afterglow-hold'] : []),
       ...(executionCallbackAfterglowHold ? ['continuity-execution-callback-afterglow-hold'] : []),
-      ...(
-        input.activeContinuityGovernance?.summary
-        && /phase 1|local-first digital life|same digital life|unfinished closure|project identity carry|same-her/u.test(input.activeContinuityGovernance.summary.toLowerCase())
-          ? ['continuity-execution-callback-project-carry']
-          : []
-      ),
       ...(cadenceMemory?.shouldProtectRest ? ['residue-protect-rest'] : []),
       ...(rhythmState
         ? [
@@ -793,7 +431,6 @@ export function deriveProactiveCadenceSignal(input: {
       ...(selfEvolutionCadenceBias?.reasonTags ?? []),
       ...(continuityGovernanceCadenceBias?.reasonTags ?? []),
       ...(emotionalDecayCadenceBias?.reasonTags ?? []),
-      ...(sameHerInwardCarryCadenceBias?.reasonTags ?? []),
       ...(hoverFirstRhythm ? ['continuity-rhythm:hover-first'] : []),
     ],
   } satisfies AlicizationProactiveCadenceSignal

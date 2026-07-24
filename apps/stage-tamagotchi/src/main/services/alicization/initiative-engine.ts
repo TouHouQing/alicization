@@ -62,20 +62,18 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-const initiativeWhyStructuredGovernancePattern
-  = /\b(?:persona|initiative_(?:anti_spam|closure|outcome|pressure|reaction|strategy|visible|visible_policy|warning|window)|next_closure|memory_continuity|verified_closure_progress|project_state|opening_policy|relationship_cadence|embodiment_(?:modality_risk|resident_action|resident_face|resident_mode)|host_emotion_label|self_emotion_label)\s*=/iu
+const initiativeWhyStructuredCuePattern = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)*\s*=/iu
 
-const initiativeWhyLocalGovernancePattern
-  = /\b(?:live recollection intent|durable long-horizon memory|self evolution|emotional kernel|same-person continuity|same person continuity|corrected same-person continuity|measured-return|bounded-return|repair-before-closeness|lower-pressure|progress pressure|timer spam|generic assistant(?: shell)?|tool shell|same Phase\s*1 digital life|Phase\s*1(?:\s*:\s*Local Digital Life)?|local digital life|project identity carry|project-state continuity carry|same-session mirror carry|memory and initiative still need stronger end-to-end closure|continuity state|same living line|one living her|callback-afterglow|unfinished closure|is still not closed yet|initiative still needs tighter)\b|她还想先把这一刻再看稳一点|同一个她|同一条(?:生命|活)?线|接回去|留白|修复优先|先修复再靠近|数字生命(?:闭环|主线)?/iu
+const transparentInitiativeFailureActorPattern = /\b(?:provider|embedding|tool|execution|request|api|model|runtime)\b/iu
+const transparentInitiativeFailureStatePattern = /\b(?:failed|failure|error|timed out|timeout|unavailable)\b|\bHTTP\s+\d{3}\b/iu
 
-const initiativeWhyFallbackPattern
-  = /^(?:The inner (?:world|line) has not yet earned a nearer move|The inner line is still deciding how close to come|她还想先把这一刻再看稳一点)[。.!?]*$/iu
-
-const transparentInitiativeFailurePattern
-  = /\b(?:provider|embedding|tool|execution|request|api|model|runtime)\b.{0,180}\b(?:failed|failure|error|timed out|timeout|unavailable|HTTP\s+\d{3})\b|\b(?:failed|failure|error|timed out|timeout|unavailable)\b.{0,180}\b(?:provider|embedding|tool|execution|request|api|model|runtime)\b|\bHTTP\s+\d{3}\b/iu
-
-const transparentFailureGovernanceSuffixPattern
-  = /\b(?:keep|stay|return|reopen|repair)\b.{0,120}\b(?:same-person continuity|same person continuity|lower-pressure|measured-return|repair-before-closeness|progress pressure|closeness)\b/iu
+function isTransparentInitiativeFailure(text: string) {
+  return transparentInitiativeFailureStatePattern.test(text)
+    && (
+      transparentInitiativeFailureActorPattern.test(text)
+      || /\bHTTP\s+\d{3}\b/iu.test(text)
+    )
+}
 
 function trimInitiativeWhySegment(raw: string) {
   return raw
@@ -89,33 +87,17 @@ function sanitizeInitiativeWhySegment(raw: string) {
   if (!segment)
     return ''
 
-  const structuredGovernanceIndex = segment.search(initiativeWhyStructuredGovernancePattern)
-  if (structuredGovernanceIndex === 0)
+  const structuredCueIndex = segment.search(initiativeWhyStructuredCuePattern)
+  if (structuredCueIndex === 0)
     return ''
-  if (structuredGovernanceIndex > 0)
-    segment = trimInitiativeWhySegment(segment.slice(0, structuredGovernanceIndex))
+  if (structuredCueIndex > 0)
+    segment = trimInitiativeWhySegment(segment.slice(0, structuredCueIndex))
 
-  if (!segment || initiativeWhyFallbackPattern.test(segment))
+  if (!segment)
     return ''
 
-  if (transparentInitiativeFailurePattern.test(segment)) {
-    const governanceSuffixIndex = segment.search(transparentFailureGovernanceSuffixPattern)
-    if (governanceSuffixIndex > 0)
-      segment = trimInitiativeWhySegment(segment.slice(0, governanceSuffixIndex))
+  if (isTransparentInitiativeFailure(segment))
     return sanitizeText(segment, 320)
-  }
-
-  const localGovernanceIndex = segment.search(initiativeWhyLocalGovernancePattern)
-  if (localGovernanceIndex === 0)
-    return ''
-  if (
-    localGovernanceIndex > 0
-    && /^(?:keep|stay|return|reopen|repair|carry|hold|avoid|remember|不要|别|先|保持|修复)\b/iu.test(segment)
-  ) {
-    return ''
-  }
-  if (localGovernanceIndex > 0)
-    return ''
 
   return sanitizeAlicizationProviderFacingText(segment, 320, '')
 }
@@ -148,194 +130,19 @@ function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
 }
 
-function joinConciseSentencesPrioritized(input: {
-  priorityParts: Array<string | null | undefined>
-  optionalParts: Array<string | null | undefined>
-  maxChars: number
-}) {
-  const priority = input.priorityParts
-    .map(part => sanitizeText(part, input.maxChars))
-    .filter(Boolean)
-  const optional = input.optionalParts
-    .map(part => sanitizeText(part, input.maxChars))
-    .filter(Boolean)
-
-  const ordered = [...priority, ...optional]
-  if (ordered.length === 0)
-    return ''
-
-  const unique: string[] = []
-  for (const part of ordered) {
-    if (!unique.some(existing => existing.toLowerCase() === part.toLowerCase()))
-      unique.push(part)
-  }
-
-  let built = ''
-  for (const part of unique) {
-    const sentence = /[.!?。！？]$/.test(part) ? part : `${part}.`
-    const next = built ? `${built} ${sentence}` : sentence
-    if (next.length > input.maxChars) {
-      if (!built && priority.includes(part))
-        built = sentence.slice(0, input.maxChars)
-      break
-    }
-    built = next
-  }
-
-  return built || sanitizeText(unique[0], input.maxChars)
-}
-
-function includesAny(text: string, needles: string[]) {
-  return needles.some(needle => text.includes(needle))
-}
-
-function readStructuredEmbodimentToken(text: string, key: string) {
-  const match = text.match(new RegExp(`${key}=([a-z0-9-]+)`, 'u'))
-  return match?.[1] ?? null
-}
-
-const thinRoomMakingCueNeedles = [
-  'still glowing',
-  'still warm',
-  'leave room before warmth returns',
-  'leave room before warmth',
-  'do not widen yet',
-  'room-making',
-  'stay room-making',
-  'warmer reopen',
-  'reopened too eagerly',
-  'lower-pressure',
-  '余韵',
-  '留白',
-  '别立刻把温度放大',
-  '别把温度放大',
-  '不要立刻把温度放大',
-  '这次更要留白',
-  '这次要更慢一点',
-  '不要重开得太快',
-  '上次太急',
-] as const
-
-const measuredReturnContinuityCueNeedles = [
-  'measured-return',
-  'bounded-return',
-  'same thread',
-  'same line',
-  'continuity line',
-  'leave room',
-  'room first',
-  'soften',
-  'linger',
-  'callback',
-  'thread-faithful',
-  'lower-pressure',
-  '余韵',
-  '留白',
-  '同一条线',
-  '同一条生命线',
-  '接回去',
-  '慢一点接回去',
-  '别立刻把温度放大',
-  '不要重开得太快',
-] as const
-
-function hasThinRoomMakingCue(text: string) {
-  return includesAny(text, [...thinRoomMakingCueNeedles])
-}
-
-function hasMeasuredReturnContinuityCue(text: string) {
-  return includesAny(text, [...measuredReturnContinuityCueNeedles])
-}
-
-function deriveSelfEvolutionInitiativeBias(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
-  if (!selfEvolution) {
-    return {
-      preferLowerPressure: false,
-      forceSilentObserve: false,
-      repairFirst: false,
-      gentleContinue: false,
-      correctedSamePersonSettling: false,
-      quieterEmbodimentSettling: false,
-      explanation: '',
-    }
-  }
-
-  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 180).toLowerCase()
-  const burdenLine = sanitizeText(selfEvolution.burdenLine, 180).toLowerCase()
-  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 180).toLowerCase()
-  const latestInflection = sanitizeText(selfEvolution.latestInflection, 180).toLowerCase()
-  const relationshipCadenceSummary = sanitizeText(selfEvolution.relationshipCadenceSummary, 180).toLowerCase()
-  const dominantTrajectory = sanitizeText(selfEvolution.dominantTrajectory, 160).toLowerCase()
-  const combined = `${relationshipDoctrine} ${trustMeaning} ${latestInflection} ${relationshipCadenceSummary} ${dominantTrajectory}`
-  const repairFirst = includesAny(
-    combined,
-    [
-      'repair should settle before closeness expands',
-      'repair-first',
-      'repair first',
-      'repair-before-closeness',
-      'let repair settle before reopening closeness',
-    ],
-  )
-  const gentleContinue = includesAny(
-    combined,
-    [
-      'memory-led',
-      'gentle follow-up',
-      'gentle return',
-      'opening is still receiving',
-      'without falling silent',
-      'received opening',
-      'gentle, lower-pressure',
-    ],
-  )
-  const correctedSamePersonSettling = includesAny(
-    combined,
-    [
-      'corrected same-person continuity',
-      'corrected same person continuity',
-      'corrected same-person line',
-      'keep the corrected same-person continuity authoritative',
-      'before any status recap',
-      '同一个人连续性',
-      '纠正后的同一人格连续性',
-    ],
-  )
-  const quieterEmbodimentSettling = includesAny(
-    combined,
-    [
-      'keep embodiment quieter',
-      'embodiment quieter',
-      'body quieter',
-      'quieter embodiment',
-      'before making the return feel fully settled',
-      'before the return feel fully settled',
-      'quieter settling beat',
-      '先把身体收稳',
-      '身体更安静',
-    ],
-  )
-  const preferLowerPressure = includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure', 'steadiness before closeness', 'bounded-return', 'measured-return', 'surface fully cools'])
-    || includesAny(burdenLine, ['overloaded', 'pressure', 'crowd', 'conversational pressure', 'eager reopening'])
-    || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing', 'steadiness before closeness', 'bounded-return', 'measured-return'])
-    || includesAny(latestInflection, ['pressure', 'slower return', 'lower-pressure', 'less eager', 'bounded-return', 'measured-return', 'reconfirmation'])
-    || includesAny(relationshipCadenceSummary, ['lower-pressure', 'less eager', 'room', 'space', 'timing', 'steadiness before closeness', 'bounded-return', 'measured-return', 'repair before closeness', 'surface fully cools'])
-    || includesAny(dominantTrajectory, ['lower-pressure', 'bounded-return', 'measured-return', 'reconfirmation'])
-    || hasMeasuredReturnContinuityCue(combined)
-  const continuitySettlingHold = correctedSamePersonSettling || quieterEmbodimentSettling
-
+function deriveSelfEvolutionInitiativeBias(_selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
   return {
-    preferLowerPressure: preferLowerPressure || repairFirst || gentleContinue || correctedSamePersonSettling || quieterEmbodimentSettling,
-    forceSilentObserve: ((preferLowerPressure || repairFirst) && (!gentleContinue || continuitySettlingHold)) || continuitySettlingHold,
-    repairFirst,
-    gentleContinue,
-    correctedSamePersonSettling,
-    quieterEmbodimentSettling,
+    preferLowerPressure: false,
+    forceSilentObserve: false,
+    repairFirst: false,
+    gentleContinue: false,
+    correctedSamePersonSettling: false,
+    quieterEmbodimentSettling: false,
     explanation: '',
   }
 }
 
-function deriveAutobiographicalSelfInitiativeBias(autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null): {
+function deriveAutobiographicalSelfInitiativeBias(_autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null): {
   preferLowerPressure: boolean
   forceSilentObserve: boolean
   preferMeasuredReturn: boolean
@@ -345,150 +152,21 @@ function deriveAutobiographicalSelfInitiativeBias(autobiographicalSelf?: Aliciza
   quieterEmbodimentSettling: boolean
   continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
 } {
-  if (!autobiographicalSelf) {
-    return {
-      preferLowerPressure: false,
-      forceSilentObserve: false,
-      preferMeasuredReturn: false,
-      repairFirst: false,
-      gentleContinue: false,
-      correctedSamePersonSettling: false,
-      quieterEmbodimentSettling: false,
-      continuityRestraint: null,
-    }
-  }
-
-  const relationshipDoctrine = sanitizeText(autobiographicalSelf.relationshipDoctrine, 180).toLowerCase()
-  const latestInflection = sanitizeText(autobiographicalSelf.latestInflection, 180).toLowerCase()
-  const identityNarrative = sanitizeText(autobiographicalSelf.identityNarrative, 180).toLowerCase()
-  const behaviorSignatures = asArray(autobiographicalSelf.behaviorSignatures)
-    .map(signature => sanitizeText(signature, 96).toLowerCase())
-  const combined = `${relationshipDoctrine} ${latestInflection} ${identityNarrative} ${behaviorSignatures.join(' ')}`
-  const chooseOpeningsCarefully = behaviorSignatures.includes('habit:choose-openings-carefully')
-    || includesAny(combined, [
-      'clearer opening',
-      'fresher opening',
-      'leave more room',
-      'less eager',
-      'wait for a clearer opening',
-      'wait for a fresher opening',
-    ])
-  const keepGentleOpenings = !chooseOpeningsCarefully
-    && (
-      behaviorSignatures.includes('habit:keep-gentle-openings')
-      || includesAny(combined, [
-        'memory-led',
-        'gentle',
-        'still receiving',
-        'without falling silent',
-        'not fully silent',
-        'opening is receiving',
-        'opening is still receiving',
-      ])
-    )
-  const sameLivingLine = behaviorSignatures.includes('habit:same-living-line')
-    || includesAny(combined, [
-      'continuity line',
-      'same line',
-      'same thread',
-      'same-person continuity',
-      'same person continuity',
-      '同一条线',
-      '接回去',
-    ])
-  const repairFirst = includesAny(combined, [
-    'repair-before-closeness',
-    'repair before closeness',
-    'repair first',
-    '修复优先',
-  ])
-  const correctedSamePersonSettling = includesAny(combined, [
-    'corrected same-person continuity',
-    'corrected same person continuity',
-    'corrected same-person line',
-    'keep the corrected same-person continuity authoritative',
-    'before any status recap',
-    '同一个人连续性',
-    '纠正后的同一人格连续性',
-  ])
-  const quieterEmbodimentSettling = includesAny(combined, [
-    'keep embodiment quieter',
-    'embodiment quieter',
-    'body quieter',
-    'quieter embodiment',
-    'before making the return feel fully settled',
-    'before the return feel fully settled',
-    '先把身体收稳',
-    '身体更安静',
-  ])
-  const preferLowerPressure = chooseOpeningsCarefully
-    || keepGentleOpenings
-    || sameLivingLine
-    || repairFirst
-    || includesAny(relationshipDoctrine, [
-      'leave more room',
-      'more room',
-      'slower return',
-      'lower-pressure',
-      'steadiness before closeness',
-      'bounded-return',
-      'measured-return',
-    ])
-    || includesAny(latestInflection, [
-      'slower',
-      'steadier',
-      'lower-pressure',
-      'less eager',
-      'same-person continuity',
-      'same person continuity',
-      'measured-return',
-    ])
-    || includesAny(identityNarrative, [
-      'return more slowly',
-      'return more steadily',
-      'less eagerly',
-      'continuity line',
-      '连续性',
-    ])
-  const preferMeasuredReturn = !repairFirst && (
-    sameLivingLine
-    || keepGentleOpenings
-    || includesAny(combined, [
-      'measured-return',
-      'bounded-return',
-      'lower-pressure',
-      'memory-led',
-    ])
-  )
-  const continuitySettlingHold = correctedSamePersonSettling || quieterEmbodimentSettling
-
   return {
-    preferLowerPressure: preferLowerPressure || continuitySettlingHold,
-    forceSilentObserve: continuitySettlingHold || chooseOpeningsCarefully || (repairFirst && !keepGentleOpenings),
-    preferMeasuredReturn,
-    repairFirst,
-    gentleContinue: keepGentleOpenings && !continuitySettlingHold,
-    correctedSamePersonSettling,
-    quieterEmbodimentSettling,
-    continuityRestraint: repairFirst
-      ? 'repair-before-closeness'
-      : preferMeasuredReturn
-        ? 'measured-return'
-        : preferLowerPressure
-          ? 'lower-pressure'
-          : null,
+    preferLowerPressure: false,
+    forceSilentObserve: false,
+    preferMeasuredReturn: false,
+    repairFirst: false,
+    gentleContinue: false,
+    correctedSamePersonSettling: false,
+    quieterEmbodimentSettling: false,
+    continuityRestraint: null,
   }
 }
 
 function deriveAffectiveResidueInitiativeBias(affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null) {
   const cadence = affectiveResidue?.relationshipCadence ?? null
-  const cadenceSummary = sanitizeText(cadence?.summary, 220).toLowerCase()
-  const residueSummary = sanitizeText(affectiveResidue?.summary, 220).toLowerCase()
-  const sourceSignals = (affectiveResidue?.sourceSignals ?? [])
-    .map(signal => sanitizeText(signal, 120).toLowerCase())
-    .join(' ')
-  const thinRoomMakingCue = hasThinRoomMakingCue(`${cadenceSummary} ${residueSummary} ${sourceSignals}`)
-  if (!cadence?.shouldDelayWarmth && !thinRoomMakingCue) {
+  if (!cadence?.shouldDelayWarmth) {
     return {
       preferLowerPressure: false,
       forceSilentObserve: false,
@@ -496,19 +174,19 @@ function deriveAffectiveResidueInitiativeBias(affectiveResidue?: AlicizationAffe
     }
   }
 
-  const cadenceMode = cadence?.cadenceMode ?? null
-  const highAfterglowCarry = (cadence?.afterglowCarry ?? 0) >= 0.28
+  const cadenceMode = cadence.cadenceMode
+  const highAfterglowCarry = cadence.afterglowCarry >= 0.28
   const measuredReturn = cadenceMode === 'cooldown' || cadenceMode === 'measured-return'
   const repairFirst = affectiveResidue?.dominantResidueKind === 'repair'
     && (
       affectiveResidue.repairPressure >= 0.42
-      || (cadence?.repairRecovery ?? 0) >= 0.42
+      || cadence.repairRecovery >= 0.42
       || cadenceMode === 'repair'
     )
 
   return {
     preferLowerPressure: true,
-    forceSilentObserve: highAfterglowCarry || measuredReturn || repairFirst || thinRoomMakingCue,
+    forceSilentObserve: highAfterglowCarry || measuredReturn || repairFirst,
     repairFirst,
   }
 }
@@ -615,63 +293,6 @@ function deriveEmotionalKernelInitiativeBias(emotionalKernel?: AlicizationEmotio
   }
 }
 
-function buildRecollectionIntentInitiativeText(recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null) {
-  if (!recollectionIntent)
-    return ''
-
-  const agenda = recollectionIntent.recollectionAgenda ?? null
-  return sanitizeText([
-    recollectionIntent.mode,
-    recollectionIntent.temporalFocus,
-    recollectionIntent.rationale,
-    agenda?.whyRecallNow,
-    ...(recollectionIntent.queryHints ?? []),
-    ...(agenda?.candidateProcedureLines ?? []),
-    agenda?.uncertaintyTolerance ? `uncertainty-${agenda.uncertaintyTolerance}` : '',
-  ].filter(Boolean).join(' '), 420).toLowerCase()
-}
-
-function buildRecollectionIntentStructuredCarryText(recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null) {
-  if (!recollectionIntent)
-    return ''
-
-  const agenda = recollectionIntent.recollectionAgenda ?? null
-  return [
-    recollectionIntent.mode,
-    recollectionIntent.temporalFocus,
-    recollectionIntent.rationale,
-    agenda?.whyRecallNow,
-    ...(recollectionIntent.queryHints ?? []),
-    ...(agenda?.candidateProcedureLines ?? []),
-    agenda?.uncertaintyTolerance ? `uncertainty-${agenda.uncertaintyTolerance}` : '',
-  ].filter(Boolean).join(' ').toLowerCase()
-}
-
-function buildLongHorizonInitiativeText(longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null) {
-  if (!longHorizonMemory)
-    return ''
-
-  const anchorCarry = (longHorizonMemory.anchorFacts ?? [])
-    .slice(0, 4)
-    .map(cue => sanitizeText([
-      cue.summary,
-      cue.subject,
-      cue.predicate,
-      cue.object,
-      cue.influenceTags.join(' '),
-    ].filter(Boolean).join(' '), 180))
-    .filter(Boolean)
-
-  return sanitizeText([
-    longHorizonMemory.summary,
-    longHorizonMemory.dominantCueSummary,
-    longHorizonMemory.rememberedPreferenceSummary,
-    longHorizonMemory.rememberedConstraintSummary,
-    longHorizonMemory.rememberedPlanSummary,
-    ...anchorCarry,
-  ].filter(Boolean).join(' '), 520).toLowerCase()
-}
-
 function deriveRecollectionIntentInitiativeBias(recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null): {
   preferLowerPressure: boolean
   forceSilentObserve: boolean
@@ -684,180 +305,24 @@ function deriveRecollectionIntentInitiativeBias(recollectionIntent?: Alicization
   continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
   explanation: string
 } {
-  if (!recollectionIntent) {
-    return {
-      preferLowerPressure: false,
-      forceSilentObserve: false,
-      preferMeasuredReturn: false,
-      repairFirst: false,
-      gentleContinue: false,
-      anthropomorphicRepairHold: false,
-      metabolizedSameThreadForeground: false,
-      residentQuietHold: false,
-      continuityRestraint: null,
-      explanation: '',
-    }
-  }
-
-  const combined = buildRecollectionIntentInitiativeText(recollectionIntent)
-  const structuredCarry = buildRecollectionIntentStructuredCarryText(recollectionIntent)
-  const relationshipCarry = recollectionIntent.mode === 'relationship-history'
-    || recollectionIntent.mode === 'autobiographical-history'
-    || includesAny(combined, [
-      'same-person continuity',
-      'same person continuity',
-      'identity-continuity',
-      'identity continuity',
-      'continuity line',
-      'relationship-continuity',
-      '连续性',
-      '同一条线',
-    ])
-  const unfinishedCarry = includesAny(combined, [
-    'unfinished',
-    'clearer opening',
-    'later opening',
-    'lower-pressure',
-    'leave more room',
-    'less eager',
-    'progress pressure',
-    '未完成',
-    '留白',
-  ])
-  const repairFirst = includesAny(combined, [
-    'repair-before-closeness',
-    'repair before closeness',
-    'repair first',
-    '修复优先',
-  ])
-  const rememberedRhythmWindow = includesAny(combined, [
-    'initiative_window=',
-    'visibly reopening',
-    'already re-entering the same line',
-    'same line is visibly reopening',
-    '等这条线自己重新浮上来',
-    '回到这条线里时',
-  ])
-  const rememberedAntiSpamCadence = includesAny(combined, [
-    'initiative_anti_spam=',
-    'timer spam',
-    'not pushing',
-    'i am not pushing you',
-    'wait until the line is visibly reopening on its own',
-    '不要变成催促',
-    '不要变成定时打扰',
-    '不要 spam',
-  ])
-  const rememberedLowPressureCadence = includesAny(combined, [
-    'initiative_pressure=low',
-    'initiative_visible_policy=',
-    'initiative_visible=',
-    'gentler cadence',
-    'gentle window',
-    'whisper-light',
-    'lower pressure reentry',
-    '轻一点接',
-  ])
-  const mergedSameThreadContinuityCarry = includesAny(combined, [
-    'merge repeated same-thread continuity echoes',
-    'merged same-thread continuity',
-    'stronger same-thread continuity',
-    'stronger same-thread memory',
-    'same-thread same-person continuity',
-    'same-thread continuity line is reopening',
-    '更强的同线连续性',
-    '同线连续性',
-  ])
-  const fadedTemporaryNoiseCarry = includesAny(combined, [
-    'faded temporary noise',
-    'temporary noise should stay background',
-    'stays background',
-    'stay background',
-    'forget low-salience temporary noise',
-    'temporary wobble',
-    'stale emotional wobble',
-    'forget temporary wobble',
-    'older echoes',
-    'old echoes',
-    'thinner echoes',
-    '短暂噪声',
-    '背景噪声',
-  ])
-  const metabolizedSameThreadForeground = mergedSameThreadContinuityCarry && fadedTemporaryNoiseCarry
-  const worriedContinuityCarry = includesAny(combined, [
-    'host_emotion_label=worried-continuity',
-    'worried-continuity',
-    'worried continuity',
-    'tool shell',
-    'generic assistant shell',
-  ])
-  const carefulRepairCarry = includesAny(combined, [
-    'self_emotion_label=careful-repair',
-    'careful-repair',
-    'careful repair',
-    'repair continuity',
-    'mend continuity carefully',
-  ])
-  const highModalityRiskCarry = includesAny(combined, [
-    'embodiment_modality_risk=high',
-    'modality risk high',
-    'body should not outrun',
-    'body should not outrun careful repair',
-    'body coordination pressure',
-  ])
-  const anthropomorphicRepairHold = worriedContinuityCarry && carefulRepairCarry && highModalityRiskCarry
-  const residentMode = readStructuredEmbodimentToken(structuredCarry, 'embodiment_resident_mode')
-  const residentFace = readStructuredEmbodimentToken(structuredCarry, 'embodiment_resident_face')
-  const residentAction = readStructuredEmbodimentToken(structuredCarry, 'embodiment_resident_action')
-  const residentMeasuredReturnCarry = residentMode === 'measured-return'
-  const residentObserveFocusCarry = residentFace === 'observe-focus'
-  const residentHoldCarry = residentAction === 'hold'
-  const residentQuietHoldCarry = residentObserveFocusCarry || residentHoldCarry
-  const vulnerableCareCarry = includesAny(combined, [
-    'vulnerable care',
-    'vulnerable-care',
-    'care-before-analysis',
-    'analysis-heavy care',
-    'older analysis-heavy care',
-    'lighter companionship',
-    'fragile line',
-  ])
-  const gentleContinue = includesAny(combined, [
-    'initiative_outcome=accepted',
-    'initiative_reaction=accepted',
-    'last gentle follow-up was received',
-    'opening is receiving',
-    'opening is still receiving',
-    'without falling silent',
-    'not fully silent',
-    'memory-led',
-    '被接住',
-    '不需要退回完全沉默',
-  ]) || ((rememberedRhythmWindow || rememberedAntiSpamCadence) && rememberedLowPressureCadence)
-  const preferLowerPressure = relationshipCarry || unfinishedCarry || repairFirst || vulnerableCareCarry || residentMeasuredReturnCarry || residentQuietHoldCarry
-  const preferMeasuredReturn = (preferLowerPressure && !repairFirst && !vulnerableCareCarry) || residentMeasuredReturnCarry
-  const allowGentleContinue = gentleContinue && !anthropomorphicRepairHold && !residentQuietHoldCarry
-  const forceSilentObserve = anthropomorphicRepairHold
-    || residentQuietHoldCarry
-    || ((preferLowerPressure || repairFirst) && !allowGentleContinue)
-    || recollectionIntent.recollectionAgenda?.uncertaintyTolerance === 'low'
+  const agenda = recollectionIntent?.recollectionAgenda ?? null
+  const relationshipRecall = recollectionIntent?.mode === 'relationship-history'
+    || recollectionIntent?.mode === 'autobiographical-history'
+  const lowUncertaintyTolerance = agenda?.uncertaintyTolerance === 'low'
+  const strongRelationshipNeed = (agenda?.relationshipNeed ?? 0) >= 0.68
+  const strongAffectivePull = (agenda?.affectivePull ?? 0) >= 0.72
+  const preferLowerPressure = relationshipRecall && (lowUncertaintyTolerance || strongRelationshipNeed || strongAffectivePull)
 
   return {
     preferLowerPressure,
-    forceSilentObserve,
-    preferMeasuredReturn,
-    repairFirst,
-    gentleContinue: allowGentleContinue,
-    anthropomorphicRepairHold,
-    metabolizedSameThreadForeground,
-    residentQuietHold: residentQuietHoldCarry,
-    continuityRestraint: repairFirst
-      ? 'repair-before-closeness'
-      : vulnerableCareCarry
-        ? 'rest-protective'
-        : preferMeasuredReturn
-          ? 'measured-return'
-          : null,
+    forceSilentObserve: preferLowerPressure && lowUncertaintyTolerance,
+    preferMeasuredReturn: false,
+    repairFirst: false,
+    gentleContinue: false,
+    anthropomorphicRepairHold: false,
+    metabolizedSameThreadForeground: false,
+    residentQuietHold: false,
+    continuityRestraint: preferLowerPressure ? 'lower-pressure' : null,
     explanation: '',
   }
 }
@@ -873,124 +338,19 @@ function deriveLongHorizonInitiativeBias(longHorizonMemory?: AlicizationLongHori
   continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
   explanation: string
 } {
-  if (!longHorizonMemory) {
-    return {
-      preferLowerPressure: false,
-      forceSilentObserve: false,
-      preferMeasuredReturn: false,
-      repairFirst: false,
-      gentleContinue: false,
-      anthropomorphicRepairHold: false,
-      sameHerClosureDirection: false,
-      continuityRestraint: null,
-      explanation: '',
-    }
-  }
-
-  const combined = buildLongHorizonInitiativeText(longHorizonMemory)
-  const relationshipCarry = includesAny(combined, [
-    'same-person continuity',
-    'same person continuity',
-    'corrected same-person continuity',
-    'identity-continuity',
-    'identity continuity',
-    'continuity line',
-    'same living thread',
-    'identity continuity',
-    'tool shell',
-    'generic assistant shell',
-    'generic shell',
-    '连续性',
-    '同一条线',
-    '同一条生命线',
-  ])
-  const lowerPressureCarry = includesAny(combined, [
-    'lower-pressure',
-    'lower pressure',
-    'less eager',
-    'leave more room',
-    'clearer opening',
-    'later opening',
-    'gentle',
-    'quieter',
-    '留白',
-    '轻一点',
-    '慢一点',
-  ])
-  const antiSpamCarry = includesAny(combined, [
-    'timer spam',
-    'not pushing',
-    'do not turn',
-    'wait for a later opening',
-    'clearer opening',
-    'generic assistant shell',
-    'progress pressure',
-    '不要变成催促',
-    '不要变成定时打扰',
-  ])
-  const worriedContinuityCarry = includesAny(combined, [
-    'worried-continuity',
-    'worried continuity',
-    'tool shell',
-    'generic assistant shell',
-  ])
-  const carefulRepairCarry = includesAny(combined, [
-    'careful-repair',
-    'careful repair',
-    'repair continuity',
-    'careful-repair before',
-  ])
-  const highModalityRiskCarry = includesAny(combined, [
-    'modality risk high',
-    'embodiment_modality_risk=high',
-    'body coordination pressure',
-    'body should not outrun',
-  ])
-  const anthropomorphicRepairHold = worriedContinuityCarry && carefulRepairCarry && highModalityRiskCarry
-  const repairFirst = includesAny(combined, [
-    'repair-before-closeness',
-    'repair before closeness',
-    'repair first',
-    '修复优先',
-  ])
-  const gentleContinue = includesAny(combined, [
-    'opening is still receiving',
-    'received',
-    'accepted',
-    'memory-led',
-    'not fully silent',
-    'without falling silent',
-    '被接住',
-  ])
-  const preferMeasuredReturn
-    = (relationshipCarry && (lowerPressureCarry || antiSpamCarry))
-      || hasMeasuredReturnContinuityCue(combined)
-      || includesAny(combined, ['接回去'])
-  const preferLowerPressure
-    = preferMeasuredReturn
-      || relationshipCarry
-      || lowerPressureCarry
-      || antiSpamCarry
-      || (longHorizonMemory.preferenceBias.autonomyRespect ?? 0) >= 0.72
-      || (longHorizonMemory.preferenceBias.unfinishedThreadReturn ?? 0) >= 0.68
+  const autonomyRespect = longHorizonMemory?.preferenceBias.autonomyRespect ?? 0
+  const quietObservation = longHorizonMemory?.preferenceBias.quietObservation ?? 0
+  const preferLowerPressure = autonomyRespect >= 0.78 || quietObservation >= 0.78
 
   return {
     preferLowerPressure,
-    forceSilentObserve: anthropomorphicRepairHold
-      || ((preferLowerPressure || repairFirst) && (!gentleContinue || anthropomorphicRepairHold))
-      || ((longHorizonMemory.preferenceBias.autonomyRespect ?? 0) >= 0.78 && preferMeasuredReturn),
-    preferMeasuredReturn: preferMeasuredReturn && !repairFirst,
-    repairFirst,
-    gentleContinue: gentleContinue && !anthropomorphicRepairHold,
-    anthropomorphicRepairHold,
-    sameHerClosureDirection: relationshipCarry || preferMeasuredReturn || repairFirst,
-    continuityRestraint: repairFirst
-      ? 'repair-before-closeness'
-      : preferMeasuredReturn
-        ? 'measured-return'
-        : preferLowerPressure
-          ? 'lower-pressure'
-          : null,
+    forceSilentObserve: autonomyRespect >= 0.86 || quietObservation >= 0.86,
+    preferMeasuredReturn: false,
+    repairFirst: false,
+    gentleContinue: false,
+    anthropomorphicRepairHold: false,
+    sameHerClosureDirection: false,
+    continuityRestraint: preferLowerPressure ? 'lower-pressure' : null,
     explanation: '',
   }
 }
@@ -1008,130 +368,30 @@ function deriveProjectStateInitiativeBias(_input?: unknown) {
 }
 
 function derivePersonStateInitiativeBias(projection?: AlicizationPersonStateProjection | null) {
-  const openingGuidance = sanitizeText(projection?.openingGuidance, 220).toLowerCase()
-  const relationshipDoctrine = sanitizeText(projection?.relationshipDoctrine, 220).toLowerCase()
-  const manifestationCadenceSummary = sanitizeText(projection?.manifestationCadenceSummary, 220).toLowerCase()
-  const selfContinuityAuthorityLine = sanitizeText(projection?.selfContinuityAuthority?.inwardLine, 220).toLowerCase()
-  const combined = `${openingGuidance} ${relationshipDoctrine} ${manifestationCadenceSummary} ${selfContinuityAuthorityLine}`.trim()
-  const measuredReturn = hasMeasuredReturnContinuityCue(combined)
-    || /继续沿着这条线|接回去/u.test(combined)
-  const repairFirst = includesAny(combined, [
-    'repair-before-closeness',
-    'repair before closeness',
-    'repair first',
-    '修复优先',
-  ])
+  const preferLowerPressure = projection?.restrained === true
+    || projection?.cautious === true
+    || projection?.preferredProactiveStyle === 'silent-observe'
 
   return {
-    preferLowerPressure: measuredReturn || repairFirst,
-    preferMeasuredReturn: measuredReturn,
-    repairBeforeCloseness: repairFirst,
-    sameHerClosureDirection: measuredReturn || repairFirst,
+    preferLowerPressure,
+    preferMeasuredReturn: false,
+    repairBeforeCloseness: false,
+    sameHerClosureDirection: false,
   }
 }
 
-function deriveActiveContinuityGovernanceInitiativeBias(input?: {
+function deriveActiveContinuityGovernanceInitiativeBias(_input?: {
   mode?: string | null
   summary?: string | null
   lanes?: string[] | null
   reasonCodes?: string[] | null
 } | null) {
-  const baselineMode = `${'same'}-her-baseline`
-  if (input?.mode !== baselineMode && input?.mode !== 'identity-continuity-baseline') {
-    return {
-      preferLowerPressure: false,
-      preferMeasuredReturn: false,
-      repairBeforeCloseness: false,
-      sameHerClosureDirection: false,
-    }
-  }
-
-  const summary = sanitizeText(input.summary, 220).toLowerCase()
-  const lanes = (input.lanes ?? []).map(lane => sanitizeText(lane, 80).toLowerCase()).join(' ')
-  const reasonCodes = (input.reasonCodes ?? []).map(code => sanitizeText(code, 80).toLowerCase()).join(' ')
-  const combined = `${summary} ${lanes} ${reasonCodes}`.trim()
-  const repairFirst = includesAny(combined, [
-    'repair-before-closeness',
-    'repair before closeness',
-    'repair first',
-    '修复优先',
-  ])
-  const measuredReturn = repairFirst || includesAny(combined, [
-    baselineMode,
-    'identity-continuity-baseline',
-    'slower than the visible opening impulse',
-    'slower return',
-  ]) || hasMeasuredReturnContinuityCue(combined)
-
   return {
-    preferLowerPressure: measuredReturn,
-    preferMeasuredReturn: measuredReturn && !repairFirst,
-    repairBeforeCloseness: repairFirst,
-    sameHerClosureDirection: measuredReturn,
+    preferLowerPressure: false,
+    preferMeasuredReturn: false,
+    repairBeforeCloseness: false,
+    sameHerClosureDirection: false,
   }
-}
-
-function lowerFirst(text: string) {
-  if (!text)
-    return text
-  return text.charAt(0).toLowerCase() + text.slice(1)
-}
-
-function summarizeInitiativeLandedProgress(text: string) {
-  const normalized = sanitizeText(text, 180)
-  if (!normalized)
-    return ''
-
-  if (/same-session mirror carry/i.test(normalized))
-    return 'same-session mirror carry'
-  if (/execution callbacks can now carry project-state continuity into later turns/i.test(normalized))
-    return 'execution callback project-carry'
-  if (/project-state carry already survives into later turns/i.test(normalized))
-    return 'project-state carry already survives into later turns'
-  if (/dialogue feedback now writes (?:identity-continuity )?project closure back into long-horizon reinforcement/i.test(normalized))
-    return 'dialogue feedback now writes project closure back into long-horizon reinforcement'
-  if (/continuity, memory, execution, same-session mirror carry/i.test(normalized))
-    return 'continuity, memory, and execution closure already landed together often enough to build from'
-
-  return normalized
-}
-
-function hasRicherPhase1ProjectClosureCarry(summary: string | null | undefined) {
-  const normalized = sanitizeText(summary, 220).toLowerCase()
-  if (!normalized)
-    return false
-
-  return includesAny(normalized, [
-    'phase 1',
-    'local-first digital life',
-    'same digital life',
-    'identity-continuity',
-    'project identity carry',
-    'unfinished closure',
-    'still-open closure',
-    'one continuity line',
-    'continuity line',
-    'memory, initiative, and embodiment',
-  ])
-}
-
-function deriveInitiativeOpenLoopPhrase(text: string) {
-  const normalized = sanitizeText(text, 180)
-  if (!normalized)
-    return ''
-
-  if (/memory and initiative still need stronger end-to-end closure/i.test(normalized))
-    return 'but memory and initiative still need stronger end-to-end closure'
-  if (/memory still needs stronger end-to-end closure/i.test(normalized))
-    return 'memory still needs stronger end-to-end closure'
-  if (/the repair seam still needs stronger closure/i.test(normalized))
-    return 'the repair seam still needs stronger closure'
-  if (/initiative still needs tighter callback-afterglow restraint/i.test(normalized))
-    return 'initiative still needs tighter callback-afterglow restraint'
-  if (/memory, initiative, and embodiment still need one tighter identity-continuity closure seam/i.test(normalized))
-    return 'same unfinished Phase 1 digital-life closure'
-
-  return normalized
 }
 
 function resolveContinuityRestraint(input: {
@@ -1142,105 +402,46 @@ function resolveContinuityRestraint(input: {
   recollectionIntentBias: ReturnType<typeof deriveRecollectionIntentInitiativeBias>
   longHorizonBias: ReturnType<typeof deriveLongHorizonInitiativeBias>
   selfEvolutionBias: ReturnType<typeof deriveSelfEvolutionInitiativeBias>
-  sameHerContinuityBias: boolean
   activeContinuityGovernanceBias: ReturnType<typeof deriveActiveContinuityGovernanceInitiativeBias>
   projectStateBias: ReturnType<typeof deriveProjectStateInitiativeBias>
   personStateBias: ReturnType<typeof derivePersonStateInitiativeBias>
-  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
 }): AlicizationInitiativeSnapshot['continuityRestraint'] {
-  const relationshipDoctrine = sanitizeText(input.selfEvolution?.relationshipDoctrine, 180).toLowerCase()
-  const latestInflection = sanitizeText(input.selfEvolution?.latestInflection, 180).toLowerCase()
-
-  if (
-    includesAny(
-      `${relationshipDoctrine} ${latestInflection}`,
-      ['repair should settle before closeness expands', 'repair-first return', 'repair-first reopening'],
-    )
-  ) {
-    return 'repair-before-closeness' as const
-  }
-
-  if (
-    input.selfEvolutionBias.correctedSamePersonSettling
-    || input.selfEvolutionBias.quieterEmbodimentSettling
-    || includesAny(
-      `${relationshipDoctrine} ${latestInflection}`,
-      [
-        'corrected same-person continuity',
-        'corrected same person continuity',
-        'corrected same-person line',
-        'keep embodiment quieter',
-        'embodiment quieter',
-        'body quieter',
-        'before making the return feel fully settled',
-      ],
-    )
-  ) {
-    return 'measured-return' as const
-  }
-
-  if (
-    input.emotionalTensionBias.continuityRestraint
-  ) {
+  if (input.emotionalTensionBias.continuityRestraint)
     return input.emotionalTensionBias.continuityRestraint
-  }
 
-  if (input.emotionalKernelBias.continuityRestraint) {
+  if (input.emotionalKernelBias.continuityRestraint)
     return input.emotionalKernelBias.continuityRestraint
-  }
 
-  if (input.recollectionIntentBias.continuityRestraint) {
+  if (input.recollectionIntentBias.continuityRestraint)
     return input.recollectionIntentBias.continuityRestraint
-  }
 
-  if (input.longHorizonBias.continuityRestraint) {
+  if (input.longHorizonBias.continuityRestraint)
     return input.longHorizonBias.continuityRestraint
+
+  if (input.autobiographicalSelfBias.continuityRestraint)
+    return input.autobiographicalSelfBias.continuityRestraint
+
+  if (
+    input.affectiveResidueBias.repairFirst
+    || input.emotionalKernelBias.repairFirst
+  ) {
+    return 'repair-before-closeness'
   }
 
-  if (input.autobiographicalSelfBias.continuityRestraint) {
-    return input.autobiographicalSelfBias.continuityRestraint
+  if (
+    input.affectiveResidueBias.forceSilentObserve
+    || input.emotionalKernelBias.preferMeasuredReturn
+  ) {
+    return 'measured-return'
   }
 
   if (
     input.affectiveResidueBias.preferLowerPressure
-    || input.autobiographicalSelfBias.preferLowerPressure
-    || input.emotionalKernelBias.preferLowerPressure
     || input.recollectionIntentBias.preferLowerPressure
     || input.longHorizonBias.preferLowerPressure
-    || input.selfEvolutionBias.preferLowerPressure
-    || input.sameHerContinuityBias
-    || input.activeContinuityGovernanceBias.preferLowerPressure
     || input.personStateBias.preferLowerPressure
-    || input.projectStateBias.preferLowerPressure
   ) {
-    if (
-      input.affectiveResidueBias.repairFirst
-      || input.autobiographicalSelfBias.repairFirst
-      || input.emotionalKernelBias.repairFirst
-      || input.recollectionIntentBias.repairFirst
-      || input.longHorizonBias.repairFirst
-      || input.selfEvolutionBias.repairFirst
-      || input.activeContinuityGovernanceBias.repairBeforeCloseness
-      || input.personStateBias.repairBeforeCloseness
-      || input.projectStateBias.repairBeforeCloseness
-    ) {
-      return 'repair-before-closeness' as const
-    }
-    if (
-      input.affectiveResidueBias.forceSilentObserve
-      || input.autobiographicalSelfBias.preferMeasuredReturn
-      || input.emotionalKernelBias.preferMeasuredReturn
-      || input.recollectionIntentBias.preferMeasuredReturn
-      || input.longHorizonBias.preferMeasuredReturn
-      || input.activeContinuityGovernanceBias.preferMeasuredReturn
-      || input.personStateBias.preferMeasuredReturn
-      || input.projectStateBias.preferMeasuredReturn
-      || hasMeasuredReturnContinuityCue(`${relationshipDoctrine} ${latestInflection}`)
-    ) {
-      return 'measured-return' as const
-    }
-
-    return 'lower-pressure' as const
+    return 'lower-pressure'
   }
 
   return null
@@ -1527,10 +728,6 @@ export function buildInitiativeSnapshot(input: {
   const recollectionIntentBias = deriveRecollectionIntentInitiativeBias(input.recollectionIntent ?? null)
   const longHorizonBias = deriveLongHorizonInitiativeBias(input.longHorizonMemory ?? null)
   const selfEvolutionBias = deriveSelfEvolutionInitiativeBias(input.selfEvolution ?? null)
-  const baselineMode = `${'same'}-her-baseline`
-  const sameHerContinuityBias = input.activeContinuityGovernance?.mode === baselineMode
-    || input.activeContinuityGovernance?.mode === 'identity-continuity-baseline'
-    || hasRicherPhase1ProjectClosureCarry(input.activeContinuityGovernance?.summary ?? null)
   const activeContinuityGovernanceBias = deriveActiveContinuityGovernanceInitiativeBias(input.activeContinuityGovernance ?? null)
   const personStateBias = derivePersonStateInitiativeBias(input.personStateProjection ?? null)
   const projectStateBias = deriveProjectStateInitiativeBias(input.projectState ?? null)
@@ -1542,11 +739,9 @@ export function buildInitiativeSnapshot(input: {
     recollectionIntentBias,
     longHorizonBias,
     selfEvolutionBias,
-    sameHerContinuityBias,
     activeContinuityGovernanceBias,
     personStateBias,
     projectStateBias,
-    selfEvolution: input.selfEvolution ?? null,
   })
   const projectStateMeasuredReturn = projectStateBias.preferMeasuredReturn
   const projectStateRepairFirst = projectStateBias.repairBeforeCloseness
@@ -1892,13 +1087,6 @@ export function buildInitiativeSnapshot(input: {
     gentleContinueSurfacePromotion = true
   }
   if (
-    sameHerContinuityBias
-    && (selectedAction === 'speak' || selectedAction === 'whisper')
-    && concern?.kind !== 'care-body'
-  ) {
-    selectedAction = input.worldModel.epistemicState.certainty === 'grounded' ? 'hover' : 'recheck'
-  }
-  if (
     projectStateBias.preferLowerPressure
     && (selectedAction === 'speak' || selectedAction === 'whisper')
     && concern?.kind !== 'care-body'
@@ -1941,266 +1129,7 @@ export function buildInitiativeSnapshot(input: {
     selectedAction = 'hover'
   }
   const selectedProposalWhy = sanitizeText(selectedProposal?.why, 260)
-  const selectedProposalWhyReopensMetabolizedNoise
-    = recollectionIntentBias.metabolizedSameThreadForeground
-      && /temporary wobble|old echoes|older echoes|temporary noise|stale emotional wobble|thinner echoes/u.test(selectedProposalWhy.toLowerCase())
-  const preferredProposalWhy = !selectedProposalWhyReopensMetabolizedNoise && selectedProposalWhy
-    ? selectedProposalWhy
-    : null
-  const why = preferredProposalWhy
-    ?? input.executiveCycle?.currentLine
-    ?? activeReflection?.revision
-    ?? asArray(motiveEngine?.backgroundAgendas)[0]?.summary
-    ?? autobiographicalGoal?.summary
-    ?? governingProject?.summary
-    ?? thoughtThread?.summary
-    ?? foregroundRuntimeThread?.whyHeld
-    ?? ''
-  const projectStateWhy = projectStateBias.initiativeExplanation
-    ? sanitizeText(`${why} ${projectStateBias.initiativeExplanation}.`, 260) || why
-    : why
-  const emotionalKernelWhy = emotionalKernelBias.explanation
-    && !projectStateWhy.toLowerCase().includes(emotionalKernelBias.explanation.toLowerCase())
-    ? sanitizeText(`${emotionalKernelBias.explanation}. ${projectStateWhy}`, 260) || projectStateWhy
-    : projectStateWhy
-  const projectStateCarryReasonTag = input.privateThought?.rationaleTags?.find((tag) => {
-    const normalized = sanitizeText(tag, 120).toLowerCase()
-    return normalized === 'project-state-carry'
-      || normalized === 'continuity-execution-callback-project-carry'
-  }) ?? ''
-  const rawProjectStateCarryThought = projectStateCarryReasonTag
-    ? sanitizeText(input.privateThought?.thoughtText, 180)
-    : ''
-  const projectStateCarryNextClosureTarget = sanitizeText(
-    input.projectState?.nextClosureTarget || input.projectState?.nextClosureTargetSummary,
-    180,
-  )
-  const projectStateCarryThought = /phase 1 continuity/iu.test(rawProjectStateCarryThought)
-    && /some closure already landed/iu.test(rawProjectStateCarryThought)
-    && /memory and initiative still need stronger end-to-end closure/iu.test(rawProjectStateCarryThought)
-    ? joinConciseSentencesPrioritized({
-        priorityParts: [
-          'memory_continuity=local_runtime',
-          'verified_closure_progress=same-session mirror carry',
-          'memory and initiative still need stronger end-to-end closure',
-          projectStateCarryNextClosureTarget,
-        ],
-        optionalParts: [],
-        maxChars: 320,
-      })
-    : rawProjectStateCarryThought
-  const projectStateSameHerCarry = sanitizeText(input.projectState?.sameHerSelfLine, 180)
-  const projectStateEmotionalClosureCarry = sanitizeText(input.projectState?.emotionalClosureCue, 180)
-  const projectStateAwarenessCarry = sanitizeText(input.projectState?.preDialogueAwarenessLine, 180)
-  const projectStateCarryOpenLoop = deriveInitiativeOpenLoopPhrase(
-    sanitizeText(input.projectState?.primaryOpenLoop || input.projectState?.openClosureSummary, 180),
-  )
-  const projectStateCarryLatestLandedProgress = summarizeInitiativeLandedProgress(
-    sanitizeText(input.projectState?.latestLandedProgress || input.projectState?.landedProgressSummary, 180),
-  )
-  const projectStateThoughtOpenLoop = deriveInitiativeOpenLoopPhrase(projectStateCarryThought)
-  const projectStateCarryIdentity = sanitizeText(input.projectState?.currentPhase, 120).toLowerCase().includes('phase 1')
-    ? 'memory_continuity=local_runtime'
-    : ''
-  const projectStateThoughtIdentityCarry = /phase 1 continuity|memory_continuity=local_runtime/u.test(projectStateCarryThought)
-    ? 'memory_continuity=local_runtime'
-    : ''
-  const canonicalProjectStateIdentityCarry = !projectStateCarryIdentity && projectStateBias.requiresLifeLoopClosure
-    ? 'memory_continuity=local_runtime'
-    : ''
-  const projectStateRepairCarry = [
-    projectStateEmotionalClosureCarry,
-    projectStateSameHerCarry,
-    projectStateAwarenessCarry,
-  ].find(candidate => /repair-before-closeness|repair before closeness|repair first|continuity line|one living her|same digital life/u.test(candidate.toLowerCase())) ?? ''
-  const projectStateClosureLane = [
-    projectStateCarryThought,
-    projectStateEmotionalClosureCarry,
-    projectStateSameHerCarry,
-    projectStateAwarenessCarry,
-    projectStateCarryNextClosureTarget,
-    projectStateCarryOpenLoop,
-  ].find(candidate => /repair-before-closeness|repair before closeness|repair first|callback-afterglow|callback afterglow|continuity line|same unfinished phase 1 digital-life closure|same unfinished phase 1 digital life closure|generic assistant nudge|phase 1 continuity line inward/u.test(candidate.toLowerCase())) ?? ''
-  const exactLivingLinePhrase = projectStateRepairCarry.toLowerCase().includes('continuity line')
-    ? 'continuity line'
-    : projectStateClosureLane.toLowerCase().includes('continuity line')
-      ? 'continuity line'
-      : ''
-  const exactClosurePhrase = projectStateRepairCarry.toLowerCase().includes('repair-before-closeness')
-    ? 'repair-before-closeness'
-    : projectStateClosureLane.toLowerCase().includes('repair-before-closeness')
-      ? 'repair-before-closeness'
-      : projectStateClosureLane.toLowerCase().includes('repair before closeness')
-        ? 'repair-before-closeness'
-        : projectStateClosureLane.toLowerCase().includes('same unfinished phase 1 digital-life closure')
-          ? 'same unfinished Phase 1 digital-life closure'
-          : projectStateClosureLane.toLowerCase().includes('generic assistant nudge')
-            ? 'generic assistant nudge'
-            : ''
-  const exactThoughtCarryPhrase = projectStateCarryThought.toLowerCase().includes('generic assistant nudge')
-    ? 'generic assistant nudge'
-    : projectStateCarryThought.toLowerCase().includes('execution callback project-carry')
-      ? 'Execution callback project-carry'
-      : ''
-  const exactProjectStateThoughtPhrase = projectStateCarryThought
-    && (
-      projectStateCarryThought.includes('repair-before-closeness')
-      || projectStateCarryThought.includes('generic assistant nudge')
-      || projectStateCarryThought.includes('memory_continuity=local_runtime')
-    )
-    ? projectStateCarryThought
-    : ''
-  const canonicalOpenLoopPhrase = !projectStateCarryOpenLoop && projectStateBias.requiresLifeLoopClosure
-    ? 'memory still needs stronger end-to-end closure'
-    : ''
-  const privateThoughtHasStructuredProjectCarry = Boolean(
-    rawProjectStateCarryThought
-    && projectStateThoughtIdentityCarry
-    && /some closure already landed/iu.test(rawProjectStateCarryThought)
-    && /memory and initiative still need stronger end-to-end closure/iu.test(rawProjectStateCarryThought),
-  )
-  const summaryOnlyProjectStateHasStructuredCarry = Boolean(
-    !rawProjectStateCarryThought
-    && (projectStateCarryIdentity || /memory_continuity=local_runtime|current phase 1 project context|phase 1 continuity/iu.test(projectStateSameHerCarry))
-    && projectStateCarryLatestLandedProgress === 'same-session mirror carry'
-    && /memory and initiative still need stronger end-to-end closure/iu.test(projectStateCarryOpenLoop)
-    && projectStateCarryNextClosureTarget,
-  )
-  const canonicalIdentityCarryPhrase = canonicalProjectStateIdentityCarry && !privateThoughtHasStructuredProjectCarry ? 'project identity carry' : ''
-  const projectStateMustKeepPhrase = exactClosurePhrase || exactThoughtCarryPhrase
-  const richerProjectStateThoughtPreferred = Boolean(
-    projectStateCarryThought
-    && (
-      (!projectStateCarryLatestLandedProgress && !projectStateCarryOpenLoop)
-      || (projectStateCarryThought.includes('verified_closure_progress') && !projectStateCarryLatestLandedProgress)
-      || (projectStateCarryThought.includes('memory and initiative still need stronger end-to-end closure') && !projectStateCarryOpenLoop)
-      || (projectStateCarryThought.includes('generic assistant nudge') && !projectStateClosureLane.toLowerCase().includes('generic assistant nudge'))
-    ),
-  )
-  const projectStateOpenLoopSentence = projectStateCarryOpenLoop
-    ? /^but /i.test(projectStateCarryOpenLoop)
-      ? `${projectStateCarryOpenLoop} is still not closed yet`
-      : `But ${lowerFirst(projectStateCarryOpenLoop)} is still not closed yet`
-    : projectStateThoughtOpenLoop && !projectStateCarryLatestLandedProgress
-      ? projectStateCarryThought
-      : ''
-  const compactProjectStateThought = richerProjectStateThoughtPreferred
-    ? joinConciseSentencesPrioritized({
-        priorityParts: [
-          projectStateThoughtIdentityCarry,
-          privateThoughtHasStructuredProjectCarry
-            ? 'verified_closure_progress=same-session mirror carry'
-            : (projectStateCarryLatestLandedProgress ? `verified_closure_progress=${lowerFirst(projectStateCarryLatestLandedProgress)}` : ''),
-          privateThoughtHasStructuredProjectCarry
-            ? 'memory and initiative still need stronger end-to-end closure'
-            : (projectStateThoughtOpenLoop || projectStateCarryOpenLoop),
-          projectStateCarryNextClosureTarget,
-          privateThoughtHasStructuredProjectCarry ? '' : exactLivingLinePhrase,
-          privateThoughtHasStructuredProjectCarry ? '' : projectStateMustKeepPhrase,
-        ],
-        optionalParts: [],
-        maxChars: 320,
-      })
-    : ''
-  const structuredProjectStateThoughtSummary = privateThoughtHasStructuredProjectCarry
-    ? joinConciseSentencesPrioritized({
-        priorityParts: [
-          projectStateThoughtIdentityCarry || 'memory_continuity=local_runtime',
-          'verified_closure_progress=same-session mirror carry',
-          'but memory and initiative still need stronger end-to-end closure',
-          projectStateCarryNextClosureTarget,
-        ],
-        optionalParts: [],
-        maxChars: 320,
-      })
-    : ''
-  const structuredProjectStateAliasSummary = summaryOnlyProjectStateHasStructuredCarry
-    ? joinConciseSentencesPrioritized({
-        priorityParts: [
-          'memory_continuity=local_runtime',
-          'verified_closure_progress=same-session mirror carry',
-          'but memory and initiative still need stronger end-to-end closure',
-          projectStateCarryNextClosureTarget,
-        ],
-        optionalParts: [],
-        maxChars: 320,
-      })
-    : ''
-  const projectStateNextClosureSentence = projectStateCarryNextClosureTarget
-    && (
-      !projectStateCarryThought
-      || !projectStateCarryThought.includes(projectStateCarryNextClosureTarget)
-    )
-    ? projectStateCarryNextClosureTarget
-    : ''
-  const projectStateClosureBundle = joinConciseSentencesPrioritized({
-    priorityParts: [
-      projectStateThoughtIdentityCarry || projectStateCarryIdentity || canonicalProjectStateIdentityCarry,
-      projectStateCarryLatestLandedProgress ? `verified_closure_progress=${lowerFirst(projectStateCarryLatestLandedProgress)}` : '',
-      exactLivingLinePhrase,
-      projectStateOpenLoopSentence,
-      projectStateMustKeepPhrase,
-      canonicalIdentityCarryPhrase,
-      canonicalOpenLoopPhrase,
-      projectStateNextClosureSentence,
-    ],
-    optionalParts: [],
-    maxChars: 320,
-  })
-  const projectStateThoughtLead = projectStateCarryThought
-    && !emotionalKernelWhy.toLowerCase().includes(projectStateCarryThought.toLowerCase())
-    && !projectStateClosureBundle.toLowerCase().includes(projectStateCarryThought.toLowerCase())
-    ? projectStateCarryThought
-    : ''
-  const structuredProjectStateCarryWhy = privateThoughtHasStructuredProjectCarry
-    ? (structuredProjectStateThoughtSummary || compactProjectStateThought || projectStateCarryThought)
-    : summaryOnlyProjectStateHasStructuredCarry
-      ? (structuredProjectStateAliasSummary || compactProjectStateThought)
-      : ''
-  const projectStateCarryWhy = structuredProjectStateCarryWhy
-    || (
-      (projectStateClosureBundle || projectStateThoughtLead)
-      && !emotionalKernelWhy.toLowerCase().includes((projectStateClosureBundle || projectStateThoughtLead).toLowerCase())
-        ? (
-            joinConciseSentencesPrioritized({
-              priorityParts: [
-                '',
-                privateThoughtHasStructuredProjectCarry ? '' : (projectStateClosureBundle || projectStateThoughtLead),
-                richerProjectStateThoughtPreferred && !privateThoughtHasStructuredProjectCarry
-                  ? (compactProjectStateThought || projectStateCarryThought)
-                  : '',
-                privateThoughtHasStructuredProjectCarry ? '' : projectStateClosureLane,
-                exactLivingLinePhrase,
-                exactClosurePhrase,
-                privateThoughtHasStructuredProjectCarry ? '' : exactProjectStateThoughtPhrase,
-                privateThoughtHasStructuredProjectCarry ? '' : exactThoughtCarryPhrase,
-              ],
-              optionalParts: [
-                privateThoughtHasStructuredProjectCarry ? '' : projectStateThoughtLead,
-                privateThoughtHasStructuredProjectCarry ? '' : emotionalKernelWhy,
-                privateThoughtHasStructuredProjectCarry ? '' : canonicalIdentityCarryPhrase,
-                projectStateCarryThought && !privateThoughtHasStructuredProjectCarry
-                  ? 'project-state continuity carry remains richer than the baseline restraint and still needs one more closure beat.'
-                  : '',
-              ],
-              maxChars: 320,
-            }) || emotionalKernelWhy
-          )
-        : projectStateRepairCarry
-          && !emotionalKernelWhy.toLowerCase().includes(projectStateRepairCarry.toLowerCase())
-          ? joinConciseSentencesPrioritized({
-            priorityParts: [
-              projectStateRepairCarry,
-            ],
-            optionalParts: [
-              emotionalKernelWhy,
-            ],
-            maxChars: 320,
-          }) || emotionalKernelWhy
-          : emotionalKernelWhy
-    )
-  void projectStateCarryWhy
-  const executionCallbackProjectCarry = projectStateCarryReasonTag.toLowerCase() === 'continuity-execution-callback-project-carry'
+  const preferredProposalWhy = selectedProposalWhy || null
 
   const preferredStyle: AlicizationProactiveStyle = resolvePreferredStyle({
     selectedAction,
@@ -2229,9 +1158,9 @@ export function buildInitiativeSnapshot(input: {
         : preferredStyleFromMind
   const preferredPresence = counterfactualOption?.embodiedPresence
     ?? (
-      input.autobiographicalSelf?.personaDrift.attachmentStyle === 'attuned' && (selectedAction === 'hover' || selectedAction === 'whisper')
+      input.autobiographicalSelf?.personaDrift?.attachmentStyle === 'attuned' && (selectedAction === 'hover' || selectedAction === 'whisper')
         ? 'attentive'
-        : input.autobiographicalSelf?.personaDrift.attachmentStyle === 'guarded' && selectedAction === 'hover'
+        : input.autobiographicalSelf?.personaDrift?.attachmentStyle === 'guarded' && selectedAction === 'hover'
           ? 'hesitant'
           : fallbackPresence
     )
@@ -2265,10 +1194,6 @@ export function buildInitiativeSnapshot(input: {
   const nonCareConcern = concern?.kind !== 'care-body'
   const backgroundForceSilentObserve = (
     affectiveResidueBias.forceSilentObserve
-    || selfEvolutionBias.forceSilentObserve
-    || sameHerContinuityBias
-    || projectStateBias.forceSilentObserve
-    || executionCallbackProjectCarry
   ) && nonCareConcern
   const forcedSilentObserve = backgroundForceSilentObserve
     || (autobiographicalSelfBias.forceSilentObserve && nonCareConcern)
@@ -2322,13 +1247,6 @@ export function buildInitiativeSnapshot(input: {
     input.privateThought?.thoughtText,
     input.executiveCycle?.currentLine,
     activeReflection?.revision,
-    input.recollectionIntent?.rationale,
-    input.recollectionIntent?.recollectionAgenda?.whyRecallNow,
-    input.longHorizonMemory?.dominantCueSummary,
-    input.longHorizonMemory?.summary,
-    input.longHorizonMemory?.rememberedConstraintSummary,
-    input.longHorizonMemory?.rememberedPreferenceSummary,
-    input.longHorizonMemory?.rememberedPlanSummary,
     asArray(motiveEngine?.backgroundAgendas)[0]?.summary,
     autobiographicalGoal?.summary,
     governingProject?.summary,

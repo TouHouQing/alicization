@@ -10,6 +10,7 @@ import type {
   AlicizationDeliberationStateSnapshot,
   AlicizationDigitalLifeSpineMemoryClosureTrace,
   AlicizationDurabilityPulseSnapshot,
+  AlicizationEmotionalKernelSnapshot,
   AlicizationHabitPolicySnapshot,
   AlicizationHypothesisGraphSnapshot,
   AlicizationInitiativeSnapshot,
@@ -324,45 +325,6 @@ function inferScenarioFromPerception(input: {
   return null
 }
 
-function includesAny(text: string, needles: string[]) {
-  return needles.some(needle => text.includes(needle))
-}
-
-function carriesExecutionSafetyGateRestraint(text: string) {
-  return includesAny(text, [
-    'execution-safety-gate',
-    'blocked-dispatch-restraint',
-    'execution safety restraint',
-    'blocked-before-dispatch',
-  ])
-  && includesAny(text, [
-    'confirmation=required',
-    'implicit-or-explicit-confirmation-required',
-    'no-process-started',
-    'permission=none',
-  ])
-}
-
-function carriesExecutionResumeConfirmationBoundary(text: string) {
-  return includesAny(text, [
-    'execution-resume-confirmation',
-    'resumeconfirmation',
-    'resume confirmation',
-    'host-confirmed-before-redispatch',
-    'resume-before-dispatch',
-  ])
-  && includesAny(text, [
-    'host-confirmed',
-    'approval=host-confirmed',
-    'process-not-yet-restarted',
-    'bounded confirmation boundary',
-    'confirmation boundary',
-    'not permanent',
-    'not as permanent',
-    'not permanent autonomous permission',
-  ])
-}
-
 function deriveHabitPolicyProactiveBias(
   habitPolicy?: AlicizationHabitPolicySnapshot | null,
 ): AlicizationHabitPolicyProactiveBias {
@@ -432,22 +394,11 @@ function deriveHabitPolicyProactiveBias(
 }
 
 function deriveExecutionBoundaryProactiveBias(input: {
-  currentConsciousFrame?: { reasonTags?: string[] | null } | null
-  replyDeliberation?: { mustInclude?: string[] | null, narrative?: string[] | null } | null
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
 }): AlicizationExecutionBoundaryProactiveBias {
-  const currentConsciousFrameReasonTags = (input.currentConsciousFrame?.reasonTags ?? [])
-    .map(tag => sanitizeText(tag, 240).toLowerCase())
-  const replyDeliberationMustInclude = (input.replyDeliberation?.mustInclude ?? [])
-    .map(tag => sanitizeText(tag, 240).toLowerCase())
-  const replyDeliberationNarrative = (input.replyDeliberation?.narrative ?? [])
-    .map(tag => sanitizeText(tag, 240).toLowerCase())
-  const memorySafetyGateText = [
-    ...currentConsciousFrameReasonTags,
-    ...replyDeliberationMustInclude,
-    ...replyDeliberationNarrative,
-  ].filter(Boolean).join(' ')
-  const safetyGateRestraint = carriesExecutionSafetyGateRestraint(memorySafetyGateText)
-  const resumeConfirmationBoundary = carriesExecutionResumeConfirmationBoundary(memorySafetyGateText)
+  const reasonTags = new Set(input.emotionalKernel?.reasonTags ?? [])
+  const safetyGateRestraint = reasonTags.has('execution-safety-gate')
+  const resumeConfirmationBoundary = reasonTags.has('execution-resume-confirmation')
   const active = safetyGateRestraint || resumeConfirmationBoundary
 
   return {
@@ -694,6 +645,7 @@ export function evaluateProactivePolicy(input: {
   worldModel?: AlicizationWorldModelSnapshot | null
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
   runtimeDigest?: AlicizationRuntimeSnapshot | null
+  emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
@@ -750,11 +702,25 @@ export function evaluateProactivePolicy(input: {
     }),
   })
   const executionBoundaryBias = deriveExecutionBoundaryProactiveBias({
-    currentConsciousFrame: input.currentConsciousFrame ?? null,
-    replyDeliberation: input.replyDeliberation ?? null,
+    emotionalKernel: input.emotionalKernel ?? null,
   })
   const affectiveResidueBias = deriveAffectiveResidueProactiveBias(input.affectiveResidue ?? null)
   const habitPolicyBias = deriveHabitPolicyProactiveBias(input.habitPolicy ?? null)
+  const continuityDeliberation = input.continuityDeliberation ?? null
+  const continuityDeliberationActive = Boolean(
+    continuityDeliberation
+    && continuityDeliberation.kind !== 'none',
+  )
+  const continuityDeliberationDefersSpeech = Boolean(
+    continuityDeliberationActive
+    && (
+      continuityDeliberation?.shouldSpeakNow !== true
+      || continuityDeliberation.preferredTiming === 'internal-only'
+      || continuityDeliberation.preferredTiming === 'after-payoff'
+      || continuityDeliberation.preferredTiming === 'next-open-window'
+      || continuityDeliberation.intrusionRisk === 'high'
+    ),
+  )
   const contextScenario = inferScenarioFromContext({
     workload: context.workload.kind,
     content: context.content.kind,
@@ -816,18 +782,17 @@ export function evaluateProactivePolicy(input: {
     consideredSignals.push('initiative')
     consideredSignals.push('initiative.speakDrive', 'initiative.silenceDrive')
   }
-  if ((input.currentConsciousFrame?.reasonTags ?? []).some(tag => carriesExecutionSafetyGateRestraint(sanitizeText(tag, 240).toLowerCase())))
-    consideredSignals.push('currentConsciousFrame.executionSafetyGateRestraint')
-  if ((input.currentConsciousFrame?.reasonTags ?? []).some(tag => carriesExecutionResumeConfirmationBoundary(sanitizeText(tag, 240).toLowerCase())))
-    consideredSignals.push('currentConsciousFrame.executionResumeConfirmationBoundary')
-  const replyExecutionSafetyGateText = [
-    ...(input.replyDeliberation?.mustInclude ?? []),
-    ...(input.replyDeliberation?.narrative ?? []),
-  ].map(tag => sanitizeText(tag, 240).toLowerCase()).filter(Boolean).join(' ')
-  if (carriesExecutionSafetyGateRestraint(replyExecutionSafetyGateText))
-    consideredSignals.push('replyDeliberation.executionSafetyGateRestraint')
-  if (carriesExecutionResumeConfirmationBoundary(replyExecutionSafetyGateText))
-    consideredSignals.push('replyDeliberation.executionResumeConfirmationBoundary')
+  if (continuityDeliberationActive) {
+    consideredSignals.push(
+      'continuityDeliberation.kind',
+      'continuityDeliberation.preferredTiming',
+      'continuityDeliberation.shouldSpeakNow',
+    )
+  }
+  if (executionBoundaryBias.safetyGateRestraint)
+    consideredSignals.push('emotionalKernel.executionSafetyGateRestraint')
+  if (executionBoundaryBias.resumeConfirmationBoundary)
+    consideredSignals.push('emotionalKernel.executionResumeConfirmationBoundary')
   if (input.beliefLedger)
     consideredSignals.push('beliefLedger.focus', 'beliefLedger.contradictions')
   if (input.beliefRevision)
@@ -1129,7 +1094,8 @@ export function evaluateProactivePolicy(input: {
     return style
   })()
   const personaPreferredStyle = personaBias.forcedStyle ?? runtimeAwareStyle
-  const personaAwareStyle = executionBoundaryBias.forceSilentObserve
+  const personaAwareStyle = continuityDeliberationDefersSpeech
+    || executionBoundaryBias.forceSilentObserve
     || affectiveResidueBias.forceSilentObserve
     || habitPolicyBias.forceSilentObserve
     ? 'silent-observe' as const
@@ -1458,6 +1424,7 @@ export function evaluateProactivePolicy(input: {
       && !contradictionHeavyKnowledgeHold
       && !selfEvolutionVerifyHold
       && !selfRevisionProactiveHold
+      && !continuityDeliberationDefersSpeech
       && personaAwareStyle !== 'silent-observe'
       && activeLoopAllowsSpeaking
       && governorAllowsSpeaking
@@ -1474,6 +1441,10 @@ export function evaluateProactivePolicy(input: {
   pushReason(reasonCodes, 'fullscreen-host', context.system.fullscreenLikely)
   pushReason(reasonCodes, 'busy-host', suppressBusy && !context.system.fullscreenLikely)
   pushReason(reasonCodes, 'global-cooldown-active', cooldownActive)
+  pushReason(reasonCodes, 'continuity-internal-only', continuityDeliberation?.preferredTiming === 'internal-only')
+  pushReason(reasonCodes, 'continuity-after-payoff', continuityDeliberation?.preferredTiming === 'after-payoff')
+  pushReason(reasonCodes, 'continuity-next-open-window', continuityDeliberation?.preferredTiming === 'next-open-window')
+  pushReason(reasonCodes, 'continuity-execution-callback', continuityDeliberation?.kind === 'execution-callback')
   pushReason(reasonCodes, 'attention-anchor-active', input.perception?.activeAttentionAnchor)
   pushReason(reasonCodes, 'recent-observation-memory', (input.perception?.recentObservationCount ?? 0) >= 2)
   pushReason(reasonCodes, 'invited-inspection-active', input.perception?.invitedInspectionActive)

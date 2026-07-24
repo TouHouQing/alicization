@@ -31,5 +31,11 @@ describe('answer compiler project governance isolation', () => {
     expect(source).not.toMatch(
       /I still need a fresher look|What I was holding a moment ago|The knot itself matters|The host is asking about me directly|This turn needs a direct answer/u,
     )
+    expect(source).not.toMatch(
+      /hasContinuityRestraintRelationshipSignal|hasNeutralRelationshipSignal/u,
+    )
+    expect(source).not.toMatch(
+      /containsAnswerCompilerFixedTemplateResidue|renderAnswerCompilerControlSegment|readableControlToken|Use \$\{key\} as/u,
+    )
   })
 })

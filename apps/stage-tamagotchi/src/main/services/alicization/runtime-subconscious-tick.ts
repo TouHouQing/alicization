@@ -1,7 +1,8 @@
-import {
-  alicizationFixedTemplateReplacement,
-  sanitizeAlicizationProviderFacingText,
-} from '@proj-alicization/stage-shared'
+import type { AlicizationChatFailureKind } from '@proj-alicization/stage-shared'
+
+import type { AlicizationPersonStateProjection } from './person-state-projection'
+
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
 import { derivePostPolicyQuietHoldRuntimeSnapshot } from './alicization-runtime-architecture'
 import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
@@ -9,8 +10,9 @@ import { deriveAutonomyExecutionProposalSurface, runAutonomyActuation } from './
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { buildAlicizationEmotionalKernel } from './emotional-kernel'
 import { resolveAlicizationEmotionalTransitionDecay } from './emotional-ledger'
-import { adjustProactiveStyleFromHostPersonModel, inferHostSocialContextsFromText } from './host-social-guidance'
+import { adjustProactiveStyleFromHostPersonModel, buildHostSocialContexts } from './host-social-guidance'
 import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
+import { resolvePreferredPersonStateProjection } from './person-state-projection-resolution'
 import { buildAlicizationPresenceExpression } from './presence-expression'
 import { applyProactiveMemoryBoundaryRestraint } from './proactive-memory-boundary'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
@@ -21,107 +23,33 @@ import {
   resolveAlicizationAutonomousDialogueStructuredFormat,
 } from './runtime-structured-format'
 import { resolveRuntimeSubconsciousTickEntry } from './runtime-subconscious-tick-entry'
+import { buildAlicizationMindAuthoringFailureArtifact } from './visible-reply/facade'
 
-function hasSpecificAffectiveResidueRoomMakingCue(text: string) {
-  return /still glowing|still warm|leave room before warmth returns|leave room before warmth|do not widen yet|warmer reopen|room-making|stay room-making|reopened too eagerly|余韵|留白|别立刻把温度放大|别把温度放大|不要立刻把温度放大|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(text)
-}
+export function resolveProactiveProviderFailureKind(input: {
+  reason: unknown
+  failureKind?: AlicizationChatFailureKind | null
+}): AlicizationChatFailureKind {
+  if (input.failureKind)
+    return input.failureKind
 
-function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
-  const normalized = typeof text === 'string' ? text.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-
-  const rememberedSeamPresent
-    = /remembered (?:moment|conversation|boundary|pause|hesitation)|remember how (?:they|the user)|用户(?:上次|之前|昨晚|刚才).*(?:停顿|犹豫|边界|不舒服)|记得用户.*(?:停顿|犹豫|边界|不舒服)/u.test(normalized)
-  if (!rememberedSeamPresent)
-    return false
-
-  return /more room|slower|do not rush|without assuming|before leaning in again|不急|慢一点|留些空间|留一点空间|别替.*下结论/u.test(normalized)
-}
-
-function joinPresenceOnlyStructuredTokens(tokens: string[]) {
-  const uniqueTokens = Array.from(new Set(tokens
-    .map(token => token.trim())
-    .filter(Boolean)))
-  if (!uniqueTokens.length)
-    return ''
-  return uniqueTokens.join('; ')
-}
-
-function resolvePresenceOnlyHoldStructuredTokens(raw: string) {
-  const normalized = raw.trim().replace(/\s+/g, ' ')
-  const tokens: string[] = []
-
-  const carriesExecutionSafetyGate
-    = /execution-safety-gate|blocked-dispatch-restraint|blocked dispatch safety gate|blocked-dispatch safety gate|blocked-before-dispatch|execution safety restraint|safety gate/iu.test(normalized)
-      && /confirmation=required|implicit-or-explicit-confirmation-required|no-process-started|no process started|interrupt=no-process-started|permission=none|wait for confirmation|等待确认/iu.test(normalized)
-      || /execution_safety_gate=blocked_dispatch/iu.test(normalized)
-  if (carriesExecutionSafetyGate) {
-    tokens.push(
-      'Execution dispatch is blocked until host confirmation; no process has started and no permission is active.',
-    )
-  }
-
-  const carriesExecutionResumeConfirmation
-    = /execution-resume-confirmation|host-confirmed-before-redispatch|resume-before-dispatch|resume confirmation|resumeMemoryMode/iu.test(normalized)
-      && /host-confirmed|approval=host-confirmed|process-not-yet-restarted|interrupt=process-not-yet-restarted|bounded confirmation boundary|not permanent|not permanent execution permission|not permanent autonomous permission|permission=bounded|永久权限/iu.test(normalized)
-      || /execution_resume_confirmation=host-confirmed-before-redispatch/iu.test(normalized)
-  if (carriesExecutionResumeConfirmation) {
-    tokens.push(
-      'The host confirmed resume before redispatch; the process has not restarted and permission stays bounded.',
-    )
-  }
-
-  if (/permanent permission|permanent autonomous permission|permanent execution permission|永久权限/iu.test(normalized))
-    tokens.push('Permission must stay bounded.')
-
-  return joinPresenceOnlyStructuredTokens(tokens)
-}
-
-function containsPresenceOnlyFixedTemplateCue(raw: unknown) {
-  const normalized = typeof raw === 'string'
-    ? raw.trim().replace(/\s+/g, ' ').slice(0, 2400)
-    : ''
-  if (!normalized)
-    return false
-
-  return /\bopening_policy=/iu.test(normalized)
-    || /\bidentity=runtime_personhood\b/iu.test(normalized)
-    || /\blanes=emotion\+memory\+initiative\+embodiment\b/iu.test(normalized)
-    || /^before (?:answering|speaking|acting)\b/iu.test(normalized)
-    || /\bSame Phase 1 digital life\b/iu.test(normalized)
-    || /\bsame living line\b/iu.test(normalized)
-    || /\bone living her\b/iu.test(normalized)
-    || /\bone continuous her\b/iu.test(normalized)
-    || /\bStay on the same (?:callback|remembered|relationship|line|thread)\b/iu.test(normalized)
-    || /\bKeep this callback\b/iu.test(normalized)
-    || /\bcadence=(?:measured_return|repair_before_closeness|rest_protective)\b/iu.test(normalized)
-    || /\brelationship_cadence=remembered_boundary\b/iu.test(normalized)
-    || /\bcontinuity_(?:hold|mode|cue|scope|context)=/iu.test(normalized)
-    || /\b(?:landed|evidence|remaining|dialogue_entry_governance|memory_dialogue_loop|execution_safety|template_cleanup|provider_authored_reply_required|allowed_failures|memory_workbench|owner_boundary)=/iu.test(normalized)
-    || /\breopen_from_scratch=false\b/iu.test(normalized)
-    || /\bfixed_template=excluded\b/iu.test(normalized)
-    || /\bgeneric_shell=blocked\b/iu.test(normalized)
-    || /\bcover=visible_reply\b/iu.test(normalized)
-    || /\bvalidation=noisy_desktop_runs\b/iu.test(normalized)
-    || /\btiming=measured_return_or_repair_before_closeness\b/iu.test(normalized)
-    || /\blocal_desktop_life_loop\b/iu.test(normalized)
-    || /\bkeep the opening lower-pressure\b/iu.test(normalized)
-    || /\brepair continuity first\b/iu.test(normalized)
-    || /\bavoid eager warmth\b/iu.test(normalized)
-    || /\bhold-for-opening\b/iu.test(normalized)
-    || /\bnext-open-window\b/iu.test(normalized)
-    || /\bno mind-authored visible reply was available\b/iu.test(normalized)
-    || /\bproactive_state=held_for_opening\b/iu.test(normalized)
-    || /\b(?:phase|next|unresolved)=/iu.test(normalized)
-    || /\brepair-before-closeness\b/iu.test(normalized)
-    || /\bmeasured-return\b/iu.test(normalized)
+  const reason = typeof input.reason === 'string' ? input.reason.toLowerCase() : ''
+  if (/\b(?:timed? out|timeout)\b|超时/u.test(reason))
+    return 'timeout'
+  if (/\b(?:401|403|unauthori[sz]ed|authentication|api key)\b|认证/u.test(reason))
+    return 'provider-auth'
+  if (/\b(?:config(?:uration)?|base url|model.*required)\b|配置/u.test(reason))
+    return 'provider-config'
+  if (/\b(?:schema|structured output|invalid json)\b|结构化/u.test(reason))
+    return 'provider-schema-unsupported'
+  if (/\b(?:network|connect|connection|econn|http 5\d\d)\b|网络/u.test(reason))
+    return 'provider-network'
+  return 'stream-failure'
 }
 
 function sanitizePresenceOnlyReasonTags(reasonTags: readonly unknown[]) {
   return reasonTags
-    .map(tag => typeof tag === 'string' ? tag.trim() : '')
-    .filter((tag): tag is string => Boolean(tag) && !containsPresenceOnlyFixedTemplateCue(tag))
+    .map(tag => sanitizeAlicizationProviderFacingText(tag, 120, ''))
+    .filter((tag): tag is string => Boolean(tag))
 }
 
 const presenceOnlyLegacyProjectStateKeys = new Set([
@@ -159,48 +87,19 @@ export function stripPresenceOnlyLegacyProjectState(projectState: Record<string,
   )
 }
 
-function hasExplicitRepairBeforeClosenessAuthority(text: string | null | undefined) {
-  const normalized = typeof text === 'string' ? text.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-
-  const mentionsRepairBeforeCloseness
-    = /repair-before-closeness|repair before closeness|repair-first|repair first|before closeness widens|先修复|修复优先|先把身体收稳|先让修复落稳|别一下子贴太近|let repair settle|repair settle first|repair settles first/u.test(normalized)
-  if (!mentionsRepairBeforeCloseness)
-    return false
-
-  return /repair still needs to land|before any warmer reopening|until repair settles|until the room settles|先修复再靠近|修复线|修补线/u.test(normalized)
-}
-
 function normalizePresenceOnlyHoldCarryText(raw: unknown, maxChars = 420) {
   if (typeof raw !== 'string')
     return ''
   const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
   if (!normalized)
     return ''
-  const structuredTokens = resolvePresenceOnlyHoldStructuredTokens(normalized)
-  if (structuredTokens)
-    return structuredTokens.slice(0, maxChars)
-  if (!containsPresenceOnlyFixedTemplateCue(normalized)) {
-    const sanitizedNaturalText = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-    return (
-      sanitizedNaturalText && sanitizedNaturalText !== alicizationFixedTemplateReplacement
-        ? sanitizedNaturalText
-        : normalized
-    ).slice(0, maxChars)
-  }
   const sanitized = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  if (sanitized && !containsPresenceOnlyFixedTemplateCue(sanitized))
+  if (sanitized)
     return sanitized
   const fragments = normalized
     .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
-    .map((fragment) => {
-      const fragmentTokens = resolvePresenceOnlyHoldStructuredTokens(fragment)
-      if (fragmentTokens)
-        return fragmentTokens
-      return sanitizeAlicizationProviderFacingText(fragment, Math.min(260, maxChars), '')
-    })
-    .filter((fragment): fragment is string => Boolean(fragment) && !containsPresenceOnlyFixedTemplateCue(fragment))
+    .map(fragment => sanitizeAlicizationProviderFacingText(fragment, Math.min(260, maxChars), ''))
+    .filter((fragment): fragment is string => Boolean(fragment))
   return fragments.join(' | ')
 }
 
@@ -213,22 +112,13 @@ function normalizePresenceOnlyContinuitySummary(raw: unknown, maxChars = 560) {
     return ''
 
   const direct = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  if (
-    direct
-    && !containsPresenceOnlyFixedTemplateCue(direct)
-    && !/^(?:label|summary|intent|defer|thread|scenario|goal|reason|phase|next|unresolved)=/iu.test(direct)
-  ) {
+  if (direct) {
     return direct
   }
 
   return normalized
     .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
-    .map((fragment) => {
-      const candidate = normalizePresenceOnlyHoldCarryText(fragment, maxChars)
-      if (!candidate || /^(?:label|summary|intent|defer|thread|scenario|goal|reason|phase|next|unresolved)=/iu.test(candidate))
-        return ''
-      return candidate
-    })
+    .map(fragment => normalizePresenceOnlyHoldCarryText(fragment, maxChars))
     .filter(Boolean)
     .join(' | ')
     .slice(0, maxChars)
@@ -409,96 +299,10 @@ export function preserveResidentSameLineProjection(input: {
     narrative?: string[] | null
   } | null | undefined
 }): PresenceOnlyProjection | null {
-  const baseProjection = input.nextProjection && typeof input.nextProjection === 'object'
-    ? input.nextProjection
-    : null
-
-  const previousSummary = String(input.previousProjection?.summary ?? '').trim()
-  const previousOpeningGuidance = String(input.previousProjection?.openingGuidance ?? '').trim()
-  const previousCadenceSummary = String(input.previousProjection?.manifestationCadenceSummary ?? '').trim()
-  const nextSummary = String(baseProjection?.summary ?? '').trim()
-  const nextOpeningGuidance = String(baseProjection?.openingGuidance ?? '').trim()
-  const nextCadenceSummary = String(baseProjection?.manifestationCadenceSummary ?? '').trim()
-  const carrySummary = String(input.dialogueWorldThread?.openLoops?.[0] ?? '').trim()
-  const carryNarrative = String(input.dialogueWorldThread?.narrative?.[0] ?? '').trim()
-  const carryReason = String(input.conversationState?.carryReason ?? '').trim()
-  const combined = [
-    previousSummary,
-    previousOpeningGuidance,
-    previousCadenceSummary,
-    carrySummary,
-    carryNarrative,
-    carryReason,
-  ].join(' | ').toLowerCase()
-  const keepSameThread = /same-thread-continuation|already continuing|still continuing|still in motion|同一条线|沿着刚才那条线|接回去|callback line/u.test(combined)
-  if (!baseProjection)
-    return keepSameThread ? (input.previousProjection ?? null) : null
-  if (!keepSameThread)
-    return baseProjection
-
-  const shouldPreferNextOpeningGuidance = hasSpecificAffectiveResidueRoomMakingCue(nextOpeningGuidance)
-    && !hasSpecificAffectiveResidueRoomMakingCue(previousOpeningGuidance)
-  const nextProjectionIsRepairBeforeCloseness = /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test([
-    nextSummary,
-    nextOpeningGuidance,
-    nextCadenceSummary,
-    carrySummary,
-    carryNarrative,
-    carryReason,
-  ].join(' | '))
-  const previousProjectionIsRepairBeforeCloseness = /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test([
-    previousSummary,
-    previousOpeningGuidance,
-    previousCadenceSummary,
-  ].join(' | '))
-  const shouldPreferNextRepairBeforeCloseness
-    = nextProjectionIsRepairBeforeCloseness
-      && !previousProjectionIsRepairBeforeCloseness
-  const nextProjectionIsRestProtective = /rest-protective|rest protective|rest protection|fatigue-aware|quietly inward|休息保护|先往内收/u.test([
-    nextSummary,
-    nextOpeningGuidance,
-    nextCadenceSummary,
-    carrySummary,
-    carryNarrative,
-    carryReason,
-  ].join(' | '))
-  const previousProjectionIsRestProtective = /rest-protective|rest protective|rest protection|fatigue-aware|quietly inward|休息保护|先往内收/u.test([
-    previousSummary,
-    previousOpeningGuidance,
-    previousCadenceSummary,
-  ].join(' | '))
-  const shouldPreferNextRestProtective
-    = nextProjectionIsRestProtective
-      && !nextProjectionIsRepairBeforeCloseness
-      && !previousProjectionIsRestProtective
-      && !previousProjectionIsRepairBeforeCloseness
-  const previousSelfContinuityAuthority = input.previousProjection?.selfContinuityAuthority ?? null
-  const nextSelfContinuityAuthority = baseProjection?.selfContinuityAuthority ?? null
-  const shouldPreferNextSelfContinuityAuthority
-    = shouldPreferNextRepairBeforeCloseness
-      || shouldPreferNextRestProtective
-      || shouldPreferNextOpeningGuidance
-      || !previousSelfContinuityAuthority
-  const mergedSelfContinuityAuthority = shouldPreferNextSelfContinuityAuthority
-    ? nextSelfContinuityAuthority
-    : previousSelfContinuityAuthority
-
-  return {
-    ...baseProjection,
-    summary: shouldPreferNextRepairBeforeCloseness || shouldPreferNextRestProtective
-      ? nextSummary
-      : previousSummary || carrySummary || carryNarrative || nextSummary,
-    openingGuidance: shouldPreferNextRepairBeforeCloseness || shouldPreferNextRestProtective
-      ? nextOpeningGuidance
-      : shouldPreferNextOpeningGuidance
-        ? nextOpeningGuidance
-        : previousOpeningGuidance
-          || nextOpeningGuidance,
-    manifestationCadenceSummary: shouldPreferNextRepairBeforeCloseness || shouldPreferNextRestProtective
-      ? nextCadenceSummary
-      : previousCadenceSummary,
-    selfContinuityAuthority: mergedSelfContinuityAuthority,
-  }
+  return resolvePreferredPersonStateProjection({
+    bundleProjection: input.previousProjection as Partial<AlicizationPersonStateProjection> | null | undefined,
+    runtimeProjection: input.nextProjection as Partial<AlicizationPersonStateProjection> | null | undefined,
+  }) as PresenceOnlyProjection | null
 }
 
 export function buildPresenceOnlyHoldInitiativeFallback(input: {
@@ -514,48 +318,19 @@ export function buildPresenceOnlyHoldInitiativeFallback(input: {
     thoughtText?: string | null
   } | null
 }) {
-  const continuityAuthorityText = [
-    String(input.projectContinuityCue ?? '').trim(),
-    String(input.privateThought?.thoughtText ?? '').trim(),
-    String(input.decision?.whyNow ?? '').trim(),
-  ].join(' | ')
-  const inferredRepairBeforeCloseness = hasExplicitRepairBeforeClosenessAuthority(continuityAuthorityText)
-  const inferredRestProtective = /rest-protective|rest protective|rest-guard|keep caring present|hold the line inward|quietly inward|fatigue-aware|late-night-drain|休息保护|先收住|先往内收|别把身体再往外推/iu.test([
-    continuityAuthorityText,
-  ].join(' | '))
-  const inferredExecutionSafetyGateRestraint = /execution-safety-gate|blocked-dispatch-restraint|blocked dispatch safety gate|blocked-dispatch safety gate|blocked-before-dispatch|execution safety restraint|safety gate/iu.test(continuityAuthorityText)
-    && /confirmation=required|implicit-or-explicit-confirmation-required|no-process-started|permission=none|wait for confirmation|等待确认/iu.test(continuityAuthorityText)
-  const inferredExecutionResumeConfirmationBoundary = /execution-resume-confirmation|host-confirmed-before-redispatch|resume-before-dispatch|resume confirmation/iu.test(continuityAuthorityText)
-    && /host-confirmed|approval=host-confirmed|process-not-yet-restarted|bounded confirmation boundary|not permanent|not permanent execution permission|not permanent autonomous permission/iu.test(continuityAuthorityText)
-  const inferredMeasuredReturn = !inferredRepairBeforeCloseness
-    && !inferredRestProtective
-    && (
-      inferredExecutionSafetyGateRestraint
-      || inferredExecutionResumeConfirmationBoundary
-      || (
-        hasRememberedSeamMoreRoomCarry(continuityAuthorityText)
-      )
-    )
-  const continuityRestraint = inferredRepairBeforeCloseness
-    && input.continuityRestraint !== 'repair-before-closeness'
-    && input.continuityRestraint !== 'rest-protective'
-    ? 'repair-before-closeness'
-    : inferredRestProtective
-      && input.continuityRestraint !== 'repair-before-closeness'
-      && input.continuityRestraint !== 'rest-protective'
-      ? 'rest-protective'
-      : inferredMeasuredReturn
-        && input.continuityRestraint !== 'repair-before-closeness'
-        && input.continuityRestraint !== 'rest-protective'
-        ? 'measured-return'
-        : input.continuityRestraint
-          ?? (inferredRepairBeforeCloseness ? 'repair-before-closeness' : inferredRestProtective ? 'rest-protective' : inferredMeasuredReturn ? 'measured-return' : null)
+  const continuityRestraint = input.continuityRestraint
   const preferredStyle = input.decision?.style === 'silent-observe'
     ? 'silent-observe'
     : null
+  const structuredHoldActive = preferredStyle === 'silent-observe'
+    || continuityRestraint === 'measured-return'
+    || continuityRestraint === 'repair-before-closeness'
+    || continuityRestraint === 'rest-protective'
+    || continuityRestraint === 'lower-pressure'
+  if (!structuredHoldActive)
+    return input.existingInitiative ?? null
   if (
-    !input.existingInitiative
-    && preferredStyle !== 'silent-observe'
+    preferredStyle !== 'silent-observe'
     && continuityRestraint !== 'measured-return'
     && continuityRestraint !== 'repair-before-closeness'
     && continuityRestraint !== 'rest-protective'
@@ -766,39 +541,6 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
   const projectState = frame.projectState && typeof frame.projectState === 'object'
     ? frame.projectState as Record<string, unknown>
     : {}
-  const safetyGateCarryText = [
-    input.holdDetail,
-    input.projectStateCarry?.continuityCue,
-    input.projectStateCarry?.emotionalClosureSummary,
-    projectState.sameHerHoldDetail,
-    projectState.continuityCue,
-  ]
-    .map(item => String(item ?? '').trim())
-    .filter(Boolean)
-    .join(' | ')
-  const carriesExecutionSafetyGateRestraint = /execution-safety-gate|blocked-dispatch-restraint|blocked dispatch safety gate|blocked-dispatch safety gate|blocked-before-dispatch|execution safety restraint|safety gate/iu.test(safetyGateCarryText)
-    && /confirmation=required|implicit-or-explicit-confirmation-required|no-process-started|no process started|permission=none|wait for confirmation|等待确认/iu.test(safetyGateCarryText)
-  const carriesExecutionResumeConfirmationBoundary = /execution-resume-confirmation|host-confirmed-before-redispatch|resume-before-dispatch|resume confirmation/iu.test(safetyGateCarryText)
-    && /host-confirmed|approval=host-confirmed|process-not-yet-restarted|bounded confirmation boundary|not permanent|not permanent execution permission|not permanent autonomous permission/iu.test(safetyGateCarryText)
-  const executionSafetyGateReasonTags = carriesExecutionSafetyGateRestraint
-    ? [
-        'execution-safety-gate:blocked-dispatch-restraint',
-        'execution-safety-gate:confirmation-required',
-        'execution-safety-gate:no-process-started',
-      ]
-    : []
-  const executionResumeConfirmationReasonTags = carriesExecutionResumeConfirmationBoundary
-    ? [
-        'execution-resume-confirmation:host-confirmed',
-        'execution-resume-confirmation:resume-before-dispatch',
-        'execution-resume-confirmation:process-not-yet-restarted',
-      ]
-    : []
-  const nextReasonTags = Array.from(new Set([
-    ...reasonTags,
-    ...executionSafetyGateReasonTags,
-    ...executionResumeConfirmationReasonTags,
-  ])).filter(Boolean).slice(0, 12)
   const nextProjectState = Object.fromEntries(
     Object.entries(stripPresenceOnlyLegacyProjectState(projectState))
       .map(([key, value]) => [
@@ -812,7 +554,7 @@ export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
 
   return {
     ...frame,
-    reasonTags: nextReasonTags,
+    reasonTags,
     projectState: nextProjectState,
   }
 }
@@ -1614,6 +1356,12 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         let structured: any = null
         let deliveryDecision = decision
         let llmStructured: any = null
+        let proactiveProviderFailure: {
+          reason: string
+          providerId: string
+          model: string
+          failureKind?: AlicizationChatFailureKind | null
+        } | null = null
         let organicPromptContext: Awaited<ReturnType<typeof resolveOrganicMemoryPromptContext>> | null = null
         if (autonomyExecutionProposalSurface) {
           const performanceManifest = await getPerformanceManifest()
@@ -1679,12 +1427,10 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             style: adjustProactiveStyleFromHostPersonModel({
               currentStyle: decision.style,
               hostPersonModel: organicPromptContext.hostPersonModel ?? null,
-              contexts: inferHostSocialContextsFromText([
-                decision.scenario,
-                layeredContext.workload.kind,
-                layeredContext.content.kind,
-                proactiveRecallSeed,
-              ].filter(Boolean).join(' ')),
+              contexts: buildHostSocialContexts({
+                scenario: decision.scenario,
+                workloadKind: layeredContext.workload.kind,
+              }),
               selfEvolution: organicPromptContext.selfEvolution ?? null,
               learningExecutionState: organicPromptContext.learningExecutionState ?? null,
             }),
@@ -1702,7 +1448,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               : null,
           })
           deliveryDecision = memoryBoundaryAdjustedDecision
-          llmStructured = await generateProactiveStructuredWithGateway(
+          const generated = await generateProactiveStructuredWithGateway(
             personality,
             nextState,
             layeredContext,
@@ -1715,6 +1461,17 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             },
             backgroundAgentTurn,
           )
+          if (
+            generated
+            && typeof generated === 'object'
+            && ('structured' in generated || 'providerFailure' in generated)
+          ) {
+            llmStructured = generated.structured ?? null
+            proactiveProviderFailure = generated.providerFailure ?? null
+          }
+          else {
+            llmStructured = generated
+          }
           if (llmStructured) {
             const performanceManifest = await getPerformanceManifest()
             const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
@@ -1754,6 +1511,15 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             })
           }
           else {
+            if (proactiveProviderFailure) {
+              structured = buildAlicizationMindAuthoringFailureArtifact({
+                stage: 'provider-recovery',
+                reason: proactiveProviderFailure.reason,
+                turnId,
+                failureKind: resolveProactiveProviderFailureKind(proactiveProviderFailure),
+                reasonCodes: ['proactive-provider-failure'],
+              })
+            }
             await appendAuditLog({
               level: 'warning',
               category: 'alicization.subconscious',
@@ -1836,7 +1602,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           )
         )
         const shouldResolveAsPresenceOnlyHold = (
-          !verifyFirstCodingVisibleNudge
+          !proactiveProviderFailure
+          && !verifyFirstCodingVisibleNudge
           && !codingFeedbackWindowVisibleNudge
           && (
             deliveryDecision.presenceOnlyHold === true
@@ -1854,12 +1621,18 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           kind: autonomyExecutionProposalSurface ? 'autonomy-proposal' : 'subconscious-proactive',
           structured,
           hasMindAuthoredStructured: Boolean(llmStructured),
+          actualVisibleReplyAuthority: proactiveProviderFailure
+            ? 'non-human-authored-blocked'
+            : undefined,
           reason: shouldResolveAsPresenceOnlyHold
             ? 'proactive-visible-presence-without-utterance'
-            : llmStructured
-              ? 'mind-authored-proactive-utterance'
-              : 'provider-mind-unavailable-for-proactive-visible-utterance',
+            : proactiveProviderFailure
+              ? 'proactive-provider-failure'
+              : llmStructured
+                ? 'mind-authored-proactive-utterance'
+                : 'provider-mind-unavailable-for-proactive-visible-utterance',
           allowDeterministicVisibleFallback: shouldResolveAsPresenceOnlyHold,
+          allowTransparentFailureSurface: Boolean(proactiveProviderFailure),
           preferPresenceOnlyHold: shouldResolveAsPresenceOnlyHold,
           selfRevisionPatch: activeSelfRevisionPatch,
           memorySurfaceRestraint,

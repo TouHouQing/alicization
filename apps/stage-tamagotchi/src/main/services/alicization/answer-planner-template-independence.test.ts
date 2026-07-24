@@ -87,5 +87,8 @@ describe('answer-planner template independence', () => {
     expect(source).not.toMatch(
       /function buildMustDo|function buildMustNotDo|Keep the still-open project closure explicit|Open with low pressure and protect rest/iu,
     )
+    expect(source).not.toMatch(
+      /hasContinuityRestraintRelationshipSignal|hasNeutralRelationshipSignal/u,
+    )
   })
 })

@@ -31,8 +31,6 @@ import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSur
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { deriveMindTruthContract } from './mind-truth-contract'
 import {
-  hasContinuityRestraintRelationshipSignal,
-  hasNeutralRelationshipSignal,
   mergePreferredSelfContinuityAuthority,
   resolvePreferredPersonStateProjection,
 } from './person-state-projection-resolution'
@@ -54,58 +52,8 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-function readableControlToken(raw: string) {
-  return raw
-    .replace(/_/gu, ' ')
-    .replace(/\btrue\b/giu, 'yes')
-    .replace(/\bfalse\b/giu, 'no')
-    .trim()
-}
-
-function renderAnswerCompilerControlSegment(trimmed: string) {
-  const matched = trimmed.match(/^([a-z][\w-]+)\s*=\s*(.+)$/iu)
-  if (!matched)
-    return trimmed
-
-  const key = readableControlToken(matched[1] ?? '')
-  const value = readableControlToken(matched[2] ?? '')
-  if (!key || !value)
-    return ''
-
-  if (key === 'avoid')
-    return `Avoid ${value}.`
-  if (/blocked|forbid|avoid/iu.test(value))
-    return `Do not allow ${key}.`
-  if (/defer|after payoff|after repair/iu.test(value))
-    return `Defer ${key} until ${value}.`
-  if (/required|present|active|current|primary|explicit|yes|preserve/iu.test(value))
-    return `Keep ${key} ${value}.`
-  if (/lower/iu.test(value))
-    return `Lower the priority of ${key}.`
-  return `Use ${key} as ${value}.`
-}
-
-function containsAnswerCompilerFixedTemplateResidue(raw: string) {
-  return /\bSame Phase 1 digital life\b|local_desktop_life_loop|phase1_local_digital_life|runtime_personhood|life_core|project_state_review|memory_dialogue_embodiment_closure|relationship_cadence=|continuity_hold=|visibility=internal|owner=project_state_governance|Before (?:answering|speaking|acting)/iu.test(raw)
-}
-
 function naturalizeAnswerCompilerControlText(raw: unknown, maxChars = 420) {
-  const providerSafe = sanitizeAlicizationProviderFacingText(raw, maxChars, '')
-  const rawSafe = sanitizeText(raw, maxChars)
-  const normalized = providerSafe || rawSafe
-  if (!normalized)
-    return ''
-  if (containsAnswerCompilerFixedTemplateResidue(normalized))
-    return ''
-
-  if (!/\b[a-z][\w-]+\s*=/iu.test(normalized))
-    return normalized
-
-  return sanitizeText(normalized
-    .split(/\s*[;|]\s*/u)
-    .map(segment => renderAnswerCompilerControlSegment(segment.trim()))
-    .filter(Boolean)
-    .join(' '), maxChars)
+  return sanitizeAlicizationProviderFacingText(raw, maxChars, '')
 }
 
 function naturalizeAnswerCompilerControlList(values: string[], maxItems = 10) {
@@ -769,23 +717,7 @@ export function buildAnswerCompiler(input: {
       ?? runtimeSurface?.memory.personStateProjection?.selfContinuityAuthority
       ?? null,
   }) ?? buildSelfContinuityAuthorityFromRuntimeSurface(runtimeSurface)
-  const runtimeRelationshipCarry = personStateProjection?.selfContinuityAuthority?.relationshipLine
-    ?? runtimeSurface?.memory.personStateProjection?.selfContinuityAuthority?.relationshipLine
-    ?? null
-  const selfContinuityAuthority = (
-    mergedSelfContinuityAuthority
-    && runtimeRelationshipCarry
-    && hasContinuityRestraintRelationshipSignal(runtimeRelationshipCarry)
-    && (
-      !mergedSelfContinuityAuthority.relationshipLine
-      || hasNeutralRelationshipSignal(mergedSelfContinuityAuthority.relationshipLine)
-    )
-  )
-    ? {
-        ...mergedSelfContinuityAuthority,
-        relationshipLine: runtimeRelationshipCarry,
-      }
-    : mergedSelfContinuityAuthority
+  const selfContinuityAuthority = mergedSelfContinuityAuthority
   const growthProfile = personalityContinuityState.growthProfile
 
   if (!discourseState || !mindSynthesis)

@@ -1,8 +1,10 @@
 import type {
   AlicizationHostPersonModelSnapshot,
   AlicizationLearningExecutionStateSnapshot,
+  AlicizationProactiveScenario,
   AlicizationProactiveStyle,
   AlicizationSelfEvolutionKernelSnapshot,
+  AlicizationVisualSceneSnapshot,
 } from '../../../shared/eventa'
 
 function sanitizeText(raw: unknown, maxChars = 180) {
@@ -11,15 +13,21 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-export function inferHostSocialContextsFromText(text: string, extraContexts: string[] = []) {
-  const normalized = text.toLowerCase()
-  const contexts = ['general', ...extraContexts]
-  if (/runtime|debug|coding|code|patch|fix|verify|test|cursor|terminal|cli|diff/iu.test(normalized))
-    contexts.push('focused-work', 'execution')
-  if (/late|night|fatigue|rest|sleep|tired|熬夜|疲惫|休息/iu.test(normalized))
+export function buildHostSocialContexts(input: {
+  scenario?: AlicizationProactiveScenario | null
+  workloadKind?: AlicizationVisualSceneSnapshot['workloadKind'] | null
+  extraContexts?: string[]
+}) {
+  const contexts = ['general', ...(input.extraContexts ?? [])]
+  if (
+    input.scenario === 'coding'
+    || input.workloadKind === 'coding'
+    || input.workloadKind === 'terminal'
+  ) {
+    contexts.push('focused-work')
+  }
+  if (input.scenario === 'late-night-care')
     contexts.push('late-night')
-  if (/relationship|closeness|tone|回应|态度|靠近|关系/iu.test(normalized))
-    contexts.push('open-window')
   return [...new Set(contexts)]
 }
 
@@ -51,14 +59,15 @@ export function buildHostSocialGuidance(input: {
   const trustRationale = sanitizeText(hostPersonModel.trustLadder.rationale, 180)
   const cautious = hostPersonModel.trustLadder.stage === 'guarded'
     || hostPersonModel.trustLadder.stage === 'cautious-open'
-    || /(space|lighter|room|quiet|bounded|leave room|留白|空间|轻|安静|back off)/iu.test(`${preferenceText} ${sensitivityText} ${burdenText}`)
-  const restrained = cautious || /(repair|lighter|space|quiet|low-pressure|给空间|轻一点|先退一点)/iu.test(`${preferenceText} ${repairTriggerText}`)
+  const hasRepairHistory = hostPersonModel.repairTriggers.length > 0
+  const hasRecurringBurden = hostPersonModel.recurrentBurdens.length > 0
+  const restrained = cautious || hasRepairHistory
   const preferredProactiveStyle = (() => {
-    if (input.contexts.includes('late-night') && /(care|rest|缓|休息|轻一点|low-pressure|gentle)/iu.test(`${preferenceText} ${burdenText}`))
+    if (input.contexts.includes('late-night') && (cautious || hasRecurringBurden))
       return 'gentle-care' as const
     if (input.contexts.includes('focused-work') && cautious)
       return 'light-nudge' as const
-    if (input.contexts.includes('focused-work') && restrained)
+    if (input.contexts.includes('focused-work') && hasRepairHistory)
       return 'silent-observe' as const
     return null
   })()
@@ -93,10 +102,7 @@ export function adjustProactiveStyleFromHostPersonModel(input: {
     learningAction === 'verify'
     && (
       (input.selfEvolution?.contradictionPressure ?? 0) >= 0.34
-      || sanitizeText(input.selfEvolution?.dominantTrajectory, 120).toLowerCase().includes('revalidation')
-      || (input.learningExecutionState?.activeLearningFocuses ?? input.selfEvolution?.activeLearningFocuses ?? []).some(focus =>
-        sanitizeText(focus, 64).toLowerCase().includes('world-model'),
-      )
+      || input.selfEvolution?.shouldVerify === true
     ),
   )
 
@@ -123,25 +129,5 @@ export function adjustProactiveReplyFromLongHorizonLearning(input: {
   if (!currentReply)
     return ''
 
-  const learningAction = input.learningExecutionState?.nextLearningAction
-    ?? input.selfEvolution?.nextLearningAction
-    ?? null
-  const verifyFirstRevalidation = Boolean(
-    learningAction === 'verify'
-    && (
-      (input.selfEvolution?.contradictionPressure ?? 0) >= 0.34
-      || sanitizeText(input.selfEvolution?.dominantTrajectory, 120).toLowerCase().includes('revalidation')
-      || (input.learningExecutionState?.activeLearningFocuses ?? input.selfEvolution?.activeLearningFocuses ?? []).some(focus =>
-        sanitizeText(focus, 64).toLowerCase().includes('world-model'),
-      )
-    ),
-  )
-
-  if (!verifyFirstRevalidation)
-    return currentReply
-  if (/先别说死/u.test(currentReply))
-    return currentReply
-
-  const withoutTrailingPunctuation = currentReply.replace(/[。！!？?]+$/u, '')
-  return `${withoutTrailingPunctuation}，先别说死，我再看稳一点。`
+  return currentReply
 }

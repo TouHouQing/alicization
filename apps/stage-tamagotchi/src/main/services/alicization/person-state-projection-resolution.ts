@@ -18,21 +18,8 @@ function countProjectionStructureSignals(
     score += 2
   if (Array.isArray(projection.closenessLadder) && projection.closenessLadder.length > 0)
     score += 2
-  if (hasText(projection.manifestationCadenceSummary))
+  if (Array.isArray(projection.contexts) && projection.contexts.length > 0)
     score += 1
-  if (hasText(projection.summary))
-    score += 1
-
-  const descriptiveFields = [
-    projection.preferenceText,
-    projection.sensitivityText,
-    projection.repairTriggerText,
-    projection.burdenText,
-    projection.routineText,
-    projection.trustRationale,
-    projection.relationshipDoctrine,
-  ]
-  score += Math.min(3, descriptiveFields.filter(hasText).length)
   return score
 }
 
@@ -61,23 +48,12 @@ function countProjectionContinuitySignals(
     score += 1
   if (projection.cautious)
     score += 1
-
-  const continuityText = [
-    projection.openingGuidance,
-    projection.relationshipDoctrine,
-    projection.manifestationCadenceSummary,
-    projection.trustRationale,
-    projection.summary,
-  ]
-    .filter(hasText)
-    .join(' ')
-    .toLowerCase()
-
-  if (
-    /same-her|same thread|same line|room first|leave room|lower-pressure|measured-return|repair before closeness|repair first|thread-faithful|bounded|rest-protective|protect rest|quiet[- ]companionship|line inward|stay inward/u.test(continuityText)
-  ) {
-    score += 2
-  }
+  if (projection.personalityContinuityState?.currentRegime)
+    score += 1
+  if (projection.personalityContinuityState?.repairPosture === 'repair-first')
+    score += 1
+  if (projection.personalityContinuityState?.autonomyPosture === 'protect-space')
+    score += 1
 
   return score
 }
@@ -88,22 +64,7 @@ function countAuthorityStructureSignals(
   if (!authority)
     return 0
 
-  let score = 0
-  if (hasText(authority.selfLine))
-    score += 1
-  if (hasText(authority.relationshipLine))
-    score += 1
-  if (hasText(authority.motiveLine))
-    score += 1
-  if (hasText(authority.habitLine))
-    score += 1
-  if (hasText(authority.inwardLine))
-    score += 1
-  if (hasText(authority.authoritySummary))
-    score += 1
-  if (Array.isArray(authority.sourceTags) && authority.sourceTags.length > 0)
-    score += 1
-  return score
+  return hasText(authority.closenessPosture) ? 1 : 0
 }
 
 function countAuthorityContinuitySignals(
@@ -112,60 +73,9 @@ function countAuthorityContinuitySignals(
   if (!authority)
     return 0
 
-  const continuityText = [
-    authority.selfLine,
-    authority.relationshipLine,
-    authority.motiveLine,
-    authority.habitLine,
-    authority.inwardLine,
-    authority.authoritySummary,
-  ]
-    .filter(hasText)
-    .join(' ')
-    .toLowerCase()
-
-  let score = 0
-  if (
-    /same-her|same thread|same line|room first|leave room|lower-pressure|measured-return|repair before closeness|repair first|thread-faithful|bounded|rest-protective|protect rest|quiet[- ]companionship|line inward|stay inward/u.test(continuityText)
-  ) {
-    score += 2
-  }
-  if (Array.isArray(authority.sourceTags) && authority.sourceTags.some(tag => hasText(tag) && tag.trim().toLowerCase() === 'durable-self-core'))
-    score += 2
-  if (Array.isArray(authority.sourceTags) && authority.sourceTags.some(tag => hasText(tag)))
-    score += 1
-  return score
-}
-
-function hasImmediateSelfReturnSignal(raw: unknown) {
-  if (!hasText(raw))
-    return false
-  return /current return|current turn|this turn|right now|fresher current|当前这句|现在这句|这一句|这一轮|这轮|眼下/u.test(String(raw).toLowerCase())
-}
-
-export function hasNeutralRelationshipSignal(raw: unknown) {
-  if (!hasText(raw))
-    return false
-  return /relationship line is neutral|I can be warm|stay usefully oriented toward the host'?s knot/u.test(String(raw))
-}
-
-export function hasContinuityRestraintRelationshipSignal(raw: unknown) {
-  if (!hasText(raw))
-    return false
-  return /repair-before-closeness|repair before closeness|repair-first|lower-pressure|leave room|measured-return|same line|same thread|same living line|same phase 1 digital life|same her|same-her|one living her|one continuous her|without splitting her continuity|bounded-return|before closeness widens|before leaning closer|rest-protective|protect rest|quiet[- ]companionship|line inward|stay inward|initiative|embodiment|resident presence/u.test(String(raw).toLowerCase())
-}
-
-function hasProjectStateClosureSignal(raw: unknown) {
-  if (!hasText(raw))
-    return false
-  return /same phase 1 digital life|same living line|one continuous her|continuous her|keep the same living line inward for now|leave room before widening outward again|same-her closure seam|rest-protective|protect rest|quiet[- ]companionship|line inward|stay inward/u.test(String(raw).toLowerCase())
-}
-
-function hasRememberedSeamMoreRoomSignal(raw: unknown) {
-  if (!hasText(raw))
-    return false
-  return /remembered seam|same remembered relationship seam|same remembered seam|同一条线|留白/u.test(String(raw).toLowerCase())
-    && /reopened too eagerly|too eagerly before|more room this time|keep more room this time|slower this time|不要重开得太快|上次太急|这次更要留白/u.test(String(raw).toLowerCase())
+  return Array.isArray(authority.sourceTags)
+    ? Math.min(2, authority.sourceTags.filter(hasText).length)
+    : 0
 }
 
 function mergeAuthoritySourceTags(...tagLists: Array<readonly string[] | null | undefined>) {
@@ -179,12 +89,39 @@ function mergeAuthoritySourceTags(...tagLists: Array<readonly string[] | null | 
       if (!hasText(rawTag))
         continue
       const tag = rawTag.trim()
+      if (
+        tag.startsWith('project-state-')
+        || tag.includes('project-carry')
+      ) {
+        continue
+      }
       if (!mergedTags.includes(tag))
         mergedTags.push(tag)
     }
   }
 
   return mergedTags.length > 0 ? mergedTags : undefined
+}
+
+function sanitizeAuthorityProvenance<T extends Partial<AlicizationSelfContinuityAuthority>>(
+  authority: T | null,
+) {
+  if (!authority)
+    return authority
+
+  const sourceTags = mergeAuthoritySourceTags(authority.sourceTags) ?? []
+  const originalTags = Array.isArray(authority.sourceTags) ? authority.sourceTags : []
+  if (
+    sourceTags.length === originalTags.length
+    && sourceTags.every((tag, index) => tag === originalTags[index])
+  ) {
+    return authority
+  }
+
+  return {
+    ...authority,
+    sourceTags,
+  } as T
 }
 
 export function resolvePreferredPersonStateProjection<T extends Partial<AlicizationPersonStateProjection>>(input: {
@@ -203,11 +140,6 @@ export function resolvePreferredPersonStateProjection<T extends Partial<Alicizat
   const runtimeStructureScore = countProjectionStructureSignals(runtimeProjection)
   const bundleContinuityScore = countProjectionContinuitySignals(bundleProjection)
   const runtimeContinuityScore = countProjectionContinuitySignals(runtimeProjection)
-  const bundleHasRememberedSeamMoreRoomOpeningGuidance = hasRememberedSeamMoreRoomSignal(bundleProjection.openingGuidance)
-  const runtimeHasRememberedSeamMoreRoomOpeningGuidance = hasRememberedSeamMoreRoomSignal(runtimeProjection.openingGuidance)
-
-  if (bundleHasRememberedSeamMoreRoomOpeningGuidance && !runtimeHasRememberedSeamMoreRoomOpeningGuidance)
-    return bundleProjection
 
   if (
     runtimeStructureScore >= bundleStructureScore + 3
@@ -238,8 +170,8 @@ export function resolvePreferredSelfContinuityAuthority<T extends Partial<Aliciz
   bundleAuthority?: T | null
   runtimeAuthority?: T | null
 }) {
-  const bundleAuthority = input.bundleAuthority ?? null
-  const runtimeAuthority = input.runtimeAuthority ?? null
+  const bundleAuthority = sanitizeAuthorityProvenance(input.bundleAuthority ?? null)
+  const runtimeAuthority = sanitizeAuthorityProvenance(input.runtimeAuthority ?? null)
 
   if (!bundleAuthority)
     return runtimeAuthority
@@ -279,58 +211,32 @@ export function mergePreferredSelfContinuityAuthority<T extends Partial<Alicizat
   bundleAuthority?: T | null
   runtimeAuthority?: T | null
 }) {
-  const bundleAuthority = input.bundleAuthority ?? null
-  const runtimeAuthority = input.runtimeAuthority ?? null
-  const preferredAuthority = resolvePreferredSelfContinuityAuthority(input)
+  const bundleAuthority = sanitizeAuthorityProvenance(input.bundleAuthority ?? null)
+  const runtimeAuthority = sanitizeAuthorityProvenance(input.runtimeAuthority ?? null)
+  const preferredAuthority = resolvePreferredSelfContinuityAuthority({
+    bundleAuthority,
+    runtimeAuthority,
+  })
 
   if (!bundleAuthority || !runtimeAuthority)
     return preferredAuthority
 
-  const runtimeLooksLikeThinCurrentCarry = hasText(runtimeAuthority.selfLine)
-    && !hasText(runtimeAuthority.relationshipLine)
-    && !hasText(runtimeAuthority.authoritySummary)
   const preferredIsRuntime = preferredAuthority === runtimeAuthority
-  const runtimeIsCanonicalCompleteAuthority = preferredIsRuntime
-    && hasText(runtimeAuthority.selfLine)
-    && hasText(runtimeAuthority.relationshipLine)
-    && hasText(runtimeAuthority.authoritySummary)
-    && (!hasText(bundleAuthority.authoritySummary)
-      || countAuthorityStructureSignals(runtimeAuthority) >= countAuthorityStructureSignals(bundleAuthority))
-  if (runtimeIsCanonicalCompleteAuthority)
-    return runtimeAuthority
   const preferRuntimeSelfLine = hasText(runtimeAuthority.selfLine) && (
     preferredIsRuntime
     || !hasText(bundleAuthority.selfLine)
-    || runtimeLooksLikeThinCurrentCarry
-    || (hasImmediateSelfReturnSignal(runtimeAuthority.selfLine) && !hasImmediateSelfReturnSignal(bundleAuthority.selfLine))
   )
   const preferRuntimeRelationshipLine = hasText(runtimeAuthority.relationshipLine) && (
     preferredIsRuntime
     || !hasText(bundleAuthority.relationshipLine)
-    || (
-      hasContinuityRestraintRelationshipSignal(runtimeAuthority.relationshipLine)
-      && hasNeutralRelationshipSignal(bundleAuthority.relationshipLine)
-    )
-    || (
-      hasContinuityRestraintRelationshipSignal(runtimeAuthority.relationshipLine)
-      && !hasContinuityRestraintRelationshipSignal(bundleAuthority.relationshipLine)
-    )
   )
   const preferRuntimeInwardLine = hasText(runtimeAuthority.inwardLine) && (
     preferredIsRuntime
     || !hasText(bundleAuthority.inwardLine)
-    || (
-      hasProjectStateClosureSignal(runtimeAuthority.inwardLine)
-      && !hasProjectStateClosureSignal(bundleAuthority.inwardLine)
-    )
   )
   const preferRuntimeAuthoritySummary = hasText(runtimeAuthority.authoritySummary) && (
     preferredIsRuntime
     || !hasText(bundleAuthority.authoritySummary)
-    || (
-      hasProjectStateClosureSignal(runtimeAuthority.authoritySummary)
-      && !hasProjectStateClosureSignal(bundleAuthority.authoritySummary)
-    )
   )
 
   const mergedAuthority = {

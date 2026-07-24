@@ -306,5 +306,8 @@ describe('runtime-host-person-model-reducer', () => {
     expect(source).not.toMatch(
       /deriveSelfEvolutionOpeningBias|Host preference for this context|host_preference=|memory-led|mergeGuidanceLine|mergeUniqueRules/u,
     )
+    expect(source).not.toMatch(
+      /hasContinuityRestraintRelationshipSignal|hasNeutralRelationshipSignal|runtime\|diff\|code\|patch\|cursor\|terminal/u,
+    )
   })
 })

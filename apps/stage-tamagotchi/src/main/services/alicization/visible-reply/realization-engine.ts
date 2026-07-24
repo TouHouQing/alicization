@@ -8,10 +8,10 @@ import type { AlicizationVisibleReplyCriticArtifact } from './critic'
 import {
   alicizationFixedTemplateReplacement,
   containsAlicizationFixedTemplateResidue,
+  isAlicizationInfraVisibleReplyAuthority,
   isAlicizationNormalVisibleReplyAuthority,
   looksLikeAlicizationStructuredPayloadText,
   normalizeAlicizationNormalVisibleReplyAuthority,
-  sanitizeAlicizationProviderFacingText,
   sanitizeAlicizationStructuredInternalText,
 } from '@proj-alicization/stage-shared'
 
@@ -146,8 +146,6 @@ export interface AlicizationResolvedVisibleReply {
 
 function isLocalDeterministicVisibleFallback(execution: AlicizationVisibleReplyExecution) {
   return execution.actualVisibleReplyAuthority === 'local-deterministic-fallback'
-    || execution.providerMindExecuted === false
-    || execution.mode === 'local-fallback'
 }
 
 function resolvePreparedReplyExecutionPlan(prepared: AlicizationPreparedMainChatExecutionResult) {
@@ -203,6 +201,10 @@ function resolveActualVisibleReplyAuthority(input: {
   requestedAuthority?: AlicizationVisibleReplyExecution['actualVisibleReplyAuthority']
   providerMindExecuted: boolean
 }) {
+  if (isAlicizationInfraVisibleReplyAuthority(input.requestedAuthority)
+    && input.requestedAuthority === 'non-human-authored-blocked') {
+    return input.requestedAuthority
+  }
   if (!input.providerMindExecuted || input.mode === 'local-fallback')
     return 'local-deterministic-fallback' as const
 
@@ -213,28 +215,6 @@ function resolveActualVisibleReplyAuthority(input: {
     input.expectedVisibleReplyAuthority,
     'llm-mind',
   )
-}
-
-function cueRequiresLowPressure(cue: string | null) {
-  const normalized = typeof cue === 'string' ? cue.toLowerCase() : ''
-  if (!normalized)
-    return false
-  return normalized.includes('low-pressure')
-    || normalized.includes('lower-pressure')
-    || normalized.includes('leave more room')
-    || normalized.includes('轻一点')
-    || normalized.includes('放轻')
-}
-
-function cueAvoidsRestart(cue: string | null) {
-  const normalized = typeof cue === 'string' ? cue.toLowerCase() : ''
-  if (!normalized)
-    return false
-  return normalized.includes('do not reopen from scratch')
-    || normalized.includes('without reopening from scratch')
-    || normalized.includes('same living line is still settling')
-    || normalized.includes('不要重新开')
-    || normalized.includes('不要从头重开')
 }
 
 export function createAlicizationVisibleReplyExecution(input: {
@@ -305,8 +285,6 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
     emotionalClosureAudit: emotionalClosureCue
       ? {
           activeCue: emotionalClosureCue,
-          lowPressureRequired: cueRequiresLowPressure(emotionalClosureCue),
-          antiRestartRequired: cueAvoidsRestart(emotionalClosureCue),
         }
       : null,
     selfAuthorityAudit: selfAuthoritySummary || selfAuthorityClosenessPosture
@@ -352,7 +330,7 @@ export function deriveAlicizationVisibleReplyText(rawText: string) {
     return ''
 
   const visibleTextOrEmpty = (value: string) =>
-    sanitizeAlicizationProviderFacingText(value, 4000, '')
+    value.trim().replace(/\s+/g, ' ').slice(0, 4000)
 
   const parsed = parseJsonObjectFromText(normalizedText)
   const structuredReply = typeof parsed?.reply === 'string'

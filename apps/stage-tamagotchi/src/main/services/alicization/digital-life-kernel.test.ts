@@ -311,7 +311,7 @@ describe('digital life kernel', () => {
     expect(surface.dialogue.runtimeDigest?.emotionalKernel).toEqual(currentKernel)
   })
 
-  it('preserves a stronger persisted same-thread person-state projection when rebuilding the runtime surface', () => {
+  it('does not prefer a persisted person-state projection because it contains legacy continuity prose', () => {
     const state = createDefaultVisualPresenceState(8_000)
     state.autobiographicalSelf = {
       latestInflection: 'structured continuity digest.',
@@ -343,15 +343,12 @@ describe('digital life kernel', () => {
 
     const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
 
-    expect(surface.memory.personStateProjection?.summary).toContain('project_continuity=the same callback line is still continuing lower-pressure after another detour')
-    expect(surface.memory.personStateProjection?.openingGuidance).toContain('same callback line')
-    expect(surface.memory.personStateProjection?.selfContinuityAuthority?.sourceTags).toEqual(expect.arrayContaining([
-      'project-state-carry',
-      'continuity-execution-callback-project-carry',
-    ]))
+    expect(surface.memory.personStateProjection?.summary).not.toContain('project_continuity=the same callback line is still continuing lower-pressure after another detour')
+    expect(surface.memory.personStateProjection?.openingGuidance ?? '').not.toContain('same callback line')
+    expect(surface.memory.personStateProjection?.selfContinuityAuthority?.sourceTags ?? []).not.toContain('project-state-carry')
   })
 
-  it('rebuilds project-state carry on runtime surface authority when persisted authority drifted to thin fresh-return tags but same-line closure is still explicit', () => {
+  it('does not manufacture project-state authority tags from current-frame prose', () => {
     const state = createDefaultVisualPresenceState(9_000)
     state.autobiographicalSelf = {
       latestInflection: 'structured continuity digest.',
@@ -414,9 +411,7 @@ describe('digital life kernel', () => {
 
     const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
 
-    expect(surface.memory.personStateProjection?.selfContinuityAuthority?.sourceTags).toEqual(expect.arrayContaining([
-      'project-state-carry',
-    ]))
+    expect(surface.memory.personStateProjection?.selfContinuityAuthority?.sourceTags ?? []).not.toContain('project-state-carry')
   })
 
   it('derives a stable continuity signal from the runtime surface', () => {

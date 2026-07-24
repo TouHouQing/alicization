@@ -1,4 +1,7 @@
-import type { AlicizationProactiveStyle } from '../../../shared/eventa'
+import type {
+  AlicizationAutobiographicalSelfSnapshot,
+  AlicizationProactiveStyle,
+} from '../../../shared/eventa'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
@@ -11,6 +14,10 @@ export function buildRelationshipDoctrineGuidance(input: {
   authority?: AlicizationSelfContinuityAuthority | null
   doctrineText?: string | null
   contexts?: string[]
+  conflictStyle?: AlicizationAutobiographicalSelfSnapshot['personaDrift']['conflictStyle'] | null
+  quietObservation?: number | null
+  autonomyRespect?: number | null
+  truthfulGrounding?: number | null
 }) {
   const doctrineText = sanitizeText(
     input.authority?.relationshipLine
@@ -18,13 +25,18 @@ export function buildRelationshipDoctrineGuidance(input: {
     || '',
     220,
   )
-  const lower = doctrineText.toLowerCase()
   const contexts = input.contexts ?? []
 
-  const repairBeforeCloseness = /repair before|先修复|修复.*先于|先修复再靠近|修复先于亲近/iu.test(lower)
-  const truthBeforeWarmth = /truth|真实|reality|repair truth|真相|不让靠近越过真实|outrun truth|truth before/iu.test(lower)
-  const leaveRoom = /space|room|pressure|crowd|lighter|leave room|空间|留白|压迫|轻一点|presence becomes pressure/iu.test(lower)
-  const restIntervention = /rest deserves|rest window|休息值得|先休息|rest protection/iu.test(lower)
+  const repairBeforeCloseness = input.conflictStyle === 'repair-first'
+  const truthBeforeWarmth = (input.truthfulGrounding ?? 0) >= 0.72
+  const leaveRoom = input.authority?.closenessPosture === 'space-first'
+    || (input.quietObservation ?? 0) >= 0.68
+    || (input.autonomyRespect ?? 0) >= 0.76
+  const restIntervention = contexts.includes('late-night')
+    && (
+      (input.quietObservation ?? 0) >= 0.76
+      || (input.autonomyRespect ?? 0) >= 0.8
+    )
 
   const doctrineSummary = doctrineText || ''
   const cautious = repairBeforeCloseness || leaveRoom

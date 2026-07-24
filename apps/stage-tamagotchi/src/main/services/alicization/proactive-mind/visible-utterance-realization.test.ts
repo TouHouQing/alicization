@@ -19,7 +19,7 @@ const realizationKeys = [
   'visibleText',
 ].sort()
 
-function expectCurrentRealizationShape(value: Record<string, unknown>) {
+function expectCurrentRealizationShape(value: object) {
   expect(Object.keys(value).sort()).toEqual(realizationKeys)
 }
 
@@ -109,5 +109,49 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     expect(resolved.visibleReplyRealization.visibleText).toBe(resolved.assistantText)
     expect(JSON.stringify(resolved.visibleReplyRealization)).not.toContain('legacy-governance-payload-ignored')
     expectCurrentRealizationShape(resolved.visibleReplyRealization)
+  })
+
+  it('does not blacklist provider-authored wording that mentions project or personhood terms', () => {
+    const reply = 'I still remember that you called this Phase 1 work part of the same her, and I want to answer the actual question now.'
+    const resolved = resolveAlicizationProactiveVisibleUtterance({
+      kind: 'subconscious-proactive',
+      structured: {
+        reply,
+      },
+      hasMindAuthoredStructured: true,
+    })
+
+    expect(resolved.shouldPersistVisibleUtterance).toBe(true)
+    expect(resolved.assistantText).toBe(reply)
+    expect(resolved.visibleReplyRealization.visibleText).toBe(reply)
+    expect(resolved.visibleReplyExecution.actualVisibleReplyAuthority).toBe('llm-mind')
+  })
+
+  it('persists an explicit infrastructure failure without treating it as mind-authored', () => {
+    const resolved = resolveAlicizationProactiveVisibleUtterance({
+      kind: 'subconscious-proactive',
+      structured: {
+        reply: '提供方认证失败。',
+        visibleReplyAuthority: 'non-human-authored-blocked',
+        excludeFromPersonaLearning: true,
+        excludeFromMemoryCondensation: true,
+      },
+      hasMindAuthoredStructured: false,
+      actualVisibleReplyAuthority: 'non-human-authored-blocked',
+      allowTransparentFailureSurface: true,
+      reason: 'proactive-provider-auth-failed',
+    })
+
+    expect(resolved.shouldPersistVisibleUtterance).toBe(true)
+    expect(resolved.assistantText).toBe('提供方认证失败。')
+    expect(resolved.visibleReplyRealization).toEqual(expect.objectContaining({
+      actualAuthority: 'non-human-authored-blocked',
+      visibleText: '提供方认证失败。',
+    }))
+    expect(resolved.visibleReplyExecution).toEqual(expect.objectContaining({
+      mode: 'local-fallback',
+      providerMindExecuted: false,
+      actualVisibleReplyAuthority: 'non-human-authored-blocked',
+    }))
   })
 })

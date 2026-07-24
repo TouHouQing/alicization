@@ -27,7 +27,6 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
-import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -61,65 +60,6 @@ interface AlicizationInitiativeProjectStateInput {
   sameHerSelfLine?: string | null
   sameHerDriftRisk?: string | null
   sameHerDriftRiskSummary?: string | null
-}
-
-function normalizeInitiativeProjectStateText(value: string | null | undefined) {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function resolveInitiativeProjectStateSnapshot(input?: AlicizationInitiativeProjectStateInput | null) {
-  if (!input) {
-    return {
-      preflightSummary: null,
-      identity: '',
-      currentPhase: '',
-      latestLandedProgress: null,
-      primaryOpenLoop: null,
-      nextClosureTarget: '',
-      sameHerSelfLine: '',
-      sameHerDriftRisk: '',
-    }
-  }
-
-  const explicitLatestLandedProgressInput = normalizeInitiativeProjectStateText(
-    input.latestLandedProgress ?? input.latestProgress,
-  )
-  const summaryLatestLandedProgressInput = normalizeInitiativeProjectStateText(input.landedProgressSummary)
-  const liveLatestLandedProgressInput = explicitLatestLandedProgressInput || summaryLatestLandedProgressInput || null
-
-  const explicitPrimaryOpenLoopInput = normalizeInitiativeProjectStateText(input.primaryOpenLoop)
-  const summaryPrimaryOpenLoopInput = normalizeInitiativeProjectStateText(input.openClosureSummary)
-  const livePrimaryOpenLoopInput = explicitPrimaryOpenLoopInput || summaryPrimaryOpenLoopInput || null
-
-  const explicitNextClosureTargetInput = normalizeInitiativeProjectStateText(input.nextClosureTarget)
-  const summaryNextClosureTargetInput = normalizeInitiativeProjectStateText(input.nextClosureTargetSummary)
-  const liveNextClosureTargetInput = explicitNextClosureTargetInput || summaryNextClosureTargetInput || null
-
-  const explicitSameHerDriftRiskInput = normalizeInitiativeProjectStateText(input.sameHerDriftRisk)
-  const summarySameHerDriftRiskInput = normalizeInitiativeProjectStateText(input.sameHerDriftRiskSummary)
-  const liveSameHerDriftRiskInput = explicitSameHerDriftRiskInput || summarySameHerDriftRiskInput || null
-
-  return resolveAlicizationProjectStateSnapshot({
-    runtimeProjectState: {
-      preflightSummary: input.preflightSummary,
-      identity: input.identity,
-      currentPhase: input.currentPhase,
-      latestLandedProgress: liveLatestLandedProgressInput,
-      latestProgress: liveLatestLandedProgressInput,
-      landedProgressSummary: summaryLatestLandedProgressInput || null,
-      primaryOpenLoop: livePrimaryOpenLoopInput,
-      openClosureSummary: summaryPrimaryOpenLoopInput || null,
-      nextClosureTarget: liveNextClosureTargetInput,
-      nextClosureTargetSummary: summaryNextClosureTargetInput || null,
-      sameHerSelfLine: input.sameHerSelfLine,
-      sameHerDriftRisk: liveSameHerDriftRiskInput,
-      sameHerDriftRiskSummary: summarySameHerDriftRiskInput || null,
-    },
-  })
-}
-
-function lowerFirst(value: string) {
-  return value ? `${value.charAt(0).toLowerCase()}${value.slice(1)}` : ''
 }
 
 function actionSpeaks(action: AlicizationMindActionTendency) {
@@ -296,35 +236,6 @@ function continuityGain(input: {
   return clamp01(afterglowGain + carryOverGain)
 }
 
-function hasProjectSameLineContinuityCue(value: string) {
-  return [
-    'same-her',
-    'same her',
-    'identity-continuity',
-    'continuity-axis',
-    'same living bond line',
-    'measured-return',
-    '同一个 her',
-    '同一个她',
-    '同一条线',
-    '同一生命线',
-    '接回去',
-    '继续沿着这条线',
-    '回线',
-  ].some(needle => value.includes(needle))
-}
-
-function hasChineseProjectSameLineContinuityCue(value: string) {
-  return [
-    '同一个她',
-    '同一条线',
-    '同一生命线',
-    '接回去',
-    '继续沿着这条线',
-    '回线',
-  ].some(needle => value.includes(needle))
-}
-
 function autobiographicalPreferenceGain(input: {
   action: AlicizationMindActionTendency
   source: AlicizationInitiativeProposalSnapshot['source']
@@ -398,96 +309,6 @@ function finalScore(input: {
   return clamp01(input.base + input.continuityGain + input.preferenceGain - input.truthCost - input.interruptionCost - input.relationshipCost)
 }
 
-function deriveProjectStateArbitrationBias(input?: AlicizationInitiativeProjectStateInput | null) {
-  const projectState = resolveInitiativeProjectStateSnapshot(input)
-  const preflightSummary = sanitizeText(projectState.preflightSummary, 320).toLowerCase()
-  const identity = sanitizeText(projectState.identity, 160).toLowerCase()
-  const currentPhase = sanitizeText(projectState.currentPhase, 120).toLowerCase()
-  const primaryOpenLoop = sanitizeText(projectState.primaryOpenLoop, 200).toLowerCase()
-  const nextClosureTarget = sanitizeText(projectState.nextClosureTarget, 220).toLowerCase()
-  const sameHerSelfLine = sanitizeText(projectState.sameHerSelfLine, 220).toLowerCase()
-  const rawCombinedProjectState = [
-    input?.preflightSummary,
-    input?.identity,
-    input?.currentPhase,
-    input?.latestLandedProgress,
-    input?.latestProgress,
-    input?.landedProgressSummary,
-    input?.primaryOpenLoop,
-    input?.openClosureSummary,
-    input?.nextClosureTarget,
-    input?.nextClosureTargetSummary,
-    input?.sameHerSelfLine,
-  ]
-    .map(part => sanitizeText(part, 320).toLowerCase())
-    .filter(Boolean)
-    .join(' ')
-  const combinedProjectState = `${preflightSummary} ${identity} ${currentPhase} ${primaryOpenLoop} ${nextClosureTarget} ${sameHerSelfLine} ${rawCombinedProjectState}`.trim()
-
-  const phaseOneDigitalLife = combinedProjectState.includes('phase 1')
-    || combinedProjectState.includes('local digital life')
-    || combinedProjectState.includes('阶段一')
-    || combinedProjectState.includes('本地数字生命')
-  const digitalLifeIdentity = [
-    'digital life',
-    'lifeform',
-    'digital companion',
-    '数字生命',
-    '陪伴',
-    '生命体',
-  ].some(needle => combinedProjectState.includes(needle))
-  const openLifeLoop = [
-    'memory closure',
-    'personhood continuity',
-    'initiative',
-    'embodiment',
-    'execution',
-    'relationship continuity',
-    '主动性',
-    '记忆',
-    '人格连续',
-    '闭环',
-    '拟人',
-    '生命',
-  ].some(needle => combinedProjectState.includes(needle))
-  const sameHerClosureDirection = [
-    'repair-before-closeness',
-    'cross-modal',
-    'visible reply',
-    'resident presence',
-    'facial state',
-    'motion',
-    '同一个 her',
-    '同一个她',
-    '拟人',
-    '具身',
-    '跨模态',
-    '修复优先',
-  ].some(needle => combinedProjectState.includes(needle)) || hasProjectSameLineContinuityCue(combinedProjectState)
-
-  return {
-    requiresLifeLoopClosure: phaseOneDigitalLife && digitalLifeIdentity && openLifeLoop,
-    sameHerClosureDirection,
-  }
-}
-
-function carriesAutobiographicalProjectLine(motiveEngine?: AlicizationMotiveEngineSnapshot | null) {
-  const agenda = asArray(motiveEngine?.backgroundAgendas)[0] ?? null
-  if (!agenda || agenda.kind !== 'return-open-loop')
-    return false
-
-  const sourceTags = (agenda.sourceTags ?? []).map(tag => sanitizeText(tag, 64).toLowerCase())
-  const summary = sanitizeText(agenda.summary, 220).toLowerCase()
-  return sourceTags.includes('autobiographical-self')
-    && sourceTags.includes('project-state-carry')
-    && (
-      summary.includes('same living line')
-      || summary.includes('same living bond line')
-      || summary.includes('unfinished phase 1 digital-life closure')
-      || summary.includes('detached project bookkeeping')
-    )
-}
-
 function proposalBias(input: {
   proposal: AlicizationInitiativeProposalSnapshot
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
@@ -496,8 +317,6 @@ function proposalBias(input: {
   projectState?: AlicizationInitiativeProjectStateInput | null
 }) {
   let bias = 0
-  const projectStateBias = deriveProjectStateArbitrationBias(input.projectState ?? null)
-  const autobiographicalProjectCarry = carriesAutobiographicalProjectLine(input.motiveEngine ?? null)
 
   switch (input.proposal.action) {
     case 'recheck':
@@ -505,18 +324,12 @@ function proposalBias(input: {
       bias += (input.motiveEngine?.returnPressure ?? 0) * 0.1
       bias += input.habitPolicy?.requiresGroundingBeforeSurface ? 0.08 : 0
       bias += input.habitPolicy?.returnViaRecheck ? 0.08 : 0
-      if (autobiographicalProjectCarry)
-        bias += 0.08
       break
     case 'hover':
     case 'whisper':
       bias += (input.motiveEngine?.drives.companionship ?? 0) * 0.08
       bias += input.habitPolicy?.prefersQuietCompanionship ? 0.12 : 0
       bias += input.habitPolicy?.blocksDirectSpeakWhenBusy ? 0.06 : 0
-      if (autobiographicalProjectCarry && input.proposal.action === 'hover')
-        bias += 0.12
-      if (autobiographicalProjectCarry && input.proposal.action === 'whisper')
-        bias -= 0.06
       break
     case 'warn':
       bias += (input.motiveEngine?.drives.restProtection ?? 0) * 0.14
@@ -526,36 +339,15 @@ function proposalBias(input: {
       bias += (input.motiveEngine?.drives.restProtection ?? 0) * 0.08
       bias += (input.motiveEngine?.drives.companionship ?? 0) * 0.04
       bias -= input.habitPolicy?.blocksDirectSpeakWhenBusy ? 0.12 : 0
-      if (autobiographicalProjectCarry)
-        bias -= 0.12
       break
     case 'wait':
       bias += (input.motiveEngine?.drives.boundaryRespect ?? 0) * 0.08
       bias += input.habitPolicy?.blocksDirectSpeakWhenBusy ? 0.12 : 0
-      if (autobiographicalProjectCarry)
-        bias += 0.1
       break
   }
 
   if (input.concern?.kind === 'care-body' && (input.proposal.action === 'warn' || input.proposal.action === 'speak'))
     bias += (input.motiveEngine?.drives.restProtection ?? 0) * 0.08
-
-  if (projectStateBias.requiresLifeLoopClosure && input.concern?.kind !== 'care-body') {
-    if (input.proposal.action === 'hover' || input.proposal.action === 'recheck' || input.proposal.action === 'wait')
-      bias += 0.1
-    if (input.proposal.action === 'whisper')
-      bias -= 0.08
-    if (input.proposal.action === 'speak')
-      bias -= 0.12
-  }
-  if (projectStateBias.sameHerClosureDirection && input.concern?.kind !== 'care-body') {
-    if (input.proposal.action === 'hover' || input.proposal.action === 'recheck' || input.proposal.action === 'wait')
-      bias += 0.08
-    if (input.proposal.action === 'whisper')
-      bias -= 0.08
-    if (input.proposal.action === 'speak')
-      bias -= 0.1
-  }
 
   return Math.max(-0.18, Math.min(0.22, Number(bias.toFixed(2))))
 }
@@ -565,250 +357,7 @@ function buildPersonaProposalWhy(input: {
   action: AlicizationMindActionTendency
   baseWhy: string
 }) {
-  const authority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
-  const initiativeStyle = input.personalityAuthority?.identityKernel?.initiativeStyle ?? null
-  const silenceReconnect = input.personalityAuthority?.initiativeBaseline?.silenceReconnect ?? null
-  const relationshipPosture = input.personalityAuthority?.identityKernel?.relationshipPosture ?? null
-
-  const personaLine = (() => {
-    if ((initiativeStyle === 'observant' || silenceReconnect === 'hold') && (input.action === 'hover' || input.action === 'wait'))
-      return 'persona prefers observe-first room before a closer move.'
-    if ((initiativeStyle === 'high-participation' || silenceReconnect === 'direct-approach') && (input.action === 'whisper' || input.action === 'speak'))
-      return 'persona prefers a direct reconnect once the opening is real.'
-    if (relationshipPosture === 'guardian' && (input.action === 'warn' || input.action === 'speak' || input.action === 'whisper'))
-      return 'persona carries a guardian-like care bias in this opening.'
-    if (authority.preferredProactiveStyle === 'silent-observe' && input.action === 'hover')
-      return 'persona keeps the move in observe-first posture.'
-    return ''
-  })()
-
-  return sanitizeText([
-    input.baseWhy,
-    personaLine ? `persona=${personaLine}` : '',
-  ].filter(Boolean).join(' '), initiativeWhyMaxChars) || input.baseWhy
-}
-
-function buildProjectClosureProposalWhy(input: {
-  action: AlicizationMindActionTendency
-  projectState?: AlicizationInitiativeProjectStateInput | null
-}) {
-  const rawProjectState = input.projectState ?? null
-  const projectState = resolveInitiativeProjectStateSnapshot(input.projectState ?? null)
-  const preflightSummary = sanitizeText(projectState.preflightSummary, 320)
-  const identity = sanitizeText(projectState.identity, 180)
-  const currentPhase = sanitizeText(projectState.currentPhase, 120)
-  const latestLandedProgress = sanitizeText(projectState.latestLandedProgress, 220)
-  const primaryOpenLoop = sanitizeText(projectState.primaryOpenLoop, 200)
-  const nextClosureTarget = sanitizeText(projectState.nextClosureTarget, 220)
-  const sameHerSelfLine = sanitizeText(projectState.sameHerSelfLine, 220)
-  const rawPrimaryOpenLoop = sanitizeText(
-    normalizeInitiativeProjectStateText(rawProjectState?.primaryOpenLoop ?? rawProjectState?.openClosureSummary),
-    220,
-  )
-  const rawNextClosureTarget = sanitizeText(
-    normalizeInitiativeProjectStateText(rawProjectState?.nextClosureTarget ?? rawProjectState?.nextClosureTargetSummary),
-    220,
-  )
-  const rawSameHerSelfLine = sanitizeText(normalizeInitiativeProjectStateText(rawProjectState?.sameHerSelfLine), 220)
-  const rawCombined = [
-    rawProjectState?.preflightSummary,
-    rawProjectState?.identity,
-    rawProjectState?.currentPhase,
-    rawProjectState?.latestLandedProgress,
-    rawProjectState?.latestProgress,
-    rawProjectState?.landedProgressSummary,
-    rawProjectState?.primaryOpenLoop,
-    rawProjectState?.openClosureSummary,
-    rawProjectState?.nextClosureTarget,
-    rawProjectState?.nextClosureTargetSummary,
-    rawProjectState?.sameHerSelfLine,
-  ]
-    .map(part => sanitizeText(part, 320))
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-  const combined = `${preflightSummary} ${identity} ${currentPhase} ${latestLandedProgress} ${primaryOpenLoop} ${nextClosureTarget} ${sameHerSelfLine} ${rawCombined}`.toLowerCase()
-
-  const phaseOneDigitalLife = combined.includes('phase 1')
-    || combined.includes('local digital life')
-    || combined.includes('阶段一')
-    || combined.includes('本地数字生命')
-  const continuousHer = combined.includes('same phase 1 digital life') || hasProjectSameLineContinuityCue(combined)
-  const openClosure = combined.includes('closure')
-    || combined.includes('initiative')
-    || combined.includes('memory')
-    || combined.includes('embodiment')
-    || combined.includes('dialogue')
-    || combined.includes('闭环')
-    || combined.includes('主动性')
-    || combined.includes('记忆')
-    || combined.includes('具身')
-    || combined.includes('对话')
-  const legacyLatestProgressOnly
-    = !normalizeInitiativeProjectStateText(rawProjectState?.latestLandedProgress)
-      && Boolean(normalizeInitiativeProjectStateText(rawProjectState?.latestProgress))
-  const landedProgressCue = latestLandedProgress
-    ? `landed progress is already carrying through ${lowerFirst(latestLandedProgress)}.`
-    : ''
-  const projectIdentityCue = identity
-    ? `project is still ${lowerFirst(identity)
-      .replace(/^alicization is a\s+/i, '')
-      .replace(/\s+project building one continuous her\.?$/i, ' project')
-      .replace(/\s+building one continuous her\.?$/i, '')
-      .trim()}.`
-    : ''
-  const projectPhaseCue = currentPhase
-    ? `phase stays ${lowerFirst(currentPhase)}.`
-    : ''
-  const openLoopFocusCue = (() => {
-    if (!primaryOpenLoop)
-      return ''
-
-    const normalizedOpenLoop = `${primaryOpenLoop} ${rawPrimaryOpenLoop}`.toLowerCase()
-    const focus: string[] = []
-
-    if (normalizedOpenLoop.includes('memory'))
-      focus.push('memory')
-    if (normalizedOpenLoop.includes('记忆'))
-      focus.push('memory')
-    if (normalizedOpenLoop.includes('initiative'))
-      focus.push('initiative')
-    if (normalizedOpenLoop.includes('主动性'))
-      focus.push('initiative')
-    if (normalizedOpenLoop.includes('embodiment'))
-      focus.push('embodiment')
-    if (normalizedOpenLoop.includes('具身'))
-      focus.push('embodiment')
-    if (hasProjectSameLineContinuityCue(normalizedOpenLoop))
-      focus.push('same-line')
-    if (normalizedOpenLoop.includes('closure seam'))
-      focus.push('closure-seam')
-    if (normalizedOpenLoop.includes('闭环'))
-      focus.push('closure-seam')
-
-    const compactFocus = focus.length > 0
-      ? focus.join('/')
-      : lowerFirst(primaryOpenLoop).slice(0, 48)
-
-    return `open focus: ${compactFocus}.`
-  })()
-  const nextClosureFocusCue = (() => {
-    if (!nextClosureTarget)
-      return ''
-
-    const normalizedNextClosure = `${nextClosureTarget} ${rawNextClosureTarget}`.toLowerCase()
-    const focus: string[] = []
-
-    if (normalizedNextClosure.includes('project identity carry'))
-      focus.push('project-carry')
-    if (normalizedNextClosure.includes('phase 1'))
-      focus.push('phase-1')
-    if (normalizedNextClosure.includes('阶段一'))
-      focus.push('phase-1')
-    if (normalizedNextClosure.includes('measured-return'))
-      focus.push('measured-return')
-    if (hasProjectSameLineContinuityCue(normalizedNextClosure))
-      focus.push('same-line')
-    if (normalizedNextClosure.includes('initiative'))
-      focus.push('initiative')
-    if (normalizedNextClosure.includes('主动性'))
-      focus.push('initiative')
-    if (normalizedNextClosure.includes('embodiment'))
-      focus.push('embodiment')
-    if (normalizedNextClosure.includes('具身'))
-      focus.push('embodiment')
-
-    const compactFocus = focus.length > 0
-      ? focus.join('/')
-      : lowerFirst(nextClosureTarget).slice(0, 48)
-
-    return `next focus: ${compactFocus}.`
-  })()
-  const projectClosureDirectionCue = (() => {
-    if (nextClosureFocusCue) {
-      return `project closure still points toward ${nextClosureFocusCue
-        .replace(/^next focus:\s*/iu, '')
-        .replace(/\.$/u, '')}.`
-    }
-    if (!nextClosureTarget)
-      return ''
-    return `project closure still points toward ${lowerFirst(nextClosureTarget).slice(0, 96)}.`
-  })()
-  const compactHoverSameHerCue = sameHerSelfLine
-    ? (
-        rawSameHerSelfLine && hasChineseProjectSameLineContinuityCue(rawSameHerSelfLine.toLowerCase())
-          ? rawSameHerSelfLine
-          : phaseOneDigitalLife && continuousHer
-            ? 'memory_continuity=local_runtime; continuity=active.'
-            : sanitizeText(sameHerSelfLine, 96)
-      )
-    : ''
-  const compactProjectIdentityCue = projectIdentityCue
-    ? sanitizeText(projectIdentityCue, 56)
-    : ''
-  const compactLandedProgressCue = latestLandedProgress
-    ? `landed progress is already carrying through ${sanitizeText(lowerFirst(latestLandedProgress), 72)}.`
-    : ''
-
-  if (!phaseOneDigitalLife || !continuousHer || !openClosure)
-    return ''
-
-  if (input.action === 'hover' || input.action === 'wait' || input.action === 'recheck') {
-    return sanitizeText([
-      compactHoverSameHerCue || sameHerSelfLine,
-      legacyLatestProgressOnly
-        ? landedProgressCue
-        : compactProjectIdentityCue || projectIdentityCue || projectPhaseCue,
-      legacyLatestProgressOnly
-        ? openLoopFocusCue
-        : compactLandedProgressCue || landedProgressCue,
-      legacyLatestProgressOnly
-        ? nextClosureFocusCue || projectClosureDirectionCue
-        : openLoopFocusCue,
-      legacyLatestProgressOnly
-        ? ''
-        : projectClosureDirectionCue || nextClosureFocusCue,
-    ].filter(Boolean).join(' '), initiativeWhyMaxChars)
-  }
-
-  if (input.action === 'whisper' || input.action === 'speak') {
-    return sanitizeText([
-      sameHerSelfLine,
-      'initiative_closure=low_pressure; restart=avoid; closeness=widen_later',
-      nextClosureTarget ? `next_closure=${lowerFirst(nextClosureTarget)}` : '',
-      landedProgressCue,
-    ].filter(Boolean).join(' '), 220)
-  }
-
-  if (input.action === 'warn') {
-    return sanitizeText([
-      sameHerSelfLine,
-      landedProgressCue,
-      'initiative_warning=protect_personhood_continuity; urgency=bounded',
-    ].filter(Boolean).join(' '), 220)
-  }
-
-  return ''
-}
-
-function compactInitiativeWhyForProjectCarry(input: {
-  why: string
-  action: AlicizationMindActionTendency
-  projectState?: AlicizationInitiativeProjectStateInput | null
-}) {
-  const projectCarryWhy = buildProjectClosureProposalWhy({
-    action: input.action,
-    projectState: input.projectState ?? null,
-  })
-
-  if (!projectCarryWhy)
-    return sanitizeText(input.why, 220) || 'The inner line is still deciding how close to come.'
-
-  const normalizedWhy = sanitizeText(input.why, 220).toLowerCase()
-  if (input.action === 'hover' && normalizedWhy.includes('stay close to the seam without widening closeness too fast'))
-    return ''
-
-  return sanitizeText(input.why, 220) || 'The inner line is still deciding how close to come.'
+  return sanitizeText(input.baseWhy, initiativeWhyMaxChars)
 }
 
 function createProposal(input: {
@@ -902,17 +451,7 @@ function createProposal(input: {
     why: buildPersonaProposalWhy({
       personalityAuthority: input.personalityAuthority ?? null,
       action: input.action,
-      baseWhy: sanitizeText([
-        compactInitiativeWhyForProjectCarry({
-          why: typeof input.why === 'string' ? input.why : '',
-          action: input.action,
-          projectState: input.projectState ?? null,
-        }),
-        buildProjectClosureProposalWhy({
-          action: input.action,
-          projectState: input.projectState ?? null,
-        }),
-      ].filter(Boolean).join(' '), initiativeWhyMaxChars) || 'The inner line is still deciding how close to come.',
+      baseWhy: sanitizeText(input.why, initiativeWhyMaxChars),
     }),
   }
 }
@@ -1242,7 +781,7 @@ export function buildInitiativeArbitration(input: {
       frame: input.worldOntology?.dominantFrame ?? truthFrameForSurface(input.worldOntology, input.worldModel),
       action: 'wait',
       base: 0.42,
-      why: 'The inner world has not yet earned a nearer move.',
+      why: '',
       context: input.context,
       worldModel: input.worldModel,
       relationshipModel: input.relationshipModel,

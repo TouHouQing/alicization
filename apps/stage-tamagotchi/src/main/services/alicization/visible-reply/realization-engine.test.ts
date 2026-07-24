@@ -88,8 +88,6 @@ describe('visible reply realization engine', () => {
     expect(realization.visibleReplyValidationStatus).toBe('approved')
     expect(realization.emotionalClosureAudit).toEqual({
       activeCue: 'real emotional cue from the emotional subsystem',
-      lowPressureRequired: false,
-      antiRestartRequired: false,
     })
     expect(JSON.stringify(realization)).not.toContain('untrusted nested cue')
     expectNoRetiredSidecars(realization)

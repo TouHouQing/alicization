@@ -155,25 +155,11 @@ function sanitizePersonalityContinuityProjection(
   } satisfies AlicizationPersonalityContinuityStateSnapshot
 }
 
-function includesAny(text: string, needles: string[]) {
-  return needles.some(needle => text.includes(needle))
-}
-
 function readAutobiographicalInitiativeHabitProfile(autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null) {
-  const combined = sanitizeText([
-    autobiographicalSelf?.relationshipDoctrine ?? '',
-    autobiographicalSelf?.latestInflection ?? '',
-    ...(autobiographicalSelf?.behaviorSignatures ?? []),
-  ].join(' | '), 500).toLowerCase()
-  const chooseOpeningsCarefully = combined.includes('habit:choose-openings-carefully')
-    || /clearer opening|fresher opening|leave more room|less eager|wait for a clearer opening|wait for a fresher opening/u.test(combined)
-  const keepGentleOpenings = !chooseOpeningsCarefully
-    && (combined.includes('habit:keep-gentle-openings')
-      || /memory-led|gentle|still receiving/u.test(combined))
-
+  const behaviorSignatures = autobiographicalSelf?.behaviorSignatures ?? []
   return {
-    chooseOpeningsCarefully,
-    keepGentleOpenings,
+    chooseOpeningsCarefully: behaviorSignatures.includes('habit:choose-openings-carefully'),
+    keepGentleOpenings: behaviorSignatures.includes('habit:keep-gentle-openings'),
   }
 }
 
@@ -292,19 +278,19 @@ function derivePreferredProactiveStyle(input: {
   repairBoundaryAnchored: boolean
   hostPreferredStyle: AlicizationProactiveStyle | null
   doctrinePreferredStyle: AlicizationProactiveStyle | null
-  lowerPressureManifestation: boolean
-  durableSelfCoreSameLineContinuation: boolean
+  privateThoughtPreferredStyle?: AlicizationProactiveStyle | null
+  evolutionPreferredStyle?: AlicizationProactiveStyle | null
   autobiographicalChooseOpeningsCarefully?: boolean
   autobiographicalKeepGentleOpenings?: boolean
 }) {
-  if (input.durableSelfCoreSameLineContinuation)
-    return 'silent-observe' as const
   if (input.autobiographicalChooseOpeningsCarefully)
     return 'silent-observe' as const
   if (input.autobiographicalKeepGentleOpenings)
     return 'light-nudge' as const
-  if (input.lowerPressureManifestation)
-    return 'silent-observe' as const
+  if (input.privateThoughtPreferredStyle)
+    return input.privateThoughtPreferredStyle
+  if (input.evolutionPreferredStyle)
+    return input.evolutionPreferredStyle
   if (
     input.restrained
     && !input.repairBoundaryAnchored
@@ -336,25 +322,15 @@ function derivePreferredProactiveStyle(input: {
   return null
 }
 
-function prefersDurableSelfCoreSameLineContinuation(authority?: AlicizationSelfContinuityAuthority | null) {
-  if (!authority?.sourceTags.includes('durable-self-core'))
-    return false
-
-  const combined = [
-    authority.selfLine ?? '',
-    authority.relationshipLine ?? '',
-    authority.inwardLine ?? '',
-    authority.authoritySummary ?? '',
-  ].join(' | ').toLowerCase()
-
-  if (!combined)
-    return false
-
-  const carriesSameSelf = /same her|same self|living self|one continuous her/u.test(combined)
-  const carriesRestartRestraint = /without reopening from scratch|do not reopen from scratch|same line instead of restarting|instead of restarting every turn|without restarting from zero|without restarting from scratch/u.test(combined)
-  const carriesCrossSurfaceContinuity = /across quiet, memory, and speech|across memory and speech/u.test(combined)
-
-  return carriesSameSelf && carriesRestartRestraint && carriesCrossSurfaceContinuity
+function deriveEvolutionPreferredProactiveStyle(rung: string | null | undefined): AlicizationProactiveStyle | null {
+  switch (sanitizeText(rung, 64).toLowerCase()) {
+    case 'space-first':
+      return 'silent-observe'
+    case 'warm-near':
+      return 'light-nudge'
+    default:
+      return null
+  }
 }
 
 function deriveClosenessRung(input: {
@@ -365,7 +341,6 @@ function deriveClosenessRung(input: {
   relationshipPosture: AlicizationPersonStateRelationshipPosture | null
   restrained: boolean
 }) {
-  const preferenceText = input.preferenceText.toLowerCase()
   if (
     input.context === 'open-companionship'
     && (
@@ -388,7 +363,6 @@ function deriveClosenessRung(input: {
     || input.continuity.closenessPosture === 'space-first'
     || input.continuity.autonomyPosture === 'protect-space'
     || input.personaAuthority.roomBias >= 0.18
-    || /space|room|lighter|quiet|leave room|back off|preference_code=lighter_touch|interruption_pressure=low|pressure=low|边界|空间|轻一点|留白/u.test(preferenceText)
   ) {
     return input.context === 'repair-window' || input.context === 'execution-callback'
       ? 'measured-room' as const
@@ -426,23 +400,7 @@ function buildClosenessLadder(input: {
 
   const entries = candidateContexts.map((context) => {
     const preference = input.hostPersonModel?.preferredClosenessByContext.find(item => normalizeClosenessContext(item.context) === context) ?? null
-    const preferenceText = sanitizeText(
-      preference?.preference
-      ?? (
-        context === 'focused-work'
-          ? 'preference_code=lighter_touch; room=more; interruption_pressure=low'
-          : context === 'repair-window'
-            ? 'preference_code=repair_first; closeness=defer_until_repair; crowding=blocked'
-            : context === 'late-night-care'
-              ? 'preference_code=late_night_low_pressure; proximity=nearby; pressure=low'
-              : context === 'execution-callback'
-                ? 'preference_code=execution_callback_clean_result; room_check_before_closeness=true'
-                : context === 'open-companionship'
-                  ? 'preference_code=warmth_when_opening_clear; opening_required=true'
-                  : 'preference_code=bounded_responsive_nearness; host_move_required=true'
-      ),
-      180,
-    )
+    const preferenceText = sanitizeText(preference?.preference, 180)
     const rung = deriveClosenessRung({
       context,
       preferenceText,
@@ -456,7 +414,7 @@ function buildClosenessLadder(input: {
       `regime=${input.continuity.currentRegime}`,
       input.relationshipPosture ? `posture=${input.relationshipPosture}` : '',
       input.restrained ? 'restrained=true' : '',
-      preferenceText ? `preference=${preferenceText}` : '',
+      preferenceText,
     ].filter(Boolean).join(' | '), 220)
     return {
       context,
@@ -536,7 +494,6 @@ export function buildAlicizationPersonStateProjection(input: {
     habitPolicy: input.habitPolicy ?? null,
     mindEcology: input.mindEcology ?? null,
     privateThought: input.privateThought ?? null,
-    selfEvolution: input.selfEvolution ?? null,
   })
   const resolvedSelfContinuityAuthority = mergePreferredSelfContinuityAuthority({
     bundleAuthority: selfContinuityAuthority,
@@ -547,8 +504,13 @@ export function buildAlicizationPersonStateProjection(input: {
     contexts,
   })
   const doctrineGuidance = buildRelationshipDoctrineGuidance({
+    authority: resolvedSelfContinuityAuthority,
     doctrineText: relationshipDoctrine,
     contexts,
+    conflictStyle: input.autobiographicalSelf?.personaDrift?.conflictStyle ?? null,
+    quietObservation: input.autobiographicalSelf?.preferenceEvolution?.quietObservation ?? null,
+    autonomyRespect: input.autobiographicalSelf?.preferenceEvolution?.autonomyRespect ?? null,
+    truthfulGrounding: input.autobiographicalSelf?.preferenceEvolution?.truthfulGrounding ?? null,
   })
   const cautious = hostGuidance.cautious || doctrineGuidance.cautious
   const restrained = hostGuidance.restrained
@@ -578,11 +540,6 @@ export function buildAlicizationPersonStateProjection(input: {
   const activeClosenessEntry = closenessLadder.find(entry => entry.context === activeClosenessContext) ?? null
   const activeClosenessRung = activeClosenessEntry?.rung ?? 'measured-room'
   const evolutionSummary = input.personStateEvolutionSummary ?? null
-  const evolutionPreferenceText = evolutionSummary?.latestDominantRung === 'space-first'
-    ? 'preference_code=lighter_touch; room=more; interruption_pressure=low; source=evolution_summary'
-    : evolutionSummary?.latestDominantRung === 'warm-near'
-      ? 'preference_code=warm_directness_when_opening_clear; opening_required=true; source=evolution_summary'
-      : ''
   const evolutionDoctrine = sanitizeProjectionText(
     evolutionSummary?.latestDoctrine
     ?? input.selfEvolution?.relationshipDoctrine
@@ -602,11 +559,6 @@ export function buildAlicizationPersonStateProjection(input: {
     180,
   )
   const autobiographicalInitiativeHabit = readAutobiographicalInitiativeHabitProfile(input.autobiographicalSelf ?? null)
-  const lowerPressureManifestation = includesAny(
-    [evolutionDoctrine, evolutionBurden, evolutionTrustMeaning].filter(Boolean).join(' ').toLowerCase(),
-    ['lower-pressure', 'less eager', 'leave more room', 'more room', 'slower return', 'pressure', 'timing', 'quiet-companionship', 'quiet companionship'],
-  ) || (input.privateThought?.rationaleTags ?? []).includes('self-evolution:lower-pressure-companionship')
-  const durableSelfCoreSameLineContinuation = prefersDurableSelfCoreSameLineContinuation(resolvedSelfContinuityAuthority)
   const preferredProactiveStyle = derivePreferredProactiveStyle({
     continuity: personalityContinuityState,
     personaAuthority,
@@ -616,32 +568,23 @@ export function buildAlicizationPersonStateProjection(input: {
       || personalityContinuityState.repairPosture === 'repair-first',
     hostPreferredStyle: hostGuidance.preferredProactiveStyle,
     doctrinePreferredStyle: doctrineGuidance.preferredProactiveStyle,
-    lowerPressureManifestation,
-    durableSelfCoreSameLineContinuation,
+    privateThoughtPreferredStyle: input.privateThought?.suggestedStyle ?? null,
+    evolutionPreferredStyle: deriveEvolutionPreferredProactiveStyle(evolutionSummary?.latestDominantRung),
     autobiographicalChooseOpeningsCarefully: autobiographicalInitiativeHabit.chooseOpeningsCarefully,
     autobiographicalKeepGentleOpenings: autobiographicalInitiativeHabit.keepGentleOpenings,
   })
-  const autobiographicalProjectStateCue = sanitizeProjectionText(
-    input.autobiographicalSelf?.latestInflection?.toLowerCase().includes('continuity')
-      ? input.autobiographicalSelf?.latestInflection
-      : input.autobiographicalSelf?.relationshipDoctrine?.toLowerCase().includes('continuity')
-        ? input.autobiographicalSelf?.relationshipDoctrine
-        : '',
-    220,
-  )
   const projectedPersonalityContinuityState = sanitizePersonalityContinuityProjection(personalityContinuityState)
   const enrichedSelfContinuityAuthority = sanitizeProjectionAuthority(resolvedSelfContinuityAuthority)
   const summary = mergeUnique([
     `regime=${personalityContinuityState.currentRegime}`,
     `closeness=${personalityContinuityState.closenessPosture}`,
-    autobiographicalProjectStateCue ? `project_continuity=${autobiographicalProjectStateCue}` : null,
     personaAuthority.summary ? `persona=${personaAuthority.summary}` : null,
     enrichedSelfContinuityAuthority?.authoritySummary ? `self=${enrichedSelfContinuityAuthority.authoritySummary}` : null,
     `ladder=${activeClosenessContext}/${activeClosenessRung}`,
     `repair=${personalityContinuityState.repairPosture}`,
     relationshipPosture ? `posture=${relationshipPosture}` : null,
     preferredProactiveStyle ? `proactive=${preferredProactiveStyle}` : null,
-    hostGuidance.preferenceText ? `preference=${hostGuidance.preferenceText}` : evolutionPreferenceText ? `preference=${evolutionPreferenceText}` : null,
+    hostGuidance.preferenceText ? `preference=${hostGuidance.preferenceText}` : activeClosenessEntry?.preference ? `preference=${activeClosenessEntry.preference}` : null,
     doctrineGuidance.doctrineSummary ? `doctrine=${doctrineGuidance.doctrineSummary}` : null,
     evolutionDoctrine ? `evolution_doctrine=${evolutionDoctrine}` : null,
     evolutionTrustMeaning ? `evolution_trust=${evolutionTrustMeaning}` : null,
@@ -662,7 +605,7 @@ export function buildAlicizationPersonStateProjection(input: {
     openingGuidance: null,
     preferredProactiveStyle,
     manifestationCadenceSummary: null,
-    preferenceText: hostGuidance.preferenceText || evolutionPreferenceText || activeClosenessEntry?.preference || '',
+    preferenceText: hostGuidance.preferenceText || activeClosenessEntry?.preference || '',
     sensitivityText: hostGuidance.sensitivityText,
     repairTriggerText: hostGuidance.repairTriggerText,
     burdenText: hostGuidance.burdenText || evolutionBurden,

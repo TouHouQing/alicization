@@ -40,8 +40,6 @@ import {
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { deriveMindTruthContract } from './mind-truth-contract'
 import {
-  hasContinuityRestraintRelationshipSignal,
-  hasNeutralRelationshipSignal,
   mergePreferredSelfContinuityAuthority,
   resolvePreferredPersonStateProjection,
   resolvePreferredSelfContinuityAuthority,
@@ -589,21 +587,7 @@ export function buildAnswerPlanner(input: {
     runtimeAuthority: preferredPersonStateProjection?.selfContinuityAuthority ?? null,
   }) ?? projectedSelfContinuityAuthority
   ?? buildSelfContinuityAuthorityFromRuntimeSurface(runtimeSurface)
-  const runtimeRelationshipCarry = preferredPersonStateProjection?.selfContinuityAuthority?.relationshipLine ?? null
-  const selfContinuityAuthority = (
-    mergedSelfContinuityAuthority
-    && runtimeRelationshipCarry
-    && hasContinuityRestraintRelationshipSignal(runtimeRelationshipCarry)
-    && (
-      !mergedSelfContinuityAuthority.relationshipLine
-      || hasNeutralRelationshipSignal(mergedSelfContinuityAuthority.relationshipLine)
-    )
-  )
-    ? {
-        ...mergedSelfContinuityAuthority,
-        relationshipLine: runtimeRelationshipCarry,
-      }
-    : mergedSelfContinuityAuthority
+  const selfContinuityAuthority = mergedSelfContinuityAuthority
   const selectedConcern = governingConcern(concernContinuity)
   const selectedRepair = governingRepair(repairLedger)
   const selectedCommitment = governingCommitment(commitmentLedger)

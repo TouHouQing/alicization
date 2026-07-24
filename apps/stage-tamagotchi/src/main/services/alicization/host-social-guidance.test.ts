@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { adjustProactiveReplyFromLongHorizonLearning, adjustProactiveStyleFromHostPersonModel, buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
+import { adjustProactiveReplyFromLongHorizonLearning, adjustProactiveStyleFromHostPersonModel, buildHostSocialContexts, buildHostSocialGuidance } from './host-social-guidance'
 
 const hostPersonModel = {
   summary: 'Focused work windows need more room before closeness.',
@@ -23,8 +23,19 @@ const hostPersonModel = {
 }
 
 describe('host social guidance', () => {
+  it('builds social policy contexts only from structured inputs', () => {
+    expect(buildHostSocialContexts({
+      scenario: 'general',
+      workloadKind: 'unknown',
+      extraContexts: ['focused-work'],
+    })).toEqual(['general', 'focused-work'])
+  })
+
   it('extracts cautious focused-work social guidance from host person model', () => {
-    const contexts = inferHostSocialContextsFromText('runtime diff fix in cursor terminal')
+    const contexts = buildHostSocialContexts({
+      scenario: 'coding',
+      workloadKind: 'terminal',
+    })
     const guidance = buildHostSocialGuidance({
       hostPersonModel,
       contexts,
@@ -36,8 +47,46 @@ describe('host social guidance', () => {
     expect(guidance.sensitivityText).toContain('intrusive')
   })
 
+  it('keeps policy stable when host-authored prose changes', () => {
+    const contexts = buildHostSocialContexts({
+      scenario: 'coding',
+      workloadKind: 'terminal',
+    })
+    const first = buildHostSocialGuidance({
+      hostPersonModel,
+      contexts,
+    })
+    const second = buildHostSocialGuidance({
+      hostPersonModel: {
+        ...hostPersonModel,
+        summary: 'different summary',
+        sensitivities: ['different sensitivity'],
+        repairTriggers: ['different repair note'],
+        recurrentBurdens: ['different burden note'],
+        preferredClosenessByContext: [{
+          ...hostPersonModel.preferredClosenessByContext[0],
+          preference: 'different preference',
+        }],
+      },
+      contexts,
+    })
+
+    expect({
+      cautious: first.cautious,
+      restrained: first.restrained,
+      preferredProactiveStyle: first.preferredProactiveStyle,
+    }).toEqual({
+      cautious: second.cautious,
+      restrained: second.restrained,
+      preferredProactiveStyle: second.preferredProactiveStyle,
+    })
+  })
+
   it('tilts proactive style lighter for focused-work cautious contexts', () => {
-    const contexts = inferHostSocialContextsFromText('runtime diff fix in cursor terminal')
+    const contexts = buildHostSocialContexts({
+      scenario: 'coding',
+      workloadKind: 'terminal',
+    })
     const style = adjustProactiveStyleFromHostPersonModel({
       currentStyle: 'gentle-care',
       hostPersonModel,
@@ -48,7 +97,10 @@ describe('host social guidance', () => {
   })
 
   it('suppresses proactive warmth while learning stays in verify-first revalidation posture', () => {
-    const contexts = inferHostSocialContextsFromText('runtime diff fix in cursor terminal')
+    const contexts = buildHostSocialContexts({
+      scenario: 'coding',
+      workloadKind: 'terminal',
+    })
     const style = adjustProactiveStyleFromHostPersonModel({
       currentStyle: 'gentle-care',
       hostPersonModel,
@@ -87,7 +139,10 @@ describe('host social guidance', () => {
   })
 
   it('keeps gentle-care available when long-horizon learning has moved into internalize posture', () => {
-    const contexts = inferHostSocialContextsFromText('late night care and validated routine')
+    const contexts = buildHostSocialContexts({
+      scenario: 'late-night-care',
+      workloadKind: 'unknown',
+    })
     const style = adjustProactiveStyleFromHostPersonModel({
       currentStyle: 'gentle-care',
       hostPersonModel: {
@@ -132,7 +187,7 @@ describe('host social guidance', () => {
     expect(style).toBe('gentle-care')
   })
 
-  it('softens proactive copy into a verify-first caution when long-horizon learning is still revalidating', () => {
+  it('does not inject fixed copy while long-horizon learning is revalidating', () => {
     const reply = adjustProactiveReplyFromLongHorizonLearning({
       currentReply: '这个窗口里像是报错了。要不要先回头看一眼？',
       selfEvolution: {
@@ -165,7 +220,7 @@ describe('host social guidance', () => {
       } as any,
     })
 
-    expect(reply).toContain('先别说死')
+    expect(reply).toBe('这个窗口里像是报错了。要不要先回头看一眼？')
   })
 
   it('keeps the original proactive copy when long-horizon learning is already internalizing', () => {
