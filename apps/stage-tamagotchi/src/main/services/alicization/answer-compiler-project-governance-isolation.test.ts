@@ -28,5 +28,8 @@ describe('answer compiler project governance isolation', () => {
     expect(source).not.toMatch(
       /Use the current relationship authority|Use the current self-continuity authority|Answer from her own continuity|Keep the opening lower-pressure|Avoid eager warmth|Avoid theatrical intimacy/u,
     )
+    expect(source).not.toMatch(
+      /I still need a fresher look|What I was holding a moment ago|The knot itself matters|The host is asking about me directly|This turn needs a direct answer/u,
+    )
   })
 })

@@ -10,159 +10,9 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
-import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
-
-import {
-  isAlicizationThinProjectAwarenessLine,
-  resolveAlicizationProjectStateBrief,
-  resolveAlicizationProjectStateSnapshot,
-} from './project-state-brief'
-
-type AlicizationLearningProjectStateContinuityInput = (
-  NonNullable<OrganicMemoryPromptContext['projectStateContinuity']>
-  | NonNullable<AlicizationLearningTaskPayload['projectStateContinuity']>
-) & {
-  proactiveSameHerGap?: string | null
-}
-
-type AlicizationLearningProjectStateContinuity = NonNullable<AlicizationLearningTaskPayload['projectStateContinuity']> & {
-  proactiveSameHerGap?: string | null
-}
-
-function sanitizeLearningContinuityText(raw: unknown, maxChars = 420) {
-  return sanitizeAlicizationProviderFacingText(raw, maxChars, '') || null
-}
-
-function sanitizeLearningContinuityAnchor(raw: unknown) {
-  return sanitizeLearningContinuityText(raw, 220) ?? 'identity continuity'
-}
-
-const legacyContinuityLabelPattern = /^(?:same-her\s*(?:hold|gap)|project anchor|cadence detail|guard|continuity gap)\s*[:：]\s*/iu
-
-function sanitizeLearningContinuitySentence(raw: unknown, maxChars = 420) {
-  const text = sanitizeLearningContinuityText(raw, maxChars)
-  if (!text)
-    return ''
-  return text.replace(legacyContinuityLabelPattern, '').trim()
-}
-
 function sentence(text: string) {
   const trimmed = text.trim().replace(/[.。!！?？;；:：]+$/u, '')
   return trimmed ? `${trimmed}.` : ''
-}
-
-function sanitizeLearningProjectStateContinuity(
-  projectState: AlicizationLearningProjectStateContinuity,
-): AlicizationLearningProjectStateContinuity {
-  return {
-    ...projectState,
-    identity: sanitizeLearningContinuityText(projectState.identity, 260) ?? 'local continuity context',
-    currentPhase: sanitizeLearningContinuityText(projectState.currentPhase, 180) ?? 'local continuity phase',
-    sameHerSummary: sanitizeLearningContinuityAnchor(projectState.sameHerSummary),
-    landedProgressSummary: sanitizeLearningContinuityText(projectState.landedProgressSummary, 420) ?? 'Continuity progress is tracked.',
-    openClosureSummary: sanitizeLearningContinuityText(projectState.openClosureSummary, 420) ?? 'An open loop is tracked.',
-    proactiveSameHerGap: sanitizeLearningContinuityText(projectState.proactiveSameHerGap, 420),
-    nextClosureTarget: sanitizeLearningContinuityText(projectState.nextClosureTarget, 420) ?? 'Continue verified closure.',
-    preDialogueAwarenessLine: sanitizeLearningContinuityText(projectState.preDialogueAwarenessLine, 520),
-    emotionalClosureCue: sanitizeLearningContinuityText(projectState.emotionalClosureCue, 420),
-    sameHerSelfLine: sanitizeLearningContinuityAnchor(projectState.sameHerSelfLine),
-    sameHerHoldDetail: sanitizeLearningContinuityText(projectState.sameHerHoldDetail, 420),
-    sameHerDriftRisk: sanitizeLearningContinuityText(projectState.sameHerDriftRisk, 420) ?? 'Risk is tracked for review.',
-  }
-}
-
-function buildDelayedLearningProjectStateContinuity(
-  projectState?: AlicizationLearningProjectStateContinuityInput | null,
-): AlicizationLearningProjectStateContinuity {
-  const canonicalProjectState = resolveAlicizationProjectStateBrief()
-  if (!projectState) {
-    return sanitizeLearningProjectStateContinuity({
-      identity: canonicalProjectState.identity,
-      currentPhase: canonicalProjectState.currentPhase,
-      sameHerSummary: canonicalProjectState.sameHerSelfLine,
-      landedProgressSummary:
-        canonicalProjectState.continuityProgressSummary
-        ?? canonicalProjectState.memoryAnthropomorphismProgress[0]
-        ?? canonicalProjectState.latestProgress,
-      openClosureSummary: canonicalProjectState.openLoops[0] ?? canonicalProjectState.primaryOpenLoop,
-      proactiveSameHerGap: canonicalProjectState.proactiveSameHerGap,
-      nextClosureTarget: canonicalProjectState.nextClosureTarget,
-      preDialogueAwarenessLine: canonicalProjectState.preDialogueAwarenessLine ?? null,
-      emotionalClosureCue: canonicalProjectState.emotionalClosureCue ?? null,
-      sameHerSelfLine: canonicalProjectState.sameHerSelfLine,
-      sameHerHoldDetail: canonicalProjectState.sameHerHoldDetail ?? null,
-      sameHerDriftRisk: canonicalProjectState.sameHerDriftRisk,
-    })
-  }
-
-  const normalizedProjectState = resolveAlicizationProjectStateSnapshot({
-    fallbackProjectState: {
-      identity: canonicalProjectState.identity,
-      currentPhase: canonicalProjectState.currentPhase,
-      preDialogueAwarenessLine: canonicalProjectState.preDialogueAwarenessLine ?? null,
-      latestLandedProgress:
-        canonicalProjectState.continuityProgressSummary
-        ?? canonicalProjectState.memoryAnthropomorphismProgress[0]
-        ?? canonicalProjectState.latestProgress,
-      latestProgress:
-        canonicalProjectState.continuityProgressSummary
-        ?? canonicalProjectState.memoryAnthropomorphismProgress[0]
-        ?? canonicalProjectState.latestProgress,
-      primaryOpenLoop: canonicalProjectState.openLoops[0] ?? canonicalProjectState.primaryOpenLoop,
-      proactiveSameHerGap: canonicalProjectState.proactiveSameHerGap,
-      nextClosureTarget: canonicalProjectState.nextClosureTarget,
-      sameHerSelfLine: canonicalProjectState.sameHerSelfLine,
-      sameHerDriftRisk: canonicalProjectState.sameHerDriftRisk,
-      emotionalClosureCue: canonicalProjectState.emotionalClosureCue ?? null,
-      emotionalClosureSummary: canonicalProjectState.emotionalClosureSummary ?? null,
-      sameHerHoldDetail: canonicalProjectState.sameHerHoldDetail ?? null,
-    },
-    runtimeProjectState: {
-      latestLandedProgress: projectState.landedProgressSummary ?? null,
-      latestProgress: projectState.landedProgressSummary ?? null,
-      primaryOpenLoop: projectState.openClosureSummary ?? null,
-      proactiveSameHerGap: projectState.proactiveSameHerGap ?? null,
-      nextClosureTarget: projectState.nextClosureTarget ?? null,
-      sameHerSelfLine: projectState.sameHerSelfLine ?? null,
-      sameHerHoldDetail: projectState.sameHerHoldDetail ?? null,
-      sameHerDriftRisk: projectState.sameHerDriftRisk ?? null,
-      emotionalClosureCue: projectState.emotionalClosureCue ?? null,
-      preDialogueAwarenessLine:
-        projectState.preDialogueAwarenessLine
-        && !isAlicizationThinProjectAwarenessLine(projectState.preDialogueAwarenessLine)
-          ? projectState.preDialogueAwarenessLine
-          : null,
-      identity:
-        projectState.identity && projectState.identity.length >= canonicalProjectState.identity.length / 2
-          ? projectState.identity
-          : null,
-      currentPhase:
-        projectState.currentPhase && projectState.currentPhase.includes('Local Digital Life')
-          ? projectState.currentPhase
-          : null,
-    },
-  })
-
-  const preferredSameHerSummary
-    = projectState.sameHerSummary
-      && !isAlicizationThinProjectAwarenessLine(projectState.sameHerSummary)
-      ? projectState.sameHerSummary
-      : normalizedProjectState.sameHerSelfLine
-
-  return sanitizeLearningProjectStateContinuity({
-    identity: normalizedProjectState.identity,
-    currentPhase: normalizedProjectState.currentPhase,
-    sameHerSummary: preferredSameHerSummary,
-    landedProgressSummary: normalizedProjectState.latestLandedProgress,
-    openClosureSummary: normalizedProjectState.primaryOpenLoop,
-    proactiveSameHerGap: normalizedProjectState.proactiveSameHerGap,
-    nextClosureTarget: normalizedProjectState.nextClosureTarget,
-    preDialogueAwarenessLine: normalizedProjectState.preDialogueAwarenessLine,
-    emotionalClosureCue: normalizedProjectState.emotionalClosureCue ?? null,
-    sameHerSelfLine: normalizedProjectState.sameHerSelfLine,
-    sameHerHoldDetail: normalizedProjectState.sameHerHoldDetail ?? null,
-    sameHerDriftRisk: normalizedProjectState.sameHerDriftRisk,
-  })
 }
 
 export interface AlicizationLearningScheduledTask {
@@ -179,7 +29,7 @@ export interface AlicizationLearningActionAuditPayload {
   taskId: string
   triggerAt: number
   sourceTurnId: string | null
-  projectStateContinuity?: AlicizationLearningProjectStateContinuity | null
+  projectStateContinuity?: null
   nextLearningAction: AlicizationSelfEvolutionKernelSnapshot['nextLearningAction']
   nextLearningReason: string | null
   activeLearningFocuses: string[]
@@ -365,67 +215,12 @@ function buildTaskMessage(input: {
   nextLearningAction: AlicizationSelfEvolutionKernelSnapshot['nextLearningAction']
   nextLearningReason: string | null
   activeLearningFocuses: string[]
-  projectStateContinuity?: AlicizationLearningProjectStateContinuityInput | null
 }) {
-  const sameHerSelfLine = sanitizeLearningContinuityAnchor(input.projectStateContinuity?.sameHerSelfLine)
-  const sameHerHoldDetail = sanitizeLearningContinuitySentence(input.projectStateContinuity?.sameHerHoldDetail, 420)
-  const sameHerDriftRisk = sanitizeLearningContinuitySentence(input.projectStateContinuity?.sameHerDriftRisk, 420)
-  const proactiveSameHerGap = sanitizeLearningContinuitySentence(input.projectStateContinuity?.proactiveSameHerGap, 420)
-  const sameHerLearningConstraint
-    = sameHerDriftRisk
-      && /generic assistant shell|project-summary voice|generic project shell|detached project/i.test(sameHerDriftRisk)
-      ? sentence(`Stay anchored on ${sameHerSelfLine || 'identity continuity'}. ${sameHerDriftRisk}`)
-      : sameHerSelfLine
-        ? sentence(`Stay anchored on ${sameHerSelfLine}`)
-        : ''
   return [
     sentence(`Learning action: ${input.nextLearningAction}`),
     input.nextLearningReason ? sentence(`Reason: ${input.nextLearningReason}`) : '',
-    sameHerLearningConstraint,
-    sameHerHoldDetail ? sentence(sameHerHoldDetail) : '',
-    proactiveSameHerGap ? sentence(proactiveSameHerGap) : '',
     input.activeLearningFocuses.length > 0 ? sentence(`Focus: ${input.activeLearningFocuses.join(', ')}`) : '',
   ].filter(Boolean).join(' ')
-}
-
-function deriveSameHerContinuityGuard(projectStateContinuity?: AlicizationLearningProjectStateContinuityInput | null) {
-  const sameHerSelfLine = sanitizeLearningContinuityAnchor(projectStateContinuity?.sameHerSelfLine)
-  const sameHerHoldDetail = sanitizeLearningContinuitySentence(projectStateContinuity?.sameHerHoldDetail, 420)
-  const sameHerDriftRisk = sanitizeLearningContinuitySentence(projectStateContinuity?.sameHerDriftRisk, 420)
-  const proactiveSameHerGap = sanitizeLearningContinuitySentence(projectStateContinuity?.proactiveSameHerGap, 420)
-  if (
-    !sameHerHoldDetail
-    && (!sameHerDriftRisk || !/generic assistant shell|project-summary voice|generic project shell|detached project/i.test(sameHerDriftRisk))
-    && !proactiveSameHerGap
-  ) {
-    return null
-  }
-  return {
-    sameHerSelfLine: sameHerSelfLine || 'identity continuity',
-    sameHerHoldDetail: sameHerHoldDetail || null,
-    sameHerDriftRisk: sameHerDriftRisk || 'Scheduler drift guard is needed.',
-    proactiveSameHerGap: proactiveSameHerGap || null,
-  }
-}
-
-function appendSameHerContinuityGuard(input: {
-  text?: string | null
-  projectStateContinuity?: AlicizationLearningProjectStateContinuityInput | null
-}) {
-  const base = input.text?.trim() ?? ''
-  const continuityGuard = deriveSameHerContinuityGuard(input.projectStateContinuity)
-  if (!continuityGuard)
-    return base || null
-
-  const fragments = [
-    base,
-    sentence(`Stay anchored on ${continuityGuard.sameHerSelfLine}`),
-    continuityGuard.sameHerHoldDetail ? sentence(continuityGuard.sameHerHoldDetail) : '',
-    sentence(continuityGuard.sameHerDriftRisk),
-    continuityGuard.proactiveSameHerGap ? sentence(continuityGuard.proactiveSameHerGap) : '',
-  ].filter(Boolean)
-
-  return fragments.join(' ')
 }
 
 function buildAuditPayload(input: {
@@ -437,7 +232,7 @@ function buildAuditPayload(input: {
     taskId: input.task.taskId,
     triggerAt: input.task.triggerAt,
     sourceTurnId: input.task.sourceTurnId ?? null,
-    projectStateContinuity: input.task.payload.projectStateContinuity ?? null,
+    projectStateContinuity: null,
     nextLearningAction: input.evolution.nextLearningAction,
     nextLearningReason: input.evolution.nextLearningReason,
     activeLearningFocuses: [...input.evolution.activeLearningFocuses],
@@ -463,14 +258,13 @@ function deriveTaskPayload(input: {
   const evolution = input.context.selfEvolution ?? null
   if (!evolution || evolution.nextLearningAction === 'hold')
     return null
-  const delayedProjectStateContinuity = buildDelayedLearningProjectStateContinuity(input.context.projectStateContinuity ?? null)
   return {
     sourceTurnId: input.turnId ?? null,
     decisionTraceId: input.context.decisionTraceId ?? null,
     sourceSessionId: input.context.sessionId ?? null,
     action: evolution.nextLearningAction as AlicizationLearningAction,
     reason: evolution.nextLearningReason ?? null,
-    projectStateContinuity: delayedProjectStateContinuity,
+    projectStateContinuity: null,
     focuses: [...evolution.activeLearningFocuses].slice(0, 12),
     dominantTrajectory: evolution.dominantTrajectory,
     sourceSignals: [...evolution.sourceSignals].slice(0, 12),
@@ -517,7 +311,6 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
         nextLearningAction: evolution.nextLearningAction,
         nextLearningReason: evolution.nextLearningReason,
         activeLearningFocuses: evolution.activeLearningFocuses,
-        projectStateContinuity: payload.projectStateContinuity ?? null,
       }),
       payload,
       sourceTurnId: input.turnId ?? null,
@@ -606,14 +399,8 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             explicitNextRetryAt: result.nextRetryAt,
           })
           await options.blockLearningTask(task.taskId, {
-            reason: appendSameHerContinuityGuard({
-              text: result.error ?? 'learning task blocked',
-              projectStateContinuity: task.payload.projectStateContinuity ?? null,
-            }) ?? 'learning task blocked',
-            resultSummary: appendSameHerContinuityGuard({
-              text: result.resultSummary ?? null,
-              projectStateContinuity: task.payload.projectStateContinuity ?? null,
-            }),
+            reason: result.error ?? 'learning task blocked',
+            resultSummary: result.resultSummary ?? null,
             failureKind: retryPlan.failureKind,
             nextRetryAt: retryPlan.retryDueAt,
           }, finishedAt)
@@ -621,20 +408,14 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
         }
         else if (result.status === 'reopened') {
           await options.reopenLearningTask(task.taskId, {
-            reason: appendSameHerContinuityGuard({
-              text: result.error ?? result.resultSummary ?? null,
-              projectStateContinuity: task.payload.projectStateContinuity ?? null,
-            }),
+            reason: result.error ?? result.resultSummary ?? null,
             triggerAt: result.nextRetryAt ?? finishedAt + 60_000,
           }, finishedAt)
           reopened += 1
         }
         else if (result.status === 'downgraded') {
           await options.downgradeLearningTask(task.taskId, {
-            reason: appendSameHerContinuityGuard({
-              text: result.error ?? result.resultSummary ?? null,
-              projectStateContinuity: task.payload.projectStateContinuity ?? null,
-            }),
+            reason: result.error ?? result.resultSummary ?? null,
           }, finishedAt)
           downgraded += 1
         }
@@ -656,10 +437,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             explicitNextRetryAt: result.nextRetryAt,
           })
           await options.failLearningTask(task.taskId, {
-            error: appendSameHerContinuityGuard({
-              text: result.error ?? 'learning execution failed',
-              projectStateContinuity: task.payload.projectStateContinuity ?? null,
-            }) ?? 'learning execution failed',
+            error: result.error ?? 'learning execution failed',
             failureKind: retryPlan.failureKind,
             nextRetryAt: retryPlan.retryDueAt,
           }, finishedAt)
@@ -677,17 +455,10 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             triggerAt: task.triggerAt,
             sourceTurnId: task.sourceTurnId ?? null,
             resultStatus: result.status,
-            resultSummary: appendSameHerContinuityGuard({
-              text: result.resultSummary ?? null,
-              projectStateContinuity: task.payload.projectStateContinuity ?? null,
-            }),
+            resultSummary: result.resultSummary ?? null,
             failureKind: result.failureKind ?? null,
-            error: appendSameHerContinuityGuard({
-              text: result.error ?? null,
-              projectStateContinuity: task.payload.projectStateContinuity ?? null,
-            }),
+            error: result.error ?? null,
             nextRetryAt: result.nextRetryAt ?? null,
-            sameHerContinuityGuard: deriveSameHerContinuityGuard(task.payload.projectStateContinuity ?? null),
             selfRevisionEvent: result.selfRevisionEvent ?? null,
             selfRevisionStatePatch: result.selfRevisionStatePatch ?? null,
             selfRevisionPolicyConsumers: result.selfRevisionStatePatch?.lanes ?? [],
@@ -763,11 +534,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             maxAttempts: task.maxAttempts,
             failureKind: retryPlan.failureKind,
             reason: retryPlan.reason,
-            lastError: appendSameHerContinuityGuard({
-              text: task.lastError,
-              projectStateContinuity: task.payload.projectStateContinuity ?? null,
-            }),
-            sameHerContinuityGuard: deriveSameHerContinuityGuard(task.payload.projectStateContinuity ?? null),
+            lastError: task.lastError,
           },
         }, cardId)
         continue
@@ -777,10 +544,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
         continue
       }
       await options.reopenLearningTask(task.taskId, {
-        reason: appendSameHerContinuityGuard({
-          text: retryPlan.reason,
-          projectStateContinuity: task.payload.projectStateContinuity ?? null,
-        }) ?? retryPlan.reason,
+        reason: retryPlan.reason,
         triggerAt: nowMs,
       }, nowMs)
       reopened += 1
@@ -797,11 +561,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
           maxAttempts: task.maxAttempts,
           failureKind: retryPlan.failureKind,
           nextRetryAt: retryPlan.retryDueAt,
-          reason: appendSameHerContinuityGuard({
-            text: retryPlan.reason,
-            projectStateContinuity: task.payload.projectStateContinuity ?? null,
-          }),
-          sameHerContinuityGuard: deriveSameHerContinuityGuard(task.payload.projectStateContinuity ?? null),
+          reason: retryPlan.reason,
         },
       }, cardId)
     }

@@ -3217,11 +3217,6 @@ function rebuildPresenceOnlyResidentHoldEmotionalKernel(input: {
     privateThought: input.privateThought,
     affectiveResidue: input.affectiveResidue ?? input.derivedMindStateBundle?.affectiveResidue ?? null,
     personStateProjection: input.personStateProjection ?? null,
-    recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle<AlicizationRecallGovernorSnapshot['recollectionIntent']>(
-      input.derivedMindStateBundle,
-    ),
-    selfEvolution: input.selfEvolution,
-    projectState: input.projectState,
   })
 
   if (continuityRestraint !== 'rest-protective')

@@ -76,24 +76,31 @@ describe('response context facts', () => {
     expect(result).not.toHaveProperty('reasons')
   })
 
-  it('keeps project facts only for an explicit project-state turn', () => {
-    const projectState = {
-      identity: 'Memory Workbench',
-      currentPhase: 'quality and scale',
-      primaryOpenLoop: 'semantic recall evaluation',
-    }
+  it('keeps a real active project only for an explicit project-state turn', () => {
+    const runtimeSurface = createRuntimeSurface({
+      memory: {
+        ...createRuntimeSurface().memory,
+        intentionStream: {
+          dominantProjectId: 'project-memory',
+          projects: [{
+            id: 'project-memory',
+            summary: 'Evaluate semantic recall with user-authored conversations.',
+          }],
+        },
+      },
+    })
     const ordinary = build({
-      projectState,
+      runtimeSurface,
     })
     const explicit = build({
-      projectState,
+      runtimeSurface,
       dialogueActKernel: {
         subject: 'project-state',
       } as any,
     })
 
     expect(ordinary.governingProject).toBeNull()
-    expect(explicit.governingProject).toBe('Memory Workbench')
+    expect(explicit.governingProject).toBe('Evaluate semantic recall with user-authored conversations.')
   })
 
   it('drops fixed template residue and uses current structured relationship posture', () => {

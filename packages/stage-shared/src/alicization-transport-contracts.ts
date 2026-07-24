@@ -1,4 +1,7 @@
-import type { AlicizationChatFailureSurface } from './alicization-chat-failure-surface'
+import type {
+  AlicizationChatFailureSurface,
+  AlicizationChatMemoryFailureSurface,
+} from './alicization-chat-failure-surface'
 import type { AlicizationClaimEvidenceGraph } from './alicization-claim-evidence-graph'
 import type { AlicizationDialogueEmbodimentEnvelope } from './alicization-dialogue-embodiment'
 import type { AlicizationDialogueSpeechTimeline, AlicizationDialogueSpeechTimelineSegment } from './alicization-dialogue-speech-timeline'
@@ -6582,6 +6585,7 @@ export type AlicizationBridgeChatStreamEvent
     origin?: AlicizationVisibleArtifactOrigin
     learningPolicy?: AlicizationVisibleArtifactLearningPolicy
     failureSurface?: AlicizationChatFailureSurface | null
+    memoryFailures?: AlicizationChatMemoryFailureSurface[]
     finishReason?: string
     fullText?: string
     visibleReplyExecution?: AlicizationBridgeVisibleReplyExecution | null

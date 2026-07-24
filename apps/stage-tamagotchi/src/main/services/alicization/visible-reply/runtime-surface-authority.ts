@@ -63,9 +63,3 @@ export function resolveAlicizationMainChatNormalVisibleReplyAuthority(
     'llm-mind',
   )
 }
-
-export function describeAlicizationMainChatProviderMindRequirement(
-  _authority: AlicizationMainChatReplyAuthoritySurface['expectedVisibleReplyAuthority'],
-) {
-  return 'This turn should be fully realized by the provider mind rather than a local deterministic wording layer.'
-}

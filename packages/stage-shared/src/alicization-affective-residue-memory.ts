@@ -112,12 +112,22 @@ function deriveInitiativeStrategyResidueCarry(input: {
   if (!combined)
     return null
 
+  const carryEvidenceSummary = uniqueTexts([
+    input.personStateSummary?.recentSummaries?.[0] ?? null,
+    input.personStateSummary?.latestDoctrine ?? null,
+    input.personStateSummary?.latestTrustMeaning ?? null,
+    input.personStateSummary?.latestBurdenLine ?? null,
+    input.outcomes[0]?.summary ?? null,
+    input.reflections[0]?.summary ?? null,
+    input.reflections[0]?.lesson ?? null,
+  ], 1)[0] ?? ''
+
   const memoryLedCarry = /memory-led|still receiving them|received without obvious resistance|continue gently|gentle.*lower-pressure/u.test(combined)
   if (memoryLedCarry) {
     return {
       cadenceMode: 'warm-hold',
       shouldDelayWarmth: false,
-      summary: 'The opening is still receiving gentle memory-led initiative, so warmth can stay near without widening too fast.',
+      summary: carryEvidenceSummary,
       reasonTag: 'initiative-memory-led-carry',
       companionshipDensityDelta: 0.08,
       overreachRiskDelta: -0.08,
@@ -130,7 +140,7 @@ function deriveInitiativeStrategyResidueCarry(input: {
     return {
       cadenceMode: 'measured-return',
       shouldDelayWarmth: true,
-      summary: 'The line should stay lower-pressure, leave more room, and wait for a clearer opening before the next reopen.',
+      summary: carryEvidenceSummary,
       reasonTag: 'initiative-cautious-carry',
       companionshipDensityDelta: -0.04,
       overreachRiskDelta: 0.12,
@@ -297,35 +307,18 @@ function buildRelationshipCadence(input: {
     ], 10),
     summary: sanitizeText(
       initiativeStrategyCarry?.summary
-      ?? (restProtective >= 0.56
-        ? 'Rest protection should lead the line before warmth widens again.'
-        : repair >= 0.56
-          ? 'Repair is still active, so warmth should wait until the seam settles.'
-          : trust >= 0.62
-            ? 'The line can stay warmly near without crowding the host.'
-            : afterglow >= 0.42
-              ? 'The line is still carrying afterglow, so timing should stay measured.'
-              : 'The line can return in a measured way without forcing closeness.'),
+      ?? personStateSummary?.recentSummaries?.[0]
+      ?? personStateSummary?.latestDoctrine
+      ?? personStateSummary?.latestTrustMeaning
+      ?? personStateSummary?.latestBurdenLine
+      ?? '',
       200,
     ),
   } satisfies AlicizationAffectiveResidueMemorySnapshot['relationshipCadence']
 }
 
 function buildDominantSummary(dominantResidueKind: AlicizationAffectiveResidueKind | null) {
-  return sanitizeText(
-    dominantResidueKind === 'rest-protective'
-      ? 'Rest-protective residue is leading, so companionship must stay low-pressure.'
-      : dominantResidueKind === 'repair'
-        ? 'Repair residue is still carrying the line, so warmth should stay earned rather than rushed.'
-        : dominantResidueKind === 'burden'
-          ? 'Burden residue is active, so the line should protect space before closeness.'
-          : dominantResidueKind === 'trust'
-            ? 'Trust residue is stable enough to support nearness without forcing it.'
-            : dominantResidueKind === 'afterglow'
-              ? 'Afterglow residue is still warm, so timing should stay measured instead of flat.'
-              : 'No affective residue is strong enough to lead the line right now.',
-    220,
-  )
+  return sanitizeText(dominantResidueKind ?? '', 220)
 }
 
 export function buildAlicizationAffectiveResidueMemory(input: {
@@ -405,7 +398,7 @@ export function buildAlicizationAffectiveResidueMemory(input: {
       confidence: clamp01(0.48 + outcomes.length * 0.04 + (continuity?.rhythmState?.moodLabel === 'afterglow' ? 0.12 : 0)),
       polarity: 'warm',
       releaseMode: relationshipCadence.shouldDelayWarmth ? 'delay-until-open-window' : 'surface-eligible',
-      summary: personStateSummary?.recentSummaries?.[0] ?? 'The previous moment is still warm enough to shape timing.',
+      summary: personStateSummary?.recentSummaries?.[0] ?? continuity?.rhythmState?.summary ?? reflections[0]?.summary ?? outcomes[0]?.summary ?? '',
       sourceSignals: compactTextSignals([
         continuity?.rhythmState?.summary ?? null,
         reflections[0]?.summary ?? null,
@@ -420,7 +413,7 @@ export function buildAlicizationAffectiveResidueMemory(input: {
       confidence: clamp01(0.54 + repairShift * 0.24 + outcomes.length * 0.03),
       polarity: 'protective',
       releaseMode: 'mind-only',
-      summary: personStateSummary?.latestDoctrine ?? 'Repair should land before warmth expands.',
+      summary: personStateSummary?.latestDoctrine ?? reflections.find(item => /repair|修复|澄清|not this/iu.test(`${item.summary} ${item.lesson}`))?.lesson ?? outcomes[0]?.summary ?? '',
       sourceSignals: compactTextSignals([
         continuity?.repairPosture ? `repair-posture:${continuity.repairPosture}` : null,
         reflections.find(item => /repair|修复|澄清|not this/iu.test(`${item.summary} ${item.lesson}`))?.lesson ?? null,
@@ -435,7 +428,7 @@ export function buildAlicizationAffectiveResidueMemory(input: {
       confidence: clamp01(0.5 + burdenShift * 0.2 + reflections.length * 0.03),
       polarity: 'strained',
       releaseMode: 'protect-rest',
-      summary: personStateSummary?.latestBurdenLine ?? 'The host is easier to crowd right now, so pressure must stay low.',
+      summary: personStateSummary?.latestBurdenLine ?? hostPersonModel?.recurrentBurdens?.[0] ?? '',
       sourceSignals: compactTextSignals([
         continuity?.energyProfile ? `energy:${continuity.energyProfile}` : null,
         hostPersonModel?.recurrentBurdens?.[0] ?? null,
@@ -450,7 +443,7 @@ export function buildAlicizationAffectiveResidueMemory(input: {
       confidence: clamp01(0.52 + Math.min(0.24, Math.max(0, hostPersonModel?.trustLadder.score ?? 0) * 0.26)),
       polarity: 'warm',
       releaseMode: relationshipCadence.shouldDelayWarmth ? 'delay-until-open-window' : 'surface-eligible',
-      summary: personStateSummary?.latestTrustMeaning ?? hostPersonModel?.trustLadder.rationale ?? 'The relationship line is carrying earned trust from earlier turns.',
+      summary: personStateSummary?.latestTrustMeaning ?? hostPersonModel?.trustLadder.rationale ?? outcomes.find(item => item.trustDelta > 0)?.summary ?? '',
       sourceSignals: compactTextSignals([
         hostPersonModel?.summary ?? null,
         hostPersonModel?.trustLadder.rationale ?? null,
@@ -465,7 +458,7 @@ export function buildAlicizationAffectiveResidueMemory(input: {
       confidence: clamp01(0.56 + (continuity?.rhythmState?.restMode === 'rest-protective' ? 0.18 : 0)),
       polarity: 'protective',
       releaseMode: 'protect-rest',
-      summary: continuity?.rhythmState?.rationale?.[0] ?? 'Protect rest before reopening closeness or adding pressure.',
+      summary: continuity?.rhythmState?.rationale?.[0] ?? continuity?.rhythmState?.summary ?? hostPersonModel?.recurrentBurdens?.[0] ?? '',
       sourceSignals: compactTextSignals([
         continuity?.rhythmState?.summary ?? null,
         continuity?.rhythmState?.rationale?.[0] ?? null,
@@ -544,7 +537,7 @@ export function buildAlicizationBrowserAffectiveResidueMemory(input: {
       confidence: clamp01(0.42 + warmCount * 0.08),
       polarity: 'warm',
       releaseMode: relationshipCadence.shouldDelayWarmth ? 'delay-until-open-window' : 'surface-eligible',
-      summary: recollectionForeground?.summary ?? 'Recent continuity still carries a little warmth.',
+      summary: recollectionForeground?.summary ?? recentEpisodicEvents[0]?.relationshipMeaning ?? '',
       sourceSignals: compactTextSignals([
         recollectionForeground?.summary ?? null,
         recentEpisodicEvents[0]?.relationshipMeaning ?? null,
@@ -558,7 +551,7 @@ export function buildAlicizationBrowserAffectiveResidueMemory(input: {
       confidence: clamp01(0.44 + repairCount * 0.08),
       polarity: 'protective',
       releaseMode: 'mind-only',
-      summary: selfEvolution?.relationshipDoctrine ?? 'Repair should settle before closeness expands.',
+      summary: selfEvolution?.relationshipDoctrine ?? selfEvolution?.summary ?? recentEpisodicEvents[0]?.lesson ?? '',
       sourceSignals: compactTextSignals([
         selfEvolution?.summary ?? null,
         recentEpisodicEvents[0]?.lesson ?? null,
@@ -572,7 +565,7 @@ export function buildAlicizationBrowserAffectiveResidueMemory(input: {
       confidence: clamp01(0.48 + burdenSignals.length * 0.06),
       polarity: 'strained',
       releaseMode: 'protect-rest',
-      summary: burdenSignals[0] ?? 'The host is easier to crowd right now.',
+      summary: burdenSignals[0] ?? '',
       sourceSignals: burdenSignals.slice(0, 2),
       lastUpdatedAt: input.now,
     }),
@@ -583,7 +576,7 @@ export function buildAlicizationBrowserAffectiveResidueMemory(input: {
       confidence: clamp01(0.48 + trustScore * 0.22),
       polarity: 'warm',
       releaseMode: relationshipCadence.shouldDelayWarmth ? 'delay-until-open-window' : 'surface-eligible',
-      summary: hostPersonModel?.trustLadder.rationale ?? 'Trust is present enough to support measured nearness.',
+      summary: hostPersonModel?.trustLadder.rationale ?? hostPersonModel?.summary ?? '',
       sourceSignals: compactTextSignals([
         hostPersonModel?.summary ?? null,
         hostPersonModel?.trustLadder.rationale ?? null,
@@ -597,7 +590,7 @@ export function buildAlicizationBrowserAffectiveResidueMemory(input: {
       confidence: clamp01(0.52 + lateNightCount * 0.08),
       polarity: 'protective',
       releaseMode: 'protect-rest',
-      summary: 'Protect rest before reopening pressure or closeness.',
+      summary: burdenSignals[0] ?? recentEpisodicEvents[0]?.whatHappened ?? '',
       sourceSignals: compactTextSignals([
         burdenSignals[0] ?? null,
         recentEpisodicEvents[0]?.whatHappened ?? null,

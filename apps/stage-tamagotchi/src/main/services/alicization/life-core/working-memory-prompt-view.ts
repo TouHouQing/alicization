@@ -347,8 +347,6 @@ export function buildWorkingMemoryPromptView(snapshot: WorkingMemorySnapshot): W
     modules,
     rendering: {
       blockLines: uniqueBlockLines([
-        'WorkingMemory short-term memory evidence.',
-        'Owner: WorkingMemory. Scope: short-term dialogue. Use it only when it helps the current answer payoff.',
         rangeLine,
         renderThreadLine(modules.thread),
         renderTaskLine(modules.task),

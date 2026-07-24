@@ -243,7 +243,7 @@ describe('runtime main gateway one-shot', () => {
       .map(message => typeof message.content === 'string' ? message.content : '')
       .join('\n')
 
-    expect(systemText).toContain('Return the requested structured result.')
+    expect(systemText).not.toContain('Return the requested structured result.')
     expect(systemText).toContain('keep this fact')
     expect(systemText).not.toContain(openingPolicyCue)
     expect(systemText).not.toContain(relationshipCadenceCue)
@@ -433,7 +433,7 @@ describe('runtime main gateway one-shot', () => {
     expect(callbackFact?.data).not.toHaveProperty(openingPolicyField)
   })
 
-  it('sends only caller-owned system context and returns Provider text without project-state wrapping', async () => {
+  it('drops caller-owned natural-language system context', async () => {
     const { runtime } = createOneShotRuntimeHarness()
     vi.mocked(generateText).mockResolvedValueOnce({
       text: 'Provider 原始回答。',
@@ -456,7 +456,7 @@ describe('runtime main gateway one-shot', () => {
       .map(message => typeof message.content === 'string' ? message.content : '')
       .join('\n')
 
-    expect(systemText).toBe('Classify the current input.')
+    expect(systemText).toBe('')
     expect(systemText).not.toMatch(fixedProjectPromptPattern)
     expect(systemText).not.toMatch(
       /latest_landed_progress|primary_open_loop|next_closure_target|canonical project-state/iu,
@@ -542,7 +542,7 @@ describe('runtime main gateway one-shot', () => {
     )
   })
 
-  it('keeps explicit extra system facts but does not append project governance blocks', async () => {
+  it('keeps only typed extra system facts', async () => {
     const { runtime } = createOneShotRuntimeHarness()
     const memoryFact = JSON.stringify({
       type: 'alicization-turn-memory-context',
@@ -573,7 +573,7 @@ describe('runtime main gateway one-shot', () => {
       .filter(message => message.role === 'system')
       .map(message => typeof message.content === 'string' ? message.content : '')
 
-    expect(systemTexts).toEqual([memoryFact, 'Return JSON.'])
+    expect(systemTexts).toEqual([memoryFact])
     expect(systemTexts.join('\n')).not.toMatch(fixedProjectPromptPattern)
   })
 
@@ -605,7 +605,7 @@ describe('runtime main gateway one-shot', () => {
       .filter(message => message.role === 'system')
       .map(message => typeof message.content === 'string' ? message.content : '')
 
-    expect(systemTexts).toEqual(['Classify this input.'])
+    expect(systemTexts).toEqual([])
     expect(buildPerformanceManifestSystemBlocks).not.toHaveBeenCalled()
   })
 
@@ -674,7 +674,7 @@ describe('runtime main gateway one-shot', () => {
     expect(grounded.unavailableReason).toBeUndefined()
   })
 
-  it('compacts oversized one-shot context while preserving the caller system prompt and user message', async () => {
+  it('compacts oversized one-shot context while preserving typed caller facts and user message', async () => {
     const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness()
     vi.mocked(generateText).mockResolvedValueOnce({
       text: 'ok',
@@ -688,8 +688,15 @@ describe('runtime main gateway one-shot', () => {
       },
     }))
 
+    const callerFact = JSON.stringify({
+      type: 'alicization-turn-memory-context',
+      data: {
+        caller: 'Keep this typed system fact.',
+      },
+    })
+
     await runtime.generateMainGatewayText({
-      system: 'Keep this exact system instruction.',
+      system: callerFact,
       user: 'Keep this user message.',
       source: 'screen-semantic',
       cardId: 'card-compaction',
@@ -701,7 +708,7 @@ describe('runtime main gateway one-shot', () => {
     const messages = vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? []
     expect(messages.at(-2)).toEqual({
       role: 'system',
-      content: 'Keep this exact system instruction.',
+      content: callerFact,
     })
     expect(messages.at(-1)).toEqual({
       role: 'user',

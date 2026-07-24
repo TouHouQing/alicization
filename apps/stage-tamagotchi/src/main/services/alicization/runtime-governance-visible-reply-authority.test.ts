@@ -338,10 +338,7 @@ describe('runtime governance visible reply authority', () => {
         visibleText: '这是顶层旧观察记录试图注入的替代回复。',
         nonHumanAuthoredStatus: null,
         blockedReasons: [],
-        projectStateAudit: {
-          sameHerSummary: '旧记录里的项目证据。',
-          obsoleteMarker: true,
-        },
+        internalMarker: 'legacy-governance-payload-ignored',
       },
       governance: createGovernance(),
       createdAt: Date.now(),
@@ -351,12 +348,12 @@ describe('runtime governance visible reply authority', () => {
     const normalized = normalizeDialogueRespondedPayload(governed.payload)
 
     expect(governed.payload.visibleReplyRealization).toEqual(expect.objectContaining({
-      expectedAuthority: unsupportedAuthority,
+      expectedAuthority: 'llm-mind',
       actualAuthority: 'non-human-authored-blocked',
       visibleText: '这是首个 Provider 生成的回复。',
     }))
     expect(governedStructured.visibleReplyRealization).toEqual(expect.objectContaining({
-      expectedAuthority: unsupportedAuthority,
+      expectedAuthority: 'llm-mind',
       actualAuthority: 'non-human-authored-blocked',
       visibleText: '这是首个 Provider 生成的回复。',
     }))
@@ -371,9 +368,9 @@ describe('runtime governance visible reply authority', () => {
       actualAuthority: 'non-human-authored-blocked',
       visibleText: '这是首个 Provider 生成的回复。',
       visibleReplyValidationStatus: 'unknown',
-      projectStateEvidenceStatus: 'unknown',
     }))
-    expect(normalized?.visibleReplyRealization?.projectStateAudit).not.toHaveProperty('obsoleteMarker')
+    expect(normalized?.visibleReplyRealization).not.toHaveProperty('internalMarker')
+    expect(normalized?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
   })
 
   it('removes second-pass authority from shared contracts and runtime authority helpers', () => {

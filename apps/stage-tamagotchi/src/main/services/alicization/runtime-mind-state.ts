@@ -311,7 +311,7 @@ function mapPersistedReflectionRecordToEntry(record: AlicizationMemoryReflection
 }
 
 const legacyProjectGovernanceTokenPattern
-  = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|project_state(?:_review)?|runtime_loop_validation|runtime_personhood|continuity_(?:anchor|hold|cue|timing|cadence)|owner)\s*=|visibility\s*=\s*redacted_internal/iu
+  = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|project_state(?:_review)?|runtime_loop_validation|runtime_personhood|continuity_(?:anchor|hold|cue|timing|cadence|owner)|owner)\s*=|visibility\s*=\s*redacted_internal/iu
 
 const legacyProjectGovernanceReasonCodePattern
   = /^(?:continuity-proactive-gap-active|project-state-causality-repair)$/u
@@ -1189,7 +1189,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         affectiveTone: input.heuristic.affectiveTone,
         subjectPreference: input.heuristic.subjectPreference ?? undefined,
         taskAnchor: compactPromptText(input.heuristic.taskAnchor, 140) || undefined,
-        summary: compactPromptText(input.heuristic.summary, 160) || undefined,
       },
     }
   }
@@ -1342,7 +1341,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
             act: input.dialogueSemantics.act,
             responseNeed: input.dialogueSemantics.responseNeed,
             truthExpectation: input.dialogueSemantics.truthExpectation,
-            summary: compactPromptText(input.dialogueSemantics.summary, 160) || undefined,
+            subjectPreference: input.dialogueSemantics.subjectPreference ?? undefined,
+            taskAnchor: compactPromptText(input.dialogueSemantics.taskAnchor, 140) || undefined,
+            reasonTags: input.dialogueSemantics.reasonTags.slice(0, 10),
           }
         : null,
       previous: {
@@ -2283,13 +2284,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       privateThought: input.previousVisualPresenceState.privateThought ?? null,
       affectiveResidue: input.organicMemoryContext?.affectiveResidue ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
-      recollectionIntent: input.organicMemoryContext?.recollectionIntent
-        ?? readRecollectionIntentFromDerivedMindStateBundle<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>>(
-          input.previousVisualPresenceState.derivedMindStateBundle ?? null,
-        )
-        ?? null,
       longHorizonMemory,
-      selfEvolution,
     })
     const initiativeArbitration = buildInitiativeArbitration({
       now: input.now,
@@ -2476,13 +2471,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       privateThought: bootstrapPrivateThought,
       affectiveResidue: input.organicMemoryContext?.affectiveResidue ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
-      recollectionIntent: input.organicMemoryContext?.recollectionIntent
-        ?? readRecollectionIntentFromDerivedMindStateBundle<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>>(
-          existingDerivedMindStateBundle ?? null,
-        )
-        ?? null,
       longHorizonMemory,
-      selfEvolution,
     })
     // Once the current-turn thought exists, let initiative/autonomy rehydrate on the
     // same emotional beat instead of exporting the bootstrap projection one turn late.
@@ -2631,13 +2620,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       privateThought,
       affectiveResidue: input.organicMemoryContext?.affectiveResidue ?? null,
       personStateProjection: preferredResidentPersonStateProjection,
-      recollectionIntent: input.organicMemoryContext?.recollectionIntent
-        ?? readRecollectionIntentFromDerivedMindStateBundle<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>>(
-          existingDerivedMindStateBundle ?? null,
-        )
-        ?? null,
       longHorizonMemory,
-      selfEvolution,
     })
     const dialogueEncounterRuntimeSurface = dialogueSemantics
       ? buildAlicizationProvisionalDigitalLifeRuntimeSurface({

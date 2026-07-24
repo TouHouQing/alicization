@@ -53,7 +53,7 @@ describe('buildDiscourseState', () => {
       relationMove: 'self-disclose',
       continuityMode: 'dialogue-first',
     }))
-    expect(buildDiscourseStateSystemBlock(state)).toContain('[ALICIZATION_DISCOURSE_STATE]')
+    expect(buildDiscourseStateSystemBlock(state)).toBe('')
   })
 
   it('promotes visible-scene repair turns into repair-truth obligations', () => {
@@ -165,7 +165,7 @@ describe('buildDiscourseState', () => {
     }))
   })
 
-  it('marks project-state continuity turns as identity continuity carrying the project line', () => {
+  it('keeps project status as a self-owned turn without a governance cue', () => {
     const state = buildDiscourseState({
       now: 13_500,
       userText: '这个项目现在到底做到哪了，还差什么没闭环',
@@ -208,8 +208,9 @@ describe('buildDiscourseState', () => {
     expect(state).not.toBeNull()
     const resolvedState = state!
     expect(resolvedState.currentTurnSubject).toBe('alicization-self')
-    expect(resolvedState.currentTurnSummary).toContain('identity continuity')
-    expect(resolvedState.narrative).toContain('project-state-same-her-continuity')
+    expect(resolvedState.currentTurnSummary).toContain('project_state_review_request')
+    expect(resolvedState.narrative).toContain('subject:alicization-self')
+    expect(resolvedState.narrative).not.toContain('project-state-same-her-continuity')
   })
 
   it('does not let inspection carry override an already dialogue-first self turn', () => {

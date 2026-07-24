@@ -51,16 +51,6 @@ export interface AlicizationResponseCharter {
   relationshipPosture: 'restrained' | 'warm' | 'tender'
 }
 
-interface AlicizationResponseCharterProjectStateInput {
-  identity?: string | null
-  currentPhase?: string | null
-  latestLandedProgress?: string | null
-  latestProgress?: string | null
-  primaryOpenLoop?: string | null
-  nextClosureTarget?: string | null
-  emotionalClosureCue?: string | null
-}
-
 const responseModes = new Set<AlicizationResponseMode>([
   'guide-current-knot',
   'repair-and-reanchor',
@@ -209,7 +199,6 @@ function resolveGoverningProject(runtimeSurface: AlicizationDigitalLifeRuntimeSu
 export function buildAlicizationResponseCharter(input: {
   context: AlicizationProactiveLayeredContext
   state: AlicizationVisualPresenceStateSnapshot
-  projectState?: AlicizationResponseCharterProjectStateInput | null
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   inspectionRequested: boolean
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
@@ -292,15 +281,9 @@ export function buildAlicizationResponseCharter(input: {
       ? firstFact([
           answerPlanner?.governingProject,
           project?.summary,
-          input.projectState?.identity,
-          input.projectState?.currentPhase,
-          input.projectState?.primaryOpenLoop,
         ], 520)
       : null,
-    emotionalClosureCue: firstFact([
-      currentConsciousFrame?.projectState?.emotionalClosureCue,
-      input.projectState?.emotionalClosureCue,
-    ]),
+    emotionalClosureCue: null,
     activeClosenessContext: personStateProjection?.activeClosenessContext ?? null,
     activeClosenessRung: personStateProjection?.activeClosenessRung ?? null,
     relationshipPosture: resolveRelationshipPosture({

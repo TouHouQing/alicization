@@ -74,14 +74,16 @@ describe('execution delivery surface', () => {
 
     expect(JSON.parse(prompt.system)).toEqual({
       type: 'alicization-execution-settlement-context',
-      executionFact: {
-        type: 'execution-result',
-        toolName: 'cli',
-        status: 'succeeded',
-        summary: '构建完成',
-        result: {
-          goal: '构建应用',
-          outcome: 'exitCode=0',
+      data: {
+        executionFact: {
+          type: 'execution-result',
+          toolName: 'cli',
+          status: 'succeeded',
+          summary: '构建完成',
+          result: {
+            goal: '构建应用',
+            outcome: 'exitCode=0',
+          },
         },
       },
     })

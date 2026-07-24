@@ -213,10 +213,9 @@ export function buildConversationState(input: {
     || worldModel?.activeThread?.summary
     || worldModel?.activeThread?.title
     || input.previous?.jointThread
-    || currentScene?.summary
-    || 'Stay with the current living thread.',
+    || currentScene?.summary,
     220,
-  ) || 'Stay with the current living thread.'
+  )
   const hostMove = sanitizeText(
     input.userText
     || primaryTurnAnchor
@@ -346,27 +345,6 @@ export function buildConversationState(input: {
 }
 
 export function buildConversationStateSystemBlock(state: AlicizationConversationStateSnapshot | null | undefined) {
-  if (!state)
-    return ''
-
-  return [
-    '[ALICIZATION_CONVERSATION_STATE]',
-    'Conversation state is owned by WorkingMemory and is not wording authority.',
-    `Joint thread: ${state.jointThread}.`,
-    `Host move: ${state.hostMove}.`,
-    `Primary turn anchor: ${state.primaryTurnAnchor ?? 'none'}.`,
-    `Primary turn anchor source: ${state.primaryTurnAnchorSource ?? 'none'}.`,
-    `Active project: ${state.activeProject ?? 'none'}.`,
-    `Unanswered question: ${state.unansweredQuestion ?? 'none'}.`,
-    `Owed repair: ${state.owedRepair ?? 'none'}.`,
-    `Relation frame: ${state.relationFrame}.`,
-    `Continuity policy: ${state.continuityPolicy}.`,
-    `Memory mode: ${state.memoryMode}.`,
-    `Should hold thread: ${state.shouldHoldThread ? 'yes' : 'no'}.`,
-    `Carry eligible: ${state.carryEligible === true ? 'yes' : 'no'}.`,
-    `Carry reason: ${state.carryReason ?? 'none'}.`,
-    `Active commitments: ${state.activeCommitments.length > 0 ? state.activeCommitments.join(' | ') : 'none'}.`,
-    `Memory query hints: ${state.memoryQueryHints.length > 0 ? state.memoryQueryHints.join(' | ') : 'none'}.`,
-    'Reply scope: shared thread first; associative memory is secondary; stale residue is non-authoritative.',
-  ].join('\n')
+  void state
+  return ''
 }

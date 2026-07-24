@@ -5,11 +5,40 @@ import {
   buildAlicizationLongHorizonMemoryQuery,
   buildLongHorizonMemorySystemBlock,
 } from './long-horizon-memory'
-import { buildProactiveFeedbackOutcomeClosure } from './outcome-reinforcement'
+import { buildProactiveFeedbackOutcomeClosure, buildReplyOutcomeClosure } from './outcome-reinforcement'
 import { buildAlicizationPersonStateUpdateSurface } from './person-state-update-surface'
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 describe('long horizon memory', () => {
+  it('keeps long-term cue summaries factual instead of adding a remembered-message template', () => {
+    const snapshot = buildAlicizationLongHorizonMemory({
+      now: 20_500,
+      facts: [{
+        id: 'fact-raw-cue',
+        subject: 'relationship',
+        predicate: 'prefer',
+        object: 'direct answers',
+        confidence: 0.84,
+        accessCount: 1,
+        updatedAt: 20_000,
+      }] as any,
+    })
+
+    expect(snapshot?.anchorFacts[0]?.summary).toBe('relationship prefer direct answers')
+    expect(snapshot?.anchorFacts[0]?.summary).not.toMatch(/^Remembered\b/iu)
+    expect(snapshot?.rememberedPreferenceSummary).toBe('relationship prefer direct answers')
+  })
+
+  it('does not promote project-state governance into long-term memory without factual evidence', () => {
+    const snapshot = buildAlicizationLongHorizonMemory({
+      now: 20_500,
+      facts: [],
+      projectStatePrimaryOpenLoop: 'open_loop=memory_dialogue_embodiment_closure',
+      projectStateContinuityArcStage: 'stage=runtime-proof',
+    })
+
+    expect(snapshot).toBeNull()
+  })
+
   it('condenses semantic facts into durable preference and identity pressure', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 20_000,
@@ -45,12 +74,12 @@ describe('long horizon memory', () => {
     })
 
     expect(snapshot).not.toBeNull()
-    expect(snapshot?.rememberedPreferenceSummary).toContain('Remembered preference')
-    expect(snapshot?.rememberedConstraintSummary).toContain('Remembered boundary')
-    expect(snapshot?.rememberedPlanSummary).toContain('Remembered open loop')
+    expect(snapshot?.rememberedPreferenceSummary).toBe('relationship prefer honest and direct answers')
+    expect(snapshot?.rememberedConstraintSummary).toBe('host boundary needs space while focused')
+    expect(snapshot?.rememberedPlanSummary).toBe('assistant remember return to the unresolved runtime thread later')
     expect(snapshot?.preferenceBias.truthfulGrounding).toBeGreaterThan(0.05)
     expect(snapshot?.preferenceBias.autonomyRespect).toBeGreaterThan(0.05)
-    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
+    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThanOrEqual(0.05)
     expect(snapshot?.identityBias.directness).toBeGreaterThan(0.05)
   })
 
@@ -104,7 +133,7 @@ describe('long horizon memory', () => {
     expect(query).toContain('follow up unfinished continue return open loop')
   })
 
-  it('renders a dedicated prompt block for durable memory pressure', () => {
+  it('does not render a prompt block for durable memory pressure', () => {
     const block = buildLongHorizonMemorySystemBlock({
       version: 'digital-life-runtime-surface-v1',
       perception: {
@@ -216,10 +245,7 @@ describe('long horizon memory', () => {
       },
     } as any)
 
-    expect(block).toContain('[ALICIZATION_LONG_HORIZON_MEMORY]')
-    expect(block).toContain('Remembered preference:')
-    expect(block).toContain('Remembered boundary:')
-    expect(block).toContain('Anchor memories:')
+    expect(block).toBe('')
   })
 
   it('filters superseded facts and favors validated internalized knowledge in durable cues', () => {
@@ -338,7 +364,7 @@ describe('long horizon memory', () => {
     expect(snapshot?.anchorFacts[0]?.factId).not.toBe('derived:stale-temporary-noise')
   })
 
-  it('keeps unfinished-thread continuity pressure alive when project memory closure is still open', () => {
+  it('does not let project-state closure prose add unfinished-thread pressure to factual memory', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 90_000,
       facts: [{
@@ -354,11 +380,12 @@ describe('long horizon memory', () => {
     })
 
     expect(snapshot).not.toBeNull()
-    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.18)
-    expect(snapshot?.summary).toContain('continuity=')
+    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBe(0)
+    expect(snapshot?.summary).toContain('relationship preference likes when unresolved threads are gently revisited later')
+    expect(snapshot?.summary).not.toContain('continuity=')
   })
 
-  it('also keeps unfinished-thread continuity pressure alive when the only surviving project carry is the emotional closure seam', () => {
+  it('does not let an emotional project-state cue add unfinished-thread pressure to factual memory', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 91_000,
       facts: [{
@@ -374,9 +401,9 @@ describe('long horizon memory', () => {
     })
 
     expect(snapshot).not.toBeNull()
-    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.18)
-    expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary?.toLowerCase()).toContain('continuity_hold')
+    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBe(0)
+    expect(snapshot?.summary).toContain('relationship preference likes when unresolved threads are gently revisited later')
+    expect(snapshot?.summary).not.toContain('continuity_hold')
   })
 
   it('treats the proactive identity continuity gap itself as durable continuity pressure that should survive into later return memory', () => {
@@ -386,17 +413,7 @@ describe('long horizon memory', () => {
       projectStateProactiveSameHerGap: 'continuity_progress=needs_long_run_proof; initiative_gap=visible_hold+subconscious_carry+next_session_feedback; proof=long_noisy_desktop_runs',
     })
 
-    expect(snapshot).not.toBeNull()
-    expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).toContain('Remembered proactive identity continuity gap')
-    expect(snapshot?.dominantCueSummary).toContain('Remembered proactive identity continuity gap')
-    expect(snapshot?.rememberedPlanSummary).toContain('Remembered proactive identity continuity gap')
-    expect(snapshot?.anchorFacts.some(cue =>
-      cue.summary.includes('Remembered proactive identity continuity gap')
-      && cue.object.includes('visible_hold'),
-    )).toBe(true)
-    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
-    expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
+    expect(snapshot).toBeNull()
   })
 
   it('prefers repeatedly validated durable cues over contradiction-heavy ones', () => {
@@ -532,7 +549,8 @@ describe('long horizon memory', () => {
     })
 
     expect(snapshot?.anchorFacts.some(cue => cue.factId === 'derived:execution-callback-carry')).toBe(true)
-    expect(snapshot?.rememberedConstraintSummary).toContain('Remembered execution-callback boundary')
+    expect(snapshot?.rememberedConstraintSummary).toContain('execution-callback')
+    expect(snapshot?.rememberedConstraintSummary).not.toMatch(/^Remembered\b/iu)
     expect(snapshot?.preferenceBias.autonomyRespect).toBeGreaterThan(0.04)
     expect(snapshot?.preferenceBias.quietObservation).toBeGreaterThan(0.03)
   })
@@ -569,11 +587,11 @@ describe('long horizon memory', () => {
 
     const cue = snapshot?.anchorFacts.find(cue => cue.factId === 'derived:execution-callback-carry')
     expect(cue).toBeTruthy()
-    expect(cue?.summary).toContain('Remembered execution-callback project-state carry')
+    expect(cue?.summary).not.toMatch(/^Remembered\b/iu)
     expect(cue?.summary).toContain('local-first digital life')
     expect(cue?.influenceTags).toEqual(expect.arrayContaining(['identity', 'task', 'boundary']))
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
-    expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
+    expect(snapshot?.identityBias.selfDirection).toBeGreaterThanOrEqual(0.03)
   })
 
   it('remembers identity continuity self-line and anti-shell drift risk as durable long-horizon continuity pressure', () => {
@@ -608,11 +626,9 @@ describe('long horizon memory', () => {
     })
 
     expect(snapshot).not.toBeNull()
-    expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).toContain('Remembered identity continuity drift risk')
-    expect(snapshot?.summary).toContain('generic_assistant_shell')
-    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
-    expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
+    expect(snapshot?.summary).toContain('continuity_identity')
+    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThanOrEqual(0.05)
+    expect(snapshot?.identityBias.selfDirection).toBeGreaterThanOrEqual(0.03)
   })
 
   it('does not turn fixed project-state continuity templates alone into long-horizon continuity pressure', () => {
@@ -656,12 +672,7 @@ describe('long horizon memory', () => {
       projectStateSameHerDriftRisk: 'same-her drift',
     })
 
-    expect(snapshot).not.toBeNull()
-    expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).not.toMatch(/same-her|continuity state|phase 1 digital life/i)
-    expect(snapshot?.anchorFacts.find(item => item.factId === 'derived:project-state-identity-continuity')?.summary)
-      .not
-      .toMatch(/same-her|continuity state|phase 1 digital life/i)
+    expect(snapshot).toBeNull()
   })
 
   it('treats project-state identity continuity closure pressure itself as enough seed for durable memory even before factual cues or person-state updates exist', () => {
@@ -674,13 +685,7 @@ describe('long horizon memory', () => {
       projectStateSameHerDriftRisk: 'continuity_drift_risk=generic_assistant_shell+project_summary_voice; closure_status=unfinished',
     })
 
-    expect(snapshot).not.toBeNull()
-    expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).toContain('Remembered identity continuity drift risk')
-    expect(snapshot?.dominantCueSummary).toContain('Remembered identity continuity drift risk')
-    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
-    expect(snapshot?.preferenceBias.companionship).toBeGreaterThan(0.04)
-    expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
+    expect(snapshot).toBeNull()
   })
 
   it('keeps landed progress and next closure target visible inside durable memory continuity when identity closure is still open', () => {
@@ -716,15 +721,15 @@ describe('long horizon memory', () => {
     })
 
     expect(snapshot).not.toBeNull()
-    expect(snapshot?.summary).toContain('continuity=')
-    expect(snapshot?.summary).toContain('Remembered identity continuity drift risk')
+    expect(snapshot?.summary).toContain('continuity_identity')
+    expect(snapshot?.summary).not.toMatch(/^Remembered\b/iu)
     expect(String(snapshot?.dominantCueSummary ?? '')).toMatch(/continuity|continuation|closure/i)
-    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.05)
-    expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
-    expect(snapshot?.anchorFacts.some(cue => /project-state carry|structured continuity|cross_modal_continuity_proof|identity continuity/i.test(cue.summary))).toBe(true)
+    expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThanOrEqual(0.05)
+    expect(snapshot?.identityBias.selfDirection).toBeGreaterThanOrEqual(0.03)
+    expect(snapshot?.anchorFacts.some(cue => /cross_modal_continuity_proof|continuity_identity/i.test(cue.summary))).toBe(true)
   })
 
-  it('turns project-state voice and pacing into durable identity continuity memory carry instead of leaving that cadence in prompt-only state', () => {
+  it('does not turn project-state voice and pacing into durable memory without factual evidence', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 71_250,
       facts: [],
@@ -736,21 +741,10 @@ describe('long horizon memory', () => {
       projectStatePreferredPacingMode: 'slower',
     })
 
-    const cue = snapshot?.anchorFacts.find(item => item.factId === 'derived:project-state-identity-continuity')
-    expect(cue).toBeTruthy()
-    expect(cue?.object.toLowerCase()).toContain('longer pause')
-    expect(cue?.object.toLowerCase()).toContain('restrained lipsync')
-    expect(cue?.object.toLowerCase()).toContain('lower-pressure voice')
-    expect(cue?.object.toLowerCase()).toContain('slower pacing')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('embodiment continuity cadence')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('longer pause')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('restrained lipsync')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('lower-pressure voice')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('slower pacing')
+    expect(snapshot).toBeNull()
   })
 
-  it('falls back to canonical project voice and pacing when identity continuity is present but thin-shell blanks try to erase that cadence', () => {
-    const brief = resolveAlicizationProjectStateBrief()
+  it('does not fall back to canonical project voice and pacing', () => {
     const snapshot = buildAlicizationLongHorizonMemory({
       now: 71_300,
       facts: [],
@@ -762,20 +756,7 @@ describe('long horizon memory', () => {
       projectStatePreferredPacingMode: '',
     })
 
-    const cue = snapshot?.anchorFacts.find(item => item.factId === 'derived:project-state-identity-continuity')
-    expect(brief.preferredPauseMode).toBe('longer')
-    expect(brief.preferredLipsyncMode).toBe('restrained')
-    expect(brief.preferredVoiceMode).toBe('lower-pressure')
-    expect(brief.preferredPacingMode).toBe('slower')
-    expect(cue).toBeTruthy()
-    expect(cue?.object.toLowerCase()).toContain('longer pause')
-    expect(cue?.object.toLowerCase()).toContain('restrained lipsync')
-    expect(cue?.object.toLowerCase()).toContain('lower-pressure voice')
-    expect(cue?.object.toLowerCase()).toContain('slower pacing')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('longer pause')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('restrained lipsync')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('lower-pressure')
-    expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('slower pacing')
+    expect(snapshot).toBeNull()
   })
 
   it('turns execution-callback trust warming into a durable relationship carry cue', () => {
@@ -806,8 +787,12 @@ describe('long horizon memory', () => {
       } as any,
     })
 
-    expect(snapshot?.anchorFacts.some(cue => cue.summary.includes('execution-callback trust carry'))).toBe(true)
-    expect(snapshot?.rememberedPreferenceSummary).toContain('Remembered execution-callback trust carry')
+    expect(snapshot?.anchorFacts.some(cue =>
+      cue.factId === 'derived:person-state-summary'
+      && cue.summary.includes('execution-callback'),
+    )).toBe(true)
+    expect(snapshot?.rememberedPreferenceSummary).toContain('execution-callback')
+    expect(snapshot?.rememberedPreferenceSummary).not.toMatch(/^Remembered\b/iu)
     expect(snapshot?.preferenceBias.companionship).toBeGreaterThan(0.03)
     expect(snapshot?.identityBias.tenderness).toBeGreaterThan(0.015)
   })
@@ -841,7 +826,8 @@ describe('long horizon memory', () => {
     })
 
     expect(snapshot?.anchorFacts.some(cue => cue.factId === 'derived:execution-callback-carry')).toBe(true)
-    expect(snapshot?.rememberedConstraintSummary).toContain('Remembered execution-callback boundary')
+    expect(snapshot?.rememberedConstraintSummary).toContain('execution-callback')
+    expect(snapshot?.rememberedConstraintSummary).not.toMatch(/^Remembered\b/iu)
     expect(snapshot?.preferenceBias.autonomyRespect).toBeGreaterThan(0.04)
     expect(snapshot?.preferenceBias.quietObservation).toBeGreaterThan(0.03)
   })
@@ -1050,13 +1036,13 @@ describe('long horizon memory', () => {
 
     const cue = snapshot?.anchorFacts.find(item => item.factId === 'derived:consolidation-humanlike-carry:autobio:relationship-era:2026-W23')
     expect(cue).toBeTruthy()
-    expect(cue?.summary.toLowerCase()).toContain('same-person continuity')
+    expect(cue?.summary.toLowerCase()).toContain('source=relationship-continuity')
     expect(cue?.summary.toLowerCase()).toContain('lower-pressure')
-    expect(cue?.summary.toLowerCase()).toContain('project-state continuity')
+    expect(cue?.summary).not.toMatch(/^Remembered\b/iu)
     expect(cue?.influenceTags).toEqual(expect.arrayContaining(['identity', 'boundary', 'task']))
     expect(snapshot?.rememberedConstraintSummary?.toLowerCase()).toContain('lower-pressure')
-    expect(snapshot?.rememberedPlanSummary?.toLowerCase()).toContain('same-person continuity')
-    expect(snapshot?.dominantCueSummary?.toLowerCase()).toContain('same-person continuity')
+    expect(snapshot?.rememberedPlanSummary?.toLowerCase()).toContain('source=relationship-continuity')
+    expect(snapshot?.dominantCueSummary?.toLowerCase()).toContain('source=relationship-continuity')
     expect(snapshot?.preferenceBias.autonomyRespect).toBeGreaterThan(0.04)
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.04)
     expect(snapshot?.identityBias.selfDirection).toBeGreaterThan(0.03)
@@ -1126,9 +1112,9 @@ describe('long horizon memory', () => {
       ] as any,
     })
 
-    expect(snapshot?.dominantCueSummary?.toLowerCase()).toContain('same-person continuity')
+    expect(snapshot?.dominantCueSummary?.toLowerCase()).toContain('source=relationship-continuity')
     expect(snapshot?.rememberedConstraintSummary?.toLowerCase()).toContain('lower-pressure')
-    expect(snapshot?.rememberedPlanSummary?.toLowerCase()).toContain('same-person continuity')
+    expect(snapshot?.rememberedPlanSummary?.toLowerCase()).toContain('source=relationship-continuity')
     expect(snapshot?.anchorFacts.some(cue => cue.summary.toLowerCase().includes('concise status recap'))).toBe(false)
     expect(snapshot?.anchorFacts.some(cue => cue.object.toLowerCase().includes('concise status recap'))).toBe(false)
   })
@@ -1316,11 +1302,12 @@ describe('long horizon memory', () => {
 
     expect(stableCue).toBeTruthy()
     expect(stableCue?.influenceTags).toEqual(expect.arrayContaining(['bond', 'task', 'truth']))
-    expect(snapshot?.rememberedPreferenceSummary).toContain('Remembered stable preference hint:')
+    expect(snapshot?.rememberedPreferenceSummary).toContain('Prefer even voice')
+    expect(snapshot?.rememberedPreferenceSummary).not.toMatch(/^Remembered\b/iu)
     expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('even voice')
     expect(snapshot?.rememberedPreferenceSummary?.toLowerCase()).toContain('natural pacing')
     expect(snapshot?.rememberedPreferenceSummary).not.toContain('Remembered consolidation humanlike carry')
-    expect(snapshot?.dominantCueSummary?.toLowerCase()).toContain('same-person continuity')
+    expect(snapshot?.dominantCueSummary?.toLowerCase()).toContain('source=relationship-continuity')
   })
 
   it('turns tentative recall metabolism into a durable long-horizon cue instead of dropping downrank merge forget guidance after the next reply seed', () => {
@@ -1370,7 +1357,9 @@ describe('long horizon memory', () => {
     expect(cue?.object.toLowerCase()).toContain('older-same-thread-echo')
     expect(cue?.object.toLowerCase()).toContain('older-emotional-spike')
     expect(cue?.summary.toLowerCase()).toContain('tentative')
-    expect(cue?.summary.toLowerCase()).toContain('temporary noise')
+    expect(cue?.summary.toLowerCase()).toContain('downrank=')
+    expect(cue?.summary.toLowerCase()).toContain('merge=')
+    expect(cue?.summary.toLowerCase()).toContain('forget=')
   })
 
   it('turns person-state initiative outcome learning into a dedicated durable strategy cue instead of leaving follow-up timing inside a generic summary line', () => {
@@ -1421,12 +1410,12 @@ describe('long horizon memory', () => {
 
     const cue = snapshot?.anchorFacts.find(item => item.factId === 'derived:person-state-initiative-strategy-carry')
     expect(cue).toBeTruthy()
-    expect(cue?.summary.toLowerCase()).toContain('clearer opening')
+    expect(cue?.summary.toLowerCase()).toContain('strategy=clearer-opening')
     expect(cue?.summary.toLowerCase()).toContain('lower-pressure')
-    expect(cue?.summary.toLowerCase()).toContain('leave more room')
+    expect(cue?.summary.toLowerCase()).toContain('strategy=leave-room')
     expect(cue?.influenceTags).toEqual(expect.arrayContaining(['boundary', 'task', 'truth']))
-    expect(snapshot?.rememberedConstraintSummary?.toLowerCase()).toContain('leave more room')
-    expect(snapshot?.rememberedPlanSummary?.toLowerCase()).toContain('clearer opening')
+    expect(snapshot?.rememberedConstraintSummary?.toLowerCase()).toContain('strategy=leave-room')
+    expect(snapshot?.rememberedPlanSummary?.toLowerCase()).toContain('strategy=clearer-opening')
     expect(snapshot?.dominantCueSummary?.toLowerCase()).toContain('lower-pressure')
     expect(snapshot?.preferenceBias.autonomyRespect).toBeGreaterThan(0.04)
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.04)
@@ -1490,7 +1479,7 @@ describe('long horizon memory', () => {
     expect(snapshot?.preferenceBias.unfinishedThreadReturn).toBeGreaterThan(0.04)
   })
 
-  it('carries proactive outcome strategy learning through the person-state surface into a durable initiative cue', () => {
+  it('does not turn proactive outcome labels into a synthesized durable strategy cue', () => {
     const closure = buildProactiveFeedbackOutcomeClosure({
       now: 94_500,
       cardId: 'card-1',
@@ -1512,13 +1501,52 @@ describe('long horizon memory', () => {
     })
 
     const cue = snapshot?.anchorFacts.find(item => item.factId === 'derived:person-state-initiative-strategy-carry')
-    expect(surface.repairHints.some(hint => hint.toLowerCase().includes('lower-pressure'))).toBe(true)
-    expect(surface.narrative.some(line => line.toLowerCase().includes('clearer opening'))).toBe(true)
-    expect(cue).toBeTruthy()
-    expect(cue?.summary.toLowerCase()).toContain('lower-pressure')
-    expect(cue?.summary.toLowerCase()).toContain('leave more room')
-    expect(cue?.summary.toLowerCase()).toContain('clearer opening')
-    expect(snapshot?.rememberedConstraintSummary?.toLowerCase()).toContain('leave more room')
+    expect(surface.repairHints).toEqual([])
+    expect(surface.narrative.join(' ')).not.toMatch(/lower-pressure|clearer opening/iu)
+    expect(cue).toBeUndefined()
+    expect(snapshot?.anchorFacts.map(item => item.summary).join(' ')).not.toMatch(/strategy=leave-room|strategy=clearer-opening/iu)
+  })
+
+  it('does not turn an unrated ordinary reply into durable preference bias', () => {
+    const closure = buildReplyOutcomeClosure({
+      now: 94_800,
+      cardId: 'card-1',
+      turnId: 'turn-unrated-reply',
+      sessionId: 'session-unrated-reply',
+      userText: '继续。',
+      assistantText: 'Provider generated reply.',
+      runtimeSurface: {
+        world: {
+          worldModel: {
+            hostState: {
+              availability: 'focused',
+            },
+            activeThread: {
+              unresolved: true,
+            },
+          },
+        },
+        agency: {
+          initiative: {
+            selectedAction: 'hover',
+            preferredStyle: 'silent-observe',
+          },
+        },
+      },
+    } as any)
+    const surface = buildAlicizationPersonStateUpdateSurface({
+      now: 94_900,
+      closure,
+    })
+    const snapshot = buildAlicizationLongHorizonMemory({
+      now: 95_000,
+      facts: [],
+      personStateUpdateSurface: surface,
+    })
+
+    expect(snapshot?.preferenceBias.autonomyRespect ?? 0).toBe(0)
+    expect(snapshot?.preferenceBias.quietObservation ?? 0).toBe(0)
+    expect(snapshot?.preferenceBias.truthfulGrounding ?? 0).toBe(0)
   })
 
   it('turns current-turn execution callback carry into a durable lower-pressure cue instead of waiting for a later persistence seam', () => {

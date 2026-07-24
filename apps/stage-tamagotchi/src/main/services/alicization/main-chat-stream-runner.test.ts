@@ -144,10 +144,12 @@ function createObservedRealization(
     mode,
     visibleText,
     visibleReplyValidationStatus: 'approved',
-    projectStateEvidenceStatus: 'unknown',
     nonHumanAuthoredStatus: null,
     blockedReasons: [],
-    projectStateAudit: null,
+    emotionalClosureAudit: null,
+    selfAuthorityAudit: null,
+    critic: null,
+    closure: null,
   } as const
 }
 
@@ -685,7 +687,9 @@ describe('main chat stream runner', () => {
       'format',
     ])
     expect(JSON.parse(result.fullText)).not.toHaveProperty('visibleReplyRealization')
-    expect(result.visibleReplyRealization).toBe(visibleReplyRealization)
+    expect(result.visibleReplyRealization).toMatchObject(visibleReplyRealization)
+    expect(result.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
+    expect(result.visibleReplyRealization).not.toHaveProperty('projectStateEvidenceStatus')
     expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
       text: '  视觉原样回答。  ',
     }))
@@ -760,7 +764,9 @@ describe('main chat stream runner', () => {
 
     expect(result.fullText).toBe(rawFullText)
     expect(JSON.parse(result.fullText)).not.toHaveProperty('visibleReplyRealization')
-    expect(result.visibleReplyRealization).toBe(visibleReplyRealization)
+    expect(result.visibleReplyRealization).toMatchObject(visibleReplyRealization)
+    expect(result.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
+    expect(result.visibleReplyRealization).not.toHaveProperty('projectStateEvidenceStatus')
     expect(emitChunk).toHaveBeenCalledOnce()
     expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
       text: '  流式原样回答。  ',

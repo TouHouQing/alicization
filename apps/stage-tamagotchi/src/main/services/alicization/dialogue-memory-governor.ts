@@ -6,7 +6,6 @@ import type {
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 
 import {
-  buildAlicizationDialogueMemoryCarrySystemBlock as buildSharedAlicizationDialogueMemoryCarrySystemBlock,
   deriveAlicizationDialogueMemoryCarryPolicyFromDigest,
 } from '@proj-alicization/stage-shared'
 
@@ -40,5 +39,6 @@ export function deriveAlicizationDialogueMemoryCarryPolicy(
 export function buildAlicizationDialogueMemoryCarrySystemBlock(
   policy: AlicizationDialogueMemoryCarryPolicy,
 ) {
-  return buildSharedAlicizationDialogueMemoryCarrySystemBlock(policy)
+  void policy
+  return ''
 }

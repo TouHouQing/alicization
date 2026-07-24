@@ -140,8 +140,63 @@ describe('subjective inference', () => {
 
     expect(inference.hostIntentCandidates[0]?.goal).toBe('resolve-problem')
     expect(inference.relationshipNeedCandidates[0]?.need).toBe('guidance')
-    expect(inference.dominantInterpretation).toContain('故障点')
+    expect(inference.dominantInterpretation).toBe('situated_meaning.kind=debugging_focus; attention=concrete_fault')
+    expect(inference.hostIntentCandidates.map(candidate => candidate.why)).not.toContain(
+      'Visible error friction usually means the host is trying to resolve a concrete problem.',
+    )
+    expect(inference.relationshipNeedCandidates.map(candidate => candidate.why)).not.toContain(
+      'A narrow problem thread invites grounded guidance more than vague companionship.',
+    )
     expect(inference.confidence).toBeGreaterThan(0.7)
+  })
+
+  it('does not invent prose when scene text is absent', () => {
+    const inference = buildSubjectiveInference({
+      now: 10_000,
+      context: createContext(),
+      watchMode: 'mnemonic-passive',
+      scene: null,
+      attention: null,
+      worldModel: {
+        ...buildWorldModel({
+          now: 10_000,
+          context: createContext(),
+          watchMode: 'mnemonic-passive',
+          scene: null,
+          attention: null,
+          recentTransition: null,
+          durabilityPulse: null,
+          workingMemoryEpisodes: [],
+          previousModel: null,
+        }),
+        activeThread: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+      },
+      appraisal: {
+        inferredHostGoal: 'unknown',
+        confidence: 0.2,
+        surprise: 0,
+        carePressure: 0,
+        interruptionCost: 0,
+        desireToSpeak: 0,
+        relationshipNeed: 'unclear',
+        notes: [],
+      },
+      recentTransition: null,
+    })
+
+    expect(inference.dominantInterpretation).toBe('')
+    expect(inference.situatedMeaning).toBeUndefined()
+    expect(inference.uncertainty).toBeUndefined()
+    expect(inference.hostIntentCandidates[0]?.why).toBe('context.content.error')
+    expect(inference.relationshipNeedCandidates[0]?.why).toBe('context.content.problem')
   })
 
   it('merges structured inference without discarding the heuristic thread', () => {

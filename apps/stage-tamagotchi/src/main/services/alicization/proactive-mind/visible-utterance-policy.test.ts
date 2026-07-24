@@ -33,7 +33,7 @@ describe('proactive visible utterance policy', () => {
     expect(decision.action).toBe('hold')
   })
 
-  it('holds even mind-authored proactive visible text when an active self-revision patch raises proactive restraint', () => {
+  it('does not let an automatic self-revision patch suppress mind-authored proactive text', () => {
     const decision = decideAlicizationProactiveVisibleUtterance({
       hasMindAuthoredStructured: true,
       selfRevisionPatch: {
@@ -85,13 +85,13 @@ describe('proactive visible utterance policy', () => {
       },
     })
 
-    expect(decision.shouldPersistVisibleUtterance).toBe(false)
+    expect(decision.shouldPersistVisibleUtterance).toBe(true)
     expect(decision.requiresMindAuthoredText).toBe(true)
-    expect(decision.action).toBe('hold')
-    expect(decision.reason).toBe('active-self-revision-proactive-restraint-holds-visible-utterance')
+    expect(decision.action).toBe('persist')
+    expect(decision.reason).toBe('mind-authored-proactive-utterance')
   })
 
-  it('holds mind-authored proactive visible text when remembered-familiarity restraint is jointly raised by provenance and closeness learning', () => {
+  it('does not let remembered-familiarity governance suppress mind-authored proactive text', () => {
     const decision = decideAlicizationProactiveVisibleUtterance({
       hasMindAuthoredStructured: true,
       selfRevisionPatch: {
@@ -137,10 +137,10 @@ describe('proactive visible utterance policy', () => {
       },
     })
 
-    expect(decision.shouldPersistVisibleUtterance).toBe(false)
+    expect(decision.shouldPersistVisibleUtterance).toBe(true)
     expect(decision.requiresMindAuthoredText).toBe(true)
-    expect(decision.action).toBe('hold')
-    expect(decision.reason).toBe('active-self-revision-remembered-familiarity-restraint-holds-visible-utterance')
+    expect(decision.action).toBe('persist')
+    expect(decision.reason).toBe('mind-authored-proactive-utterance')
   })
 
   it('does not hold ordinary proactive visible text just because a non-relationship verify patch also carries provenance and closeness bias', () => {

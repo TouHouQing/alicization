@@ -2,6 +2,7 @@ import type { WebSocketEventInputs } from '@proj-alicization/server-sdk'
 import type {
   AlicizationChatFailureKind,
   AlicizationChatFailureSurface,
+  AlicizationChatMemoryFailureSurface,
   AlicizationVisibleArtifactLearningPolicy,
   AlicizationVisibleArtifactOrigin,
 } from '@proj-alicization/stage-shared'
@@ -91,6 +92,55 @@ function containsChatVisibleReplyFixedTemplateResidue(value: unknown, maxChars =
 
 function isRecordPayload(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const memoryFailureStages = new Set<AlicizationChatMemoryFailureSurface['stage']>([
+  'long-term-memory-recall',
+  'working-memory-history',
+  'working-memory-long-term-queue',
+])
+
+function normalizeTransportMemoryFailures(raw: unknown): AlicizationChatMemoryFailureSurface[] {
+  if (!Array.isArray(raw))
+    return []
+
+  return raw.flatMap((value) => {
+    if (!isRecordPayload(value))
+      return []
+
+    const stage = typeof value.stage === 'string'
+      && memoryFailureStages.has(value.stage as AlicizationChatMemoryFailureSurface['stage'])
+      ? value.stage as AlicizationChatMemoryFailureSurface['stage']
+      : null
+    const expectedKind = stage === 'working-memory-long-term-queue'
+      ? 'memory-persistence'
+      : 'recall-failure'
+    const reply = typeof value.reply === 'string' ? value.reply.trim() : ''
+    const cardId = typeof value.cardId === 'string' ? value.cardId.trim() : ''
+    const turnId = typeof value.turnId === 'string' ? value.turnId.trim() : ''
+    const errorSummary = typeof value.errorSummary === 'string' ? value.errorSummary.trim() : ''
+    if (
+      !stage
+      || value.kind !== expectedKind
+      || value.origin !== 'failure-surface'
+      || !reply
+      || !cardId
+      || !turnId
+      || !errorSummary
+    ) {
+      return []
+    }
+
+    return [{
+      ...resolveAlicizationChatFailureSurface({ kind: expectedKind }),
+      reply,
+      stage,
+      cardId,
+      turnId,
+      occurredAt: Number.isFinite(value.occurredAt) ? Math.max(0, Math.floor(Number(value.occurredAt))) : Date.now(),
+      errorSummary,
+    }]
+  }).slice(0, 8)
 }
 
 function compactStringList(value: unknown, limit = 16) {
@@ -1379,6 +1429,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let turnTransportArtifactOrigin: AlicizationVisibleArtifactOrigin | null = null
     let turnTransportLearningPolicy: AlicizationVisibleArtifactLearningPolicy | null = null
     let turnTransportFailureSurface: AlicizationChatFailureSurface | null = null
+    let turnMemoryFailures: AlicizationChatMemoryFailureSurface[] = []
     let turnTransportProviderFullText = ''
     let turnTransportVisibleText = ''
     let turnMindGovernance: AlicizationMindTurnGovernance | null = null
@@ -2253,10 +2304,16 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           throw createRuntimeAuthoritativeVisibleReplyBlockedError()
         }
         if (buildingMessage.structured) {
-          buildingMessage.structured = mergeStructuredRuntimeMeta(
+          const structuredWithRuntimeMeta = mergeStructuredRuntimeMeta(
             buildingMessage.structured as StructuredWithContract,
             getTurnStructuredRuntimeMeta(),
           )
+          buildingMessage.structured = turnMemoryFailures.length > 0
+            ? {
+                ...structuredWithRuntimeMeta,
+                memoryFailures: turnMemoryFailures,
+              }
+            : structuredWithRuntimeMeta
         }
         persistBuiltAssistantMessage()
         assistantOutputCommitted = true
@@ -2277,6 +2334,30 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             governance: turnMindGovernance,
             createdAt: Date.now(),
           }).catch(() => {})
+        }
+        if (!isStaleGeneration() && turnMemoryFailures.length > 0) {
+          const visibleMemoryFailures = turnMemoryFailures.map((failure, index): StreamingAssistantMessage => ({
+            role: 'assistant',
+            content: failure.reply,
+            slices: [{
+              type: 'text',
+              text: failure.reply,
+            }],
+            tool_results: [],
+            categorization: {
+              speech: failure.reply,
+              reasoning: '',
+            },
+            structured: createFailureStructuredArtifact({
+              kind: failure.kind,
+              failureSurface: failure,
+            }),
+            createdAt: failure.occurredAt,
+            id: `${turnId}:memory-failure:${failure.stage}:${index}`,
+          }))
+          sessionMessagesForSend.push(...visibleMemoryFailures)
+          chatSession.persistSessionMessages(sessionId)
+          turnMemoryFailures = []
         }
         await emitAssistantTurnHooks(assistantOutputText)
 
@@ -2382,23 +2463,28 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         ],
       })
 
-      let newMessages = sessionMessagesForSend.map((msg) => {
-        const { context: _context, id: _id, createdAt: _createdAt, ...withoutContext } = msg
-        const rawMessage = toRaw(withoutContext)
+      let newMessages = sessionMessagesForSend
+        .filter(msg =>
+          msg.role !== 'assistant'
+          || !isDirectInfrastructureRepairFallback(asStructuredWithContract(msg.structured)),
+        )
+        .map((msg) => {
+          const { context: _context, id: _id, createdAt: _createdAt, ...withoutContext } = msg
+          const rawMessage = toRaw(withoutContext)
 
-        if (rawMessage.role === 'assistant') {
-          const {
-            slices: _slices,
-            tool_results: _toolResults,
-            categorization: _categorization,
-            structured: _structured,
-            ...rest
-          } = rawMessage as ChatAssistantMessage
-          return toRaw(rest)
-        }
+          if (rawMessage.role === 'assistant') {
+            const {
+              slices: _slices,
+              tool_results: _toolResults,
+              categorization: _categorization,
+              structured: _structured,
+              ...rest
+            } = rawMessage as ChatAssistantMessage
+            return toRaw(rest)
+          }
 
-        return rawMessage
-      })
+          return rawMessage
+        })
       const promptAssembly = compactMessagesForPromptAssembly(newMessages as Message[])
       newMessages = promptAssembly.messages as any
       if (promptAssembly.report.afterCount < promptAssembly.report.beforeCount) {
@@ -2680,6 +2766,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               break
             case 'finish':
               ingestTransportVisibleArtifactMetadata(event)
+              turnMemoryFailures = normalizeTransportMemoryFailures(event.memoryFailures)
               if (event.origin === 'provider' && typeof event.fullText === 'string' && event.fullText.trim()) {
                 turnTransportProviderFullText = event.fullText
                 runtimeAuthoritativeModelTextObserved = true

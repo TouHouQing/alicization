@@ -50,8 +50,6 @@ describe('working memory prompt view', () => {
       },
     })
     expect(view.rendering.blockLines).toEqual([
-      'WorkingMemory short-term memory evidence.',
-      'Owner: WorkingMemory. Scope: short-term dialogue. Use it only when it helps the current answer payoff.',
       'Thread: none.',
       'Task: none.',
       'Compressed timeline: none.',
@@ -270,7 +268,6 @@ describe('working memory prompt view', () => {
       },
     })
 
-    expect(block).toContain('WorkingMemory short-term memory evidence.')
     expect(block).toContain('用户要求失败面透明：不要用固定模板遮盖 provider failure。')
     expect(block).not.toContain('legacy phase-one template')
     expect(block).not.toContain('Right now I am still holding')

@@ -177,9 +177,9 @@ export function buildDialogueWorldThread(input: {
     || worldModel?.activeThread?.title
     || mindSynthesis?.interiorSummary
     || answerCompiler?.openingClaim
-    || 'Stay with the current dialogue seam.',
+    || '',
     220,
-  ) || 'Stay with the current dialogue seam.'
+  )
   const conversationCarryEligible = conversationState.carryEligible
     ?? Boolean(primaryTurnAnchor && conversationState.shouldHoldThread)
 
@@ -300,28 +300,6 @@ export function buildDialogueWorldThread(input: {
 }
 
 export function buildDialogueWorldThreadSystemBlock(state: AlicizationDialogueWorldThreadSnapshot | null | undefined) {
-  if (!state)
-    return ''
-
-  return [
-    '[ALICIZATION_DIALOGUE_WORLD_THREAD]',
-    'Dialogue world thread is owned by WorkingMemory and is not wording authority.',
-    `Active thread: ${state.activeThread}.`,
-    `Current question: ${state.currentQuestion ?? 'none'}.`,
-    `Primary turn anchor: ${state.primaryTurnAnchor ?? 'none'}.`,
-    `Primary turn anchor source: ${state.primaryTurnAnchorSource ?? 'none'}.`,
-    `Open loops: ${state.openLoops.length > 0 ? state.openLoops.join(' | ') : 'none'}.`,
-    `Recently resolved loops: ${state.recentlyResolvedLoops.length > 0 ? state.recentlyResolvedLoops.join(' | ') : 'none'}.`,
-    `Carried facts: ${state.carriedFacts.length > 0 ? state.carriedFacts.join(' | ') : 'none'}.`,
-    `Relation drift: ${state.relationDrift}.`,
-    `Memory mode: ${state.memoryMode}.`,
-    `Carry eligible: ${state.carryEligible === true ? 'yes' : 'no'}.`,
-    `Carry reason: ${state.carryReason ?? 'none'}.`,
-    `Last user move: ${state.lastUserMove}.`,
-    `Last assistant move: ${state.lastAssistantMove ?? 'none'}.`,
-    `Last outcome: ${state.lastOutcome}.`,
-    `Pending validation: ${state.pendingValidation ? JSON.stringify(state.pendingValidation) : 'none'}.`,
-    `Recall keys: ${state.recallKeys.length > 0 ? state.recallKeys.join(' | ') : 'none'}.`,
-    'Surface residue is non-authoritative when the thread anchor differs.',
-  ].join('\n')
+  void state
+  return ''
 }

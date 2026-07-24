@@ -112,7 +112,7 @@ describe('claim-evidence-ledger', () => {
       forbidUnsupportedSpecificity: true,
     }))
     expect(ledger?.allowedSpecificCues).toEqual([])
-    expect(buildClaimEvidenceLedgerSystemBlock(ledger)).toContain('[ALICIZATION_CLAIM_EVIDENCE_LEDGER]')
+    expect(buildClaimEvidenceLedgerSystemBlock(ledger)).toBe('')
   })
 
   it('admits concrete artifact cues only when they are grounded or explicitly named by the host', () => {

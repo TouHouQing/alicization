@@ -8,6 +8,30 @@ import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('buildConversationState', () => {
+  it('does not invent a conversational thread when no grounded or remembered text exists', () => {
+    const state = buildConversationState({
+      now: 5_000,
+      discourseState: {
+        currentTurnSubject: 'general',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: '',
+        currentQuestion: null,
+        owedAction: null,
+        relationMove: 'neutral',
+        continuityMode: 'dialogue-first',
+        unresolvedCarry: null,
+        ruptureRepair: null,
+        confidence: 0.4,
+        narrative: [],
+        updatedAt: 5_000,
+      },
+    } as any)
+
+    expect(state?.jointThread).toBe('')
+    expect(state?.hostMove).toBe('')
+    expect(state?.memoryQueryHints).toEqual([])
+  })
+
   it('holds an unresolved coding thread as task memory instead of associative drift', () => {
     const state = buildConversationState({
       now: 20_000,
@@ -118,7 +142,7 @@ describe('buildConversationState', () => {
       shouldHoldThread: true,
     }))
     expect(state?.memoryQueryHints.join(' | ')).toContain('ProjectAtlas')
-    expect(buildConversationStateSystemBlock(state)).toContain('[ALICIZATION_CONVERSATION_STATE]')
+    expect(buildConversationStateSystemBlock(state)).toBe('')
   })
 
   it('keeps self turns dialogue-first and carries the unanswered personal question', () => {

@@ -209,7 +209,7 @@ export function buildIntentionStream(input: {
   const repairAnchor = repair?.summary
     ?? inquiryPlan?.question
     ?? input.worldModel?.epistemicState.openQuestions[0]
-    ?? 'Repair the truth boundary before speaking.'
+    ?? ''
   const repairProjectId = stableProjectId('repair-truth', repairAnchor, input.worldModel?.activeThread?.id ?? null)
   if (
     repair
@@ -257,7 +257,7 @@ export function buildIntentionStream(input: {
     ?? commitment?.summary
     ?? thoughtThread?.summary
     ?? input.worldModel?.activeThread?.summary
-    ?? 'Keep the current knot in hand until it localizes.'
+    ?? ''
   const holdKnotProjectId = stableProjectId('hold-knot', holdKnotAnchor, input.worldModel?.activeThread?.id ?? null)
   if (
     concern?.kind === 'help-fix'
@@ -313,7 +313,7 @@ export function buildIntentionStream(input: {
   const careAnchor = concern?.summary
     ?? commitment?.summary
     ?? input.worldModel?.activeThread?.summary
-    ?? 'Care for the host instead of only narrating the scene.'
+    ?? ''
   const careProjectId = stableProjectId('care-host', careAnchor, input.worldModel?.activeThread?.id ?? null)
   if (
     concern?.kind === 'care-body'
@@ -360,7 +360,7 @@ export function buildIntentionStream(input: {
   const stayNearAnchor = thoughtThread?.summary
     ?? governorIntention?.summary
     ?? commitment?.summary
-    ?? 'Stay near the host without breaking their seam.'
+    ?? ''
   const stayNearProjectId = stableProjectId('stay-near', stayNearAnchor, input.worldModel?.activeThread?.id ?? null)
   if (
     commitment?.kind === 'stay-near'
@@ -408,7 +408,7 @@ export function buildIntentionStream(input: {
   const reacquireAnchor = inquiryPlan?.question
     ?? repair?.summary
     ?? input.worldModel?.epistemicState.openQuestions[0]
-    ?? 'Reacquire the scene before carrying it further.'
+    ?? ''
   const reacquireProjectId = stableProjectId('reacquire-scene', reacquireAnchor, input.worldModel?.activeThread?.id ?? null)
   if (
     inquiryPlan?.kind === 'reground-scene'
@@ -450,7 +450,7 @@ export function buildIntentionStream(input: {
 
   const afterglowAnchor = thoughtThread?.summary
     ?? input.worldModel?.activeThread?.summary
-    ?? 'The shared scene just loosened and left a tender opening behind.'
+    ?? ''
   const afterglowProjectId = stableProjectId('witness-afterglow', afterglowAnchor, input.worldModel?.activeThread?.id ?? null)
   if (
     input.worldModel?.continuity.afterglowOpen

@@ -161,17 +161,6 @@ export function deriveAlicizationDialogueMemoryCarryPolicyFromDigest(
 export function buildAlicizationDialogueMemoryCarrySystemBlock(
   policy: AlicizationDialogueMemoryCarryPolicy,
 ) {
-  if (policy.mode === 'quiet')
-    return ''
-
-  return [
-    'Dialogue memory carry.',
-    `Mode: ${policy.mode}.`,
-    `Summary: ${policy.summary}.`,
-    `Reasons: ${policy.reasonTags.join(', ') || 'none'}.`,
-    policy.recallSeed ? `Seed: ${policy.recallSeed}.` : '',
-    `Carry mirror memory: ${policy.allowMirrorCarry ? 'yes' : 'no'}.`,
-    'Treat this as carry-over memory continuity, not a fresh perception sample.',
-    'When memory and current observations conflict, current grounded evidence wins.',
-  ].filter(Boolean).join('\n')
+  void policy
+  return ''
 }

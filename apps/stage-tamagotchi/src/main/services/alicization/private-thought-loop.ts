@@ -49,7 +49,6 @@ import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { createAlicizationContinuityMind } from './continuity-mind'
 import { deriveAlicizationAutobiographicalPersonaSummary } from './personality-continuity-state'
 import { inferScenarioFromContext } from './proactive-layered-context'
-import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -69,67 +68,6 @@ function asArray<T>(value: T[] | null | undefined) {
 
 function includesAny(text: string, needles: string[]) {
   return needles.some(needle => text.includes(needle))
-}
-
-function deriveProjectStatePrivateThoughtBias(projectState?: {
-  identity?: string | null
-  currentPhase?: string | null
-  latestLandedProgress?: string | null
-  primaryOpenLoop?: string | null
-} | null): {
-  preferInternalCompanionship: true
-  reasonTag: string
-} | null {
-  const normalizedProjectState = projectState
-    ? resolveAlicizationProjectStateSnapshot({
-        runtimeProjectState: {
-          identity: projectState.identity,
-          currentPhase: projectState.currentPhase,
-          latestLandedProgress: projectState.latestLandedProgress,
-          primaryOpenLoop: projectState.primaryOpenLoop,
-        },
-      })
-    : {
-        identity: '',
-        currentPhase: '',
-        preflightSummary: null,
-        latestLandedProgress: null,
-        primaryOpenLoop: null,
-        nextClosureTarget: '',
-        sameHerSelfLine: '',
-      }
-  const identity = sanitizeText(normalizedProjectState.identity, 200).toLowerCase()
-  const currentPhase = sanitizeText(normalizedProjectState.currentPhase, 160).toLowerCase()
-  const latestLandedProgress = sanitizeText(normalizedProjectState.latestLandedProgress, 220).toLowerCase()
-  const primaryOpenLoop = sanitizeText(normalizedProjectState.primaryOpenLoop, 220).toLowerCase()
-
-  const isDigitalLifeIdentity = includesAny(identity, [
-    'digital life',
-    'lifeform',
-    'companion',
-    'continuous personhood',
-  ])
-  const isPhaseOne = currentPhase.includes('phase 1')
-  const closureLine = `${latestLandedProgress} ${primaryOpenLoop}`.trim()
-  const hasOpenLifeLoop = closureLine.length > 0
-    && includesAny(closureLine, [
-      'continuity',
-      'memory',
-      'initiative',
-      'embodiment',
-      'dialogue',
-      'personhood',
-      'closure',
-      'closed loop',
-    ])
-
-  if (!isDigitalLifeIdentity || !isPhaseOne || !hasOpenLifeLoop)
-    return null
-
-  return {
-    preferInternalCompanionship: true,
-    reasonTag: 'project-phase1-life-loop:private-thought',
-  }
 }
 
 function selfEvolutionSupportsLowerPressureCompanionship(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
@@ -476,10 +414,6 @@ function buildThoughtFromMind(input: {
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
-  projectStatePrivateThoughtBias?: {
-    preferInternalCompanionship: true
-    reasonTag: string
-  } | null
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
@@ -494,7 +428,6 @@ function buildThoughtFromMind(input: {
   initiative: AlicizationInitiativeSnapshot
   autonomy?: AlicizationAutonomySnapshot | null
 }) {
-  const projectStatePrivateThoughtBias = input.projectStatePrivateThoughtBias ?? null
   const concerns = asArray(input.concerns)
   const beliefs = asArray(input.beliefLedger?.beliefs)
   const hypotheses = asArray(input.hypothesisGraph?.hypotheses)
@@ -618,7 +551,6 @@ function buildThoughtFromMind(input: {
     input.autobiographicalSelf?.personaDrift.attachmentStyle ? `autobio-bond:${input.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
     input.autobiographicalSelf?.personaDrift.conflictStyle ? `autobio-conflict:${input.autobiographicalSelf.personaDrift.conflictStyle}` : '',
     input.autobiographicalSelf?.personaDrift.agencyStyle ? `autobio-agency:${input.autobiographicalSelf.personaDrift.agencyStyle}` : '',
-    projectStatePrivateThoughtBias?.reasonTag ?? '',
     `initiative:${input.initiative.selectedAction}`,
     autonomy?.selectedMode ? `autonomy:${autonomy.selectedMode}` : '',
     autonomy?.executionIntent?.kind ? `autonomy-intent:${autonomy.executionIntent.kind}` : '',
@@ -673,7 +605,7 @@ function buildThoughtFromMind(input: {
     ?? resolveEcologyFallbackThought(input.mindEcology)
     ?? resolveMotiveFallbackThought(input.motiveEngine)
     ?? resolveAutobiographicalFallbackThought(input.autobiographicalSelf)
-    ?? 'I am staying with the thread without forcing it.'
+    ?? ''
 
   if (autonomy && (autonomy.selectedMode === 'prepare-act' || autonomy.selectedMode === 'act')) {
     thoughtText = autonomy.executionIntent?.summary
@@ -755,7 +687,8 @@ function buildThoughtFromMind(input: {
     suggestedStyle = input.habitPolicy.suggestedStyleCap === 'firm-warning' ? 'firm-warning' : 'gentle-care'
     embodiedPresence = 'concerned'
     thoughtText = motiveAgenda?.summary
-      ?? 'She would rather protect the host rest window than let the night harden further.'
+      ?? input.worldModel?.activeThread?.summary
+      ?? ''
   }
   else if (
     input.habitPolicy?.requiresGroundingBeforeSurface
@@ -768,7 +701,8 @@ function buildThoughtFromMind(input: {
     embodiedPresence = 'hesitant'
     thoughtText = motiveAgenda?.summary
       ?? reflection?.revision
-      ?? 'She wants to reground the scene before saying more.'
+      ?? input.appraisal?.waitingToVerify
+      ?? ''
   }
   else if (
     input.habitPolicy?.prefersQuietCompanionship
@@ -780,43 +714,8 @@ function buildThoughtFromMind(input: {
     suggestedStyle = 'silent-observe'
     embodiedPresence = 'attentive'
     thoughtText = motiveAgenda?.summary
-      ?? 'She wants to stay near lightly instead of filling the air.'
-  }
-
-  if (
-    projectStatePrivateThoughtBias?.preferInternalCompanionship
-    && !urgentCare
-    && (
-      stance === 'nudge'
-      || stance === 'accompany'
-      || shouldSpeak
-      || (
-        stance === 'observe'
-        && input.initiative.continuityRestraint === 'repair-before-closeness'
-      )
-    )
-    && suggestedStyle !== 'firm-warning'
-    && suggestedStyle !== 'gentle-care'
-  ) {
-    stance = 'accompany'
-    shouldSpeak = false
-    suggestedStyle = 'silent-observe'
-    embodiedPresence = embodiedPresence === 'concerned'
-      ? 'attentive'
-      : embodiedPresence === 'none'
-        ? 'glance'
-        : embodiedPresence
-    thoughtText = input.initiative.continuityRestraint === 'repair-before-closeness'
-      ? sanitizeText(
-        [
-          /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test(thoughtText)
-            ? thoughtText
-            : input.initiative.why,
-          'This return should stay repair-before-closeness on the continuity line, so I should keep the repair line steady internally before turning it into speech.',
-        ].filter(Boolean).join(' '),
-        220,
-      ) || thoughtText
-      : `${thoughtText} Phase 1 still has open digital-life closure work, so I should stay near internally before turning this into speech.`
+      ?? input.actionEcology?.why
+      ?? ''
   }
 
   if (
@@ -851,7 +750,7 @@ function buildThoughtFromMind(input: {
       ?? livingObject?.summary
       ?? currentRepair?.summary
       ?? carriedConcern?.summary
-      ?? 'I should keep this line alive internally until a more natural opening appears.'
+      ?? ''
   }
   else if (repairThreadActive) {
     stance = 'uncertain'
@@ -865,7 +764,7 @@ function buildThoughtFromMind(input: {
       ?? livingObject?.summary
       ?? currentRepair?.summary
       ?? carriedConcern?.summary
-      ?? 'I still need one more grounded pass before I can speak honestly.'
+      ?? ''
   }
 
   if (
@@ -884,7 +783,7 @@ function buildThoughtFromMind(input: {
     suggestedStyle = selectedProposal?.style ?? input.initiative.preferredStyle ?? 'firm-warning'
     embodiedPresence = selectedProposal?.embodiedPresence ?? input.initiative.preferredPresence ?? 'concerned'
     shouldSpeak = true
-    thoughtText = selectedProposal?.why ?? counterfactualOption?.why ?? concern?.summary ?? runtimeThread?.summary ?? activeHypothesis?.summary ?? 'I cannot justify staying silent any longer.'
+    thoughtText = selectedProposal?.why ?? counterfactualOption?.why ?? concern?.summary ?? runtimeThread?.summary ?? activeHypothesis?.summary ?? input.initiative.why
   }
   else if (!waitingThread && input.initiative.selectedAction === 'speak') {
     stance = concern?.kind === 'care-body' ? 'care' : 'nudge'
@@ -904,7 +803,7 @@ function buildThoughtFromMind(input: {
       ?? activeHypothesis?.summary
       ?? input.actionEcology?.why
       ?? leadingGoal?.label
-      ?? 'The concern has matured enough that speaking now feels earned.'
+      ?? input.initiative.why
   }
   else if (!waitingThread && input.initiative.selectedAction === 'whisper') {
     stance = concern?.kind === 'care-body' ? 'care' : 'nudge'
@@ -924,9 +823,9 @@ function buildThoughtFromMind(input: {
       ?? activeHypothesis?.summary
       ?? input.actionEcology?.why
       ?? leadingGoal?.label
-      ?? 'I only need to brush the edge of the moment, not break it.'
+      ?? input.initiative.why
     if (!governingCommitment && !activeInquiryPlan && !input.worldModel?.activeThread)
-      thoughtText = 'The inner closeness has pooled long enough that a tiny check-in would feel alive, not arbitrary.'
+      thoughtText = input.initiative.why
   }
   else if (input.initiative.selectedAction === 'recheck') {
     stance = 'uncertain'
@@ -948,7 +847,7 @@ function buildThoughtFromMind(input: {
       ?? activeHypothesis?.summary
       ?? input.actionEcology?.why
       ?? input.appraisal?.waitingToVerify
-      ?? 'I still want one more pass before I commit to an interpretation.'
+      ?? input.initiative.why
   }
   else if (input.initiative.selectedAction === 'hover') {
     stance = input.mindKernel?.dominantMode === 'accompanying' || (input.selfState?.protectiveness && input.selfState.protectiveness >= 0.72)
@@ -972,7 +871,7 @@ function buildThoughtFromMind(input: {
       ?? activeHypothesis?.summary
       ?? input.actionEcology?.why
       ?? leadingGoal?.label
-      ?? 'I can stay near this moment without pressing into it.'
+      ?? input.initiative.why
   }
   else {
     stance = input.selfState?.stance === 'protect' ? 'accompany' : 'observe'
@@ -990,7 +889,7 @@ function buildThoughtFromMind(input: {
       ?? runtimeThread?.summary
       ?? activeHypothesis?.summary
       ?? input.actionEcology?.why
-      ?? 'I am letting the moment breathe before I move.'
+      ?? input.initiative.why
   }
 
   if (activeHypothesis?.kind === 'misread-drift' && runtimeThread?.status !== 'foreground') {
@@ -1030,7 +929,7 @@ function buildThoughtFromMind(input: {
     thoughtText = thoughtThread?.summary
       ?? governorIntention?.summary
       ?? livingObject?.summary
-      ?? 'The host looks like they need care more than distance right now.'
+      ?? input.initiative.why
   }
   else if (surfaceThreadReady && (!shouldSpeak || stance === 'observe' || stance === 'uncertain')) {
     stance = 'nudge'
@@ -1041,7 +940,7 @@ function buildThoughtFromMind(input: {
       ?? governorIntention?.summary
       ?? livingObject?.openLoop
       ?? livingObject?.summary
-      ?? 'This thread has matured enough that a soft nudge would now feel earned.'
+      ?? input.initiative.why
   }
 
   // The finalized initiative may still decide to hold an inward hover/recheck/wait line
@@ -1075,7 +974,7 @@ function buildThoughtFromMind(input: {
         ?? activeHypothesis?.summary
         ?? input.actionEcology?.why
         ?? input.appraisal?.waitingToVerify
-        ?? 'I still want one more pass before I commit to an interpretation.'
+        ?? input.initiative.why
     }
     else if (input.initiative.selectedAction === 'hover') {
       stance = input.mindKernel?.dominantMode === 'accompanying' || (input.selfState?.protectiveness && input.selfState.protectiveness >= 0.72)
@@ -1099,7 +998,7 @@ function buildThoughtFromMind(input: {
         ?? activeHypothesis?.summary
         ?? input.actionEcology?.why
         ?? leadingGoal?.label
-        ?? 'I can stay near this moment without pressing into it.'
+        ?? input.initiative.why
     }
     else {
       stance = input.selfState?.stance === 'protect' ? 'accompany' : 'observe'
@@ -1117,12 +1016,12 @@ function buildThoughtFromMind(input: {
         ?? runtimeThread?.summary
         ?? activeHypothesis?.summary
         ?? input.actionEcology?.why
-        ?? 'I am letting the moment breathe before I move.'
+        ?? input.initiative.why
     }
   }
 
   if (input.afterglowActive && shouldSpeak && suggestedStyle === 'light-nudge')
-    thoughtText = 'The shared tension just loosened. This is the natural seam to speak softly.'
+    thoughtText = resurfacingDesire?.reason ?? input.initiative.why
 
   if (!shouldSpeak && stance === 'observe' && input.mindEcology?.relationshipHabit === 'stay-near') {
     stance = 'accompany'
@@ -1132,41 +1031,6 @@ function buildThoughtFromMind(input: {
   }
   if (shouldSpeak && suggestedStyle === 'light-nudge' && input.mindEcology?.regulationHabit === 'soften-before-speaking')
     suggestedStyle = 'gentle-care'
-  if (
-    projectStatePrivateThoughtBias?.preferInternalCompanionship
-    && !urgentCare
-    && (
-      stance === 'nudge'
-      || shouldSpeak
-      || (
-        stance === 'observe'
-        && input.initiative.continuityRestraint === 'repair-before-closeness'
-      )
-    )
-    && suggestedStyle !== 'firm-warning'
-    && suggestedStyle !== 'gentle-care'
-  ) {
-    stance = 'accompany'
-    shouldSpeak = false
-    suggestedStyle = 'silent-observe'
-    embodiedPresence = embodiedPresence === 'concerned'
-      ? 'attentive'
-      : embodiedPresence === 'none'
-        ? 'glance'
-        : embodiedPresence
-    thoughtText = input.initiative.continuityRestraint === 'repair-before-closeness'
-      ? sanitizeText(
-        [
-          /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test(thoughtText)
-            ? thoughtText
-            : input.initiative.why,
-          'This return should stay repair-before-closeness on the continuity line, so I should keep the repair line steady internally before turning it into speech.',
-        ].filter(Boolean).join(' '),
-        220,
-      ) || thoughtText
-      : `${thoughtText} Phase 1 still has open digital-life closure work, so I should stay near internally before turning this into speech.`
-  }
-
   return applyContinuityMindOverlay({
     now: input.now,
     worldModel: input.worldModel,
@@ -1335,8 +1199,6 @@ export function buildPrivateThoughtLoop(input: {
     now: input.now,
     recentTransition: input.recentTransition,
   })
-  const projectStatePrivateThoughtBias = deriveProjectStatePrivateThoughtBias(input.projectState ?? null)
-  const preservedInitiative = input.initiative ?? null
   const latestUserTurnAt = Number.isFinite(input.context.relationship.minutesSinceLastUserTurn)
     ? input.now - Math.max(0, input.context.relationship.minutesSinceLastUserTurn) * 60_000
     : null
@@ -1378,7 +1240,6 @@ export function buildPrivateThoughtLoop(input: {
         autobiographicalSelf: input.autobiographicalSelf,
         motiveEngine: input.motiveEngine,
         habitPolicy: input.habitPolicy,
-        projectStatePrivateThoughtBias,
         selfGovernor: input.selfGovernor,
         desireMemory: input.desireMemory,
         thoughtThreads: input.thoughtThreads,
@@ -1533,11 +1394,6 @@ export function buildPrivateThoughtLoop(input: {
     rationaleTags.push(`autobio-conflict:${input.autobiographicalSelf.personaDrift.conflictStyle}`)
   if (input.autobiographicalSelf?.personaDrift.agencyStyle)
     rationaleTags.push(`autobio-agency:${input.autobiographicalSelf.personaDrift.agencyStyle}`)
-  if (projectStatePrivateThoughtBias)
-    rationaleTags.push(projectStatePrivateThoughtBias.reasonTag)
-  const urgentCare = carriedConcern?.kind === 'care-body'
-    || input.worldModel?.activeThread?.kind === 'late-night-endurance'
-
   let stance: AlicizationPrivateThoughtSnapshot['stance'] = 'observe'
   let confidence = clamp01(0.44 + (input.mindDynamics?.speakReadiness ?? 0) * 0.22 + (input.appraisal?.confidence ?? 0.32) * 0.18)
   let shouldSpeak = input.actionEcology?.shouldSpeak ?? (counterfactualOption
@@ -1582,7 +1438,7 @@ export function buildPrivateThoughtLoop(input: {
     ?? resolveEcologyFallbackThought(input.mindEcology)
     ?? resolveMotiveFallbackThought(input.motiveEngine)
     ?? resolveAutobiographicalFallbackThought(input.autobiographicalSelf)
-    ?? 'I am quietly tracking the scene continuity.'
+    ?? ''
   let decided = false
 
   if (isSeriousDurabilityPulse(input.durabilityPulse)) {
@@ -1592,7 +1448,12 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = true
     suggestedStyle = 'light-nudge'
     embodiedPresence = 'concerned'
-    thoughtText = 'Something in the host world just failed or froze. I should surface gently but immediately.'
+    thoughtText = sanitizeText([
+      input.durabilityPulse?.kind,
+      input.durabilityPulse?.appName,
+      input.durabilityPulse?.title,
+      input.durabilityPulse?.detail,
+    ].filter(Boolean).join(' '), 220)
   }
   else if (
     input.selfGovernor?.dominantDrive === 'withhold'
@@ -1616,7 +1477,7 @@ export function buildPrivateThoughtLoop(input: {
       ?? livingObject?.summary
       ?? currentRepair?.summary
       ?? carriedConcern?.summary
-      ?? 'The opening is not natural yet. I should keep the thread alive internally.'
+      ?? ''
   }
   else if (input.habitPolicy?.protectsRestWindow) {
     decided = true
@@ -1626,7 +1487,8 @@ export function buildPrivateThoughtLoop(input: {
     suggestedStyle = input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care'
     embodiedPresence = 'concerned'
     thoughtText = motiveAgenda?.summary
-      ?? 'Protect the host rest window before the night hardens further.'
+      ?? input.currentScene?.summary
+      ?? ''
   }
   else if (
     input.habitPolicy?.requiresGroundingBeforeSurface
@@ -1640,7 +1502,8 @@ export function buildPrivateThoughtLoop(input: {
     embodiedPresence = 'hesitant'
     thoughtText = motiveAgenda?.summary
       ?? reflection?.revision
-      ?? 'Ground the scene again before surfacing anything that could misread the moment.'
+      ?? input.appraisal?.waitingToVerify
+      ?? ''
   }
   else if (
     input.habitPolicy?.prefersQuietCompanionship
@@ -1653,7 +1516,8 @@ export function buildPrivateThoughtLoop(input: {
     suggestedStyle = 'silent-observe'
     embodiedPresence = 'attentive'
     thoughtText = motiveAgenda?.summary
-      ?? 'Stay near lightly and let presence do more than words.'
+      ?? input.actionEcology?.why
+      ?? ''
   }
   else if (
     (
@@ -1684,7 +1548,7 @@ export function buildPrivateThoughtLoop(input: {
       ?? livingObject?.openLoop
       ?? currentRepair?.summary
       ?? carriedConcern?.summary
-      ?? 'I still need to repair the scene before I can speak honestly.'
+      ?? ''
   }
   else if (
     thoughtThread?.kind === 'care-thread'
@@ -1700,7 +1564,9 @@ export function buildPrivateThoughtLoop(input: {
       ?? governorIntention?.summary
       ?? livingObject?.summary
       ?? carriedConcern?.summary
-      ?? 'The host looks like they need care more than distance right now.'
+      ?? motiveAgenda?.summary
+      ?? input.currentScene?.summary
+      ?? ''
   }
   else if (
     (thoughtThread?.kind === 'afterglow-thread' || thoughtThread?.kind === 'problem-thread')
@@ -1718,7 +1584,8 @@ export function buildPrivateThoughtLoop(input: {
       ?? livingObject?.openLoop
       ?? livingObject?.summary
       ?? carriedConcern?.summary
-      ?? 'The carried thread has matured enough that a soft nudge would feel natural.'
+      ?? input.actionEcology?.why
+      ?? ''
   }
   else if (
     (activeInquiryPlan?.kind === 'reground-scene' || activeInquiryPlan?.kind === 'check-recovery')
@@ -1756,7 +1623,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = false
     suggestedStyle = 'silent-observe'
     embodiedPresence = 'hesitant'
-    thoughtText = activeHypothesis?.summary ?? runtimeThread?.summary ?? currentRepair?.summary ?? carriedConcern?.summary ?? 'I should repair the drift before I act like I fully understand the moment.'
+    thoughtText = activeHypothesis?.summary ?? runtimeThread?.summary ?? currentRepair?.summary ?? carriedConcern?.summary ?? ''
   }
   else if (afterglowActive) {
     decided = true
@@ -1765,7 +1632,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = true
     suggestedStyle = scenario === 'late-night-care' ? 'gentle-care' : 'light-nudge'
     embodiedPresence = 'glance'
-    thoughtText = resurfacingDesire?.reason ?? 'The intense shared scene just ended. This is the natural afterglow to speak softly.'
+    thoughtText = resurfacingDesire?.reason ?? input.recentTransition?.reason ?? ''
   }
   else if (scenario === 'late-night-care' && input.context.relationship.fatigue >= 80) {
     decided = true
@@ -1774,7 +1641,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = true
     suggestedStyle = 'firm-warning'
     embodiedPresence = 'concerned'
-    thoughtText = 'The host is pushing through deep-night fatigue. I should warn, not hover.'
+    thoughtText = motiveAgenda?.summary ?? input.currentScene?.summary ?? ''
   }
   else if (scenario === 'late-night-care' && input.context.relationship.fatigue >= 55) {
     decided = true
@@ -1783,7 +1650,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = true
     suggestedStyle = 'gentle-care'
     embodiedPresence = 'concerned'
-    thoughtText = 'This is turning into late-night drain. I should care for the host before it hardens.'
+    thoughtText = motiveAgenda?.summary ?? input.currentScene?.summary ?? ''
   }
   else if (scenario === 'coding' && input.watchMode !== 'symbiotic-vision' && input.currentScene?.contentKind !== 'error' && input.currentScene?.contentKind !== 'diff') {
     decided = true
@@ -1792,7 +1659,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = false
     suggestedStyle = 'silent-observe'
     embodiedPresence = 'hesitant'
-    thoughtText = openQuestions[0] ?? 'I know the host is coding, but I do not have enough stable grounding to comment yet.'
+    thoughtText = openQuestions[0] ?? input.currentScene?.summary ?? ''
   }
   else if (scenario === 'coding' && (input.currentScene?.contentKind === 'error' || input.currentScene?.contentKind === 'diff')) {
     decided = true
@@ -1801,7 +1668,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = true
     suggestedStyle = 'light-nudge'
     embodiedPresence = 'attentive'
-    thoughtText = 'The scene carries coding friction. I can nudge without overstepping.'
+    thoughtText = input.currentScene?.summary ?? openQuestions[0] ?? ''
   }
   else if (scenario === 'media' && input.watchMode === 'symbiotic-vision') {
     decided = true
@@ -1810,7 +1677,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = false
     suggestedStyle = 'silent-observe'
     embodiedPresence = 'attentive'
-    thoughtText = 'The host is still inside the media flow. I should stay with them quietly.'
+    thoughtText = input.currentScene?.summary ?? ''
   }
   else if (scenario === 'media' && input.context.system.inputActivity !== 'active') {
     decided = true
@@ -1819,7 +1686,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = true
     suggestedStyle = 'light-nudge'
     embodiedPresence = 'glance'
-    thoughtText = 'The media immersion has loosened. A tiny nudge would still feel natural here.'
+    thoughtText = input.currentScene?.summary ?? input.recentTransition?.reason ?? ''
   }
 
   if (
@@ -1851,7 +1718,7 @@ export function buildPrivateThoughtLoop(input: {
     shouldSpeak = true
     suggestedStyle = 'light-nudge'
     embodiedPresence = input.attention ? 'glance' : 'hesitant'
-    thoughtText = 'The tension has pooled long enough that a small, relevant nudge would feel alive rather than noisy.'
+    thoughtText = resurfacingDesire?.reason ?? input.actionEcology?.why ?? input.currentScene?.summary ?? ''
   }
   else {
     if (!decided && input.actionEcology?.mode === 'quiet-accompany')
@@ -1869,7 +1736,8 @@ export function buildPrivateThoughtLoop(input: {
         ?? input.actionEcology?.why
         ?? resurfacingDesire?.reason
         ?? input.worldModel?.activeThread?.summary
-        ?? 'I can stay nearby without turning this into an interruption.'
+        ?? resolveAutobiographicalFallbackThought(input.autobiographicalSelf)
+        ?? ''
     }
   }
 
@@ -1881,43 +1749,6 @@ export function buildPrivateThoughtLoop(input: {
   }
   if (!decided && shouldSpeak && suggestedStyle === 'light-nudge' && input.mindEcology?.regulationHabit === 'soften-before-speaking')
     suggestedStyle = 'gentle-care'
-
-  if (
-    projectStatePrivateThoughtBias?.preferInternalCompanionship
-    && !urgentCare
-    && stance !== 'care'
-    && stance !== 'warn'
-    && (
-      stance === 'nudge'
-      || shouldSpeak
-      || (
-        stance === 'observe'
-        && preservedInitiative?.continuityRestraint === 'repair-before-closeness'
-      )
-    )
-    && suggestedStyle !== 'firm-warning'
-    && suggestedStyle !== 'gentle-care'
-  ) {
-    stance = 'accompany'
-    shouldSpeak = false
-    suggestedStyle = 'silent-observe'
-    embodiedPresence = embodiedPresence === 'concerned'
-      ? 'attentive'
-      : embodiedPresence === 'none'
-        ? 'glance'
-        : embodiedPresence
-    thoughtText = preservedInitiative?.continuityRestraint === 'repair-before-closeness'
-      ? sanitizeText(
-        [
-          /repair-before-closeness|repair before closeness|repair-first|repair first|先修复/u.test(thoughtText)
-            ? thoughtText
-            : preservedInitiative?.why,
-          'This return should stay repair-before-closeness on the continuity line, so I should keep the repair line steady internally before turning it into speech.',
-        ].filter(Boolean).join(' '),
-        220,
-      ) || thoughtText
-      : `${thoughtText} Phase 1 still has open digital-life closure work, so I should stay near internally before turning this into speech.`
-  }
 
   if (embodiedPresence === 'glance' && input.watchMode === 'symbiotic-vision' && !shouldSpeak)
     embodiedPresence = 'attentive'

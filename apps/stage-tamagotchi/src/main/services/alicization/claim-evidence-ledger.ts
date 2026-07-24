@@ -336,24 +336,6 @@ export function buildClaimEvidenceLedger(input: {
 export function buildClaimEvidenceLedgerSystemBlock(
   state: AlicizationClaimEvidenceLedgerSnapshot | null | undefined,
 ) {
-  if (!state)
-    return ''
-
-  return [
-    '[ALICIZATION_CLAIM_EVIDENCE_LEDGER]',
-    'This block tracks what is actually evidenced for the current turn and how much visible specificity the reply is allowed to claim.',
-    `Subject: ${state.subject}.`,
-    `Evidence mode: ${state.evidenceMode}.`,
-    `Observed surface: ${state.observedSurface ?? 'none'}.`,
-    `Task hypothesis: ${state.taskHypothesis ?? 'none'}.`,
-    `Intent hypothesis: ${state.intentHypothesis ?? 'none'}.`,
-    `Specificity budget: ${state.specificityBudget}.`,
-    `Host referenced cues: ${state.hostReferencedCues.length > 0 ? state.hostReferencedCues.join(' | ') : 'none'}.`,
-    `Grounded artifact cues: ${state.groundedArtifactCues.length > 0 ? state.groundedArtifactCues.join(' | ') : 'none'}.`,
-    `Allowed specific cues: ${state.allowedSpecificCues.length > 0 ? state.allowedSpecificCues.join(' | ') : 'none'}.`,
-    `Label hypothesis explicitly: ${state.shouldLabelHypothesis ? 'yes' : 'no'}.`,
-    `Unsupported specificity forbidden: ${state.forbidUnsupportedSpecificity ? 'yes' : 'no'}.`,
-    `Self revision pressure: ${state.shouldSelfRevise ? 'yes' : 'no'}.`,
-    `Reason tags: ${state.reasonTags.join(' | ') || 'none'}.`,
-  ].join('\n')
+  void state
+  return ''
 }

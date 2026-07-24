@@ -553,7 +553,7 @@ describe('self evolution kernel', () => {
 
   it('internalizes metabolized same-person continuity as relationship cadence instead of dropping same-thread memory and temporary-noise fading after autobiographical memory settles', () => {
     const metabolizedContinuityCue
-      = 'Keep corrected same-person continuity foregrounded, merge repeated same-thread echoes into the stronger same-thread memory, and let temporary noise fade instead of reviving the older emotional spike.'
+      = 'Corrected same-person continuity now keeps the stronger same-thread memory foregrounded while temporary noise fades.'
     const kernel = buildAlicizationSelfEvolutionKernel({
       personStateEvolutionSummary: {
         trustShift: 0.04,
@@ -647,8 +647,9 @@ describe('self evolution kernel', () => {
       autobiographicalStability: 0.8,
     })
 
-    expect(kernel?.relationshipCadenceSummary).toContain('same-thread memory')
-    expect(kernel?.relationshipCadenceSummary).toContain('temporary noise')
+    expect(kernel?.relationshipCadenceSummary?.split(' | ')[0]).toBe(
+      'Let temporary noise fade while corrected same-person continuity keeps the stronger same-thread memory foregrounded.',
+    )
     expect(kernel?.activeLearningFocuses).toEqual(expect.arrayContaining([
       'reflection:relationship',
       'internalize-relationship-cadence',
@@ -658,7 +659,7 @@ describe('self evolution kernel', () => {
 
   it('internalizes durable initiative outcome strategy carry as relationship cadence instead of leaving follow-up timing as a one-turn repair note', () => {
     const initiativeStrategyCarry
-      = 'Keep future follow-ups lower-pressure, less eager, and wait for a clearer opening before reopening this line.'
+      = 'The rejected approach showed that future follow-ups need more room and a clearer opening.'
     const kernel = buildAlicizationSelfEvolutionKernel({
       personStateEvolutionSummary: {
         trustShift: -0.02,
@@ -731,8 +732,9 @@ describe('self evolution kernel', () => {
       autobiographicalStability: 0.76,
     })
 
-    expect(kernel?.relationshipCadenceSummary?.toLowerCase()).toContain('clearer opening')
-    expect(kernel?.relationshipCadenceSummary?.toLowerCase()).toContain('lower-pressure')
+    expect(kernel?.relationshipCadenceSummary?.split(' | ')[0]).toBe(
+      'Leave more room before future follow-ups so timing does not outrun receptivity again.',
+    )
     expect(kernel?.activeLearningFocuses).toEqual(expect.arrayContaining([
       'reflection:relationship',
       'internalize-relationship',
@@ -743,7 +745,7 @@ describe('self evolution kernel', () => {
 
   it('internalizes accepted initiative strategy carry as gentle memory-led cadence instead of flattening it into rejection-style restraint', () => {
     const acceptedInitiativeStrategyCarry
-      = 'User accepted or continued the low-pressure initiative; keep future follow-ups gentle, lower-pressure, and memory-led.'
+      = 'The host accepted or continued the initiative, so future follow-ups can stay gentle, lower-pressure, and memory-led.'
     const kernel = buildAlicizationSelfEvolutionKernel({
       personStateEvolutionSummary: {
         trustShift: 0.05,
@@ -816,9 +818,8 @@ describe('self evolution kernel', () => {
       autobiographicalStability: 0.78,
     })
 
-    expect(kernel?.relationshipCadenceSummary?.toLowerCase()).toContain('memory-led')
-    expect(kernel?.relationshipCadenceSummary?.toLowerCase()).toContain('gentle')
-    expect(kernel?.relationshipCadenceSummary?.toLowerCase()).not.toContain('clearer opening')
+    expect(kernel?.relationshipCadenceSummary).toContain(acceptedInitiativeStrategyCarry)
+    expect(kernel?.relationshipCadenceSummary).not.toContain('while the opening is still receiving them')
     expect(kernel?.activeLearningFocuses).toEqual(expect.arrayContaining([
       'reflection:relationship',
       'internalize-relationship',

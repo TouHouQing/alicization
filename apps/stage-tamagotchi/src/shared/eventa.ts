@@ -11,6 +11,7 @@ import type {
   AlicizationChannelCapabilityManifestRecord as SharedAlicizationChannelCapabilityManifestRecord,
   AlicizationChannelCapabilityManifestUpsertInput as SharedAlicizationChannelCapabilityManifestUpsertInput,
   AlicizationChatFailureSurface as SharedAlicizationChatFailureSurface,
+  AlicizationChatMemoryFailureSurface as SharedAlicizationChatMemoryFailureSurface,
   AlicizationClaudeCodeCommandInput as SharedAlicizationClaudeCodeCommandInput,
   AlicizationClawFabricPlan as SharedAlicizationClawFabricPlan,
   AlicizationClawTaskIntent as SharedAlicizationClawTaskIntent,
@@ -3639,6 +3640,7 @@ export interface AlicizationChatFinishEvent {
   origin?: SharedAlicizationVisibleArtifactOrigin
   learningPolicy?: SharedAlicizationVisibleArtifactLearningPolicy
   failureSurface?: SharedAlicizationChatFailureSurface | null
+  memoryFailures?: SharedAlicizationChatMemoryFailureSurface[]
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
   visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
   visibleReplyCritic?: AlicizationVisibleReplyPublicCriticSummary | null

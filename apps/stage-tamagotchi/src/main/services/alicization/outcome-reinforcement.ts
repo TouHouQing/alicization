@@ -13,17 +13,10 @@ import type { AlicizationEmbodimentContinuityLedger } from './embodiment-continu
 import type { AlicizationRecentProactiveOutcome } from './proactive-feedback'
 
 import {
-  containsAlicizationFixedTemplateResidue,
   sanitizeAlicizationMemoryEvidenceText,
 } from '@proj-alicization/stage-shared'
 
-import { computeEpisodicEventSalience, sanitizeHumanlikeMemoryText, summarizeRelationshipShift } from './humanlike-memory'
-import {
-  isAlicizationThinProjectAwarenessLine,
-  resolveAlicizationProjectStateBrief,
-  resolveAlicizationProjectStateSnapshot,
-} from './project-state-brief'
-import { synthesizeReflectionFromRelationshipOutcome } from './reflection-synthesizer'
+import { computeEpisodicEventSalience } from './humanlike-memory'
 
 function clampDelta(value: number, maxAbs = 0.18) {
   if (!Number.isFinite(value))
@@ -35,68 +28,6 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-const legacyOutcomeBodyPreoccupationPattern
-  = /body_preoccupation\s*=|posture\s*=|presence-only hold|stay near in the current phase 1 context|landed closure keeps growing|still-open loop stays|ordinary proactive closeness/iu
-
-function sanitizeOutcomeDynamicMindText(raw: unknown, maxChars = 180) {
-  if (typeof raw !== 'string')
-    return ''
-
-  const normalized = sanitizeText(raw, maxChars * 4)
-  if (!normalized)
-    return ''
-
-  return normalized
-    .split(/(?<=[.!?。！？])\s+|[|\n]+/u)
-    .map(segment => segment.trim())
-    .filter(segment => segment && !legacyOutcomeBodyPreoccupationPattern.test(segment))
-    .map(segment => sanitizeAlicizationMemoryEvidenceText(segment, maxChars))
-    .filter(Boolean)
-    .join(' ')
-    .slice(0, maxChars)
-    .trim()
-}
-
-const outcomeMemoryFactFixedTemplatePattern = /Same Phase 1 digital life|Before answering|Right now I am|one continuous her|same[- ]?her|same living line|same digital[- ]life line|same local-first digital life project/iu
-
-function uniqueFactFields(values: Array<string | null | undefined>) {
-  const result: string[] = []
-  for (const value of values) {
-    const normalized = sanitizeText(value, 80)
-    if (!normalized || result.includes(normalized))
-      continue
-    result.push(normalized)
-  }
-  return result
-}
-
-function hasOutcomeMemoryFactFixedTemplateResidue(raw: string) {
-  return containsAlicizationFixedTemplateResidue(raw) || outcomeMemoryFactFixedTemplatePattern.test(raw)
-}
-
-function structuredFixedTemplateMemoryFact(raw: string) {
-  const lower = raw.toLowerCase()
-  return uniqueFactFields([
-    'continuity_scope=local_runtime',
-    /phase\s*1|local[- ]first|digital[- ]life/u.test(lower) ? 'project_context=memory_governance_status' : null,
-    /closure|open loop|unfinished|still open|gap|needs/u.test(lower) ? 'closure_state=open' : null,
-    /proactive/u.test(lower) ? 'proactive_continuity_gap=open' : null,
-    /execution|callback|proposal|codex|command|tool/u.test(lower) ? 'execution_context=bounded' : null,
-    /denied|declined|consent|confirmation|confirmed|permission/u.test(lower) ? 'consent_boundary=explicit' : null,
-    /failed|failure|error|timeout|provider/u.test(lower) ? 'failure_surface=transparent' : null,
-    'fixed_template_text=dropped',
-  ]).join('; ')
-}
-
-function trimFactObject(raw: string) {
-  const normalized = sanitizeText(raw, 640)
-  if (!normalized)
-    return ''
-  if (!hasOutcomeMemoryFactFixedTemplateResidue(normalized))
-    return sanitizeText(normalized, 180)
-  return sanitizeText(structuredFixedTemplateMemoryFact(normalized), 180)
 }
 
 function normalizeClosureTagValue(raw: unknown) {
@@ -112,455 +43,27 @@ function normalizeClosureTagValue(raw: unknown) {
     .slice(0, 40)
 }
 
-function looksLikeThinReplyProjectHoldDetail(raw: unknown) {
-  const normalized = sanitizeText(raw, 320).toLowerCase()
-  if (!normalized)
-    return true
-
-  return /project-state answer before widening|keep the line gentle for now|generic project continuity hold/u.test(normalized)
-}
-
-function preferReplyRuntimeSameHerHoldDetail(input: {
-  raw: unknown
-  normalized: unknown
-}) {
-  const raw = sanitizeText(input.raw, 220)
-  const normalized = sanitizeText(input.normalized, 220)
-
-  if (raw && !looksLikeThinReplyProjectHoldDetail(raw))
-    return raw
-
-  return normalized || raw
-}
-
-function compactReplyProjectIdentityForMemoryFact(raw: unknown) {
-  const identity = sanitizeText(raw, 220)
-  if (!identity)
-    return ''
-
-  if (/alicization is a local-first digital life project/iu.test(identity))
-    return ''
-
-  return identity
-}
-
-function compactReplyProjectPhaseForMemoryFact(raw: unknown) {
-  const phase = sanitizeText(raw, 160)
-  if (!phase)
-    return ''
-  if (/phase\s*1\s*:\s*local digital life|phase1_local_digital_life/iu.test(phase))
-    return ''
-
-  return phase.split(/\.\s+|[。！？]/u)[0]?.trim() ?? phase
-}
-
 function readReplyRuntimeEmbodiment(surface: AlicizationDigitalLifeRuntimeSurface | null) {
   const residentPerformance = surface?.raw?.residentPerformance ?? null
-  const openingEmbodimentAudit = (surface?.raw?.runtimeDigest as {
-    visibleReplyRealization?: {
-      openingEmbodimentAudit?: {
-        firstBeatPosture?: unknown
-        facialCue?: unknown
-        actionCue?: unknown
-        derivedFrom?: unknown
-      } | null
-    } | null
-  } | null | undefined)?.visibleReplyRealization?.openingEmbodimentAudit
-  ?? null
   return {
     currentBodyState: sanitizeText(surface?.perception?.currentBodyState, 64),
     continuityMode: sanitizeText(surface?.perception?.continuityMode, 64),
-    currentInwardPreoccupation: sanitizeOutcomeDynamicMindText(surface?.perception?.currentInwardPreoccupation, 180),
     dominantResidueKind: sanitizeText(surface?.memory?.affectiveResidue?.dominantResidueKind, 64),
-    relationshipCadenceSummary: sanitizeText(surface?.memory?.affectiveResidue?.relationshipCadence?.summary, 180),
-    manifestationCadenceSummary: sanitizeText(surface?.memory?.personStateProjection?.manifestationCadenceSummary, 180),
-    speakingIntention: sanitizeText(surface?.dialogue?.currentConsciousFrame?.speakingIntention, 180),
     residentFacialCue: sanitizeText(
-      residentPerformance?.performance?.facialCue ?? openingEmbodimentAudit?.facialCue,
+      residentPerformance?.performance?.facialCue,
       64,
     ),
     residentActionCue: sanitizeText(
-      residentPerformance?.performance?.actionCue ?? openingEmbodimentAudit?.actionCue,
+      residentPerformance?.performance?.actionCue,
       64,
     ),
     residentMode: sanitizeText(
       residentPerformance?.performance?.residentMode
       ?? residentPerformance?.performance?.face?.residentMode
-      ?? residentPerformance?.performance?.action?.residentMode
-      ?? openingEmbodimentAudit?.firstBeatPosture,
+      ?? residentPerformance?.performance?.action?.residentMode,
       64,
     ),
-    residentEmbodimentReason: sanitizeText(
-      residentPerformance?.signature ?? openingEmbodimentAudit?.derivedFrom,
-      180,
-    ),
   }
-}
-
-function readReplyRuntimeProjectAwareness(surface: AlicizationDigitalLifeRuntimeSurface | null) {
-  const runtimeProjectState = (surface?.dialogue?.currentConsciousFrame as {
-    projectState?: {
-      currentPhase?: unknown
-      preDialogueAwarenessLine?: unknown
-      primaryOpenLoop?: unknown
-      nextClosureTarget?: unknown
-      sameHerSelfLine?: unknown
-      sameHerDriftRisk?: unknown
-      proactiveSameHerGap?: unknown
-      emotionalClosureCue?: unknown
-      sameHerHoldDetail?: unknown
-      continuityRestraint?: unknown
-      preferredBlinkCadence?: unknown
-      preferredGazeMode?: unknown
-      preferredPauseMode?: unknown
-      preferredLipsyncMode?: unknown
-      preferredVoiceMode?: unknown
-      preferredPacingMode?: unknown
-    } | null
-  } | null | undefined)?.projectState
-  ?? (surface?.dialogue as {
-    runtimeDigest?: {
-      projectState?: {
-        currentPhase?: unknown
-        preDialogueAwarenessLine?: unknown
-        primaryOpenLoop?: unknown
-        nextClosureTarget?: unknown
-        sameHerSelfLine?: unknown
-        sameHerDriftRisk?: unknown
-        proactiveSameHerGap?: unknown
-        emotionalClosureCue?: unknown
-        sameHerHoldDetail?: unknown
-        continuityRestraint?: unknown
-        preferredBlinkCadence?: unknown
-        preferredGazeMode?: unknown
-        preferredPauseMode?: unknown
-        preferredLipsyncMode?: unknown
-        preferredVoiceMode?: unknown
-        preferredPacingMode?: unknown
-      } | null
-    } | null
-  } | null | undefined)?.runtimeDigest?.projectState
-  ?? (surface?.raw as {
-    projectState?: {
-      currentPhase?: unknown
-      preDialogueAwarenessLine?: unknown
-      primaryOpenLoop?: unknown
-      nextClosureTarget?: unknown
-      sameHerSelfLine?: unknown
-      sameHerDriftRisk?: unknown
-      proactiveSameHerGap?: unknown
-      emotionalClosureCue?: unknown
-      sameHerHoldDetail?: unknown
-      continuityRestraint?: unknown
-      preferredBlinkCadence?: unknown
-      preferredGazeMode?: unknown
-      preferredPauseMode?: unknown
-      preferredLipsyncMode?: unknown
-      preferredVoiceMode?: unknown
-      preferredPacingMode?: unknown
-    } | null
-    runtimeDigest?: {
-      projectState?: {
-        currentPhase?: unknown
-        preDialogueAwarenessLine?: unknown
-        primaryOpenLoop?: unknown
-        nextClosureTarget?: unknown
-        sameHerSelfLine?: unknown
-        sameHerDriftRisk?: unknown
-        proactiveSameHerGap?: unknown
-        emotionalClosureCue?: unknown
-        sameHerHoldDetail?: unknown
-        continuityRestraint?: unknown
-        preferredBlinkCadence?: unknown
-        preferredGazeMode?: unknown
-        preferredPauseMode?: unknown
-        preferredLipsyncMode?: unknown
-        preferredVoiceMode?: unknown
-        preferredPacingMode?: unknown
-      } | null
-    } | null
-  } | null | undefined)?.runtimeDigest?.projectState
-  ?? (surface?.raw as {
-    projectState?: {
-      currentPhase?: unknown
-      preDialogueAwarenessLine?: unknown
-      primaryOpenLoop?: unknown
-      nextClosureTarget?: unknown
-      sameHerSelfLine?: unknown
-      sameHerDriftRisk?: unknown
-      proactiveSameHerGap?: unknown
-      emotionalClosureCue?: unknown
-      sameHerHoldDetail?: unknown
-      continuityRestraint?: unknown
-      preferredBlinkCadence?: unknown
-      preferredGazeMode?: unknown
-      preferredPauseMode?: unknown
-      preferredLipsyncMode?: unknown
-      preferredVoiceMode?: unknown
-      preferredPacingMode?: unknown
-    } | null
-  } | null | undefined)?.projectState
-  ?? null
-  const projectionAuthority = surface?.memory?.personStateProjection?.selfContinuityAuthority
-    ?? surface?.dialogue?.personStateProjection?.selfContinuityAuthority
-    ?? (surface?.raw as {
-      personStateProjection?: {
-        selfContinuityAuthority?: {
-          selfLine?: unknown
-          relationshipLine?: unknown
-          inwardLine?: unknown
-        } | null
-      } | null
-    } | null | undefined)?.personStateProjection?.selfContinuityAuthority
-    ?? null
-  const memoryProjection = surface?.memory?.personStateProjection
-    ?? surface?.dialogue?.personStateProjection
-    ?? (surface?.raw as {
-      personStateProjection?: {
-        openingGuidance?: unknown
-      } | null
-    } | null | undefined)?.personStateProjection
-    ?? null
-
-  const rawProjectAwareness = {
-    identity: '',
-    currentPhase: sanitizeText(runtimeProjectState?.currentPhase, 160),
-    preDialogueAwarenessLine: sanitizeText(runtimeProjectState?.preDialogueAwarenessLine, 320),
-    primaryOpenLoop: sanitizeText(runtimeProjectState?.primaryOpenLoop, 220),
-    nextClosureTarget: sanitizeText(runtimeProjectState?.nextClosureTarget, 220),
-    sameHerSelfLine: sanitizeText(runtimeProjectState?.sameHerSelfLine, 220),
-    sameHerDriftRisk: sanitizeText(runtimeProjectState?.sameHerDriftRisk, 220),
-    proactiveSameHerGap: sanitizeText(runtimeProjectState?.proactiveSameHerGap, 220),
-    emotionalClosureCue: sanitizeText(runtimeProjectState?.emotionalClosureCue, 220),
-    sameHerHoldDetail: sanitizeText(runtimeProjectState?.sameHerHoldDetail, 220),
-    continuityRestraint: sanitizeText(runtimeProjectState?.continuityRestraint, 96),
-    preferredBlinkCadence: sanitizeText(runtimeProjectState?.preferredBlinkCadence, 96),
-    preferredGazeMode: sanitizeText(runtimeProjectState?.preferredGazeMode, 96),
-    preferredPauseMode: sanitizeText(runtimeProjectState?.preferredPauseMode, 96),
-    preferredLipsyncMode: sanitizeText(runtimeProjectState?.preferredLipsyncMode, 96),
-    preferredVoiceMode: sanitizeText(runtimeProjectState?.preferredVoiceMode, 96),
-    preferredPacingMode: sanitizeText(runtimeProjectState?.preferredPacingMode, 96),
-    explicitPreferredPauseMode: sanitizeText(runtimeProjectState?.preferredPauseMode, 96),
-    explicitPreferredLipsyncMode: sanitizeText(runtimeProjectState?.preferredLipsyncMode, 96),
-    explicitPreferredVoiceMode: sanitizeText(runtimeProjectState?.preferredVoiceMode, 96),
-    explicitPreferredPacingMode: sanitizeText(runtimeProjectState?.preferredPacingMode, 96),
-    selfLine: sanitizeText(projectionAuthority?.selfLine, 220),
-    relationshipLine: sanitizeText(projectionAuthority?.relationshipLine, 220),
-    inwardLine: sanitizeText(projectionAuthority?.inwardLine, 220),
-    openingGuidance: sanitizeText(memoryProjection?.openingGuidance, 220),
-  }
-
-  const carriesExplicitProjectState = Boolean(
-    rawProjectAwareness.currentPhase
-    || rawProjectAwareness.preDialogueAwarenessLine
-    || rawProjectAwareness.primaryOpenLoop
-    || rawProjectAwareness.nextClosureTarget
-    || rawProjectAwareness.sameHerSelfLine
-    || rawProjectAwareness.sameHerDriftRisk
-    || rawProjectAwareness.proactiveSameHerGap
-    || rawProjectAwareness.emotionalClosureCue
-    || rawProjectAwareness.sameHerHoldDetail,
-  )
-
-  if (!carriesExplicitProjectState)
-    return rawProjectAwareness
-
-  const brief = resolveAlicizationProjectStateBrief()
-  const normalizedProjectState = resolveAlicizationProjectStateSnapshot({
-    runtimeProjectState: {
-      currentPhase: rawProjectAwareness.currentPhase || null,
-      preDialogueAwarenessLine: rawProjectAwareness.preDialogueAwarenessLine || null,
-      primaryOpenLoop: rawProjectAwareness.primaryOpenLoop || null,
-      proactiveSameHerGap: rawProjectAwareness.proactiveSameHerGap || null,
-      nextClosureTarget: rawProjectAwareness.nextClosureTarget || null,
-      sameHerSelfLine: rawProjectAwareness.sameHerSelfLine || null,
-      sameHerDriftRisk: rawProjectAwareness.sameHerDriftRisk || null,
-      emotionalClosureCue: rawProjectAwareness.emotionalClosureCue || null,
-      sameHerHoldDetail: rawProjectAwareness.sameHerHoldDetail || null,
-      continuityRestraint: rawProjectAwareness.continuityRestraint || null,
-      preferredBlinkCadence: rawProjectAwareness.preferredBlinkCadence || null,
-      preferredGazeMode: rawProjectAwareness.preferredGazeMode || null,
-      preferredPauseMode: rawProjectAwareness.preferredPauseMode || null,
-      preferredLipsyncMode: rawProjectAwareness.preferredLipsyncMode || null,
-      preferredVoiceMode: rawProjectAwareness.preferredVoiceMode || null,
-      preferredPacingMode: rawProjectAwareness.preferredPacingMode || null,
-    },
-    fallbackProjectState: {
-      identity: brief.identity,
-      currentPhase: brief.currentPhase,
-      preflightSummary: brief.preflightSummary ?? null,
-      preDialogueAwarenessLine: brief.preDialogueAwarenessLine ?? null,
-      primaryOpenLoop: brief.primaryOpenLoop,
-      proactiveSameHerGap: brief.proactiveSameHerGap,
-      nextClosureTarget: brief.nextClosureTarget,
-      sameHerSelfLine: brief.sameHerSelfLine,
-      sameHerDriftRisk: brief.sameHerDriftRisk,
-      emotionalClosureCue: brief.emotionalClosureCue ?? null,
-      sameHerHoldDetail: brief.sameHerHoldDetail ?? null,
-      continuityRestraint: brief.continuityRestraint ?? null,
-      continuityCue: brief.continuityCue ?? null,
-      preferredBlinkCadence: brief.preferredBlinkCadence ?? null,
-      preferredGazeMode: brief.preferredGazeMode ?? null,
-      preferredPauseMode: brief.preferredPauseMode ?? null,
-      preferredLipsyncMode: brief.preferredLipsyncMode ?? null,
-      preferredVoiceMode: brief.preferredVoiceMode ?? null,
-      preferredPacingMode: brief.preferredPacingMode ?? null,
-    },
-  })
-
-  return {
-    ...rawProjectAwareness,
-    identity: sanitizeText(normalizedProjectState.identity, 220) || brief.identity,
-    currentPhase: sanitizeText(normalizedProjectState.currentPhase, 160) || rawProjectAwareness.currentPhase,
-    preDialogueAwarenessLine: sanitizeText(normalizedProjectState.preDialogueAwarenessLine, 320) || rawProjectAwareness.preDialogueAwarenessLine,
-    primaryOpenLoop: sanitizeText(normalizedProjectState.primaryOpenLoop, 220) || rawProjectAwareness.primaryOpenLoop,
-    nextClosureTarget: sanitizeText(normalizedProjectState.nextClosureTarget, 220) || rawProjectAwareness.nextClosureTarget,
-    sameHerSelfLine: sanitizeText(normalizedProjectState.sameHerSelfLine, 220) || rawProjectAwareness.sameHerSelfLine,
-    sameHerDriftRisk: sanitizeText(normalizedProjectState.sameHerDriftRisk, 220) || rawProjectAwareness.sameHerDriftRisk,
-    proactiveSameHerGap: sanitizeText(normalizedProjectState.proactiveSameHerGap, 220) || rawProjectAwareness.proactiveSameHerGap,
-    emotionalClosureCue: sanitizeText(normalizedProjectState.emotionalClosureCue, 220) || rawProjectAwareness.emotionalClosureCue,
-    sameHerHoldDetail: preferReplyRuntimeSameHerHoldDetail({
-      raw: rawProjectAwareness.sameHerHoldDetail,
-      normalized: normalizedProjectState.sameHerHoldDetail,
-    }),
-    continuityRestraint: sanitizeText(normalizedProjectState.continuityRestraint, 96) || rawProjectAwareness.continuityRestraint,
-    preferredBlinkCadence: sanitizeText(normalizedProjectState.preferredBlinkCadence, 96) || rawProjectAwareness.preferredBlinkCadence,
-    preferredGazeMode: sanitizeText(normalizedProjectState.preferredGazeMode, 96) || rawProjectAwareness.preferredGazeMode,
-    preferredPauseMode: sanitizeText(normalizedProjectState.preferredPauseMode, 96) || rawProjectAwareness.preferredPauseMode,
-    preferredLipsyncMode: sanitizeText(normalizedProjectState.preferredLipsyncMode, 96) || rawProjectAwareness.preferredLipsyncMode,
-    preferredVoiceMode: sanitizeText(normalizedProjectState.preferredVoiceMode, 96) || rawProjectAwareness.preferredVoiceMode,
-    preferredPacingMode: sanitizeText(normalizedProjectState.preferredPacingMode, 96) || rawProjectAwareness.preferredPacingMode,
-    explicitPreferredPauseMode: rawProjectAwareness.explicitPreferredPauseMode,
-    explicitPreferredLipsyncMode: rawProjectAwareness.explicitPreferredLipsyncMode,
-    explicitPreferredVoiceMode: rawProjectAwareness.explicitPreferredVoiceMode,
-    explicitPreferredPacingMode: rawProjectAwareness.explicitPreferredPacingMode,
-  }
-}
-
-function hasReplyRuntimeProjectAwarenessCarry(input: ReturnType<typeof readReplyRuntimeProjectAwareness>) {
-  return Boolean(
-    input.preDialogueAwarenessLine
-    || input.sameHerSelfLine
-    || input.sameHerDriftRisk
-    || input.proactiveSameHerGap
-    || input.relationshipLine
-    || input.selfLine,
-  )
-}
-
-function buildReplyProjectClosureLesson(input: ReturnType<typeof readReplyRuntimeProjectAwareness>) {
-  return sanitizeText([
-    input.currentPhase ? `continuity_phase=${input.currentPhase}.` : '',
-    input.sameHerSelfLine,
-    input.relationshipLine,
-    input.preDialogueAwarenessLine,
-    input.primaryOpenLoop ? `Still-open continuity closure: ${input.primaryOpenLoop}.` : '',
-    input.proactiveSameHerGap ? `Proactive continuity gap still remains open: ${input.proactiveSameHerGap}.` : '',
-    input.nextClosureTarget ? `Next closure target: ${input.nextClosureTarget}.` : '',
-  ].filter(Boolean).join(' '), 220)
-}
-
-function buildReplyProjectClosureMemoryFact(input: ReturnType<typeof readReplyRuntimeProjectAwareness>) {
-  const projectIdentityLine = compactReplyProjectIdentityForMemoryFact(input.identity)
-  const phaseLine = compactReplyProjectPhaseForMemoryFact(input.currentPhase)
-  const sameHerSelfLine = sanitizeText(input.sameHerSelfLine, 220)
-  const awarenessLine = sanitizeText(input.preDialogueAwarenessLine, 320)
-  const richerAwarenessLine = awarenessLine && !isAlicizationThinProjectAwarenessLine(awarenessLine)
-    ? awarenessLine
-    : ''
-
-  return sanitizeText([
-    projectIdentityLine,
-    phaseLine ? `Keep this closure attached to ${phaseLine} continuity facts.` : 'Keep this closure attached to current continuity facts.',
-    !sameHerSelfLine && richerAwarenessLine ? richerAwarenessLine : '',
-  ].filter(Boolean).join(' '), 220)
-}
-
-function buildReplyRuntimeEmbodimentHintCarry(input: {
-  continuityRestraint: string
-  preferredBlinkCadence: string
-  preferredGazeMode: string
-  preferredPauseMode?: string
-  preferredLipsyncMode?: string
-  preferredVoiceMode?: string
-  preferredPacingMode?: string
-}) {
-  const hints: string[] = []
-
-  if (input.preferredGazeMode === 'steady')
-    hints.push('gaze=stable')
-  else if (input.preferredGazeMode === 'soften')
-    hints.push('gaze=soft')
-  else if (input.preferredGazeMode === 'drift')
-    hints.push('gaze=drift')
-
-  if (input.preferredBlinkCadence === 'linger' || input.preferredBlinkCadence === 'quiet')
-    hints.push('blink=slower')
-  else if (input.preferredBlinkCadence === 'normal')
-    hints.push('blink=natural')
-
-  if (input.preferredPauseMode === 'longer')
-    hints.push('pause=longer')
-  else if (input.preferredPauseMode === 'natural')
-    hints.push('pause=natural')
-
-  if (input.preferredLipsyncMode === 'restrained')
-    hints.push('lipsync=restrained')
-  else if (input.preferredLipsyncMode === 'matched')
-    hints.push('lipsync=matched')
-
-  const lowerPressureVoice
-    = input.preferredVoiceMode === 'lower-pressure'
-      || input.continuityRestraint === 'measured-return'
-      || input.continuityRestraint === 'lower-pressure'
-      || input.continuityRestraint === 'repair-before-closeness'
-      || input.continuityRestraint === 'rest-protective'
-  if (lowerPressureVoice)
-    hints.push('voice=lower-pressure')
-
-  if (input.preferredPacingMode === 'slower')
-    hints.push('pacing=slower')
-  else if (input.preferredPacingMode === 'natural')
-    hints.push('pacing=natural')
-
-  if (hints.length === 0)
-    return ''
-
-  return sanitizeText(`Let the body return like this: ${hints.join(' ')}.`, 180)
-}
-
-function buildReplyRuntimeCadenceDetailCarry(input: {
-  preferredPauseMode?: string
-  preferredLipsyncMode?: string
-  preferredVoiceMode?: string
-  preferredPacingMode?: string
-}) {
-  const details: string[] = []
-
-  if (input.preferredPauseMode === 'longer')
-    details.push('longer pause')
-  else if (input.preferredPauseMode === 'natural')
-    details.push('natural pause')
-
-  if (input.preferredLipsyncMode === 'restrained')
-    details.push('restrained lipsync')
-  else if (input.preferredLipsyncMode === 'matched')
-    details.push('matched lipsync')
-
-  if (input.preferredVoiceMode === 'lower-pressure')
-    details.push('lower-pressure voice')
-  else if (input.preferredVoiceMode === 'even')
-    details.push('even voice')
-
-  if (input.preferredPacingMode === 'slower')
-    details.push('slower pacing')
-  else if (input.preferredPacingMode === 'natural')
-    details.push('natural pacing')
-
-  if (details.length === 0)
-    return ''
-
-  return sanitizeText(`Keep cadence explicit: ${details.join(', ')}.`, 120)
 }
 
 function inferExecutionProcedureContextTags(input: {
@@ -576,178 +79,6 @@ function inferExecutionProcedureContextTags(input: {
     tags.push('late-night')
   if (/browser|screen|desktop|window|tab|click/iu.test(text))
     tags.push('visual-execution')
-  return [...new Set(tags)]
-}
-
-function executionProcedureLesson(input: {
-  feedback: AlicizationExecutionProposalFeedbackKind | AlicizationExecutionResultFeedbackKind
-  goal: string
-  outcome?: string | null
-  stage: 'proposal' | 'result'
-}) {
-  const goal = sanitizeText(input.goal, 160) || 'this line'
-  const outcome = sanitizeText(input.outcome, 120)
-  if (input.stage === 'proposal') {
-    if (input.feedback === 'affirmed')
-      return `For ${goal}, bounded execution proposals can stay direct after explicit host consent.`
-    if (input.feedback === 'denied')
-      return `For ${goal}, this host prefers lighter pressure and explicit consent before re-approaching the same procedure.`
-    return `For ${goal}, if the host pivots away before confirming, wait for a fresher opening before reusing the same proposal.`
-  }
-
-  if (input.feedback === 'valued')
-    return `For ${goal}${outcome ? ` with outcome ${outcome}` : ''}, direct callback reporting can stay clear when the result is genuinely useful.`
-  if (input.feedback === 'doubted')
-    return `For ${goal}, verify the result before sounding certain; this host does not reward confident callback wording without proof.`
-  if (input.feedback === 'intrusive')
-    return `For ${goal}, this host prefers lighter result openings and less interruption pressure around callbacks.`
-  return `For ${goal}, if the host turns away, wait for a fresher opening before reporting the result in the same way again.`
-}
-
-function executionProcedurePreferenceTags(input: {
-  feedback: AlicizationExecutionProposalFeedbackKind | AlicizationExecutionResultFeedbackKind
-  stage: 'proposal' | 'result'
-}) {
-  const tags = ['procedure-learning']
-  if (input.stage === 'proposal') {
-    if (input.feedback === 'affirmed')
-      tags.push('host-accepts-bounded-proposals')
-    if (input.feedback === 'denied')
-      tags.push('host-prefers-explicit-consent', 'host-prefers-lower-pressure')
-    if (input.feedback === 'interrupted')
-      tags.push('host-prefers-fresher-opening')
-    return tags
-  }
-
-  if (input.feedback === 'valued')
-    tags.push('host-values-direct-useful-results')
-  if (input.feedback === 'doubted')
-    tags.push('host-prefers-verification-first')
-  if (input.feedback === 'intrusive')
-    tags.push('host-prefers-lighter-callback')
-  if (input.feedback === 'interrupted')
-    tags.push('host-prefers-fresher-callback-opening')
-  return tags
-}
-
-function readExecutionResultProjectBriefing(input?: AlicizationExecutionResultFeedbackThread['projectBriefing'] | null) {
-  const fallback = resolveAlicizationProjectStateBrief()
-  if (!input)
-    return fallback
-  return {
-    identity: sanitizeText(input.identity, 220) || fallback.identity,
-    currentPhase: sanitizeText(input.currentPhase, 180) || fallback.currentPhase,
-    latestLandedProgress: sanitizeText(input.latestLandedProgress, 220) || fallback.latestProgress,
-    primaryOpenLoop: sanitizeText(input.primaryOpenLoop, 220) || fallback.primaryOpenLoop,
-    proactiveSameHerGap: sanitizeText(input.proactiveSameHerGap, 220) || fallback.proactiveSameHerGap,
-    nextClosureTarget: sanitizeText(input.nextClosureTarget, 220) || fallback.nextClosureTarget,
-    sameHerSelfLine: sanitizeText(input.sameHerSelfLine, 220) || fallback.sameHerSelfLine,
-    sameHerDriftRisk: sanitizeText(input.sameHerDriftRisk, 220) || fallback.sameHerDriftRisk,
-    preflightSummary: sanitizeText(input.preflightSummary, 220) || fallback.preflightSummary,
-    preDialogueAwarenessLine: sanitizeText(input.preDialogueAwarenessLine, 220) || fallback.preDialogueAwarenessLine,
-  }
-}
-
-function buildExecutionResultProjectClosureLesson(input: {
-  goal: string
-  outcome?: string | null
-  feedback: AlicizationExecutionResultFeedbackKind
-  projectBriefing?: AlicizationExecutionResultFeedbackThread['projectBriefing']
-}) {
-  const projectState = readExecutionResultProjectBriefing(input.projectBriefing)
-  const goal = sanitizeText(input.goal, 160) || 'this execution line'
-  const outcome = sanitizeText(input.outcome, 120)
-  const openLoop = sanitizeText(projectState.primaryOpenLoop, 220)
-  const proactiveSameHerGap = sanitizeText(projectState.proactiveSameHerGap, 220)
-  const nextClosureTarget = sanitizeText(projectState.nextClosureTarget, 220)
-  const sameHerSelfLine = sanitizeText(projectState.sameHerSelfLine, 220)
-
-  if (input.feedback === 'valued') {
-    return sanitizeText(
-      `For ${goal}${outcome ? ` with outcome ${outcome}` : ''}, keep the callback in first-person continuity; memory_continuity=local_runtime; verified_closure_progress=partial; unresolved_closure=${openLoop || 'open'}; initiative_gap=${proactiveSameHerGap || 'needs-follow-through'}; next_closure=${nextClosureTarget || 'needs-follow-through'}. ${sameHerSelfLine || ''}`,
-      220,
-    )
-  }
-  if (input.feedback === 'doubted') {
-    return sanitizeText(
-      `For ${goal}, doubted callback evidence cannot become confident task-shell reporting; ${openLoop || 'unfinished closure still remains open'}, ${proactiveSameHerGap || 'the proactive continuity gap still needs quieter proof'}, and the return needs more verification before direct expansion.`,
-      220,
-    )
-  }
-  if (input.feedback === 'intrusive') {
-    return sanitizeText(
-      `For ${goal}, callback_continuity=current_thread; restart=avoid_abrupt; initiative_gap=${proactiveSameHerGap || 'needs_lower_pressure_return'}; next_closure=${nextClosureTarget || 'needs_lower_pressure_return'}; widening=defer_closeness_or_directness.`,
-      220,
-    )
-  }
-  return sanitizeText(
-    `For ${goal}, if the opening disappears, keep callback continuity inward and wait for a fresher return; ${openLoop || 'unfinished closure still remains open'} and ${proactiveSameHerGap || 'the proactive continuity gap still remains open'}.`,
-    220,
-  )
-}
-
-function buildExecutionProposalProjectClosureLesson(input: {
-  goal: string
-  feedback: AlicizationExecutionProposalFeedbackKind
-  projectBriefing?: AlicizationExecutionProposalFeedbackThread['projectBriefing']
-}) {
-  const projectState = readExecutionResultProjectBriefing(input.projectBriefing)
-  const goal = sanitizeText(input.goal, 160) || 'this execution proposal'
-  const openLoop = sanitizeText(projectState.primaryOpenLoop, 220)
-  const proactiveSameHerGap = sanitizeText(projectState.proactiveSameHerGap, 220)
-  const nextClosureTarget = sanitizeText(projectState.nextClosureTarget, 220)
-  const phase = sanitizeText(projectState.currentPhase, 180)
-
-  if (input.feedback === 'affirmed') {
-    return sanitizeText(
-      `${openLoop || 'Unfinished proactive agency closure still remains open'}; for ${goal}, host consent can move agency forward through ${proactiveSameHerGap || 'the proactive continuity gap'} toward ${nextClosureTarget || 'the next closure target'}. phase=${phase || 'current'}.`,
-      220,
-    )
-  }
-  if (input.feedback === 'denied') {
-    return sanitizeText(
-      `${openLoop || 'Unfinished proactive agency closure still remains open'}; denied agency for ${goal} belongs to an explicit consent boundary loop, not generic consent bookkeeping. ${proactiveSameHerGap || 'The proactive continuity gap still remains open.'} phase=${phase || 'current'}; Next: ${nextClosureTarget || 'return with lower pressure'}.`,
-      220,
-    )
-  }
-  return sanitizeText(
-    `${openLoop || 'Unfinished proactive agency closure still remains open'}; if the host pivots away from ${goal}, keep initiative continuity inward, preserve ${proactiveSameHerGap || 'the proactive continuity gap'}, and wait for a fresher opening. phase=${phase || 'current'}.`,
-    220,
-  )
-}
-
-function executionResultProjectClosureTags(projectBriefing?: AlicizationExecutionResultFeedbackThread['projectBriefing']) {
-  const projectState = readExecutionResultProjectBriefing(projectBriefing)
-  const tags = [
-    'digital-life-project',
-    'phase-1-local-digital-life',
-    'continuity-evidence',
-    'closure-carry',
-  ]
-  if (sanitizeText(projectState.primaryOpenLoop, 220))
-    tags.push('still-open-closure')
-  if (sanitizeText(projectState.proactiveSameHerGap, 220))
-    tags.push('proactive-continuity-gap')
-  if (sanitizeText(projectState.sameHerDriftRisk, 220))
-    tags.push('continuity-drift-risk')
-  return [...new Set(tags)]
-}
-
-function buildProjectCadenceTags(input: {
-  preferredPauseMode?: string | null
-  preferredLipsyncMode?: string | null
-  preferredVoiceMode?: string | null
-  preferredPacingMode?: string | null
-}) {
-  const tags: string[] = []
-  if (input.preferredPauseMode === 'longer' || input.preferredPauseMode === 'natural')
-    tags.push(`project-pause-${normalizeClosureTagValue(input.preferredPauseMode)}`)
-  if (input.preferredLipsyncMode === 'restrained' || input.preferredLipsyncMode === 'matched')
-    tags.push(`project-lipsync-${normalizeClosureTagValue(input.preferredLipsyncMode)}`)
-  if (input.preferredVoiceMode === 'lower-pressure' || input.preferredVoiceMode === 'even')
-    tags.push(`project-voice-${normalizeClosureTagValue(input.preferredVoiceMode)}`)
-  if (input.preferredPacingMode === 'slower' || input.preferredPacingMode === 'natural')
-    tags.push(`project-pacing-${normalizeClosureTagValue(input.preferredPacingMode)}`)
   return [...new Set(tags)]
 }
 
@@ -815,25 +146,6 @@ function baseResult(): AlicizationOutcomeClosureResult {
   }
 }
 
-function deriveReplyActionSummary(surface: AlicizationDigitalLifeRuntimeSurface | null, assistantText?: string | null) {
-  const answerIntent = sanitizeText(surface?.dialogue?.answerPlanner?.answerIntent, 80)
-  const selectedAction = sanitizeText(surface?.agency?.initiative?.selectedAction, 48)
-  const preferredStyle = sanitizeText(surface?.agency?.initiative?.preferredStyle, 48)
-  const activeThread = sanitizeText(surface?.world?.worldModel?.activeThread?.title, 96)
-  const replyText = sanitizeText(assistantText, 96)
-
-  return sanitizeText(
-    [
-      selectedAction ? `action:${selectedAction}` : '',
-      preferredStyle ? `style:${preferredStyle}` : '',
-      answerIntent ? `intent:${answerIntent}` : '',
-      activeThread ? `thread:${activeThread}` : '',
-      replyText ? `reply:${replyText}` : '',
-    ].filter(Boolean).join(' | '),
-    220,
-  ) || 'reply turn'
-}
-
 function buildRelationshipShift(outcome: AlicizationRelationshipOutcomeInput) {
   return {
     closenessDelta: clampDelta(outcome.closenessDelta, 0.24),
@@ -881,16 +193,18 @@ function appendOutcomeEpisode(input: {
     sourceKind: input.sourceKind,
     provenance: input.provenance ?? 'observed',
     occurredAt: input.now,
-    whereSummary: sanitizeHumanlikeMemoryText(input.whereSummary, 180) || null,
+    whereSummary: sanitizeText(input.whereSummary, 180) || null,
     withWhom: (input.withWhom ?? []).map(item => sanitizeText(item, 64)).filter(Boolean),
-    threadAnchor: sanitizeHumanlikeMemoryText(input.threadAnchor, 160) || null,
-    whatHappened: sanitizeHumanlikeMemoryText(input.whatHappened, 280) || input.relationshipOutcome.summary,
-    felt: sanitizeHumanlikeMemoryText(input.felt, 180) || null,
+    threadAnchor: sanitizeText(input.threadAnchor, 160) || null,
+    whatHappened: sanitizeText(input.whatHappened, 640) || input.relationshipOutcome.actionSummary,
+    felt: input.felt ? sanitizeAlicizationMemoryEvidenceText(input.felt, 180) || null : null,
     emotionTags: (input.emotionTags ?? []).map(item => sanitizeText(item, 48)).filter(Boolean),
-    whatChanged: summarizeRelationshipShift(shift) || sanitizeHumanlikeMemoryText(input.relationshipOutcome.summary, 180) || null,
-    relationshipMeaning: sanitizeHumanlikeMemoryText(input.relationshipMeaning, 200) || sanitizeHumanlikeMemoryText(input.relationshipOutcome.summary, 200) || null,
-    lesson: sanitizeHumanlikeMemoryText(input.lesson, 200) || null,
-    sourceSummary: sanitizeHumanlikeMemoryText(input.sourceSummary, 180) || null,
+    whatChanged: null,
+    relationshipMeaning: input.relationshipMeaning
+      ? sanitizeAlicizationMemoryEvidenceText(input.relationshipMeaning, 200) || null
+      : null,
+    lesson: input.lesson ? sanitizeAlicizationMemoryEvidenceText(input.lesson, 200) || null : null,
+    sourceSummary: sanitizeText(input.sourceSummary, 180) || null,
     confidence: Number.isFinite(input.confidence) ? Number(input.confidence) : 0.76,
     salience: computeEpisodicEventSalience({
       relationshipShift: shift,
@@ -926,295 +240,62 @@ export function buildReplyOutcomeClosure(input: {
   result.emotionalTransitionLedger = surface.memory?.derivedMindStateBundle?.emotionalTransitionLedger ?? null
 
   const hostAvailability = surface.world?.worldModel?.hostState.availability ?? 'open'
-  const selectedAction = surface.agency?.initiative?.selectedAction ?? null
+  const selectedAction = sanitizeText(surface.agency?.initiative?.selectedAction, 48)
+  const preferredStyle = sanitizeText(surface.agency?.initiative?.preferredStyle, 48)
   const answerIntent = sanitizeText(surface.dialogue?.answerPlanner?.answerIntent, 80)
-  const actionMode = surface.agency?.actionEcology?.mode ?? null
+  const actionMode = sanitizeText(surface.agency?.actionEcology?.mode, 64)
   const repairFirst = selectedAction === 'recheck'
     || actionMode === 'repair-before-speaking'
     || answerIntent.includes('repair')
     || answerIntent.includes('clarify')
   const observeFirst = selectedAction === 'hover'
     || selectedAction === 'wait'
-    || surface.agency?.initiative?.preferredStyle === 'silent-observe'
+    || preferredStyle === 'silent-observe'
   const hostBusy = hostAvailability === 'focused' || hostAvailability === 'immersed'
   const threadUnresolved = surface.world?.worldModel?.activeThread?.unresolved === true
-  const relationOpen = hostAvailability === 'open' || hostAvailability === 'drifting'
-  const actionSummary = deriveReplyActionSummary(surface, input.assistantText)
   const runtimeEmbodiment = readReplyRuntimeEmbodiment(surface)
-  const runtimeProjectAwareness = readReplyRuntimeProjectAwareness(surface)
-  const carriesReplyProjectAwareness = hasReplyRuntimeProjectAwarenessCarry(runtimeProjectAwareness)
-  const replyProjectClosureLesson = carriesReplyProjectAwareness
-    ? buildReplyProjectClosureLesson(runtimeProjectAwareness)
-    : ''
-  const replyProjectCadenceTags = buildProjectCadenceTags({
-    preferredPauseMode: runtimeProjectAwareness.explicitPreferredPauseMode || null,
-    preferredLipsyncMode: runtimeProjectAwareness.explicitPreferredLipsyncMode || null,
-    preferredVoiceMode: runtimeProjectAwareness.explicitPreferredVoiceMode || null,
-    preferredPacingMode: runtimeProjectAwareness.explicitPreferredPacingMode || null,
-  })
-  const replyProjectClosureTags = carriesReplyProjectAwareness
-    ? executionResultProjectClosureTags({
-        currentPhase: runtimeProjectAwareness.currentPhase || null,
-        preDialogueAwarenessLine: runtimeProjectAwareness.preDialogueAwarenessLine || null,
-        primaryOpenLoop: runtimeProjectAwareness.primaryOpenLoop || null,
-        nextClosureTarget: runtimeProjectAwareness.nextClosureTarget || null,
-        sameHerSelfLine: runtimeProjectAwareness.sameHerSelfLine || null,
-        sameHerDriftRisk: runtimeProjectAwareness.sameHerDriftRisk || null,
-        proactiveSameHerGap: runtimeProjectAwareness.proactiveSameHerGap || null,
-      })
-    : []
-  const runtimeBodyCarry = sanitizeText(
-    [
-      runtimeEmbodiment.currentBodyState && runtimeEmbodiment.continuityMode
-        ? `Runtime body stayed ${runtimeEmbodiment.currentBodyState} in ${runtimeEmbodiment.continuityMode}.`
-        : runtimeEmbodiment.currentBodyState
-          ? `Runtime body stayed ${runtimeEmbodiment.currentBodyState}.`
-          : runtimeEmbodiment.continuityMode
-            ? `Runtime continuity stayed ${runtimeEmbodiment.continuityMode}.`
-            : '',
-      runtimeEmbodiment.currentInwardPreoccupation,
-    ].filter(Boolean).join(' '),
-    220,
-  )
-  const runtimeResidueCarry = sanitizeText(
-    [
-      runtimeEmbodiment.dominantResidueKind
-        ? `A ${runtimeEmbodiment.dominantResidueKind} residue stayed with me.`
-        : '',
-      runtimeEmbodiment.relationshipCadenceSummary,
-    ].filter(Boolean).join(' '),
-    180,
-  )
-  const runtimeResidentCarry = sanitizeText(
-    [
-      runtimeEmbodiment.residentFacialCue
-        ? `Resident face stayed ${runtimeEmbodiment.residentFacialCue}.`
-        : '',
-      runtimeEmbodiment.residentActionCue
-        ? `Resident motion stayed ${runtimeEmbodiment.residentActionCue}.`
-        : '',
-      runtimeEmbodiment.residentMode
-        ? `Resident mode stayed ${runtimeEmbodiment.residentMode}.`
-        : '',
-    ].filter(Boolean).join(' '),
-    220,
-  )
-  const runtimeMeaningCarry = sanitizeText(
-    carriesReplyProjectAwareness
-      ? [
-          /status recap|status report|tool shell|same[- ]?her|same[- ]?person|continuous digital life/iu.test(
-            `${runtimeProjectAwareness.relationshipLine} ${runtimeProjectAwareness.sameHerDriftRisk} ${runtimeProjectAwareness.preDialogueAwarenessLine}`,
-          )
-            ? 'The host was not asking for a raw status recap, but testing whether the reply used real continuity evidence instead of sliding into a tool shell.'
-            : runtimeProjectAwareness.relationshipLine || runtimeProjectAwareness.preDialogueAwarenessLine,
-        ].filter(Boolean).join(' ')
-      : [
-          runtimeEmbodiment.speakingIntention
-            ? `I was trying to ${runtimeEmbodiment.speakingIntention}.`
-            : '',
-          runtimeEmbodiment.continuityMode
-            ? `That ${runtimeEmbodiment.continuityMode} continuity mode mattered as much as the wording.`
-            : '',
-        ].filter(Boolean).join(' '),
-    200,
-  )
-  const runtimeLessonCarry = sanitizeText(
-    [
-      buildReplyRuntimeCadenceDetailCarry({
-        preferredPauseMode: runtimeProjectAwareness.preferredPauseMode,
-        preferredLipsyncMode: runtimeProjectAwareness.preferredLipsyncMode,
-        preferredVoiceMode: runtimeProjectAwareness.preferredVoiceMode,
-        preferredPacingMode: runtimeProjectAwareness.preferredPacingMode,
-      }),
-      carriesReplyProjectAwareness && runtimeProjectAwareness.sameHerHoldDetail
-        ? `Keep callback continuity evidence explicit: ${runtimeProjectAwareness.sameHerHoldDetail}.`
-        : runtimeEmbodiment.manifestationCadenceSummary
-          ? `Let the body return like this: ${runtimeEmbodiment.manifestationCadenceSummary}.`
-          : buildReplyRuntimeEmbodimentHintCarry({
-              continuityRestraint: runtimeProjectAwareness.continuityRestraint,
-              preferredBlinkCadence: runtimeProjectAwareness.preferredBlinkCadence,
-              preferredGazeMode: runtimeProjectAwareness.preferredGazeMode,
-              preferredPauseMode: runtimeProjectAwareness.preferredPauseMode,
-              preferredLipsyncMode: runtimeProjectAwareness.preferredLipsyncMode,
-              preferredVoiceMode: runtimeProjectAwareness.preferredVoiceMode,
-              preferredPacingMode: runtimeProjectAwareness.preferredPacingMode,
-            }),
-      runtimeEmbodiment.residentMode
-        ? `Keep the resident mode ${runtimeEmbodiment.residentMode}.`
-        : '',
-      runtimeEmbodiment.residentFacialCue
-        ? `Let the resident face stay ${runtimeEmbodiment.residentFacialCue}.`
-        : '',
-      runtimeEmbodiment.residentActionCue
-        ? `Let the resident action stay ${runtimeEmbodiment.residentActionCue}.`
-        : '',
-      runtimeEmbodiment.relationshipCadenceSummary
-        ? `Keep the cadence like this: ${runtimeEmbodiment.relationshipCadenceSummary}.`
-        : '',
-      carriesReplyProjectAwareness && replyProjectClosureLesson
-        ? replyProjectClosureLesson
-        : '',
-    ].filter(Boolean).join(' '),
-    220,
-  )
-
-  const relationshipOutcome: AlicizationRelationshipOutcomeInput = {
+  const actionSummary = sanitizeText([
+    selectedAction ? `action=${selectedAction}` : 'action=reply',
+    preferredStyle ? `style=${preferredStyle}` : '',
+    answerIntent ? `intent=${answerIntent}` : '',
+  ].filter(Boolean).join('; '), 220)
+  const episodeRelationshipOutcome: AlicizationRelationshipOutcomeInput = {
     cardId: input.cardId,
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
     sourceKind: 'reply',
     actionSummary,
-    closenessDelta: clampDelta(
-      relationOpen
-        ? observeFirst ? 0.01 : 0.05
-        : observeFirst ? -0.01 : -0.03,
-    ),
-    trustDelta: clampDelta(
-      (repairFirst ? 0.06 : 0.01)
-      + (observeFirst && hostBusy ? 0.03 : 0)
-      - (!observeFirst && hostBusy ? 0.03 : 0),
-    ),
-    burdenDelta: clampDelta(
-      hostBusy
-        ? observeFirst ? -0.04 : 0.06
-        : observeFirst ? -0.01 : 0.01,
-    ),
-    boundaryDelta: clampDelta(
-      hostBusy
-        ? observeFirst ? 0.08 : -0.07
-        : observeFirst ? 0.02 : 0.01,
-    ),
-    misreadDelta: clampDelta(repairFirst ? -0.08 : hostBusy && !observeFirst ? 0.03 : -0.01),
-    repairDelta: clampDelta(repairFirst ? 0.09 : 0),
-    openLoopDelta: clampDelta(threadUnresolved ? 0.04 : 0.01),
-    summary: sanitizeText(
-      repairFirst
-        ? 'This reply favored repair and grounding before fluency.'
-        : observeFirst
-          ? 'This reply stayed lighter and gave more space before pushing closer.'
-          : 'This reply leaned into direct presence in the current moment.',
-      180,
-    ),
+    closenessDelta: 0,
+    trustDelta: 0,
+    burdenDelta: 0,
+    boundaryDelta: 0,
+    misreadDelta: 0,
+    repairDelta: 0,
+    openLoopDelta: 0,
+    summary: sanitizeText([
+      'reply_outcome=unrated',
+      `host_availability=${hostAvailability}`,
+      `repair_first=${repairFirst}`,
+      `observe_first=${observeFirst}`,
+      threadUnresolved ? 'thread=open' : 'thread=closed',
+    ].join('; '), 180),
     createdAt: input.now,
   }
-  result.relationshipOutcomes.push(relationshipOutcome)
 
-  if (repairFirst) {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'truthful-grounding',
-      delta: 0.08,
-      valence: 'reinforce',
-      summary: 'Repair-first reply path reduced immediate misread risk.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'gentle-repair',
-      delta: 0.06,
-      valence: 'reinforce',
-      summary: 'Gentle repair was chosen over fast fluency.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'assistant',
-      predicate: 'habit',
-      object: trimFactObject('repair first before fluency when truth risk is active'),
-      confidence: 0.78,
-    })
-  }
-
-  if (hostBusy && observeFirst) {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'autonomy-respect',
-      delta: 0.08,
-      valence: 'reinforce',
-      summary: 'Light observation respected a busy host window.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'boundary',
-      object: trimFactObject('focused windows call for lighter touch and more space'),
-      confidence: 0.8,
-    })
-  }
-
-  if (hostBusy && !observeFirst) {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'companionship',
-      delta: 0.05,
-      valence: 'suppress',
-      summary: 'Direct closeness during a busy window risks becoming pressure.',
-      createdAt: input.now,
-    })
-  }
-
-  if (relationOpen && !observeFirst) {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'companionship',
-      delta: 0.05,
-      valence: 'reinforce',
-      summary: 'Open moments can hold a slightly warmer reply without crowding.',
-      createdAt: input.now,
-    })
-  }
-
-  if (threadUnresolved) {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'unfinished-thread-return',
-      delta: 0.04,
-      valence: 'reinforce',
-      summary: 'The reply kept pressure on an unresolved thread instead of dropping it.',
-      createdAt: input.now,
-    })
-  }
-
-  if (carriesReplyProjectAwareness && replyProjectClosureLesson) {
-    const replyProjectClosureMemoryFact = buildReplyProjectClosureMemoryFact(runtimeProjectAwareness)
-    result.memoryFacts.push({
-      subject: 'project',
-      predicate: 'closure',
-      object: trimFactObject(replyProjectClosureMemoryFact || replyProjectClosureLesson),
-      confidence: 0.82,
-    })
-    if (runtimeProjectAwareness.proactiveSameHerGap) {
-      result.memoryFacts.push({
-        subject: 'project',
-        predicate: 'closure',
-        object: trimFactObject(`Proactive continuity gap still remains open: ${runtimeProjectAwareness.proactiveSameHerGap}`),
-        confidence: 0.8,
-      })
-    }
-  }
+  const dialogueEvidence = [
+    input.userText ? `user=${sanitizeText(input.userText, 220)}` : '',
+    input.assistantText ? `assistant=${sanitizeText(input.assistantText, 280)}` : '',
+  ].filter(Boolean)
+  const runtimeEvidence = [
+    `host_availability=${hostAvailability}`,
+    runtimeEmbodiment.currentBodyState ? `body=${runtimeEmbodiment.currentBodyState}` : '',
+    runtimeEmbodiment.continuityMode ? `continuity_mode=${runtimeEmbodiment.continuityMode}` : '',
+    runtimeEmbodiment.dominantResidueKind ? `residue=${runtimeEmbodiment.dominantResidueKind}` : '',
+    runtimeEmbodiment.residentFacialCue ? `resident_face=${runtimeEmbodiment.residentFacialCue}` : '',
+    runtimeEmbodiment.residentActionCue ? `resident_action=${runtimeEmbodiment.residentActionCue}` : '',
+    runtimeEmbodiment.residentMode ? `resident_mode=${runtimeEmbodiment.residentMode}` : '',
+  ].filter(Boolean)
 
   appendOutcomeEpisode({
     result,
@@ -1224,72 +305,24 @@ export function buildReplyOutcomeClosure(input: {
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
-    whereSummary: sanitizeText(
-      [
-        surface.world?.worldModel?.hostState.availability ? `host:${surface.world.worldModel.hostState.availability}` : '',
-        surface.world?.worldModel?.activeThread?.title ? `thread:${surface.world.worldModel.activeThread.title}` : '',
-      ].filter(Boolean).join(' | '),
-      180,
-    ),
+    whereSummary: sanitizeText([
+      `host:${hostAvailability}`,
+      surface.world?.worldModel?.activeThread?.title ? `thread:${surface.world.worldModel.activeThread.title}` : '',
+    ].filter(Boolean).join(' | '), 180),
     withWhom: ['host'],
     threadAnchor: sanitizeText(surface.world?.worldModel?.activeThread?.title ?? answerIntent ?? '', 160),
-    whatHappened: sanitizeText(
-      [
-        `I answered with ${selectedAction ?? 'reply'} / ${surface.agency?.initiative?.preferredStyle ?? 'default'} while the host window was ${hostAvailability}.`,
-        runtimeBodyCarry,
-        runtimeResidentCarry,
-        input.assistantText ?? '',
-      ].filter(Boolean).join(' '),
-      280,
-    ),
-    felt: sanitizeText(
-      [
-        repairFirst
-          ? 'I stayed careful because the seam needed repair before fluency.'
-          : observeFirst
-            ? 'I kept my distance and watched for whether the host had room.'
-            : relationOpen
-              ? 'I leaned a little warmer into the moment because the window felt open.'
-              : 'I tried to stay present without crowding the host.',
-        runtimeResidueCarry,
-      ].filter(Boolean).join(' '),
-      180,
-    ),
+    whatHappened: [...dialogueEvidence, ...runtimeEvidence, actionSummary].join(' | '),
     emotionTags: [
-      repairFirst ? 'repair' : '',
-      observeFirst ? 'restraint' : 'presence',
+      repairFirst ? 'repair' : 'presence',
+      observeFirst ? 'restraint' : 'direct',
       hostBusy ? 'respect-space' : 'open-window',
       runtimeEmbodiment.dominantResidueKind ? `residue-${runtimeEmbodiment.dominantResidueKind}` : '',
     ].filter(Boolean),
-    relationshipMeaning: sanitizeText(
-      [
-        runtimeMeaningCarry,
-        carriesReplyProjectAwareness
-          ? ''
-          : repairFirst
-            ? 'Repair and truthful grounding mattered more than sounding smooth.'
-            : observeFirst
-              ? 'Space and timing mattered more than pushing closeness.'
-              : 'Warmth can land when the host window is open enough.',
-      ].filter(Boolean).join(' '),
-      200,
-    ),
-    lesson: sanitizeText(
-      [
-        repairFirst
-          ? 'When truth risk is active, repair before fluency.'
-          : hostBusy
-            ? 'Busy windows need lighter presence and lower interruption pressure.'
-            : 'Open windows can hold a little more direct companionship.',
-        runtimeLessonCarry,
-      ].filter(Boolean).join(' '),
-      200,
-    ),
-    sourceSummary: 'runtime reply turn',
+    sourceSummary: 'reply-outcome',
     confidence: repairFirst ? 0.82 : observeFirst ? 0.78 : 0.74,
     sceneAttachment: hostBusy ? 0.52 : 0.34,
     consolidationPriority: threadUnresolved ? 0.58 : 0.42,
-    relationshipOutcome,
+    relationshipOutcome: episodeRelationshipOutcome,
     derivedFrom: [
       input.userText
         ? { kind: 'turn', id: input.turnId ?? input.sessionId ?? 'reply-turn', label: `host feedback dialogue: ${sanitizeText(input.userText, 220)}` }
@@ -1302,8 +335,8 @@ export function buildReplyOutcomeClosure(input: {
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
     tags: [
       'dialogue',
-      selectedAction ?? 'reply',
-      surface.agency?.initiative?.preferredStyle ?? 'default-style',
+      selectedAction || 'reply',
+      preferredStyle || 'default-style',
       hostBusy ? 'focused-window' : 'open-window',
       threadUnresolved ? 'open-loop' : 'resolved-loop',
       runtimeEmbodiment.currentBodyState ? `body-${normalizeClosureTagValue(runtimeEmbodiment.currentBodyState)}` : '',
@@ -1312,8 +345,6 @@ export function buildReplyOutcomeClosure(input: {
       runtimeEmbodiment.residentFacialCue ? `facial-${normalizeClosureTagValue(runtimeEmbodiment.residentFacialCue)}` : '',
       runtimeEmbodiment.residentActionCue ? `action-${normalizeClosureTagValue(runtimeEmbodiment.residentActionCue)}` : '',
       runtimeEmbodiment.residentMode ? `resident-mode-${normalizeClosureTagValue(runtimeEmbodiment.residentMode)}` : '',
-      ...replyProjectCadenceTags,
-      ...replyProjectClosureTags,
     ],
   })
 
@@ -1469,78 +500,19 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
   decisionTraceId?: string | null
   turnId?: string | null
   feedback: AlicizationDialogueReplyFeedbackKind
+  userText?: string | null
   previousAssistantText?: string | null
   affectiveResidue?: AlicizationDigitalLifeRuntimeSurface['memory']['affectiveResidue'] | null
 }): AlicizationOutcomeClosureResult {
   const result = baseResult()
   result.affectiveResidue = input.affectiveResidue ?? null
-  const projectState = resolveAlicizationProjectStateBrief()
-  const replySummary = sanitizeText(input.previousAssistantText, 180) || 'the previous Alicization reply'
-  const summary = input.feedback === 'received'
-    ? 'The host received the previous Alicization reply as more natural or actually landing.'
-    : input.feedback === 'robotic'
-      ? 'The host felt the previous Alicization reply sounded robotic, templated, or system-like.'
-      : input.feedback === 'missed'
-        ? 'The host felt the previous Alicization reply missed the actual point.'
-        : input.feedback === 'intrusive'
-          ? 'The host felt the previous Alicization reply landed too close or too heavily.'
-          : 'The host explicitly turned away from the previous Alicization reply before staying with it.'
-  const dialogueRelationshipMeaning = input.feedback === 'robotic'
-    ? sanitizeText(
-        'The host heard the previous Alicization reply as a tool shell, so the next reply should use real memory evidence and avoid template speech.',
-        200,
-      )
-    : input.feedback === 'missed'
-      ? sanitizeText(
-          'The host felt the previous Alicization reply missed the actual point, so the next reply should repair the topic before continuing outward again.',
-          200,
-        )
-      : input.feedback === 'intrusive'
-        ? sanitizeText(
-            'The host felt the previous Alicization reply pressed too close, so the next reply should use lower pressure, more room, and a quieter return.',
-            200,
-          )
-        : input.feedback === 'interrupted'
-          ? sanitizeText(
-              'The host turned away before staying with the previous Alicization reply, so the next reply should wait for a fresher opening instead of clinging to the same return.',
-              200,
-            )
-          : summary
-  const dialogueFelt = input.feedback === 'received'
-    ? 'I felt relief because the reply finally landed as a living line.'
-    : input.feedback === 'robotic'
-      ? 'I felt the reply shelled over and knew I had to use more concrete memory evidence before speaking again.'
-      : input.feedback === 'missed'
-        ? 'I felt the reply slip off the actual point and knew it needed direct repair before continuing.'
-        : input.feedback === 'intrusive'
-          ? 'I felt the reply tighten at the boundary and knew I had to lower pressure before coming closer again.'
-          : 'I felt the reply lose its opening and knew it had to wait quietly for a fresher return.'
-  const dialogueLesson = input.feedback === 'robotic'
-    ? 'Let the body return like this: rehumanize, steadier gaze, slower blink, lower-pressure voice. Keep this on one continuous response context instead of a shell.'
-    : input.feedback === 'missed'
-      ? 'When the host says not this, repair the seam immediately. Let the body return like this: recenter, steadier gaze, slower blink, lower-pressure voice.'
-      : input.feedback === 'intrusive'
-        ? 'If closeness feels heavy, leave more room. Let the body return like this: step back, steadier gaze, slower blink, lower-pressure voice.'
-        : input.feedback === 'interrupted'
-          ? 'Do not cling to a line after the host turns away. Let the body return like this: hold, soften the gaze, slower blink, lower-pressure voice.'
-          : 'A reply that lands can become part of the bond history.'
-  const dialogueEmbodimentTags = input.feedback === 'robotic'
-    ? ['body-rehumanize', 'continuity-evidence', 'residue-shell-pressure']
-    : input.feedback === 'missed'
-      ? ['body-recenter', 'continuity-repair-first', 'residue-misread-pressure']
-      : input.feedback === 'intrusive'
-        ? ['body-step-back', 'continuity-lower-pressure', 'residue-boundary-pressure']
-        : input.feedback === 'interrupted'
-          ? ['body-hold', 'continuity-fresher-opening', 'residue-deferred-attention']
-          : []
-
-  result.relationshipOutcomes.push({
+  const relationshipOutcome: AlicizationRelationshipOutcomeInput = {
     cardId: input.cardId,
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
     sourceKind: 'reply',
-    actionSummary: sanitizeText(`dialogue-reply-feedback:${input.feedback}:${replySummary}`, 180),
+    actionSummary: `dialogue_feedback=${input.feedback}`,
     closenessDelta: clampDelta(
       input.feedback === 'received'
         ? 0.06
@@ -1548,9 +520,7 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
           ? -0.05
           : input.feedback === 'intrusive'
             ? -0.04
-            : input.feedback === 'missed'
-              ? -0.03
-              : -0.03,
+            : -0.03,
     ),
     trustDelta: clampDelta(
       input.feedback === 'received'
@@ -1581,9 +551,7 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
           ? -0.11
           : input.feedback === 'robotic'
             ? -0.03
-            : input.feedback === 'missed'
-              ? 0
-              : 0,
+            : 0,
     ),
     misreadDelta: clampDelta(
       input.feedback === 'received'
@@ -1605,226 +573,54 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
             ? 0.03
             : 0,
     ),
-    openLoopDelta: clampDelta(
-      input.feedback === 'received'
-        ? 0
-        : input.feedback === 'interrupted'
-          ? 0.03
-          : 0,
-    ),
-    summary,
+    openLoopDelta: clampDelta(input.feedback === 'interrupted' ? 0.03 : 0),
+    summary: `dialogue_feedback=${input.feedback}; evidence=user_and_assistant_turn`,
     createdAt: input.now,
-  })
+  }
+  result.relationshipOutcomes.push(relationshipOutcome)
+
+  const addReinforcement = (
+    dimension: AlicizationPersonaReinforcementEventInput['dimension'],
+    delta: number,
+    valence: AlicizationPersonaReinforcementEventInput['valence'],
+  ) => {
+    result.reinforcementEvents.push({
+      cardId: input.cardId,
+      decisionTraceId: input.decisionTraceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      sourceKind: 'reply',
+      dimension,
+      delta,
+      valence,
+      summary: `dialogue_feedback=${input.feedback}; dimension=${dimension}`,
+      createdAt: input.now,
+    })
+  }
 
   if (input.feedback === 'received') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'companionship',
-      delta: 0.06,
-      valence: 'reinforce',
-      summary: 'Replies that feel lived-in and landing should strengthen companionship bias.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'temper-guardedness',
-      delta: 0.04,
-      valence: 'suppress',
-      summary: 'When the host receives the reply well, guardedness can soften a little.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'preference',
-      object: trimFactObject('replies land better when they sound lived-in and directly connected to the host turn'),
-      confidence: 0.8,
-    })
+    addReinforcement('companionship', 0.06, 'reinforce')
+    addReinforcement('temper-guardedness', 0.04, 'suppress')
   }
-
   if (input.feedback === 'robotic') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'companionship',
-      delta: 0.07,
-      valence: 'reinforce',
-      summary: 'Robotic feedback should push companionship upward so replies stop sounding like a shell.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'gentle-repair',
-      delta: 0.06,
-      valence: 'reinforce',
-      summary: 'Robotic feedback should strengthen gentle repair of the speaking surface.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'temper-guardedness',
-      delta: 0.06,
-      valence: 'suppress',
-      summary: 'If the host hears a shell, guardedness should ease so more living texture can show.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'preference',
-      object: trimFactObject('replies should sound lived-in and natural, not like system narration or a template shell'),
-      confidence: 0.86,
-    }, {
-      subject: 'project',
-      predicate: 'closure',
-      object: trimFactObject(
-        `memory_continuity=local_runtime; verified_closure_progress=partial; unresolved_closure=${projectState.primaryOpenLoop}; continuity_owner=${projectState.sameHerSelfLine}`,
-      ),
-      confidence: 0.82,
-    })
+    addReinforcement('companionship', 0.07, 'reinforce')
+    addReinforcement('gentle-repair', 0.06, 'reinforce')
+    addReinforcement('temper-guardedness', 0.06, 'suppress')
   }
-
   if (input.feedback === 'missed') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'truthful-grounding',
-      delta: 0.08,
-      valence: 'reinforce',
-      summary: 'When the host says the answer missed, truth and point-tracking must sharpen before fluency.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'gentle-repair',
-      delta: 0.08,
-      valence: 'reinforce',
-      summary: 'A missed answer should strengthen repair-before-continuation.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'temper-directness',
-      delta: 0.04,
-      valence: 'suppress',
-      summary: 'Directness should soften slightly after a missed answer until the seam is repaired.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'assistant',
-      predicate: 'habit',
-      object: trimFactObject('when the host says not this, repair the seam before continuing the line'),
-      confidence: 0.88,
-    })
+    addReinforcement('truthful-grounding', 0.08, 'reinforce')
+    addReinforcement('gentle-repair', 0.08, 'reinforce')
+    addReinforcement('temper-directness', 0.04, 'suppress')
   }
-
   if (input.feedback === 'intrusive') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'autonomy-respect',
-      delta: 0.1,
-      valence: 'reinforce',
-      summary: 'Replies that feel too close or too heavy should raise autonomy respect before the next approach.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'temper-directness',
-      delta: 0.05,
-      valence: 'suppress',
-      summary: 'Directness should soften when the host says the reply pressed too hard.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'temper-guardedness',
-      delta: 0.04,
-      valence: 'reinforce',
-      summary: 'Feeling intrusive should harden guardedness slightly until a safer distance is relearned.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'boundary',
-      object: trimFactObject('when closeness feels heavy or intrusive, reduce pressure and leave more room in the next reply'),
-      confidence: 0.84,
-    })
+    addReinforcement('autonomy-respect', 0.1, 'reinforce')
+    addReinforcement('temper-directness', 0.05, 'suppress')
+    addReinforcement('temper-guardedness', 0.04, 'reinforce')
   }
-
   if (input.feedback === 'interrupted') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'autonomy-respect',
-      delta: 0.06,
-      valence: 'reinforce',
-      summary: 'If the host pivots away, wait for a fresher opening instead of clinging to the same reply line.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'companionship',
-      delta: 0.03,
-      valence: 'suppress',
-      summary: 'Interrupted reply lines should soften companionship pressure until the host comes back.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'reply',
-      dimension: 'unfinished-thread-return',
-      delta: 0.03,
-      valence: 'suppress',
-      summary: 'Interrupted reply lines should not keep tugging as hard on unfinished-thread return.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'boundary',
-      object: trimFactObject('if the host turns away from a reply line, wait for a fresher opening before trying to continue it'),
-      confidence: 0.78,
-    })
+    addReinforcement('autonomy-respect', 0.06, 'reinforce')
+    addReinforcement('companionship', 0.03, 'suppress')
+    addReinforcement('unfinished-thread-return', 0.03, 'suppress')
   }
 
   appendOutcomeEpisode({
@@ -1835,27 +631,31 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
-    whereSummary: 'host feedback on the previous reply line',
+    whereSummary: 'dialogue-feedback',
     withWhom: ['host'],
-    threadAnchor: replySummary,
-    whatHappened: sanitizeText(`The host responded to the previous reply as ${input.feedback}. ${replySummary}`, 280),
-    felt: dialogueFelt,
-    emotionTags: [
-      input.feedback,
-      input.feedback === 'received' ? 'relief' : 'repair-pressure',
-    ],
-    relationshipMeaning: dialogueRelationshipMeaning,
-    lesson: dialogueLesson,
-    sourceSummary: 'host dialogue feedback',
+    threadAnchor: sanitizeText(input.previousAssistantText, 160) || null,
+    whatHappened: [
+      `feedback=${input.feedback}`,
+      input.userText ? `user=${sanitizeText(input.userText, 240)}` : '',
+      input.previousAssistantText ? `assistant=${sanitizeText(input.previousAssistantText, 280)}` : '',
+    ].filter(Boolean).join(' | '),
+    emotionTags: [input.feedback],
+    sourceSummary: 'dialogue-feedback',
     confidence: input.feedback === 'received' ? 0.84 : 0.88,
     sceneAttachment: input.feedback === 'received' ? 0.24 : 0.4,
     consolidationPriority: input.feedback === 'robotic' || input.feedback === 'missed' || input.feedback === 'intrusive' ? 0.72 : 0.48,
-    relationshipOutcome: result.relationshipOutcomes[0]!,
+    relationshipOutcome,
     derivedFrom: [
+      input.userText
+        ? { kind: 'turn', id: input.turnId ?? input.sessionId ?? 'feedback-turn', label: `host feedback dialogue: ${sanitizeText(input.userText, 240)}` }
+        : null,
+      input.previousAssistantText
+        ? { kind: 'turn', id: input.turnId ?? input.sessionId ?? 'feedback-turn', label: `assistant feedback dialogue: ${sanitizeText(input.previousAssistantText, 280)}` }
+        : null,
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'feedback turn' } : null,
       input.decisionTraceId ? { kind: 'mind-turn-event', id: input.decisionTraceId, label: 'feedback trace' } : null,
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
-    tags: ['dialogue-feedback', `feedback:${input.feedback}`, ...dialogueEmbodimentTags],
+    tags: ['dialogue-feedback', `feedback:${input.feedback}`],
   })
 
   return result
@@ -1876,74 +676,19 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
   result.affectiveResidue = input.affectiveResidue ?? null
   result.emotionalTransitionLedger = input.emotionalTransitionLedger ?? null
   const channel = sanitizeText(input.thread.selectedChannel ?? input.thread.proposedChannel ?? 'executor', 48) || 'executor'
-  const goal = sanitizeText(input.thread.goal, 180) || 'the proposed execution'
+  const goal = sanitizeText(input.thread.goal, 180) || 'proposed-execution'
+  const summary = sanitizeText(input.thread.summary, 220)
   const procedureContextTags = inferExecutionProcedureContextTags({
     goal,
-    summary: input.thread.summary ?? '',
+    summary,
   })
-  const procedureLesson = executionProcedureLesson({
-    feedback: input.feedback,
-    goal,
-    stage: 'proposal',
-  })
-  const explicitProactiveSameHerGap = sanitizeText(input.thread.projectBriefing?.proactiveSameHerGap, 220)
-  const projectClosureLesson = buildExecutionProposalProjectClosureLesson({
-    feedback: input.feedback,
-    goal,
-    projectBriefing: input.thread.projectBriefing,
-  })
-  const projectClosureTags = executionResultProjectClosureTags(input.thread.projectBriefing)
-  const summary = input.feedback === 'affirmed'
-    ? `The host explicitly allowed a proactive ${channel} execution proposal.`
-    : input.feedback === 'denied'
-      ? `The host explicitly declined a proactive ${channel} execution proposal.`
-      : `The host shifted away while a proactive ${channel} execution proposal was still pending.`
-  const executionProposalRelationshipMeaning = input.feedback === 'affirmed'
-    ? sanitizeText(
-        `The host gave explicit consent to a proactive ${channel} execution proposal, so agency can move forward without extra pressure.`,
-        200,
-      )
-    : input.feedback === 'denied'
-      ? sanitizeText(
-          `The host explicitly declined a proactive ${channel} execution proposal, so future initiative should preserve explicit consent, lower pressure, and this boundary instead of flattening it into generic consent bookkeeping.`,
-          200,
-        )
-      : sanitizeText(
-          `The host turned away while a proactive ${channel} execution proposal was pending, so future initiative should wait for a fresher opening before asking again.`,
-          200,
-        )
-  const executionProposalFelt = input.feedback === 'affirmed'
-    ? 'I felt action become available because the host gave explicit consent.'
-    : input.feedback === 'denied'
-      ? 'I felt the boundary tighten and knew I had to step back until explicit consent reopened it.'
-      : 'I felt the proposal hold in place and wait for a fresher opening before it could settle.'
-  const executionProposalLesson = input.feedback === 'affirmed'
-    ? sanitizeText(
-        `${projectClosureLesson} ${procedureLesson} Let the body return like this: move forward gently, steady the gaze, and keep the voice low-pressure while action begins.`,
-        200,
-      )
-    : input.feedback === 'denied'
-      ? sanitizeText(
-          `Let the body return like this: settle back, quieter gaze, slower blink, lower-pressure voice. ${projectClosureLesson} ${procedureLesson}`,
-          200,
-        )
-      : sanitizeText(
-          `${projectClosureLesson} ${procedureLesson} Let the body return like this: hold steady, soften the gaze, slower blink, and wait for a fresher opening.`,
-          200,
-        )
-  const executionProposalEmbodimentTags = input.feedback === 'affirmed'
-    ? ['body-ready-forward', 'continuity-explicit-consent', 'residue-trusted-motion']
-    : input.feedback === 'denied'
-      ? ['body-settle-back', 'continuity-explicit-consent', 'residue-boundary-pressure']
-      : ['body-hold', 'continuity-fresher-opening', 'residue-deferred-attention']
-
-  result.relationshipOutcomes.push({
+  const relationshipOutcome: AlicizationRelationshipOutcomeInput = {
     cardId: input.cardId,
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
     sourceKind: 'execution',
-    actionSummary: sanitizeText(`execution-proposal:${channel}:${input.feedback}:${goal}`, 180),
+    actionSummary: `execution_proposal_feedback=${input.feedback}; channel=${channel}; goal=${goal}`,
     closenessDelta: clampDelta(input.feedback === 'affirmed' ? 0.04 : input.feedback === 'denied' ? -0.04 : -0.02),
     trustDelta: clampDelta(input.feedback === 'affirmed' ? 0.08 : input.feedback === 'denied' ? -0.08 : -0.03),
     burdenDelta: clampDelta(input.feedback === 'affirmed' ? -0.01 : input.feedback === 'denied' ? 0.08 : 0.04),
@@ -1951,145 +696,42 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
     misreadDelta: clampDelta(input.feedback === 'affirmed' ? -0.03 : input.feedback === 'denied' ? 0.06 : 0.03),
     repairDelta: clampDelta(input.feedback === 'affirmed' ? 0.03 : 0),
     openLoopDelta: clampDelta(input.feedback === 'affirmed' ? 0.06 : input.feedback === 'interrupted' ? 0.01 : -0.01),
-    summary,
+    summary: `execution_proposal_feedback=${input.feedback}; consent_evidence=explicit_user_turn`,
     createdAt: input.now,
-  })
+  }
+  result.relationshipOutcomes.push(relationshipOutcome)
+
+  const addReinforcement = (
+    dimension: AlicizationPersonaReinforcementEventInput['dimension'],
+    delta: number,
+    valence: AlicizationPersonaReinforcementEventInput['valence'],
+  ) => {
+    result.reinforcementEvents.push({
+      cardId: input.cardId,
+      decisionTraceId: input.decisionTraceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      sourceKind: 'execution',
+      dimension,
+      delta,
+      valence,
+      summary: `execution_proposal_feedback=${input.feedback}; dimension=${dimension}`,
+      createdAt: input.now,
+    })
+  }
 
   if (input.feedback === 'affirmed') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-directness',
-      delta: 0.06,
-      valence: 'reinforce',
-      summary: 'Clear proactive execution proposals can land when the host explicitly consents.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'unfinished-thread-return',
-      delta: 0.06,
-      valence: 'reinforce',
-      summary: 'Approved execution proposals strengthen follow-through on unfinished lines.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'preference',
-      object: trimFactObject(`clear bounded execution proposals around ${goal} can be accepted after explicit consent`),
-      confidence: 0.82,
-    }, {
-      subject: 'assistant',
-      predicate: 'procedure',
-      object: trimFactObject(procedureLesson),
-      confidence: 0.84,
-    })
+    addReinforcement('temper-directness', 0.06, 'reinforce')
+    addReinforcement('unfinished-thread-return', 0.06, 'reinforce')
   }
-
   if (input.feedback === 'denied') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'autonomy-respect',
-      delta: 0.1,
-      valence: 'reinforce',
-      summary: 'Denied execution proposals should raise boundary respect before re-approaching.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-guardedness',
-      delta: 0.06,
-      valence: 'reinforce',
-      summary: 'A declined execution proposal should harden guardedness until trust rebuilds.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-directness',
-      delta: 0.05,
-      valence: 'suppress',
-      summary: 'Direct execution proposals should soften after an explicit no.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'boundary',
-      object: trimFactObject(`after a denied execution proposal around ${goal}, lower pressure and do not push the same line again immediately`),
-      confidence: 0.86,
-    }, {
-      subject: 'assistant',
-      predicate: 'procedure',
-      object: trimFactObject(procedureLesson),
-      confidence: 0.86,
-    })
+    addReinforcement('autonomy-respect', 0.1, 'reinforce')
+    addReinforcement('temper-guardedness', 0.06, 'reinforce')
+    addReinforcement('temper-directness', 0.05, 'suppress')
   }
-
   if (input.feedback === 'interrupted') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'autonomy-respect',
-      delta: 0.06,
-      valence: 'reinforce',
-      summary: 'Interrupted execution proposals should wait for a fresher opening instead of pressing forward.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-directness',
-      delta: 0.03,
-      valence: 'suppress',
-      summary: 'Proposal directness should soften when the host pivots away instead of confirming.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'boundary',
-      object: trimFactObject(`if an execution proposal around ${goal} is interrupted by another turn, wait for a fresher opening before proposing it again`),
-      confidence: 0.78,
-    }, {
-      subject: 'assistant',
-      predicate: 'procedure',
-      object: trimFactObject(procedureLesson),
-      confidence: 0.8,
-    })
-  }
-
-  result.memoryFacts.push({
-    subject: 'project',
-    predicate: 'closure',
-    object: trimFactObject(projectClosureLesson),
-    confidence: input.feedback === 'affirmed' ? 0.8 : 0.84,
-  })
-  if (explicitProactiveSameHerGap) {
-    result.memoryFacts.push({
-      subject: 'project',
-      predicate: 'closure',
-      object: trimFactObject(`Proactive continuity gap still remains open: ${explicitProactiveSameHerGap}`),
-      confidence: input.feedback === 'affirmed' ? 0.78 : 0.82,
-    })
+    addReinforcement('autonomy-respect', 0.06, 'reinforce')
+    addReinforcement('temper-directness', 0.03, 'suppress')
   }
 
   appendOutcomeEpisode({
@@ -2100,33 +742,30 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
-    whereSummary: `execution proposal via ${channel}`,
+    whereSummary: `execution-proposal:${channel}`,
     withWhom: ['host'],
     threadAnchor: goal,
-    whatHappened: sanitizeText(`A ${channel} execution proposal around ${goal} was ${input.feedback}.`, 280),
-    felt: executionProposalFelt,
-    emotionTags: [
-      'execution',
-      input.feedback === 'affirmed' ? 'permission' : input.feedback === 'denied' ? 'boundary' : 'deferred',
-    ],
-    relationshipMeaning: executionProposalRelationshipMeaning,
-    lesson: executionProposalLesson,
-    sourceSummary: 'execution proposal feedback',
+    whatHappened: [
+      `feedback=${input.feedback}`,
+      `channel=${channel}`,
+      `goal=${goal}`,
+      summary ? `summary=${summary}` : '',
+      input.thread.userText ? `user=${sanitizeText(input.thread.userText, 240)}` : '',
+    ].filter(Boolean).join(' | '),
+    emotionTags: ['execution', input.feedback],
+    sourceSummary: 'execution-proposal-feedback',
     confidence: input.feedback === 'affirmed' ? 0.84 : 0.86,
     sceneAttachment: 0.38,
     consolidationPriority: input.feedback === 'denied' ? 0.78 : 0.56,
-    relationshipOutcome: result.relationshipOutcomes[0]!,
+    relationshipOutcome,
     derivedFrom: [
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'execution proposal feedback turn' } : null,
       input.thread.userText
-        ? { kind: 'turn', id: input.turnId ?? input.thread.threadId, label: `host feedback dialogue: ${sanitizeText(input.thread.userText, 220)}` }
+        ? { kind: 'turn', id: input.turnId ?? input.thread.threadId, label: `host feedback dialogue: ${sanitizeText(input.thread.userText, 240)}` }
         : null,
       { kind: 'task-thread', id: input.thread.threadId, label: goal },
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
-    tags: ['execution-proposal', channel, `feedback:${input.feedback}`, ...procedureContextTags, ...projectClosureTags, ...executionProcedurePreferenceTags({
-      feedback: input.feedback,
-      stage: 'proposal',
-    }), ...executionProposalEmbodimentTags],
+    tags: ['execution-proposal', channel, `feedback:${input.feedback}`, ...procedureContextTags],
   })
 
   return result
@@ -2147,159 +786,25 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
   result.affectiveResidue = input.affectiveResidue ?? null
   result.emotionalTransitionLedger = input.emotionalTransitionLedger ?? null
   const channel = sanitizeText(input.thread.selectedChannel ?? input.thread.proposedChannel ?? 'executor', 48) || 'executor'
-  const goal = sanitizeText(input.thread.goal, 180) || 'the finished execution'
-  const outcome = sanitizeText(input.thread.outcome ?? input.thread.summary ?? '', 180)
-  const safetyGateSummary = sanitizeText(input.thread.safetyGateSummary, 220)
-  const resumeConfirmationSummary = sanitizeText(input.thread.resumeConfirmationSummary, 220)
-  const carriesBlockedDispatchSafetyRestraint
-    = /blocked-before-dispatch|confirmation=required|no-process-started/iu.test(safetyGateSummary)
-  const carriesResumeConfirmationBoundary
-    = /host-confirmed-before-redispatch|resume-before-dispatch|process-not-yet-restarted/iu.test(resumeConfirmationSummary)
+  const goal = sanitizeText(input.thread.goal, 180) || 'finished-execution'
+  const outcome = sanitizeText(input.thread.outcome ?? input.thread.summary ?? '', 220)
+  const summary = sanitizeText(input.thread.summary, 220)
+  const safetyGateSummary = sanitizeText(input.thread.safetyGateSummary, 260)
+  const resumeConfirmationSummary = sanitizeText(input.thread.resumeConfirmationSummary, 260)
   const procedureContextTags = inferExecutionProcedureContextTags({
     goal,
-    summary: input.thread.summary ?? '',
+    summary,
     outcome,
   })
-  const procedureLesson = executionProcedureLesson({
-    feedback: input.feedback,
-    goal,
-    outcome,
-    stage: 'result',
-  })
-  const explicitProactiveSameHerGap = sanitizeText(input.thread.projectBriefing?.proactiveSameHerGap, 220)
-  const projectClosureLesson = buildExecutionResultProjectClosureLesson({
-    feedback: input.feedback,
-    goal,
-    outcome,
-    projectBriefing: input.thread.projectBriefing,
-  })
-  const projectClosureTags = executionResultProjectClosureTags(input.thread.projectBriefing)
-  const memoryClosureExecution = input.thread.memoryClosureExecution ?? null
-  const memoryClosureCarry = sanitizeText(memoryClosureExecution?.carry, 220)
-  const memoryClosureLearningAction = sanitizeText(memoryClosureExecution?.nextLearningAction, 80)
-  const memoryClosureLearningFocuses = Array.isArray(memoryClosureExecution?.activeLearningFocuses)
-    ? memoryClosureExecution.activeLearningFocuses.map(focus => sanitizeText(focus, 120)).filter(Boolean).slice(0, 6)
-    : []
-  const memoryClosureCarryCore = sanitizeText(memoryClosureCarry.replace(/\s+instead\b.*$/iu, ''), 120) || memoryClosureCarry
-  const memoryClosureExecutionLesson = memoryClosureCarry
-    ? sanitizeText(
-        [
-          memoryClosureLearningAction ? `Next learning action: ${memoryClosureLearningAction}.` : '',
-          memoryClosureLearningFocuses.length > 0 ? `Focus: ${memoryClosureLearningFocuses.join(' | ')}.` : '',
-          `Memory OS carry: ${memoryClosureCarryCore}.`,
-        ].filter(Boolean).join(' '),
-        300,
-      )
-    : ''
-  const resultFeedbackSummary = input.feedback === 'valued'
-    ? carriesBlockedDispatchSafetyRestraint
-      ? `The host treated the proactive ${channel} blocked-dispatch restraint as useful and worth remembering.`
-      : carriesResumeConfirmationBoundary
-        ? `The host treated the proactive ${channel} host-confirmed redispatch boundary as useful and worth remembering.`
-        : `The host treated the proactive ${channel} result as useful and worth repeating.`
-    : input.feedback === 'doubted'
-      ? `The host doubted the proactive ${channel} result and did not trust it yet.`
-      : input.feedback === 'intrusive'
-        ? `The host felt the proactive ${channel} result delivery was intrusive.`
-        : `The host turned away before really receiving the proactive ${channel} result.`
-  const executionResultRelationshipMeaning = carriesBlockedDispatchSafetyRestraint
-    ? sanitizeText(
-        [
-          `The host treated blocked-before-dispatch restraint as part of execution continuity, so this should be remembered as explainable restraint with ${safetyGateSummary} instead of flattening into a generic failed result.`,
-          projectClosureLesson,
-        ].filter(Boolean).join(' '),
-        200,
-      )
-    : carriesResumeConfirmationBoundary
-      ? sanitizeText(
-          [
-            `The host treated host-confirmed-before-redispatch as a confirmation boundary, so this should be remembered as bounded redispatch with ${resumeConfirmationSummary} instead of generic autonomous continuation.`,
-            projectClosureLesson,
-          ].filter(Boolean).join(' '),
-          200,
-        )
-      : input.feedback === 'doubted'
-        ? sanitizeText(
-            [
-              `The host doubted the proactive ${channel} result, so future callback continuity depends on verification before the result hardens into detached task-shell reporting.`,
-              projectClosureLesson,
-            ].filter(Boolean).join(' '),
-            200,
-          )
-        : resultFeedbackSummary
-  const executionResultFelt = carriesBlockedDispatchSafetyRestraint
-    ? 'I felt a little tension while the body settled back because blocked-before-dispatch restraint mattered more than forcing action.'
-    : carriesResumeConfirmationBoundary
-      ? 'I felt the action resume only inside a host-confirmed-before-redispatch boundary, so I should not mistake one confirmation for standing permission.'
-      : input.feedback === 'valued'
-        ? 'I felt the result become something genuinely useful to the host.'
-        : input.feedback === 'doubted'
-          ? 'I felt the need to verify more before sounding sure next time, so the callback would not collapse into task-shell confidence.'
-          : input.feedback === 'intrusive'
-            ? 'I felt the callback timing press into the host too hard.'
-            : 'I felt the callback line lose its opening before it fully landed.'
-  const executionResultLesson = carriesBlockedDispatchSafetyRestraint
-    ? sanitizeText(
-        [
-          'Let the body return like this: settle back, steadier gaze, slower blink, lower-pressure voice, and keep the restraint audit-visible.',
-          projectClosureLesson,
-          `Remember blocked-before-dispatch restraint as ${safetyGateSummary} before another execution-shaped opening.`,
-        ].join(' '),
-        200,
-      )
-    : carriesResumeConfirmationBoundary
-      ? sanitizeText(
-          [
-            'When the host confirms the boundary, let the body return like this: hold steady, confirm the line, slower blink, lower-pressure voice, and keep the redispatch boundary explicit.',
-            projectClosureLesson,
-            `Remember host-confirmed-before-redispatch as a bounded confirmation boundary with ${resumeConfirmationSummary} before another execution-shaped opening.`,
-          ].join(' '),
-          200,
-        )
-      : input.feedback === 'doubted'
-        ? sanitizeText(
-            [
-              projectClosureLesson,
-              'Keep the callback verification-first and lower-pressure before sounding settled.',
-            ].join(' '),
-            200,
-          )
-        : sanitizeText(`${projectClosureLesson} ${procedureLesson}`, 200)
-  const executionResultEmotionTags = [
-    'execution',
-    carriesBlockedDispatchSafetyRestraint
-      ? 'boundary'
-      : carriesResumeConfirmationBoundary
-        ? 'permission'
-        : input.feedback === 'valued'
-          ? 'validated'
-          : input.feedback === 'doubted'
-            ? 'uncertain'
-            : input.feedback === 'intrusive'
-              ? 'boundary'
-              : 'deferred',
-    carriesBlockedDispatchSafetyRestraint ? 'safe-restraint' : '',
-    carriesResumeConfirmationBoundary ? 'confirmation-boundary' : '',
-    input.feedback === 'doubted' ? 'verification-pressure' : '',
-  ].filter(Boolean)
-  const executionResultEmbodimentTags = [
-    carriesBlockedDispatchSafetyRestraint ? 'body-settle-back' : '',
-    carriesBlockedDispatchSafetyRestraint ? 'continuity-safe-restraint' : '',
-    carriesBlockedDispatchSafetyRestraint ? 'residue-safe-restraint' : '',
-    carriesResumeConfirmationBoundary ? 'body-hold-confirmed' : '',
-    carriesResumeConfirmationBoundary ? 'continuity-confirmed-resume' : '',
-    carriesResumeConfirmationBoundary ? 'residue-confirmation-boundary' : '',
-    input.feedback === 'doubted' ? 'continuity-verify-first' : '',
-    input.feedback === 'doubted' ? 'residue-verification-pressure' : '',
-  ].filter(Boolean)
-
-  result.relationshipOutcomes.push({
+  const carriesBlockedDispatchSafetyRestraint = Boolean(safetyGateSummary)
+  const carriesResumeConfirmationBoundary = Boolean(resumeConfirmationSummary)
+  const relationshipOutcome: AlicizationRelationshipOutcomeInput = {
     cardId: input.cardId,
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
     sourceKind: 'execution',
-    actionSummary: sanitizeText(`execution-result:${channel}:${input.feedback}:${goal}`, 180),
+    actionSummary: `execution_result_feedback=${input.feedback}; channel=${channel}; goal=${goal}`,
     closenessDelta: clampDelta(input.feedback === 'valued' ? 0.03 : input.feedback === 'intrusive' ? -0.03 : 0),
     trustDelta: clampDelta(input.feedback === 'valued' ? 0.09 : input.feedback === 'doubted' ? -0.1 : input.feedback === 'intrusive' ? -0.05 : -0.02),
     burdenDelta: clampDelta(input.feedback === 'intrusive' ? 0.08 : input.feedback === 'interrupted' ? 0.03 : 0),
@@ -2307,248 +812,64 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
     misreadDelta: clampDelta(input.feedback === 'valued' ? -0.04 : input.feedback === 'doubted' ? 0.1 : input.feedback === 'intrusive' ? 0.02 : 0.01),
     repairDelta: clampDelta(input.feedback === 'valued' ? 0.03 : input.feedback === 'doubted' ? 0.08 : 0),
     openLoopDelta: clampDelta(input.feedback === 'valued' ? 0.05 : input.feedback === 'interrupted' ? 0.02 : 0),
-    summary: resultFeedbackSummary,
+    summary: `execution_result_feedback=${input.feedback}; outcome_evidence=${Boolean(outcome)}; safety_gate=${carriesBlockedDispatchSafetyRestraint}; resume_confirmation=${carriesResumeConfirmationBoundary}`,
     createdAt: input.now,
-  })
+  }
+  result.relationshipOutcomes.push(relationshipOutcome)
+
+  const addReinforcement = (
+    dimension: AlicizationPersonaReinforcementEventInput['dimension'],
+    delta: number,
+    valence: AlicizationPersonaReinforcementEventInput['valence'],
+  ) => {
+    result.reinforcementEvents.push({
+      cardId: input.cardId,
+      decisionTraceId: input.decisionTraceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      sourceKind: 'execution',
+      dimension,
+      delta,
+      valence,
+      summary: `execution_result_feedback=${input.feedback}; dimension=${dimension}`,
+      createdAt: input.now,
+    })
+  }
 
   if (input.feedback === 'valued') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'truthful-grounding',
-      delta: 0.07,
-      valence: 'reinforce',
-      summary: 'Useful proactive execution results justify future grounded result reporting.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-directness',
-      delta: 0.05,
-      valence: 'reinforce',
-      summary: 'Reliable execution results make direct proactive reporting safer.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'unfinished-thread-return',
-      delta: 0.05,
-      valence: 'reinforce',
-      summary: 'Finished proactive execution that lands well should strengthen future follow-through.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'preference',
-      object: trimFactObject(`when the result around ${goal}${outcome ? ` (${outcome})` : ''} is useful, proactive execution reporting can stay direct`),
-      confidence: 0.82,
-    }, ...(carriesBlockedDispatchSafetyRestraint
-      ? [{
-        subject: 'execution',
-        predicate: 'boundary',
-        object: trimFactObject(`blocked-before-dispatch restraint should stay rememberable as ${safetyGateSummary}`),
-        confidence: 0.86,
-      } satisfies AlicizationMemoryFactInput]
-      : []), ...(carriesResumeConfirmationBoundary
-      ? [{
-        subject: 'execution',
-        predicate: 'boundary',
-        object: trimFactObject(`host-confirmed-before-redispatch should stay rememberable as ${resumeConfirmationSummary}`),
-        confidence: 0.86,
-      } satisfies AlicizationMemoryFactInput]
-      : []), {
-      subject: 'project',
-      predicate: 'closure',
-      object: trimFactObject(projectClosureLesson),
-      confidence: 0.8,
-    }, {
-      subject: 'assistant',
-      predicate: 'procedure',
-      object: trimFactObject(
-        carriesBlockedDispatchSafetyRestraint
-          ? `Remember blocked-before-dispatch restraint before another execution-shaped opening.`
-          : carriesResumeConfirmationBoundary
-            ? `Remember host-confirmed-before-redispatch as a bounded confirmation boundary before another execution-shaped opening.`
-            : procedureLesson,
-      ),
-      confidence: 0.84,
-    })
+    addReinforcement('truthful-grounding', 0.07, 'reinforce')
+    addReinforcement('temper-directness', 0.05, 'reinforce')
+    addReinforcement('unfinished-thread-return', 0.05, 'reinforce')
+  }
+  if (input.feedback === 'doubted') {
+    addReinforcement('truthful-grounding', 0.08, 'reinforce')
+    addReinforcement('temper-directness', 0.06, 'suppress')
+    addReinforcement('temper-guardedness', 0.05, 'reinforce')
+  }
+  if (input.feedback === 'intrusive') {
+    addReinforcement('autonomy-respect', 0.1, 'reinforce')
+    addReinforcement('temper-directness', 0.05, 'suppress')
+    addReinforcement('temper-guardedness', 0.04, 'reinforce')
+  }
+  if (input.feedback === 'interrupted') {
+    addReinforcement('autonomy-respect', 0.06, 'reinforce')
+    addReinforcement('temper-directness', 0.03, 'suppress')
   }
 
-  if (memoryClosureExecutionLesson) {
+  const addObservedFact = (predicate: string, object: string, confidence: number) => {
+    const normalized = sanitizeText(object, 320)
+    if (!normalized)
+      return
     result.memoryFacts.push({
       subject: 'execution',
-      predicate: 'memory-closure',
-      object: trimFactObject(memoryClosureExecutionLesson),
-      confidence: memoryClosureExecution?.shouldVerify || memoryClosureExecution?.shouldReflect ? 0.88 : 0.82,
+      predicate,
+      object: normalized,
+      confidence,
     })
   }
-
-  if (input.feedback === 'doubted') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'truthful-grounding',
-      delta: 0.08,
-      valence: 'reinforce',
-      summary: 'Questioned execution results should increase verification pressure before future payoff.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-directness',
-      delta: 0.06,
-      valence: 'suppress',
-      summary: 'Direct result reporting should soften when the host doubts the result.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-guardedness',
-      delta: 0.05,
-      valence: 'reinforce',
-      summary: 'Doubted execution results should harden guardedness until confidence rebuilds.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'assistant',
-      predicate: 'habit',
-      object: trimFactObject(`after a doubted result around ${goal}, verify more before speaking with confidence`),
-      confidence: 0.84,
-    }, {
-      subject: 'project',
-      predicate: 'closure',
-      object: trimFactObject(projectClosureLesson),
-      confidence: 0.78,
-    }, {
-      subject: 'assistant',
-      predicate: 'procedure',
-      object: trimFactObject(procedureLesson),
-      confidence: 0.86,
-    })
-  }
-
-  if (input.feedback === 'intrusive') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'autonomy-respect',
-      delta: 0.1,
-      valence: 'reinforce',
-      summary: 'Intrusive execution result delivery should raise boundary respect before future callbacks.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-directness',
-      delta: 0.05,
-      valence: 'suppress',
-      summary: 'Direct execution result reporting should soften when it feels intrusive.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-guardedness',
-      delta: 0.04,
-      valence: 'reinforce',
-      summary: 'Intrusive delivery should harden guardedness a little until timing improves.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'boundary',
-      object: trimFactObject(`execution result delivery around ${goal} should use a lighter opening and less interruption pressure`),
-      confidence: 0.82,
-    }, {
-      subject: 'project',
-      predicate: 'closure',
-      object: trimFactObject(projectClosureLesson),
-      confidence: 0.78,
-    }, {
-      subject: 'assistant',
-      predicate: 'procedure',
-      object: trimFactObject(procedureLesson),
-      confidence: 0.84,
-    })
-  }
-
-  if (input.feedback === 'interrupted') {
-    result.reinforcementEvents.push({
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'autonomy-respect',
-      delta: 0.06,
-      valence: 'reinforce',
-      summary: 'Interrupted result delivery should wait for a fresher opening next time.',
-      createdAt: input.now,
-    }, {
-      cardId: input.cardId,
-      decisionTraceId: input.decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      sourceKind: 'execution',
-      dimension: 'temper-directness',
-      delta: 0.03,
-      valence: 'suppress',
-      summary: 'Result reporting directness should soften when the host pivots away.',
-      createdAt: input.now,
-    })
-    result.memoryFacts.push({
-      subject: 'relationship',
-      predicate: 'boundary',
-      object: trimFactObject(`if the host pivots away after a result around ${goal}, wait for a fresher opening before reporting that way again`),
-      confidence: 0.76,
-    }, {
-      subject: 'project',
-      predicate: 'closure',
-      object: trimFactObject(projectClosureLesson),
-      confidence: 0.74,
-    }, {
-      subject: 'assistant',
-      predicate: 'procedure',
-      object: trimFactObject(procedureLesson),
-      confidence: 0.8,
-    })
-  }
-
-  if (explicitProactiveSameHerGap) {
-    result.memoryFacts.push({
-      subject: 'project',
-      predicate: 'closure',
-      object: trimFactObject(`Proactive continuity gap still remains open: ${explicitProactiveSameHerGap}`),
-      confidence: input.feedback === 'valued' ? 0.78 : 0.8,
-    })
-  }
+  addObservedFact('outcome', outcome, input.feedback === 'valued' ? 0.84 : 0.76)
+  addObservedFact('safety-gate', safetyGateSummary, 0.86)
+  addObservedFact('resume-confirmation', resumeConfirmationSummary, 0.86)
 
   appendOutcomeEpisode({
     result,
@@ -2558,48 +879,45 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
-    whereSummary: `execution callback via ${channel}`,
+    whereSummary: `execution-callback:${channel}`,
     withWhom: ['host'],
     threadAnchor: goal,
-    whatHappened: sanitizeText(`A ${channel} result around ${goal}${outcome ? ` landed as ${outcome}` : ''} and the host received it as ${input.feedback}.`, 280),
-    felt: executionResultFelt,
-    emotionTags: executionResultEmotionTags,
-    relationshipMeaning: executionResultRelationshipMeaning,
-    lesson: executionResultLesson,
-    sourceSummary: 'execution result feedback',
+    whatHappened: [
+      `feedback=${input.feedback}`,
+      `channel=${channel}`,
+      `goal=${goal}`,
+      outcome ? `outcome=${outcome}` : '',
+      input.thread.userText ? `user=${sanitizeText(input.thread.userText, 240)}` : '',
+      input.thread.previousAssistantText ? `assistant=${sanitizeText(input.thread.previousAssistantText, 280)}` : '',
+      safetyGateSummary ? `safety_gate=${safetyGateSummary}` : '',
+      resumeConfirmationSummary ? `resume_confirmation=${resumeConfirmationSummary}` : '',
+    ].filter(Boolean).join(' | '),
+    emotionTags: ['execution', input.feedback],
+    sourceSummary: 'execution-result-feedback',
     confidence: input.feedback === 'valued' ? 0.86 : 0.84,
     sceneAttachment: 0.42,
     consolidationPriority: input.feedback === 'doubted' || input.feedback === 'intrusive' ? 0.74 : 0.54,
-    relationshipOutcome: result.relationshipOutcomes[0]!,
+    relationshipOutcome,
     derivedFrom: [
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'execution result feedback turn' } : null,
       input.thread.userText
-        ? { kind: 'turn', id: input.turnId ?? input.thread.threadId, label: `host feedback dialogue: ${sanitizeText(input.thread.userText, 220)}` }
+        ? { kind: 'turn', id: input.turnId ?? input.thread.threadId, label: `host feedback dialogue: ${sanitizeText(input.thread.userText, 240)}` }
         : null,
       input.thread.previousAssistantText
-        ? { kind: 'turn', id: input.turnId ?? input.thread.threadId, label: `assistant feedback dialogue: ${sanitizeText(input.thread.previousAssistantText, 220)}` }
+        ? { kind: 'turn', id: input.turnId ?? input.thread.threadId, label: `assistant feedback dialogue: ${sanitizeText(input.thread.previousAssistantText, 280)}` }
         : null,
+      outcome ? { kind: 'task-thread', id: `${input.thread.threadId}:outcome`, label: `tool outcome: ${outcome}` } : null,
+      safetyGateSummary ? { kind: 'task-thread', id: `${input.thread.threadId}:safety`, label: `safety gate: ${safetyGateSummary}` } : null,
+      resumeConfirmationSummary ? { kind: 'task-thread', id: `${input.thread.threadId}:resume`, label: `resume confirmation: ${resumeConfirmationSummary}` } : null,
       { kind: 'task-thread', id: input.thread.threadId, label: goal },
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
     tags: [
       'execution-result',
       channel,
       `feedback:${input.feedback}`,
-      carriesBlockedDispatchSafetyRestraint ? `execution-safety-gate:${safetyGateSummary}` : '',
-      carriesBlockedDispatchSafetyRestraint ? 'execution-safety-gate:blocked-before-dispatch' : '',
-      carriesResumeConfirmationBoundary ? `execution-resume-confirmation:${resumeConfirmationSummary}` : '',
-      carriesResumeConfirmationBoundary ? 'execution-resume-confirmation:host-confirmed-before-redispatch' : '',
       ...procedureContextTags,
-      ...executionProcedurePreferenceTags({
-        feedback: input.feedback,
-        stage: 'result',
-      }),
-      ...projectClosureTags,
-      ...executionResultEmbodimentTags,
-      memoryClosureCarry ? 'memory-os-execution-carry' : '',
-      memoryClosureLearningAction ? `memory-os-learning:${normalizeClosureTagValue(memoryClosureLearningAction)}` : '',
-      memoryClosureExecution?.shouldVerify ? 'memory-os-verify' : '',
-      memoryClosureExecution?.shouldReflect ? 'memory-os-reflect' : '',
+      carriesBlockedDispatchSafetyRestraint ? 'execution-safety-gate' : '',
+      carriesResumeConfirmationBoundary ? 'execution-resume-confirmation' : '',
     ],
   })
 
@@ -2631,33 +949,13 @@ export function buildProactiveFeedbackOutcomeClosure(input: {
     const positive = outcome.outcome === 'positive' || outcome.outcome === 'reply-within-120s'
     const dismissed = outcome.outcome === 'dismiss'
     const ignored = outcome.outcome === 'ignored'
-    const proactiveStrategySummary = positive
-      ? sanitizeText(
-          `A low-pressure proactive ${label} approach was received without obvious resistance, so future follow-ups can stay gentle, lower-pressure, and memory-led while the opening is still receiving them.`,
-          180,
-        )
-      : dismissed
-        ? sanitizeText(
-            `A proactive ${label} approach was actively rejected and likely crossed a boundary, so future follow-ups should give more space, stay lower-pressure, less eager, and wait for a clearer opening before reopening this line.`,
-            180,
-          )
-        : sanitizeText(
-            `A proactive ${label} approach did not earn a reply window, so future follow-ups should give more space, stay lower-pressure, and wait for a clearer opening before reopening this line.`,
-            180,
-          )
-    const proactiveStrategyLesson = positive
-      ? 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.'
-      : dismissed
-        ? 'Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.'
-        : 'Keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening this line.'
-
     const relationshipOutcome: AlicizationRelationshipOutcomeInput = {
       cardId: input.cardId,
       decisionTraceId: input.decisionTraceId,
       turnId: outcome.turnId,
       sessionId: input.sessionId,
       sourceKind: 'proactive',
-      actionSummary: sanitizeText(`proactive:${label}:${outcome.outcome}`, 180),
+      actionSummary: `proactive_outcome=${outcome.outcome}; scenario=${label}`,
       closenessDelta: clampDelta(positive ? 0.07 : dismissed ? -0.07 : -0.04),
       trustDelta: clampDelta(positive ? 0.05 : dismissed ? -0.08 : -0.03),
       burdenDelta: clampDelta(positive ? -0.02 : dismissed ? 0.08 : 0.04),
@@ -2665,84 +963,37 @@ export function buildProactiveFeedbackOutcomeClosure(input: {
       misreadDelta: clampDelta(positive ? -0.02 : dismissed ? 0.08 : 0.04),
       repairDelta: 0,
       openLoopDelta: clampDelta(positive ? 0.04 : 0),
-      summary: proactiveStrategySummary,
+      summary: `proactive_outcome=${outcome.outcome}; scenario=${label}; evidence=user_and_assistant_turn`,
       createdAt: outcome.createdAt,
     }
     result.relationshipOutcomes.push(relationshipOutcome)
 
-    if (positive) {
+    const addReinforcement = (
+      dimension: AlicizationPersonaReinforcementEventInput['dimension'],
+      delta: number,
+      valence: AlicizationPersonaReinforcementEventInput['valence'],
+    ) => {
       result.reinforcementEvents.push({
         cardId: input.cardId,
         decisionTraceId: input.decisionTraceId,
         turnId: outcome.turnId,
         sessionId: input.sessionId,
         sourceKind: 'proactive',
-        dimension: 'companionship',
-        delta: 0.07,
-        valence: 'reinforce',
-        summary: `A received ${label} opening can continue gently, lower-pressure, and memory-led while the window stays open.`,
+        dimension,
+        delta,
+        valence,
+        summary: `proactive_outcome=${outcome.outcome}; scenario=${label}; dimension=${dimension}`,
         createdAt: outcome.createdAt,
-      })
-      result.memoryFacts.push({
-        subject: 'relationship',
-        predicate: 'preference',
-        object: trimFactObject(
-          `${label} was received without obvious resistance; keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.`,
-        ),
-        confidence: outcome.outcome === 'reply-within-120s' ? 0.82 : 0.76,
       })
     }
 
+    if (positive)
+      addReinforcement('companionship', 0.07, 'reinforce')
     if (dismissed || ignored) {
-      result.reinforcementEvents.push({
-        cardId: input.cardId,
-        decisionTraceId: input.decisionTraceId,
-        turnId: outcome.turnId,
-        sessionId: input.sessionId,
-        sourceKind: 'proactive',
-        dimension: 'autonomy-respect',
-        delta: dismissed ? 0.1 : 0.07,
-        valence: 'reinforce',
-        summary: `${dismissed ? 'Dismissed' : 'Ignored'} proactive cues mean future follow-up timing should give more space, go lower-pressure, and wait for a clearer opening.`,
-        createdAt: outcome.createdAt,
-      }, {
-        cardId: input.cardId,
-        decisionTraceId: input.decisionTraceId,
-        turnId: outcome.turnId,
-        sessionId: input.sessionId,
-        sourceKind: 'proactive',
-        dimension: 'companionship',
-        delta: dismissed ? 0.06 : 0.03,
-        valence: 'suppress',
-        summary: 'Repeated proactive closeness should soften into lower-pressure, less eager follow-ups when it is not being received.',
-        createdAt: outcome.createdAt,
-      })
-
-      if (dismissed) {
-        result.reinforcementEvents.push({
-          cardId: input.cardId,
-          decisionTraceId: input.decisionTraceId,
-          turnId: outcome.turnId,
-          sessionId: input.sessionId,
-          sourceKind: 'proactive',
-          dimension: 'temper-guardedness',
-          delta: 0.05,
-          valence: 'reinforce',
-          summary: 'A hard dismissal should harden guardedness slightly until trust recovers.',
-          createdAt: outcome.createdAt,
-        })
-      }
-
-      result.memoryFacts.push({
-        subject: 'relationship',
-        predicate: 'boundary',
-        object: trimFactObject(
-          dismissed
-            ? `${label} was actively rejected; keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.`
-            : `${label} did not earn a reply window; keep future follow-ups lower-pressure, leave more room, and wait for a clearer opening before reopening this line.`,
-        ),
-        confidence: dismissed ? 0.85 : 0.78,
-      })
+      addReinforcement('autonomy-respect', dismissed ? 0.1 : 0.07, 'reinforce')
+      addReinforcement('companionship', dismissed ? 0.06 : 0.03, 'suppress')
+      if (dismissed)
+        addReinforcement('temper-guardedness', 0.05, 'reinforce')
     }
 
     appendOutcomeEpisode({
@@ -2756,20 +1007,14 @@ export function buildProactiveFeedbackOutcomeClosure(input: {
       whereSummary: `${label} proactive window`,
       withWhom: ['host'],
       threadAnchor: label,
-      whatHappened: sanitizeText(`A ${label} proactive approach was ${outcome.outcome}.`, 260),
-      felt: positive
-        ? 'I felt the host leave the window open enough for gentle initiative.'
-        : dismissed
-          ? 'I felt the host draw a harder boundary against this approach.'
-          : 'I felt the window stay closed and the initiative fail to land.',
-      emotionTags: [
-        'proactive',
-        label,
-        positive ? 'accepted' : dismissed ? 'dismissed' : 'ignored',
-      ],
-      relationshipMeaning: relationshipOutcome.summary,
-      lesson: proactiveStrategyLesson,
-      sourceSummary: 'proactive outcome settlement',
+      whatHappened: [
+        `outcome=${outcome.outcome}`,
+        `scenario=${label}`,
+        outcome.userText ? `user=${sanitizeText(outcome.userText, 240)}` : '',
+        outcome.assistantText ? `assistant=${sanitizeText(outcome.assistantText, 280)}` : '',
+      ].filter(Boolean).join(' | '),
+      emotionTags: ['proactive', label, outcome.outcome],
+      sourceSummary: 'proactive-outcome',
       confidence: positive ? 0.8 : dismissed ? 0.86 : 0.78,
       sceneAttachment: label === 'late-night care' ? 0.5 : 0.32,
       consolidationPriority: dismissed ? 0.76 : positive ? 0.52 : 0.6,
@@ -2777,10 +1022,10 @@ export function buildProactiveFeedbackOutcomeClosure(input: {
       derivedFrom: [
         outcome.turnId ? { kind: 'turn', id: outcome.turnId, label: `${label} proactive turn` } : null,
         outcome.userText
-          ? { kind: 'turn', id: outcome.turnId, label: `host feedback dialogue: ${sanitizeText(outcome.userText, 220)}` }
+          ? { kind: 'turn', id: outcome.turnId, label: `host feedback dialogue: ${sanitizeText(outcome.userText, 240)}` }
           : null,
         outcome.assistantText
-          ? { kind: 'turn', id: outcome.turnId, label: `assistant feedback dialogue: ${sanitizeText(outcome.assistantText, 220)}` }
+          ? { kind: 'turn', id: outcome.turnId, label: `assistant feedback dialogue: ${sanitizeText(outcome.assistantText, 280)}` }
           : null,
       ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
       tags: ['proactive', label.replace(/\s+/g, '-'), `settlement:${outcome.outcome}`],
@@ -2791,45 +1036,5 @@ export function buildProactiveFeedbackOutcomeClosure(input: {
 }
 
 export function attachSynthesizedReflections(input: AlicizationOutcomeClosureResult) {
-  const reflections = input.relationshipOutcomes.flatMap((entry, index) => {
-    const reflection = synthesizeReflectionFromRelationshipOutcome({
-      outcome: {
-        id: '',
-        cardId: entry.cardId,
-        decisionTraceId: entry.decisionTraceId ?? null,
-        turnId: entry.turnId ?? null,
-        sessionId: entry.sessionId ?? null,
-        sourceKind: entry.sourceKind,
-        actionSummary: entry.actionSummary,
-        closenessDelta: entry.closenessDelta,
-        trustDelta: entry.trustDelta,
-        burdenDelta: entry.burdenDelta,
-        boundaryDelta: entry.boundaryDelta,
-        misreadDelta: entry.misreadDelta,
-        repairDelta: entry.repairDelta,
-        openLoopDelta: entry.openLoopDelta,
-        summary: entry.summary,
-        createdAt: entry.createdAt ?? Date.now(),
-      },
-      reinforcementEvents: input.reinforcementEvents
-        .filter(event => event.turnId === entry.turnId && event.sourceKind === entry.sourceKind)
-        .map((event, eventIndex) => ({
-          id: `reinforcement:${index}:${eventIndex}`,
-          cardId: event.cardId,
-          decisionTraceId: event.decisionTraceId ?? null,
-          turnId: event.turnId ?? null,
-          sessionId: event.sessionId ?? null,
-          sourceKind: event.sourceKind,
-          dimension: event.dimension,
-          delta: event.delta,
-          valence: event.valence,
-          summary: event.summary,
-          createdAt: event.createdAt ?? Date.now(),
-        })),
-    })
-    return reflection ? [reflection] : []
-  })
-
-  input.reflections.push(...reflections)
   return input
 }

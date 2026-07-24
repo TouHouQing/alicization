@@ -93,6 +93,43 @@ function createDigitalLifeSpineDigest(
 }
 
 describe('alicization visual presence spine resident carry', () => {
+  it('does not invent a private-thought sentence when the digest has no text evidence', () => {
+    const state = buildAlicizationVisualPresenceStateFromSpineDigest({
+      digest: createDigitalLifeSpineDigest({
+        runtime: {
+          sceneSummary: '',
+          activeThreadId: null,
+          activeThreadTitle: null,
+        },
+        architecture: {
+          governingFocus: null,
+          summary: '',
+        },
+        proactive: {
+          activeThreadId: null,
+          activeThreadTitle: null,
+          leadingGoalSummary: null,
+          dominantConcernSummary: null,
+        },
+        memory: {
+          summary: null,
+          recentEpisodeSummary: null,
+          recentEpisodeCount: 0,
+          recollectionSummary: null,
+          recollectionSurfaceSummary: null,
+          thoughtThreadSummary: null,
+          leadingGoalSummary: null,
+          dominantConcernSummary: null,
+        },
+      }),
+      now: 1_000,
+      previous: null,
+      snapshot: null,
+    })
+
+    expect(state.privateThought?.thoughtText).toBe('')
+  })
+
   it('keeps browser-local resident performance on repair-before-closeness when runtime project closure is the only surviving same-her restraint carry', () => {
     const state = buildAlicizationVisualPresenceStateFromSpineDigest({
       digest: createDigitalLifeSpineDigest({

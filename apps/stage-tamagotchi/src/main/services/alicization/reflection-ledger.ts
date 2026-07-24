@@ -130,11 +130,11 @@ function maybeCreateRepairReflection(input: {
       act: previousAct,
       repairId: repair?.id ?? null,
       threadId: input.worldModel?.activeThread?.id ?? null,
-      summary: 'The scene was regrounded after repair pressure.',
-      expectation: 'Repair or regrounding should let the live scene outrank carried residue.',
-      observedOutcome: 'The world is live-grounded again and present-tense speech is safer.',
+      summary: input.worldModel?.activeThread?.summary ?? previousProject?.summary ?? repair?.summary ?? '',
+      expectation: repair?.rationale ?? previousProject?.summary ?? '',
+      observedOutcome: input.worldModel?.activeThread?.summary ?? input.worldModel?.activeThread?.title ?? '',
       outcome: previousAct === 'correct-stale-anchor' ? 'corrected' : 'helped',
-      revision: 'Let the current grounded scene outrank the carried anchor now.',
+      revision: input.worldModel?.activeThread?.summary ?? repair?.summary ?? '',
       confidenceShift: 0.08,
     })
   }
@@ -152,11 +152,15 @@ function maybeCreateRepairReflection(input: {
       act: previousAct,
       repairId: repair?.id ?? null,
       threadId: input.worldModel?.activeThread?.id ?? null,
-      summary: 'Repair pressure is still governing the scene.',
-      expectation: 'Repair work should reduce truth risk before surface fluency resumes.',
-      observedOutcome: 'The scene is still carrying uncertainty or stale-anchor risk.',
+      summary: repair?.summary ?? previousProject?.summary ?? input.worldModel?.activeThread?.summary ?? '',
+      expectation: repair?.rationale ?? previousProject?.summary ?? '',
+      observedOutcome: [
+        ...(input.worldModel?.epistemicState.openQuestions ?? []),
+        ...(input.worldModel?.epistemicState.staleRisks ?? []),
+        input.worldModel?.activeThread?.summary,
+      ].filter(Boolean).join(' '),
       outcome: previousAct === 'correct-stale-anchor' ? 'missed' : 'stalled',
-      revision: 'Keep truth repair ahead of fluency and do not surface this as fully live yet.',
+      revision: repair?.summary ?? previousProject?.summary ?? '',
       confidenceShift: previousAct === 'correct-stale-anchor' ? -0.1 : -0.06,
     })
   }
@@ -188,13 +192,11 @@ function maybeCreateThreadReflection(input: {
       project: previousProject,
       act: previousAct,
       threadId: previousProject?.targetThreadId ?? input.worldModel?.activeThread?.id ?? null,
-      summary: 'The held knot no longer needs to be carried in the same way.',
-      expectation: 'Keeping the thread alive should eventually let it resolve or cleanly shift.',
-      observedOutcome: movedAwayFromThread
-        ? 'The world moved to a fresher thread instead of dragging the old knot forward.'
-        : 'The thread looks less unresolved than before.',
+      summary: previousProject?.summary ?? input.worldModel?.activeThread?.summary ?? input.worldModel?.activeThread?.title ?? '',
+      expectation: previousProject?.summary ?? '',
+      observedOutcome: input.worldModel?.activeThread?.summary ?? input.worldModel?.activeThread?.title ?? '',
       outcome: 'released',
-      revision: 'Release the old knot gracefully and bind the next answer to the fresher thread.',
+      revision: input.worldModel?.activeThread?.summary ?? '',
       confidenceShift: 0.05,
     })
   }
@@ -210,11 +212,14 @@ function maybeCreateThreadReflection(input: {
       project: previousProject,
       act: previousAct,
       threadId: previousProject?.targetThreadId ?? null,
-      summary: 'The knot is still being carried without enough localization.',
-      expectation: 'Holding the problem should narrow it toward a cleaner locus.',
-      observedOutcome: 'The thread is still unresolved and not grounded enough yet.',
+      summary: input.worldModel?.activeThread?.summary ?? previousProject?.summary ?? '',
+      expectation: previousProject?.summary ?? '',
+      observedOutcome: [
+        input.worldModel?.activeThread?.summary,
+        ...(input.worldModel?.epistemicState.openQuestions ?? []),
+      ].filter(Boolean).join(' '),
       outcome: 'stalled',
-      revision: 'Narrow further before sounding certain or expansive.',
+      revision: input.worldModel?.activeThread?.summary ?? previousProject?.summary ?? '',
       confidenceShift: -0.05,
     })
   }
@@ -245,11 +250,11 @@ function maybeCreateCareReflection(input: {
       project: previousProject,
       act: previousAct,
       threadId: input.worldModel?.activeThread?.id ?? null,
-      summary: 'The care line no longer needs to stay at the same intensity.',
-      expectation: 'Care should ease once the host is less burdened or the scene relaxes.',
-      observedOutcome: 'The host state looks more open than before.',
+      summary: previousProject?.summary ?? input.worldModel?.activeThread?.summary ?? '',
+      expectation: previousProject?.summary ?? '',
+      observedOutcome: input.worldModel?.activeThread?.summary ?? '',
       outcome: 'helped',
-      revision: 'Let care soften back into steady presence instead of clinging to warning mode.',
+      revision: input.worldModel?.activeThread?.summary ?? previousProject?.summary ?? '',
       confidenceShift: 0.04,
     })
   }

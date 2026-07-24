@@ -51,7 +51,6 @@ describe('runtime mind-state Provider contracts', () => {
         'sharedAttentionDemand',
         'personaSuppression',
         'confidence',
-        'summary',
         'reasonTags',
       ],
       properties: {
@@ -63,6 +62,7 @@ describe('runtime mind-state Provider contracts', () => {
         reasonTags: { type: 'array', maxItems: 10 },
       },
     })
+    expect(alicizationDialogueTurnSemanticsResponseFormat.json_schema.schema.properties).not.toHaveProperty('summary')
   })
 
   it('strictly bounds subjective inference evidence candidates', () => {

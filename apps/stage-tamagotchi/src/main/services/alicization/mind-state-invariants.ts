@@ -240,7 +240,7 @@ function buildFallbackSelfGovernor(input: {
     status: drive === 'withhold' ? 'withheld' : 'active',
     drive,
     title: sanitizeText(input.worldModel?.activeThread?.title ?? intentionKind, 120) || intentionKind,
-    summary: summary || 'Keep the live thread coherent before it drifts.',
+    summary: summary || intentionKind,
     urgency: clamp01(
       drive === 'protect' || drive === 'care'
         ? 0.72
@@ -349,7 +349,7 @@ function buildFallbackThoughtThreads(input: {
         ? 'active'
         : 'waiting',
     title: sanitizeText(focusObject?.label ?? input.worldModel?.activeThread?.title ?? intention.title, 120) || kind,
-    summary: summary || 'Keep the current line coherent before speaking.',
+    summary: summary || kind,
     question: question || undefined,
     anchoredObjectId: focusObject?.id ?? null,
     anchoredIntentionId: intention.id,

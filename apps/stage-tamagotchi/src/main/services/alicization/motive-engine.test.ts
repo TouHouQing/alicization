@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildMotiveEngine, buildMotiveEngineSystemBlock } from './motive-engine'
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 function createContext(overrides: Record<string, any> = {}) {
   return {
@@ -242,6 +241,7 @@ describe('buildMotiveEngine', () => {
     expect(returnAgenda?.id).toContain('motive-agenda::return-open-loop::')
     expect(returnAgenda?.targetGoalKind).toBe('clarify-scene')
     expect(returnAgenda?.weight ?? 0).toBeGreaterThan(0.76)
+    expect(motive.backgroundAgendas.every(agenda => !/\s/u.test(agenda.summary))).toBe(true)
   })
 
   it('raises rest protection into a first-class durable agenda when the night is being overdrawn', () => {
@@ -540,7 +540,7 @@ describe('buildMotiveEngine', () => {
     expect(motive.drives.truthDiscipline).toBeGreaterThan(baseline.drives.truthDiscipline)
   })
 
-  it('renders a dedicated system block for durable motive pressure and agenda continuity', () => {
+  it('does not render a prompt block for durable motive pressure and agenda continuity', () => {
     const block = buildMotiveEngineSystemBlock({
       memory: {
         motiveEngine: {
@@ -582,9 +582,7 @@ describe('buildMotiveEngine', () => {
       },
     } as any)
 
-    expect(block).toContain('[ALICIZATION_MOTIVE_ENGINE]')
-    expect(block).toContain('Ruling drive: truth-discipline')
-    expect(block).toContain('Foreground background agenda: preserve-trust')
+    expect(block).toBe('')
   })
 
   it('lets current SOUL personality authority bias motive drives before autobiographical memory fully catches up', () => {
@@ -756,7 +754,7 @@ describe('buildMotiveEngine', () => {
     expect(direct.drives.selfDirection).toBeGreaterThan(observant.drives.selfDirection)
   })
 
-  it('raises return and boundary motive pressure while lowering companionship when Phase 1 digital-life closure is still open', () => {
+  it('ignores project-state prose when computing motive pressure', () => {
     const baseInput = {
       now: 20_000,
       context: createContext({
@@ -893,29 +891,17 @@ describe('buildMotiveEngine', () => {
       },
     })
 
-    expect(motive.drives.boundaryRespect).toBeGreaterThan(baseline.drives.boundaryRespect)
-    expect(motive.drives.unfinishedThreadReturn).toBeGreaterThan(baseline.drives.unfinishedThreadReturn)
-    expect(motive.drives.companionship).toBeLessThan(baseline.drives.companionship)
+    expect(motive.drives.boundaryRespect).toBe(baseline.drives.boundaryRespect)
+    expect(motive.drives.unfinishedThreadReturn).toBe(baseline.drives.unfinishedThreadReturn)
+    expect(motive.drives.companionship).toBe(baseline.drives.companionship)
     expect(motive.backgroundAgendas.some(agenda =>
       agenda.kind === 'return-open-loop'
       && agenda.sourceTags.includes('project-state'),
-    )).toBe(true)
-    expect(motive.backgroundAgendas.some(agenda =>
-      agenda.kind === 'return-open-loop'
-      && agenda.sourceTags.includes('same-her-closure-direction'),
-    )).toBe(true)
-    const projectClosureAgenda = motive.backgroundAgendas.find(agenda =>
-      agenda.kind === 'return-open-loop'
-      && agenda.sourceTags.includes('project-state'),
-    )
-    expect(projectClosureAgenda?.summary.toLowerCase()).toContain('lower-pressure voice')
-    expect(projectClosureAgenda?.summary.toLowerCase()).toContain('slower pacing')
-    expect(projectClosureAgenda?.sourceTags).toContain('project-voice:lower-pressure')
-    expect(projectClosureAgenda?.sourceTags).toContain('project-pacing:slower')
-    expect(motive.narrative).toContain('project-phase1-life-loop:open')
+    )).toBe(false)
+    expect(motive.narrative).not.toContain('project-phase1-life-loop:open')
   })
 
-  it('falls back to canonical project-state voice and pacing when a thinner project shell leaves those fields blank', () => {
+  it('does not synthesize project-state voice and pacing from a thin shell', () => {
     const motive = buildMotiveEngine({
       now: 20_500,
       context: createContext(),
@@ -1013,14 +999,9 @@ describe('buildMotiveEngine', () => {
       } as any,
     })
 
-    const projectClosureAgenda = motive.backgroundAgendas.find(agenda =>
-      agenda.kind === 'return-open-loop'
-      && agenda.sourceTags.includes('project-state'),
-    )
-    expect(projectClosureAgenda?.sourceTags).toContain('project-voice:lower-pressure')
-    expect(projectClosureAgenda?.sourceTags).toContain('project-pacing:slower')
-    expect(projectClosureAgenda?.summary.toLowerCase()).toContain('lower-pressure voice')
-    expect(projectClosureAgenda?.summary.toLowerCase()).toContain('slower pacing')
+    expect(motive.backgroundAgendas.some(agenda => agenda.sourceTags.includes('project-state'))).toBe(false)
+    expect(motive.narrative).not.toContain('project-voice:lower-pressure')
+    expect(motive.narrative).not.toContain('project-pacing:slower')
   })
 
   it('turns remembered host-confirmed resume confirmation into explicit boundary-restraint motive instead of generic open-loop pressure', () => {
@@ -1158,11 +1139,11 @@ describe('buildMotiveEngine', () => {
     )
 
     expect(motive.drives.boundaryRespect).toBeGreaterThan(0.58)
-    expect(resumeBoundaryAgenda?.summary.toLowerCase()).toContain('not permanent execution permission')
-    expect(resumeBoundaryAgenda?.summary.toLowerCase()).toContain('new boundary')
+    expect(resumeBoundaryAgenda?.summary).toBe('protect-boundary')
+    expect(resumeBoundaryAgenda?.summary).not.toMatch(/\s/u)
   })
 
-  it('turns autobiographical project carry into a durable return motive instead of leaving it as self-description only', () => {
+  it('does not turn autobiographical project prose into a separate motive agenda', () => {
     const motive = buildMotiveEngine({
       now: 22_000,
       context: createContext(),
@@ -1292,13 +1273,11 @@ describe('buildMotiveEngine', () => {
     })
 
     expect(motive.drives.unfinishedThreadReturn).toBeGreaterThan(0.7)
-    expect(motive.backgroundAgendas.some(agenda => agenda.sourceTags.includes('project-state-carry'))).toBe(true)
-    expect(motive.backgroundAgendas.some(agenda => agenda.summary.includes('continuity state'))).toBe(true)
-    expect(motive.narrative).toContain('autobiographical-project-carry:active')
+    expect(motive.backgroundAgendas.some(agenda => agenda.sourceTags.includes('project-state-carry'))).toBe(false)
+    expect(motive.narrative).not.toContain('autobiographical-project-carry:active')
   })
 
-  it('falls back to the canonical project-state snapshot when motive project-state inputs arrive thin, so the durable agenda still tracks the same open Phase 1 line', () => {
-    const brief = resolveAlicizationProjectStateBrief()
+  it('does not fall back to a canonical project-state snapshot for motive computation', () => {
     const motive = buildMotiveEngine({
       now: 24_000,
       context: createContext(),
@@ -1436,9 +1415,7 @@ describe('buildMotiveEngine', () => {
     })
 
     expect(motive.drives.unfinishedThreadReturn).toBeGreaterThan(0.7)
-    expect(motive.backgroundAgendas.some(agenda => agenda.sourceTags.includes('project-state-carry'))).toBe(true)
-    expect(motive.backgroundAgendas.some(agenda => agenda.summary.includes('continuity state'))).toBe(true)
-    expect(motive.narrative).toContain('project-phase1-life-loop:open')
-    expect(brief.sameHerSelfLine).toContain('continuity state')
+    expect(motive.backgroundAgendas.some(agenda => agenda.sourceTags.includes('project-state-carry'))).toBe(false)
+    expect(motive.narrative).not.toContain('project-phase1-life-loop:open')
   })
 })

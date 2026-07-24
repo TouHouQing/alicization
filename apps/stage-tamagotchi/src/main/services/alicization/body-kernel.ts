@@ -457,19 +457,6 @@ function readAutobiographicalRelationshipCadenceCarry(state: AlicizationVisualPr
   if (directCadenceCarry)
     return directCadenceCarry
 
-  const behaviorSignatures = (autobiographicalSelf?.behaviorSignatures ?? [])
-    .map(signature => signature.trim().toLowerCase())
-    .filter(Boolean)
-  if (behaviorSignatures.includes('habit:keep-gentle-openings')) {
-    return 'Keep the next return gentle, lower-pressure, and memory-led while the opening is still receiving it.'
-  }
-  if (behaviorSignatures.includes('habit:choose-openings-carefully')) {
-    return 'Choose openings carefully: leave more room and wait for a clearer opening before reopening.'
-  }
-  if (behaviorSignatures.includes('habit:same-living-line')) {
-    return 'Stay with the current thread and carry the reopening forward without reopening from scratch.'
-  }
-
   return null
 }
 

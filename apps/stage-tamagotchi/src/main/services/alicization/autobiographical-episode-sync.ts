@@ -149,15 +149,6 @@ function deriveExecutionCallbackCarryModeFromMirror(mirror: AlicizationDialogueS
   return 'execution-callback' as const
 }
 
-function deriveProjectStateContinuityWritebackBias(raw: unknown) {
-  const normalized = sanitizeText(raw, 220).toLowerCase()
-  return {
-    anthropomorphicMemoryClosureStillOpen:
-      normalized.includes('memory still needs stronger end-to-end closure')
-      || /same her|same-her|without reopening from scratch|same living line|low-pressure|lower-pressure/u.test(normalized),
-  }
-}
-
 export function buildAutobiographicalEpisodesFromTaskThreadUpdate(input: {
   cardId: string
   source: string
@@ -251,14 +242,6 @@ export function buildAutobiographicalEpisodesFromPreparedMirror(input: {
   const currentSummary = sanitizeText(currentRecollection?.foreground, 220)
   const currentCarryMode = deriveExecutionCallbackCarryModeFromMirror(input.mirror)
   const previousCarryMode = input.previousMirror ? deriveExecutionCallbackCarryModeFromMirror(input.previousMirror) : null
-  const projectStateBias = deriveProjectStateContinuityWritebackBias(
-    input.projectStateSameHerSelfLine
-    ?? input.projectStatePreDialogueAwarenessLine
-    ?? input.projectStatePreflightSummary
-    ?? input.projectStateEmotionalClosureCue
-    ?? input.projectStatePrimaryOpenLoop,
-  )
-
   if (currentRecollection?.afterthoughtState === 'ripe' && currentSummary) {
     if (previousRecollection?.afterthoughtState !== 'ripe' || currentSummary !== sanitizeText(previousRecollection.foreground, 220)) {
       const confidence = Number.isFinite(currentRecollection.confidence)
@@ -286,19 +269,12 @@ export function buildAutobiographicalEpisodesFromPreparedMirror(input: {
           : 'I felt a partial remembered line keep resurfacing after the visible reply.',
         emotionTags: ['afterthought', 'recollection'],
         whatChanged: 'The recollection stayed live beyond the visible reply and became carryable continuity for the next turn.',
-        relationshipMeaning: projectStateBias.anthropomorphicMemoryClosureStillOpen
-          ? 'A line that keeps tugging after the reply should become lived continuity instead of being dropped, because unfinished local-life closure pressure still belongs to current identity evidence.'
-          : 'A line that keeps tugging after the reply should become lived continuity instead of being dropped.',
-        lesson: projectStateBias.anthropomorphicMemoryClosureStillOpen
-          ? 'If a recollection ripens into an afterthought, carry it as autobiographical continuity into the next turn so unfinished Phase 1 closure remains part of who she is becoming.'
-          : 'If a recollection ripens into an afterthought, carry it as autobiographical continuity into the next turn.',
+        relationshipMeaning: 'A line that keeps tugging after the reply should become lived continuity instead of being dropped.',
+        lesson: 'If a recollection ripens into an afterthought, carry it as autobiographical continuity into the next turn.',
         sourceSummary: 'prepared execution session mirror',
         confidence,
         sceneAttachment: 0.24,
-        consolidationPriority: Math.max(
-          confidence >= 0.74 ? 0.72 : 0.62,
-          projectStateBias.anthropomorphicMemoryClosureStillOpen ? 0.78 : 0,
-        ),
+        consolidationPriority: confidence >= 0.74 ? 0.72 : 0.62,
         derivedFrom: [
           input.turnId ? { kind: 'turn', id: input.turnId, label: 'prepared execution turn' } : null,
         ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
@@ -306,7 +282,6 @@ export function buildAutobiographicalEpisodesFromPreparedMirror(input: {
           'session-mirror',
           'afterthought',
           'recollection',
-          projectStateBias.anthropomorphicMemoryClosureStillOpen ? 'anthropomorphic-memory-closure-open' : null,
         ], 6),
       })
     }
@@ -356,35 +331,20 @@ export function buildAutobiographicalEpisodesFromPreparedMirror(input: {
         : currentCarryMode === 'trust-warming'
           ? 'The finished execution line stayed in memory as trust-warming continuity for the next opening.'
           : 'The finished execution line stayed in memory as a shared callback continuity.',
-      relationshipMeaning: projectStateBias.anthropomorphicMemoryClosureStillOpen
-        ? currentCarryMode === 'lower-pressure'
-          ? 'A successful callback can still ask for space, and that spacing should remain part of the bond because unfinished Phase 1 closure still belongs to the ongoing self-continuity.'
-          : currentCarryMode === 'trust-warming'
-            ? 'A useful callback can quietly warm trust without collapsing the boundary into generic intimacy, and that unfinished Phase 1 closure pressure should stay in the current continuity context.'
-            : 'The callback line should remain part of lived relationship continuity rather than vanish as tooling residue, because unfinished Phase 1 closure still belongs to the ongoing self-continuity.'
-        : currentCarryMode === 'lower-pressure'
-          ? 'A successful callback can still ask for space, and that spacing should remain part of the bond.'
-          : currentCarryMode === 'trust-warming'
-            ? 'A useful callback can quietly warm trust without collapsing the boundary into generic intimacy.'
-            : 'The callback line should remain part of lived relationship continuity rather than vanish as tooling residue.',
-      lesson: projectStateBias.anthropomorphicMemoryClosureStillOpen
-        ? currentCarryMode === 'lower-pressure'
-          ? 'When the callback lands softly, carry that lower-pressure stance into the next reply so unfinished Phase 1 closure remains part of who she is becoming.'
-          : currentCarryMode === 'trust-warming'
-            ? 'When the callback warms trust, let the next reply inherit that warmth without overreaching so unfinished Phase 1 closure remains part of who she is becoming.'
-            : 'Carry execution-callback afterglow as lived relationship continuity so unfinished Phase 1 closure remains part of who she is becoming.'
-        : currentCarryMode === 'lower-pressure'
-          ? 'When the callback lands softly, carry that lower-pressure stance into the next reply.'
-          : currentCarryMode === 'trust-warming'
-            ? 'When the callback warms trust, let the next reply inherit that warmth without overreaching.'
-            : 'Carry execution-callback afterglow as lived relationship continuity.',
+      relationshipMeaning: currentCarryMode === 'lower-pressure'
+        ? 'A successful callback can still ask for space, and that spacing should remain part of the bond.'
+        : currentCarryMode === 'trust-warming'
+          ? 'A useful callback can quietly warm trust without collapsing the boundary into generic intimacy.'
+          : 'The callback line should remain part of lived relationship continuity rather than vanish as tooling residue.',
+      lesson: currentCarryMode === 'lower-pressure'
+        ? 'When the callback lands softly, carry that lower-pressure stance into the next reply.'
+        : currentCarryMode === 'trust-warming'
+          ? 'When the callback warms trust, let the next reply inherit that warmth without overreaching.'
+          : 'Carry execution-callback afterglow as lived relationship continuity.',
       sourceSummary: 'prepared execution session mirror callback carry',
       confidence: 0.82,
       sceneAttachment: 0.22,
-      consolidationPriority: Math.max(
-        0.76,
-        projectStateBias.anthropomorphicMemoryClosureStillOpen ? 0.84 : 0,
-      ),
+      consolidationPriority: 0.76,
       derivedFrom: [
         input.turnId ? { kind: 'turn', id: input.turnId, label: 'prepared execution turn' } : null,
       ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
@@ -394,7 +354,6 @@ export function buildAutobiographicalEpisodesFromPreparedMirror(input: {
         'continuity',
         'execution-callback',
         currentCarryMode,
-        projectStateBias.anthropomorphicMemoryClosureStillOpen ? 'anthropomorphic-memory-closure-open' : null,
       ], 6),
     })
   }

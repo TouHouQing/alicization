@@ -312,14 +312,14 @@ describe('autobiographical episode sync', () => {
     expect(events).toEqual(expect.arrayContaining([
       expect.objectContaining({
         sourceKind: 'maintenance',
-        relationshipMeaning: expect.stringContaining('identity continuity'),
-        lesson: expect.stringContaining('unfinished Phase 1 closure'),
-        tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+        relationshipMeaning: expect.not.stringMatching(/identity continuity|Phase 1/iu),
+        lesson: expect.not.stringMatching(/unfinished Phase 1|who she is becoming/iu),
+        tags: expect.not.arrayContaining(['anthropomorphic-memory-closure-open']),
       }),
     ]))
   })
 
-  it('raises continuity writeback priority when project state says anthropomorphic memory closure is still open', () => {
+  it('does not let project state raise autobiographical writeback priority', () => {
     const events = buildAutobiographicalEpisodesFromPreparedMirror({
       cardId: 'default',
       decisionTraceId: 'trace-closure',
@@ -372,20 +372,20 @@ describe('autobiographical episode sync', () => {
     const afterthoughtEvent = events.find(event => event.whereSummary === 'session mirror afterthought')
 
     expect(callbackCarryEvent).toEqual(expect.objectContaining({
-      consolidationPriority: 0.84,
-      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure still belongs to the identity continuity'),
-      lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
-      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+      consolidationPriority: 0.76,
+      relationshipMeaning: expect.not.stringMatching(/unfinished Phase 1|identity continuity/iu),
+      lesson: expect.not.stringMatching(/unfinished Phase 1|who she is becoming/iu),
+      tags: expect.not.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
     expect(afterthoughtEvent).toEqual(expect.objectContaining({
-      consolidationPriority: 0.78,
-      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure pressure still belongs to the identity continuity'),
-      lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
-      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+      consolidationPriority: 0.72,
+      relationshipMeaning: expect.not.stringMatching(/unfinished Phase 1|identity continuity/iu),
+      lesson: expect.not.stringMatching(/unfinished Phase 1|who she is becoming/iu),
+      tags: expect.not.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
   })
 
-  it('also accepts canonical project preflight self-awareness when raising continuity writeback priority', () => {
+  it('ignores canonical project preflight prose when writing autobiographical episodes', () => {
     const events = buildAutobiographicalEpisodesFromPreparedMirror({
       cardId: 'default',
       decisionTraceId: 'trace-closure-preflight',
@@ -438,20 +438,20 @@ describe('autobiographical episode sync', () => {
     const afterthoughtEvent = events.find(event => event.whereSummary === 'session mirror afterthought')
 
     expect(callbackCarryEvent).toEqual(expect.objectContaining({
-      consolidationPriority: 0.84,
-      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure still belongs to the identity continuity'),
-      lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
-      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+      consolidationPriority: 0.76,
+      relationshipMeaning: expect.not.stringMatching(/unfinished Phase 1|identity continuity/iu),
+      lesson: expect.not.stringMatching(/unfinished Phase 1|who she is becoming/iu),
+      tags: expect.not.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
     expect(afterthoughtEvent).toEqual(expect.objectContaining({
-      consolidationPriority: 0.78,
-      relationshipMeaning: expect.stringContaining('unfinished Phase 1 closure pressure still belongs to the identity continuity'),
-      lesson: expect.stringContaining('unfinished Phase 1 closure remains part of who she is becoming'),
-      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+      consolidationPriority: 0.72,
+      relationshipMeaning: expect.not.stringMatching(/unfinished Phase 1|identity continuity/iu),
+      lesson: expect.not.stringMatching(/unfinished Phase 1|who she is becoming/iu),
+      tags: expect.not.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
   })
 
-  it('also accepts the project emotional closure seam when raising continuity writeback priority', () => {
+  it('ignores the project emotional closure seam when writing autobiographical episodes', () => {
     const events = buildAutobiographicalEpisodesFromPreparedMirror({
       cardId: 'default',
       decisionTraceId: 'trace-closure-emotional',
@@ -504,16 +504,16 @@ describe('autobiographical episode sync', () => {
     const afterthoughtEvent = events.find(event => event.whereSummary === 'session mirror afterthought')
 
     expect(callbackCarryEvent).toEqual(expect.objectContaining({
-      consolidationPriority: 0.84,
-      relationshipMeaning: expect.stringContaining('identity continuity'),
-      lesson: expect.stringContaining('part of who she is becoming'),
-      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+      consolidationPriority: 0.76,
+      relationshipMeaning: expect.not.stringMatching(/identity continuity|Phase 1/iu),
+      lesson: expect.not.stringMatching(/who she is becoming|Phase 1/iu),
+      tags: expect.not.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
     expect(afterthoughtEvent).toEqual(expect.objectContaining({
-      consolidationPriority: 0.78,
-      relationshipMeaning: expect.stringContaining('identity continuity'),
-      lesson: expect.stringContaining('part of who she is becoming'),
-      tags: expect.arrayContaining(['anthropomorphic-memory-closure-open']),
+      consolidationPriority: 0.72,
+      relationshipMeaning: expect.not.stringMatching(/identity continuity|Phase 1/iu),
+      lesson: expect.not.stringMatching(/who she is becoming|Phase 1/iu),
+      tags: expect.not.arrayContaining(['anthropomorphic-memory-closure-open']),
     }))
   })
 

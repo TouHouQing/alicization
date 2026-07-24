@@ -339,23 +339,6 @@ export function buildDiscourseState(input: {
 }
 
 export function buildDiscourseStateSystemBlock(state: AlicizationDiscourseStateSnapshot | null | undefined) {
-  if (!state)
-    return ''
-
-  return [
-    '[ALICIZATION_DISCOURSE_STATE]',
-    'This block defines what the current conversation turn is fundamentally about before visual grounding, memory carry, or persona habits can steer the reply.',
-    `Current turn subject: ${state.currentTurnSubject}.`,
-    `Screen reference mode: ${state.screenReferenceMode}.`,
-    `Current turn summary: ${state.currentTurnSummary}.`,
-    `Current question: ${state.currentQuestion ?? 'none'}.`,
-    `Primary turn anchor: ${state.primaryTurnAnchor ?? 'none'}.`,
-    `Primary turn anchor source: ${state.primaryTurnAnchorSource ?? 'none'}.`,
-    `Owed action: ${state.owedAction}.`,
-    `Relation move: ${state.relationMove}.`,
-    `Continuity mode: ${state.continuityMode}.`,
-    `Unresolved carry: ${state.unresolvedCarry ?? 'none'}.`,
-    `Rupture or repair pressure: ${state.ruptureRepair ?? 'none'}.`,
-    'The reply must satisfy the owed action for this turn before it decorates mood or revisits unrelated scene residue.',
-  ].join('\n')
+  void state
+  return ''
 }

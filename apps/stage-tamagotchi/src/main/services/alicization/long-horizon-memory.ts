@@ -16,8 +16,6 @@ import {
   containsAlicizationFixedTemplateResidue,
 } from '@proj-alicization/stage-shared'
 
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
-
 export const alicizationLongHorizonMemoryMarker = '[ALICIZATION_LONG_HORIZON_MEMORY]'
 
 interface AlicizationExecutionCallbackCarrySnapshot {
@@ -59,11 +57,6 @@ interface BuildAlicizationLongHorizonMemoryQueryInput {
 
 type PreferenceBiasKey = keyof AlicizationLongHorizonMemorySnapshot['preferenceBias']
 type IdentityBiasKey = keyof AlicizationLongHorizonMemorySnapshot['identityBias']
-type AlicizationProjectPreferredPauseMode = 'longer' | 'natural'
-type AlicizationProjectPreferredLipsyncMode = 'restrained' | 'matched'
-type AlicizationProjectPreferredVoiceMode = 'lower-pressure' | 'even'
-type AlicizationProjectPreferredPacingMode = 'slower' | 'natural'
-
 const preferenceBiasKeys = [
   'companionship',
   'truthfulGrounding',
@@ -138,34 +131,6 @@ function hasLongHorizonStructuredContinuityEvidence(raw: unknown) {
 
   return /(?:^|\s|\|)(?:continuity_anchor|continuity_hold|continuity_drift_risk|continuity_progress|project_state_review|runtime_loop_validation|memory_dialogue_embodiment_closure|embodiment_scale_validation|runtime_personhood|callback_continuity|embodiment_closure|open_loop|next|landed)=/u.test(normalized)
     || /(?:^|\s|\|)(?:runtime_personhood|continuity_identity|continuity_line|continuity_thread|callback_continuity)(?:\s|\||$)/u.test(normalized)
-}
-
-function sanitizeProjectStatePreferredVoiceMode(raw: unknown): AlicizationProjectPreferredVoiceMode | null {
-  const normalized = sanitizeText(raw, 32).toLowerCase()
-  return normalized === 'lower-pressure' || normalized === 'even'
-    ? normalized
-    : null
-}
-
-function sanitizeProjectStatePreferredPacingMode(raw: unknown): AlicizationProjectPreferredPacingMode | null {
-  const normalized = sanitizeText(raw, 32).toLowerCase()
-  return normalized === 'slower' || normalized === 'natural'
-    ? normalized
-    : null
-}
-
-function sanitizeProjectStatePreferredPauseMode(raw: unknown): AlicizationProjectPreferredPauseMode | null {
-  const normalized = sanitizeText(raw, 32).toLowerCase()
-  return normalized === 'longer' || normalized === 'natural'
-    ? normalized
-    : null
-}
-
-function sanitizeProjectStatePreferredLipsyncMode(raw: unknown): AlicizationProjectPreferredLipsyncMode | null {
-  const normalized = sanitizeText(raw, 32).toLowerCase()
-  return normalized === 'restrained' || normalized === 'matched'
-    ? normalized
-    : null
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
@@ -279,28 +244,14 @@ function summarizeInitiativeStrategyCarry(text: string) {
   if (!normalized)
     return ''
 
-  const acceptedOrContinued = /accepted or continued|received without obvious resistance|memory-led/u.test(normalized)
-  const keepGentle = /gentle/u.test(normalized)
-  const keepLowerPressure = /lower-pressure|lower pressure/u.test(normalized)
-  const keepLessEager = /less eager/u.test(normalized)
-  const keepMoreRoom = /leave more room|more room/u.test(normalized)
-  const keepClearerOpening = /clearer opening|fresher opening/u.test(normalized)
-
-  if (acceptedOrContinued && keepGentle && keepLowerPressure) {
-    return sanitizeText(
-      'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
-      180,
-    )
-  }
-
-  if (keepLowerPressure && keepMoreRoom && keepClearerOpening) {
-    return sanitizeText(
-      `Keep future follow-ups ${keepLessEager ? 'lower-pressure, less eager, ' : 'lower-pressure, '}leave more room, and wait for a clearer opening before reopening this line.`,
-      180,
-    )
-  }
-
-  return sanitizeText(text, 180)
+  return uniqueList([
+    /gentle/u.test(normalized) ? 'strategy=gentle' : '',
+    /lower-pressure|lower pressure/u.test(normalized) ? 'strategy=lower-pressure' : '',
+    /less eager/u.test(normalized) ? 'strategy=less-eager' : '',
+    /leave more room|more room/u.test(normalized) ? 'strategy=leave-room' : '',
+    /clearer opening|fresher opening/u.test(normalized) ? 'strategy=clearer-opening' : '',
+    /accepted or continued|received without obvious resistance|memory-led/u.test(normalized) ? 'strategy=memory-led' : '',
+  ], 6).join(' ') || sanitizeText(text, 180)
 }
 
 function summarizeMetabolismPolicyCarry(input: {
@@ -313,20 +264,11 @@ function summarizeMetabolismPolicyCarry(input: {
     return sanitizeText(fallbackSummary, 180)
   }
 
-  const summary = uniqueList([
-    input.forgetMemoryIds.length > 0 ? 'temporary noise fades' : '',
-    input.mergeMemoryIds.length > 0 ? 'same-thread memory stays stronger' : '',
-    input.downrankMemoryIds.length > 0 ? 'stale recap gets downranked' : '',
-    ...input.reasons.filter(reason => /temporary noise|same-thread memory/i.test(reason)).map((reason) => {
-      if (/temporary noise/i.test(reason))
-        return 'temporary noise fades'
-      if (/same-thread memory/i.test(reason))
-        return 'same-thread memory stays stronger'
-      return sanitizeText(reason, 120)
-    }),
-  ], 3).join(' ')
-
-  return sanitizeText(summary || fallbackSummary, 180)
+  return sanitizeText(uniqueList([
+    input.downrankMemoryIds.length > 0 ? `downrank=${input.downrankMemoryIds.join(',')}` : '',
+    input.mergeMemoryIds.length > 0 ? `merge=${input.mergeMemoryIds.join(',')}` : '',
+    input.forgetMemoryIds.length > 0 ? `forget=${input.forgetMemoryIds.join(',')}` : '',
+  ], 3).join(' ') || fallbackSummary, 180)
 }
 
 interface ParsedHumanlikeCarryConsolidationCue {
@@ -536,144 +478,6 @@ function filterSupersededHumanlikeCarryConsolidationCues(
   return parsed.filter(item => !suppressedIds.has(item.record.id))
 }
 
-function collectProjectStateContinuityLines(input: {
-  projectStatePrimaryOpenLoop?: string | null
-  projectStateEmotionalClosureCue?: string | null
-  projectStateSameHerSelfLine?: string | null
-  projectStateSameHerDriftRisk?: string | null
-  projectStateProactiveSameHerGap?: string | null
-  projectStateContinuityArcStage?: string | null
-}) {
-  const continuityArcStage = sanitizeLongHorizonEvidenceText(input.projectStateContinuityArcStage, 96)
-  return uniqueList([
-    sanitizeLongHorizonEvidenceText(input.projectStateSameHerDriftRisk, 220),
-    sanitizeLongHorizonEvidenceText(input.projectStateProactiveSameHerGap, 220),
-    sanitizeLongHorizonEvidenceText(input.projectStateSameHerSelfLine, 220),
-    sanitizeLongHorizonEvidenceText(input.projectStateEmotionalClosureCue, 220),
-    continuityArcStage
-      ? `continuity_arc=${continuityArcStage}`
-      : '',
-    sanitizeLongHorizonEvidenceText(input.projectStatePrimaryOpenLoop, 220),
-  ], 5)
-}
-
-function resolveProjectStateCadenceCarry(input: {
-  continuityLines: string[]
-  projectStatePreferredPauseMode?: string | null
-  projectStatePreferredLipsyncMode?: string | null
-  projectStatePreferredVoiceMode?: string | null
-  projectStatePreferredPacingMode?: string | null
-}) {
-  if (input.continuityLines.length === 0) {
-    return {
-      preferredPauseMode: null,
-      preferredLipsyncMode: null,
-      preferredVoiceMode: null,
-      preferredPacingMode: null,
-      cadenceSummary: null,
-      cadenceLine: null,
-    }
-  }
-
-  const fallback = resolveAlicizationProjectStateBrief()
-  const preferredPauseMode
-    = sanitizeProjectStatePreferredPauseMode(input.projectStatePreferredPauseMode)
-      ?? fallback.preferredPauseMode
-      ?? null
-  const preferredLipsyncMode
-    = sanitizeProjectStatePreferredLipsyncMode(input.projectStatePreferredLipsyncMode)
-      ?? fallback.preferredLipsyncMode
-      ?? null
-  const preferredVoiceMode
-    = sanitizeProjectStatePreferredVoiceMode(input.projectStatePreferredVoiceMode)
-      ?? fallback.preferredVoiceMode
-      ?? null
-  const preferredPacingMode
-    = sanitizeProjectStatePreferredPacingMode(input.projectStatePreferredPacingMode)
-      ?? fallback.preferredPacingMode
-      ?? null
-  const cadenceSummary = uniqueList([
-    preferredPauseMode ? `${preferredPauseMode} pause` : '',
-    preferredLipsyncMode ? `${preferredLipsyncMode} lipsync` : '',
-    preferredVoiceMode ? `${preferredVoiceMode} voice` : '',
-    preferredPacingMode ? `${preferredPacingMode} pacing` : '',
-  ], 4).join(', ')
-
-  return {
-    preferredPauseMode,
-    preferredLipsyncMode,
-    preferredVoiceMode,
-    preferredPacingMode,
-    cadenceSummary: cadenceSummary || null,
-    cadenceLine: cadenceSummary ? `embodiment continuity cadence: ${cadenceSummary}` : null,
-  }
-}
-
-function buildProjectStateContinuitySummary(input: {
-  projectStatePrimaryOpenLoop?: string | null
-  projectStateEmotionalClosureCue?: string | null
-  projectStateSameHerSelfLine?: string | null
-  projectStateSameHerDriftRisk?: string | null
-  projectStateProactiveSameHerGap?: string | null
-  projectStateContinuityArcStage?: string | null
-  cadenceSummary?: string | null
-}) {
-  const projectStatePrimaryOpenLoop = sanitizeLongHorizonEvidenceText(input.projectStatePrimaryOpenLoop, 220)
-  const projectStateEmotionalClosureCue = sanitizeLongHorizonEvidenceText(input.projectStateEmotionalClosureCue, 220)
-  const projectStateSameHerSelfLine = sanitizeLongHorizonEvidenceText(input.projectStateSameHerSelfLine, 220)
-  const projectStateSameHerDriftRisk = sanitizeLongHorizonEvidenceText(input.projectStateSameHerDriftRisk, 220)
-  const projectStateProactiveSameHerGap = sanitizeLongHorizonEvidenceText(input.projectStateProactiveSameHerGap, 220)
-  const projectStateContinuityArcStage = sanitizeLongHorizonEvidenceText(input.projectStateContinuityArcStage, 96)
-  const continuityArcLine = projectStateContinuityArcStage
-    ? `Continuity arc: ${sanitizeText(projectStateContinuityArcStage, 48)}.`
-    : ''
-  const cadenceLine = input.cadenceSummary
-    ? `Embodiment continuity cadence: ${sanitizeText(input.cadenceSummary, 120)}.`
-    : ''
-  const suffixLine = uniqueList([continuityArcLine, cadenceLine], 2).join(' ')
-  const baseLineMaxChars = suffixLine
-    ? Math.max(36, 180 - suffixLine.length - 1)
-    : 180
-  const baseSummary
-    = projectStateSameHerDriftRisk
-      ? `Remembered identity continuity drift risk: ${sanitizeText(projectStateSameHerDriftRisk, baseLineMaxChars)}`
-      : projectStateProactiveSameHerGap
-        ? `Remembered proactive identity continuity gap: ${sanitizeText(projectStateProactiveSameHerGap, baseLineMaxChars)}`
-        : projectStateSameHerSelfLine
-          ? `Remembered identity continuity line: ${sanitizeText(projectStateSameHerSelfLine, baseLineMaxChars)}`
-          : projectStateEmotionalClosureCue
-            ? `Remembered relationship continuity pressure: ${sanitizeText(projectStateEmotionalClosureCue, baseLineMaxChars)}`
-            : `Remembered unfinished identity continuity closure: ${sanitizeText(projectStatePrimaryOpenLoop, baseLineMaxChars)}`
-
-  return sanitizeText(
-    suffixLine
-      ? `${continuityArcLine ? `${continuityArcLine} ` : ''}${baseSummary}${cadenceLine ? ` ${cadenceLine}` : ''}`
-      : baseSummary,
-    180,
-  )
-}
-
-function deriveProjectStateContinuityBias(input: {
-  projectStatePrimaryOpenLoop?: string | null | undefined
-  projectStateEmotionalClosureCue?: string | null | undefined
-  projectStateSameHerSelfLine?: string | null | undefined
-  projectStateSameHerDriftRisk?: string | null | undefined
-  projectStateProactiveSameHerGap?: string | null | undefined
-  projectStateContinuityArcStage?: string | null | undefined
-  projectStateCadenceSummary?: string | null | undefined
-}) {
-  const normalized = collectProjectStateContinuityLines(input).join(' | ').toLowerCase()
-  const hasStructuredContinuityEvidence = hasLongHorizonStructuredContinuityEvidence(normalized)
-  return {
-    anthropomorphicMemoryClosureStillOpen:
-      hasStructuredContinuityEvidence
-      || Boolean(sanitizeLongHorizonEvidenceText(input.projectStateProactiveSameHerGap, 220))
-      || Boolean(sanitizeLongHorizonEvidenceText(input.projectStateContinuityArcStage, 96))
-      || normalized.includes('memory_dialogue_embodiment_closure')
-      || /generic assistant shell|project-summary voice|without reopening from scratch|low-pressure|lower-pressure/u.test(normalized),
-  }
-}
-
 function defaultLongHorizonMemory() {
   return {
     preferenceBias: {
@@ -787,26 +591,8 @@ function inferCueInfluenceTags(fact: Pick<AlicizationMemoryFact, 'subject' | 'pr
 
 function describeCue(fact: Pick<AlicizationMemoryFact, 'subject' | 'predicate' | 'object'>, tags: AlicizationLongHorizonMemoryCueInfluence[]) {
   const statement = normalizeFactStatement(fact)
-  const predicate = normalizePredicate(fact.predicate)
-  const subject = sanitizeText(fact.subject, 48).toLowerCase()
-  const lower = statement.toLowerCase()
-
-  if (executionCallbackPattern.test(lower) && (boundaryPattern.test(lower) || measuredReturnPattern.test(lower)))
-    return `Remembered execution-callback boundary: ${statement}`
-  if (executionCallbackPattern.test(lower) && trustWarmPattern.test(lower))
-    return `Remembered execution-callback trust carry: ${statement}`
-  if (isCorrectedSamePersonContinuityCadence(statement))
-    return `Remembered relationship cadence: ${statement}`
-
-  if (tags.includes('bond') || preferencePredicatePattern.test(predicate))
-    return `Remembered preference: ${statement}`
-  if (tags.includes('task') || planPredicatePattern.test(predicate))
-    return `Remembered open loop: ${statement}`
-  if (tags.includes('boundary') || dislikePredicatePattern.test(predicate))
-    return `Remembered boundary: ${statement}`
-  if (subject === 'assistant' || subject === 'alicization' || tags.includes('identity'))
-    return `Remembered self-line: ${statement}`
-  return `Remembered continuity: ${statement}`
+  void tags
+  return statement
 }
 
 function buildCurrentTurnExecutionCallbackCue(input: {
@@ -833,14 +619,6 @@ function buildCurrentTurnExecutionCallbackCue(input: {
       : []),
     'task',
   ]
-  const summary = carry.carryMode === 'trust-warming'
-    ? `Remembered execution-callback trust carry: ${sanitizeText(object, 180)}`
-    : carry.carryMode === 'repair-before-closeness'
-      ? `Remembered execution-callback repair carry: ${sanitizeText(object, 180)}`
-      : carry.carryMode === 'lower-pressure'
-        ? `Remembered execution-callback lower-pressure carry: ${sanitizeText(object, 180)}`
-        : `Remembered execution-callback carry: ${sanitizeText(object, 180)}`
-
   return {
     factId: 'derived:execution-callback-carry-current-turn',
     subject: 'relationship',
@@ -856,7 +634,7 @@ function buildCurrentTurnExecutionCallbackCue(input: {
       + (carry.threadAnchor ? 0.06 : 0),
     ),
     influenceTags: [...new Set(influenceTags)],
-    summary,
+    summary: sanitizeText(object, 180),
     lastRecalledAt: input.now,
   } satisfies AlicizationLongHorizonMemoryCueSnapshot
 }
@@ -917,7 +695,7 @@ function buildAffectiveResidueCadenceCue(input: {
       + (cadence.cadenceMode === 'measured-return' ? 0.12 : 0),
     ),
     influenceTags: [...new Set(influenceTags)],
-    summary: `Remembered relationship cadence: ${sanitizeText(object, 180)}`,
+    summary: sanitizeText(object, 180),
     lastRecalledAt: input.now,
   } satisfies AlicizationLongHorizonMemoryCueSnapshot
 }
@@ -1023,9 +801,7 @@ function buildDerivedAnchorCues(input: {
       confidence: clamp01(preference.confidence),
       weight: clamp01(preference.confidence * 0.72 + (boundaryPattern.test(preference.preference) ? 0.12 : 0.08)),
       influenceTags: [...new Set(tags)],
-      summary: boundaryPattern.test(preference.preference)
-        ? `Remembered boundary: ${preference.preference}`
-        : `Remembered preference: ${preference.preference}`,
+      summary: sanitizeText(`${preference.context}: ${preference.preference}`, 180),
       lastRecalledAt: input.now,
     })
   }
@@ -1039,12 +815,23 @@ function buildDerivedAnchorCues(input: {
       confidence: clamp01(hostPersonModel.trustLadder.score),
       weight: clamp01(hostPersonModel.trustLadder.score * 0.6 + 0.18),
       influenceTags: ['bond', 'identity'],
-      summary: `Remembered continuity: ${sanitizeText(hostPersonModel.trustLadder.rationale, 180)}`,
+      summary: sanitizeText(hostPersonModel.trustLadder.rationale, 180),
       lastRecalledAt: input.now,
     })
   }
 
-  if (surface?.summary) {
+  const hasLearnedPersonStateEvidence = surface
+    ? (
+        surface.sourceTrail.length > 0
+        || Object.values(surface.relationshipShift).some(value => value !== 0)
+        || Object.values(surface.reinforcementBias).some(value => Number(value) !== 0)
+        || surface.preferenceHints.length > 0
+        || surface.sensitivityHints.length > 0
+        || surface.repairHints.length > 0
+        || surface.burdenHints.length > 0
+      )
+    : false
+  if (surface?.summary && hasLearnedPersonStateEvidence) {
     const text = sanitizeText(`${surface.summary} ${surface.narrative}`, 220)
     const tags = new Set<AlicizationLongHorizonMemoryCueInfluence>()
     if (truthPattern.test(text) || repairPattern.test(text))
@@ -1073,13 +860,7 @@ function buildDerivedAnchorCues(input: {
         + Math.max(0, -surface.relationshipShift.burdenDelta) * 0.18,
       ),
       influenceTags: [...tags],
-      summary: truthPattern.test(text) || repairPattern.test(text)
-        ? `Remembered continuity: ${text}`
-        : describeCue({
-            subject: 'assistant',
-            predicate: 'person-state-summary',
-            object: text,
-          }, [...tags]),
+      summary: text,
       lastRecalledAt: input.now,
     })
   }
@@ -1140,7 +921,7 @@ function buildDerivedAnchorCues(input: {
           + (lowerPressureCadencePattern.test(autobiographicalCorrectionText) ? 0.08 : 0),
         ),
         influenceTags: ['identity', 'boundary', 'task', 'truth'],
-        summary: `Remembered autobiographical correction carry: ${sanitizeText(autobiographicalCorrectionText, 180)}`,
+        summary: sanitizeText(autobiographicalCorrectionText, 180),
         lastRecalledAt: input.now,
       })
     }
@@ -1180,7 +961,7 @@ function buildDerivedAnchorCues(input: {
         influenceTags: acceptedInitiativeStrategy
           ? ['bond', 'task', 'truth']
           : ['boundary', 'task', 'truth'],
-        summary: `Remembered initiative strategy carry: ${summarizedInitiativeStrategy}`,
+        summary: summarizedInitiativeStrategy,
         lastRecalledAt: input.now,
       })
     }
@@ -1207,29 +988,19 @@ function buildDerivedAnchorCues(input: {
     if (influenceTags.length === 0 && stablePreferenceInfluenceTags.length === 0)
       return []
 
-    const phaseIdentitySummary = parsed.carriesProjectIdentity
-      ? /phase\s*1|local digital life|digital life|数字生命/i.test(parsed.selfContinuityInwardLine)
-        ? 'phase 1 digital life'
-        : 'project-state continuity'
-      : ''
-    const cadenceSummary = lowerPressureCadencePattern.test(parsed.embodimentCadence)
-      ? 'lower-pressure cadence'
-      : parsed.embodimentCadence
-
     const summary = sanitizeText(
-      `Remembered consolidation humanlike carry: ${uniqueList([
-        phaseIdentitySummary,
-        parsed.carriesSamePersonContinuity ? 'same-person continuity' : '',
+      uniqueList([
+        parsed.carriesProjectIdentity ? 'source=project-state' : '',
+        parsed.carriesSamePersonContinuity ? 'source=relationship-continuity' : '',
         parsed.hostEmotionLabels[0] ?? '',
         parsed.selfEmotionLabels[0] ?? '',
         parsed.stablePreferenceHint,
-        cadenceSummary,
+        parsed.embodimentCadence,
         parsed.embodimentModalityRisk ? `modality risk ${parsed.embodimentModalityRisk}` : '',
-        parsed.recallCertainty === 'corrected' ? 'corrected carry' : '',
-        parsed.recallCertainty === 'tentative' ? 'tentative carry' : '',
+        parsed.recallCertainty ? `certainty=${parsed.recallCertainty}` : '',
         summarizeMetabolismPolicyCarry(parsed.metabolismPolicy, parsed.metabolismSummary),
         parsed.autobiographicalDelta,
-      ], 8).join(' ')}`,
+      ], 8).join(' '),
       180,
     )
     if (!summary)
@@ -1253,7 +1024,7 @@ function buildDerivedAnchorCues(input: {
           + (stablePreferenceInfluenceTags.includes('care') ? 0.08 : 0),
         ),
         influenceTags: [...new Set(stablePreferenceInfluenceTags)],
-        summary: `Remembered stable preference hint: ${sanitizeText(parsed.stablePreferenceHint, 180)}`,
+        summary: sanitizeText(parsed.stablePreferenceHint, 180),
         lastRecalledAt: input.now,
       } satisfies AlicizationLongHorizonMemoryCueSnapshot]
       : []
@@ -1319,13 +1090,7 @@ function buildDerivedAnchorCues(input: {
         + (carriesProjectState ? 0.08 : 0),
       ),
       influenceTags: [...new Set(influenceTags)],
-      summary: carriesProjectState
-        ? `Remembered execution-callback project-state carry: ${sanitizeText(callbackCarryText, 180)}`
-        : (boundaryPattern.test(callbackCarryText) || measuredReturnPattern.test(callbackCarryText))
-            ? `Remembered execution-callback boundary: ${sanitizeText(callbackCarryText, 180)}`
-            : trustWarmPattern.test(callbackCarryText)
-              ? `Remembered execution-callback trust carry: ${sanitizeText(callbackCarryText, 180)}`
-              : `Remembered continuity: ${sanitizeText(callbackCarryText, 180)}`,
+      summary: sanitizeText(callbackCarryText, 180),
       lastRecalledAt: input.now,
     })
   }
@@ -1353,7 +1118,7 @@ function buildDerivedAnchorCues(input: {
         + (/ordinary proactive closeness|wait for confirmation/iu.test(safetyGateCarryText) ? 0.06 : 0),
       ),
       influenceTags: ['boundary', 'task', 'identity'],
-      summary: `Remembered execution safety gate restraint: ${sanitizeText(safetyGateCarryText, 180)}`,
+      summary: sanitizeText(safetyGateCarryText, 180),
       lastRecalledAt: input.now,
     })
   }
@@ -1380,69 +1145,12 @@ function buildDerivedAnchorCues(input: {
         + (resumeConfirmationCarryText.includes('process-not-yet-restarted') ? 0.06 : 0),
       ),
       influenceTags: ['boundary', 'task', 'identity'],
-      summary: `Remembered execution resume confirmation boundary: ${sanitizeText(resumeConfirmationCarryText, 180)}`,
+      summary: sanitizeText(resumeConfirmationCarryText, 180),
       lastRecalledAt: input.now,
     })
   }
 
   return cues
-}
-
-function buildProjectStateContinuityCue(input: {
-  now: number
-  projectStatePrimaryOpenLoop?: string | null
-  projectStateEmotionalClosureCue?: string | null
-  projectStateSameHerSelfLine?: string | null
-  projectStateSameHerDriftRisk?: string | null
-  projectStateProactiveSameHerGap?: string | null
-  projectStateContinuityArcStage?: string | null
-  projectStateCadenceSummary?: string | null
-  projectStateCadenceLine?: string | null
-}) {
-  const continuityLines = collectProjectStateContinuityLines(input)
-  const hasStructuredContinuityEvidence = continuityLines.some(hasLongHorizonStructuredContinuityEvidence)
-  if (continuityLines.length === 0 || !hasStructuredContinuityEvidence)
-    return null
-
-  const object = uniqueList([
-    input.projectStateCadenceLine,
-    ...continuityLines,
-  ], 6).join(' ')
-  const summary = buildProjectStateContinuitySummary({
-    projectStatePrimaryOpenLoop: input.projectStatePrimaryOpenLoop,
-    projectStateEmotionalClosureCue: input.projectStateEmotionalClosureCue,
-    projectStateSameHerSelfLine: input.projectStateSameHerSelfLine,
-    projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk,
-    projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap,
-    projectStateContinuityArcStage: input.projectStateContinuityArcStage,
-    cadenceSummary: input.projectStateCadenceSummary,
-  })
-  const influenceTags: AlicizationLongHorizonMemoryCueInfluence[] = [
-    'identity',
-    'task',
-    ...((boundaryPattern.test(object) || measuredReturnPattern.test(object)) ? ['boundary' as const] : []),
-    ...((bondPattern.test(object) && !containsAlicizationFixedTemplateResidue(object)) ? ['bond' as const] : []),
-  ]
-
-  return {
-    factId: 'derived:project-state-identity-continuity',
-    subject: 'assistant',
-    predicate: 'project-state-identity-continuity',
-    object: sanitizeText(object, 180),
-    confidence: 0.82,
-    weight: clamp01(
-      0.5
-      + (sanitizeLongHorizonEvidenceText(input.projectStateSameHerDriftRisk, 220) ? 0.16 : 0)
-      + (sanitizeLongHorizonEvidenceText(input.projectStateProactiveSameHerGap, 220) ? 0.12 : 0)
-      + (sanitizeLongHorizonEvidenceText(input.projectStateSameHerSelfLine, 220) ? 0.12 : 0)
-      + (sanitizeLongHorizonEvidenceText(input.projectStateContinuityArcStage, 96) ? 0.1 : 0)
-      + (sanitizeLongHorizonEvidenceText(input.projectStateEmotionalClosureCue, 220) ? 0.08 : 0)
-      + (sanitizeLongHorizonEvidenceText(input.projectStatePrimaryOpenLoop, 220) ? 0.06 : 0),
-    ),
-    influenceTags: [...new Set(influenceTags)],
-    summary,
-    lastRecalledAt: input.now,
-  } satisfies AlicizationLongHorizonMemoryCueSnapshot
 }
 
 function buildBiasTargets(anchorFacts: AlicizationLongHorizonMemoryCueSnapshot[]) {
@@ -1550,30 +1258,6 @@ export function buildAlicizationLongHorizonMemoryQuery(input: BuildAlicizationLo
 
 export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHorizonMemoryInput): AlicizationLongHorizonMemorySnapshot | null {
   const previous = input.previous ?? defaultLongHorizonMemory()
-  const projectStateContinuityLines = collectProjectStateContinuityLines({
-    projectStatePrimaryOpenLoop: input.projectStatePrimaryOpenLoop,
-    projectStateEmotionalClosureCue: input.projectStateEmotionalClosureCue,
-    projectStateSameHerSelfLine: input.projectStateSameHerSelfLine,
-    projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk,
-    projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap,
-    projectStateContinuityArcStage: input.projectStateContinuityArcStage,
-  })
-  const projectStateCadenceCarry = resolveProjectStateCadenceCarry({
-    continuityLines: projectStateContinuityLines,
-    projectStatePreferredPauseMode: input.projectStatePreferredPauseMode ?? null,
-    projectStatePreferredLipsyncMode: input.projectStatePreferredLipsyncMode ?? null,
-    projectStatePreferredVoiceMode: input.projectStatePreferredVoiceMode ?? null,
-    projectStatePreferredPacingMode: input.projectStatePreferredPacingMode ?? null,
-  })
-  const projectStateBias = deriveProjectStateContinuityBias({
-    projectStatePrimaryOpenLoop: input.projectStatePrimaryOpenLoop,
-    projectStateEmotionalClosureCue: input.projectStateEmotionalClosureCue,
-    projectStateSameHerSelfLine: input.projectStateSameHerSelfLine,
-    projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk,
-    projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap,
-    projectStateContinuityArcStage: input.projectStateContinuityArcStage,
-    projectStateCadenceSummary: projectStateCadenceCarry.cadenceSummary,
-  })
   const factualAnchorFacts = mergeAnchorFacts({
     now: input.now,
     currentFacts: input.facts,
@@ -1587,21 +1271,9 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
     affectiveResidue: input.affectiveResidue ?? input.personStateUpdateSurface?.affectiveResidue ?? null,
     recentMemoryConsolidations: input.recentMemoryConsolidations ?? null,
   })
-  const projectStateContinuityCue = buildProjectStateContinuityCue({
-    now: input.now,
-    projectStatePrimaryOpenLoop: input.projectStatePrimaryOpenLoop ?? null,
-    projectStateEmotionalClosureCue: input.projectStateEmotionalClosureCue ?? null,
-    projectStateSameHerSelfLine: input.projectStateSameHerSelfLine ?? null,
-    projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk ?? null,
-    projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap ?? null,
-    projectStateContinuityArcStage: input.projectStateContinuityArcStage ?? null,
-    projectStateCadenceSummary: projectStateCadenceCarry.cadenceSummary,
-    projectStateCadenceLine: projectStateCadenceCarry.cadenceLine,
-  })
   const anchorFacts = [
     ...factualAnchorFacts,
     ...derivedAnchorCues,
-    ...(projectStateContinuityCue ? [projectStateContinuityCue] : []),
   ]
     .sort((left, right) => right.weight - left.weight)
     .slice(0, 6)
@@ -1618,27 +1290,9 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
     return result
   }, {} as AlicizationLongHorizonMemorySnapshot['identityBias'])
 
-  if (projectStateBias.anthropomorphicMemoryClosureStillOpen) {
-    preferenceBias.unfinishedThreadReturn = clamp01(Math.max(
-      preferenceBias.unfinishedThreadReturn,
-      blend(preferenceBias.unfinishedThreadReturn, 0.72, 0.34),
-    ))
-    preferenceBias.companionship = clamp01(Math.max(
-      preferenceBias.companionship,
-      blend(preferenceBias.companionship, 0.58, 0.18),
-    ))
-    identityBias.selfDirection = clamp01(Math.max(
-      identityBias.selfDirection,
-      blend(identityBias.selfDirection, 0.54, 0.16),
-    ))
-  }
-
   const dominantCueSummary = anchorFacts[0]?.summary ?? previous.dominantCueSummary ?? null
   const rememberedPreferenceSummary = pickCueSummary(anchorFacts, cue =>
     preferencePredicatePattern.test(cue.predicate))
-  ?? (projectStateCadenceCarry.cadenceSummary
-    ? `Remembered embodiment continuity cadence: ${projectStateCadenceCarry.cadenceSummary}`
-    : null)
   ?? pickCueSummary(anchorFacts, cue =>
     cue.influenceTags.includes('bond'))
   ?? previous.rememberedPreferenceSummary
@@ -1646,24 +1300,13 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
     cue.influenceTags.includes('boundary') || dislikePredicatePattern.test(cue.predicate)) ?? previous.rememberedConstraintSummary
   const rememberedPlanSummary = pickCueSummary(anchorFacts, cue =>
     cue.influenceTags.includes('task') || planPredicatePattern.test(cue.predicate)) ?? previous.rememberedPlanSummary
-  const continuitySummary = projectStateBias.anthropomorphicMemoryClosureStillOpen
-    ? projectStateContinuityCue?.summary
-    ?? buildProjectStateContinuitySummary({
-      projectStatePrimaryOpenLoop: input.projectStatePrimaryOpenLoop ?? 'unfinished relational and autobiographical seams should return as lived continuity, not isolated turns.',
-      projectStateEmotionalClosureCue: input.projectStateEmotionalClosureCue ?? null,
-      projectStateSameHerSelfLine: input.projectStateSameHerSelfLine ?? null,
-      projectStateSameHerDriftRisk: input.projectStateSameHerDriftRisk ?? null,
-      projectStateProactiveSameHerGap: input.projectStateProactiveSameHerGap ?? null,
-      projectStateContinuityArcStage: input.projectStateContinuityArcStage ?? null,
-      cadenceSummary: projectStateCadenceCarry.cadenceSummary,
-    })
-    : null
-  const summary = [
-    rememberedPreferenceSummary ? `preference=${sanitizeText(rememberedPreferenceSummary, 96)}` : '',
-    rememberedConstraintSummary ? `boundary=${sanitizeText(rememberedConstraintSummary, 96)}` : '',
-    rememberedPlanSummary ? `plan=${sanitizeText(rememberedPlanSummary, 96)}` : '',
-    continuitySummary ? `continuity=${sanitizeText(continuitySummary, 96)}` : '',
-  ].filter(Boolean).join(' | ')
+  const summary = uniqueList([
+    rememberedPreferenceSummary,
+    rememberedConstraintSummary,
+    rememberedPlanSummary,
+    dominantCueSummary,
+    previous.summary,
+  ], 5).join(' | ')
 
   return {
     preferenceBias,
@@ -1679,36 +1322,6 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
 }
 
 export function buildLongHorizonMemorySystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  const memory = surface?.memory?.longHorizonMemory ?? null
-  if (!memory)
-    return ''
-
-  const anchorLines = memory.anchorFacts.length > 0
-    ? memory.anchorFacts.slice(0, 4).map(cue => `- ${cue.summary} | weight=${cue.weight.toFixed(2)} | tags=${cue.influenceTags.join('/')}`)
-    : ['- none']
-
-  return [
-    alicizationLongHorizonMemoryMarker,
-    'This block describes which durable semantic memories are currently shaping Alicization\'s longer-horizon self, goals, and habits.',
-    'Treat it as remembered continuity and accumulated preference pressure, never as proof of the live scene.',
-    memory.summary
-      ? `Memory line: ${memory.summary}`
-      : 'Memory line: no strong long-horizon memory is currently shaping this turn.',
-    memory.dominantCueSummary
-      ? `Dominant remembered cue: ${memory.dominantCueSummary}`
-      : 'Dominant remembered cue: none.',
-    memory.rememberedPreferenceSummary
-      ? `Remembered preference: ${memory.rememberedPreferenceSummary}`
-      : 'Remembered preference: none.',
-    memory.rememberedConstraintSummary
-      ? `Remembered boundary: ${memory.rememberedConstraintSummary}`
-      : 'Remembered boundary: none.',
-    memory.rememberedPlanSummary
-      ? `Remembered open loop: ${memory.rememberedPlanSummary}`
-      : 'Remembered open loop: none.',
-    `Preference imprint: companionship=${memory.preferenceBias.companionship.toFixed(2)}; truth=${memory.preferenceBias.truthfulGrounding.toFixed(2)}; repair=${memory.preferenceBias.gentleRepair.toFixed(2)}; observation=${memory.preferenceBias.quietObservation.toFixed(2)}; care=${memory.preferenceBias.proactiveCare.toFixed(2)}; play=${memory.preferenceBias.playfulIntimacy.toFixed(2)}; autonomy=${memory.preferenceBias.autonomyRespect.toFixed(2)}; unfinished=${memory.preferenceBias.unfinishedThreadReturn.toFixed(2)}.`,
-    `Identity pressure: guarded=${memory.identityBias.guardedness.toFixed(2)}; tender=${memory.identityBias.tenderness.toFixed(2)}; direct=${memory.identityBias.directness.toFixed(2)}; self-direction=${memory.identityBias.selfDirection.toFixed(2)}.`,
-    'Anchor memories:',
-    ...anchorLines,
-  ].join('\n')
+  void surface
+  return ''
 }

@@ -1,6 +1,5 @@
 import {
   alicizationFixedTemplateReplacement,
-  readRecollectionIntentFromDerivedMindStateBundle,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 
@@ -22,12 +21,6 @@ import {
   resolveAlicizationAutonomousDialogueStructuredFormat,
 } from './runtime-structured-format'
 import { resolveRuntimeSubconsciousTickEntry } from './runtime-subconscious-tick-entry'
-
-function asDerivedMindStateBundleLike(raw: Record<string, any> | null | undefined) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-  return raw as any
-}
 
 function hasSpecificAffectiveResidueRoomMakingCue(text: string) {
   return /still glowing|still warm|leave room before warmth returns|leave room before warmth|do not widen yet|warmer reopen|room-making|stay room-making|reopened too eagerly|余韵|留白|别立刻把温度放大|别把温度放大|不要立刻把温度放大|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(text)
@@ -830,8 +823,6 @@ export function rebuildPresenceOnlyPersistedEmotionalKernel(input: {
   selfState?: PresenceOnlyPersistedEmotionalKernelInput['selfState']
   affectiveResidue?: PresenceOnlyPersistedEmotionalKernelInput['affectiveResidue']
   personStateProjection?: PresenceOnlyPersistedEmotionalKernelInput['personStateProjection'] | PresenceOnlyProjection | null
-  selfEvolution?: PresenceOnlyPersistedEmotionalKernelInput['selfEvolution']
-  projectState?: PresenceOnlyPersistedEmotionalKernelInput['projectState']
   derivedMindStateBundle?: Record<string, any> | null
   fallbackEmotionalKernel?: Record<string, any> | null
 }) {
@@ -854,11 +845,6 @@ export function rebuildPresenceOnlyPersistedEmotionalKernel(input: {
     privateThought: input.privateThought ?? null,
     affectiveResidue: input.affectiveResidue ?? input.derivedMindStateBundle?.affectiveResidue ?? null,
     personStateProjection: (input.personStateProjection ?? null) as PresenceOnlyPersistedEmotionalKernelInput['personStateProjection'],
-    recollectionIntent: readRecollectionIntentFromDerivedMindStateBundle(
-      asDerivedMindStateBundleLike(input.derivedMindStateBundle ?? null),
-    ),
-    selfEvolution: input.selfEvolution ?? null,
-    projectState: input.projectState ?? null,
   })
 
   if (continuityRestraint !== 'rest-protective')
@@ -2003,15 +1989,15 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
                 ?? persistedPresenceState.affectiveResidue
                 ?? persistedPresenceState.derivedMindStateBundle?.affectiveResidue
                 ?? null
+            const persistedSelfState
+              = latestRuntimeSurface.agency?.selfState
+                ?? persistedPresenceState.selfState
+                ?? null
             const persistedSelfEvolution
               = latestRuntimeSurface.memory?.selfEvolution
                 ?? persistedDerivedMindStateBundle?.selfEvolution
                 ?? persistedPresenceState.selfEvolution
                 ?? persistedPresenceState.derivedMindStateBundle?.selfEvolution
-                ?? null
-            const persistedSelfState
-              = latestRuntimeSurface.agency?.selfState
-                ?? persistedPresenceState.selfState
                 ?? null
             const persistedEmotionalKernel = rebuildPresenceOnlyPersistedEmotionalKernel({
               initiative: persistedInitiative,
@@ -2019,8 +2005,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               selfState: persistedSelfState,
               affectiveResidue: persistedAffectiveResidue,
               personStateProjection: resolvedPersonStateProjection,
-              selfEvolution: persistedSelfEvolution,
-              projectState: null,
               derivedMindStateBundle: persistedDerivedMindStateBundle,
               fallbackEmotionalKernel:
                 latestRuntimeSurface.memory?.emotionalKernel

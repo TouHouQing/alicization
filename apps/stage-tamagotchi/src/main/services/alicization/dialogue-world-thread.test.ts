@@ -8,6 +8,31 @@ import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('buildDialogueWorldThread', () => {
+  it('does not invent a dialogue topic when no live anchor exists', () => {
+    const state = buildDialogueWorldThread({
+      now: 10_000,
+      conversationState: {
+        jointThread: '',
+        hostMove: '',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'neutral',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: [],
+        shouldHoldThread: false,
+        confidence: 0,
+        narrative: [],
+        updatedAt: 10_000,
+      } as any,
+    })
+
+    expect(state?.activeThread).toBe('')
+    expect(state?.activeThread).not.toContain('Stay with the current dialogue seam')
+  })
+
   it('carries the live coding seam across turns instead of flattening it into generic memory', () => {
     const state = buildDialogueWorldThread({
       now: 20_000,
@@ -131,7 +156,7 @@ describe('buildDialogueWorldThread', () => {
     }))
     expect(state?.openLoops).toContain('What is wrong with this diff?')
     expect(state?.recallKeys.join(' | ')).toContain('reply_motive:guide')
-    expect(buildDialogueWorldThreadSystemBlock(state)).toContain('[ALICIZATION_DIALOGUE_WORLD_THREAD]')
+    expect(buildDialogueWorldThreadSystemBlock(state)).toBe('')
   })
 
   it('drops stale screen loops and facts when the turn pivots back to dialogue-first', () => {

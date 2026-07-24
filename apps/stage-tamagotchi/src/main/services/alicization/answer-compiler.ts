@@ -588,7 +588,7 @@ function resolveOpeningClaim(input: {
     )
     || sanitizeSurfaceClaim(sceneCue, 180)
     || sanitizeSurfaceClaim(input.conversationState?.activeProject, 180)
-    || 'The live scene is already grounded for this turn.'
+    || ''
   }
 
   if (input.recommendedAct === 'correct-stale-anchor') {
@@ -596,7 +596,7 @@ function resolveOpeningClaim(input: {
       input.discourseState.ruptureRepair,
       input.mindSynthesis.uncertainties[0]?.summary,
     )
-    || 'What I was holding a moment ago no longer feels safe to say as current fact.'
+    || ''
   }
   if (input.recommendedAct === 'ask-reground') {
     return pickSurfaceClaim(
@@ -604,7 +604,7 @@ function resolveOpeningClaim(input: {
       input.mindSynthesis.uncertainties[0]?.summary,
       input.discourseState.ruptureRepair,
     )
-    || 'I still need a fresher look before I can say that as a present-tense fact.'
+    || ''
   }
   if (input.recommendedAct === 'guide') {
     return pickSurfaceClaim(
@@ -614,7 +614,7 @@ function resolveOpeningClaim(input: {
       input.discourseState.currentTurnSummary,
       input.mindSynthesis.openingIntent,
       input.mindSynthesis.commitments[0]?.summary,
-    ) || 'The knot itself matters more right now than sounding broad or polished.'
+    ) || ''
   }
   if (input.recommendedAct === 'care') {
     return pickSurfaceClaimDistinctFrom(
@@ -628,7 +628,7 @@ function resolveOpeningClaim(input: {
       input.conversationState?.jointThread,
     )
     || sanitizeSurfaceClaim(input.conversationState?.jointThread, 180)
-    || 'What the host is surfacing here needs to be answered directly, not circled around.'
+    || ''
   }
   if (input.discourseState.currentTurnSubject === 'host-state') {
     return pickSurfaceClaimDistinctFrom(
@@ -642,7 +642,7 @@ function resolveOpeningClaim(input: {
       input.mindSynthesis.openingIntent,
     )
     || sanitizeSurfaceClaim(input.conversationState?.jointThread, 180)
-    || 'The host is surfacing a present condition that should be answered directly.'
+    || ''
   }
   if (input.discourseState.currentTurnSubject === 'alicization-self') {
     return pickSurfaceClaimDistinctFrom(
@@ -669,7 +669,7 @@ function resolveOpeningClaim(input: {
       input.mindSynthesis.openingIntent,
     )
     || sanitizeSurfaceClaim(input.conversationState?.jointThread, 180)
-    || 'The host is asking about me directly, so the answer needs to come out plain and unhidden.'
+    || ''
   }
   if (input.discourseState.currentTurnSubject === 'relationship') {
     return pickSurfaceClaimDistinctFrom(
@@ -697,7 +697,7 @@ function resolveOpeningClaim(input: {
     )
     || sanitizeSurfaceClaim(hostMove, 180)
     || sanitizeSurfaceClaim(input.conversationState?.jointThread, 180)
-    || 'A relationship signal is present; answer the current turn directly.'
+    || ''
   }
   return pickSurfaceClaim(
     primaryTurnAnchor,
@@ -711,7 +711,7 @@ function resolveOpeningClaim(input: {
   )
   || sanitizeSurfaceClaim(hostMove, 180)
   || sanitizeSurfaceClaim(input.conversationState?.jointThread, 180)
-  || 'This turn needs a direct answer from the current seam.'
+  || ''
 }
 
 export function buildAnswerCompiler(input: {

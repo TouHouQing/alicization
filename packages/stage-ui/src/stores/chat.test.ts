@@ -478,6 +478,71 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
+  it('shows and persists memory side failures without replacing the Provider reply', async () => {
+    const reply = '这是主进程 Provider 根据当前可用记忆生成的回复。'
+    const fullText = createProviderFullText(reply)
+    const memoryFailure = {
+      kind: 'recall-failure',
+      reply: '本轮长期记忆召回失败。',
+      origin: 'failure-surface',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+      nonHumanAuthoredStatus: 'direct-infra-repair:recall-failure',
+      visibleReplySource: 'infrastructure-failure',
+      excludeFromPersonaLearning: true,
+      excludeFromMemoryCondensation: true,
+      auditCategory: 'alicization.chat-failure',
+      stage: 'long-term-memory-recall',
+      cardId: 'default',
+      turnId: 'turn-provider',
+      occurredAt: 10,
+      errorSummary: 'recall offline',
+    } as const
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+        memoryFailures: [memoryFailure],
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('继续聊聊我们的记忆', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.assistantText).toBe(reply)
+    expect(persisted.structured.memoryFailures).toEqual([memoryFailure])
+    const visibleFailure = ensureSessionMessages(activeSessionId.value).at(-1)
+    expect(visibleFailure).toMatchObject({
+      role: 'assistant',
+      content: memoryFailure.reply,
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'recall-failure',
+          stage: 'long-term-memory-recall',
+        },
+      },
+    })
+  })
+
   it('drops legacy renderer pre-dialogue identity before the main runtime boundary', async () => {
     const reply = '这条回复只由 Provider、SOUL 与记忆证据生成。'
     const fullText = createProviderFullText(reply)

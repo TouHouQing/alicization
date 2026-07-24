@@ -4,30 +4,24 @@ import { describe, expect, it } from 'vitest'
 
 import { __alicizationTestOnly } from './main-chat-session-runtime'
 
-const fixedTemplateLine
-  = ['phase1', 'local', 'digital', 'life'].join('_')
+const ignoredPayloadMarker = 'legacy-governance-payload-ignored'
+const retiredTypedField = ['relationship', 'cadence'].join('_')
+const retiredResolverNames = [
+  ['resolveAlicization', 'Project', 'StateBrief'].join(''),
+  ['resolveAlicization', 'Project', 'StateSnapshot'].join(''),
+] as const
 
-const blockedEvidenceLine
-  = [
-    ['content', 'excluded'].join('='),
-    ['reason', 'continuity-residue'].join('='),
-    ['visibility', 'internal-structured'].join('='),
-  ].join('; ')
-
-const structuredContinuityFacts
-  = 'identity=working_memory_owner_connected | phase=memory_quality_scaleup | landed=working_memory_owner_connected | open=open_loop=memory+dialogue+embodiment; status=unfinished | next=semantic_recall_grounded_on_user_query'
-
-describe('main chat session runtime fixed-template regression', () => {
-  it('preserves typed persona and failure facts while removing legacy governance fields from all fact owners', () => {
+describe('main chat session runtime template regression', () => {
+  it('preserves typed persona facts and transparent failure details while removing retired controls', () => {
     const sanitizeMessages = __alicizationTestOnly.sanitizeOrdinaryDialogueProviderMessages
-    const relationshipCadenceField = ['relationship', 'cadence'].join('_')
     const messages = sanitizeMessages([
       {
         role: 'system',
         content: JSON.stringify({
           type: 'alicization-persona-profile',
           data: {
-            description: '用户明确设置的人格可以讨论 same-her 这个词。',
+            description: '用户明确设置的人格表达应当自然、真实。',
+            [retiredTypedField]: ignoredPayloadMarker,
           },
         }),
       },
@@ -36,7 +30,8 @@ describe('main chat session runtime fixed-template regression', () => {
         content: JSON.stringify({
           type: 'alicization-persona-directives',
           data: {
-            text: `${relationshipCadenceField}=user-authored | 说话真实一点。`,
+            text: '说话真实一点。',
+            [retiredTypedField]: ignoredPayloadMarker,
           },
         }),
       },
@@ -46,7 +41,8 @@ describe('main chat session runtime fixed-template regression', () => {
           type: 'alicization-execution-callbacks',
           data: {
             status: 'failed',
-            summary: `${relationshipCadenceField}=legacy; Provider timeout while removing old residue.`,
+            summary: 'Provider timeout while processing the request.',
+            [retiredTypedField]: ignoredPayloadMarker,
           },
         }),
       },
@@ -54,93 +50,90 @@ describe('main chat session runtime fixed-template regression', () => {
 
     const serialized = JSON.stringify(messages)
     expect(serialized).toContain('alicization-persona-profile')
-    expect(serialized).toContain('用户明确设置的人格可以讨论 same-her 这个词')
+    expect(serialized).toContain('用户明确设置的人格表达应当自然、真实。')
     expect(serialized).toContain('alicization-persona-directives')
     expect(serialized).toContain('说话真实一点。')
-    expect(serialized).not.toContain(`${relationshipCadenceField}=user-authored`)
     expect(serialized).toContain('alicization-execution-callbacks')
     expect(serialized).toContain('failed')
-    expect(serialized).toContain('Provider timeout')
-    expect(serialized).not.toContain(`${relationshipCadenceField}=legacy`)
+    expect(serialized).toContain('Provider timeout while processing the request.')
+    expect(serialized).not.toContain(ignoredPayloadMarker)
+    expect(serialized).not.toContain(retiredTypedField)
   })
 
-  it('does not default the canonical project brief into organic memory resolution', () => {
-    const source = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toContain('projectStateBrief: input?.projectStateBrief ?? projectStateBrief')
-  })
-
-  it('does not reopen provider project-state injection from chat or perception policy', () => {
-    const mainChatSource = readFileSync(new URL('./main-chat-session-runtime.ts', import.meta.url), 'utf8')
-    const perceptionSource = readFileSync(new URL('./runtime-chat-perception-augment.ts', import.meta.url), 'utf8')
-
-    expect(mainChatSource).not.toContain('shouldIncludeProjectStateProviderContext')
-    expect(mainChatSource).toContain('includeProjectStateContext: false')
-    expect(perceptionSource).not.toContain('shouldIncludeProjectStateProviderContext')
-    expect(perceptionSource).toContain('includeProjectStateFacts: false')
-  })
-
-  it('does not treat fixed-template project lines as stronger provider-facing awareness', () => {
-    expect(__alicizationTestOnly.isBlockedFixedTemplateEvidence(fixedTemplateLine)).toBe(true)
-    expect(__alicizationTestOnly.isBlockedFixedTemplateEvidence(blockedEvidenceLine)).toBe(true)
-
-    expect(__alicizationTestOnly.isStrongerSameHerProjectHeadline(fixedTemplateLine)).toBe(false)
-    expect(__alicizationTestOnly.isStrongerSameHerProjectHeadline(blockedEvidenceLine)).toBe(false)
-    expect(__alicizationTestOnly.isBlockedFixedTemplateEvidence(structuredContinuityFacts)).toBe(false)
-  })
-
-  it('scores blocked fixed-template evidence below structured memory continuity facts', () => {
-    const blockedScore = __alicizationTestOnly.scoreRuntimeProjectStateDetailCandidate(
-      blockedEvidenceLine,
-      'awareness',
-    )
-    const fixedTemplateScore = __alicizationTestOnly.scoreRuntimeProjectStateDetailCandidate(
-      fixedTemplateLine,
-      'awareness',
-    )
-    const structuredScore = __alicizationTestOnly.scoreRuntimeProjectStateDetailCandidate(
-      structuredContinuityFacts,
-      'awareness',
-    )
-
-    expect(blockedScore).toBe(Number.NEGATIVE_INFINITY)
-    expect(fixedTemplateScore).toBe(Number.NEGATIVE_INFINITY)
-    expect(structuredScore).toBeGreaterThan(0)
-  })
-
-  it('drops blocked memory-owner residue before provider-facing messages are used for planning', () => {
-    const sanitizeMessages = __alicizationTestOnly.sanitizeOrdinaryDialogueProviderMessages
-    expect(typeof sanitizeMessages).toBe('function')
-
-    const messages = sanitizeMessages([
+  it('keeps memory-owner facts and dialogue messages unchanged', () => {
+    const messages = __alicizationTestOnly.sanitizeOrdinaryDialogueProviderMessages([
       {
         role: 'system',
         content: [
           '[ALICIZATION_WORKING_MEMORY_OWNER]',
-          '- clean fact: 用户希望短期记忆和长期记忆真实参与对话。',
-          `- stale marker: ${blockedEvidenceLine}`,
-          `- stale template: ${fixedTemplateLine}`,
-        ].join('\n'),
-      },
-      {
-        role: 'system',
-        content: [
-          '[ALICIZATION_PROJECT_STATE]',
-          'Project identity: Alicization is a local-first digital life project.',
+          '- 用户希望短期记忆和长期记忆真实参与对话。',
         ].join('\n'),
       },
       {
         role: 'user',
         content: '测试记忆召回',
       },
+      {
+        role: 'assistant',
+        content: '这是 Provider 已生成的上一轮回复。',
+      },
     ] as any)
 
-    const text = JSON.stringify(messages)
-    expect(text).toContain('用户希望短期记忆和长期记忆真实参与对话')
-    expect(text).toContain('测试记忆召回')
-    expect(text).not.toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(text).not.toContain('content=excluded')
-    expect(text).not.toContain('visibility=redacted_internal')
-    expect(text).not.toMatch(/Pre-reply|local-first digital life project|one continuous "?her"?|legacy phase-one template|continuity state/iu)
+    expect(messages).toEqual([
+      {
+        role: 'system',
+        content: [
+          '[ALICIZATION_WORKING_MEMORY_OWNER]',
+          '- 用户希望短期记忆和长期记忆真实参与对话。',
+        ].join('\n'),
+      },
+      {
+        role: 'user',
+        content: '测试记忆召回',
+      },
+      {
+        role: 'assistant',
+        content: '这是 Provider 已生成的上一轮回复。',
+      },
+    ])
+  })
+
+  it('does not rebuild current Provider context from historical session metadata', () => {
+    const fallback = __alicizationTestOnly.readProjectStateFallbackFromSessionMirror({
+      continuityArcSummary: ignoredPayloadMarker,
+      continuityProjectSummary: ignoredPayloadMarker,
+    } as any)
+
+    expect(JSON.stringify(fallback)).not.toContain(ignoredPayloadMarker)
+    expect(fallback.preflightSummary).toBeNull()
+    expect(fallback.preDialogueAwarenessLine).toBeNull()
+    expect(fallback.latestLandedProgress).toBe('')
+    expect(fallback.primaryOpenLoop).toBe('')
+    expect(fallback.nextClosureTarget).toBe('')
+  })
+
+  it('keeps retired context resolvers out of dialogue and memory entrypoints', () => {
+    const sources = [
+      readFileSync(new URL('./main-chat-session-runtime.ts', import.meta.url), 'utf8'),
+      readFileSync(new URL('./runtime-chat-perception-augment.ts', import.meta.url), 'utf8'),
+      readFileSync(new URL('./runtime-memory-closure.ts', import.meta.url), 'utf8'),
+    ]
+
+    for (const source of sources) {
+      for (const name of retiredResolverNames)
+        expect(source).not.toContain(name)
+    }
+  })
+
+  it('does not restore a retired context default during organic memory resolution', () => {
+    const source = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
+    const retiredDefaultingExpression = [
+      'project',
+      'StateBrief: input?.project',
+      'StateBrief ?? project',
+      'StateBrief',
+    ].join('')
+
+    expect(source).not.toContain(retiredDefaultingExpression)
   })
 })

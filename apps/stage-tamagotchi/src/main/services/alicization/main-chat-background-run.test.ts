@@ -329,18 +329,50 @@ describe('main chat background run', () => {
 
   it('preserves Provider artifact metadata on completed finishes', async () => {
     const input = createInput()
-    const streamResult = createStreamResult()
+    const streamResult = createStreamResult({
+      visibleReplyRealization: {
+        ...buildObservedRealization(),
+        critic: {
+          version: 'visible-reply-critic-public-summary-v1',
+          status: 'pass',
+          providerMindRequired: true,
+          reasonCodes: ['settled'],
+          ignored: 'legacy-governance-payload-ignored',
+        },
+        closure: {
+          version: 'visible-reply-closure-public-summary-v1',
+          status: 'approved',
+          reasonCodes: ['complete'],
+          initialCriticStatus: 'pass',
+          finalCriticStatus: 'pass',
+          ignored: 'legacy-governance-payload-ignored',
+        },
+      } as any,
+    })
     vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(streamResult)
 
     await runAlicizationMainChatBackground(input)
 
-    expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, expect.objectContaining({
+    const finishPayload = vi.mocked(input.runStateController.finishRun).mock.calls.at(-1)?.[1]
+    expect(finishPayload).toEqual(expect.objectContaining({
       status: 'completed',
       origin: 'provider',
       learningPolicy: streamResult.learningPolicy,
       failureSurface: null,
-      visibleReplyRealization: streamResult.visibleReplyRealization,
     }))
+    expect(finishPayload?.visibleReplyRealization?.critic).toEqual({
+      version: 'visible-reply-critic-public-summary-v1',
+      status: 'pass',
+      providerMindRequired: true,
+      reasonCodes: ['settled'],
+    })
+    expect(finishPayload?.visibleReplyRealization?.closure).toEqual({
+      version: 'visible-reply-closure-public-summary-v1',
+      status: 'approved',
+      reasonCodes: ['complete'],
+      initialCriticStatus: 'pass',
+      finalCriticStatus: 'pass',
+    })
   })
 
   it('finishes with the raw six-field Provider JSON and a separate realization sidecar', async () => {
@@ -373,7 +405,9 @@ describe('main chat background run', () => {
     expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
     const finishPayload = vi.mocked(input.runStateController.finishRun).mock.calls.at(-1)?.[1]
     expect(finishPayload?.fullText).toBe(rawFullText)
-    expect(finishPayload?.visibleReplyRealization).toBe(visibleReplyRealization)
+    expect(finishPayload?.visibleReplyRealization).toMatchObject(visibleReplyRealization)
+    expect(finishPayload?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
+    expect(finishPayload?.visibleReplyRealization).not.toHaveProperty('projectStateEvidenceStatus')
     expect(Object.keys(JSON.parse(String(finishPayload?.fullText)))).toEqual([
       'memoryUsage',
       'performance',
@@ -437,6 +471,13 @@ describe('main chat background run', () => {
     const structured = JSON.parse(String(finishPayload?.fullText ?? '{}'))
     expect(structured.reply).toBe('Provider reply')
     expect(structured).not.toHaveProperty('memoryFailures')
+    expect(finishPayload?.memoryFailures).toEqual([
+      expect.objectContaining({
+        kind: 'recall-failure',
+        stage: 'long-term-memory-recall',
+        errorSummary: 'recall offline',
+      }),
+    ])
   })
 
   it('completes required-tool recovery only with an unchanged native Provider contract', async () => {

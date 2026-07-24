@@ -301,7 +301,7 @@ describe('dialogue-turn-encounter', () => {
     expect(encounter.subject).toBe('task-knot')
     expect(encounter.screenReferenceMode).toBe('helpful')
     expect(encounter.continuityMode).toBe('task-first')
-    expect(encounter.summary).toBe('The host is working through a runtime diff.')
+    expect(encounter.summary).toBe('')
     expect(encounter.shouldBypassScreenRepair).toBe(false)
   })
 
@@ -329,7 +329,7 @@ describe('dialogue-turn-encounter', () => {
     })
 
     expect(encounter.subject).toBe('alicization-self')
-    expect(encounter.summary).toContain('identity continuity line')
+    expect(encounter.summary).toBe('')
     expect(encounter.reasonTags).toContain('project-state-continuity-question')
   })
 })

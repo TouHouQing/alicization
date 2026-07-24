@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -12,27 +14,57 @@ import {
   deriveExecutionResultFeedbackKind,
 } from './outcome-reinforcement'
 
-const fixedGovernanceResidue
-  = /body_preoccupation|posture=|same-her|same her|Phase 1|project_state|project-state|opening_policy|relationship_cadence|I kept /iu
+function expectEvidenceOnlyClosure(closure: any) {
+  expect(closure.episodicEvents ?? []).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      felt: null,
+      lesson: null,
+      relationshipMeaning: null,
+    }),
+  ]))
+  for (const fact of closure.memoryFacts ?? []) {
+    expect(fact).toEqual(expect.objectContaining({
+      subject: expect.any(String),
+      predicate: expect.any(String),
+      object: expect.any(String),
+      confidence: expect.any(Number),
+    }))
+  }
+}
 
-function expectNoFixedGovernanceResidue(value: unknown) {
-  expect(JSON.stringify(value)).not.toMatch(fixedGovernanceResidue)
+function derivedEvidenceLabels(closure: any) {
+  return (closure.episodicEvents ?? [])
+    .flatMap((event: any) => event.derivedFrom ?? [])
+    .map((item: any) => item.label ?? '')
 }
 
 describe('outcome reinforcement closure', () => {
-  it('does not turn fixed body prose into reflection or persona-upstream closure text', () => {
+  it('does not call retired context resolvers or synthesize policy facts', () => {
+    const source = readFileSync(new URL('./outcome-reinforcement.ts', import.meta.url), 'utf8')
+    const retiredResolverNames = [
+      ['resolveAlicization', 'Project', 'StateBrief'].join(''),
+      ['resolveAlicization', 'Project', 'StateSnapshot'].join(''),
+    ]
+
+    for (const name of retiredResolverNames)
+      expect(source).not.toContain(name)
+    expect(source).not.toMatch(/structuredFixedTemplateMemoryFact/u)
+  })
+
+  it('does not turn unrelated runtime prose into reflection or persona-upstream facts', () => {
     const closure = buildReplyOutcomeClosure({
       now: 12_000,
       cardId: 'card-1',
       turnId: 'turn-body-evidence',
       sessionId: 'session-body-evidence',
       decisionTraceId: 'trace-body-evidence',
+      userText: '请继续看这个真实问题。',
       assistantText: 'The response stayed grounded in the current issue.',
       runtimeSurface: {
         perception: {
           currentBodyState: 'accompanying',
           continuityMode: 'quiet-accompaniment',
-          currentInwardPreoccupation: 'body_preoccupation=rest_protection; direction=inward',
+          currentInwardPreoccupation: 'legacy-governance-payload-ignored',
         },
         memory: {
           affectiveResidue: {
@@ -42,12 +74,22 @@ describe('outcome reinforcement closure', () => {
         dialogue: {
           currentConsciousFrame: {
             speakingIntention: 'The response stayed grounded in the current issue.',
+            legacyEnvelope: {
+              marker: 'legacy-governance-payload-ignored',
+              nested: {
+                text: 'unrelated structured noise',
+              },
+            },
           },
         },
       },
     } as any)
 
-    expectNoFixedGovernanceResidue(closure)
+    expectEvidenceOnlyClosure(closure)
+    expect(derivedEvidenceLabels(closure)).toEqual(expect.arrayContaining([
+      'host feedback dialogue: 请继续看这个真实问题。',
+      'assistant feedback dialogue: The response stayed grounded in the current issue.',
+    ]))
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'body-accompanying',
       'continuity-quiet-accompaniment',
@@ -81,7 +123,41 @@ describe('outcome reinforcement closure', () => {
     } as any)
 
     expect(JSON.stringify(closure)).toContain(providerFailure)
-    expect(JSON.stringify(closure)).not.toContain('I kept')
+    expectEvidenceOnlyClosure(closure)
+  })
+
+  it('does not self-reinforce an ordinary reply without user evaluation', () => {
+    const closure = buildReplyOutcomeClosure({
+      now: 12_200,
+      cardId: 'card-1',
+      turnId: 'turn-unrated-reply',
+      sessionId: 'session-unrated-reply',
+      decisionTraceId: 'trace-unrated-reply',
+      userText: '继续。',
+      assistantText: 'Provider generated reply.',
+      runtimeSurface: {
+        world: {
+          worldModel: {
+            hostState: {
+              availability: 'focused',
+            },
+            activeThread: {
+              unresolved: true,
+            },
+          },
+        },
+        agency: {
+          initiative: {
+            selectedAction: 'hover',
+            preferredStyle: 'silent-observe',
+          },
+        },
+      },
+    } as any)
+
+    expect(closure.relationshipOutcomes).toEqual([])
+    expect(closure.reinforcementEvents).toEqual([])
+    expect(closure.episodicEvents).toHaveLength(1)
   })
 
   it('keeps feedback classification grounded in the user signal', () => {
@@ -113,7 +189,7 @@ describe('outcome reinforcement closure', () => {
     } as any)).toBe('doubted')
   })
 
-  it('writes dialogue feedback without reintroducing local governance text', () => {
+  it('writes dialogue feedback from real user and assistant evidence only', () => {
     const closure = buildDialogueReplyFeedbackOutcomeClosure({
       now: 13_000,
       cardId: 'card-1',
@@ -121,17 +197,23 @@ describe('outcome reinforcement closure', () => {
       turnId: 'turn-dialogue-feedback',
       decisionTraceId: 'trace-dialogue-feedback',
       feedback: 'robotic',
+      userText: '这段回复太模板，像客服。',
       previousAssistantText: 'The previous reply sounded generic.',
     })
 
-    expectNoFixedGovernanceResidue(closure)
+    expectEvidenceOnlyClosure(closure)
+    expect(closure.memoryFacts).toEqual([])
+    expect(derivedEvidenceLabels(closure)).toEqual(expect.arrayContaining([
+      'host feedback dialogue: 这段回复太模板，像客服。',
+      'assistant feedback dialogue: The previous reply sounded generic.',
+    ]))
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'dialogue-feedback',
       'feedback:robotic',
     ]))
   })
 
-  it('retains structured execution proposal feedback without project governance carry', () => {
+  it('retains structured execution proposal feedback without unrelated runtime carry', () => {
     const closure = buildExecutionProposalFeedbackOutcomeClosure({
       now: 14_000,
       cardId: 'card-1',
@@ -145,10 +227,16 @@ describe('outcome reinforcement closure', () => {
         proposedChannel: 'executor',
         selectedChannel: null,
         summary: 'The command requires confirmation.',
+        userText: '先别执行这个命令。',
+        legacyEnvelope: {
+          marker: 'legacy-governance-payload-ignored',
+        },
       },
     } as any)
 
-    expectNoFixedGovernanceResidue(closure)
+    expectEvidenceOnlyClosure(closure)
+    expect(closure.memoryFacts).toEqual([])
+    expect(derivedEvidenceLabels(closure)).toContain('host feedback dialogue: 先别执行这个命令。')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'execution-proposal',
       'feedback:denied',
@@ -171,11 +259,23 @@ describe('outcome reinforcement closure', () => {
         selectedChannel: 'executor',
         summary: providerFailure,
         outcome: providerFailure,
+        userText: '这个结果不对，请先停下。',
+        previousAssistantText: '命令执行失败，我需要重新核对。',
+        safetyGateSummary: 'effect=blocked-before-dispatch confirmation=required no-process-started',
+        resumeConfirmationSummary: 'approval=host-confirmed-before-redispatch process-not-yet-restarted',
+        legacyEnvelope: {
+          marker: 'legacy-governance-payload-ignored',
+        },
       },
     } as any)
 
-    expect(JSON.stringify(closure)).toContain(providerFailure)
-    expectNoFixedGovernanceResidue(closure)
+    const serialized = JSON.stringify(closure)
+    expect(serialized).toContain(providerFailure)
+    expect(serialized).toContain('这个结果不对，请先停下。')
+    expect(serialized).toContain('命令执行失败，我需要重新核对。')
+    expect(serialized).toContain('blocked-before-dispatch')
+    expect(serialized).toContain('host-confirmed-before-redispatch')
+    expectEvidenceOnlyClosure(closure)
   })
 
   it('keeps proactive outcome learning structured and reflection-ready', () => {
@@ -197,6 +297,7 @@ describe('outcome reinforcement closure', () => {
         scenario: 'coding',
         outcome: 'positive',
         createdAt: 16_000,
+        userText: '这个提醒有用。',
         assistantText: 'A grounded proactive observation.',
         emotionalTransitionLedger,
       }],
@@ -205,6 +306,11 @@ describe('outcome reinforcement closure', () => {
 
     expect(reflected.emotionalTransitionLedger).toBe(emotionalTransitionLedger)
     expect(reflected.reflections.length).toBeGreaterThanOrEqual(0)
-    expectNoFixedGovernanceResidue(reflected)
+    expectEvidenceOnlyClosure(reflected)
+    expect(reflected.memoryFacts).toEqual([])
+    expect(derivedEvidenceLabels(reflected)).toEqual(expect.arrayContaining([
+      'host feedback dialogue: 这个提醒有用。',
+      'assistant feedback dialogue: A grounded proactive observation.',
+    ]))
   })
 })

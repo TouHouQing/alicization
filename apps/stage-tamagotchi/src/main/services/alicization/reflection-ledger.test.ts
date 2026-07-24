@@ -117,7 +117,7 @@ describe('buildReflectionLedger', () => {
 
     expect(ledger.latestEntryId).toBeTruthy()
     expect(ledger.entries[0]?.outcome).toBe('helped')
-    expect(ledger.entries[0]?.revision).toContain('current grounded scene')
+    expect(ledger.entries[0]?.revision).toBe('The live runtime error is finally grounded.')
   })
 
   it('records a missed reflection when stale-anchor repair still failed to land', () => {
@@ -222,7 +222,7 @@ describe('buildReflectionLedger', () => {
     })
 
     expect(ledger.entries[0]?.outcome).toBe('missed')
-    expect(ledger.entries[0]?.revision).toContain('truth repair ahead of fluency')
+    expect(ledger.entries[0]?.revision).toBe('Old scene residue is still overriding the live seam.')
     expect(ledger.revisionPressure).toBeGreaterThan(0)
   })
 

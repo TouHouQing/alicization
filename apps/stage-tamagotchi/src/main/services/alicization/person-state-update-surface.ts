@@ -15,7 +15,6 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { deriveMemorySupersessionSignal } from './humanlike-memory'
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 
 export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
@@ -24,7 +23,7 @@ const focusedContextPattern = /focused|focus|debug|coding|cursor|terminal|runtim
 const lateNightPattern = /late[- ]?night|drain|夜|熬夜|很晚|疲惫|累/iu
 const executionContextPattern = /execution|result|proposal|callback|cli|codex|claude|task|执行|结果|提案|回调/iu
 const openContextPattern = /open|warming|聊天|陪|一起|靠近|轻松|放松/iu
-const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|陪伴|靠近/iu
+const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|靠近/iu
 const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空间|轻一点|安静|留白/iu
 const repairPattern = /repair|clarify|recheck|not this|missed|澄清|修复|重说|不是这个|没答到/iu
 const burdenPattern = /burden|tired|busy|drained|interrupt|压力|累|忙|打断|疲惫|不想被催/iu
@@ -32,6 +31,7 @@ const intrusivePattern = /intrusive|heavy|pressure|挤|黏|压迫|太近|太重|
 const roboticPattern = /robotic|template|system|模板|机械|机器人|系统口气/iu
 const initiativeStrategyPattern = /future follow-ups|follow-up timing|clearer opening|fresher opening|leave more room|less eager|quieter timing|memory-led|still receiving them|reopening this line/iu
 const acceptedInitiativeStrategyPattern = /memory-led|still receiving them|received without obvious resistance|accepted or continued/iu
+const structuredOutcomeLabelPattern = /(?:^|[|;]\s*)(?:action|feedback|host_availability|observe_first|outcome|proactive_outcome|repair_first|reply_outcome|scenario|style|thread)=/iu
 
 function clamp(value: number, maxAbs = 0.5) {
   if (!Number.isFinite(value))
@@ -43,67 +43,6 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function normalizeContinuityRestraint(raw: unknown) {
-  const normalized = sanitizeText(raw, 64)
-  return normalized === 'lower-pressure'
-    || normalized === 'measured-return'
-    || normalized === 'repair-before-closeness'
-    || normalized === 'rest-protective'
-    || normalized === 'single-thread'
-    ? normalized
-    : null
-}
-
-function normalizePreferredBlinkCadence(raw: unknown) {
-  const normalized = sanitizeText(raw, 32)
-  return normalized === 'normal'
-    || normalized === 'linger'
-    || normalized === 'quiet'
-    ? normalized
-    : null
-}
-
-function normalizePreferredGazeMode(raw: unknown) {
-  const normalized = sanitizeText(raw, 32)
-  return normalized === 'steady'
-    || normalized === 'soften'
-    || normalized === 'drift'
-    ? normalized
-    : null
-}
-
-function normalizePreferredPauseMode(raw: unknown) {
-  const normalized = sanitizeText(raw, 32)
-  return normalized === 'longer'
-    || normalized === 'natural'
-    ? normalized
-    : null
-}
-
-function normalizePreferredLipsyncMode(raw: unknown) {
-  const normalized = sanitizeText(raw, 32)
-  return normalized === 'restrained'
-    || normalized === 'matched'
-    ? normalized
-    : null
-}
-
-function normalizePreferredVoiceMode(raw: unknown) {
-  const normalized = sanitizeText(raw, 32)
-  return normalized === 'lower-pressure'
-    || normalized === 'even'
-    ? normalized
-    : null
-}
-
-function normalizePreferredPacingMode(raw: unknown) {
-  const normalized = sanitizeText(raw, 32)
-  return normalized === 'slower'
-    || normalized === 'natural'
-    ? normalized
-    : null
 }
 
 function asObject(raw: unknown) {
@@ -121,16 +60,6 @@ function normalizeAffectiveResidue(raw: unknown): AlicizationAffectiveResidueMem
     affectiveResidue: raw,
   })
   return readAffectiveResidueFromDerivedMindStateBundle(derivedMindStateBundle)
-}
-
-function readProjectStateLandedProgress(projectStateBrief: {
-  latestLandedProgress?: unknown[] | unknown
-  latestProgress?: unknown
-}) {
-  const raw = Array.isArray(projectStateBrief.latestLandedProgress)
-    ? projectStateBrief.latestLandedProgress[0]
-    : projectStateBrief.latestLandedProgress ?? projectStateBrief.latestProgress
-  return sanitizeText(raw, 220) || null
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
@@ -260,92 +189,30 @@ function inferContexts(text: string) {
 }
 
 function inferPreferenceHints(text: string) {
-  if (spacePattern.test(text))
-    return 'Lighter touch, more room, less interruption pressure.'
-  if (closenessPattern.test(text))
-    return 'Warmer directness can land when the opening is clearly there.'
-  return ''
+  if (structuredOutcomeLabelPattern.test(text))
+    return ''
+  return spacePattern.test(text) || closenessPattern.test(text) ? text : ''
 }
 
 function inferSensitivityHints(text: string) {
-  if (intrusivePattern.test(text))
-    return 'Pressure and over-close timing become intrusive quickly.'
-  if (roboticPattern.test(text))
-    return 'Template-like speech breaks the sense of a living reply.'
-  if (spacePattern.test(text))
-    return 'Boundary pressure is felt strongly; leaving room matters.'
-  return ''
+  if (structuredOutcomeLabelPattern.test(text))
+    return ''
+  return intrusivePattern.test(text) || roboticPattern.test(text) || spacePattern.test(text) ? text : ''
 }
 
 function inferRepairHints(text: string) {
-  if (initiativeStrategyPattern.test(text)) {
-    if (acceptedInitiativeStrategyPattern.test(text))
-      return 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.'
-    return 'Keep future follow-ups lower-pressure, less eager, leave more room, and wait for a clearer opening before reopening this line.'
-  }
-  if (repairPattern.test(text))
-    return 'When the seam is off, repair before continuing.'
-  if (roboticPattern.test(text))
-    return 'If the reply feels robotic, repair the living seam before continuing.'
-  return ''
+  if (structuredOutcomeLabelPattern.test(text))
+    return ''
+  return initiativeStrategyPattern.test(text) || acceptedInitiativeStrategyPattern.test(text)
+    || repairPattern.test(text) || roboticPattern.test(text)
+    ? text
+    : ''
 }
 
 function inferBurdenHints(text: string) {
-  if (burdenPattern.test(text) || lateNightPattern.test(text))
-    return 'Interruption cost rises quickly when the host is tired, busy, or already carrying pressure.'
-  if (focusedContextPattern.test(text))
-    return 'Focused work gets overloaded quickly by extra conversational pressure.'
-  return ''
-}
-
-function scoreEmotionalClosureCue(text: string) {
-  const normalized = sanitizeText(text, 220).toLowerCase()
-  if (!normalized)
-    return 0
-
-  let score = 0
-  if (/repair-before-closeness|repair before closeness|repair first|repair settle/iu.test(normalized))
-    score += 10
-  if (/rest-protective|rest protective|fatigue-aware/iu.test(normalized))
-    score += 8
-  if (/measured-return|measured return|lower-pressure|leave more room|do not reopen from scratch/iu.test(normalized))
-    score += 6
-  if (/same living line|same callback line|same line|same-her/iu.test(normalized))
-    score += 4
-  if (/initiative/iu.test(normalized))
-    score += 2
-  if (/embodiment|voice|face|motion|lipsync/iu.test(normalized))
-    score += 2
-  return score
-}
-
-function resolveProjectStateEmotionalClosureCue(input: {
-  closureTexts: string[]
-  fallbackCue?: string | null
-}) {
-  const fallbackCue = sanitizeText(input.fallbackCue, 220) || null
-  let best = fallbackCue
-  let bestScore = scoreEmotionalClosureCue(fallbackCue ?? '')
-
-  for (const candidate of input.closureTexts) {
-    const normalized = sanitizeText(candidate, 220)
-    if (!normalized)
-      continue
-
-    const candidateScore = scoreEmotionalClosureCue(normalized)
-    if (candidateScore <= 0)
-      continue
-
-    if (
-      candidateScore > bestScore
-      || (candidateScore === bestScore && normalized.length > (best?.length ?? 0))
-    ) {
-      best = normalized
-      bestScore = candidateScore
-    }
-  }
-
-  return best
+  if (structuredOutcomeLabelPattern.test(text))
+    return ''
+  return burdenPattern.test(text) || lateNightPattern.test(text) || focusedContextPattern.test(text) ? text : ''
 }
 
 function mergeSurface(previous: AlicizationPersonStateUpdateSurface | null, next: AlicizationPersonStateUpdateSurface) {
@@ -380,10 +247,10 @@ function mergeSurface(previous: AlicizationPersonStateUpdateSurface | null, next
     dominantContexts: uniqueList([...next.dominantContexts, ...previous.dominantContexts], 6),
     relationshipShift: mergedRelationshipShift,
     reinforcementBias: mergedReinforcementBias,
-    preferenceHints: uniqueList([...next.preferenceHints, ...previous.preferenceHints], 6),
-    sensitivityHints: uniqueList([...next.sensitivityHints, ...previous.sensitivityHints], 6),
-    repairHints: uniqueList([...next.repairHints, ...previous.repairHints], 6),
-    burdenHints: uniqueList([...next.burdenHints, ...previous.burdenHints], 6),
+    preferenceHints: uniqueList(next.preferenceHints, 6),
+    sensitivityHints: uniqueList(next.sensitivityHints, 6),
+    repairHints: uniqueList(next.repairHints, 6),
+    burdenHints: uniqueList(next.burdenHints, 6),
     narrative: uniqueList([...next.narrative, ...previous.narrative], 8),
     sourceTrail: mergedTrail,
   }
@@ -395,7 +262,6 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
   now: number
 }) {
   const filteredEpisodicEvents = filterSupersededClosureEpisodicEvents(input.closure.episodicEvents)
-  const projectStateBrief = resolveAlicizationProjectStateBrief()
   const relationshipShift = input.closure.relationshipOutcomes.reduce((acc, outcome) => ({
     trustDelta: clamp(acc.trustDelta + outcome.trustDelta),
     closenessDelta: clamp(acc.closenessDelta + outcome.closenessDelta),
@@ -426,10 +292,6 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
   const sensitivityHints = uniqueList(allTexts.map(text => inferSensitivityHints(sanitizeText(text, 220))), 6)
   const repairHints = uniqueList(allTexts.map(text => inferRepairHints(sanitizeText(text, 220))), 6)
   const burdenHints = uniqueList(allTexts.map(text => inferBurdenHints(sanitizeText(text, 220))), 6)
-  const emotionalClosureCue = resolveProjectStateEmotionalClosureCue({
-    closureTexts: allTexts,
-    fallbackCue: projectStateBrief.emotionalClosureCue ?? null,
-  })
   const narrative = uniqueList([
     ...input.closure.relationshipOutcomes.map(outcome => outcome.summary),
     ...input.closure.reinforcementEvents.map(event => event.summary),
@@ -459,35 +321,8 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
   const next: AlicizationPersonStateUpdateSurface = {
     version: 'person-state-update-surface-v1',
     updatedAt: input.now,
-    summary: uniqueList([
-      relationshipShift.trustDelta > 0 ? 'Recent outcomes nudged trust upward.' : null,
-      relationshipShift.burdenDelta > 0 ? 'Recent outcomes also raised burden pressure.' : null,
-      preferenceHints[0] ? `Preference shift: ${preferenceHints[0]}` : null,
-      repairHints[0] ? `Repair line: ${repairHints[0]}` : null,
-      burdenHints[0] ? `Burden line: ${burdenHints[0]}` : null,
-      narrative[0],
-    ], 4).join(' '),
-    projectStateContinuity: {
-      identity: projectStateBrief.identity,
-      currentPhase: projectStateBrief.currentPhase,
-      sameHerSummary: 'continuity_scope=memory,initiative,dialogue,embodiment; owner=project_state',
-      landedProgressSummary: readProjectStateLandedProgress(projectStateBrief),
-      openClosureSummary: projectStateBrief.openLoops[0] ?? null,
-      nextClosureTarget: projectStateBrief.nextClosureTarget ?? null,
-      preDialogueAwarenessLine: projectStateBrief.preDialogueAwarenessLine ?? null,
-      emotionalClosureCue,
-      sameHerSelfLine: projectStateBrief.sameHerSelfLine,
-      sameHerHoldDetail: projectStateBrief.sameHerHoldDetail ?? null,
-      sameHerDriftRisk: projectStateBrief.sameHerDriftRisk,
-      proactiveSameHerGap: projectStateBrief.proactiveSameHerGap ?? null,
-      continuityRestraint: projectStateBrief.continuityRestraint ?? null,
-      preferredBlinkCadence: projectStateBrief.preferredBlinkCadence ?? null,
-      preferredGazeMode: projectStateBrief.preferredGazeMode ?? null,
-      preferredPauseMode: projectStateBrief.preferredPauseMode ?? null,
-      preferredLipsyncMode: projectStateBrief.preferredLipsyncMode ?? null,
-      preferredVoiceMode: projectStateBrief.preferredVoiceMode ?? null,
-      preferredPacingMode: projectStateBrief.preferredPacingMode ?? null,
-    },
+    summary: narrative[0] ?? sourceTrail[0]?.summary ?? '',
+    projectStateContinuity: null,
     dominantContexts,
     relationshipShift,
     reinforcementBias,
@@ -599,29 +434,7 @@ export function buildAlicizationPersonStateUpdateRecord(input: {
     version: input.surface.version,
     updatedAt: input.surface.updatedAt,
     summary: sanitizeText(input.surface.summary, 220),
-    projectStateContinuity: input.surface.projectStateContinuity
-      ? {
-          identity: sanitizeText(input.surface.projectStateContinuity.identity, 220) || null,
-          currentPhase: sanitizeText(input.surface.projectStateContinuity.currentPhase, 160) || null,
-          sameHerSummary: sanitizeText(input.surface.projectStateContinuity.sameHerSummary, 220) || null,
-          landedProgressSummary: sanitizeText(input.surface.projectStateContinuity.landedProgressSummary, 220) || null,
-          openClosureSummary: sanitizeText(input.surface.projectStateContinuity.openClosureSummary, 220) || null,
-          nextClosureTarget: sanitizeText(input.surface.projectStateContinuity.nextClosureTarget, 220) || null,
-          preDialogueAwarenessLine: sanitizeText(input.surface.projectStateContinuity.preDialogueAwarenessLine, 320) || null,
-          emotionalClosureCue: sanitizeText(input.surface.projectStateContinuity.emotionalClosureCue, 220) || null,
-          sameHerSelfLine: sanitizeText(input.surface.projectStateContinuity.sameHerSelfLine, 220) || null,
-          sameHerHoldDetail: sanitizeText(input.surface.projectStateContinuity.sameHerHoldDetail, 220) || null,
-          sameHerDriftRisk: sanitizeText(input.surface.projectStateContinuity.sameHerDriftRisk, 320) || null,
-          proactiveSameHerGap: sanitizeText(input.surface.projectStateContinuity.proactiveSameHerGap, 220) || null,
-          continuityRestraint: normalizeContinuityRestraint(input.surface.projectStateContinuity.continuityRestraint),
-          preferredBlinkCadence: normalizePreferredBlinkCadence(input.surface.projectStateContinuity.preferredBlinkCadence),
-          preferredGazeMode: normalizePreferredGazeMode(input.surface.projectStateContinuity.preferredGazeMode),
-          preferredPauseMode: normalizePreferredPauseMode(input.surface.projectStateContinuity.preferredPauseMode),
-          preferredLipsyncMode: normalizePreferredLipsyncMode(input.surface.projectStateContinuity.preferredLipsyncMode),
-          preferredVoiceMode: normalizePreferredVoiceMode(input.surface.projectStateContinuity.preferredVoiceMode),
-          preferredPacingMode: normalizePreferredPacingMode(input.surface.projectStateContinuity.preferredPacingMode),
-        }
-      : null,
+    projectStateContinuity: null,
     dominantContexts: uniqueList(input.surface.dominantContexts, 8),
     relationshipShift: {
       trustDelta: clamp(input.surface.relationshipShift.trustDelta),
@@ -687,29 +500,7 @@ export function personStateUpdateRecordFromMindTurnEvent(event: AlicizationMindT
     version: 'person-state-update-surface-v1',
     updatedAt: Math.max(0, Math.floor(Number(payload.updatedAt ?? event.createdAt ?? 0))),
     summary,
-    projectStateContinuity: asObject(payload.projectStateContinuity)
-      ? {
-          identity: sanitizeText(asObject(payload.projectStateContinuity)?.identity, 220) || null,
-          currentPhase: sanitizeText(asObject(payload.projectStateContinuity)?.currentPhase, 160) || null,
-          sameHerSummary: sanitizeText(asObject(payload.projectStateContinuity)?.sameHerSummary, 220) || null,
-          landedProgressSummary: sanitizeText(asObject(payload.projectStateContinuity)?.landedProgressSummary, 220) || null,
-          openClosureSummary: sanitizeText(asObject(payload.projectStateContinuity)?.openClosureSummary, 220) || null,
-          nextClosureTarget: sanitizeText(asObject(payload.projectStateContinuity)?.nextClosureTarget, 220) || null,
-          preDialogueAwarenessLine: sanitizeText(asObject(payload.projectStateContinuity)?.preDialogueAwarenessLine, 320) || null,
-          emotionalClosureCue: sanitizeText(asObject(payload.projectStateContinuity)?.emotionalClosureCue, 220) || null,
-          sameHerSelfLine: sanitizeText(asObject(payload.projectStateContinuity)?.sameHerSelfLine, 220) || null,
-          sameHerHoldDetail: sanitizeText(asObject(payload.projectStateContinuity)?.sameHerHoldDetail, 220) || null,
-          sameHerDriftRisk: sanitizeText(asObject(payload.projectStateContinuity)?.sameHerDriftRisk, 320) || null,
-          proactiveSameHerGap: sanitizeText(asObject(payload.projectStateContinuity)?.proactiveSameHerGap, 220) || null,
-          continuityRestraint: normalizeContinuityRestraint(asObject(payload.projectStateContinuity)?.continuityRestraint),
-          preferredBlinkCadence: normalizePreferredBlinkCadence(asObject(payload.projectStateContinuity)?.preferredBlinkCadence),
-          preferredGazeMode: normalizePreferredGazeMode(asObject(payload.projectStateContinuity)?.preferredGazeMode),
-          preferredPauseMode: normalizePreferredPauseMode(asObject(payload.projectStateContinuity)?.preferredPauseMode),
-          preferredLipsyncMode: normalizePreferredLipsyncMode(asObject(payload.projectStateContinuity)?.preferredLipsyncMode),
-          preferredVoiceMode: normalizePreferredVoiceMode(asObject(payload.projectStateContinuity)?.preferredVoiceMode),
-          preferredPacingMode: normalizePreferredPacingMode(asObject(payload.projectStateContinuity)?.preferredPacingMode),
-        }
-      : null,
+    projectStateContinuity: null,
     dominantContexts: Array.isArray(payload.dominantContexts)
       ? uniqueList(payload.dominantContexts.filter((item): item is string => typeof item === 'string'), 8)
       : [],

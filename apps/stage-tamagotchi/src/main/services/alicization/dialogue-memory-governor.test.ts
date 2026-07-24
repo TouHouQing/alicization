@@ -67,7 +67,7 @@ describe('dialogue memory governor', () => {
     const policy = deriveAlicizationDialogueMemoryCarryPolicy({
       now: 1_200,
       mirror: {
-        memorySummary: 'recent=carry the refactor thread forward',
+        memorySummary: 'Continue the refactor thread from its latest unresolved point.',
         updatedAt: 1_100,
       },
       spineDigest: createSpineDigest(),
@@ -76,10 +76,10 @@ describe('dialogue memory governor', () => {
     expect(policy.mode).toBe('reflective-repair')
     expect(policy.allowMirrorCarry).toBe(true)
     expect(policy.recallSeed).toContain('memory_recall_mode:thread')
-    expect(policy.recallSeed).toContain('mirror_memory:recent=carry the refactor thread forward')
+    expect(policy.recallSeed).toContain('mirror_memory:Continue the refactor thread from its latest unresolved point.')
     expect(policy.recallSeed).toContain('memory_reflection_pressure:0.68')
-    expect(policy.summary).toContain('mode=reflective-repair')
-    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toContain('carry_mirror_memory=true')
+    expect(policy.summary).toContain('Mode: reflective-repair')
+    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toBe('')
   })
 
   it('suppresses stale mirror carry while keeping spine memory cues', () => {

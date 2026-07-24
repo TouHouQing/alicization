@@ -826,7 +826,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     }
 
     const executionCallbackSystemBlock = sanitizeOneShotInternalSystemBlock(executionCallbackContext.systemBlock)
-    const callerSystemBlock = sanitizeOneShotInternalSystemBlock(generateOptions.system)
+    const callerSystemBlock = sanitizeOneShotProviderSystemBlock(generateOptions.system)
     const sanitizedCustomDirectiveBlock = sanitizeOneShotProviderSystemBlock(customDirectiveBlock)
     const systemMessages: Message[] = [
       ...(sanitizedCustomDirectiveBlock

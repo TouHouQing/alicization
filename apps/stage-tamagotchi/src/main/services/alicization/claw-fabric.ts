@@ -232,55 +232,6 @@ function unique(values: Array<string | undefined | null>, maxChars = 120) {
   return Array.from(new Set(values.map(value => normalizeText(value, maxChars)).filter(Boolean)))
 }
 
-function buildProjectBriefingNarrative(
-  projectBriefing: AlicizationClawFabricExperience['projectBriefing'],
-) {
-  if (!projectBriefing)
-    return []
-
-  const identity = normalizeText(projectBriefing.identity, 180)
-  const currentPhase = normalizeText(projectBriefing.currentPhase, 180)
-  const latestLandedProgress
-    = normalizeText(projectBriefing.latestLandedProgress, 220)
-      || normalizeText(projectBriefing.landedProgressSummary, 220)
-  const primaryOpenLoop
-    = normalizeText(projectBriefing.primaryOpenLoop, 220)
-      || normalizeText(projectBriefing.openClosureSummary, 220)
-  const nextClosureTarget
-    = normalizeText(projectBriefing.nextClosureTarget, 220)
-      || normalizeText(projectBriefing.nextClosureTargetSummary, 220)
-  const sameHerSelfLine = normalizeText(projectBriefing.sameHerSelfLine, 180)
-  const sameHerDriftRisk
-    = normalizeText(projectBriefing.sameHerDriftRisk, 220)
-      || normalizeText(projectBriefing.sameHerDriftRiskSummary, 220)
-
-  return [
-    identity && currentPhase
-      ? `Stay inside Alicization's project identity while planning execution: ${identity} ${currentPhase}`
-      : identity
-        ? `Stay inside Alicization's project identity while planning execution: ${identity}`
-        : currentPhase
-          ? `Stay inside Alicization's current project phase while planning execution: ${currentPhase}`
-          : '',
-    latestLandedProgress
-      ? `Recent landed progress to preserve during execution planning: ${latestLandedProgress}`
-      : '',
-    primaryOpenLoop && nextClosureTarget
-      ? `Execution planning should respect open_loop="${primaryOpenLoop}" and next_closure_target="${nextClosureTarget}".`
-      : primaryOpenLoop
-        ? `Execution planning should respect the current open loop: ${primaryOpenLoop}`
-        : nextClosureTarget
-          ? `Execution planning should respect the next closure target: ${nextClosureTarget}`
-          : '',
-    sameHerSelfLine
-      ? `Keep identity_continuity explicit while planning execution: ${sameHerSelfLine}`
-      : '',
-    sameHerDriftRisk
-      ? `Avoid execution-planning drift: ${sameHerDriftRisk}`
-      : '',
-  ].filter(Boolean)
-}
-
 function clamp01(raw: unknown) {
   if (!Number.isFinite(raw))
     return 0
@@ -670,17 +621,6 @@ export function buildClawFabricPlan(input: {
   experience?: AlicizationClawFabricExperience | null
   killSwitchSuspended?: boolean
 }): AlicizationClawFabricPlan {
-  const projectBriefing = input.experience?.projectBriefing ?? null
-  const projectBriefingNarrative = buildProjectBriefingNarrative(input.experience?.projectBriefing)
-  const hasProjectOpenLoopBriefing = Boolean(
-    normalizeText(projectBriefing?.primaryOpenLoop, 220)
-    || normalizeText(projectBriefing?.openClosureSummary, 220),
-  )
-  const projectBriefingReasonTags = unique([
-    projectBriefing?.currentPhase ? 'project-phase-briefing' : '',
-    hasProjectOpenLoopBriefing ? 'project-open-loop-briefing' : '',
-    projectBriefing?.sameHerSelfLine ? 'project-identity-continuity-briefing' : '',
-  ])
   if (input.killSwitchSuspended) {
     return {
       state: 'blocked',
@@ -689,10 +629,9 @@ export function buildClawFabricPlan(input: {
       preferredChannels: [],
       fallbackChannels: [],
       candidates: [],
-      reasonTags: ['kill-switch-suspended', ...projectBriefingReasonTags],
+      reasonTags: ['kill-switch-suspended'],
       narrative: [
         'Execution routing stopped because the Alicization kill switch is suspended.',
-        ...projectBriefingNarrative,
       ],
       affirmationReasonCodes: [],
       blockedReasonCodes: ['kill-switch-suspended'],
@@ -740,12 +679,10 @@ export function buildClawFabricPlan(input: {
         input.experience?.goalAffinityChannel ? `goal-affinity:${input.experience.goalAffinityChannel}` : '',
         input.experience?.advisorChannel ? `advisor:${input.experience.advisorChannel}` : '',
         'no-eligible-channel',
-        ...projectBriefingReasonTags,
       ]),
       narrative: [
         `No eligible execution channel can currently satisfy "${normalizeText(input.task.goal, 120) || 'the requested task'}".`,
         'Structured bodies were exhausted before considering unsafe fallback behavior.',
-        ...projectBriefingNarrative,
       ],
       affirmationReasonCodes: [],
       blockedReasonCodes: unique(candidates.flatMap(candidate => candidate.blockedReasons)),
@@ -775,7 +712,6 @@ export function buildClawFabricPlan(input: {
       input.experience?.sessionResumeChannel ? `session-resume:${input.experience.sessionResumeChannel}` : '',
       input.experience?.goalAffinityChannel ? `goal-affinity:${input.experience.goalAffinityChannel}` : '',
       input.experience?.advisorChannel ? `advisor:${input.experience.advisorChannel}` : '',
-      ...projectBriefingReasonTags,
       ...affirmationReasonCodes,
       ...eligibleCandidates[0].reasons,
     ]),
@@ -836,7 +772,6 @@ export function buildClawFabricPlan(input: {
       affirmationReasonCodes.includes('desktop-fallback-requires-explicit-or-grounded-justification')
         ? 'Desktop fallback requires stronger justification than a weak inference.'
         : '',
-      ...projectBriefingNarrative,
     ], 320),
     affirmationReasonCodes,
     blockedReasonCodes: [],

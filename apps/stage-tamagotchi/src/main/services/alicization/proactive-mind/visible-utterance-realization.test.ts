@@ -1,26 +1,36 @@
-import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { resolveAlicizationProactiveVisibleUtterance } from './visible-utterance-realization'
 
-const generatedCuePattern
-  = /\b[a-z][\w-]{2,}\s*=|runtime_personhood|life_core|local_desktop_life_loop|cadence=|relationship_cadence=|continuity_identity|continuity_line/iu
+const realizationKeys = [
+  'actualAuthority',
+  'blockedReasons',
+  'closure',
+  'critic',
+  'emotionalClosureAudit',
+  'expectedAuthority',
+  'mode',
+  'nonHumanAuthoredStatus',
+  'providerMindExecuted',
+  'reason',
+  'selfAuthorityAudit',
+  'version',
+  'visibleReplyValidationStatus',
+  'visibleText',
+].sort()
 
-function expectNoTemplateOrGeneratedCue(value: unknown) {
-  const text = JSON.stringify(value ?? null)
-  expect(containsAlicizationFixedTemplateResidue(text)).toBe(false)
-  expect(text).not.toMatch(generatedCuePattern)
+function expectCurrentRealizationShape(value: Record<string, unknown>) {
+  expect(Object.keys(value).sort()).toEqual(realizationKeys)
 }
 
 describe('resolveAlicizationProactiveVisibleUtterance', () => {
-  it('drops raw fixed-template continuity wording instead of turning it into proactive inward carry', () => {
+  it('keeps a silent observation inward without synthesizing visible text', () => {
     const resolved = resolveAlicizationProactiveVisibleUtterance({
       kind: 'subconscious-proactive',
       structured: {
-        thought: 'structured continuity digest.',
-        proactive: {
-          style: 'silent-observe',
-          openingGuidance: 'Stay on the continuity state before expansion',
+        thought: 'Observe without speaking.',
+        internal: {
+          marker: 'legacy-governance-payload-ignored',
         },
       },
       hasMindAuthoredStructured: true,
@@ -28,20 +38,21 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeUndefined()
-    expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
-    expectNoTemplateOrGeneratedCue(resolved.visibleReplyRealization)
+    expect(resolved.assistantText).toBe('')
+    expect(resolved.visibleReplyRealization.visibleText).toBeNull()
+    expect(resolved.visibleReplyRealization.actualAuthority).toBe('local-deterministic-fallback')
+    expectCurrentRealizationShape(resolved.visibleReplyRealization)
   })
 
-  it('does not synthesize relationship_cadence for remembered-seam more-room holds', () => {
+  it('does not turn arbitrary nested metadata into realization fields', () => {
     const resolved = resolveAlicizationProactiveVisibleUtterance({
       kind: 'subconscious-proactive',
       structured: {
-        thought: 'The remembered relationship seam is real, but this time keep more room before leaning in again.',
-        proactive: {
-          style: 'silent-observe',
-          continuityRestraint: 'measured-return',
-          openingGuidance: 'Stay on the remembered seam, keep more room this time, and do not reopen it with the same eagerness as before.',
+        internal: {
+          marker: 'legacy-governance-payload-ignored',
+          nested: {
+            value: 'ignored',
+          },
         },
       },
       hasMindAuthoredStructured: true,
@@ -49,77 +60,54 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.openingGuidanceHoldDetail).toBeNull()
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeFalsy()
-    expect(resolved.visibleReplyRealization.companionshipHoldMode).toBe('quiet-companionship')
-    expectNoTemplateOrGeneratedCue(resolved.visibleReplyRealization)
+    expect(JSON.stringify(resolved.visibleReplyRealization)).not.toContain('legacy-governance-payload-ignored')
+    expectCurrentRealizationShape(resolved.visibleReplyRealization)
   })
 
-  it('preserves factual project-state audit text while dropping fixed project identity templates', () => {
+  it('ignores unrelated self-revision payloads when deciding visible output', () => {
     const resolved = resolveAlicizationProactiveVisibleUtterance({
       kind: 'subconscious-proactive',
       structured: {
-        proactive: {
-          style: 'silent-observe',
-          continuityRestraint: 'measured-return',
-          openingGuidance: 'Wait for a later opening and keep the next return low-pressure.',
-        },
-        projectState: {
-          identity: 'Alicization is a local-first digital life project building identity continuity.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          latestLandedProgress: 'The memory workbench now exposes review policy overrides to the user.',
-          primaryOpenLoop: 'Long-term memory search still needs larger-scale pagination verification.',
-          nextClosureTarget: 'embedding_recall_reindex=required',
-          sameHerSelfLine: 'structured continuity digest.',
-          preDialogueAwarenessLine: 'pre_turn_context_digest',
-        },
-      },
-      hasMindAuthoredStructured: true,
-      preferPresenceOnlyHold: true,
-    })
-
-    expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.projectStateAudit).toEqual(expect.objectContaining({
-      sameHerSummary: null,
-      currentPhaseSummary: null,
-      landedProgressSummary: 'The memory workbench now exposes review policy overrides to the user.',
-      openClosureSummary: 'Long-term memory search still needs larger-scale pagination verification.',
-      nextClosureTargetSummary: null,
-      preDialogueAwarenessSummary: null,
-    }))
-    expect(resolved.visibleReplyRealization.projectStateAudit?.continuitySummary).toBe(
-      'The memory workbench now exposes review policy overrides to the user. | Long-term memory search still needs larger-scale pagination verification.',
-    )
-    expectNoTemplateOrGeneratedCue(resolved.visibleReplyRealization)
-  })
-
-  it('does not turn self-revision continuity cues into cadence-coded proactive carry', () => {
-    const resolved = resolveAlicizationProactiveVisibleUtterance({
-      kind: 'subconscious-proactive',
-      structured: {
-        proactive: {
-          style: 'silent-observe',
-          openingGuidance: 'Keep this return low-pressure.',
-        },
+        thought: 'No visible reply was authored.',
       },
       hasMindAuthoredStructured: true,
       preferPresenceOnlyHold: true,
       selfRevisionPatch: {
         lanes: [],
         reasonCodes: [],
-        projectStateContinuity: {
-          sameHerSelfLine: 'structured continuity digest.',
-          sameHerHoldDetail: 'identity-continuity',
-          emotionalClosureCue: 'repair-before-closeness should settle before closeness widens again.',
-          continuityGuard: 'continuity_hold=repair_before_closeness',
-          continuityPressure: 0.68,
+        unrelated: {
+          marker: 'legacy-governance-payload-ignored',
         },
       } as any,
     })
 
     expect(resolved.shouldPersistVisibleUtterance).toBe(false)
-    expect(resolved.visibleReplyRealization.sameHerInwardCarry).toBeFalsy()
-    expect(String(resolved.visibleReplyRealization.projectStateAudit?.sameHerHoldDetail ?? '')).toBe('')
-    expectNoTemplateOrGeneratedCue(resolved.visibleReplyRealization)
+    expect(resolved.visibleReplyExecution.providerMindExecuted).toBe(false)
+    expectCurrentRealizationShape(resolved.visibleReplyRealization)
+  })
+
+  it('persists provider-authored proactive text as the only visible reply source', () => {
+    const resolved = resolveAlicizationProactiveVisibleUtterance({
+      kind: 'subconscious-proactive',
+      structured: {
+        reply: '我记得你刚才说今天很累，所以只是来问一句，现在要不要先休息一下？',
+        internal: {
+          marker: 'legacy-governance-payload-ignored',
+        },
+      },
+      hasMindAuthoredStructured: true,
+      selfRevisionPatch: {
+        domain: 'relationship',
+        lanes: [],
+        reasonCodes: [],
+      } as any,
+    })
+
+    expect(resolved.shouldPersistVisibleUtterance).toBe(true)
+    expect(resolved.assistantText).toContain('今天很累')
+    expect(resolved.decision.action).toBe('persist')
+    expect(resolved.visibleReplyRealization.visibleText).toBe(resolved.assistantText)
+    expect(JSON.stringify(resolved.visibleReplyRealization)).not.toContain('legacy-governance-payload-ignored')
+    expectCurrentRealizationShape(resolved.visibleReplyRealization)
   })
 })

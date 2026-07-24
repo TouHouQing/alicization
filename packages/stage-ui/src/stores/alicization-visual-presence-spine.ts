@@ -373,7 +373,7 @@ function buildPrivateThoughtTextFromSpine(
     || digest.architecture?.summary
     || digest.runtime.sceneSummary
     || digest.runtime.activeThreadTitle
-    || 'Stay with the current line.'
+    || ''
   const carrySummary = memoryCarryPolicy.mode === 'quiet'
     ? ''
     : `carry=${memoryCarryPolicy.summary}`

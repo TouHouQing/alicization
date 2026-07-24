@@ -142,12 +142,10 @@ export function buildDialogueObligation(input: {
           : 'backgrounded'
 
   const summary = sanitizeText(
-    input.semantics.summary
-    || input.semantics.taskAnchor
-    || worldModel?.activeThread?.summary
-    || 'This turn carries a concrete obligation.',
+    input.semantics.taskAnchor
+    || worldModel?.activeThread?.summary,
     180,
-  ) || 'This turn carries a concrete obligation.'
+  )
 
   return {
     kind,
@@ -179,23 +177,6 @@ export function buildAlicizationDialogueObligationSystemBlock(input: {
   semantics: AlicizationDialogueTurnSemantics
   obligation: AlicizationDialogueObligation
 }) {
-  return [
-    '[ALICIZATION_DIALOGUE_ENCOUNTER]',
-    'This block captures what the host is doing to Alicization in the current turn and what Alicization now owes in response.',
-    `Host act: ${input.semantics.act}.`,
-    `Response need: ${input.semantics.responseNeed}.`,
-    `Truth expectation: ${input.semantics.truthExpectation}.`,
-    `Affective tone: ${input.semantics.affectiveTone}.`,
-    `Task anchor: ${input.semantics.taskAnchor ?? 'none'}.`,
-    `Shared attention demand: ${input.semantics.sharedAttentionDemand}.`,
-    `Persona suppression: ${input.semantics.personaSuppression}.`,
-    `Dialogue obligation: ${input.obligation.kind}.`,
-    `Obligation summary: ${input.obligation.summary}.`,
-    `Repair first: ${input.obligation.mustRepairFirst ? 'yes' : 'no'}.`,
-    `Answer directly: ${input.obligation.mustAnswerDirectly ? 'yes' : 'no'}.`,
-    `Stay task-bound: ${input.obligation.mustStayTaskBound ? 'yes' : 'no'}.`,
-    `Clarify before claiming: ${input.obligation.shouldAskClarifyingQuestion ? 'yes' : 'no'}.`,
-    `Persona kernel mode: ${input.obligation.personaKernelMode}.`,
-    'Treat this as the immediate speech obligation for the turn. Do not replace it with generic companionship performance.',
-  ].join('\n')
+  void input
+  return ''
 }

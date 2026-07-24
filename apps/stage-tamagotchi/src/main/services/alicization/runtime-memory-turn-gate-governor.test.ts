@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { applyMemoryTurnGateToGovernance } from './runtime-memory-turn-gate-governor'
 
 describe('runtime-memory-turn-gate-governor', () => {
-  it('turns inward-only memory gate into governance rules before reply generation', () => {
+  it('does not turn memory gates into reply-writing rules', () => {
     const result = applyMemoryTurnGateToGovernance({
       governance: {
         mustDo: ['Answer the current ask.'],
@@ -21,14 +21,11 @@ describe('runtime-memory-turn-gate-governor', () => {
       } as any,
     })
 
-    expect(result?.mustDo).toContain('memory_turn_gate.status=inward-only')
-    expect(result?.mustDo).toContain('memory_surface.visibility=inward_only; memory_influence=caution,ordering,care,uncertainty')
-    expect(result?.mustNotDo).toContain('memory_surface.visible_citation=blocked; memory_surface.recall_narration=blocked')
-    expect(result?.mustNotDo).toContain('memory_precision.exact_detail_claim=blocked; memory_precision.settled_continuity_claim=blocked')
-    expect(result?.mustNotDo).toContain('memory_wrong_thread.merge_into_current_answer=blocked')
+    expect(result?.mustDo).toEqual(['Answer the current ask.'])
+    expect(result?.mustNotDo).toEqual([])
   })
 
-  it('turns memory closure trace into same-her initiative, execution, and embodiment governance', () => {
+  it('keeps memory closure trace out of reply-writing governance', () => {
     const result = applyMemoryTurnGateToGovernance({
       governance: {
         mustDo: ['Answer the current ask.'],
@@ -88,13 +85,7 @@ describe('runtime-memory-turn-gate-governor', () => {
       } as any,
     })
 
-    expect(result?.mustDo).toEqual(expect.arrayContaining([
-      'memory_closure_trace.authority=memory_os',
-      'memory_closure_trace.initiative_restraint=measured-return; initiative_timing=after-payoff',
-      'memory_closure_trace.execution_carry=The execution callback should be carried into the next same-person reply.',
-      'memory_closure_trace.embodiment_cadence=Keep voice, gaze, motion, and lipsync on one lower-pressure measured-return line.',
-      'memory_surface.visibility=gist_only; memory_surface.payoff_role=support_current_turn',
-    ]))
-    expect(result?.mustNotDo).toContain('memory_closure_trace.close_or_over_certify=blocked; closure_state=open_or_revision_required')
+    expect(result?.mustDo).toEqual(['Answer the current ask.'])
+    expect(result?.mustNotDo).toEqual([])
   })
 })

@@ -1,7 +1,7 @@
 import type {
   AlicizationChannelCapability,
   AlicizationChatFailureKind,
-  AlicizationChatFailureSurface,
+  AlicizationChatMemoryFailureSurface,
   AlicizationExecutionCapabilityChannel,
   AlicizationExecutionCapabilityInquiry,
   AlicizationExecutionRoutingIntent,
@@ -122,7 +122,6 @@ import {
   isAlicizationThinProjectAwarenessLine,
   preferStrongerSameHerDriftRisk,
   resolveAlicizationProjectPreDialogueAwarenessLine,
-  resolveAlicizationProjectStateBrief,
   scoreAlicizationProjectAwarenessLine,
 } from './project-state-brief'
 import { reduceRuntimeAnswerPlanner } from './runtime-answer-planner-reducer'
@@ -192,13 +191,7 @@ export interface AlicizationPreparedMainChatPrelude {
   perceptionAugmentation: AlicizationMainChatPerceptionAugmentation
 }
 
-export interface AlicizationMainChatMemoryFailureSurface extends AlicizationChatFailureSurface {
-  stage: 'long-term-memory-recall' | 'working-memory-history' | 'working-memory-long-term-queue'
-  cardId: string
-  turnId: string
-  occurredAt: number
-  errorSummary: string
-}
+export type AlicizationMainChatMemoryFailureSurface = AlicizationChatMemoryFailureSurface
 
 export interface AlicizationPreparedMainChatExecutionResult extends PreparedMainChatExecution {
   conversationSessionId: string | null
@@ -232,6 +225,23 @@ interface PreparedRuntimeSurfaceChainDiagnostics {
 }
 
 type ProviderFacingProjectState = NonNullable<AlicizationMindTurnContractSnapshot['projectState']>
+const emptyProjectStateBrief = Object.freeze({
+  identity: '',
+  currentPhase: '',
+  latestProgress: '',
+  continuityProgressSummary: '',
+  primaryOpenLoop: '',
+  openLoops: [] as string[],
+  nextClosureTarget: '',
+  sameHerSelfLine: '',
+  sameHerDriftRisk: '',
+  sameHerHoldDetail: null as string | null,
+  emotionalClosureSummary: null as string | null,
+  continuityRestraint: null as ProviderFacingProjectState['continuityRestraint'],
+  preflightSummary: null as string | null,
+  preDialogueAwarenessLine: null as string | null,
+})
+
 interface SessionMirrorProjectStateFallback {
   identity: string
   currentPhase: string | null
@@ -1248,7 +1258,7 @@ function resolvePreparedDiagnosticsAwarenessLine(input: {
           )
         : identityAwareCanonicalAwareness
     )
-    ?? normalizePreparedExecutionText(resolveAlicizationProjectStateBrief().preDialogueAwarenessLine, 1600)
+    ?? normalizePreparedExecutionText(emptyProjectStateBrief.preDialogueAwarenessLine, 1600)
   const currentAwarenessMatchesPayloadCarry = Boolean(
     currentAwareness
     && preferredPayloadAwareness
@@ -2746,9 +2756,10 @@ function readContinuitySummaryMarker(
 function readProjectStateFallbackFromSessionMirror(
   mirror: AlicizationDialogueSessionMirror | null | undefined,
 ): SessionMirrorProjectStateFallback {
-  const brief = resolveAlicizationProjectStateBrief()
-  const continuityArcSummary = normalizeProviderFacingProjectText(mirror?.continuityArcSummary, 4000)
-  const continuityProjectSummary = normalizeProviderFacingProjectText(mirror?.continuityProjectSummary, 4000)
+  void mirror
+  const brief = emptyProjectStateBrief
+  const continuityArcSummary = null
+  const continuityProjectSummary = null
   const preflightSummary
     = readContinuitySummaryMarker(continuityArcSummary, ['preflight_summary', 'awareness_summary', 'project_preflight'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['preflight_summary', 'awareness_summary', 'project_preflight', 'preflight'], 1600)
@@ -2898,7 +2909,7 @@ function buildProviderFacingProjectAwarenessLine(input: {
 function readRuntimeProjectStateFromSurface(
   surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
 ): NonNullable<AlicizationMindTurnContractSnapshot['projectState']> {
-  const brief = resolveAlicizationProjectStateBrief()
+  const brief = emptyProjectStateBrief
   const consciousProjectState = surface?.dialogue?.currentConsciousFrame?.projectState as Record<string, unknown> | null | undefined
   const dialogueRuntimeDigestProjectState = surface?.dialogue?.runtimeDigest?.projectState as Record<string, unknown> | null | undefined
   const sessionMirrorProjectState = readProjectStateFallbackFromSessionMirror(
@@ -4343,7 +4354,7 @@ function seedPreparedRuntimeProjectAwareness(input: {
     = normalizeProviderFacingProjectText(currentProjectState.nextClosureTarget, 1600)
       ?? normalizeProviderFacingProjectText(resolvedSurfaceProjectState.nextClosureTarget, 1600)
       ?? mirrorProjectState.nextClosureTarget
-  const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
+  const canonicalProjectStateBrief = emptyProjectStateBrief
   const canonicalPreparedAwarenessLine = normalizeProviderFacingProjectText(
     canonicalProjectStateBrief.preDialogueAwarenessLine,
     4000,
@@ -5743,7 +5754,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
             ? payloadProjectState.explicitPayloadProjectPreflightSummary
             : pickPreferredProjectPreflightSummary([
               runtimeProjectState.preflightSummary,
-              resolveAlicizationProjectStateBrief().preflightSummary,
+              emptyProjectStateBrief.preflightSummary,
             ], 1600) ?? null,
         preDialogueAwarenessLine:
           payloadShouldSeedRebuildAwareness
@@ -6475,7 +6486,7 @@ function readProviderFacingPayloadProjectState(
   const directPayloadProjectPreflightSummary
     = normalizeProviderFacingProjectAwarenessPayloadText(directPayloadProjectState?.preflightSummary, 1600)
       ?? normalizeProviderFacingProjectAwarenessPayloadText(directPayloadIdentity?.summaryLine, 1600)
-  const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
+  const canonicalProjectStateBrief = emptyProjectStateBrief
   const payloadProjectStructuredIdentity = normalizeProviderFacingProjectStateScalar(
     directPayloadProjectState?.identity
     ?? payloadProjectState?.identity
@@ -8359,7 +8370,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           headlineLine: preferredSeedPayloadProjectState.explicitPayloadProjectHeadline,
         })
       : null
-    const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
+    const canonicalProjectStateBrief = emptyProjectStateBrief
     const canonicalLatestLandedProgress = normalizeProviderFacingProjectText(
       canonicalProjectStateBrief.latestProgress ?? canonicalProjectStateBrief.continuityProgressSummary,
       12000,
@@ -8788,7 +8799,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         if (!normalizedMindTurnContract)
           return normalizedMindTurnContract
 
-        const canonicalProjectStateBrief = resolveAlicizationProjectStateBrief()
+        const canonicalProjectStateBrief = emptyProjectStateBrief
         const canonicalPreflightSummary = normalizePreparedExecutionText(
           canonicalProjectStateBrief.preflightSummary,
           1600,
@@ -9092,7 +9103,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           ?? answerPlannerReducedRuntimeSurface?.dialogue.currentConsciousFrame?.projectState) as Record<string, unknown> | null | undefined
       const payloadProjectState = readProviderFacingPayloadProjectState(rawPayload)
       const canonicalDiagnosticAwarenessLine = normalizePreparedExecutionText(
-        resolveAlicizationProjectStateBrief().preDialogueAwarenessLine,
+        emptyProjectStateBrief.preDialogueAwarenessLine,
         1600,
       )
       const preparedSelectionLatestLandedProgress = normalizePreparedExecutionText(
@@ -9418,7 +9429,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           ?? normalizePreparedExecutionText(preparedSelectionAwareness.companionHeadlineLine, 1600)
           ?? normalizePreparedExecutionText(preparedSelectionAwareness.awarenessLine, 1600)
           ?? normalizePreparedExecutionText(runtimeGroundedAwareness.awarenessLine, 1600)
-          ?? normalizePreparedExecutionText(resolveAlicizationProjectStateBrief().preDialogueAwarenessLine, 1600)
+          ?? normalizePreparedExecutionText(emptyProjectStateBrief.preDialogueAwarenessLine, 1600)
       const normalizedMindTurnContractAwarenessLine = normalizePreparedExecutionText(
         normalizedMindTurnContract?.projectState?.preDialogueAwarenessLine,
         1600,

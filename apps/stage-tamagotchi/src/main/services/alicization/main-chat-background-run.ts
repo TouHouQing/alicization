@@ -270,31 +270,59 @@ function assertProviderBackgroundExecution(
   )
 }
 
+function readBackgroundVisibleReplyCritic(raw: unknown) {
+  const candidate = readRecord(raw)
+  const status = candidate?.status === 'pass'
+    ? 'pass' as const
+    : candidate?.status === 'blocked'
+      ? 'blocked' as const
+      : null
+  if (!candidate || !status)
+    return null
+
+  return {
+    version: 'visible-reply-critic-public-summary-v1' as const,
+    status,
+    providerMindRequired: candidate.providerMindRequired === true,
+    reasonCodes: Array.isArray(candidate.reasonCodes)
+      ? candidate.reasonCodes.filter((reason): reason is string => typeof reason === 'string')
+      : [],
+  }
+}
+
+function readBackgroundVisibleReplyClosure(raw: unknown) {
+  const candidate = readRecord(raw)
+  const status = candidate?.status === 'approved'
+    ? 'approved' as const
+    : candidate?.status === 'blocked'
+      ? 'blocked' as const
+      : null
+  if (!candidate || !status)
+    return null
+  const normalizeCriticStatus = (value: unknown) =>
+    value === 'pass'
+      ? 'pass' as const
+      : value === 'blocked'
+        ? 'blocked' as const
+        : null
+
+  return {
+    version: 'visible-reply-closure-public-summary-v1' as const,
+    status,
+    reasonCodes: Array.isArray(candidate.reasonCodes)
+      ? candidate.reasonCodes.filter((reason): reason is string => typeof reason === 'string')
+      : [],
+    initialCriticStatus: normalizeCriticStatus(candidate.initialCriticStatus),
+    finalCriticStatus: normalizeCriticStatus(candidate.finalCriticStatus),
+  }
+}
+
 function resolveBackgroundVisibleReplyRealization(input: {
   candidate: unknown
   visibleText: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
 }): AlicizationResolvedVisibleReply['realization'] {
   const candidate = readRecord(input.candidate)
-  if (
-    candidate?.expectedAuthority === 'llm-mind'
-    && candidate.actualAuthority === 'llm-mind'
-    && candidate.providerMindExecuted === true
-    && candidate.mode === input.visibleReplyExecution.mode
-    && candidate.visibleText === input.visibleText
-    && candidate.projectStateEvidenceStatus == null
-    && candidate.projectStateAudit == null
-    && candidate.emotionalClosureAudit == null
-    && candidate.selfAuthorityAudit == null
-    && candidate.sameHerInwardCarry == null
-    && candidate.openingGuidanceHoldDetail == null
-    && candidate.companionshipHoldMode == null
-    && candidate.openingEmbodimentAudit == null
-    && candidate.critic == null
-    && candidate.closure == null
-  ) {
-    return candidate as unknown as AlicizationResolvedVisibleReply['realization']
-  }
 
   return {
     version: 'visible-reply-realization-v1',
@@ -304,17 +332,13 @@ function resolveBackgroundVisibleReplyRealization(input: {
     mode: input.visibleReplyExecution.mode,
     visibleText: input.visibleText,
     visibleReplyValidationStatus: 'approved',
-    sameHerInwardCarry: null,
     nonHumanAuthoredStatus: null,
     blockedReasons: [],
     emotionalClosureAudit: null,
     selfAuthorityAudit: null,
-    openingGuidanceHoldDetail: null,
-    companionshipHoldMode: null,
-    openingEmbodimentAudit: null,
     reason: input.visibleReplyExecution.reason,
-    critic: null,
-    closure: null,
+    critic: readBackgroundVisibleReplyCritic(candidate?.critic),
+    closure: readBackgroundVisibleReplyClosure(candidate?.closure),
   }
 }
 
@@ -498,6 +522,7 @@ export async function runAlicizationMainChatBackground(
       origin: streamResult.origin,
       learningPolicy: streamResult.learningPolicy,
       failureSurface: streamResult.failureSurface,
+      memoryFailures: prepared.memoryFailures,
       fullText: streamResult.fullText,
       visibleReplyExecution: currentVisibleReplyExecution,
       visibleReplyRealization,
@@ -617,6 +642,7 @@ export async function runAlicizationMainChatBackground(
             allowTraining: providerArtifact.allowTraining,
           },
           failureSurface: null,
+          memoryFailures: prepared.memoryFailures,
           fullText: payoffResult.fullText,
           visibleReplyExecution,
           visibleReplyRealization: settled.realization,

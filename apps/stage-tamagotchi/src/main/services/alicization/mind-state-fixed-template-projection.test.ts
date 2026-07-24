@@ -65,7 +65,6 @@ const fixedTemplateSourceFiles = [
   './runtime-subconscious-tick.ts',
   './runtime-session-continuity-builders.ts',
   './mind-synthesizer.ts',
-  './response-surface-learning-rules.ts',
   './discourse-state.ts',
 ]
 
@@ -1065,7 +1064,7 @@ describe('mind state fixed-template projection cleanup', () => {
         summary: 'Remembered structured anchor',
         lastRecalledAt: 99_000,
       }],
-      summary: 'continuity=legacy_previous_governance',
+      summary: 'project_continuity=legacy_previous_governance',
       dominantCueSummary: 'same-her legacy_previous_governance',
       rememberedPreferenceSummary: 'continuity_hold=legacy_previous_governance',
       rememberedPlanSummary: 'project_state_review=legacy_previous_governance',
@@ -1185,6 +1184,26 @@ describe('mind state fixed-template projection cleanup', () => {
     expect(JSON.stringify(result.longHorizonMemory)).not.toContain('legacy_previous_governance')
     expect(result.currentConsciousFrame?.projectState).toBeUndefined()
     expect(projectedText).not.toContain('content=excluded')
+  })
+
+  it('preserves ordinary continuity key-value memory that is not a project governance cue', async () => {
+    const previousVisualPresenceState = createTemplateCleanupPresenceState({})
+    previousVisualPresenceState.longHorizonMemory = createLongHorizonMemory({
+      summary: 'continuity=restored after the restart',
+      dominantCueSummary: 'The restart continuity was restored by the latest check.',
+      rememberedConstraintSummary: 'Use continuity=restored as confirmed restart evidence.',
+      updatedAt: 119_000,
+    })
+    const { runtime } = createMindStateRuntimeHarness(previousVisualPresenceState)
+
+    const result = await buildTemplateCleanupMindState(
+      runtime,
+      previousVisualPresenceState,
+      '',
+    )
+
+    expect(result.longHorizonMemory?.summary).toContain('continuity=restored after the restart')
+    expect(result.longHorizonMemory?.rememberedConstraintSummary).toBe('Use continuity=restored as confirmed restart evidence.')
   })
 
   it('preserves approved self-revision metadata without reviving fixed continuity governance', async () => {

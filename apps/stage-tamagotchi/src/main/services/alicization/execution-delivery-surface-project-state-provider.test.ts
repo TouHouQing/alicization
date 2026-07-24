@@ -17,10 +17,12 @@ describe('execution delivery payoff provider context', () => {
 
     expect(JSON.parse(prompt.system)).toEqual(expect.objectContaining({
       type: 'alicization-execution-settlement-context',
-      executionFact: expect.objectContaining({
-        toolName: 'codex',
-        status: 'succeeded',
-      }),
+      data: {
+        executionFact: expect.objectContaining({
+          toolName: 'codex',
+          status: 'succeeded',
+        }),
+      },
     }))
     expect(prompt.system).not.toMatch(
       /ALICIZATION_PROJECT_STATE|current_phase|same_her_self_line|next_closure_target/iu,

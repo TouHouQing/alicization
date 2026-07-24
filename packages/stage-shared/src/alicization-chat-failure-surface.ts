@@ -38,6 +38,19 @@ export interface AlicizationChatFailureSurface extends AlicizationVisibleArtifac
   auditCategory: 'alicization.chat-failure'
 }
 
+export type AlicizationChatMemoryFailureStage
+  = | 'long-term-memory-recall'
+    | 'working-memory-history'
+    | 'working-memory-long-term-queue'
+
+export interface AlicizationChatMemoryFailureSurface extends AlicizationChatFailureSurface {
+  stage: AlicizationChatMemoryFailureStage
+  cardId: string
+  turnId: string
+  occurredAt: number
+  errorSummary: string
+}
+
 const failureKindRepairPath: Record<AlicizationChatFailureKind, string> = {
   'internal-leak': 'internal-leak',
   'realtime-unavailable': 'realtime-unavailable',

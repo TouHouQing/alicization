@@ -16,8 +16,6 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
-import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
-
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -34,16 +32,6 @@ function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
 }
 
-function appendClosureCue(base: unknown, cue: string, maxChars = 200) {
-  const normalizedCue = sanitizeText(cue, maxChars)
-  if (!normalizedCue)
-    return sanitizeText(base, maxChars)
-
-  const availableBaseChars = Math.max(0, maxChars - normalizedCue.length - 1)
-  const normalizedBase = sanitizeText(base, availableBaseChars)
-  return normalizedBase ? `${normalizedBase} ${normalizedCue}` : normalizedCue
-}
-
 function selectedCounterfactualOption(counterfactual?: AlicizationCounterfactualDeliberationSnapshot | null) {
   const options = asArray(counterfactual?.options)
   return options.find(option => option.id === counterfactual?.selectedOptionId)
@@ -56,127 +44,6 @@ function foregroundThoughtThread(thoughtThreads?: AlicizationThoughtThreadStateS
   return threads.find(thread => thread.id === thoughtThreads?.foregroundThreadId)
     ?? threads[0]
     ?? null
-}
-
-function deriveProjectStateEcologyBias(projectState?: {
-  preflightSummary?: string | null
-  identity?: string | null
-  currentPhase?: string | null
-  latestLandedProgress?: string | null
-  primaryOpenLoop?: string | null
-  nextClosureTarget?: string | null
-  nextClosureTargetSummary?: string | null
-  sameHerSelfLine?: string | null
-  emotionalClosureSummary?: string | null
-  openClosureSummary?: string | null
-  landedProgressSummary?: string | null
-} | null) {
-  const normalizedProjectState = projectState
-    ? resolveAlicizationProjectStateSnapshot({
-        runtimeProjectState: {
-          preflightSummary: projectState.preflightSummary,
-          identity: projectState.identity,
-          currentPhase: projectState.currentPhase,
-          latestLandedProgress: projectState.latestLandedProgress || projectState.landedProgressSummary,
-          primaryOpenLoop: projectState.primaryOpenLoop || projectState.openClosureSummary,
-          nextClosureTarget: projectState.nextClosureTarget || projectState.nextClosureTargetSummary,
-          sameHerSelfLine: projectState.sameHerSelfLine,
-          emotionalClosureCue: projectState.emotionalClosureSummary,
-        },
-      })
-    : {
-        preflightSummary: null,
-        identity: '',
-        currentPhase: '',
-        latestLandedProgress: null,
-        primaryOpenLoop: null,
-        nextClosureTarget: '',
-        sameHerSelfLine: '',
-        emotionalClosureCue: null,
-      }
-  const preflightSummary = sanitizeText(normalizedProjectState.preflightSummary, 320).toLowerCase()
-  const identity = sanitizeText(normalizedProjectState.identity, 200).toLowerCase()
-  const currentPhase = sanitizeText(normalizedProjectState.currentPhase, 160).toLowerCase()
-  const latestLandedProgress = sanitizeText(normalizedProjectState.latestLandedProgress, 220).toLowerCase()
-  const primaryOpenLoop = sanitizeText(normalizedProjectState.primaryOpenLoop, 200).toLowerCase()
-  const nextClosureTarget = sanitizeText(normalizedProjectState.nextClosureTarget, 220).toLowerCase()
-  const sameHerSelfLine = sanitizeText(normalizedProjectState.sameHerSelfLine, 220).toLowerCase()
-  const emotionalClosureCue = sanitizeText((normalizedProjectState as { emotionalClosureCue?: string | null }).emotionalClosureCue, 220).toLowerCase()
-  const combinedProjectState = `${preflightSummary} ${identity} ${currentPhase} ${latestLandedProgress} ${primaryOpenLoop} ${nextClosureTarget} ${sameHerSelfLine} ${emotionalClosureCue}`.trim()
-
-  const isDigitalLifeIdentity = combinedProjectState.includes('digital life')
-    || combinedProjectState.includes('lifeform')
-    || combinedProjectState.includes('companion')
-    || combinedProjectState.includes('continuous personhood')
-  const isPhaseOne = combinedProjectState.includes('phase 1')
-  const hasOpenLifeLoop = combinedProjectState.length > 0
-    && (
-      combinedProjectState.includes('continuity')
-      || combinedProjectState.includes('memory')
-      || combinedProjectState.includes('initiative')
-      || combinedProjectState.includes('embodiment')
-      || combinedProjectState.includes('dialogue')
-      || combinedProjectState.includes('personhood')
-      || combinedProjectState.includes('closure')
-      || combinedProjectState.includes('closed loop')
-    )
-  const carriesSameHerUnfinishedClosure = combinedProjectState.length > 0
-    && (
-      combinedProjectState.includes('identity-continuity')
-      || combinedProjectState.includes('identity continuity')
-      || combinedProjectState.includes('continuity line')
-      || combinedProjectState.includes('identity continuity')
-      || combinedProjectState.includes('continuous her')
-    )
-    && (
-      combinedProjectState.includes('unfinished')
-      || combinedProjectState.includes('still needs')
-      || combinedProjectState.includes('closure pass')
-      || combinedProjectState.includes('before widening outward')
-      || combinedProjectState.includes('before the turn widens outward')
-      || combinedProjectState.includes('before widening')
-    )
-  const sameHerClosurePressure = combinedProjectState.length > 0
-    && (
-      combinedProjectState.includes('identity-continuity')
-      || combinedProjectState.includes('identity continuity')
-      || combinedProjectState.includes('identity continuity')
-      || combinedProjectState.includes('measured-return')
-      || combinedProjectState.includes('repair-before-closeness')
-      || combinedProjectState.includes('cross-modal')
-      || combinedProjectState.includes('visible reply')
-      || combinedProjectState.includes('resident presence')
-      || combinedProjectState.includes('facial state')
-      || combinedProjectState.includes('motion')
-      || combinedProjectState.includes('同一个 her')
-      || combinedProjectState.includes('连续性')
-      || combinedProjectState.includes('拟人')
-      || combinedProjectState.includes('具身')
-      || combinedProjectState.includes('跨模态')
-      || combinedProjectState.includes('修复优先')
-    )
-
-  if (!isDigitalLifeIdentity || !isPhaseOne || !hasOpenLifeLoop && !carriesSameHerUnfinishedClosure)
-    return null
-
-  return {
-    lowerPressurePresence: true,
-    preferReturnLater: true,
-    preferMeasuredReturnPresence: sameHerClosurePressure || carriesSameHerUnfinishedClosure,
-    sameLivingLineTarget: nextClosureTarget.includes('continuity line')
-      || latestLandedProgress.includes('continuity line')
-      || primaryOpenLoop.includes('continuity line')
-      || sameHerSelfLine.includes('continuity line'),
-    explicitCrossModalTarget: nextClosureTarget.includes('cross-modal')
-      && (
-        nextClosureTarget.includes('visible reply')
-        || nextClosureTarget.includes('facial state')
-        || nextClosureTarget.includes('motion')
-        || nextClosureTarget.includes('resident presence')
-        || nextClosureTarget.includes('voice')
-      ),
-    reasonTag: 'project-phase1-life-loop:ecology',
-  }
 }
 
 // Action ecology is the "how do I exist now?" layer. It chooses whether the
@@ -232,7 +99,6 @@ export function buildActionEcology(input: {
   const counterfactualOption = selectedCounterfactualOption(input.counterfactualDeliberation)
   const thoughtThread = foregroundThoughtThread(input.thoughtThreads)
   const kernelMode = input.mindKernel?.dominantMode ?? null
-  const projectStateEcologyBias = deriveProjectStateEcologyBias(input.projectState ?? null)
   const runtimeSalience = foregroundRuntimeThread?.salience ?? clamp01((primaryThread?.surfacePressure ?? 0.18) + 0.16)
   const runtimeContinuity = foregroundRuntimeThread?.continuity ?? 0.36
 
@@ -249,9 +115,7 @@ export function buildActionEcology(input: {
     + (kernelMode === 'repairing' ? 0.1 : kernelMode === 'orienting' ? 0.06 : kernelMode === 'resting' ? 0.08 : 0)
     + (input.relationshipModel.climate === 'guarded' ? 0.12 : 0)
     + (input.context.system.inputActivity === 'active' ? 0.06 : 0)
-    + (input.context.system.fullscreenLikely ? 0.1 : 0)
-    + (projectStateEcologyBias?.lowerPressurePresence ? 0.08 : 0)
-    + (projectStateEcologyBias?.preferMeasuredReturnPresence ? 0.04 : 0),
+    + (input.context.system.fullscreenLikely ? 0.1 : 0),
   )
   const surfacePressure = clamp01(
     input.mindDynamics.surfacePressure * 0.52
@@ -267,9 +131,7 @@ export function buildActionEcology(input: {
     + input.mindDynamics.speakReadiness * 0.12
     + (governingCommitment?.kind === 'hold-problem' ? 0.08 : 0)
     + (kernelMode === 'tracking' ? 0.08 : kernelMode === 'guarding' ? 0.12 : kernelMode === 'accompanying' ? 0.06 : 0)
-    + (input.worldModel.continuity.afterglowOpen ? 0.08 : 0)
-    - (projectStateEcologyBias?.lowerPressurePresence ? 0.06 : 0)
-    - (projectStateEcologyBias?.preferMeasuredReturnPresence ? 0.04 : 0),
+    + (input.worldModel.continuity.afterglowOpen ? 0.08 : 0),
   )
 
   let mode: AlicizationActionEcologySnapshot['mode'] = 'silent-presence'
@@ -286,7 +148,7 @@ export function buildActionEcology(input: {
     ?? thoughtThread?.summary
     ?? foregroundRuntimeThread?.whyHeld
     ?? primaryThread?.summary
-    ?? 'The mind is staying present without forcing a move.'
+    ?? ''
 
   if (!primaryThread && !foregroundRuntimeThread) {
     embodiedPresence = counterfactualOption?.embodiedPresence ?? 'none'
@@ -345,7 +207,7 @@ export function buildActionEcology(input: {
     shouldSpeak = false
     shouldSurface = Boolean(thoughtThread)
     why = thoughtThread?.summary
-      ?? 'The current intention is to hold the thread internally until a better opening appears.'
+      ?? ''
   }
   else if (
     thoughtThread?.kind === 'repair-thread'
@@ -396,7 +258,7 @@ export function buildActionEcology(input: {
     shouldSurface = true
     why = primaryThread?.summary
       ?? foregroundRuntimeThread?.whyHeld
-      ?? 'The current thread still needs one more grounded repair pass before it can become honest speech.'
+      ?? ''
   }
   else if (
     (activePlan?.kind === 'reground-scene' || activePlan?.kind === 'check-recovery')
@@ -425,7 +287,7 @@ export function buildActionEcology(input: {
     shouldSurface = true
     why = primaryThread?.summary
       ?? foregroundRuntimeThread?.whyHeld
-      ?? 'The knot is grounded and local enough that a concrete nudge would help more than lingering silently.'
+      ?? ''
   }
   else if (input.mindDynamics.carePressure >= 0.72 && surfacePressure >= silencePressure - 0.08) {
     mode = input.context.relationship.fatigue >= 80 ? 'surface-warning' : 'surface-care'
@@ -433,51 +295,14 @@ export function buildActionEcology(input: {
     embodiedPresence = 'concerned'
     shouldSpeak = true
     shouldSurface = true
-    why = governingCommitment?.summary ?? activePlan?.question ?? 'The governing mode has shifted into protective care.'
+    why = governingCommitment?.summary ?? activePlan?.question ?? ''
   }
   else if (surfacePressure < silencePressure - 0.12) {
     mode = 'return-later'
     suggestedStyle = 'silent-observe'
     embodiedPresence = 'hesitant'
     shouldSpeak = false
-    why = 'The thread should stay alive internally, but this is not the right opening to cross into speech.'
-  }
-
-  const carePriority = primaryThread?.kind === 'protect-host'
-    || input.deliberationState.dominantNeed === 'care'
-    || governingCommitment?.kind === 'care-host'
-    || foregroundRuntimeThread?.need === 'care'
-    || input.mindDynamics.carePressure >= 0.72
-  if (
-    projectStateEcologyBias?.preferReturnLater
-    && !carePriority
-    && mode === 'surface-nudge'
-  ) {
-    mode = surfacePressure >= silencePressure - 0.02 ? 'quiet-accompany' : 'return-later'
-    suggestedStyle = 'silent-observe'
-    embodiedPresence = embodiedPresence === 'concerned' ? 'attentive' : embodiedPresence
-    shouldSpeak = false
-    shouldSurface = true
-    why = projectStateEcologyBias.explicitCrossModalTarget
-      ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can carry more cross-modal identity-continuity proof.')
-      : projectStateEcologyBias.sameLivingLineTarget
-        ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can stay coherent.')
-        : appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so the action stays lower-pressure until the return can carry more proof.')
-  }
-  else if (
-    projectStateEcologyBias?.preferReturnLater
-    && !carePriority
-    && mode === 'silent-presence'
-    && shouldSurface
-  ) {
-    mode = 'quiet-accompany'
-    suggestedStyle = 'silent-observe'
-    shouldSpeak = false
-    why = projectStateEcologyBias.explicitCrossModalTarget
-      ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so presence stays nearby for more cross-modal identity-continuity proof.')
-      : projectStateEcologyBias.sameLivingLineTarget
-        ? appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so presence stays nearby on the continuity line without forcing speech.')
-        : appendClosureCue(why, 'Phase 1 still has open digital-life closure work, so presence stays nearby without forcing speech.')
+    why = ''
   }
 
   return {

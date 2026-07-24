@@ -168,63 +168,24 @@ export function deriveMemoryFollowUpAffordance(input: {
           )
         : 'same-turn-if-invited'
 
-  const domainSummary = relationshipDominant
-    ? (
-        shouldStayInward
-          ? 'Keep the relationship line inward until the host has more room for it.'
-          : 'Let the relationship line return only after the current payoff has landed.'
-      )
-    : procedureDominant
-      ? (
-          shouldStayInward
-            ? 'Keep the remembered procedure inward until the current payoff lands.'
-            : 'Reopen the remembered procedure only after the live task payoff is stable.'
-        )
-      : selfModelDominant
-        ? (
-            shouldStayInward
-              ? 'Keep the older self-story inward until the newer self line stabilizes.'
-              : 'Let the older self-story return only after the current payoff lands and the newer self line feels stable enough to hold.'
-          )
-        : worldLike
-          ? (
-              shouldStayInward
-                ? 'Keep the inferred or reconstructed world knowledge compressed until it is safer to say out loud.'
-                : 'Delay the world-model detail until the current payoff lands and the validation pressure drops.'
-            )
-          : summary
+  const domainSummary = sanitizeOrganicMemoryText(
+    (relationshipDominant ? relationLine : null)
+    || (procedureDominant ? procedureLine : null)
+    || (selfModelDominant ? chainSummary || bundleSummary : null)
+    || (worldLike ? bundleSummary || chainSummary : null)
+    || summary,
+    220,
+  )
 
-  const domainWhyNow = relationshipDominant
-    ? (
-        shouldStayInward
-          ? 'relationship_recall=active; surface_timing=defer_until_repair_or_payoff_room; crowding_risk=high'
-          : 'relationship_recall=active; surface_timing=after_present_answer_room'
-      )
-    : procedureDominant
-      ? (
-          shouldStayInward
-            ? 'The procedure still helps, but the current payoff has to stay in front before the remembered way can become visible.'
-            : 'The remembered way still helps, but it should come back only after the host sees the present task is already being carried.'
-        )
-      : selfModelDominant
-        ? (
-            shouldStayInward
-              ? 'The older self-story still tugs on the moment, but saying it too early would flatten a self line that is still being revised.'
-              : 'The self-story can come back once the present answer has landed and the newer self line no longer needs protective room.'
-          )
-        : worldLike
-          ? (
-              shouldStayInward
-                ? 'The world-model detail is still under validation pressure, so reconstructed knowledge should stay compressed for now.'
-                : 'The world-model detail may help later, but not before the present payoff proves more stable than the reconstruction pressure.'
-            )
-          : sanitizeOrganicMemoryText(
-              deliberation.whyNow
-              || speechPlan?.rationale
-              || recollectionPlan?.rationale
-              || summary,
-              220,
-            )
+  const domainWhyNow = sanitizeOrganicMemoryText(
+    deliberation.whyNow
+    || speechPlan?.rationale
+    || recollectionPlan?.rationale
+    || relationLine
+    || procedureLine
+    || summary,
+    220,
+  )
 
   return {
     summary: sanitizeOrganicMemoryText(domainSummary, 220),

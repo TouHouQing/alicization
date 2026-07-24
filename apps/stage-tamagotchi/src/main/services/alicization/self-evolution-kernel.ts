@@ -123,7 +123,7 @@ function summarizeCorrectedSamePersonContinuityCue(text: string) {
   if (!hasCorrectedSamePersonContinuityCue(text))
     return null
 
-  return 'Carry corrected same-person continuity forward at lower pressure instead of sliding back into progress pressure.'
+  return sanitizeText(text, 260)
 }
 
 function hasMetabolizedContinuityCadenceCue(text: string) {
@@ -143,7 +143,7 @@ function summarizeMetabolizedContinuityCadenceCue(text: string) {
   if (!hasMetabolizedContinuityCadenceCue(text))
     return null
 
-  return 'Keep corrected same-person continuity foregrounded, let the stronger same-thread memory lead, and let temporary noise fade instead of retaking the line.'
+  return sanitizeText(text, 260)
 }
 
 function hasInitiativeStrategyCadenceCue(text: string) {
@@ -172,15 +172,7 @@ function summarizeInitiativeStrategyCadenceCue(text: string) {
   if (!hasInitiativeStrategyCadenceCue(text))
     return null
 
-  const normalized = sanitizeText(text, 260).toLowerCase()
-  const acceptedOrContinued = /accepted or continued|received without obvious resistance|memory-led/u.test(normalized)
-  const keepGentle = /gentle/u.test(normalized)
-  const keepLowerPressure = /lower-pressure|lower pressure/u.test(normalized)
-
-  if (acceptedOrContinued && keepGentle && keepLowerPressure)
-    return 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.'
-
-  return 'Keep future follow-ups lower-pressure, less eager, and wait for a clearer opening before reopening this line.'
+  return sanitizeText(text, 260)
 }
 
 function hasDurableSelfRhythmCue(text: string) {

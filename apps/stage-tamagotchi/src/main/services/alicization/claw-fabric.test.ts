@@ -245,7 +245,7 @@ describe('buildClawFabricPlan', () => {
     ]))
   })
 
-  it('carries canonical Phase 1 project briefing into planning reason tags and narrative', () => {
+  it('keeps project briefing governance out of execution planning', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'codebase-edit',
@@ -267,19 +267,13 @@ describe('buildClawFabricPlan', () => {
       },
     })
 
-    expect(plan.reasonTags).toEqual(expect.arrayContaining([
-      'project-phase-briefing',
-      'project-open-loop-briefing',
-      'project-same-her-briefing',
-    ]))
-    expect(plan.narrative.join(' ')).toContain('Stay inside Alicization\'s project identity while planning execution')
-    expect(plan.narrative.join(' ')).toContain('Recent landed progress to preserve during execution planning')
-    expect(plan.narrative.join(' ')).toContain('Execution planning should help the same Phase 1 closure arc')
-    expect(plan.narrative.join(' ')).toContain('Keep the identity-continuity')
-    expect(plan.narrative.join(' ')).toContain('Avoid execution-planning drift')
+    expect(plan.reasonTags.some(tag => tag.startsWith('project-'))).toBe(false)
+    expect(plan.narrative.join(' ')).not.toContain('Phase 1')
+    expect(plan.narrative.join(' ')).not.toContain('identity_continuity')
+    expect(plan.narrative.join(' ')).not.toContain('execution-planning drift')
   })
 
-  it('keeps alias-only project briefing closure summaries alive while planning execution before the first dispatch starts', () => {
+  it('does not revive alias-only project governance summaries during execution planning', () => {
     const aliasLandedProgress = 'Alias landed progress keeps planning aware of what already landed before execution leaves the continuity state.'
     const aliasOpenClosure = 'Alias open closure keeps the still-open Phase 1 seam explicit while execution is only being planned.'
     const aliasNextClosure = 'Alias next closure keeps the next execution return on one same-her Phase 1 line.'
@@ -310,15 +304,11 @@ describe('buildClawFabricPlan', () => {
       },
     })
 
-    expect(plan.reasonTags).toEqual(expect.arrayContaining([
-      'project-phase-briefing',
-      'project-open-loop-briefing',
-      'project-same-her-briefing',
-    ]))
-    expect(plan.narrative.join(' ')).toContain(aliasLandedProgress.slice(0, 48))
-    expect(plan.narrative.join(' ')).toContain(aliasOpenClosure.slice(0, 40))
-    expect(plan.narrative.join(' ')).toContain(aliasNextClosure.slice(0, 38))
-    expect(plan.narrative.join(' ')).toContain(aliasDriftRisk.slice(0, 44))
+    expect(plan.reasonTags.some(tag => tag.startsWith('project-'))).toBe(false)
+    expect(plan.narrative.join(' ')).not.toContain(aliasLandedProgress.slice(0, 48))
+    expect(plan.narrative.join(' ')).not.toContain(aliasOpenClosure.slice(0, 40))
+    expect(plan.narrative.join(' ')).not.toContain(aliasNextClosure.slice(0, 38))
+    expect(plan.narrative.join(' ')).not.toContain(aliasDriftRisk.slice(0, 44))
   })
 
   it('does not silently fall back when the caller explicitly pinned a requested channel', () => {

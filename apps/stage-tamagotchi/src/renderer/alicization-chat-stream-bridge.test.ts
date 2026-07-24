@@ -57,6 +57,24 @@ describe('alicization chat stream bridge', () => {
       emotion: 'neutral',
       reply: 'Provider 可见回复',
     })
+    const memoryFailures = [{
+      kind: 'recall-failure',
+      reply: '本轮长期记忆召回失败。',
+      origin: 'failure-surface',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+      nonHumanAuthoredStatus: 'direct-infra-repair:recall-failure',
+      visibleReplySource: 'infrastructure-failure',
+      excludeFromPersonaLearning: true,
+      excludeFromMemoryCondensation: true,
+      auditCategory: 'alicization.chat-failure',
+      stage: 'long-term-memory-recall',
+      cardId: 'default',
+      turnId: 'turn-provider',
+      occurredAt: 10,
+      errorSummary: 'recall offline',
+    }] as const
     const event = bridgeAlicizationChatFinishEventToStreamEvent({
       cardId: 'default',
       turnId: 'turn-provider',
@@ -70,6 +88,7 @@ describe('alicization chat stream bridge', () => {
       failureSurface: null,
       fullText,
       finishReason: 'stop',
+      memoryFailures: [...memoryFailures],
     })
 
     expect(event).toMatchObject({
@@ -78,6 +97,7 @@ describe('alicization chat stream bridge', () => {
       fullText,
       finishReason: 'stop',
       failureSurface: null,
+      memoryFailures,
     })
   })
 

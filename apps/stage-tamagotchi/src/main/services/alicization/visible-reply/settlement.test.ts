@@ -304,12 +304,14 @@ describe('visible-reply settlement', () => {
       providerMindExecuted: true,
       mode: 'provider-stream',
       visibleText: '  Provider 原样回答。  ',
-      projectStateEvidenceStatus: 'unknown',
-      projectStateAudit: null,
       emotionalClosureAudit: null,
       selfAuthorityAudit: null,
-      openingEmbodimentAudit: null,
+      nonHumanAuthoredStatus: null,
+      blockedReasons: [],
+      reason: 'provider-stream',
     })
+    expect(result.realization.critic?.status).toBe('pass')
+    expect(result.realization.closure?.status).toBe('approved')
   })
 
   it('returns the structured-contract failure surface when validation cannot settle', async () => {

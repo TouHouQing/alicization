@@ -43,29 +43,6 @@ function uniqueLabels(values: Array<string | null | undefined>, maxItems = 12) {
   return labels
 }
 
-function buildProjectStateContinuitySummary(input: {
-  semantics: AlicizationDialogueTurnSemantics
-  focus: AlicizationDialogueFocusGovernance
-  obligation: AlicizationDialogueObligation
-}) {
-  if (!input.semantics.reasonTags.includes('project-state-continuity-question'))
-    return null
-
-  const continuityLine = 'from current project continuity facts.'
-  const baseSummary = sanitizeText(
-    input.focus.focusSummary
-    || input.obligation.summary
-    || 'The host is asking Alicization to answer what this project is, what has landed, and what still remains open.',
-    160,
-  ) || 'The host is asking Alicization to answer what this project is, what has landed, and what still remains open.'
-
-  if (/current project continuity facts/i.test(baseSummary))
-    return baseSummary
-
-  return sanitizeText(`${baseSummary.replace(/[.?!]\s*$/, '')} ${continuityLine}`, 180)
-    || 'The host is asking Alicization to answer what this project is, what has landed, and what still remains open from current project continuity facts.'
-}
-
 export interface AlicizationDialogueTurnEncounter extends AlicizationDialogueTurnEncounterSnapshot {
   semantics: AlicizationDialogueTurnSemantics
   obligation: AlicizationDialogueObligation
@@ -132,18 +109,7 @@ export function buildDialogueTurnEncounter(input: {
     inspectionState: ownership.inspectionState,
     releaseInspectionCarry: ownership.releaseInspectionCarry,
     taskAnchor: input.semantics.taskAnchor ?? null,
-    summary: buildProjectStateContinuitySummary({
-      semantics: input.semantics,
-      focus,
-      obligation,
-    }) || sanitizeText(
-      focus.focusSummary
-      || obligation.summary
-      || input.semantics.summary
-      || input.semantics.taskAnchor
-      || 'Stay with the actual subject of this turn.',
-      180,
-    ) || 'Stay with the actual subject of this turn.',
+    summary: '',
     dialogueFirst: isDialogueFirstSubject(ownership.subject),
     shouldBypassScreenRepair: focus.shouldBypassScreenRepair,
     mustRepairFirst: obligation.mustRepairFirst,
@@ -175,22 +141,6 @@ export function buildDialogueTurnEncounter(input: {
 }
 
 export function buildDialogueTurnEncounterSystemBlock(encounter: AlicizationDialogueTurnEncounterSnapshot) {
-  return [
-    '[ALICIZATION_DIALOGUE_TURN_ENCOUNTER]',
-    'This block is the authoritative turn-level reducer for what this turn is about, who owns it, and what Alicization owes next.',
-    `Host act: ${encounter.act}.`,
-    `Response need: ${encounter.responseNeed}.`,
-    `Truth expectation: ${encounter.truthExpectation}.`,
-    `Subject: ${encounter.subject}.`,
-    `Screen reference mode: ${encounter.screenReferenceMode}.`,
-    `Continuity mode: ${encounter.continuityMode}.`,
-    `Inspection state: ${encounter.inspectionState}.`,
-    `Bypass screen repair drift: ${encounter.shouldBypassScreenRepair ? 'yes' : 'no'}.`,
-    `Must repair first: ${encounter.mustRepairFirst ? 'yes' : 'no'}.`,
-    `Must answer directly: ${encounter.mustAnswerDirectly ? 'yes' : 'no'}.`,
-    `Stay task-bound: ${encounter.mustStayTaskBound ? 'yes' : 'no'}.`,
-    `Persona kernel mode: ${encounter.personaKernelMode}.`,
-    `Turn summary: ${encounter.summary}.`,
-    'All downstream reducers should treat this block as the single source of turn ownership and obligation.',
-  ].join('\n')
+  void encounter
+  return ''
 }

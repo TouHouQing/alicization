@@ -1,4 +1,7 @@
-import type { AlicizationChannelCapability } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationChannelCapability,
+  AlicizationVisibleReplyRealizationTransportArtifact,
+} from '@proj-alicization/stage-shared'
 import type { Message } from '@xsai/shared-chat'
 
 import type {
@@ -338,7 +341,7 @@ export interface AlicizationReplayTurn {
   categories?: string[]
   organicMemoryContext?: OrganicMemoryPromptContext
   performanceManifest?: AlicizationPreparedMainChatExecutionResult['performanceManifest']
-  visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
+  visibleReplyRealization?: AlicizationVisibleReplyRealizationTransportArtifact | null
   prelude?: AlicizationPreparedMainChatPrelude
   messages?: Message[]
   tracePointer?: AlicizationReplayBenchmarkTracePointer
@@ -4016,6 +4019,27 @@ function readPreparedLatencyBudgetClass(prepared: AlicizationPreparedMainChatExe
   return readString(derivedBundle?.recallLatencyPolicy?.budgetClass, 64) || null
 }
 
+function normalizeReplayVisibleReplySurface(
+  raw: AlicizationVisibleReplyRealizationTransportArtifact,
+): AlicizationVisibleReplyRealizationArtifact {
+  return {
+    version: 'visible-reply-realization-v1',
+    expectedAuthority: raw.expectedAuthority ?? 'llm-mind',
+    actualAuthority: raw.actualAuthority ?? null,
+    providerMindExecuted: raw.providerMindExecuted ?? false,
+    mode: raw.mode ?? 'local-fallback',
+    visibleText: raw.visibleText ?? null,
+    visibleReplyValidationStatus: raw.visibleReplyValidationStatus ?? 'unknown',
+    nonHumanAuthoredStatus: raw.nonHumanAuthoredStatus ?? null,
+    blockedReasons: raw.blockedReasons ?? [],
+    emotionalClosureAudit: raw.emotionalClosureAudit ?? null,
+    selfAuthorityAudit: raw.selfAuthorityAudit ?? null,
+    reason: raw.reason ?? null,
+    critic: raw.critic ?? null,
+    closure: raw.closure ?? null,
+  }
+}
+
 function rebuildReplayPreparedTurnGraph(
   prepared: AlicizationPreparedMainChatExecutionResult,
   surface: AlicizationVisibleReplyRealizationArtifact | null,
@@ -4586,7 +4610,7 @@ function parseReplayTurnFromDatasetBacklogEntry(raw: unknown): AlicizationReplay
       : undefined,
     categories: readStringArray(replayTurnRaw?.categories, 8, 64),
     visibleReplyRealization: asObject(replayTurnRaw?.visibleReplyRealization)
-      ? replayTurnRaw?.visibleReplyRealization as AlicizationVisibleReplyRealizationArtifact
+      ? replayTurnRaw?.visibleReplyRealization as AlicizationVisibleReplyRealizationTransportArtifact
       : undefined,
     organicMemoryContext: asObject(replayTurnRaw?.organicMemoryContext)
       ? replayTurnRaw?.organicMemoryContext as OrganicMemoryPromptContext
@@ -5123,7 +5147,10 @@ export async function replayMainChatSession(input: {
     results.push(turn.visibleReplyRealization
       ? {
           ...prepared,
-          turnGraph: rebuildReplayPreparedTurnGraph(prepared, turn.visibleReplyRealization),
+          turnGraph: rebuildReplayPreparedTurnGraph(
+            prepared,
+            normalizeReplayVisibleReplySurface(turn.visibleReplyRealization),
+          ),
         }
       : prepared)
   }

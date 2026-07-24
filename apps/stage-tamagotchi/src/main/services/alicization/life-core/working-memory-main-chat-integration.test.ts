@@ -62,8 +62,6 @@ describe('working memory main chat integration helpers', () => {
 
     expect(messages[0]).toEqual({ role: 'system', content: 'SOUL' })
     expect(messages[1]?.role).toBe('system')
-    expect(String(messages[1]?.content)).toContain('WorkingMemory short-term memory evidence.')
-    expect(String(messages[1]?.content)).toContain('Owner: WorkingMemory. Scope: short-term dialogue.')
     expect(String(messages[1]?.content)).toContain('B 线 WorkingMemory')
     expect(String(messages[1]?.content)).toContain('不要固定模板')
     expect(String(messages[1]?.content)).not.toContain('[ALICIZATION_WORKING_MEMORY]')

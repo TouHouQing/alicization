@@ -68,16 +68,6 @@ function hostPersonModelSelfContinuityAuthority(
   )?.personStateProjection?.selfContinuityAuthority ?? null
 }
 
-function stripTrailingPunctuation(text: string) {
-  return text.replace(/[.。!！?？;；:：]+$/u, '').trim()
-}
-
-function lowerFirst(text: string) {
-  if (!text)
-    return ''
-  return text.slice(0, 1).toLowerCase() + text.slice(1)
-}
-
 function uniqueByLabel(items: AlicizationMindStatementSnapshot[], maxItems = items.length) {
   const seen = new Set<string>()
   const result: AlicizationMindStatementSnapshot[] = []
@@ -194,90 +184,43 @@ function resolveOpeningIntent(input: {
 }) {
   const anchorVoice = sanitizeText(input.anchorCue, 180)
   const leadingAgenda = sanitizeText(dominantMotiveAgenda(input.motiveEngine)?.summary, 180)
-  const callbackDoctrine = sanitizeText(input.autobiographicalSelf?.relationshipDoctrine, 180).toLowerCase()
-  const callbackInflection = sanitizeText(input.autobiographicalSelf?.latestInflection, 180).toLowerCase()
-  const measuredCallbackReturn = input.personalityContinuityState?.currentRegime === 'execution-callback'
-    && (
-      /bounded-return|measured-return|reconfirmation|surface fully cools|leave room|lower-pressure/u.test(callbackDoctrine)
-      || /bounded-return|measured-return|reconfirmation|lower-pressure/u.test(callbackInflection)
-    )
   if (
     input.subject === 'alicization-self'
     && input.autobiographicalSelf?.identityNarrative
   ) {
     const selfLine = sanitizeText(input.selfContinuityAuthority?.selfLine, 180)
-    return selfLine
-      ? `Speak from the current self-continuity line: ${selfLine}`
-      : `Speak from the autobiographical self: ${sanitizeText(input.autobiographicalSelf.identityNarrative, 180)}`
-  }
-  if (
-    input.speechObligation === 'care-host'
-    && input.habitPolicy?.protectsRestWindow
-  ) {
-    return 'Care for the host gently and protect rest without adding extra asks.'
+    return selfLine || sanitizeText(input.autobiographicalSelf.identityNarrative, 180)
   }
   if (
     input.habitPolicy?.requiresGroundingBeforeSurface
     && input.subject !== 'relationship'
     && input.subject !== 'alicization-self'
   ) {
-    return leadingAgenda
-      ? `Ground the reply before fluency; use this agenda only after grounding: ${leadingAgenda}`
-      : input.growthProfile.closeness >= 0.58
-        ? 'Put truth first even when closeness is requested.'
-        : 'Put truth before fluency.'
+    return leadingAgenda || sanitizeText(input.discourseState.ruptureRepair, 180)
   }
   if (
     input.subject === 'relationship'
     && leadingAgenda
   ) {
-    return input.growthProfile.companionshipStyle === 'close-hold'
-      ? `Put the relationship first without swallowing the host pressure; agenda: ${leadingAgenda}`
-      : input.growthProfile.autonomyRespect >= 0.58
-        ? `Put the relationship first with light pressure and high autonomy respect; agenda: ${leadingAgenda}`
-        : `Put the relationship first; agenda: ${leadingAgenda}`
+    return leadingAgenda
   }
-  if (input.speechObligation === 'repair-truth') {
-    return input.personalityContinuityState?.repairPosture === 'repair-first'
-      ? 'Repair truth before closeness or fluency.'
-      : 'Repair truth before warmth, style, or carry.'
-  }
-  if (input.speechObligation === 'guide-task' && input.personalityContinuityState?.currentRegime === 'execution-callback') {
-    if (measuredCallbackReturn) {
-      return 'Return the execution callback on the same thread and defer closeness widening.'
-    }
-    return 'Return the execution callback on the same thread and avoid starting a new conversation.'
-  }
-  if (input.speechObligation === 'guide-task') {
-    return input.personalityContinuityState?.currentRegime === 'focused-work'
-      || input.personalityContinuityState?.autonomyPosture === 'protect-space'
-      || input.growthProfile.autonomyRespect >= 0.58
-      ? 'Guide the active task knot with light pressure and continuity.'
-      : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'Guide the active task knot while preserving the unfinished thread.'
-        : 'Guide the active task knot with one concrete resolution step.'
-  }
-  if (input.speechObligation === 'care-host') {
-    return input.personalityContinuityState?.currentRegime === 'late-night-care'
-      || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
-      ? 'Put the host condition first and protect rest.'
-      : input.growthProfile.reassuranceDepth >= 0.62
-        ? 'Put the host condition first with quiet reassurance, not correctness only.'
-        : input.growthProfile.autonomyRespect >= 0.58
-          ? 'Put the host condition first, respect autonomy, and stay grounded in current reality.'
-          : 'Put the host condition first and stay grounded in current reality.'
-  }
+  if (input.speechObligation === 'repair-truth')
+    return sanitizeText(input.discourseState.ruptureRepair, 180)
+  if (input.speechObligation === 'guide-task')
+    return leadingAgenda || sanitizeText(input.discourseState.currentTurnSummary, 180)
+  if (input.speechObligation === 'care-host')
+    return leadingAgenda || sanitizeText(input.discourseState.currentTurnSummary, 180)
   if (input.speechObligation === 'inspect-scene')
-    return 'Inspect the scene from what is visible now; do not lead with carried memory.'
+    return sanitizeText(input.discourseState.currentTurnSummary, 180)
   if (input.subject === 'alicization-self') {
     return input.growthProfile.selfLine
-      ? `Answer from the current self line: ${input.growthProfile.selfLine}`
-      : 'Answer from self-continuity without leaning on the screen as a crutch.'
+      ? sanitizeText(input.growthProfile.selfLine, 180)
+      : sanitizeText(input.autobiographicalSelf?.identityNarrative, 180)
   }
   if (input.subject === 'relationship')
-    return 'Ground the relationship first, then widen only if appropriate.'
+    return leadingAgenda || sanitizeText(input.discourseState.currentTurnSummary, 180)
   if (input.privateThought?.stance === 'accompany')
-    return 'Accompany lightly while preserving the answer obligation.'
+    return sanitizeText(input.privateThought.thoughtText, 180)
   if (
     anchorVoice
     && (
@@ -286,11 +229,10 @@ function resolveOpeningIntent(input: {
       || isDialogueFirstSubject(input.subject)
     )
   ) {
-    return `Anchor the dialogue with this cue and avoid drift: ${anchorVoice}`
+    return anchorVoice
   }
-  return input.growthProfile.currentPreoccupation
-    ? `Center the current turn: ${sanitizeText(input.discourseState.currentTurnSummary, 180)}. Current preoccupation: ${lowerFirst(stripTrailingPunctuation(input.growthProfile.currentPreoccupation))}.`
-    : `Center the current turn: ${sanitizeText(input.discourseState.currentTurnSummary, 180)}.`
+  return sanitizeText(input.growthProfile.currentPreoccupation, 180)
+    || sanitizeText(input.discourseState.currentTurnSummary, 180)
 }
 
 function resolveTruthBoundary(input: {
@@ -300,24 +242,18 @@ function resolveTruthBoundary(input: {
   subjectiveInference?: AlicizationSubjectiveInferenceSnapshot | null
   growthProfile: AlicizationDialogueGrowthProfile
 }) {
-  if (input.discourseState.screenReferenceMode === 'avoid') {
-    return input.growthProfile.autonomyRespect >= 0.58
-      ? 'Keep dialogue first; screen carry is only a tint and should not pressure the answer.'
-      : 'Keep dialogue first; screen carry is only a tint and cannot authorize the answer.'
-  }
-  if (input.repairLedger?.shouldConstrainPresentTense) {
-    return 'Constrain present-tense claims because repair trust is low.'
-  }
+  if (input.discourseState.screenReferenceMode === 'avoid')
+    return sanitizeText(input.discourseState.currentTurnSummary, 180)
+  if (input.repairLedger?.shouldConstrainPresentTense)
+    return sanitizeText(input.repairLedger.entries[0]?.summary, 180) || sanitizeText(input.discourseState.ruptureRepair, 180)
   const certainty = input.worldModel?.epistemicState.certainty ?? 'uncertain'
-  if (certainty === 'grounded')
-    return 'Scene claims are grounded for the current turn.'
-  if (certainty === 'observed')
-    return 'Scene claims are observed; keep detail broad and avoid over-naming.'
-  if (certainty === 'lingering')
-    return 'Treat scene detail as lingering carry, not fresh sightline.'
   if (input.subjectiveInference?.uncertainty)
-    return `Mark subjective uncertainty plainly: ${lowerFirst(stripTrailingPunctuation(sanitizeText(input.subjectiveInference.uncertainty, 220)))}.`
-  return 'Treat the scene as ungrounded; keep claims narrow and separate memory guesses.'
+    return sanitizeText(input.subjectiveInference.uncertainty, 220)
+  if (certainty === 'grounded')
+    return ''
+  return input.worldModel?.epistemicState.openQuestions?.[0]
+    ? sanitizeText(input.worldModel.epistemicState.openQuestions[0], 220)
+    : ''
 }
 
 function resolveInteriorSummary(input: {
@@ -350,16 +286,25 @@ function resolveInteriorSummary(input: {
     || input.discourseState.currentTurnSummary,
     220,
   )
-  if (!rawSummary) {
-    return input.growthProfile.cadenceAffinity >= 0.6
-      ? 'Interior pressure comes from thread cadence; preserve warmth and return liveliness.'
-      : input.growthProfile.unfinishedThreadReturn >= 0.58
-        ? 'Interior pressure comes from unfinished thread return; avoid slack.'
-        : 'Interior pressure comes from the current living turn; avoid residue drift.'
-  }
-  return input.growthProfile.leadingAgenda
-    ? `interior_pressure=${stripTrailingPunctuation(rawSummary)}; leading_agenda=${lowerFirst(stripTrailingPunctuation(input.growthProfile.leadingAgenda))}`
-    : `interior_pressure=${stripTrailingPunctuation(rawSummary)}`
+  if (!rawSummary)
+    return ''
+  const leadingAgenda = sanitizeText(input.growthProfile.leadingAgenda, 220)
+  return uniqueByLabel([
+    makeStatement({
+      label: 'interior',
+      summary: rawSummary,
+      confidence: 0.6,
+      sourceTags: ['mind-synthesis'],
+    }),
+    makeStatement({
+      label: 'agenda',
+      summary: leadingAgenda,
+      confidence: 0.54,
+      sourceTags: ['dialogue-growth'],
+    }),
+  ].filter((item): item is AlicizationMindStatementSnapshot => Boolean(item)), 2)
+    .map(item => item.summary)
+    .join(' ')
 }
 
 export function buildMindSynthesis(input: {
@@ -851,30 +796,6 @@ export function buildMindSynthesis(input: {
 }
 
 export function buildMindSynthesisSystemBlock(state: AlicizationMindSynthesisSnapshot | null | undefined) {
-  if (!state)
-    return ''
-
-  const summarize = (label: string, rows: AlicizationMindStatementSnapshot[]) => [
-    `${label}:`,
-    ...(rows.length > 0
-      ? rows.map(row => `- ${row.label}: ${row.summary} (confidence ${row.confidence})`)
-      : ['- none']),
-  ]
-
-  return [
-    '[ALICIZATION_MIND_SYNTHESIS]',
-    'This block is Alicization’s internal synthesis for the current turn. Treat it as the living mental spine, not decorative metadata.',
-    `Answer subject: ${state.answerSubject}.`,
-    `Relation move: ${state.relationMove}.`,
-    `Speech obligation: ${state.speechObligation}.`,
-    `Opening intent: ${state.openingIntent}.`,
-    `Truth boundary: ${state.truthBoundary}.`,
-    `Interior summary: ${state.interiorSummary}.`,
-    ...summarize('Beliefs', state.beliefs),
-    ...summarize('Uncertainties', state.uncertainties),
-    ...summarize('Concerns', state.concerns),
-    ...summarize('Commitments', state.commitments),
-    ...summarize('Desires', state.desires),
-    'The reply must sound like it was formed from this inner synthesis before it was phrased.',
-  ].join('\n')
+  void state
+  return ''
 }

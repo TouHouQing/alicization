@@ -285,53 +285,6 @@ function codingAnchor(
   ) || null
 }
 
-function buildDialogueFirstSummary(input: {
-  act: AlicizationDialogueAct
-  subjectPreference?: AlicizationDialogueAnswerSubject | null
-  answerRepairFollowUp: boolean
-  careRequest: boolean
-  companionshipBid: boolean
-  hostStateDisclosure: boolean
-  projectStateContinuityQuestion: boolean
-  userText: string
-}) {
-  if (input.answerRepairFollowUp) {
-    return 'The host is asking Alicization to repair the previous answer and speak more plainly.'
-  }
-  if (input.careRequest) {
-    return 'The host is asking for direct comfort around the present condition.'
-  }
-  if (input.hostStateDisclosure || input.subjectPreference === 'host-state') {
-    return 'The host wants the reply to stay with the present inner state instead of drifting into the screen.'
-  }
-  if (input.companionshipBid || input.subjectPreference === 'relationship') {
-    return 'The host is reaching for shared presence and wants Alicization to answer the relationship bid itself.'
-  }
-  if (input.projectStateContinuityQuestion) {
-    const normalizedUserText = normalizeDialogueText(input.userText)
-    const asksMergeReadiness = projectStateMergeReadinessCuePattern.test(normalizedUserText)
-    const asksCompletionTimeline = projectStateCompletionTimelineCuePattern.test(normalizedUserText)
-    const asksLanguageDrift = projectStateLanguageDriftCuePattern.test(normalizedUserText)
-
-    if (asksMergeReadiness) {
-      return 'The host is asking Alicization to answer what this project is, how far Phase 1 has landed, what still remains open, and whether the current work is actually merge-ready, from current project continuity.'
-    }
-
-    if (asksCompletionTimeline || asksLanguageDrift) {
-      return 'The host is asking Alicization to answer how far the current Phase 1 line has landed, what still remains open, when the goal should close, and whether the thread drifted out of the host language or project context, from current project continuity.'
-    }
-
-    return 'The host is asking Alicization to answer what this project is, how far Phase 1 has landed, and what still remains open, from current project continuity.'
-  }
-  if (input.subjectPreference === 'alicization-self') {
-    return 'The host is turning the dialogue back toward Alicization herself and expects a plain direct answer.'
-  }
-  if (input.act === 'challenge') {
-    return 'The host is pushing back on Alicization directly and expects a more grounded human answer.'
-  }
-  return `The host wants a direct dialogue-first answer: ${input.userText}`
-}
-
 function buildTurnFocusContextPhrases(input: {
   currentScene: AlicizationVisualSceneSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
@@ -461,7 +414,7 @@ export function buildDialogueTurnSemantics(input: {
       sharedAttentionDemand: 0.18,
       personaSuppression: 0.16,
       confidence: 0.22,
-      summary: 'The host turn is too thin to pin down yet.',
+      summary: '',
       source: 'heuristic',
       reasonTags: ['empty-user-turn'],
     }
@@ -551,13 +504,22 @@ export function buildDialogueTurnSemantics(input: {
       reasonTags.push('self-identity-affirmation')
     }
     else if (projectStateContinuityQuestion) {
+      const normalizedProjectText = normalizeDialogueText(userText)
       act = 'ask-help'
       responseNeed = 'answer'
       truthExpectation = 'normal'
       affectiveTone = 'neutral'
       subjectPreference = 'alicization-self'
       personaSuppression = clamp01(personaSuppression + 0.1)
-      reasonTags.push('project-state-continuity-question')
+      reasonTags.push(
+        'project-state-continuity-question',
+        projectStateMergeReadinessCuePattern.test(normalizedProjectText) ? 'project-state:merge-readiness' : '',
+        projectStateClosureReadinessCuePattern.test(normalizedProjectText) ? 'project-state:closure-readiness' : '',
+        projectStateCompletionTimelineCuePattern.test(normalizedProjectText) ? 'project-state:completion-timeline' : '',
+        projectStateLanguageDriftCuePattern.test(normalizedProjectText) ? 'project-state:language-drift' : '',
+        projectStateCurrentWorkCuePattern.test(normalizedProjectText) ? 'project-state:current-work' : '',
+        projectStateProgressCuePattern.test(normalizedProjectText) ? 'project-state:progress' : '',
+      )
     }
     else {
       act = selfToneAdjustment ? 'challenge' : 'ask-help'
@@ -694,24 +656,6 @@ export function buildDialogueTurnSemantics(input: {
     || hostStateDisclosure
     || detachedQuestion
   const taskAnchor = dialogueFirstTurn ? null : sceneTaskAnchor
-  const summary = sanitizeText(
-    dialogueFirstTurn
-      ? buildDialogueFirstSummary({
-          act,
-          subjectPreference,
-          answerRepairFollowUp,
-          careRequest,
-          companionshipBid,
-          hostStateDisclosure,
-          projectStateContinuityQuestion,
-          userText,
-        })
-      : taskAnchor
-        ? `${act} around ${taskAnchor}`
-        : `${act} with ${responseNeed} need`,
-    180,
-  ) || 'The host expects a current-turn response.'
-
   return {
     act,
     responseNeed,
@@ -728,7 +672,7 @@ export function buildDialogueTurnSemantics(input: {
       + (topGoal !== 'unknown' ? 0.14 : 0)
       + (taskAnchor ? 0.1 : dialogueFirstTurn ? 0.08 : 0.04),
     ),
-    summary,
+    summary: '',
     source: 'heuristic',
     reasonTags: uniqueLabels([
       ...reasonTags,
@@ -757,7 +701,6 @@ export interface AlicizationDialogueTurnSemanticsCandidate {
   sharedAttentionDemand?: number
   personaSuppression?: number
   confidence?: number
-  summary?: string
   reasonTags?: string[]
 }
 
@@ -845,7 +788,6 @@ export function parseDialogueTurnSemanticsCandidate(raw: string): AlicizationDia
     confidence: Number.isFinite(Number(parsed.confidence))
       ? clamp01(Number(parsed.confidence))
       : undefined,
-    summary: sanitizeText(parsed.summary, 180) || undefined,
     reasonTags: Array.isArray(parsed.reasonTags) ? uniqueLabels(parsed.reasonTags) : undefined,
   }
 
@@ -856,7 +798,6 @@ export function parseDialogueTurnSemanticsCandidate(raw: string): AlicizationDia
     || candidate.affectiveTone
     || candidate.subjectPreference
     || candidate.taskAnchor
-    || candidate.summary
     || (candidate.reasonTags && candidate.reasonTags.length > 0),
   )
 
@@ -923,11 +864,7 @@ export function mergeDialogueTurnSemantics(
       weight,
     ),
     confidence: interpolate01(base.confidence, overrideConfidence, weight),
-    summary: preserveInspectionBase
-      ? base.summary
-      : preserveDialogueFirstBase
-        ? base.summary
-        : candidate.summary ?? base.summary,
+    summary: base.summary,
     source: 'hybrid',
     reasonTags: uniqueLabels([
       ...(candidate.reasonTags ?? []),

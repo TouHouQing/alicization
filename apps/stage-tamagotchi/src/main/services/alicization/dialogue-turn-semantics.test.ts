@@ -269,7 +269,7 @@ describe('dialogue-turn-semantics', () => {
     expect(semantics.act).toBe('ask-help')
     expect(semantics.responseNeed).toBe('answer')
     expect(semantics.truthExpectation).toBe('normal')
-    expect(semantics.summary).toContain('Alicization')
+    expect(semantics.summary).toBe('')
     expect(semantics.taskAnchor).toBeNull()
     expect(semantics.reasonTags).toContain('scene-detached-turn')
     expect(semantics.reasonTags).not.toContain('coding-question')
@@ -685,7 +685,7 @@ describe('dialogue-turn-semantics', () => {
     expect(semantics.responseNeed).toBe('clarify')
     expect(semantics.subjectPreference).toBe('alicization-self')
     expect(semantics.reasonTags).toContain('answer-realignment')
-    expect(semantics.summary).toContain('repair the previous answer')
+    expect(semantics.summary).toBe('')
     expect(semantics.taskAnchor).toBeNull()
   })
 
@@ -1000,7 +1000,7 @@ describe('dialogue-turn-semantics', () => {
     expect(merged.source).toBe('hybrid')
     expect(merged.act).toBe('correct')
     expect(merged.responseNeed).toBe('repair')
-    expect(merged.summary).toBe('repair the stale scene read first')
+    expect(merged.summary).toBe('')
     expect(merged.reasonTags).toContain('structured-dialogue-cognition')
     expect(merged.personaSuppression).toBeGreaterThan(base.personaSuppression)
   })
@@ -1102,7 +1102,7 @@ describe('dialogue-turn-semantics', () => {
     expect(base.subjectPreference).toBe('relationship')
     expect(merged.subjectPreference).toBe('relationship')
     expect(merged.taskAnchor).toBeNull()
-    expect(merged.summary).toContain('relationship bid')
+    expect(merged.summary).toBe('')
     expect(merged.reasonTags).toContain('preserve-dialogue-first-base')
   })
 
@@ -1300,7 +1300,7 @@ describe('dialogue-turn-semantics', () => {
 
     expect(semantics.subjectPreference).toBe('alicization-self')
     expect(semantics.responseNeed).toBe('answer')
-    expect(semantics.summary).toContain('merge-ready')
+    expect(semantics.summary).toBe('')
     expect(semantics.reasonTags).toEqual(expect.arrayContaining([
       'project-state-continuity-question',
       'dialogue-first-turn',
@@ -1366,7 +1366,7 @@ describe('dialogue-turn-semantics', () => {
 
     expect(semantics.subjectPreference).toBe('alicization-self')
     expect(semantics.responseNeed).toBe('answer')
-    expect(semantics.summary).toContain('merge-ready')
+    expect(semantics.summary).toBe('')
     expect(semantics.reasonTags).toEqual(expect.arrayContaining([
       'project-state-continuity-question',
       'dialogue-first-turn',
@@ -1498,7 +1498,7 @@ describe('dialogue-turn-semantics', () => {
 
     expect(semantics.subjectPreference).toBe('alicization-self')
     expect(semantics.responseNeed).toBe('answer')
-    expect(semantics.summary).toContain('Phase 1')
+    expect(semantics.summary).toBe('')
     expect(semantics.reasonTags).toEqual(expect.arrayContaining([
       'project-state-continuity-question',
       'dialogue-first-turn',

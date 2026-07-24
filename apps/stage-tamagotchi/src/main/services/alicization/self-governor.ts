@@ -210,7 +210,8 @@ export function buildSelfGovernor(input: {
       summary: plan?.question
         ?? governing?.summary
         ?? input.livingWorldState.openLoops[0]
-        ?? 'Repair the drift between the carried scene and the live world.',
+        ?? activeThread?.summary
+        ?? '',
       urgency: clamp01(driveScores.repair + (plan?.askForGrounding ? 0.12 : 0)),
       confidence: clamp01(0.5 + driveScores.repair * 0.42),
       patience: 0.46,
@@ -232,7 +233,7 @@ export function buildSelfGovernor(input: {
       summary: activeThread?.summary
         ?? leadingGoal?.label
         ?? input.livingWorldState.openLoops[0]
-        ?? 'Keep the active thread in view until the knot localizes.',
+        ?? '',
       urgency: clamp01(driveScores.understand + (activeThread?.unresolved ? 0.12 : 0)),
       confidence: clamp01(0.48 + driveScores.understand * 0.42),
       patience: 0.62,
@@ -256,7 +257,8 @@ export function buildSelfGovernor(input: {
       title: 'protect-host',
       summary: governing?.summary
         ?? activeThread?.summary
-        ?? 'The host world looks unstable enough that protecting the host matters more than commentary.',
+        ?? input.livingWorldState.openLoops[0]
+        ?? '',
       urgency: clamp01(driveScores.protect + (activeThread?.kind === 'recovery' ? 0.16 : 0)),
       confidence: clamp01(0.52 + driveScores.protect * 0.4),
       patience: 0.28,
@@ -279,7 +281,8 @@ export function buildSelfGovernor(input: {
       drive: 'care',
       title: 'care-host',
       summary: governing?.summary
-        ?? 'The host may need care more than analysis right now.',
+        ?? activeThread?.summary
+        ?? '',
       urgency: clamp01(driveScores.care + (input.context.relationship.fatigue >= 80 ? 0.12 : 0)),
       confidence: clamp01(0.5 + driveScores.care * 0.42),
       patience: 0.34,
@@ -302,10 +305,9 @@ export function buildSelfGovernor(input: {
       kind: 'stay-near',
       drive: 'accompany',
       title: 'stay-near',
-      summary: input.worldModel.continuity.afterglowOpen
-        ? 'The shared scene just loosened. Staying near is more honest than vanishing.'
-        : governing?.summary
-          ?? 'Stay near the current thread without forcing it open.',
+      summary: governing?.summary
+        ?? activeThread?.summary
+        ?? '',
       urgency: clamp01(driveScores.accompany + (input.worldModel.continuity.afterglowOpen ? 0.12 : 0)),
       confidence: clamp01(0.48 + driveScores.accompany * 0.4),
       patience: 0.74,
@@ -329,7 +331,8 @@ export function buildSelfGovernor(input: {
       drive: 'withhold',
       title: 'wait-opening',
       summary: plan?.question
-        ?? 'Hold the line internally until the opening becomes natural.',
+        ?? activeThread?.summary
+        ?? '',
       urgency: clamp01(driveScores.withhold),
       confidence: clamp01(0.46 + driveScores.withhold * 0.38),
       patience: 0.86,

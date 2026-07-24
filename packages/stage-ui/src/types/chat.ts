@@ -1,5 +1,11 @@
 import type { ContextUpdate, MetadataEventSource, WebSocketEventInputs } from '@proj-alicization/server-sdk'
-import type { AlicizationProviderMemoryUsage } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationChatFailureSurface,
+  AlicizationChatMemoryFailureSurface,
+  AlicizationProviderMemoryUsage,
+  AlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin,
+} from '@proj-alicization/stage-shared'
 import type { AssistantMessage, CommonContentPart, CompletionToolCall, Message, SystemMessage, ToolMessage, UserMessage } from '@xsai/shared-chat'
 
 import type {
@@ -51,6 +57,10 @@ export interface ChatAssistantStructuredPayload {
   parsePath?: 'json' | 'fallback'
   memoryUsage?: AlicizationProviderMemoryUsage
   contractFailed?: boolean
+  origin?: AlicizationVisibleArtifactOrigin
+  learningPolicy?: AlicizationVisibleArtifactLearningPolicy
+  failureSurface?: AlicizationChatFailureSurface | null
+  memoryFailures?: AlicizationChatMemoryFailureSurface[]
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null

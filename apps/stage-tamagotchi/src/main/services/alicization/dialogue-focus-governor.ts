@@ -133,7 +133,8 @@ export function buildDialogueFocusGovernance(input: {
     worldModel,
   })
   const preferredSubject = input.semantics.subjectPreference ?? null
-  const projectStateContinuityQuestion = looksLikeProjectStateContinuityQuestion(input.semantics.summary)
+  const projectStateContinuityQuestion = input.semantics.reasonTags.includes('project-state-continuity-question')
+    || looksLikeProjectStateContinuityQuestion(input.semantics.summary)
     || looksLikeProjectStateContinuityQuestion(input.obligation?.summary)
   const shouldPreferProjectStateSelfContinuity
     = projectStateContinuityQuestion
@@ -237,10 +238,9 @@ export function buildDialogueFocusGovernance(input: {
       : '')
     || (!isDialogueFirstSubject(subject)
       ? currentScene?.summary
-      : '')
-    || 'Stay with the actual subject of this turn.',
+      : ''),
     180,
-  ) || 'Stay with the actual subject of this turn.'
+  )
 
   return {
     subject,
@@ -267,15 +267,6 @@ export function buildDialogueFocusGovernance(input: {
 }
 
 export function buildDialogueFocusGovernanceSystemBlock(governance: AlicizationDialogueFocusGovernance) {
-  return [
-    '[ALICIZATION_DIALOGUE_FOCUS]',
-    'This block decides what the current turn is fundamentally about before screen truth, memory continuity, or persona styling can weigh in.',
-    `Answer subject: ${governance.subject}.`,
-    `Screen reference mode: ${governance.screenReferenceMode}.`,
-    `Weak live scene: ${governance.weakLiveScene ? 'yes' : 'no'}.`,
-    `Bypass screen repair drift: ${governance.shouldBypassScreenRepair ? 'yes' : 'no'}.`,
-    `Focus summary: ${governance.focusSummary}.`,
-    'If screen reference mode is avoid, do not drag live-scene repair, grounding talk, or stale screen residue into the opening answer.',
-    'If the live scene is weak and generic, it cannot outrank the true subject of the turn on its own.',
-  ].join('\n')
+  void governance
+  return ''
 }

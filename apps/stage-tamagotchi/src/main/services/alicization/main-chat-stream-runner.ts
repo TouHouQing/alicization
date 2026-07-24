@@ -188,48 +188,14 @@ function buildObservedVisibleReplyRealization(input: {
     mode: input.visibleReplyExecution.mode,
     visibleText: input.visibleText,
     visibleReplyValidationStatus: 'approved',
-    projectStateEvidenceStatus: 'unknown',
-    sameHerInwardCarry: null,
     nonHumanAuthoredStatus: null,
     blockedReasons: [],
     emotionalClosureAudit: null,
     selfAuthorityAudit: null,
-    projectStateAudit: null,
-    openingGuidanceHoldDetail: null,
-    companionshipHoldMode: null,
-    openingEmbodimentAudit: null,
     reason: input.visibleReplyExecution.reason,
     critic: buildPublicCriticSummary(input.critic),
     closure: buildPublicClosureSummary(input.closure),
   }
-}
-
-function isSafeObservedVisibleReplyRealization(input: {
-  realization: AlicizationVisibleReplyRealizationArtifact | null | undefined
-  visibleText: string
-  visibleReplyExecution: AlicizationVisibleReplyExecution
-}): input is {
-  realization: AlicizationVisibleReplyRealizationArtifact
-  visibleText: string
-  visibleReplyExecution: AlicizationVisibleReplyExecution
-} {
-  const realization = input.realization
-  if (!realization)
-    return false
-
-  return realization.expectedAuthority === 'llm-mind'
-    && realization.actualAuthority === 'llm-mind'
-    && realization.providerMindExecuted === true
-    && realization.mode === input.visibleReplyExecution.mode
-    && realization.visibleText === input.visibleText
-    && realization.projectStateEvidenceStatus !== 'missing'
-    && realization.projectStateAudit == null
-    && realization.emotionalClosureAudit == null
-    && realization.selfAuthorityAudit == null
-    && realization.sameHerInwardCarry == null
-    && realization.openingGuidanceHoldDetail == null
-    && realization.companionshipHoldMode == null
-    && realization.openingEmbodimentAudit == null
 }
 
 function assertProviderVisibleReplyExecution(
@@ -363,15 +329,6 @@ export async function runAlicizationMainChatStream(
     const closure = settled?.closure ?? null
 
     assertProviderVisibleReplyExecution(inputSurface.visibleReplyExecution, closure)
-
-    const candidate = settled?.visibleReplyRealization ?? null
-    if (isSafeObservedVisibleReplyRealization({
-      realization: candidate,
-      visibleText: inputSurface.visibleText,
-      visibleReplyExecution: inputSurface.visibleReplyExecution,
-    })) {
-      return candidate as AlicizationVisibleReplyRealizationArtifact
-    }
 
     return buildObservedVisibleReplyRealization({
       visibleText: inputSurface.visibleText,

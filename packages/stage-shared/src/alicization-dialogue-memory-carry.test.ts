@@ -6,7 +6,6 @@ import {
   buildAlicizationDialogueMemoryCarrySystemBlock,
   deriveAlicizationDialogueMemoryCarryPolicyFromDigest,
 } from './alicization-dialogue-memory-carry'
-import { alicizationFixedTemplateReplacement } from './alicization-fixed-template-sanitizer'
 
 function createSpineDigest(overrides?: Partial<AlicizationDigitalLifeSpineDigest>): AlicizationDigitalLifeSpineDigest {
   return {
@@ -68,7 +67,7 @@ describe('alicization dialogue memory carry', () => {
     const policy = deriveAlicizationDialogueMemoryCarryPolicyFromDigest({
       now: 1_200,
       mirror: {
-        memorySummary: 'recent=carry the refactor thread forward',
+        memorySummary: 'Continue the refactor thread from its latest unresolved point.',
         updatedAt: 1_100,
       },
       digest: createSpineDigest(),
@@ -77,10 +76,10 @@ describe('alicization dialogue memory carry', () => {
     expect(policy.mode).toBe('reflective-repair')
     expect(policy.allowMirrorCarry).toBe(true)
     expect(policy.recallSeed).toContain('memory_recall_mode:thread')
-    expect(policy.recallSeed).toContain('mirror_memory:recent=carry the refactor thread forward')
+    expect(policy.recallSeed).toContain('mirror_memory:Continue the refactor thread from its latest unresolved point.')
     expect(policy.recallSeed).toContain('memory_reflection_pressure:0.68')
-    expect(policy.summary).toContain('mode=reflective-repair')
-    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toContain('carry_mirror_memory=true')
+    expect(policy.summary).toContain('Mode: reflective-repair')
+    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toBe('')
   })
 
   it('suppresses stale mirror carry while keeping digest memory cues', () => {
@@ -99,7 +98,7 @@ describe('alicization dialogue memory carry', () => {
     expect(policy.recallSeed).not.toContain('mirror_memory:recent=carry stale memory')
   })
 
-  it('sanitizes fixed personhood templates before memory carry reaches the system block', () => {
+  it('sanitizes fixed personhood templates before memory carry becomes policy data', () => {
     const policy = deriveAlicizationDialogueMemoryCarryPolicyFromDigest({
       now: 1_200,
       mirror: {
@@ -123,10 +122,10 @@ describe('alicization dialogue memory carry', () => {
         },
       }),
     })
-    const block = buildAlicizationDialogueMemoryCarrySystemBlock(policy)
+    const policyText = `${policy.recallSeed} ${policy.summary} ${policy.reasonTags.join(' ')}`
 
-    expect(block).toContain(alicizationFixedTemplateReplacement)
-    expect(block).not.toMatch(/Pre-reply|legacy phase-one template|continuity state|same-her|identity continuity|local-first digital life project/iu)
+    expect(policyText).not.toMatch(/Pre-reply|legacy phase-one template|continuity state|same-her|identity continuity|local-first digital life project/iu)
+    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toBe('')
   })
 
   it('falls back to quiet mode when there are no thread or reflection cues', () => {

@@ -192,40 +192,24 @@ describe('learning action scheduler', () => {
       sourceTurnId: 'turn-learning',
       message: expect.stringContaining('Learning action: internalize.'),
     }))
-    expect(String(task?.message ?? '')).not.toMatch(/same-her=|same-her-gap=|same-her-hold=|guard=/u)
+    expect(String(task?.message ?? '')).toBe(
+      'Learning action: internalize. Reason: Validated procedure carry is strong enough to promote. Focus: internalize-procedure.',
+    )
     expect(insertLearningTask).toBeCalledWith(expect.objectContaining({
       cardId: 'default',
       taskId: expect.stringContaining('learning:default:internalize:'),
       action: 'internalize',
-      message: expect.stringContaining('Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified'),
+      message: 'Learning action: internalize. Reason: Validated procedure carry is strong enough to promote. Focus: internalize-procedure.',
       payload: expect.objectContaining({
         sourceTurnId: 'turn-learning',
-        projectStateContinuity: expect.objectContaining({
-          identity: 'local continuity context',
-          currentPhase: 'local continuity phase',
-          sameHerSelfLine: 'identity continuity',
-          openClosureSummary: expect.any(String),
-          proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-          preDialogueAwarenessLine: null,
-          emotionalClosureCue: null,
-          sameHerHoldDetail: null,
-          sameHerDriftRisk: 'Risk is tracked for review.',
-        }),
+        projectStateContinuity: null,
         supportingFactIds: ['fact-1'],
       }),
     }))
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'alicization.learning.task.scheduled',
       payload: expect.objectContaining({
-        projectStateContinuity: expect.objectContaining({
-          currentPhase: 'local continuity phase',
-          nextClosureTarget: expect.any(String),
-          proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-          preDialogueAwarenessLine: null,
-          emotionalClosureCue: null,
-          sameHerHoldDetail: null,
-          sameHerDriftRisk: 'Risk is tracked for review.',
-        }),
+        projectStateContinuity: null,
         nextLearningAction: 'internalize',
         activeLearningFocuses: ['internalize-procedure'],
         dominantTrajectory: 'Validated procedure is stabilizing.',
@@ -234,11 +218,10 @@ describe('learning action scheduler', () => {
       }),
     }), 'default')
     const scheduledMessage = String(insertLearningTask.mock.calls[0]?.[0]?.message ?? '')
-    expect(scheduledMessage).toContain('Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs')
-    expect(scheduledMessage).not.toMatch(/same-her=|same-her-gap=|same-her-hold=|guard=/u)
+    expect(scheduledMessage).not.toMatch(/same-her|identity continuity|project|stay anchored|risk is tracked|continuity progress/u)
   })
 
-  it('neutralizes thin raw project shells instead of preserving fixed same-her templates in delayed learning payloads', async () => {
+  it('drops project-state continuity from delayed learning payloads instead of sanitizing it into replacement templates', async () => {
     const insertLearningTask = vi.fn(async (input: any): Promise<AlicizationLearningTaskRecord> => ({
       id: `row:${input.taskId}`,
       cardId: input.cardId,
@@ -337,22 +320,15 @@ describe('learning action scheduler', () => {
 
     expect(insertLearningTask).toBeCalledWith(expect.objectContaining({
       payload: expect.objectContaining({
-        projectStateContinuity: expect.objectContaining({
-          landedProgressSummary: expect.not.stringContaining('Project continuity exists.'),
-          sameHerDriftRisk: 'Risk is tracked for review.',
-        }),
+        projectStateContinuity: null,
       }),
       message: expect.stringContaining('Learning action: internalize.'),
     }))
-    expect(String(insertLearningTask.mock.calls[0]?.[0]?.message ?? '')).not.toMatch(/guard=|project_anchor=|same-her=/u)
+    expect(String(insertLearningTask.mock.calls[0]?.[0]?.message ?? '')).toBe(
+      'Learning action: internalize. Reason: Canonical phase-1 identity-continuity. Focus: same-her-continuity.',
+    )
     const scheduledPayload = insertLearningTask.mock.calls[0]?.[0]?.payload?.projectStateContinuity
-    expect(scheduledPayload?.openClosureSummary).not.toBe('Project continuity still needs closure.')
-    expect(scheduledPayload?.nextClosureTarget).not.toBe('Carry project continuity forward.')
-    expect(scheduledPayload?.landedProgressSummary).toBe('Continuity progress is tracked.')
-    expect(scheduledPayload?.sameHerSummary).toBe('identity continuity')
-    expect(scheduledPayload?.sameHerSummary).not.toBe('template-residue-shell')
-    expect(scheduledPayload?.preDialogueAwarenessLine).not.toBe('template-residue-shell')
-    expect(scheduledPayload?.sameHerHoldDetail).toBeNull()
+    expect(scheduledPayload).toBeNull()
   })
 
   it('claims and completes due learning tasks through executor', async () => {
@@ -506,7 +482,6 @@ describe('learning action scheduler', () => {
         resultStatus: 'blocked',
         error: expect.stringContaining('missing supporting facts and reflections'),
         resultSummary: expect.stringContaining('waiting for stronger support'),
-        sameHerContinuityGuard: null,
         selfRevisionPolicyConsumers: expect.arrayContaining([
           'memory-policy',
           'relationship-posture',
@@ -515,6 +490,7 @@ describe('learning action scheduler', () => {
       }),
     }), 'default')
     const executedAuditPayload = (appendAuditLog.mock.calls as any[]).find(call => call[0]?.action === 'alicization.learning.task.executed')?.[0]?.payload as any
+    expect(executedAuditPayload).not.toHaveProperty('sameHerContinuityGuard')
     expect(executedAuditPayload?.error).not.toMatch(/same-her=|same-her-hold=|same-her-gap=|guard=/u)
     expect(executedAuditPayload?.resultSummary).not.toMatch(/same-her=|same-her-hold=|same-her-gap=|guard=/u)
   })
@@ -582,10 +558,10 @@ describe('learning action scheduler', () => {
         previousStatus: 'failed',
         failureKind: 'runtime-error',
         reason: expect.stringContaining('retryable:runtime-error:attempt 1/3'),
-        sameHerContinuityGuard: null,
       }),
     }), 'default')
     const retryAuditPayload = (appendAuditLog.mock.calls as any[]).find(call => call[0]?.action === 'alicization.learning.task.retry.reopened')?.[0]?.payload as any
+    expect(retryAuditPayload).not.toHaveProperty('sameHerContinuityGuard')
     expect(retryAuditPayload?.reason).not.toMatch(/same-her=|same-her-hold=|same-her-gap=|guard=/u)
   })
 })

@@ -160,7 +160,9 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
   return {
     system: JSON.stringify({
       type: 'alicization-execution-settlement-context',
-      executionFact,
+      data: {
+        executionFact,
+      },
     }),
     user: JSON.stringify({
       type: 'alicization-execution-settlement-request',

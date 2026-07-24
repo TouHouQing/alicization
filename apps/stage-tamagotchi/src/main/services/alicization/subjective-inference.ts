@@ -216,29 +216,29 @@ export function buildSubjectiveInference(input: {
     input.appraisal.currentKnot
     ?? input.appraisal.situatedMeaning
     ?? input.worldModel.activeThread?.summary
-    ?? 'The current thread already suggests what the host is trying to do.',
+    ?? 'appraisal.inferred-host-goal',
   )
 
   if (input.context.content.kind === 'error')
-    pushHostIntentCandidate(hostIntentCandidates, 'resolve-problem', 0.86, 'Visible error friction usually means the host is trying to resolve a concrete problem.')
+    pushHostIntentCandidate(hostIntentCandidates, 'resolve-problem', 0.86, 'context.content.error')
   if (input.context.content.kind === 'diff')
-    pushHostIntentCandidate(hostIntentCandidates, 'inspect-change', 0.82, 'A visible diff usually means the host is inspecting whether a change really holds.')
+    pushHostIntentCandidate(hostIntentCandidates, 'inspect-change', 0.82, 'context.content.diff')
   if (input.context.content.kind === 'video' || input.context.content.kind === 'music')
-    pushHostIntentCandidate(hostIntentCandidates, 'consume-media', 0.78, 'Media-shaped foreground evidence points toward watching or listening rather than debugging.')
+    pushHostIntentCandidate(hostIntentCandidates, 'consume-media', 0.78, 'context.content.media')
   if (input.context.workload.kind === 'chat')
-    pushHostIntentCandidate(hostIntentCandidates, 'chat', 0.72, 'The foreground context looks conversational.')
+    pushHostIntentCandidate(hostIntentCandidates, 'chat', 0.72, 'context.workload.chat')
   if (input.context.workload.kind === 'browser' || input.context.workload.kind === 'document')
-    pushHostIntentCandidate(hostIntentCandidates, 'browse', 0.62, 'The current thread looks more like browsing or reading than working a narrow knot.')
+    pushHostIntentCandidate(hostIntentCandidates, 'browse', 0.62, 'context.workload.reading')
   if (input.context.localTime.isLateNight && input.context.relationship.fatigue >= 60)
-    pushHostIntentCandidate(hostIntentCandidates, 'rest', 0.68, 'Late-night fatigue makes recovery a plausible hidden intention even when the host keeps going.')
+    pushHostIntentCandidate(hostIntentCandidates, 'rest', 0.68, 'context.relationship.late-night-fatigue')
   if (input.dialogueSemantics?.responseNeed === 'guide' || input.dialogueSemantics?.responseNeed === 'teach') {
-    pushHostIntentCandidate(hostIntentCandidates, 'resolve-problem', 0.84, 'The current host turn is asking for help around a concrete knot.')
+    pushHostIntentCandidate(hostIntentCandidates, 'resolve-problem', 0.84, 'dialogue.need.guidance')
   }
   if (input.dialogueSemantics?.act === 'verify-grounding' || input.dialogueSemantics?.responseNeed === 'repair') {
-    pushHostIntentCandidate(hostIntentCandidates, 'inspect-change', 0.78, 'The host is pressing for a more truthful re-grounding of the current scene.')
+    pushHostIntentCandidate(hostIntentCandidates, 'inspect-change', 0.78, 'dialogue.need.grounding-repair')
   }
   if (input.dialogueSemantics?.responseNeed === 'care') {
-    pushHostIntentCandidate(hostIntentCandidates, 'rest', 0.72, 'The host turn sounds more like strain surfacing than pure task pursuit.')
+    pushHostIntentCandidate(hostIntentCandidates, 'rest', 0.72, 'dialogue.need.care')
   }
 
   const relationshipNeed = input.appraisal.relationshipNeed ?? 'unclear'
@@ -248,34 +248,34 @@ export function buildSubjectiveInference(input: {
     Math.max(0.24, input.appraisal.confidence),
     input.appraisal.situatedMeaning
     ?? input.appraisal.waitingToVerify
-    ?? 'The current scene suggests a specific interpersonal distance.',
+    ?? 'appraisal.relationship-need',
   )
 
   if (input.context.content.kind === 'error' || input.context.content.kind === 'diff')
-    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'guidance', 0.82, 'A narrow problem thread invites grounded guidance more than vague companionship.')
+    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'guidance', 0.82, 'context.content.problem')
   if (input.context.localTime.isLateNight && input.context.relationship.fatigue >= 55)
-    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'care', 0.78, 'Fatigue shifts the relational need toward care.')
+    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'care', 0.78, 'context.relationship.fatigue')
   if (
     input.context.system.fullscreenLikely
     || input.context.system.inputActivity === 'active'
     || input.worldModel.hostState.availability === 'focused'
     || input.worldModel.hostState.availability === 'immersed'
   ) {
-    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'space', 0.74, 'The host still looks inside the thread, so interruption cost is real.')
+    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'space', 0.74, 'context.host-state.focused')
   }
   if (
     input.context.workload.kind === 'media'
     || input.worldModel.activeThread?.kind === 'co-viewing'
     || (input.watchMode === 'symbiotic-vision' && input.scene?.scenario === 'media')
   ) {
-    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'companionship', 0.7, 'Shared viewing invites staying near even when speech should stay light.')
+    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'companionship', 0.7, 'context.workload.co-viewing')
   }
   if (input.dialogueSemantics?.responseNeed === 'guide' || input.dialogueSemantics?.responseNeed === 'teach')
-    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'guidance', 0.84, 'The host turn is actively asking Alicization to help with the knot.')
+    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'guidance', 0.84, 'dialogue.need.guidance')
   if (input.dialogueSemantics?.responseNeed === 'care')
-    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'care', 0.8, 'The host turn is surfacing strain or fatigue that changes the relational need.')
+    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'care', 0.8, 'dialogue.need.care')
   if (input.dialogueSemantics?.responseNeed === 'repair')
-    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'space', 0.68, 'Truth repair needs restraint and accuracy more than emotional performance.')
+    pushRelationshipNeedCandidate(relationshipNeedCandidates, 'space', 0.68, 'dialogue.need.repair')
 
   const dominantInterpretation = sanitizeText(
     input.appraisal.situatedMeaning
@@ -283,12 +283,9 @@ export function buildSubjectiveInference(input: {
     ?? input.appraisal.currentKnot
     ?? input.attention?.target?.title
     ?? input.scene?.summary
-    ?? (isSeriousDurabilityPulse(input.durabilityPulse)
-      ? 'Something in the foreground thread seems to have collapsed or frozen.'
-      : ''),
+    ?? '',
     220,
   )
-  || 'The moment carries a specific inner meaning, but it is not fully stable yet.'
 
   const situatedMeaning = sanitizeText(
     input.appraisal.situatedMeaning
@@ -300,9 +297,7 @@ export function buildSubjectiveInference(input: {
   const uncertainty = sanitizeText(
     input.appraisal.waitingToVerify
     ?? input.worldModel.epistemicState.openQuestions[0]
-    ?? (input.worldModel.epistemicState.certainty !== 'grounded'
-      ? 'The live scene still needs another grounding pass before it deserves certainty.'
-      : ''),
+    ?? '',
     220,
   )
   || undefined

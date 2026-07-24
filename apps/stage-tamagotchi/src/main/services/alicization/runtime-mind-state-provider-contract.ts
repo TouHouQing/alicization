@@ -36,7 +36,6 @@ export const alicizationDialogueTurnSemanticsJsonSchema = {
     'sharedAttentionDemand',
     'personaSuppression',
     'confidence',
-    'summary',
     'reasonTags',
   ],
   properties: {
@@ -76,11 +75,6 @@ export const alicizationDialogueTurnSemanticsJsonSchema = {
     sharedAttentionDemand: confidenceSchema,
     personaSuppression: confidenceSchema,
     confidence: confidenceSchema,
-    summary: {
-      type: 'string',
-      minLength: 1,
-      maxLength: 180,
-    },
     reasonTags: shortLabelArraySchema(10),
   },
 } as const

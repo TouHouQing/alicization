@@ -438,6 +438,7 @@ export function bridgeAlicizationChatFinishEventToStreamEvent(
     origin: payload.origin,
     learningPolicy: payload.learningPolicy,
     failureSurface: payload.failureSurface ?? null,
+    memoryFailures: payload.memoryFailures ?? [],
     finishReason: payload.finishReason,
     fullText: payload.fullText,
     visibleReplyExecution: payload.visibleReplyExecution ?? null,

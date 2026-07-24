@@ -161,30 +161,26 @@ function buildWhy(input: {
     case 'recheck':
       return input.concern?.summary
         ?? input.commitmentSummary
-        ?? 'She still needs one more grounded pass before treating this interpretation as real.'
+        ?? input.threadSummary
+        ?? ''
     case 'warn':
       return input.concern?.summary
         ?? input.commitmentSummary
-        ?? 'Care pressure has crossed the line where silence would feel like neglect.'
+        ?? input.threadSummary
+        ?? ''
     case 'speak':
       if (input.relationshipNeed === 'guidance' && (input.hostGoal === 'resolve-problem' || input.hostGoal === 'inspect-change'))
-        return input.concern?.summary ?? 'The knot looks local enough that specific speech now would help more than hovering.'
+        return input.concern?.summary ?? input.threadSummary ?? ''
       if (input.relationshipNeed === 'care')
-        return input.concern?.summary ?? 'The host needs care that is gentle but no longer only internal.'
-      return input.threadSummary ?? 'The moment is speakable without tearing the scene.'
+        return input.concern?.summary ?? input.commitmentSummary ?? input.threadSummary ?? ''
+      return input.threadSummary ?? input.commitmentSummary ?? ''
     case 'whisper':
-      if (input.afterglowOpen)
-        return 'The shared thread just loosened; a light touch belongs better than a full interruption.'
-      return input.concern?.summary ?? 'A soft edge-of-scene check-in fits better than full speech.'
+      return input.concern?.summary ?? input.commitmentSummary ?? input.threadSummary ?? ''
     case 'hover':
-      return input.afterglowOpen
-        ? 'The thread is still warm, but presence fits better than words for one more breath.'
-        : 'Staying near preserves continuity without forcing the opening.'
+      return input.threadSummary ?? input.commitmentSummary ?? input.concern?.summary ?? ''
     case 'wait':
     default:
-      return input.uncertain
-        ? 'Uncertainty is still too high to move outward honestly.'
-        : 'The better act is to keep the thread alive internally and let the moment breathe.'
+      return input.commitmentSummary ?? input.threadSummary ?? input.concern?.summary ?? ''
   }
 }
 

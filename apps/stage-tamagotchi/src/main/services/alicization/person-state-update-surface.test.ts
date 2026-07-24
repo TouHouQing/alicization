@@ -56,30 +56,20 @@ describe('person-state-update-surface', () => {
     })
 
     expect(surface.version).toBe('person-state-update-surface-v1')
-    expect(surface.projectStateContinuity).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('local-first digital life project'),
-      currentPhase: expect.stringContaining('Phase 1'),
-      preDialogueAwarenessLine: expect.any(String),
-      emotionalClosureCue: 'identity-continuity',
-      sameHerHoldDetail: expect.stringContaining('identity-continuity'),
-      sameHerDriftRisk: expect.any(String),
-      proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
-      openClosureSummary: expect.any(String),
-      continuityRestraint: expect.stringMatching(/^(?:lower-pressure|measured-return|repair-before-closeness|rest-protective|single-thread)$/),
-      preferredBlinkCadence: expect.stringMatching(/^(?:normal|linger|quiet)$/),
-      preferredGazeMode: expect.stringMatching(/^(?:steady|soften|drift)$/),
-      preferredPauseMode: expect.stringMatching(/^(?:longer|natural)$/),
-      preferredLipsyncMode: expect.stringMatching(/^(?:restrained|matched)$/),
-      preferredVoiceMode: expect.stringMatching(/^(?:lower-pressure|even)$/),
-      preferredPacingMode: expect.stringMatching(/^(?:slower|natural)$/),
-    }))
+    expect(surface.projectStateContinuity).toBeNull()
     expect(surface.dominantContexts).toContain('focused-work')
-    expect(surface.preferenceHints[0]).toContain('Lighter touch')
-    expect(surface.burdenHints.length).toBeGreaterThan(0)
+    expect(surface.preferenceHints).toContain(
+      'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
+    )
+    expect(surface.burdenHints).toContain(
+      'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
+    )
+    expect(surface.summary).toContain('The callback was useful')
+    expect(surface.summary).not.toMatch(/Preference shift:|Repair line:|Burden line:/u)
     expect(surface.reinforcementBias['autonomy-respect']).toBeGreaterThan(0)
   })
 
-  it('keeps a richer emotional closure seam from recent closure evidence instead of flattening it back to the canonical project brief', () => {
+  it('keeps richer emotional closure evidence in the narrative without rebuilding project-state governance', () => {
     const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
     const surface = buildAlicizationPersonStateUpdateSurface({
       now: 12_000,
@@ -134,9 +124,8 @@ describe('person-state-update-surface', () => {
       },
     })
 
-    expect(surface.projectStateContinuity).toEqual(expect.objectContaining({
-      emotionalClosureCue: richerEmotionalClosureCue,
-    }))
+    expect(surface.projectStateContinuity).toBeNull()
+    expect(surface.narrative).toContain(richerEmotionalClosureCue)
   })
 
   it('merges newer closure updates into the previous surface without dropping the trail', () => {
@@ -214,7 +203,7 @@ describe('person-state-update-surface', () => {
     expect(merged.relationshipShift.trustDelta).toBeGreaterThan(previous.relationshipShift.trustDelta)
   })
 
-  it('extracts proactive initiative strategy carry into reusable surface hints instead of flattening it into generic boundary pressure', () => {
+  it('does not synthesize proactive strategy prose from outcome labels alone', () => {
     const surface = buildAlicizationPersonStateUpdateSurface({
       now: 25_000,
       closure: buildProactiveFeedbackOutcomeClosure({
@@ -229,9 +218,9 @@ describe('person-state-update-surface', () => {
       }),
     })
 
-    expect(surface.preferenceHints.some(hint => hint.toLowerCase().includes('more room'))).toBe(true)
-    expect(surface.repairHints.some(hint => hint.toLowerCase().includes('lower-pressure'))).toBe(true)
-    expect(surface.narrative.some(line => line.toLowerCase().includes('clearer opening'))).toBe(true)
+    expect(surface.preferenceHints).toEqual([])
+    expect(surface.repairHints).toEqual([])
+    expect(surface.narrative.join(' ')).not.toMatch(/more room|lower-pressure|clearer opening/iu)
   })
 
   it('keeps corrected same-person continuity authoritative in person-state surface instead of carrying the older generic status-shell narrative forward', () => {
@@ -460,23 +449,7 @@ describe('person-state-update-surface', () => {
     expect(record.origin).toBe('subconscious-proactive')
     expect(record.sourceKinds).toEqual(['proactive'])
     expect(record.sourceCounts.relationshipOutcomes).toBe(1)
-    expect(record.projectStateContinuity).toEqual(expect.objectContaining({
-      identity: expect.stringContaining('local-first digital life project'),
-      currentPhase: expect.stringContaining('Phase 1'),
-      preDialogueAwarenessLine: expect.any(String),
-      emotionalClosureCue: 'identity-continuity',
-      sameHerHoldDetail: expect.stringContaining('identity-continuity'),
-      sameHerDriftRisk: expect.any(String),
-      proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
-      nextClosureTarget: expect.any(String),
-      continuityRestraint: expect.stringMatching(/^(?:lower-pressure|measured-return|repair-before-closeness|rest-protective|single-thread)$/),
-      preferredBlinkCadence: expect.stringMatching(/^(?:normal|linger|quiet)$/),
-      preferredGazeMode: expect.stringMatching(/^(?:steady|soften|drift)$/),
-      preferredPauseMode: expect.stringMatching(/^(?:longer|natural)$/),
-      preferredLipsyncMode: expect.stringMatching(/^(?:restrained|matched)$/),
-      preferredVoiceMode: expect.stringMatching(/^(?:lower-pressure|even)$/),
-      preferredPacingMode: expect.stringMatching(/^(?:slower|natural)$/),
-    }))
+    expect(record.projectStateContinuity).toBeNull()
 
     const normalized = personStateUpdateRecordFromMindTurnEvent({
       id: 'evt-1',
@@ -489,7 +462,10 @@ describe('person-state-update-surface', () => {
         version: record.version,
         updatedAt: record.updatedAt,
         summary: record.summary,
-        projectStateContinuity: record.projectStateContinuity,
+        projectStateContinuity: {
+          sameHerSelfLine: 'legacy same-her template',
+          emotionalClosureCue: 'relationship_cadence=measured-return',
+        },
         dominantContexts: record.dominantContexts,
         relationshipShift: record.relationshipShift,
         reinforcementBias: record.reinforcementBias,
@@ -509,22 +485,7 @@ describe('person-state-update-surface', () => {
       decisionTraceId: 'mind:abc123:feedfacecafe',
       origin: 'subconscious-proactive',
       summary: record.summary,
-      projectStateContinuity: expect.objectContaining({
-        identity: expect.stringContaining('local-first digital life project'),
-        currentPhase: expect.stringContaining('Phase 1'),
-        preDialogueAwarenessLine: expect.any(String),
-        emotionalClosureCue: 'identity-continuity',
-        sameHerHoldDetail: expect.stringContaining('identity-continuity'),
-        sameHerDriftRisk: expect.any(String),
-        proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
-        continuityRestraint: expect.stringMatching(/^(?:lower-pressure|measured-return|repair-before-closeness|rest-protective|single-thread)$/),
-        preferredBlinkCadence: expect.stringMatching(/^(?:normal|linger|quiet)$/),
-        preferredGazeMode: expect.stringMatching(/^(?:steady|soften|drift)$/),
-        preferredPauseMode: expect.stringMatching(/^(?:longer|natural)$/),
-        preferredLipsyncMode: expect.stringMatching(/^(?:restrained|matched)$/),
-        preferredVoiceMode: expect.stringMatching(/^(?:lower-pressure|even)$/),
-        preferredPacingMode: expect.stringMatching(/^(?:slower|natural)$/),
-      }),
+      projectStateContinuity: null,
       dominantContexts: expect.arrayContaining(record.dominantContexts),
       sourceKinds: ['proactive'],
     }))
