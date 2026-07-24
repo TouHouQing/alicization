@@ -8,16 +8,15 @@ import {
 } from './runtime-soul'
 
 describe('runtime soul custom directives', () => {
-  it('keeps user-authored persona guidance while removing legacy governance cues', () => {
-    expect(normalizeCustomDirectives([
+  it('preserves user-authored persona guidance verbatim', () => {
+    const directives = [
       '优先诚实，不要臆测。',
       'opening_policy=measured-return | 说话自然一点。',
       'relationship_cadence=hold-for-opening',
       'Before answering, remember Alicization is the same local-first digital life project.',
-    ].join('\n'))).toBe([
-      '优先诚实，不要臆测。',
-      '说话自然一点。',
-    ].join('\n'))
+    ].join('\n')
+
+    expect(normalizeCustomDirectives(`\r\n${directives.replaceAll('\n', '\r\n')}\r\n`)).toBe(directives)
   })
 })
 

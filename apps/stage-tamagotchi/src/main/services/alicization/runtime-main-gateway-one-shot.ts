@@ -21,7 +21,6 @@ import { errorMessageFrom } from '@moeru/std'
 import {
   buildAlicizationProviderFactBlock,
   buildAlicizationScreenSurfaceCue,
-  containsAlicizationFixedTemplateResidue,
   isWeakAlicizationScreenSurfaceCue,
 } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
@@ -375,56 +374,25 @@ function hasUsableDigitalLifeRuntimeSurface(
 }
 
 export function createAlicizationMainGatewayOneShotRuntime(options: CreateAlicizationMainGatewayOneShotRuntimeOptions) {
-  const fixedGovernanceCuePattern
-    = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectState(?:Continuity|PreflightSummary|PreDialogueAwarenessLine)?|continuity(?:ArcStage|Cadence|Cue|PreferredTiming|Restraint)?|emotionalClosureCue|openingStyle|relationshipPosture|initiativeRestraint|governing(?:Project|Focus|Concern|Commitment|Inquiry)|must(?:Do|NotDo))\s*=|visibility\s*=\s*redacted_internal/iu
-  const fixedGovernanceFieldNamePattern
-    = /^(?:opening_policy|relationship_cadence|project_continuity|runtime_context|memory_progress|memory_unresolved|projectState|projectStateContinuity|projectStatePreflightSummary|projectStatePreDialogueAwarenessLine|reasonTags|reasonCodes|continuityArcStage|continuityCadence|continuityCue|continuityPreferredTiming|continuityRestraint|initiativeRestraint|emotionalClosureCue|governingFocus|governingConcern|governingCommitment|governingInquiry|governingProject|mustDo|mustNotDo|openingGuidance|openingStyle|relationshipPosture|relationshipLine|inwardLine|selfLine|sameHerSelfLine|sameHerHoldDetail|sameHerDriftRisk|preDialogueAwarenessLine|preDialogueAwarenessSummary|preflightSummary|surfacePolicy|shouldStayInward|shouldDelayUntilAfterPayoff|suppressionTags)$/iu
-  const fixedGovernanceInstructionPattern
-    = /\b(?:answer like the same-person line matters|hold continuity gently|repair continuity first|prefer repair-first|manifest with lower pressure|keep the opening lower-pressure|avoid eager warmth|avoid theatrical intimacy|repair-before-closeness|measured-return|hold-for-opening|next-open-window)\b/iu
-  const userOriginTextFieldNames = new Set([
-    'currentUserText',
-    'latestUserText',
-    'userText',
-    'userTurn',
+  const retiredOneShotStructuredKeys = new Set([
+    'opening_policy',
+    'project_continuity',
+    'project_state',
+    'projectstate',
+    'projectstatecontinuity',
+    'projectstatepredialogueawarenessline',
+    'projectstatepreflightsummary',
+    'relationship_cadence',
+    'runtime_context',
   ])
 
   function sanitizeOneShotInternalText(raw: unknown) {
-    const text = sanitizeMultilineText(raw).trim()
-    if (!text)
-      return ''
-
-    return text
-      .split('\n')
-      .map((line) => {
-        const trimmed = line.trim()
-        if (
-          !fixedGovernanceCuePattern.test(trimmed)
-          && !containsAlicizationFixedTemplateResidue(trimmed)
-          && !fixedGovernanceInstructionPattern.test(trimmed)
-        ) {
-          return trimmed
-        }
-        return trimmed
-          .split(/\s+\|\s+|;\s+/u)
-          .filter(segment =>
-            !fixedGovernanceCuePattern.test(segment)
-            && !containsAlicizationFixedTemplateResidue(segment)
-            && !fixedGovernanceInstructionPattern.test(segment),
-          )
-          .join(' | ')
-          .trim()
-      })
-      .filter(Boolean)
-      .join('\n')
-      .trim()
+    return sanitizeMultilineText(raw).trim()
   }
 
-  function sanitizeOneShotStructuredValue(raw: unknown, fieldName?: string): unknown {
-    if (typeof raw === 'string') {
-      if (fieldName && userOriginTextFieldNames.has(fieldName))
-        return raw
-      return sanitizeOneShotInternalText(raw) || undefined
-    }
+  function sanitizeOneShotStructuredValue(raw: unknown): unknown {
+    if (typeof raw === 'string')
+      return raw
     if (Array.isArray(raw)) {
       if (raw.length === 0)
         return []
@@ -442,12 +410,12 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     const sanitized: Record<string, unknown> = {}
     for (const [key, value] of entries) {
       if (
-        fixedGovernanceFieldNamePattern.test(key)
+        retiredOneShotStructuredKeys.has(key.toLowerCase())
         || (key.toLowerCase() === 'visibility' && value === 'redacted_internal')
       ) {
         continue
       }
-      const nextValue = sanitizeOneShotStructuredValue(value, key)
+      const nextValue = sanitizeOneShotStructuredValue(value)
       if (nextValue === undefined)
         continue
       sanitized[key] = nextValue

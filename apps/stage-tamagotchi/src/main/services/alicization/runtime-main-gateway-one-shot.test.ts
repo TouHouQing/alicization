@@ -248,14 +248,14 @@ describe('runtime main gateway one-shot', () => {
     expect(systemText).not.toContain(openingPolicyCue)
     expect(systemText).not.toContain(relationshipCadenceCue)
     expect(systemText).not.toContain(visibilityCue)
-    expect(systemText).not.toContain(projectStateCue)
+    expect(systemText).toContain(projectStateCue)
     expect(systemText).not.toContain(`"${openingPolicyField}"`)
     expect(systemText).not.toContain(`"${relationshipCadenceField}"`)
     expect(systemText).not.toContain('"visibility":"redacted_internal"')
     expect(userText).toContain(relationshipCadenceCue)
   })
 
-  it('drops internal governance fields from typed provider facts', async () => {
+  it('drops retired governance fields without censoring natural-language fact values', async () => {
     const { runtime } = createOneShotRuntimeHarness()
     vi.mocked(generateText).mockResolvedValueOnce({
       text: 'ok',
@@ -290,10 +290,20 @@ describe('runtime main gateway one-shot', () => {
       .find(message => message.role === 'system' && typeof message.content === 'string' && message.content.includes('"internal-fact"'))
     const data = typedFact ? JSON.parse(String(typedFact.content)).data : null
 
-    expect(data).toEqual({ visible: 'keep this fact' })
+    expect(data).toEqual({
+      visible: 'keep this fact',
+      reasonTags: ['opening_policy=legacy'],
+      reasonCodes: ['relationship_cadence=legacy'],
+      continuityCue: 'repair-before-closeness',
+      governingFocus: 'keep the project in view',
+      mustDo: ['use the fixed opening'],
+      summary: 'Keep the opening lower-pressure before widening closeness.',
+      notes: ['Repair continuity first and avoid eager warmth.'],
+      thoughtText: 'Return on the same-her line before answering.',
+    })
   })
 
-  it('drops nested project-state and opening/relationship governance fields from typed provider facts', async () => {
+  it('drops only retired project-state transport while preserving typed fact fields', async () => {
     const { runtime } = createOneShotRuntimeHarness()
     vi.mocked(generateText).mockResolvedValueOnce({ text: 'ok' } as any)
 
@@ -324,22 +334,21 @@ describe('runtime main gateway one-shot', () => {
       ],
     })
 
-    const systemText = (vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? [])
-      .filter(message => message.role === 'system')
-      .map(message => typeof message.content === 'string' ? message.content : '')
-      .join('\n')
+    const typedFact = (vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? [])
+      .find(message => message.role === 'system' && typeof message.content === 'string' && message.content.includes('"internal-fact"'))
+    const data = typedFact ? JSON.parse(String(typedFact.content)).data : null
 
-    expect(systemText).toContain('keep this fact')
-    expect(systemText).not.toContain('same-thread-continuation')
-    expect(systemText).not.toContain('repair-before-closeness')
-    expect(systemText).not.toContain('project-state-governance')
-    expect(systemText).not.toContain('lower-pressure')
-    expect(systemText).not.toContain('measured-return')
-    expect(systemText).not.toContain('"mustDo"')
-    expect(systemText).not.toContain('"mustNotDo"')
+    expect(data).toEqual({
+      openingStyle: 'lower-pressure',
+      relationshipPosture: 'measured-return',
+      governingFocus: 'project-state-governance',
+      mustDo: ['keep the project line explicit'],
+      mustNotDo: ['answer freely'],
+      realMemoryEvidence: 'keep this fact',
+    })
   })
 
-  it('sanitizes custom persona directives before one-shot Provider calls', async () => {
+  it('preserves user-authored custom persona directives before one-shot Provider calls', async () => {
     const { runtime } = createOneShotRuntimeHarness({
       resolveCardCustomDirectives: vi.fn(async () => ({
         text: 'opening_policy=measured-return | 说话真实一点。',
@@ -364,8 +373,8 @@ describe('runtime main gateway one-shot', () => {
 
     expect(systemText).toContain('alicization-persona-directives')
     expect(systemText).toContain('说话真实一点。')
-    expect(systemText).not.toContain('opening_policy')
-    expect(systemText).not.toContain('measured-return')
+    expect(systemText).toContain('opening_policy')
+    expect(systemText).toContain('measured-return')
   })
 
   it('preserves user-origin text and failure facts inside caller and callback JSON', async () => {
@@ -428,8 +437,7 @@ describe('runtime main gateway one-shot', () => {
     expect(callerFact?.data.task).toBe('Keep the useful request.')
     expect(callerFact?.data).not.toHaveProperty(openingPolicyField)
     expect(callbackFact?.data.status).toBe('failed')
-    expect(callbackFact?.data.summary).toContain('Provider timeout')
-    expect(callbackFact?.data.summary).not.toContain(`${relationshipCadenceField}=legacy`)
+    expect(callbackFact?.data.summary).toBe(`${relationshipCadenceField}=legacy; Provider timeout.`)
     expect(callbackFact?.data).not.toHaveProperty(openingPolicyField)
   })
 
@@ -761,6 +769,41 @@ describe('runtime main gateway one-shot', () => {
         reason: 'provider exploded',
       }),
     }))
+  })
+
+  it('reports a one-shot timeout exactly once through the failure callback', async () => {
+    vi.useFakeTimers()
+    try {
+      const { runtime } = createOneShotRuntimeHarness()
+      const onFailure = vi.fn()
+      vi.mocked(generateText).mockImplementationOnce(async (input: any) => await new Promise((_, reject) => {
+        input.abortSignal.addEventListener('abort', () => reject(input.abortSignal.reason), { once: true })
+      }))
+
+      const resultPromise = runtime.generateMainGatewayText({
+        system: 'Return JSON.',
+        user: 'input',
+        source: 'proactive',
+        cardId: 'card-timeout',
+        timeoutMs: 1_000,
+        injectCustomDirectives: false,
+        injectPerformanceManifest: false,
+        onFailure,
+      })
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await expect(resultPromise).resolves.toBeNull()
+      expect(onFailure).toHaveBeenCalledTimes(1)
+      expect(onFailure).toHaveBeenCalledWith({
+        reason: 'Alicization runtime aborted: main-gateway-timeout',
+        providerId: 'provider-test',
+        model: 'model-test',
+        source: 'proactive',
+      })
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports missing Provider configuration through the failure callback', async () => {
