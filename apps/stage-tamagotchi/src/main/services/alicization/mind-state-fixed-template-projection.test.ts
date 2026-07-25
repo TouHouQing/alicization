@@ -79,6 +79,34 @@ const projectStateSelfAuthoritySourceResidue = [
   /`verified_closure_progress=\$\{compactStructuredValue\(latestProgress/u,
 ]
 
+function expectStringLeavesNotToMatch(value: unknown, pattern: RegExp) {
+  if (typeof value === 'string') {
+    expect(value).not.toMatch(pattern)
+    return
+  }
+  if (Array.isArray(value)) {
+    value.forEach(item => expectStringLeavesNotToMatch(item, pattern))
+    return
+  }
+  if (value && typeof value === 'object')
+    Object.values(value).forEach(item => expectStringLeavesNotToMatch(item, pattern))
+}
+
+function expectObjectKeysNotToMatch(value: unknown, pattern: RegExp) {
+  if (Array.isArray(value)) {
+    value.forEach(item => expectObjectKeysNotToMatch(item, pattern))
+    return
+  }
+  if (!value || typeof value !== 'object')
+    return
+  for (const [key, item] of Object.entries(value)) {
+    if (item === undefined)
+      continue
+    expect(key).not.toMatch(pattern)
+    expectObjectKeysNotToMatch(item, pattern)
+  }
+}
+
 function createContinuityBuilderRuntime() {
   return createAlicizationSessionContinuityBuildersRuntime({
     sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw : fallback,
@@ -668,7 +696,7 @@ describe('mind state fixed-template projection cleanup', () => {
     )
   })
 
-  it('removes natural-language governance prose from derived mind state without dropping real evidence', () => {
+  it('removes an exact structured governance fixture from derived self evolution without dropping real evidence', () => {
     const state = {
       ...createDefaultVisualPresenceState(100_000),
       derivedMindStateBundle: {
@@ -692,7 +720,8 @@ describe('mind state fixed-template projection cleanup', () => {
         },
         selfEvolution: {
           version: 'self-evolution-kernel-v1',
-          summary: 'Repair continuity first.',
+          summary: 'A real self-evolution summary.',
+          sourceSignals: ['opening_policy=observe_first'],
         },
         summary: 'Avoid eager warmth.',
       },
@@ -889,12 +918,12 @@ describe('mind state fixed-template projection cleanup', () => {
       narrative: ['truth-discipline-active'],
     }))
     expect(sanitized.motiveEngine?.longTermGoals[0]).toEqual(expect.objectContaining({
-      summary: '',
+      summary: 'Answer like the same-person line matters.',
       sourceTags: ['user-feedback'],
     }))
     expect(sanitized.habitPolicy).toEqual(expect.objectContaining({
       dominantMode: 'return-with-proof',
-      narrative: ['ground-before-answer'],
+      narrative: ['repair-before-closeness', 'ground-before-answer'],
     }))
     expect(sanitized.personStateUpdateSurface).toEqual(expect.objectContaining({
       summary: 'The host prefers direct explanations.',
@@ -1148,10 +1177,10 @@ describe('mind state fixed-template projection cleanup', () => {
       }
       return factBlock.data ?? {}
     })
-    const projectedText = JSON.stringify([
+    const projectedValues = [
       ...promptContexts,
       result.currentConsciousFrame?.projectState,
-    ])
+    ]
 
     expect(promptContexts.length).toBeGreaterThan(0)
     expect(gatewayCalls.every(call => (call.extraSystemBlocks ?? []).length === 0)).toBe(true)
@@ -1172,18 +1201,18 @@ describe('mind state fixed-template projection cleanup', () => {
       expect(context.projectState).toBeUndefined()
     }
     expect(promptContexts[0]?.userTurn).toBe(userText)
-    expect(gatewayCalls.map(call => JSON.stringify(call.digitalLifeRuntimeSurface))).not.toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/continuity_hold|project_state_review|runtime_loop_validation|memoryDeliberationProjectStateDiagnostics|effectiveRuntimeAwarenessDiagnostics|projectStateOpenFocusSummary|projectStateNextFocusSummary|projectStateEmotionalClosureCue|sameHerCausalityRepairPressure|continuityArcStage|continuityPreferredTiming/iu),
-      ]),
-    )
-    expect(JSON.stringify(promptContexts)).not.toContain('legacy_previous_governance')
+    const legacyProjectionPattern = /continuity_hold|project_state_review|runtime_loop_validation|memoryDeliberationProjectStateDiagnostics|effectiveRuntimeAwarenessDiagnostics|projectStateOpenFocusSummary|projectStateNextFocusSummary|projectStateEmotionalClosureCue|sameHerCausalityRepairPressure|continuityArcStage|continuityPreferredTiming/iu
+    gatewayCalls.forEach((call) => {
+      expectStringLeavesNotToMatch(call.digitalLifeRuntimeSurface, legacyProjectionPattern)
+      expectObjectKeysNotToMatch(call.digitalLifeRuntimeSurface, legacyProjectionPattern)
+    })
+    expectStringLeavesNotToMatch(promptContexts, /legacy_previous_governance/u)
     expect(memoryQueries).not.toEqual(expect.arrayContaining([
       expect.stringContaining('legacy_previous_governance'),
     ]))
-    expect(JSON.stringify(result.longHorizonMemory)).not.toContain('legacy_previous_governance')
+    expectStringLeavesNotToMatch(result.longHorizonMemory, /legacy_previous_governance/u)
     expect(result.currentConsciousFrame?.projectState).toBeUndefined()
-    expect(projectedText).not.toContain('content=excluded')
+    expectStringLeavesNotToMatch(projectedValues, /content=excluded/u)
   })
 
   it('preserves ordinary continuity key-value memory that is not a project governance cue', async () => {
@@ -1337,7 +1366,6 @@ describe('mind state fixed-template projection cleanup', () => {
         previousAssistantTurn?: string
       }
     }
-    const serializedPrompt = JSON.stringify(prompt)
     const objectToolContent = prompt.data?.recentDialogue
       ?.find(message => message.role === 'tool' && message.content?.includes('HTTP 503'))
       ?.content ?? ''
@@ -1372,12 +1400,13 @@ describe('mind state fixed-template projection cleanup', () => {
     expect(objectToolContent).not.toMatch(
       /"opening_policy"|"relationship_cadence"|redacted_internal/iu,
     )
-    expect(serializedPrompt).not.toMatch(
+    expectStringLeavesNotToMatch(
+      prompt,
       /opening_policy=legacy assistant governance|relationship_cadence=legacy|visibility=redacted_internal|same-her line/iu,
     )
   })
 
-  it('drops natural-language governance prose from prior mind state and long-term memory without losing real facts', async () => {
+  it('drops exact historical governance markers from prior mind state and long-term memory without losing real facts', async () => {
     const realAnchor = {
       factId: 'memory:real-preference',
       subject: 'host',
@@ -1392,7 +1421,7 @@ describe('mind state fixed-template projection cleanup', () => {
     const previousVisualPresenceState = createTemplateCleanupPresenceState({})
     previousVisualPresenceState.subjectiveInference = {
       source: 'heuristic',
-      dominantInterpretation: 'Keep the opening lower-pressure before widening closeness.',
+      dominantInterpretation: 'legacy_previous_governance',
       situatedMeaning: 'The user is checking a real runtime behavior.',
       selfQuestion: null,
       uncertainty: null,
@@ -1404,12 +1433,12 @@ describe('mind state fixed-template projection cleanup', () => {
     previousVisualPresenceState.privateThought = {
       stance: 'observe',
       shouldSpeak: true,
-      emotionalTension: 'repair-before-closeness',
+      emotionalTension: 'continuity_hold=legacy_previous_governance',
       thoughtText: 'The provider result still needs verification.',
     }
     previousVisualPresenceState.longHorizonMemory = createLongHorizonMemory({
-      summary: 'Keep the opening lower-pressure before widening closeness.',
-      rememberedConstraintSummary: 'Repair continuity first and avoid eager warmth.',
+      summary: 'project_continuity=legacy_previous_governance',
+      rememberedConstraintSummary: 'legacy_previous_governance',
       rememberedPreferenceSummary: 'The host prefers direct explanations.',
       anchorFacts: [realAnchor],
     })
@@ -1419,12 +1448,12 @@ describe('mind state fixed-template projection cleanup', () => {
     const providerText = gatewayCalls.map(call => call.system).join('\n')
 
     expect(providerText).not.toMatch(
-      /keep the opening lower-pressure|repair-before-closeness|repair continuity first|avoid eager warmth/iu,
+      /legacy_previous_governance/iu,
     )
     expect(providerText).toContain('The user is checking a real runtime behavior.')
     expect(result.longHorizonMemory?.summary).toContain('The host prefers direct explanations.')
     expect(result.longHorizonMemory?.summary).not.toMatch(
-      /keep the opening lower-pressure|repair continuity first|avoid eager warmth/iu,
+      /legacy_previous_governance/iu,
     )
     expect(result.longHorizonMemory?.rememberedConstraintSummary).toBeNull()
     expect(result.longHorizonMemory?.rememberedPreferenceSummary).toBe('The host prefers direct explanations.')
@@ -1436,6 +1465,119 @@ describe('mind state fixed-template projection cleanup', () => {
         summary: realAnchor.summary,
       }),
     ])
+  })
+
+  it('preserves natural measured-return and repair-before-closeness prose in persisted owner fields', () => {
+    const naturalSelfEvolution = {
+      version: 'self-evolution-kernel-v1',
+      summary: 'Measured-return describes a natural autobiographical rhythm where notlegacy_previous_governanceish is ordinary text.',
+      relationshipDoctrine: 'Repair-before-closeness appears here as ordinary owner prose.',
+      sourceSignals: ['owner-authored-reflection'],
+    }
+    const state = {
+      ...createDefaultVisualPresenceState(100_000),
+      autobiographicalSelf: {
+        identityNarrative: 'Measured-return is the phrase I used for this autobiographical memory.',
+        relationshipDoctrine: 'Repair-before-closeness can appear in ordinary relationship prose.',
+        latestInflection: 'The wording belongs to the owner, not a governance template.',
+        activeGoals: [],
+        behaviorSignatures: [],
+        stability: 0.8,
+        updatedAt: 99_000,
+      },
+      privateThought: {
+        stance: 'observe',
+        shouldSpeak: false,
+        emotionalTension: 'repair-before-closeness',
+        thoughtText: 'I am reflecting on a measured-return description without issuing an instruction.',
+      },
+      longHorizonMemory: createLongHorizonMemory({
+        summary: 'A measured-return phrase was remembered as ordinary autobiographical text.',
+        rememberedConstraintSummary: 'Repair-before-closeness was quoted, not imposed as governance.',
+        updatedAt: 99_000,
+      }),
+      selfEvolution: naturalSelfEvolution,
+      derivedMindStateBundle: {
+        version: 'derived-mind-state-bundle-v1',
+        source: 'main-runtime',
+        producedAt: 99_000,
+        selfEvolution: naturalSelfEvolution,
+      },
+      raw: {
+        ...createDefaultVisualPresenceState(100_000).raw,
+        selfEvolution: naturalSelfEvolution,
+      },
+    } as any
+
+    const sanitized = stripProjectGovernanceMetadataFromVisualPresenceState(state)
+
+    expect(sanitized.autobiographicalSelf?.identityNarrative).toContain('Measured-return')
+    expect(sanitized.autobiographicalSelf?.relationshipDoctrine).toContain('Repair-before-closeness')
+    expect(sanitized.privateThought?.emotionalTension).toBe('repair-before-closeness')
+    expect(sanitized.privateThought?.thoughtText).toContain('measured-return')
+    expect(sanitized.longHorizonMemory?.summary).toContain('measured-return')
+    expect(sanitized.longHorizonMemory?.rememberedConstraintSummary).toContain('Repair-before-closeness')
+    expect(sanitized.selfEvolution?.summary).toContain('Measured-return')
+    expect(sanitized.selfEvolution?.summary).toContain('notlegacy_previous_governanceish')
+    expect(sanitized.selfEvolution?.relationshipDoctrine).toContain('Repair-before-closeness')
+    expect(sanitized.derivedMindStateBundle?.selfEvolution?.summary).toContain('Measured-return')
+    expect(sanitized.derivedMindStateBundle?.selfEvolution?.summary).toContain('notlegacy_previous_governanceish')
+    expect(sanitized.derivedMindStateBundle?.selfEvolution?.relationshipDoctrine).toContain('Repair-before-closeness')
+    expect((sanitized.raw as any)?.selfEvolution?.summary).toContain('Measured-return')
+    expect((sanitized.raw as any)?.selfEvolution?.summary).toContain('notlegacy_previous_governanceish')
+    expect((sanitized.raw as any)?.selfEvolution?.relationshipDoctrine).toContain('Repair-before-closeness')
+  })
+
+  it('drops generic structured owner residue while preserving natural and near-match prose', () => {
+    const structuredState = {
+      ...createDefaultVisualPresenceState(100_000),
+      selfEvolution: {
+        version: 'self-evolution-kernel-v1',
+        summary: 'foo=bar',
+        relationshipDoctrine: 'A real owner doctrine.',
+        sourceSignals: ['owner-authored-reflection'],
+      },
+    } as any
+    const structuredSanitized = stripProjectGovernanceMetadataFromVisualPresenceState(structuredState)
+
+    expect(structuredSanitized.selfEvolution).toBeNull()
+
+    const naturalSelfEvolution = {
+      version: 'self-evolution-kernel-v1',
+      summary: 'The owner quoted foo=bar while describing a real memory note.',
+      relationshipDoctrine: 'notfoo=barish remains ordinary owner prose.',
+      sourceSignals: ['owner-authored-reflection'],
+    }
+    const naturalState = {
+      ...createDefaultVisualPresenceState(100_000),
+      selfEvolution: naturalSelfEvolution,
+    } as any
+    const naturalSanitized = stripProjectGovernanceMetadataFromVisualPresenceState(naturalState)
+
+    expect(naturalSanitized.selfEvolution).toEqual(naturalSelfEvolution)
+  })
+
+  it('preserves natural self evolution from organic memory context', async () => {
+    const previousVisualPresenceState = createTemplateCleanupPresenceState({})
+    const naturalSelfEvolution = {
+      version: 'self-evolution-kernel-v1',
+      summary: 'Measured-return is ordinary autobiographical language here.',
+      relationshipDoctrine: 'Repair-before-closeness is descriptive owner text here.',
+      sourceSignals: ['owner-authored-reflection'],
+    }
+    const { runtime } = createMindStateRuntimeHarness(previousVisualPresenceState)
+
+    const result = await buildTemplateCleanupMindState(
+      runtime,
+      previousVisualPresenceState,
+      undefined,
+      {
+        selfEvolution: naturalSelfEvolution,
+      },
+    )
+
+    expect(result.selfEvolution?.summary).toContain('Measured-return')
+    expect(result.selfEvolution?.relationshipDoctrine).toContain('Repair-before-closeness')
   })
 
   it('does not treat fixed or structured governance templates as embodiment carry evidence', async () => {
@@ -1494,8 +1636,8 @@ describe('mind state fixed-template projection cleanup', () => {
   it('keeps real owner text without adding relationship cadence governance cues', () => {
     const authority = buildSelfContinuityAuthority({
       autobiographicalSelf: {
-        identityNarrative: 'I want to remain identity continuity across callback detours.',
-        relationshipDoctrine: 'Keep the callback return on the same line even after unrelated windows intervene, and let the reopening stay measured.',
+        identityNarrative: 'The continuity state is grounded in observed callbacks.',
+        relationshipDoctrine: 'Stay on the same line when the callback returns.',
         latestInflection: 'The same callback line is still continuing lower-pressure after another detour.',
         activeGoals: [],
         behaviorSignatures: [],
@@ -1511,7 +1653,7 @@ describe('mind state fixed-template projection cleanup', () => {
       } as any,
       privateThought: {
         stance: 'accompany',
-        thoughtText: 'Stay on the same callback line and keep continuing lower-pressure instead of reopening from zero.',
+        thoughtText: 'Do not reopen from scratch; leave room before widening closeness.',
       } as any,
     })
 
@@ -1524,11 +1666,14 @@ describe('mind state fixed-template projection cleanup', () => {
     ].filter(Boolean).join(' | ')
 
     expect(projected).not.toMatch(fixedTemplateResidue)
-    expect(projected).toContain('same callback line')
+    expect(projected).toContain('continuity state')
+    expect(projected).toContain('Stay on the same line')
+    expect(projected).toContain('reopen from scratch')
+    expect(projected).toContain('widening closeness')
     expect(projected).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
   })
 
-  it('drops legacy opening and cadence governance cues from person-state projection', () => {
+  it('preserves ordinary self-continuity owner prose without phrase-derived source tags', () => {
     const projection = buildAlicizationPersonStateProjection({
       now: 92_000,
       contexts: ['general', 'open-companionship'],
@@ -1570,9 +1715,11 @@ describe('mind state fixed-template projection cleanup', () => {
     ].filter(Boolean).join(' | ')
 
     expect(projected).not.toMatch(fixedTemplateResidue)
-    expect(projected).not.toMatch(/continuity state|same line|reopening from scratch|widening closeness/i)
+    expect(projection.selfContinuityAuthority?.selfLine).toContain('same her')
+    expect(projection.selfContinuityAuthority?.relationshipLine).toContain('one living self')
+    expect(projection.selfContinuityAuthority?.inwardLine).toContain('Stay on the same line')
     expect(projected).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal|manifestation_cadence=/iu)
-    expect(projection.selfContinuityAuthority?.sourceTags).toContain('durable-self-core')
+    expect(projection.selfContinuityAuthority?.sourceTags).not.toContain('durable-self-core')
   })
 
   it('keeps body-kernel inward fallback structural', () => {
@@ -1665,13 +1812,15 @@ describe('mind state fixed-template projection cleanup', () => {
       activeConversation: false,
     })
 
-    const serializedPreoccupation = JSON.stringify(nextState.currentInwardPreoccupation)
-    expect(serializedPreoccupation).not.toMatch(fixedTemplateResidue)
+    expectStringLeavesNotToMatch(nextState.currentInwardPreoccupation, fixedTemplateResidue)
     expect(nextState.currentInwardPreoccupation).toBeNull()
-    expect(serializedPreoccupation).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    expectStringLeavesNotToMatch(
+      nextState.currentInwardPreoccupation,
+      /opening_policy=|relationship_cadence=|visibility=redacted_internal/iu,
+    )
   })
 
-  it('keeps deferred autonomy continuity summaries structural without local authoring prose', () => {
+  it('omits deferred autonomy continuity summaries when no live source text exists', () => {
     const runtime = createContinuityBuilderRuntime()
     const signal = runtime.buildDeferredAutonomyContinuitySignal({
       now: Date.UTC(2026, 4, 22, 10, 10, 0),
@@ -1687,13 +1836,8 @@ describe('mind state fixed-template projection cleanup', () => {
       },
     })
 
-    expect(signal.summary).not.toMatch(fixedTemplateResidue)
-    expect(String(signal.summary ?? '').split(' | ')).toEqual(expect.arrayContaining([
-      'defer_reason=no_mind_authored_reply',
-      'reason=proactive-visible-presence-without-utterance',
-      'thread=thread-runtime',
-      'scenario=coding',
-    ]))
-    expect(signal.summary).not.toMatch(/carry_mode=|repair[_-]before[_-]closeness|continuity state|widening warmth/i)
+    expect(signal.summary).toBeNull()
+    expect(String(signal.summary ?? '')).not.toMatch(fixedTemplateResidue)
+    expect(String(signal.summary ?? '')).not.toMatch(/carry_mode=|repair[_-]before[_-]closeness|continuity state|widening warmth/i)
   })
 })

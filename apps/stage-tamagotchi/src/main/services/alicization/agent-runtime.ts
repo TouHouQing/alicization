@@ -9,7 +9,7 @@ import type {
 } from './digital-life-spine'
 import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import { errorMessageFrom } from '@moeru/std'
 import {
@@ -25,6 +25,15 @@ import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-go
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
 import { createAlicizationRuntimeCallChain } from './runtime-call-chain'
+import {
+  deferredAutonomyCanonicalVersion,
+  deferredAutonomyContinuityBudgets,
+  deferredAutonomyProviderMetadataSchema,
+  normalizeDeferredAutonomyCanonicalDeferReason,
+  normalizeDeferredAutonomyRawText,
+  readDeferredAutonomySummaryOwner,
+  validateDeferredAutonomyCanonicalSummary,
+} from './runtime-deferred-autonomy-summary'
 
 type AlicizationAgentTaskKind = 'executor' | 'mcp' | 'runtime' | 'sensory'
 type AlicizationAgentTaskStatus = 'completed' | 'failed' | 'pending'
@@ -195,6 +204,104 @@ function sanitizeProviderFactText(raw: unknown, maxChars = 180) {
   return sanitizeAlicizationProviderFacingText(raw, maxChars, '') || ''
 }
 
+function sanitizeProviderContinuitySummary(raw: unknown, maxChars = 240) {
+  const text = sanitizeProviderFactText(raw, maxChars)
+  const containsStructuredSegment = text
+    .split(/\s*[;|]\s*/u)
+    .some(segment => /^[\p{L}_][\p{L}\p{N}_-]*\s*=/u.test(segment))
+  return containsStructuredSegment ? '' : text
+}
+
+function projectAgentSessionFactMetadata(
+  raw: unknown,
+  options?: {
+    canonicalSummaryValidation?: ReturnType<typeof validateDeferredAutonomyCanonicalSummary>
+    requiresSummaryProvenance?: boolean
+  },
+) {
+  const metadata = asRecord(raw)
+  if (!metadata)
+    return null
+
+  const projected: Record<string, unknown> = {}
+  if (metadata.canonicalVersion === deferredAutonomyCanonicalVersion)
+    projected.canonicalVersion = deferredAutonomyCanonicalVersion
+  const source = sanitizeProviderFactText(metadata.source, 80)
+  const requiresSummaryProvenance
+    = options?.requiresSummaryProvenance === true
+      || source === 'proactive-deferred'
+      || source === 'proactive-held-autonomy'
+  const canonicalSummaryValidation = options?.canonicalSummaryValidation
+  const summaryOwner = requiresSummaryProvenance
+    ? canonicalSummaryValidation?.summaryOwner ?? null
+    : readDeferredAutonomySummaryOwner(metadata.summaryOwner)
+  const allowsCanonicalSummaryMetadata
+    = !requiresSummaryProvenance
+      || canonicalSummaryValidation?.isValid === true
+  const textFields = Object.entries(deferredAutonomyProviderMetadataSchema.textFields)
+    .map(([field, schema]) => [
+      field,
+      requiresSummaryProvenance ? schema.canonicalMaxChars : schema.legacyMaxChars,
+    ] as const)
+  for (const [field, maxChars] of textFields) {
+    if (
+      requiresSummaryProvenance
+      && (
+        field === 'deferReason'
+        || field === 'executionIntentSummary'
+      )
+      && !allowsCanonicalSummaryMetadata
+    ) {
+      continue
+    }
+    const rawValue = requiresSummaryProvenance
+      ? field === 'executionIntentSummary'
+        ? canonicalSummaryValidation?.executionIntentSummary
+        : field === 'deferReason'
+          ? normalizeDeferredAutonomyCanonicalDeferReason(metadata.deferReason)
+          : metadata[field]
+      : metadata[field]
+    const value = sanitizeProviderFactText(rawValue, maxChars)
+    if (value)
+      projected[field] = value
+  }
+
+  for (const field of ['deliveredAt', 'feedbackWindowMs', 'deferredAt'] as const) {
+    const value = metadata[field]
+    if (typeof value === 'number' && Number.isFinite(value))
+      projected[field] = Math.max(0, Math.floor(value))
+  }
+
+  const learningFocuses = Array.isArray(metadata.learningFocuses)
+    ? metadata.learningFocuses
+        .map(focus => sanitizeProviderFactText(
+          focus,
+          deferredAutonomyProviderMetadataSchema.learningFocuses.itemCanonicalMaxChars,
+        ))
+        .filter(Boolean)
+        .slice(0, deferredAutonomyProviderMetadataSchema.learningFocuses.maxItems)
+    : []
+  if (learningFocuses.length > 0)
+    projected.learningFocuses = learningFocuses
+
+  const failure = requiresSummaryProvenance
+    ? canonicalSummaryValidation?.failure ?? ''
+    : sanitizeText(metadata.failure, deferredAutonomyProviderMetadataSchema.failure.legacyMaxChars)
+  if (
+    failure
+    && (
+      !requiresSummaryProvenance
+      || (allowsCanonicalSummaryMetadata && summaryOwner === 'failure')
+    )
+  ) {
+    projected.failure = failure
+  }
+  if (summaryOwner && allowsCanonicalSummaryMetadata)
+    projected.summaryOwner = summaryOwner
+
+  return Object.keys(projected).length > 0 ? projected : null
+}
+
 function normalizeMetadata(raw?: Record<string, unknown>) {
   if (!raw)
     return null
@@ -221,19 +328,33 @@ function buildActionSignature(input: AlicizationAgentSessionActionInput) {
 }
 
 function buildContinuitySignature(input: AlicizationAgentSessionContinuityInput) {
-  const explicitSignature = sanitizeText(input.signature, 220)
+  const explicitSignature = normalizeContinuitySignatureText(input.signature)
   if (explicitSignature)
-    return explicitSignature
+    return boundContinuitySignature(explicitSignature)
 
-  return sanitizeText(
+  return boundContinuitySignature(
     [
       input.kind,
       input.state ?? 'fresh',
       input.label,
       input.summary ?? '',
     ].join('::'),
-    220,
   )
+}
+
+function normalizeContinuitySignatureText(raw: unknown) {
+  return typeof raw === 'string'
+    ? raw.trim().replace(/\s+/g, ' ')
+    : ''
+}
+
+function boundContinuitySignature(signature: string, maxChars = 220) {
+  if (signature.length <= maxChars)
+    return signature
+
+  const fingerprint = createHash('sha256').update(signature).digest('hex')
+  const suffix = `::sha256:${fingerprint}`
+  return `${signature.slice(0, maxChars - suffix.length)}${suffix}`
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -336,21 +457,116 @@ function sanitizeContinuityFactSlug(raw: unknown, maxChars = 64) {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value) ? value : null
 }
 
+function isDeferredAutonomyContinuitySignal(
+  signal: Pick<AlicizationAgentContinuityRecord, 'kind' | 'label' | 'metadata'>,
+) {
+  const source = sanitizeText(signal.metadata?.source, 80)
+  if (source === 'proactive-deferred' || source === 'proactive-held-autonomy')
+    return true
+  if (signal.kind !== 'proactive')
+    return false
+
+  const label = normalizeDeferredAutonomyRawText(signal.label)
+  return label.endsWith(':deferred')
+    || label.endsWith(':held-autonomy')
+}
+
+function sanitizeDeferredAutonomyContinuityLabel(raw: unknown, maxChars = 80) {
+  const label = normalizeDeferredAutonomyRawText(raw)
+  const suffix = label.endsWith(':held-autonomy')
+    ? ':held-autonomy'
+    : label.endsWith(':deferred')
+      ? ':deferred'
+      : ''
+  if (!suffix || label.length <= maxChars)
+    return sanitizeSummary(label, maxChars)
+  return `${label.slice(0, maxChars - suffix.length)}${suffix}`
+}
+
+function resolveAgentDeferredAutonomySummaryProjection(
+  signal: Pick<AlicizationAgentContinuityRecord, 'summary' | 'metadata'>,
+) {
+  const metadata = asRecord(signal.metadata)
+  const canonicalSummaryValidation = validateDeferredAutonomyCanonicalSummary({
+    canonicalVersion: metadata?.canonicalVersion,
+    executionIntentSummary: metadata?.executionIntentSummary,
+    failure: metadata?.failure,
+    summary: signal.summary,
+    summaryOwner: metadata?.summaryOwner,
+    whyNow: metadata?.whyNow,
+  })
+  const failClosed = {
+    canonicalSummaryValidation,
+    summary: null,
+    summaryOwner: null,
+  }
+  if (!canonicalSummaryValidation.isValid)
+    return failClosed
+
+  if (canonicalSummaryValidation.summaryOwner === 'failure') {
+    return {
+      canonicalSummaryValidation,
+      summary: canonicalSummaryValidation.failure,
+      summaryOwner: 'failure' as const,
+    }
+  }
+
+  const summary = sanitizeProviderContinuitySummary(
+    canonicalSummaryValidation.summary,
+    deferredAutonomyContinuityBudgets.whyNow,
+  ) || null
+  if (canonicalSummaryValidation.summaryOwner && !summary) {
+    return {
+      canonicalSummaryValidation: {
+        ...canonicalSummaryValidation,
+        executionIntentSummary: null,
+        failure: null,
+        isValid: false,
+        summary: null,
+        summaryOwner: null,
+        whyNow: null,
+      },
+      summary: null,
+      summaryOwner: null,
+    }
+  }
+  return {
+    canonicalSummaryValidation,
+    summary,
+    summaryOwner: canonicalSummaryValidation.summaryOwner,
+  }
+}
+
 function toAgentSessionContinuityFact(signal: AlicizationAgentContinuityRecord) {
   const metadata = asRecord(signal.metadata)
+  const requiresSummaryProvenance = isDeferredAutonomyContinuitySignal(signal)
+  const summaryProjection = requiresSummaryProvenance
+    ? resolveAgentDeferredAutonomySummaryProjection(signal)
+    : {
+        canonicalSummaryValidation: undefined,
+        summary: sanitizeProviderContinuitySummary(signal.summary) || null,
+        summaryOwner: readDeferredAutonomySummaryOwner(metadata?.summaryOwner),
+      }
   const continuity = {
     arcStage: sanitizeContinuityFactSlug(metadata?.continuityArcStage, 120),
     cadence: sanitizeContinuityFactSlug(metadata?.continuityCadence, 120),
     residentMode: sanitizeContinuityFactSlug(metadata?.residentMode, 120),
   }
+  const projectedMetadata = projectAgentSessionFactMetadata(metadata, {
+    canonicalSummaryValidation: requiresSummaryProvenance
+      ? summaryProjection.canonicalSummaryValidation
+      : undefined,
+    requiresSummaryProvenance,
+  })
   return {
     kind: signal.kind,
     state: signal.state,
     label: sanitizeProviderFactText(signal.label, 80) || signal.kind,
-    summary: sanitizeProviderFactText(signal.summary, 240) || null,
+    summary: summaryProjection.summary,
     createdAt: signal.createdAt,
     timing: sanitizeContinuityFactSlug(metadata?.timing),
     ...(Object.values(continuity).some(Boolean) ? { continuity } : {}),
+    ...(projectedMetadata ? { metadata: projectedMetadata } : {}),
   }
 }
 
@@ -431,6 +647,7 @@ function findLatestDigitalLifeContinuitySignal(signals: AlicizationAgentContinui
 
 function toExecutionActionDigest(task: AlicizationAgentTaskRecord) {
   const threadStatus = readRawTaskStatusDetail(task)
+  const projectedMetadata = projectAgentSessionFactMetadata(task.metadata)
   return {
     kind: task.kind,
     status: task.status,
@@ -447,6 +664,7 @@ function toExecutionActionDigest(task: AlicizationAgentTaskRecord) {
         : null,
     label: sanitizeProviderFactText(task.label, 120) || task.kind,
     summary: sanitizeProviderFactText(task.summary, 180) || null,
+    ...(projectedMetadata ? { metadata: projectedMetadata } : {}),
   } as const
 }
 
@@ -721,14 +939,23 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
         if (signature)
           session.continuitySignatures.add(signature)
 
+        const isDeferredAutonomySignal = isDeferredAutonomyContinuitySignal({
+          kind: signal.kind,
+          label: signal.label,
+          metadata: signal.metadata ?? null,
+        })
         appendContinuitySignal(session, {
           id: `agent-continuity:${randomUUID()}`,
           kind: signal.kind,
-          label: sanitizeSummary(signal.label, 80) || signal.kind,
+          label: isDeferredAutonomySignal
+            ? sanitizeDeferredAutonomyContinuityLabel(signal.label) || signal.kind
+            : sanitizeSummary(signal.label, 80) || signal.kind,
           metadata: normalizeMetadata(signal.metadata),
           createdAt: Number.isFinite(signal.createdAt) ? Number(signal.createdAt) : getNow(),
           state: signal.state ?? 'fresh',
-          summary: sanitizeSummary(signal.summary ?? '', 260) || null,
+          summary: isDeferredAutonomySignal
+            ? normalizeDeferredAutonomyRawText(signal.summary) || null
+            : sanitizeSummary(signal.summary ?? '', 260) || null,
         })
       }
     }

@@ -20,6 +20,14 @@ import {
   formatAlicizationProjectStateAwarenessFields,
 } from '@proj-alicization/stage-shared'
 
+import {
+  buildDeferredAutonomyCanonicalSignal,
+  deferredAutonomyContinuityBudgets,
+  normalizeDeferredAutonomyCanonicalFreeText,
+  normalizeDeferredAutonomyCanonicalText,
+  resolveDeferredAutonomySummary,
+} from './runtime-deferred-autonomy-summary'
+
 interface CreateAlicizationSessionContinuityBuildersRuntimeOptions {
   sanitizeText: (raw: unknown, fallback?: string) => string
   sanitizeBriefText: (raw: string, maxChars: number) => string
@@ -225,30 +233,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
           maxChars,
         )
       : normalized
-  }
-
-  function hasGenericContinuityModeMenu(text: string | null | undefined) {
-    const normalized = typeof text === 'string' ? text.trim().toLowerCase() : ''
-    if (!normalized)
-      return false
-
-    return /measured-return\s*\/\s*repair-before-closeness|(?:one\s+)?measured-return,\s*repair-before-closeness,\s*or\s*rest-protective/u.test(normalized)
-  }
-
-  function hasExplicitRepairBeforeClosenessAuthority(text: string | null | undefined) {
-    const normalized = typeof text === 'string' ? text.trim().toLowerCase() : ''
-    if (!normalized)
-      return false
-
-    const mentionsRepairBeforeCloseness
-      = /repair[_-]before[_-]closeness|repair before closeness|repair-first|repair first|先修复|修复优先|先把身体收稳|先让修复落稳|let repair settle|repair settles first/u.test(normalized)
-    if (!mentionsRepairBeforeCloseness)
-      return false
-
-    if (!hasGenericContinuityModeMenu(normalized))
-      return true
-
-    return /same-her callback repair seam|callback repair|repair seam|repair line|repair-before-closeness still holds|repair-before-closeness still owns|keep this (?:callback )?return repair-before-closeness|keep repair-before-closeness on the same living line|embodiment repair-before-closeness on the same living line|repair still needs to land|before any warmer reopening|until repair settles|until the room settles|先修复再靠近|修复线|修补线/u.test(normalized)
   }
 
   function normalizeExecutionDeliveryStatus(
@@ -507,12 +491,11 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const scenario = sanitizeText(outcome.scenario) || 'general'
     const outcomeName = sanitizeText(outcome.outcome) || 'observed'
     const turnId = sanitizeRuntimeContinuityToken(outcome.turnId, 120)
-    const summaryLead = describeProactiveOutcome(outcome)
     const learningAction = sanitizeText(outcome.learningAction ?? '') || null
     const learningFocuses = Array.isArray(outcome.learningFocuses)
       ? outcome.learningFocuses
           .map(item => sanitizeBriefText(item, 96))
-          .filter(item => Boolean(item) && !containsAlicizationFixedTemplateResidue(item))
+          .filter(item => Boolean(item) && item !== 'same-her-inward-carry')
           .slice(0, 3)
       : []
 
@@ -520,12 +503,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       kind: 'proactive',
       state: 'observed',
       label: `proactive:${scenario}:${outcomeName}`,
-      summary: [
-        summaryLead,
-        `scenario=${scenario}`,
-        learningAction ? `learning=${learningAction}` : '',
-        learningFocuses[0] ? `Focus: ${learningFocuses.join(', ')}.` : '',
-      ].filter(Boolean).join(' | '),
+      summary: null,
       signature: [
         'proactive-outcome',
         turnId,
@@ -546,16 +524,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     }
   }
 
-  function describeProactiveOutcome(outcome: AlicizationRecentProactiveOutcome) {
-    if (outcome.outcome === 'reply-within-120s')
-      return 'host replied within 120s after a proactive turn'
-    if (outcome.outcome === 'positive')
-      return 'host received a proactive turn positively'
-    if (outcome.outcome === 'dismiss')
-      return 'host explicitly dismissed a proactive turn'
-    return 'a proactive turn expired without host reply'
-  }
-
   function buildProactiveFeedbackSessionMirrorAction(input: {
     outcome: AlicizationRecentProactiveOutcome
     source: string
@@ -564,19 +532,12 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const outcomeName = sanitizeText(input.outcome.outcome) || 'observed'
     const turnId = sanitizeBriefText(input.outcome.turnId, 120)
     const createdAt = Math.max(0, Math.floor(Number(input.outcome.createdAt) || Date.now()))
-    const summary = sanitizeExecutionLedgerText(
-      [
-        describeProactiveOutcome(input.outcome),
-        `scenario=${scenario}`,
-      ].join(' | '),
-      180,
-    )
 
     return {
       kind: 'runtime',
       status: 'completed',
       label: `proactive-feedback:${scenario}:${outcomeName}`,
-      summary: summary || describeProactiveOutcome(input.outcome),
+      summary: null,
       signature: [
         'proactive-feedback',
         input.source,
@@ -601,27 +562,18 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
   }): AlicizationAgentSessionContinuityInput {
     const scenario = sanitizeText(input.pending.scenario) || 'general'
     const turnId = sanitizeRuntimeContinuityToken(input.pending.turnId, 120)
-    const elapsedMinutes = Math.max(0, (input.now - input.pending.deliveredAt) / 60_000)
-    const feedbackWindowMinutes = Math.max(0, input.pending.feedbackWindowMs / 60_000)
     const learningAction = sanitizeText(input.pending.learningAction ?? '') || null
     const learningFocuses = Array.isArray(input.pending.learningFocuses)
       ? input.pending.learningFocuses
           .map(item => sanitizeBriefText(item, 96))
-          .filter(item => Boolean(item) && !containsAlicizationFixedTemplateResidue(item))
+          .filter(item => Boolean(item) && item !== 'same-her-inward-carry')
           .slice(0, 3)
       : []
     return {
       kind: 'proactive',
       state: 'pending',
       label: `proactive:${scenario}:pending`,
-      summary: [
-        'awaiting host response to a proactive turn',
-        `scenario=${scenario}`,
-        `${elapsedMinutes.toFixed(1)}m elapsed`,
-        `${feedbackWindowMinutes.toFixed(1)}m direct-reply window`,
-        learningAction ? `learning=${learningAction}` : '',
-        learningFocuses[0] ? `Focus: ${learningFocuses.join(', ')}.` : '',
-      ].join(' | '),
+      summary: null,
       signature: [
         'proactive-pending',
         turnId,
@@ -679,26 +631,65 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       sourceThoughtThreadId?: string | null
       sourceConcernId?: string | null
       executionIntent?: {
+        id?: string | null
         kind?: string | null
         summary?: string | null
         targetThreadId?: string | null
       } | null
     } | null
   }): AlicizationAgentSessionContinuityInput {
-    const scenario = sanitizeText(input.scenario) || 'general'
-    const turnId = sanitizeRuntimeContinuityToken(input.turnId, 120)
-    const reason = sanitizeBriefText(input.reason, 120)
-    const deferReason = sanitizeBriefText(input.autonomy?.deferReason ?? '', 120)
-    const whyNow = sanitizeBriefText(input.autonomy?.whyNow ?? '', 180)
-    const sourceThreadId = sanitizeRuntimeContinuityToken(input.autonomy?.sourceThreadId ?? '', 120)
-    const sourceThoughtThreadId = sanitizeRuntimeContinuityToken(input.autonomy?.sourceThoughtThreadId ?? '', 120)
-    const sourceConcernId = sanitizeRuntimeContinuityToken(input.autonomy?.sourceConcernId ?? '', 120)
-    const executionIntentKind = sanitizeBriefText(input.autonomy?.executionIntent?.kind ?? '', 64)
-    const executionIntentSummary = sanitizeBriefText(input.autonomy?.executionIntent?.summary ?? '', 180)
-    const targetThreadId = sanitizeRuntimeContinuityToken(input.autonomy?.executionIntent?.targetThreadId ?? '', 120)
+    const scenario = normalizeDeferredAutonomyCanonicalText(
+      input.scenario,
+      deferredAutonomyContinuityBudgets.scenario,
+    ) || 'general'
+    const turnId = normalizeDeferredAutonomyCanonicalText(
+      input.turnId,
+      deferredAutonomyContinuityBudgets.turnId,
+    )
+    const reason = normalizeDeferredAutonomyCanonicalText(
+      input.reason,
+      deferredAutonomyContinuityBudgets.reasonCode,
+    )
+    const deferReason = normalizeDeferredAutonomyCanonicalFreeText(
+      input.autonomy?.deferReason,
+      deferredAutonomyContinuityBudgets.deferReason,
+    )
+    const whyNow = normalizeDeferredAutonomyCanonicalFreeText(
+      input.autonomy?.whyNow,
+      deferredAutonomyContinuityBudgets.whyNow,
+    )
+    const sourceThreadId = normalizeDeferredAutonomyCanonicalText(
+      input.autonomy?.sourceThreadId ?? '',
+      deferredAutonomyContinuityBudgets.threadId,
+    )
+    const sourceThoughtThreadId = normalizeDeferredAutonomyCanonicalText(
+      input.autonomy?.sourceThoughtThreadId ?? '',
+      deferredAutonomyContinuityBudgets.threadId,
+    )
+    const sourceConcernId = normalizeDeferredAutonomyCanonicalText(
+      input.autonomy?.sourceConcernId ?? '',
+      deferredAutonomyContinuityBudgets.threadId,
+    )
+    const executionIntentKind = normalizeDeferredAutonomyCanonicalText(
+      input.autonomy?.executionIntent?.kind ?? '',
+      deferredAutonomyContinuityBudgets.intentId,
+    )
+    const explicitIntentId = normalizeDeferredAutonomyCanonicalText(
+      input.autonomy?.executionIntent?.id ?? '',
+      deferredAutonomyContinuityBudgets.intentId,
+    )
+    const intentId = explicitIntentId || executionIntentKind
+    const executionIntentSummary = normalizeDeferredAutonomyCanonicalFreeText(
+      input.autonomy?.executionIntent?.summary ?? '',
+      deferredAutonomyContinuityBudgets.executionIntentSummary,
+    )
+    const targetThreadId = normalizeDeferredAutonomyCanonicalText(
+      input.autonomy?.executionIntent?.targetThreadId ?? '',
+      deferredAutonomyContinuityBudgets.threadId,
+    )
     const hasHeldAutonomyThreadAnchor = Boolean(sourceThoughtThreadId)
       || Boolean(sourceConcernId)
-    const explicitHeldAutonomyIntent = Boolean(executionIntentKind)
+    const explicitHeldAutonomyIntent = Boolean(intentId)
       || Boolean(executionIntentSummary)
       || hasHeldAutonomyThreadAnchor
     const visibleUtteranceWasDeferred
@@ -710,120 +701,40 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
           !explicitHeldAutonomyIntent
           || executionIntentKind === 'repair'
         )
-    // Deferred autonomy carries live runtime facts only. Project-state summaries
-    // are a separate governance surface and must not become reply authority.
-    const projectStatePreDialogueAwarenessLine = null
-    const projectStateCompanionHeadlineLine = null
-    const projectStatePreflightSummary = null
-    const projectLatestLandedProgress = null
-    const projectIdentity = null
-    const projectPhase = null
-    const projectPrimaryOpenLoop = null
-    const projectNextClosureTarget = null
-    const projectStateOpenFocusSummary = null
-    const projectStateNextFocusSummary = null
-    const projectStateSameHerSelfLine = null
-    const projectStateSameHerHoldDetail = null
-    const projectStateSameHerDriftRisk = null
-    const projectStateEmotionalClosureCue = null
-    if (shouldUseDeferredProactiveLine) {
-      return {
-        kind: 'proactive',
-        state: 'pending',
-        label: `proactive:${scenario}:deferred`,
-        summary: [
-          'defer_reason=no_mind_authored_reply',
-          reason ? `reason=${reason}` : '',
-          whyNow || executionIntentSummary || '',
-          sourceThreadId ? `thread=${sourceThreadId}` : '',
-          `scenario=${scenario}`,
-        ].filter(Boolean).join(' | '),
-        signature: [
-          'proactive-deferred',
-          turnId || 'turn',
-          sourceThreadId || targetThreadId || 'global',
-          scenario,
-        ].join(':'),
-        createdAt: input.now,
-        metadata: {
-          source: 'proactive-deferred',
-          turnId: turnId || null,
-          scenario,
-          reason: reason || null,
-          deferReason: deferReason || null,
-          whyNow: whyNow || null,
-          sourceThreadId: sourceThreadId || null,
-          sourceThoughtThreadId: sourceThoughtThreadId || null,
-          sourceConcernId: sourceConcernId || null,
-          executionIntentKind: null,
-          executionIntentSummary: executionIntentSummary || null,
-          targetThreadId: targetThreadId || null,
-          projectStatePreDialogueAwarenessLine,
-          projectStateCompanionHeadlineLine,
-          projectStatePreflightSummary,
-          projectLatestLandedProgress,
-          projectIdentity,
-          projectPhase,
-          projectPrimaryOpenLoop,
-          projectNextClosureTarget,
-          projectStateOpenFocusSummary,
-          projectStateNextFocusSummary,
-          projectStateSameHerSelfLine,
-          projectStateSameHerHoldDetail,
-          projectStateSameHerDriftRisk,
-          projectStateEmotionalClosureCue,
-        },
-      }
-    }
-
-    return {
-      kind: 'proactive',
-      state: 'observed',
-      label: `proactive:${executionIntentKind || scenario}:held-autonomy`,
-      summary: [
-        executionIntentSummary || whyNow || '',
-        executionIntentKind ? `intent=${executionIntentKind}` : '',
-        deferReason ? `defer=${deferReason}` : '',
-        reason ? `reason=${reason}` : '',
-        sourceThreadId ? `thread=${sourceThreadId}` : '',
-        `scenario=${scenario}`,
-      ].filter(Boolean).join(' | '),
-      signature: [
-        'proactive-held-autonomy',
-        turnId,
-        sourceThreadId || targetThreadId || 'global',
-        executionIntentKind || scenario,
-      ].join(':'),
-      createdAt: input.now,
-      metadata: {
-        source: 'proactive-held-autonomy',
-        turnId: turnId || null,
-        scenario,
-        reason: reason || null,
-        deferReason: deferReason || null,
-        whyNow: whyNow || null,
-        sourceThreadId: sourceThreadId || null,
-        sourceThoughtThreadId: sourceThoughtThreadId || null,
-        sourceConcernId: sourceConcernId || null,
-        executionIntentKind: executionIntentKind || null,
-        executionIntentSummary: executionIntentSummary || null,
-        targetThreadId: targetThreadId || null,
-        projectStatePreDialogueAwarenessLine,
-        projectStateCompanionHeadlineLine,
-        projectStatePreflightSummary,
-        projectLatestLandedProgress,
-        projectIdentity,
-        projectPhase,
-        projectPrimaryOpenLoop,
-        projectNextClosureTarget,
-        projectStateOpenFocusSummary,
-        projectStateNextFocusSummary,
-        projectStateSameHerSelfLine,
-        projectStateSameHerHoldDetail,
-        projectStateSameHerDriftRisk,
-        projectStateEmotionalClosureCue,
+    const source = shouldUseDeferredProactiveLine
+      ? 'proactive-deferred'
+      : 'proactive-held-autonomy'
+    const summarySelection = resolveDeferredAutonomySummary({
+      mode: source === 'proactive-deferred' ? 'deferred' : 'held-autonomy',
+      whyNow,
+      executionIntentSummary,
+      failureCandidates: [deferReason],
+      inferenceSources: {
+        whyNow: input.autonomy?.whyNow,
+        executionIntentSummary: input.autonomy?.executionIntent?.summary,
+        failureCandidates: [input.autonomy?.deferReason],
       },
-    }
+    })
+    return buildDeferredAutonomyCanonicalSignal({
+      createdAt: input.now,
+      deferReason,
+      executionIntentKind,
+      executionIntentSummary,
+      failure: summarySelection.failure,
+      intentId,
+      reasonCode: reason,
+      scenario,
+      source,
+      sourceConcernId,
+      sourceThreadId,
+      sourceThoughtThreadId,
+      summary: summarySelection.summary,
+      summaryOwner: summarySelection.summaryOwner,
+      targetThreadId,
+      threadId: sourceThreadId || targetThreadId,
+      turnId,
+      whyNow,
+    })
   }
 
   function buildProactiveContinuitySignals(
@@ -1003,11 +914,22 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         const ageMs = Math.max(0, now - event.occurredAt)
         if (ageMs > autobiographicalAfterglowMs)
           return false
-        const tags = event.tags.join(' ').toLowerCase()
-        const sourceSummary = sanitizeBriefText(event.sourceSummary ?? '', 180).toLowerCase()
-        const afterglowTagged = /afterthought|continuity|session-mirror|dream/.test(tags)
-          || /session mirror|dream/.test(sourceSummary)
-          || event.sourceKind === 'maintenance'
+        const tagSet = new Set(
+          event.tags
+            .map(tag => sanitizeRuntimeContinuityToken(tag, 80).toLowerCase())
+            .filter(Boolean),
+        )
+        const provenance = event.latestReconsolidation?.provenance ?? event.provenance
+        const afterglowTagged = [
+          'afterthought',
+          'continuity',
+          'session-mirror',
+          'dream',
+        ].some(tag => tagSet.has(tag))
+        || event.sourceKind === 'maintenance'
+        || event.sourceKind === 'dream'
+        || event.sourceKind === 'dream-reforge'
+        || provenance === 'dreamt'
         if (!afterglowTagged)
           return false
         if (activeSessionId && event.sessionId && event.sessionId === activeSessionId)
@@ -1021,24 +943,24 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       const ageMinutes = Math.max(0, (now - event.occurredAt) / 60_000)
       const threadAnchor = sanitizeRuntimeContinuityToken(event.threadAnchor ?? '', 120)
       const tags = event.tags.map(tag => sanitizeRuntimeContinuityToken(tag, 80).toLowerCase()).filter(Boolean)
-      const sourceSummary = sanitizeProjectStateCarryText(event.sourceSummary ?? '', 180, 'summary').toLowerCase()
+      const tagSet = new Set(tags)
       const projectStateCarry = resolveProjectStateCarryFromEvent(event)
-      const relationshipMeaning = sanitizeBriefText(event.relationshipMeaning ?? '', 180).toLowerCase()
-      const lesson = sanitizeBriefText(event.lesson ?? '', 180).toLowerCase()
-      const looksLikeExecutionCallback = tags.some(tag => /execution-callback|callback|result-mode|result-lead|soft-handoff/u.test(tag))
-        || /execution-callback|callback|result-mode|result-lead|soft-handoff/u.test(sourceSummary)
+      const looksLikeExecutionCallback = [
+        'execution-callback',
+        'callback',
+        'result-mode',
+        'result-lead',
+        'soft-handoff',
+      ].some(tag => tagSet.has(tag))
       const carryMode = looksLikeExecutionCallback
         ? (
-            tags.some(tag => /repair-before-closeness|repair-first|callback-repair/u.test(tag))
-            || hasExplicitRepairBeforeClosenessAuthority(`${relationshipMeaning} ${lesson} ${sourceSummary}`)
+            ['repair-before-closeness', 'repair-first', 'callback-repair'].some(tag => tagSet.has(tag))
               ? 'repair-before-closeness'
-              : tags.some(tag => /lower-pressure|leave-room|bounded-room|space-first/u.test(tag))
-                || /lower-pressure|leave room|keep room|space first/u.test(`${relationshipMeaning} ${lesson} ${sourceSummary}`)
-                ? 'lower-pressure'
-                : tags.some(tag => /trust-warming|soft-handoff|trust-open/u.test(tag))
-                  || /trust warming|soft handoff|trust opened|trust warmed/u.test(`${relationshipMeaning} ${lesson} ${sourceSummary}`)
-                  ? 'trust-warming'
-                  : 'execution-callback'
+              : ['lower-pressure', 'leave-room', 'bounded-room', 'space-first'].some(tag => tagSet.has(tag))
+                  ? 'lower-pressure'
+                  : ['trust-warming', 'soft-handoff', 'trust-open'].some(tag => tagSet.has(tag))
+                      ? 'trust-warming'
+                      : 'execution-callback'
           )
         : null
       const summaryLine = sanitizeProjectStateCarryText(

@@ -16,6 +16,16 @@ import { resolvePreferredPersonStateProjection } from './person-state-projection
 import { buildAlicizationPresenceExpression } from './presence-expression'
 import { applyProactiveMemoryBoundaryRestraint } from './proactive-memory-boundary'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
+import {
+  buildDeferredAutonomyCanonicalSignal,
+  deferredAutonomyCanonicalVersion,
+  deferredAutonomyContinuityBudgets,
+  normalizeDeferredAutonomyCanonicalFreeText,
+  normalizeDeferredAutonomyCanonicalText,
+  normalizeDeferredAutonomyRawText,
+  resolveDeferredAutonomySummary,
+  validateDeferredAutonomyCanonicalSummary,
+} from './runtime-deferred-autonomy-summary'
 import { normalizeDialogueRespondedPayload } from './runtime-governance'
 import {
   buildAlicizationAutonomousDialogueTurnId,
@@ -50,6 +60,22 @@ function sanitizePresenceOnlyReasonTags(reasonTags: readonly unknown[]) {
   return reasonTags
     .map(tag => sanitizeAlicizationProviderFacingText(tag, 120, ''))
     .filter((tag): tag is string => Boolean(tag))
+}
+
+function normalizePresenceOnlyHoldCarryText(raw: unknown, maxChars = 420) {
+  if (typeof raw !== 'string')
+    return ''
+  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  if (!normalized)
+    return ''
+  const sanitized = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
+  if (sanitized)
+    return sanitized
+  const fragments = normalized
+    .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
+    .map(fragment => sanitizeAlicizationProviderFacingText(fragment, Math.min(260, maxChars), ''))
+    .filter((fragment): fragment is string => Boolean(fragment))
+  return fragments.join(' | ')
 }
 
 const presenceOnlyLegacyProjectStateKeys = new Set([
@@ -87,130 +113,169 @@ export function stripPresenceOnlyLegacyProjectState(projectState: Record<string,
   )
 }
 
-function normalizePresenceOnlyHoldCarryText(raw: unknown, maxChars = 420) {
-  if (typeof raw !== 'string')
-    return ''
-  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-  if (!normalized)
-    return ''
-  const sanitized = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  if (sanitized)
-    return sanitized
-  const fragments = normalized
-    .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
-    .map(fragment => sanitizeAlicizationProviderFacingText(fragment, Math.min(260, maxChars), ''))
-    .filter((fragment): fragment is string => Boolean(fragment))
-  return fragments.join(' | ')
-}
-
-function normalizePresenceOnlyContinuitySummary(raw: unknown, maxChars = 560) {
-  if (typeof raw !== 'string')
-    return ''
-
-  const normalized = raw.trim().replace(/\s+/g, ' ')
-  if (!normalized)
-    return ''
-
-  const direct = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  if (direct) {
-    return direct
-  }
-
-  return normalized
-    .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
-    .map(fragment => normalizePresenceOnlyHoldCarryText(fragment, maxChars))
-    .filter(Boolean)
-    .join(' | ')
-    .slice(0, maxChars)
-}
-
-function resolvePresenceOnlyTransparentFailure(candidates: unknown[]) {
-  return candidates
-    .map(candidate => normalizePresenceOnlyContinuitySummary(candidate, 560))
-    .find(candidate =>
-      /failed|failure|error|timed? out|timeout|unavailable|blocked|denied|settlement|失败|错误|超时|不可用|被阻止|拒绝|结算/iu.test(candidate),
-    ) ?? ''
-}
-
-export function normalizeDeferredAutonomyContinuitySignal(signal: Record<string, any> | null | undefined) {
+export function normalizeDeferredAutonomyContinuitySignal(
+  signal: Record<string, any> | null | undefined,
+): Record<string, any> | null | undefined {
   if (!signal || typeof signal !== 'object')
     return signal
 
   const metadata = signal.metadata && typeof signal.metadata === 'object'
     ? signal.metadata as Record<string, unknown>
     : {}
-  const source = typeof metadata.source === 'string'
-    ? metadata.source.trim()
-    : ''
-  const turnId = typeof metadata.turnId === 'string'
-    ? metadata.turnId.trim()
-    : ''
-  const scenario = typeof metadata.scenario === 'string'
-    ? metadata.scenario.trim()
-    : ''
+  const explicitSource = normalizeDeferredAutonomyCanonicalText(
+    metadata.source,
+    deferredAutonomyContinuityBudgets.source,
+  )
+  const inputLabel = normalizeDeferredAutonomyRawText(signal.label)
+  const labelMatch = /^proactive:(.+):(deferred|held-autonomy)$/u.exec(inputLabel)
+  const labelSource = labelMatch?.[2] === 'deferred'
+    ? 'proactive-deferred'
+    : labelMatch?.[2] === 'held-autonomy'
+      ? 'proactive-held-autonomy'
+      : null
+  const recognizedSource = explicitSource === 'proactive-deferred'
+    || explicitSource === 'proactive-held-autonomy'
+    ? explicitSource
+    : null
+  const stateSource = signal.state === 'pending'
+    ? 'proactive-deferred'
+    : signal.state === 'observed'
+      ? 'proactive-held-autonomy'
+      : null
+  const source = labelSource
+    || recognizedSource
+    || stateSource
+    || 'proactive-held-autonomy'
+  const turnId = normalizeDeferredAutonomyCanonicalText(
+    metadata.turnId,
+    deferredAutonomyContinuityBudgets.turnId,
+  )
+  const scenario = normalizeDeferredAutonomyCanonicalText(
+    metadata.scenario,
+    deferredAutonomyContinuityBudgets.scenario,
+  )
+  const executionIntentKind = normalizeDeferredAutonomyCanonicalText(
+    metadata.executionIntentKind,
+    deferredAutonomyContinuityBudgets.intentId,
+  )
+  const normalizedReasonCode = normalizeDeferredAutonomyCanonicalText(
+    metadata.reasonCode,
+    deferredAutonomyContinuityBudgets.reasonCode,
+  )
+  const normalizedLegacyReasonCode = normalizeDeferredAutonomyCanonicalText(
+    metadata.reason,
+    deferredAutonomyContinuityBudgets.reasonCode,
+  )
   const reasonCode = typeof metadata.reasonCode === 'string'
-    ? metadata.reasonCode.trim()
-    : typeof metadata.reason === 'string'
-      ? metadata.reason.trim()
-      : ''
-  const sourceThreadId = typeof metadata.sourceThreadId === 'string'
-    ? metadata.sourceThreadId.trim()
-    : ''
-  const sourceThoughtThreadId = typeof metadata.sourceThoughtThreadId === 'string'
-    ? metadata.sourceThoughtThreadId.trim()
-    : ''
-  const sourceConcernId = typeof metadata.sourceConcernId === 'string'
-    ? metadata.sourceConcernId.trim()
-    : ''
-  const targetThreadId = typeof metadata.targetThreadId === 'string'
-    ? metadata.targetThreadId.trim()
-    : ''
-  const threadId = typeof metadata.threadId === 'string'
-    ? metadata.threadId.trim()
-    : sourceThreadId || targetThreadId
-  const intentId = typeof metadata.intentId === 'string'
-    ? metadata.intentId.trim()
-    : typeof metadata.executionIntentKind === 'string'
-      ? metadata.executionIntentKind.trim()
-      : ''
+    ? normalizedReasonCode || normalizedLegacyReasonCode || scenario || executionIntentKind
+    : normalizedLegacyReasonCode || scenario || executionIntentKind
+  const sourceThreadId = normalizeDeferredAutonomyCanonicalText(
+    metadata.sourceThreadId,
+    deferredAutonomyContinuityBudgets.threadId,
+  )
+  const sourceThoughtThreadId = normalizeDeferredAutonomyCanonicalText(
+    metadata.sourceThoughtThreadId,
+    deferredAutonomyContinuityBudgets.threadId,
+  )
+  const sourceConcernId = normalizeDeferredAutonomyCanonicalText(
+    metadata.sourceConcernId,
+    deferredAutonomyContinuityBudgets.threadId,
+  )
+  const targetThreadId = normalizeDeferredAutonomyCanonicalText(
+    metadata.targetThreadId,
+    deferredAutonomyContinuityBudgets.threadId,
+  )
+  const normalizedThreadId = normalizeDeferredAutonomyCanonicalText(
+    metadata.threadId,
+    deferredAutonomyContinuityBudgets.threadId,
+  )
+  const threadId = normalizedThreadId || sourceThreadId || targetThreadId
+  const metadataIntentId = normalizeDeferredAutonomyCanonicalText(
+    metadata.intentId,
+    deferredAutonomyContinuityBudgets.intentId,
+  ) || executionIntentKind || scenario
+  const labelSubject = normalizeDeferredAutonomyCanonicalText(
+    labelMatch?.[1],
+    labelSource === 'proactive-held-autonomy'
+      ? deferredAutonomyContinuityBudgets.intentId
+      : deferredAutonomyContinuityBudgets.scenario,
+  )
+  const intentId = labelSource === 'proactive-held-autonomy' && labelSubject
+    ? labelSubject
+    : metadataIntentId
+  const canonicalSubject = labelSubject
+    || (source === 'proactive-deferred' ? scenario : intentId || scenario || 'general')
+  const canonicalScenario = source === 'proactive-deferred' && labelSubject
+    ? canonicalSubject
+    : scenario
+  const canonicalIntentId = source === 'proactive-held-autonomy' && labelSubject
+    ? canonicalSubject
+    : intentId
   const deferredAt = typeof metadata.deferredAt === 'number' && Number.isFinite(metadata.deferredAt)
     ? metadata.deferredAt
     : typeof signal.createdAt === 'number' && Number.isFinite(signal.createdAt)
       ? signal.createdAt
       : null
-  const modelSummary = normalizePresenceOnlyContinuitySummary(
-    metadata.executionIntentSummary ?? signal.summary,
-    560,
-  )
-  const normalizedDeferReason = normalizePresenceOnlyContinuitySummary(metadata.deferReason, 240)
-  const failure = resolvePresenceOnlyTransparentFailure([
-    metadata.failure,
-    modelSummary,
-    metadata.whyNow,
-    normalizedDeferReason,
-  ])
-  const continuitySummary = Array.from(new Set([
-    modelSummary,
+  const canonicalSummaryValidation = validateDeferredAutonomyCanonicalSummary({
+    canonicalVersion: metadata.canonicalVersion,
+    executionIntentSummary: metadata.executionIntentSummary,
+    failure: metadata.failure,
+    summary: signal.summary,
+    summaryOwner: metadata.summaryOwner,
+    whyNow: metadata.whyNow,
+  })
+  const normalizedDeferReason = canonicalSummaryValidation.isValid
+    ? normalizeDeferredAutonomyCanonicalFreeText(
+        metadata.deferReason,
+        deferredAutonomyContinuityBudgets.deferReason,
+      )
+    : ''
+  const {
+    executionIntentSummary: canonicalExecutionIntentSummary,
     failure,
-  ].filter(Boolean))).join(' | ')
+    summary: continuitySummary,
+    summaryOwner: canonicalSummaryOwner,
+    whyNow: canonicalWhyNow,
+  } = canonicalSummaryValidation
   const structuredDeferReason = normalizedDeferReason && normalizedDeferReason !== failure
     ? normalizedDeferReason
     : null
+  const canonicalSignature = [
+    source,
+    turnId || 'turn',
+    threadId || 'global',
+    canonicalSubject,
+  ].join(':')
+  const canonicalState = source === 'proactive-deferred'
+    ? 'pending'
+    : 'observed'
+  const canonicalLabel = source === 'proactive-deferred'
+    ? `proactive:${canonicalSubject}:deferred`
+    : `proactive:${canonicalSubject}:held-autonomy`
 
   return {
     ...signal,
+    kind: 'proactive',
+    state: canonicalState,
+    label: canonicalLabel,
     summary: continuitySummary || null,
+    signature: canonicalSignature,
     metadata: {
+      canonicalVersion: deferredAutonomyCanonicalVersion,
       source: source || null,
       turnId: turnId || null,
-      scenario: scenario || null,
+      scenario: canonicalScenario || null,
+      reason: reasonCode || null,
       reasonCode: reasonCode || null,
       threadId: threadId || null,
-      intentId: intentId || null,
+      intentId: canonicalIntentId || null,
+      executionIntentKind: executionIntentKind || null,
       deferredAt,
       deferReason: structuredDeferReason,
       failure: failure || null,
-      executionIntentSummary: modelSummary || null,
+      summaryOwner: canonicalSummaryOwner,
+      whyNow: canonicalWhyNow || null,
+      executionIntentSummary: canonicalExecutionIntentSummary || null,
       sourceThreadId: sourceThreadId || null,
       sourceThoughtThreadId: sourceThoughtThreadId || null,
       sourceConcernId: sourceConcernId || null,
@@ -426,18 +491,54 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
     } | null
   } | null
 }) {
-  const scenario = String(input.scenario ?? '').trim() || 'general'
-  const turnId = String(input.turnId ?? '').trim()
-  const reasonCode = String(input.reason ?? '').trim()
-  const explicitIntentId = String(input.autonomy?.executionIntent?.id ?? '').trim()
-  const executionIntentKind = String(input.autonomy?.executionIntent?.kind ?? '').trim()
-  const executionIntentSummary = String(input.autonomy?.executionIntent?.summary ?? '').trim()
-  const deferReason = String(input.autonomy?.deferReason ?? '').trim()
-  const whyNow = String(input.autonomy?.whyNow ?? '').trim()
-  const sourceThreadId = String(input.autonomy?.sourceThreadId ?? '').trim()
-  const sourceThoughtThreadId = String(input.autonomy?.sourceThoughtThreadId ?? '').trim()
-  const sourceConcernId = String(input.autonomy?.sourceConcernId ?? '').trim()
-  const targetThreadId = String(input.autonomy?.executionIntent?.targetThreadId ?? '').trim()
+  const scenario = normalizeDeferredAutonomyCanonicalText(
+    input.scenario,
+    deferredAutonomyContinuityBudgets.scenario,
+  ) || 'general'
+  const turnId = normalizeDeferredAutonomyCanonicalText(
+    input.turnId,
+    deferredAutonomyContinuityBudgets.turnId,
+  )
+  const explicitIntentId = normalizeDeferredAutonomyCanonicalText(
+    input.autonomy?.executionIntent?.id,
+    deferredAutonomyContinuityBudgets.intentId,
+  )
+  const executionIntentKind = normalizeDeferredAutonomyCanonicalText(
+    input.autonomy?.executionIntent?.kind,
+    deferredAutonomyContinuityBudgets.intentId,
+  )
+  const reasonCode = normalizeDeferredAutonomyCanonicalText(
+    input.reason,
+    deferredAutonomyContinuityBudgets.reasonCode,
+  ) || scenario || executionIntentKind
+  const executionIntentSummary = normalizeDeferredAutonomyCanonicalFreeText(
+    input.autonomy?.executionIntent?.summary,
+    deferredAutonomyContinuityBudgets.executionIntentSummary,
+  )
+  const deferReason = normalizeDeferredAutonomyCanonicalFreeText(
+    input.autonomy?.deferReason,
+    deferredAutonomyContinuityBudgets.deferReason,
+  )
+  const whyNow = normalizeDeferredAutonomyCanonicalFreeText(
+    input.autonomy?.whyNow,
+    deferredAutonomyContinuityBudgets.whyNow,
+  )
+  const sourceThreadId = normalizeDeferredAutonomyCanonicalText(
+    input.autonomy?.sourceThreadId,
+    deferredAutonomyContinuityBudgets.threadId,
+  )
+  const sourceThoughtThreadId = normalizeDeferredAutonomyCanonicalText(
+    input.autonomy?.sourceThoughtThreadId,
+    deferredAutonomyContinuityBudgets.threadId,
+  )
+  const sourceConcernId = normalizeDeferredAutonomyCanonicalText(
+    input.autonomy?.sourceConcernId,
+    deferredAutonomyContinuityBudgets.threadId,
+  )
+  const targetThreadId = normalizeDeferredAutonomyCanonicalText(
+    input.autonomy?.executionIntent?.targetThreadId,
+    deferredAutonomyContinuityBudgets.threadId,
+  )
   const threadId = sourceThreadId || targetThreadId
   const intentId = explicitIntentId || executionIntentKind
   const hasHeldAutonomyThreadAnchor = Boolean(sourceThoughtThreadId)
@@ -454,61 +555,41 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
         !explicitHeldAutonomyIntent
         || executionIntentKind === 'repair'
       )
-  const modelSummary = normalizePresenceOnlyContinuitySummary(executionIntentSummary, 560)
-  const normalizedDeferReason = normalizePresenceOnlyContinuitySummary(deferReason, 240)
-  const failure = [
-    modelSummary,
-    normalizePresenceOnlyHoldCarryText(whyNow, 560),
-    normalizedDeferReason,
-  ].find(candidate =>
-    /failed|failure|error|timed? out|timeout|unavailable|blocked|denied|settlement|失败|错误|超时|不可用|被阻止|拒绝|结算/iu.test(candidate),
-  ) ?? ''
-  const continuitySummary = Array.from(new Set([
-    modelSummary,
-    failure,
-  ].filter(Boolean))).join(' | ')
-  const structuredDeferReason = normalizedDeferReason && normalizedDeferReason !== failure
-    ? normalizedDeferReason
-    : null
   const source = shouldUseDeferredProactiveLine
     ? 'proactive-deferred'
     : 'proactive-held-autonomy'
-  const state = shouldUseDeferredProactiveLine
-    ? 'pending'
-    : 'observed'
-  const label = shouldUseDeferredProactiveLine
-    ? `proactive:${scenario}:deferred`
-    : `proactive:${intentId || scenario}:held-autonomy`
-
-  return {
-    kind: 'proactive',
-    state,
-    label,
-    summary: continuitySummary || null,
-    signature: [
-      source,
-      turnId || 'turn',
-      threadId || 'global',
-      intentId || scenario,
-    ].join(':'),
-    createdAt: input.now,
-    metadata: {
-      source,
-      turnId: turnId || null,
-      scenario,
-      reasonCode: reasonCode || null,
-      threadId: threadId || null,
-      intentId: intentId || null,
-      deferredAt: input.now,
-      deferReason: structuredDeferReason,
-      failure: failure || null,
-      executionIntentSummary: modelSummary || null,
-      sourceThreadId: sourceThreadId || null,
-      sourceThoughtThreadId: sourceThoughtThreadId || null,
-      sourceConcernId: sourceConcernId || null,
-      targetThreadId: targetThreadId || null,
+  const summarySelection = resolveDeferredAutonomySummary({
+    mode: source === 'proactive-deferred' ? 'deferred' : 'held-autonomy',
+    whyNow,
+    executionIntentSummary,
+    failureCandidates: [deferReason],
+    inferenceSources: {
+      whyNow: input.autonomy?.whyNow,
+      executionIntentSummary: input.autonomy?.executionIntent?.summary,
+      failureCandidates: [input.autonomy?.deferReason],
     },
-  }
+  })
+  const { failure, summary: continuitySummary, summaryOwner } = summarySelection
+  return buildDeferredAutonomyCanonicalSignal({
+    createdAt: input.now,
+    deferReason,
+    executionIntentKind,
+    executionIntentSummary,
+    failure,
+    intentId,
+    reasonCode,
+    scenario,
+    source,
+    sourceConcernId,
+    sourceThreadId,
+    sourceThoughtThreadId,
+    summary: continuitySummary,
+    summaryOwner,
+    targetThreadId,
+    threadId,
+    turnId,
+    whyNow,
+  })
 }
 
 export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {

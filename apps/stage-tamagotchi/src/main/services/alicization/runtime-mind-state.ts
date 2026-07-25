@@ -109,6 +109,7 @@ import { buildReflectionLedger } from './reflection-ledger'
 import { buildRelationshipModel } from './relationship-model'
 import { buildRepairLedger } from './repair-ledger'
 import { buildReplyDeliberation } from './reply-deliberator'
+import { isHistoricalContinuityGovernanceText } from './runtime-deferred-autonomy-summary'
 import {
   alicizationDialogueTurnSemanticsResponseFormat,
   alicizationSubjectiveInferenceResponseFormat,
@@ -317,7 +318,7 @@ const legacyProjectGovernanceReasonCodePattern
   = /^(?:continuity-proactive-gap-active|project-state-causality-repair)$/u
 
 const legacyProjectGovernanceInstructionPattern
-  = /\b(?:answer like the same-person line matters|hold continuity gently|repair continuity first|prefer repair-first|manifest with lower pressure|keep the opening lower-pressure|avoid eager warmth|avoid theatrical intimacy|repair-before-closeness|measured-return|hold-for-opening|next-open-window)\b/iu
+  = /\b(?:answer like the same-person line matters|hold continuity gently|repair continuity first|prefer repair-first|manifest with lower pressure|keep the opening lower-pressure|avoid eager warmth|avoid theatrical intimacy|hold-for-opening|next-open-window)\b/iu
 
 function isLegacyProjectGovernanceReasonCode(raw: unknown) {
   const normalized = String(raw).trim().toLowerCase()
@@ -405,17 +406,28 @@ function isLegacyProjectGovernanceText(raw: unknown) {
       carriesLegacyProjectGovernanceProjection(raw)
       || containsAlicizationFixedTemplateResidue(raw)
       || legacyProjectGovernanceInstructionPattern.test(raw)
+      || isHistoricalContinuityGovernanceText(raw)
     )
 }
 
-function carriesLegacyProjectGovernanceText(raw: unknown): boolean {
+function isLegacyProjectGovernanceOwnerText(raw: unknown) {
+  return typeof raw === 'string'
+    && (
+      legacyProjectGovernanceTokenPattern.test(raw)
+      || containsAlicizationFixedTemplateResidue(raw)
+      || isLegacyProjectGovernanceReasonCode(raw)
+      || isHistoricalContinuityGovernanceText(raw)
+    )
+}
+
+function carriesLegacyProjectGovernanceOwnerText(raw: unknown): boolean {
   if (typeof raw === 'string')
-    return isLegacyProjectGovernanceText(raw)
+    return isLegacyProjectGovernanceOwnerText(raw)
   if (Array.isArray(raw))
-    return raw.some(carriesLegacyProjectGovernanceText)
+    return raw.some(carriesLegacyProjectGovernanceOwnerText)
   if (!isRecord(raw))
     return false
-  return Object.values(raw).some(carriesLegacyProjectGovernanceText)
+  return Object.values(raw).some(carriesLegacyProjectGovernanceOwnerText)
 }
 
 function stripLegacyProjectGovernanceOwnerValue(
@@ -440,7 +452,7 @@ function stripLegacyProjectGovernanceOwnerValue(
     return null
 
   if (typeof raw === 'string') {
-    if (!isLegacyProjectGovernanceText(raw))
+    if (!isLegacyProjectGovernanceOwnerText(raw))
       return raw
     return key && legacyProjectGovernanceNullableKeys.has(key) ? null : ''
   }
@@ -518,7 +530,7 @@ function stripLegacyProjectGovernanceFromDerivedMindStateBundle(
     ...cleanBundle,
     activeSelfRevision: sanitizedActiveSelfRevision,
     selfEvolution: hasLegacyGovernanceStructure
-      || carriesLegacyProjectGovernanceProjection(bundle.selfEvolution)
+      || carriesLegacyProjectGovernanceOwnerText(bundle.selfEvolution)
       ? null
       : bundle.selfEvolution ?? null,
     memoryDeliberation: hasLegacyGovernanceStructure
@@ -556,10 +568,10 @@ function stripProjectGovernanceFromLongHorizonMemory(
   const sourceAnchorFacts = Array.isArray(memory.anchorFacts) ? memory.anchorFacts : []
   const anchorFacts = sourceAnchorFacts.filter(fact =>
     !isLegacyProjectGovernanceAnchorFact(fact)
-    && !carriesLegacyProjectGovernanceText(fact),
+    && !carriesLegacyProjectGovernanceOwnerText(fact),
   )
   const removedLegacyAnchor = anchorFacts.length !== sourceAnchorFacts.length
-  const hasLegacyTextProjection = carriesLegacyProjectGovernanceText({
+  const hasLegacyTextProjection = carriesLegacyProjectGovernanceOwnerText({
     summary: memory.summary,
     dominantCueSummary: memory.dominantCueSummary,
     rememberedConstraintSummary: memory.rememberedConstraintSummary,
@@ -592,17 +604,17 @@ function stripProjectGovernanceFromLongHorizonMemory(
         }
       : memory.identityBias,
     anchorFacts,
-    summary: isLegacyProjectGovernanceText(memory.summary) ? '' : memory.summary,
-    dominantCueSummary: isLegacyProjectGovernanceText(memory.dominantCueSummary)
+    summary: isLegacyProjectGovernanceOwnerText(memory.summary) ? '' : memory.summary,
+    dominantCueSummary: isLegacyProjectGovernanceOwnerText(memory.dominantCueSummary)
       ? null
       : memory.dominantCueSummary,
-    rememberedPreferenceSummary: isLegacyProjectGovernanceText(memory.rememberedPreferenceSummary)
+    rememberedPreferenceSummary: isLegacyProjectGovernanceOwnerText(memory.rememberedPreferenceSummary)
       ? null
       : memory.rememberedPreferenceSummary,
-    rememberedConstraintSummary: isLegacyProjectGovernanceText(memory.rememberedConstraintSummary)
+    rememberedConstraintSummary: isLegacyProjectGovernanceOwnerText(memory.rememberedConstraintSummary)
       ? null
       : memory.rememberedConstraintSummary,
-    rememberedPlanSummary: isLegacyProjectGovernanceText(memory.rememberedPlanSummary)
+    rememberedPlanSummary: isLegacyProjectGovernanceOwnerText(memory.rememberedPlanSummary)
       ? null
       : memory.rememberedPlanSummary,
   }
@@ -719,7 +731,7 @@ export function stripProjectGovernanceMetadataFromVisualPresenceState(
           ...cleanRaw,
           subjectiveInference: stripLegacyProjectGovernanceOwner(rawSubjectiveInference ?? null),
           privateThought: stripLegacyProjectGovernanceOwner(rawPrivateThought ?? null),
-          selfEvolution: carriesLegacyProjectGovernanceProjection(rawSelfEvolution)
+          selfEvolution: carriesLegacyProjectGovernanceOwnerText(rawSelfEvolution)
             ? null
             : rawSelfEvolution,
           personStateProjection: stripLegacyProjectGovernanceOwner(rawPersonStateProjection ?? null),
@@ -775,7 +787,7 @@ export function stripProjectGovernanceMetadataFromVisualPresenceState(
     appraisal: stripLegacyProjectGovernanceOwner(state.appraisal ?? null),
     relationshipModel: stripLegacyProjectGovernanceOwner(state.relationshipModel ?? null),
     privateThought: stripLegacyProjectGovernanceOwner(state.privateThought ?? null),
-    selfEvolution: carriesLegacyProjectGovernanceProjection(state.selfEvolution) ? null : state.selfEvolution,
+    selfEvolution: carriesLegacyProjectGovernanceOwnerText(state.selfEvolution) ? null : state.selfEvolution,
     longHorizonMemory: stripProjectGovernanceFromLongHorizonMemory(state.longHorizonMemory),
     personStateProjection: stripLegacyProjectGovernanceOwner(state.personStateProjection ?? null),
     selfContinuity: stripLegacyProjectGovernanceOwner(state.selfContinuity ?? null),
@@ -1607,7 +1619,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
               hasLegacyGovernanceStructure,
             ),
             selfEvolution: hasLegacyGovernanceStructure
-              || carriesLegacyProjectGovernanceProjection(input.organicMemoryContext.selfEvolution)
+              || carriesLegacyProjectGovernanceOwnerText(input.organicMemoryContext.selfEvolution)
               ? null
               : input.organicMemoryContext.selfEvolution ?? null,
             memoryDeliberation: hasLegacyGovernanceStructure
