@@ -4753,6 +4753,104 @@ describe('runtime embodiment coordinator', () => {
     expect((stronglyMovedAuthority.digitalLife?.lipSync.continuityHoldMs ?? 0)).toBeGreaterThan(cautiousAvoidanceAuthority.digitalLife?.lipSync.continuityHoldMs ?? 0)
   })
 
+  it('preserves canonical silent-continuity mode precedence across script digital-life and final authority', () => {
+    const seed = buildAlicizationRuntimeEmbodimentSeed({
+      decisionTraceId: 'trace-embodiment-mode-precedence-1',
+      turnId: 'turn-embodiment-mode-precedence-1',
+      reply: '我先把这条 repair line 收稳。',
+      performance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'soft-gaze',
+        actionCue: 'observe_focus',
+        delivery: 'gentle',
+        emphasis: 0,
+      },
+      embodiment: {
+        emotion: 'thinking',
+        variationToken: 'embodiment-mode-precedence-1',
+        postureHint: 'concerned',
+        speechStyle: {
+          rateMultiplier: 1,
+          pitchDelta: 0,
+          volumeDelta: 0,
+        },
+        rendererHints: null,
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+      },
+      speechTimeline: null,
+      digitalLife: null,
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        proactive: {
+          continuityRestraint: 'measured-return',
+          personaBias: null,
+        },
+        embodiment: {
+          initiative: {
+            selectedAction: 'stay-nearby',
+            preferredStyle: 'gentle',
+            preferredPresence: 'concerned',
+            continuityRestraint: 'repair-before-closeness',
+            confidence: 0.84,
+            shouldSpeak: true,
+            speakDrive: 0.32,
+            silenceDrive: 0.58,
+            why: null,
+            personaBias: null,
+          },
+        },
+        runtime: {
+          continuityArcStage: 'hold-for-opening',
+          continuityCue: null,
+          projectState: {
+            continuityCadence: 'measured-return',
+          },
+        },
+      } as any,
+      residentPerformance: {
+        version: 'resident-performance-v1',
+        source: 'main-runtime',
+        confidence: 0.82,
+        reasonTags: ['main-runtime', 'quiet-companionship'],
+        signature: 'resident-signature-embodiment-mode-precedence-1',
+        updatedAt: 1,
+        stance: 'accompany',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'soft-covision',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          actionCue: 'observe_focus',
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+      },
+    })
+
+    expect(seed.silentContinuity?.mode).toBe('repair-before-closeness')
+
+    const authority = coordinateAlicizationRuntimeEmbodiment({
+      seed,
+      manifest: proseAuthorityProbeManifest,
+      residentPerformance: seed.residentPerformance ?? null,
+    })
+
+    expect(authority.embodimentScript?.state.residentMode).toBe('repair-before-closeness')
+    expect(authority.speechTimeline?.segments[0]?.rendererHints?.residentMode).toBe('repair-before-closeness')
+    expect(authority.embodiment?.performance.residentMode).toBe('repair-before-closeness')
+    expect(authority.digitalLife?.performance.residentMode).toBe('repair-before-closeness')
+    expect(authority.digitalLife?.action.rendererHints?.residentMode).toBe('repair-before-closeness')
+  })
+
   it('keeps legacy memory project-state autobiographical and conscious prose from changing coordinator output', () => {
     const proseSeed = {
       ...createProseAuthorityProbeCoordinatorSeed(),
