@@ -6,8 +6,6 @@ import type {
   AlicizationSpeechProsodyIntent,
 } from '@proj-alicization/stage-shared'
 
-import { hasAlicizationSoftenedSameHerCarry } from '@proj-alicization/stage-shared'
-
 interface BuildAlicizationEmbodimentSpeechPlanInput {
   turnId: string
   replyText: string
@@ -202,39 +200,26 @@ function applyResidentProsodyBias(input: {
     ?? input.frame?.face.rendererHints?.preferredPacingMode
     ?? input.frame?.action.rendererHints?.preferredPacingMode
     ?? null
-  const signature = input.segment.rendererHints?.signature
-    ?? input.frame?.face.rendererHints?.signature
-    ?? input.frame?.action.rendererHints?.signature
-    ?? null
-  const reasonTags = input.segment.rendererHints?.reasonTags
-    ?? input.frame?.face.rendererHints?.reasonTags
-    ?? input.frame?.action.rendererHints?.reasonTags
-    ?? null
 
   const isMeasuredReturn = residentMode === 'measured-return'
   const isRepairBeforeCloseness = residentMode === 'repair-before-closeness'
   const isQuietCompanionship = residentMode === 'quiet-companionship'
     || residentMode === 'quiet-accompaniment'
-  const sameHerSoftenedReturn = hasAlicizationSoftenedSameHerCarry({
-    signature,
-    reasonTags,
-  })
+  const isSameThreadContinuation = residentMode === 'same-thread-continuation'
   const hasSofteningWindow = (
     preferredBlinkCadence === 'linger'
     || preferredBlinkCadence === 'quiet'
     || preferredGazeMode === 'soften'
     || preferredGazeMode === 'steady'
   )
-  const isSameThreadSoftenedSameHerReturn = residentMode === 'same-thread-continuation'
-    && sameHerSoftenedReturn
-  const isSofterSameHerReturn = hasSofteningWindow && (
+  const isSofterResidentReturn = hasSofteningWindow && (
     isMeasuredReturn
     || isRepairBeforeCloseness
     || isQuietCompanionship
-    || isSameThreadSoftenedSameHerReturn
+    || isSameThreadContinuation
   )
 
-  if (!isSofterSameHerReturn)
+  if (!isSofterResidentReturn)
     return input.prosody
 
   const voiceModeEmphasisBias = preferredVoiceMode === 'lower-pressure'
@@ -263,24 +248,24 @@ function applyResidentProsodyBias(input: {
     emphasisStrength: roundProsodyUnit(
       input.prosody.emphasisStrength
       * (isRepairBeforeCloseness
-        ? sameHerSoftenedReturn ? 0.8 : 0.84
-        : isMeasuredReturn && sameHerSoftenedReturn
-          ? 0.88
+        ? 0.84
+        : isMeasuredReturn
+          ? 0.9
           : isQuietCompanionship
             ? 0.94
-            : isSameThreadSoftenedSameHerReturn ? 0.92 : 0.9)
+            : isSameThreadContinuation ? 0.92 : 0.9)
           * voiceModeEmphasisBias
           * pacingModeEmphasisBias,
     ),
     tempoShift: roundTempoShift(
       input.prosody.tempoShift
       - (isRepairBeforeCloseness
-        ? sameHerSoftenedReturn ? 0.08 : 0.06
-        : isMeasuredReturn && sameHerSoftenedReturn
-          ? 0.05
+        ? 0.06
+        : isMeasuredReturn
+          ? 0.04
           : isQuietCompanionship
             ? 0.02
-            : isSameThreadSoftenedSameHerReturn ? 0.03 : 0.04)
+            : isSameThreadContinuation ? 0.03 : 0.04)
           - (preferredPauseMode === 'longer' ? 0.04 : 0)
           - voiceModeTempoBias
           - pacingModeTempoBias,

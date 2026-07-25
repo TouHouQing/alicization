@@ -2,6 +2,200 @@ import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationEmbodimentSpeechPlan } from './speech-planner'
 
+type SpeechPlannerInput = Parameters<typeof buildAlicizationEmbodimentSpeechPlan>[0]
+type SpeechTimeline = NonNullable<SpeechPlannerInput['speechTimeline']>
+type SpeechRendererHints = NonNullable<SpeechTimeline['segments'][number]['rendererHints']>
+
+function pickComparableSegment(segment: NonNullable<ReturnType<typeof buildAlicizationEmbodimentSpeechPlan>['segments']>[number]) {
+  return {
+    index: segment.index,
+    text: segment.text,
+    interruptPolicy: segment.interruptPolicy,
+    prosody: segment.prosody,
+    preRollMs: segment.preRollMs,
+    settleMs: segment.settleMs,
+  }
+}
+
+function buildSingleSegmentPlan(input: {
+  turnId: string
+  segmentId: string
+  text: string
+  rendererHints?: SpeechRendererHints
+  digitalLife?: SpeechPlannerInput['digitalLife']
+}) {
+  return buildAlicizationEmbodimentSpeechPlan({
+    turnId: input.turnId,
+    replyText: input.text,
+    speechTimeline: {
+      version: 'speech-timeline-v1',
+      variationToken: input.turnId,
+      reply: input.text,
+      emotion: 'thinking',
+      segments: [
+        {
+          id: input.segmentId,
+          index: 0,
+          startOffset: 0,
+          endOffset: input.text.length,
+          text: input.text,
+          gestureWeight: 0.3,
+          facialWeight: 0.4,
+          prosodyWeight: 0.52,
+          beatWeight: 0.36,
+          actionCue: 'steady_focus',
+          facialCue: 'soft-gaze',
+          actionWindow: 'segment-start',
+          interruptMode: 'soft-interrupt',
+          ...(input.rendererHints ? { rendererHints: input.rendererHints } : {}),
+        },
+      ],
+    },
+    digitalLife: input.digitalLife ?? null,
+  })
+}
+
+function createDigitalLifeWithFrameHints(input: {
+  turnId: string
+  segmentId: string
+  text: string
+  source: 'face' | 'action'
+  rendererHints: SpeechRendererHints
+}): NonNullable<SpeechPlannerInput['digitalLife']> {
+  const faceRendererHints = input.source === 'face' ? input.rendererHints : undefined
+  const actionRendererHints = input.source === 'action' ? input.rendererHints : undefined
+
+  return {
+    version: 'digital-life-v1',
+    variationToken: input.turnId,
+    emotion: 'thinking',
+    mode: 'speaking',
+    postureHint: 'attentive',
+    performance: {
+      baseEmotion: 'thinking',
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      actionCue: 'steady_focus',
+      delivery: 'gentle',
+      emphasis: 1,
+    },
+    speechStyle: {
+      pitchDelta: 0,
+      rateMultiplier: 1,
+    },
+    voice: {
+      pitchDelta: 0,
+      rateMultiplier: 1,
+      energy: 0.42,
+      cadence: 0.34,
+    },
+    lipSync: {
+      mode: 'hybrid',
+      visemeBias: 0.52,
+      energyBias: 0.28,
+      mouthScale: 0.92,
+      continuityHoldMs: 260,
+    },
+    face: {
+      emotion: 'thinking',
+      facialCue: 'soft-gaze',
+      expressionMode: 'hold',
+      intensity: 0.34,
+      holdMs: 360,
+    },
+    action: {
+      actionCue: 'steady_focus',
+      actionMode: 'hold',
+      intensity: 0.18,
+      holdMs: 260,
+    },
+    motor: {
+      stillness: 0.72,
+      expressivity: 0.2,
+      gaze: { focus: 0.58, stability: 0.78, azimuth: 0, elevation: 0.02 },
+      head: { yaw: 0, pitch: 0.03, roll: 0, nod: 0.08 },
+      breath: { amplitude: 0.18, pace: 0.24 },
+      facial: {
+        eyeOpenness: 0.62,
+        browLift: 0.06,
+        browTension: 0.14,
+        cheekLift: 0.08,
+        mouthSpread: 0.08,
+        mouthRound: 0.1,
+        jawOpenBias: 0.08,
+      },
+      body: {
+        sway: 0.03,
+        lean: 0.08,
+        openness: 0.22,
+        settle: 0.82,
+      },
+    },
+    frames: [
+      {
+        id: input.segmentId,
+        index: 0,
+        startOffset: 0,
+        endOffset: input.text.length,
+        text: input.text,
+        mode: 'speaking',
+        interruptPolicy: 'soft-interrupt',
+        settleMode: 'hold',
+        voice: {
+          pitchDelta: 0,
+          rateMultiplier: 1,
+          energy: 0.42,
+          cadence: 0.34,
+        },
+        lipSync: {
+          mode: 'hybrid',
+          visemeBias: 0.52,
+          energyBias: 0.28,
+          mouthScale: 0.92,
+          continuityHoldMs: 260,
+        },
+        face: {
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.34,
+          holdMs: 360,
+          ...(faceRendererHints ? { rendererHints: faceRendererHints } : {}),
+        },
+        action: {
+          actionCue: 'steady_focus',
+          actionMode: 'hold',
+          intensity: 0.18,
+          holdMs: 260,
+          ...(actionRendererHints ? { rendererHints: actionRendererHints } : {}),
+        },
+        motor: {
+          stillness: 0.72,
+          expressivity: 0.2,
+          gaze: { focus: 0.58, stability: 0.78, azimuth: 0, elevation: 0.02 },
+          head: { yaw: 0, pitch: 0.03, roll: 0, nod: 0.08 },
+          breath: { amplitude: 0.18, pace: 0.24 },
+          facial: {
+            eyeOpenness: 0.62,
+            browLift: 0.06,
+            browTension: 0.14,
+            cheekLift: 0.08,
+            mouthSpread: 0.08,
+            mouthRound: 0.1,
+            jawOpenBias: 0.08,
+          },
+          body: {
+            sway: 0.03,
+            lean: 0.08,
+            openness: 0.22,
+            settle: 0.82,
+          },
+        },
+      },
+    ],
+  } as NonNullable<SpeechPlannerInput['digitalLife']>
+}
+
 describe('speech planner prosody', () => {
   it('classifies chinese punctuation into phrase-level pause intent', () => {
     const plan = buildAlicizationEmbodimentSpeechPlan({
@@ -403,18 +597,18 @@ describe('speech planner prosody', () => {
     )
   })
 
-  it('keeps measured-return still-voiced face-and-motion segment prosody more inward than an otherwise equally softened ordinary measured-return return', () => {
-    const ordinaryMeasuredReturnPlan = buildAlicizationEmbodimentSpeechPlan({
-      turnId: 'turn-zh-ordinary-measured-return-face-motion-prosody',
+  it('treats polluted measured-return face-motion tokens the same as clean measured-return hints', () => {
+    const cleanPlan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-zh-measured-return-face-motion-prosody',
       replyText: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
-        variationToken: 'turn-zh-ordinary-measured-return-face-motion-prosody',
+        variationToken: 'turn-zh-measured-return-face-motion-prosody',
         reply: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
-            id: 'segment-ordinary-measured-return-face-motion',
+            id: 'segment-measured-return-face-motion',
             index: 0,
             startOffset: 0,
             endOffset: 23,
@@ -438,17 +632,17 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    const sameHerFaceMotionPlan = buildAlicizationEmbodimentSpeechPlan({
-      turnId: 'turn-zh-still-voiced-face-motion-measured-return-prosody',
+    const pollutedPlan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-zh-measured-return-face-motion-prosody',
       replyText: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
-        variationToken: 'turn-zh-still-voiced-face-motion-measured-return-prosody',
+        variationToken: 'turn-zh-measured-return-face-motion-prosody',
         reply: '我先沿着脸、动作和声音还连着的这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
-            id: 'segment-still-voiced-face-motion-measured-return',
+            id: 'segment-measured-return-face-motion',
             index: 0,
             startOffset: 0,
             endOffset: 23,
@@ -474,26 +668,21 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    expect(sameHerFaceMotionPlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
-      ordinaryMeasuredReturnPlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
-    )
-    expect(sameHerFaceMotionPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
-      ordinaryMeasuredReturnPlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
-    )
+    expect(pickComparableSegment(pollutedPlan.segments[0]!)).toEqual(pickComparableSegment(cleanPlan.segments[0]!))
   })
 
-  it('keeps repair-before-closeness same-her body+voice-only segment prosody more inward than an otherwise equally softened ordinary repair return', () => {
-    const ordinaryRepairPlan = buildAlicizationEmbodimentSpeechPlan({
-      turnId: 'turn-zh-ordinary-repair-prosody',
+  it('treats polluted repair-before-closeness body+voice tokens the same as clean repair hints', () => {
+    const cleanPlan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-zh-repair-prosody',
       replyText: '先慢一点回来。',
       speechTimeline: {
         version: 'speech-timeline-v1',
-        variationToken: 'turn-zh-ordinary-repair-prosody',
+        variationToken: 'turn-zh-repair-prosody',
         reply: '先慢一点回来。',
         emotion: 'thinking',
         segments: [
           {
-            id: 'segment-ordinary-repair',
+            id: 'segment-repair',
             index: 0,
             startOffset: 0,
             endOffset: 7,
@@ -517,17 +706,17 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    const sameHerRepairPlan = buildAlicizationEmbodimentSpeechPlan({
-      turnId: 'turn-zh-same-her-repair-prosody',
+    const pollutedPlan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-zh-repair-prosody',
       replyText: '先慢一点回来。',
       speechTimeline: {
         version: 'speech-timeline-v1',
-        variationToken: 'turn-zh-same-her-repair-prosody',
+        variationToken: 'turn-zh-repair-prosody',
         reply: '先慢一点回来。',
         emotion: 'thinking',
         segments: [
           {
-            id: 'segment-same-her-repair',
+            id: 'segment-repair',
             index: 0,
             startOffset: 0,
             endOffset: 7,
@@ -553,26 +742,21 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    expect(sameHerRepairPlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
-      ordinaryRepairPlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
-    )
-    expect(sameHerRepairPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
-      ordinaryRepairPlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
-    )
+    expect(pickComparableSegment(pollutedPlan.segments[0]!)).toEqual(pickComparableSegment(cleanPlan.segments[0]!))
   })
 
-  it('keeps same-thread same-her body+voice-only segment prosody more inward than an otherwise equally softened ordinary continuation', () => {
-    const ordinarySameThreadPlan = buildAlicizationEmbodimentSpeechPlan({
-      turnId: 'turn-zh-ordinary-same-thread-prosody',
+  it('treats polluted same-thread body+voice tokens the same as clean same-thread hints', () => {
+    const cleanPlan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-zh-same-thread-prosody',
       replyText: '我先沿着这条还活着的线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
-        variationToken: 'turn-zh-ordinary-same-thread-prosody',
+        variationToken: 'turn-zh-same-thread-prosody',
         reply: '我先沿着这条还活着的线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
-            id: 'segment-ordinary-same-thread',
+            id: 'segment-same-thread',
             index: 0,
             startOffset: 0,
             endOffset: 16,
@@ -596,17 +780,17 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    const sameHerSameThreadPlan = buildAlicizationEmbodimentSpeechPlan({
-      turnId: 'turn-zh-same-thread-body-voice-prosody',
+    const pollutedPlan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-zh-same-thread-prosody',
       replyText: '我先沿着这条还活着的线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
-        variationToken: 'turn-zh-same-thread-body-voice-prosody',
+        variationToken: 'turn-zh-same-thread-prosody',
         reply: '我先沿着这条还活着的线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
-            id: 'segment-same-thread-body-voice',
+            id: 'segment-same-thread',
             index: 0,
             startOffset: 0,
             endOffset: 16,
@@ -632,26 +816,21 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    expect(sameHerSameThreadPlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
-      ordinarySameThreadPlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
-    )
-    expect(sameHerSameThreadPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
-      ordinarySameThreadPlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
-    )
+    expect(pickComparableSegment(pollutedPlan.segments[0]!)).toEqual(pickComparableSegment(cleanPlan.segments[0]!))
   })
 
-  it('keeps same-thread still-voiced motion-line segment prosody more inward than an otherwise equally softened ordinary continuation', () => {
-    const ordinarySameThreadPlan = buildAlicizationEmbodimentSpeechPlan({
-      turnId: 'turn-zh-ordinary-same-thread-motion-prosody',
+  it('treats polluted same-thread motion-line tokens the same as clean same-thread hints', () => {
+    const cleanPlan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-zh-same-thread-motion-prosody',
       replyText: '我先沿着动作和声音还连着的这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
-        variationToken: 'turn-zh-ordinary-same-thread-motion-prosody',
+        variationToken: 'turn-zh-same-thread-motion-prosody',
         reply: '我先沿着动作和声音还连着的这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
-            id: 'segment-ordinary-same-thread-motion',
+            id: 'segment-same-thread-motion',
             index: 0,
             startOffset: 0,
             endOffset: 20,
@@ -675,17 +854,17 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    const stillVoicedMotionPlan = buildAlicizationEmbodimentSpeechPlan({
-      turnId: 'turn-zh-same-thread-still-voiced-motion-prosody',
+    const pollutedPlan = buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-zh-same-thread-motion-prosody',
       replyText: '我先沿着动作和声音还连着的这条线中性可见占位。',
       speechTimeline: {
         version: 'speech-timeline-v1',
-        variationToken: 'turn-zh-same-thread-still-voiced-motion-prosody',
+        variationToken: 'turn-zh-same-thread-motion-prosody',
         reply: '我先沿着动作和声音还连着的这条线中性可见占位。',
         emotion: 'thinking',
         segments: [
           {
-            id: 'segment-same-thread-still-voiced-motion',
+            id: 'segment-same-thread-motion',
             index: 0,
             startOffset: 0,
             endOffset: 20,
@@ -702,6 +881,7 @@ describe('speech planner prosody', () => {
               residentMode: 'same-thread-continuation',
               preferredBlinkCadence: 'linger',
               preferredGazeMode: 'soften',
+              signature: 'resident|main-runtime|embodiment:still-voiced-motion-line',
               reasonTags: ['embodiment:still-voiced-motion-line'],
             },
           },
@@ -710,11 +890,152 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    expect(stillVoicedMotionPlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
-      ordinarySameThreadPlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
+    expect(pickComparableSegment(pollutedPlan.segments[0]!)).toEqual(pickComparableSegment(cleanPlan.segments[0]!))
+  })
+
+  it('ignores polluted frame face audit hints when segment renderer hints are absent', () => {
+    const turnId = 'turn-zh-frame-face-fallback-prosody'
+    const segmentId = 'segment-frame-face-fallback'
+    const text = '我先按结构化表情节奏把这句话接稳。'
+    const rendererHints: SpeechRendererHints = {
+      residentMode: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+    }
+    const cleanPlan = buildSingleSegmentPlan({
+      turnId,
+      segmentId,
+      text,
+      digitalLife: createDigitalLifeWithFrameHints({
+        turnId,
+        segmentId,
+        text,
+        source: 'face',
+        rendererHints,
+      }),
+    })
+    const pollutedPlan = buildSingleSegmentPlan({
+      turnId,
+      segmentId,
+      text,
+      digitalLife: createDigitalLifeWithFrameHints({
+        turnId,
+        segmentId,
+        text,
+        source: 'face',
+        rendererHints: {
+          ...rendererHints,
+          signature: 'resident|main-runtime|embodiment:still-voiced-face-line',
+          reasonTags: ['embodiment:still-voiced-face-line'],
+        },
+      }),
+    })
+
+    expect(pickComparableSegment(pollutedPlan.segments[0]!)).toEqual(pickComparableSegment(cleanPlan.segments[0]!))
+  })
+
+  it('ignores polluted frame action audit hints when segment renderer hints are absent', () => {
+    const turnId = 'turn-zh-frame-action-fallback-prosody'
+    const segmentId = 'segment-frame-action-fallback'
+    const text = '我先按结构化动作节奏把这句话接稳。'
+    const rendererHints: SpeechRendererHints = {
+      residentMode: 'repair-before-closeness',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+    }
+    const cleanPlan = buildSingleSegmentPlan({
+      turnId,
+      segmentId,
+      text,
+      digitalLife: createDigitalLifeWithFrameHints({
+        turnId,
+        segmentId,
+        text,
+        source: 'action',
+        rendererHints,
+      }),
+    })
+    const pollutedPlan = buildSingleSegmentPlan({
+      turnId,
+      segmentId,
+      text,
+      digitalLife: createDigitalLifeWithFrameHints({
+        turnId,
+        segmentId,
+        text,
+        source: 'action',
+        rendererHints: {
+          ...rendererHints,
+          signature: 'resident|main-runtime|embodiment:body+voice-only',
+          reasonTags: ['embodiment:body+voice-only'],
+        },
+      }),
+    })
+
+    expect(pickComparableSegment(pollutedPlan.segments[0]!)).toEqual(pickComparableSegment(cleanPlan.segments[0]!))
+  })
+
+  it('softens repair-before-closeness prosody relative to the same hints without resident mode', () => {
+    const turnId = 'turn-zh-repair-structured-baseline-prosody'
+    const segmentId = 'segment-repair-structured-baseline'
+    const text = '先慢一点回来。'
+    const softeningHints: SpeechRendererHints = {
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+    }
+    const baselinePlan = buildSingleSegmentPlan({
+      turnId,
+      segmentId,
+      text,
+      rendererHints: softeningHints,
+    })
+    const repairPlan = buildSingleSegmentPlan({
+      turnId,
+      segmentId,
+      text,
+      rendererHints: {
+        ...softeningHints,
+        residentMode: 'repair-before-closeness',
+      },
+    })
+
+    expect(repairPlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
+      baselinePlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
     )
-    expect(stillVoicedMotionPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
-      ordinarySameThreadPlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
+    expect(repairPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
+      baselinePlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
+    )
+  })
+
+  it('softens same-thread-continuation prosody relative to the same hints without resident mode', () => {
+    const turnId = 'turn-zh-same-thread-structured-baseline-prosody'
+    const segmentId = 'segment-same-thread-structured-baseline'
+    const text = '我继续沿着当前这条线说。'
+    const softeningHints: SpeechRendererHints = {
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+    }
+    const baselinePlan = buildSingleSegmentPlan({
+      turnId,
+      segmentId,
+      text,
+      rendererHints: softeningHints,
+    })
+    const sameThreadPlan = buildSingleSegmentPlan({
+      turnId,
+      segmentId,
+      text,
+      rendererHints: {
+        ...softeningHints,
+        residentMode: 'same-thread-continuation',
+      },
+    })
+
+    expect(sameThreadPlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
+      baselinePlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
+    )
+    expect(sameThreadPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
+      baselinePlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
     )
   })
 
