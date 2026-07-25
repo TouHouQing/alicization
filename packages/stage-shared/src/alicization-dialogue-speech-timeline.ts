@@ -18,12 +18,6 @@ import {
   normalizeAlicizationPerformancePayload,
 } from './alicization-performance-contracts'
 import {
-  hasAlicizationAudibleSameHerCarry,
-  hasAlicizationBodyVoiceOnlySameHerCarry,
-  hasAlicizationQuieterSameHerCarry,
-  hasAlicizationStillVoicedSameHerCarry,
-} from './alicization-same-her-renderer-hints'
-import {
   resolveStageEmbodimentCueCandidates,
   resolveStageEmbodimentLive2DExpressionAliases,
   resolveStageEmbodimentLive2DMotionAliases,
@@ -152,34 +146,12 @@ function dedupeCuePool(values: Array<string | null | undefined>) {
 function filterCompanionshipResidentModeAliases(input: {
   aliases: string[]
   kind: 'expression' | 'motion'
-  reasonTags?: string[]
   residentMode: unknown
-  signature?: string | null
 }) {
-  const sameHerAudibleCarry = hasAlicizationAudibleSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const sameHerBodyVoiceOnlyCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const sameHerQuieterCarry = hasAlicizationQuieterSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const sameHerStillVoicedCarry = hasAlicizationStillVoicedSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
   if (
     input.residentMode !== 'measured-return'
     && input.residentMode !== 'repair-before-closeness'
     && input.residentMode !== 'quiet-companionship'
-    && !sameHerAudibleCarry
-    && !sameHerBodyVoiceOnlyCarry
-    && !sameHerQuieterCarry
-    && !sameHerStillVoicedCarry
   ) {
     return input.aliases
   }
@@ -598,61 +570,9 @@ function resolvePersonaSpeechStyleSummary(personaBias: PersonaSpeechTimingBias, 
   return null
 }
 
-export function resolveProjectClosureSpeechEmbodimentBiasFromCue(
-  emotionalClosureCue?: string | null,
-): ProjectClosureSpeechEmbodimentBias | null {
-  const normalizedClosureCue = typeof emotionalClosureCue === 'string'
-    ? emotionalClosureCue.trim().toLowerCase()
-    : ''
-  if (!normalizedClosureCue)
-    return null
-
-  const repairBeforeClosenessSignal
-    = /repair-before-closeness|repair before closeness|repair-first|先修复再靠近|先把身体收稳/iu.test(normalizedClosureCue)
-  const rememberedSeamMoreRoomSignal
-    = /remembered seam|same remembered relationship seam|same-her|same living line|同一条生命线|同一条线/u.test(normalizedClosureCue)
-      && /reopened too eagerly|too eagerly before|more room this time|this time keep more room|keep more room this time|do not reopen it with the same eagerness|same eagerness as before|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(normalizedClosureCue)
-  const measuredReturnSignal
-    = /same living line|same-her|lower-pressure|leave more room|more room|do not reopen from scratch|do not widen outward|先留白|同一条生命线|慢一点/u.test(normalizedClosureCue)
-
-  if (repairBeforeClosenessSignal) {
-    return {
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      residentMode: 'repair-before-closeness',
-    }
-  }
-
-  if (rememberedSeamMoreRoomSignal) {
-    return {
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      residentMode: 'measured-return',
-    }
-  }
-
-  if (measuredReturnSignal) {
-    return {
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      residentMode: 'measured-return',
-    }
-  }
-
-  return null
-}
-
 export function resolveProjectClosureSpeechEmbodimentBias(
   projectState?: AlicizationRuntimeProjectStateDigest | null,
 ): ProjectClosureSpeechEmbodimentBias | null {
-  const emotionalClosureCue = typeof projectState?.emotionalClosureCue === 'string'
-    ? projectState.emotionalClosureCue
-    : null
-  const cueBias = resolveProjectClosureSpeechEmbodimentBiasFromCue(emotionalClosureCue)
   const continuityCadence = typeof projectState?.continuityCadence === 'string'
     ? projectState.continuityCadence.trim().toLowerCase()
     : ''
@@ -689,7 +609,7 @@ export function resolveProjectClosureSpeechEmbodimentBias(
     || projectState?.preferredPacingMode === 'natural'
     ? projectState.preferredPacingMode
     : undefined
-  const residentMode = explicitResidentMode ?? cueBias?.residentMode
+  const residentMode = explicitResidentMode
   const fallbackBlinkCadence = residentMode === 'repair-before-closeness'
     ? 'quiet'
     : residentMode === 'measured-return' || residentMode === 'quiet-companionship'
@@ -700,12 +620,10 @@ export function resolveProjectClosureSpeechEmbodimentBias(
     || residentMode === 'quiet-companionship'
     ? 'soften'
     : undefined
-  const preferredBlinkCadence = explicitBlinkCadence === 'quiet'
-    ? 'quiet'
-    : explicitBlinkCadence ?? cueBias?.preferredBlinkCadence ?? fallbackBlinkCadence
-  const preferredGazeMode = explicitGazeMode ?? cueBias?.preferredGazeMode ?? fallbackGazeMode
-  const preferredPauseMode = explicitPauseMode ?? cueBias?.preferredPauseMode
-  const preferredLipsyncMode = explicitLipsyncMode ?? cueBias?.preferredLipsyncMode
+  const preferredBlinkCadence = explicitBlinkCadence ?? fallbackBlinkCadence
+  const preferredGazeMode = explicitGazeMode ?? fallbackGazeMode
+  const preferredPauseMode = explicitPauseMode
+  const preferredLipsyncMode = explicitLipsyncMode
 
   if (
     !residentMode
@@ -783,12 +701,7 @@ function resolveSegmentRendererHints(input: {
   const useTurnEnvelopeAliases = input.segmentEmotion === input.turnEmotion
   const projectClosureBias = resolveProjectClosureSpeechEmbodimentBias(input.projectState)
   const envelopeRendererHints = normalizeSegmentRendererHints(input.embodiment?.rendererHints)
-  const residentMode = typeof input.embodiment?.rendererHints === 'object' && input.embodiment?.rendererHints
-    && 'residentMode' in input.embodiment.rendererHints
-    ? (input.embodiment.rendererHints as { residentMode?: unknown }).residentMode
-    : projectClosureBias?.residentMode
-      ? projectClosureBias.residentMode
-      : null
+  const residentMode = envelopeRendererHints?.residentMode ?? projectClosureBias?.residentMode ?? null
   const companionshipExpressionAliases = residentMode === 'repair-before-closeness'
     ? ['RecoverSoft']
     : residentMode === 'measured-return'
@@ -820,9 +733,7 @@ function resolveSegmentRendererHints(input: {
       ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.segmentEmotion),
     ]),
     kind: 'expression',
-    reasonTags: envelopeRendererHints?.reasonTags ? [...envelopeRendererHints.reasonTags] : undefined,
     residentMode,
-    signature: envelopeRendererHints?.signature,
   })
   const preferredMotionAliases = filterCompanionshipResidentModeAliases({
     aliases: dedupeCuePool([
@@ -832,9 +743,7 @@ function resolveSegmentRendererHints(input: {
       ...resolveStageEmbodimentLive2DMotionAliases(input.segmentEmotion),
     ]),
     kind: 'motion',
-    reasonTags: envelopeRendererHints?.reasonTags ? [...envelopeRendererHints.reasonTags] : undefined,
     residentMode,
-    signature: envelopeRendererHints?.signature,
   })
   if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0) {
     return residentMode
@@ -1075,12 +984,10 @@ function resolveSegmentEmotionHoldMs(input: {
 function resolveSegmentRendererSettleHints(input: {
   delivery: AlicizationPerformanceDelivery
   personaBias: PersonaSpeechTimingBias
-  reasonTags?: string[] | null
   residentMode?: string | null
   segmentCount: number
   segmentIndex: number
   settleMode: AlicizationDialogueSpeechSettleMode
-  signature?: string | null
   text: string
 }) {
   const phraseTailWeight = resolveSegmentPhraseTailWeight({
@@ -1133,57 +1040,27 @@ function resolveSegmentRendererSettleHints(input: {
     : input.personaBias.directReconnect
       ? -40
       : 0
-  const sameHerAudibleCarry = hasAlicizationAudibleSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const sameHerQuieterCarry = hasAlicizationQuieterSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const sameHerStillVoicedCarry = hasAlicizationStillVoicedSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
   const companionshipFacialReleaseBias = input.residentMode === 'measured-return'
     ? 120
     : input.residentMode === 'repair-before-closeness'
       ? 40
       : input.residentMode === 'quiet-companionship'
         ? 60
-        : sameHerAudibleCarry
-          ? 90
-          : sameHerQuieterCarry
-            ? 90
-            : sameHerStillVoicedCarry
-              ? 90
-              : 0
+        : 0
   const companionshipExpressionBlendBias = input.residentMode === 'measured-return'
     ? 90
     : input.residentMode === 'repair-before-closeness'
       ? 40
       : input.residentMode === 'quiet-companionship'
         ? 55
-        : sameHerAudibleCarry
-          ? 75
-          : sameHerQuieterCarry
-            ? 75
-            : sameHerStillVoicedCarry
-              ? 75
-              : 0
+        : 0
   const companionshipActionFadeBias = input.residentMode === 'measured-return'
     ? 50
     : input.residentMode === 'repair-before-closeness'
       ? 20
       : input.residentMode === 'quiet-companionship'
         ? 25
-        : sameHerAudibleCarry
-          ? 40
-          : sameHerQuieterCarry
-            ? 40
-            : sameHerStillVoicedCarry
-              ? 40
-              : 0
+        : 0
   const personaMotionBias = input.personaBias.observeFirst
     ? 40
     : input.personaBias.directReconnect
@@ -1247,29 +1124,9 @@ function shouldPreserveExplicitActionCueAcrossSegments(input: {
 
   const rendererTarget = input.performanceManifest?.renderer === 'vrm' ? 'vrm' : 'live2d'
   const residentMode = input.embodiment?.rendererHints?.residentMode ?? null
-  const sameHerAudibleCarry = hasAlicizationAudibleSameHerCarry({
-    signature: input.embodiment?.rendererHints?.signature,
-    reasonTags: input.embodiment?.rendererHints?.reasonTags,
-  })
-  const sameHerBodyVoiceOnlyCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
-    signature: input.embodiment?.rendererHints?.signature,
-    reasonTags: input.embodiment?.rendererHints?.reasonTags,
-  })
-  const sameHerQuieterCarry = hasAlicizationQuieterSameHerCarry({
-    signature: input.embodiment?.rendererHints?.signature,
-    reasonTags: input.embodiment?.rendererHints?.reasonTags,
-  })
-  const sameHerStillVoicedCarry = hasAlicizationStillVoicedSameHerCarry({
-    signature: input.embodiment?.rendererHints?.signature,
-    reasonTags: input.embodiment?.rendererHints?.reasonTags,
-  })
   const companionshipCarry = residentMode === 'measured-return'
     || residentMode === 'repair-before-closeness'
     || residentMode === 'quiet-companionship'
-    || sameHerAudibleCarry
-    || sameHerBodyVoiceOnlyCarry
-    || sameHerQuieterCarry
-    || sameHerStillVoicedCarry
   if (!companionshipCarry)
     return false
 
@@ -1538,12 +1395,10 @@ export function buildAlicizationDialogueSpeechTimeline(
     const rendererSettle = resolveSegmentRendererSettleHints({
       delivery: performance.delivery,
       personaBias: personaTimingBias,
-      reasonTags: rendererHints?.reasonTags ?? null,
       residentMode: rendererHints?.residentMode ?? null,
       segmentCount: chunks.length,
       segmentIndex: index,
       settleMode,
-      signature: rendererHints?.signature ?? null,
       text,
     })
 

@@ -95,39 +95,12 @@ interface DialogueEncounterSnapshot {
 
 function carriesMeasuredReturnCallbackReopenSignal(input: {
   governance?: AlicizationDialogueEmbodimentGovernanceLike | null
-  thought: string
 }) {
-  const thought = input.thought.toLowerCase()
-  const sameThreadCallbackCarry
-    = /same-thread-continuation|same callback line|same callback seam|callback seam|callback return|callback afterglow|callback detour|same living line|after noisy detours|after noise|unrelated windows intervene|do not reopen from scratch|not widen the line into a fresh approach|should not reopen more eagerly|stays slower than impulse/u.test(thought)
-  const measuredReturnCarry
-    = /measured-return|lower-pressure|slower return|leave room|reopen eagerly|rejoin-remembered-seam|soft-covision/u.test(thought)
-  const governanceRejoin
-    = input.governance?.mindTurnFrame?.obligation?.openingMove === 'rejoin-remembered-seam'
-      || (
-        input.governance?.mindTurnFrame?.self?.embodiedPresence === 'hesitant'
-        && input.governance?.mindTurnFrame?.self?.emotionalTension === 'soft-covision'
-      )
-
-  return governanceRejoin || (sameThreadCallbackCarry && measuredReturnCarry)
-}
-
-function carriesRememberedSeamMoreRoomSignal(input: {
-  governance?: AlicizationDialogueEmbodimentGovernanceLike | null
-  thought: string
-}) {
-  const thought = input.thought.toLowerCase()
-  const rememberedSeamSignal
-    = /remembered seam|same remembered relationship seam|rejoin-remembered-seam|同一条线|轻轻牵回/u.test(thought)
-  if (!rememberedSeamSignal)
-    return false
-
-  const moreRoomSignal
-    = /reopened too eagerly|too eagerly before|more room this time|this time keep more room|keep more room this time|do not reopen it with the same eagerness|same eagerness as before|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(thought)
-  if (!moreRoomSignal)
-    return false
-
-  return carriesMeasuredReturnCallbackReopenSignal(input)
+  return input.governance?.mindTurnFrame?.obligation?.openingMove === 'rejoin-remembered-seam'
+    || (
+      input.governance?.mindTurnFrame?.self?.embodiedPresence === 'hesitant'
+      && input.governance?.mindTurnFrame?.self?.emotionalTension === 'soft-covision'
+    )
 }
 
 const deliveryPitchAdjustments: Record<AlicizationPerformanceDelivery, number> = {
@@ -211,7 +184,6 @@ function shouldPreserveExplicitRendererActionCue(input: {
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
   governance?: AlicizationDialogueEmbodimentGovernanceLike | null
   previous?: AlicizationDialogueEmbodimentPreviousState | null
-  thought?: string
 }) {
   const explicitCue = normalizeCue(input.candidatePerformance?.actionCue)
   if (!explicitCue)
@@ -227,14 +199,10 @@ function shouldPreserveExplicitRendererActionCue(input: {
   if (normalizeCue(input.previous?.actionCue) === explicitCue)
     return true
 
-  const thought = typeof input.thought === 'string' ? input.thought.toLowerCase() : ''
   const continuityCarry = input.governance?.screenReferenceMode === 'avoid'
     || input.governance?.answerSubject === 'relationship'
     || input.governance?.answerSubject === 'host-state'
     || input.governance?.answerSubject === 'alicization-self'
-    || thought.includes('same-thread-continuation')
-    || thought.includes('measured-return')
-    || thought.includes('repair-before-closeness')
 
   return continuityCarry
 }
@@ -331,11 +299,9 @@ function selectCueWithVariation(input: {
 function inferEncounter(input: {
   governance?: AlicizationDialogueEmbodimentGovernanceLike | null
   reply: string
-  thought: string
 }): DialogueEncounterSnapshot {
   const reply = input.reply
   const normalizedReply = reply.toLowerCase()
-  const thought = input.thought.toLowerCase()
   const obligation = input.governance?.answerAct ?? 'answer'
   const dialogueFirst
     = input.governance?.answerSubject === 'alicization-self'
@@ -345,7 +311,6 @@ function inferEncounter(input: {
   const measuredReturnReopenSignal
     = carriesMeasuredReturnCallbackReopenSignal({
       governance: input.governance,
-      thought,
     })
     || input.governance?.mindTurnFrame?.self?.embodiedPresence === 'hesitant'
 
@@ -356,17 +321,14 @@ function inferEncounter(input: {
     careSignal: /别急|慢慢|先休息|照顾|没关系|take it easy|rest|care/i.test(reply)
       || obligation === 'care'
       || input.governance?.turnMode === 'care'
-      || input.governance?.turnMode === 'accompany'
-      || /concerned(?:-but-restrained)?|stay gentle|gentle reopen|measured-return/.test(thought),
+      || input.governance?.turnMode === 'accompany',
     firmSignal: /必须|立刻|马上|务必|stop|must|need to/i.test(reply)
-      || /tone=\s*direct/.test(thought)
       || (input.governance?.repairState != null && input.governance.repairState !== 'none'),
     measuredReturnReopenSignal,
     energeticSignal: /[!！]{2,}|太好了|真棒|awesome|great|wow/i.test(reply),
     uncertaintySignal: /也许|可能|不确定|我想|我觉得|maybe|perhaps|i think/i.test(reply)
       || obligation === 'ask-reground',
-    questionSignal: /[?？]/.test(reply)
-      || /clarify|ask|question|reground/i.test(thought),
+    questionSignal: /[?？]/.test(reply),
     teasingSignal: /哼|逗你|坏笑|tease|playful/i.test(normalizedReply),
   }
 }
@@ -582,16 +544,10 @@ function resolveDialogueEmbodimentRendererHints(input: {
   emotion: AlicizationEmotion
   governance?: AlicizationDialogueEmbodimentGovernanceLike | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
-  thought?: string
 }): AlicizationDialogueEmbodimentRendererHints | null {
   const manifestHints = input.performanceManifest?.embodimentHints?.[input.emotion]
-  const rememberedSeamMoreRoomSignal = carriesRememberedSeamMoreRoomSignal({
-    governance: input.governance,
-    thought: input.thought ?? '',
-  })
   const measuredReturnReopenSignal = carriesMeasuredReturnCallbackReopenSignal({
     governance: input.governance,
-    thought: input.thought ?? '',
   })
   const preferredExpressionAliases = dedupeCues([
     ...(manifestHints?.preferredExpressionAliases ?? []),
@@ -616,9 +572,7 @@ function resolveDialogueEmbodimentRendererHints(input: {
   return {
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
-    preferredBlinkCadence: measuredReturnReopenSignal
-      ? (rememberedSeamMoreRoomSignal ? 'quiet' : 'linger')
-      : undefined,
+    preferredBlinkCadence: measuredReturnReopenSignal ? 'linger' : undefined,
     preferredGazeMode: measuredReturnReopenSignal ? 'soften' : undefined,
     residentMode: measuredReturnReopenSignal ? 'measured-return' : undefined,
   }
@@ -684,11 +638,9 @@ export function resolveAlicizationDialogueEmbodiment(
   input: ResolveAlicizationDialogueEmbodimentInput,
 ): AlicizationDialogueEmbodimentEnvelope {
   const reply = input.reply.trim()
-  const thought = input.thought?.trim() ?? ''
   const encounter = inferEncounter({
     governance: input.governance,
     reply,
-    thought,
   })
   const variationToken = clampVariationToken([
     input.turnId?.trim() || '',
@@ -734,7 +686,6 @@ export function resolveAlicizationDialogueEmbodiment(
     performanceManifest: input.performanceManifest,
     governance: input.governance,
     previous: input.previous,
-    thought,
   })
     ? normalizeCue(input.candidatePerformance?.actionCue)
     : selectCueWithVariation({
@@ -772,7 +723,6 @@ export function resolveAlicizationDialogueEmbodiment(
       emotion,
       governance: input.governance,
       performanceManifest: input.performanceManifest,
-      thought,
     }),
     variationToken,
   }
