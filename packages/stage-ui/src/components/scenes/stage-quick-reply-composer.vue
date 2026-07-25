@@ -25,7 +25,6 @@ const closureDiagnosticEntry = computed(() => buildStageQuickReplyClosureDiagnos
 ))
 const closureSummaryLine = computed(() => resolveStageQuickReplyClosureSummary(
   preDialogueClosureSnapshot.value,
-  closureDiagnosticEntry.value,
   {
     fallbackAwarenessLine: preDialogueAwarenessSnapshot.value?.awarenessLine ?? null,
     fallbackAwarenessCandidates: [

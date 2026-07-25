@@ -1,11 +1,11 @@
 import {
   containsAlicizationFixedTemplateResidue,
   describeAlicizationEmbodimentClosureHeadline,
-  describeAlicizationProjectClosureBriefing,
-  describeAlicizationProjectNextClosure,
   isAlicizationThinProjectAwarenessLine,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
+
+import { normalizeStageClosureVisibleText } from './stage-closure-visible-text'
 
 const fixedTemplateQuickReplyClosureLine
   = ''
@@ -33,7 +33,6 @@ export interface StageQuickReplyPreDialogueClosureSnapshot {
   companionBriefingLine?: string | null
   companionNextClosureLine?: string | null
   sameHerDriftRiskLine?: string | null
-  briefingLines?: string[]
   reasons: string[]
 }
 
@@ -57,41 +56,6 @@ export interface StageQuickReplyClosureDiagnosticEntry {
   sameHerDriftRiskLine?: string | null
   proactiveSameHerGapLine?: string | null
   routeQuery: Record<string, string>
-}
-
-function normalizeProactiveSameHerGapLine(line: string | null | undefined) {
-  const normalizedLine = typeof line === 'string' ? line.trim() : ''
-  if (!normalizedLine)
-    return null
-
-  const reasonMatch = /^Proactive identity-continuity follow-through (?:still|currently) reads (.*?),(?:\s*so the next turn should|\s*which shows)/i.exec(normalizedLine)
-  if (reasonMatch?.[1]?.trim())
-    return reasonMatch[1].trim()
-
-  const strippedLine = normalizedLine
-    .replace(/^Proactive identity-continuity gap:\s*/i, '')
-    .replace(/^Proactive identity-continuity follow-through:\s*/i, '')
-    .trim()
-
-  return strippedLine || null
-}
-
-function resolveProactiveSameHerGapLine(snapshot: StageQuickReplyPreDialogueClosureSnapshot) {
-  const briefingMatch = snapshot.briefingLines?.find((line) => {
-    const normalizedLine = line.trim()
-    return /^Proactive identity-continuity gap:/i.test(normalizedLine)
-      || /^Proactive identity-continuity follow-through:/i.test(normalizedLine)
-  })
-  const normalizedBriefingMatch = normalizeProactiveSameHerGapLine(briefingMatch)
-  if (normalizedBriefingMatch)
-    return normalizedBriefingMatch
-
-  const reasonMatch = snapshot.reasons.find((reason) => {
-    const normalizedReason = reason.trim()
-    return /^Proactive identity-continuity follow-through (?:still|currently) reads /i.test(normalizedReason)
-  })
-
-  return normalizeProactiveSameHerGapLine(reasonMatch)
 }
 
 function resolveSameHerContinuityFocus(reason: string | null | undefined) {
@@ -718,34 +682,6 @@ function isSameHerLaneContinuityReason(reason: string) {
   return resolveSameHerLaneContinuityReason(reason) !== null
 }
 
-function resolveHumanReadableProjectStateRepair(reasons: string[]) {
-  const normalizedReasons = reasons.map(reason => reason.trim()).filter(Boolean)
-  const diagnostics: string[] = []
-
-  if (normalizedReasons.some(reason => reason.includes('project-state-identity-continuity-continuity-required') || reason.includes('project-state-continuity-required')))
-    diagnostics.push('项目状态待同步')
-
-  return diagnostics.length > 0
-    ? diagnostics.join('，')
-    : null
-}
-
-function resolvePrimaryOpenLifeLoopLine(reasons: string[]) {
-  const openLoopReason = reasons.find(reason => reason.includes('Primary open life loop still centers on '))
-  if (!openLoopReason)
-    return null
-
-  return openLoopReason.replace(/^.*Primary open life loop still centers on /, '').replace(/, so the next turn should.*$/i, '').trim() || null
-}
-
-function resolveNextClosureReasonLine(reasons: string[]) {
-  const nextClosureReason = reasons.find(reason => reason.includes('Next closure target is still '))
-  if (!nextClosureReason)
-    return null
-
-  return nextClosureReason.replace(/^.*Next closure target is still /, '').replace(/, so the next turn should.*$/i, '').trim() || null
-}
-
 function resolveProjectStateFocus(reasons: string[]) {
   const normalizedReasons = reasons.map(reason => reason.toLowerCase())
 
@@ -839,7 +775,7 @@ function describeRendererInternalLaneContinuityHeadline(
     return structuredHeadline
   }
 
-  return '具身通道待重连'
+  return null
 }
 
 function describeRendererInternalFullCrossModalLockHeadline(
@@ -1213,29 +1149,6 @@ function resolveBriefingHeadline(snapshot: StageQuickReplyPreDialogueClosureSnap
   if (explicitCompanionBriefingLine)
     return explicitCompanionBriefingLine
 
-  const humanReadableProjectStateRepair = resolveHumanReadableProjectStateRepair(snapshot.reasons)
-  const openLifeLoopLine = resolvePrimaryOpenLifeLoopLine(snapshot.reasons)
-  if (humanReadableProjectStateRepair && openLifeLoopLine)
-    return `${humanReadableProjectStateRepair} ${openLifeLoopLine}`
-  if (humanReadableProjectStateRepair)
-    return humanReadableProjectStateRepair
-  if (openLifeLoopLine)
-    return openLifeLoopLine
-
-  const summaryParts = (snapshot.summaryLine ?? '')
-    .split('|')
-    .map(part => part.trim())
-    .filter(Boolean)
-
-  const projectPart = summaryParts.find(part => part.toLowerCase().startsWith('project='))
-  if (projectPart) {
-    return describeAlicizationProjectClosureBriefing({
-      identity: 'project continuity carry present',
-      currentPhase: 'phase carry present',
-      primaryOpenLoop: 'open loop carry present',
-    }) || null
-  }
-
   return null
 }
 
@@ -1317,7 +1230,7 @@ function isFixedPersonaQuickReplyClosureTemplate(line: string | null | undefined
 }
 
 function sanitizeQuickReplyClosureVisibleLine(line: string | null | undefined) {
-  const normalized = line?.trim().replace(/\s+/g, ' ') ?? ''
+  const normalized = normalizeStageClosureVisibleText(line)
   if (!normalized)
     return null
   if (/^next=/iu.test(normalized))
@@ -1390,10 +1303,6 @@ function resolveHeadline(
       return sanitizedHeadline
   }
 
-  const humanReadableProjectStateRepair = resolveHumanReadableProjectStateRepair(snapshot.reasons)
-  if (humanReadableProjectStateRepair)
-    return humanReadableProjectStateRepair
-
   const laneRiskReason = resolvePreferredSameHerLaneContinuityReason(snapshot.reasons)
   if (laneRiskReason) {
     return resolveLaneContinuityHeadline(laneRiskReason)
@@ -1404,60 +1313,16 @@ function resolveHeadline(
   if (preferredAwarenessHeadline)
     return preferredAwarenessHeadline
 
-  const fallback = snapshot.reasons[0] ?? snapshot.summaryLine ?? null
+  const fallback = snapshot.summaryLine ?? null
   if (!fallback)
     return null
 
-  const fallbackHeadline = fallback
-    .replace(
-      /^Replay benchmark currently reports continuity=.*?landing\.$/i,
-      '项目状态待同步',
-    )
-    .replace(
-      /^Project identity-continuity self line currently reads .*?outward reply widening begins\.$/i,
-      '身份连续性待校准',
-    )
-    .replace(
-      /^Same-her self authority currently reads .*?host-visible wording\.$/i,
-      '身份表述待校准',
-    )
-    .replace(
-      /^Same-her emotional closure currently reads .*?emotional seam\.$/i,
-      '情绪收束待校准',
-    )
-    .replace(
-      /^Project identity carry currently reads .*?across time\.$/i,
-      '项目身份待同步',
-    )
-  return sanitizeQuickReplyClosureHeadline(fallbackHeadline)
+  return sanitizeQuickReplyClosureHeadline(fallback)
 }
 
 function resolveNextClosureLine(snapshot: StageQuickReplyPreDialogueClosureSnapshot) {
   if (typeof snapshot.companionNextClosureLine === 'string' && snapshot.companionNextClosureLine.trim())
     return snapshot.companionNextClosureLine.trim()
-
-  const nextClosureReasonLine = resolveNextClosureReasonLine(snapshot.reasons)
-  if (nextClosureReasonLine)
-    return nextClosureReasonLine
-
-  const summaryParts = (snapshot.summaryLine ?? '')
-    .split('|')
-    .map(part => part.trim())
-    .filter(Boolean)
-
-  const nextClosureFromSummary = summaryParts.find(part => part.toLowerCase().startsWith('next closure'))
-  if (nextClosureFromSummary) {
-    return describeAlicizationProjectNextClosure({
-      nextClosureTarget: nextClosureFromSummary.replace(/^Next closure:\s*/i, ''),
-    }) || null
-  }
-
-  const nextClosureFromReasons = snapshot.reasons.find(reason => reason.toLowerCase().includes('next closure target is still '))
-  if (nextClosureFromReasons) {
-    return describeAlicizationProjectNextClosure({
-      nextClosureTarget: nextClosureFromReasons.replace(/^Next closure target is still\s*/i, ''),
-    }) || null
-  }
 
   return null
 }
@@ -1513,15 +1378,12 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
     : null
   const visible = sameHerContinuityFocused || (status !== 'grounded' && status !== 'closed')
   const sanitizedHeadline = sanitizeQuickReplyClosureVisibleLine(headline)
-    ?? (sameHerContinuityFocused ? '具身通道待重连' : null)
-    ?? (projectStateFocused ? '项目状态待同步' : null)
   const sanitizedBriefingHeadline = sanitizeQuickReplyClosureVisibleLine(briefingHeadline)
   const dedupedBriefingHeadline = sanitizedBriefingHeadline === sanitizedHeadline
     ? null
     : sanitizedBriefingHeadline
   const sanitizedNextClosureLine = sanitizeQuickReplyClosureVisibleLine(nextClosureLine)
   const sanitizedSameHerDriftRiskLine = sanitizeQuickReplyClosureVisibleLine(snapshot.sameHerDriftRiskLine)
-  const sanitizedProactiveSameHerGapLine = sanitizeQuickReplyClosureVisibleLine(resolveProactiveSameHerGapLine(snapshot))
 
   return {
     visible,
@@ -1531,7 +1393,7 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
     briefingHeadline: dedupedBriefingHeadline,
     nextClosureLine: sanitizedNextClosureLine,
     sameHerDriftRiskLine: sanitizedSameHerDriftRiskLine,
-    proactiveSameHerGapLine: sanitizedProactiveSameHerGapLine,
+    proactiveSameHerGapLine: null,
     routeQuery: visible
       ? {
           source: 'quick-reply-closure',

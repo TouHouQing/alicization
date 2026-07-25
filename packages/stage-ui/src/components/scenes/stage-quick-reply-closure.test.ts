@@ -28,9 +28,6 @@ describe('stage quick reply closure diagnostic entry', () => {
       companionBriefingLine: '我还在继续带着这条数字生命主线往前走。',
       companionNextClosureLine: 'Next, help me close: Rebind face and motion onto the same-her measured-return line.',
       sameHerDriftRiskLine: null,
-      briefingLines: [
-        '[fixed-template-excluded]',
-      ],
       reasons: [
         'project-state-identity-continuity-continuity-required',
       ],
@@ -38,7 +35,7 @@ describe('stage quick reply closure diagnostic entry', () => {
 
     expect(entry).toEqual(expect.objectContaining({
       visible: true,
-      headline: '项目状态待同步',
+      headline: null,
       briefingHeadline: null,
       nextClosureLine: null,
       sameHerDriftRiskLine: null,
@@ -64,7 +61,7 @@ describe('stage quick reply closure diagnostic entry', () => {
 
     expect(entry).toEqual(expect.objectContaining({
       visible: true,
-      headline: '项目状态待同步',
+      headline: null,
       briefingHeadline: null,
       nextClosureLine: null,
       routeQuery: expect.objectContaining({
@@ -90,7 +87,7 @@ describe('stage quick reply closure diagnostic entry', () => {
 
     expect(entry).toEqual(expect.objectContaining({
       visible: true,
-      headline: '具身通道待重连',
+      headline: null,
       briefingHeadline: null,
       nextClosureLine: null,
       routeQuery: expect.objectContaining({
@@ -111,7 +108,6 @@ describe('stage quick reply closure diagnostic entry', () => {
       companionBriefingLine: null,
       companionNextClosureLine: 'next=Keep memory grounded without prompt templates. | surface=structured',
       sameHerDriftRiskLine: null,
-      briefingLines: [],
       reasons: [],
     })
 
@@ -130,5 +126,50 @@ describe('stage quick reply closure diagnostic entry', () => {
       nextClosureLine: null,
       routeQuery: {},
     }))
+  })
+
+  it('drops generic metadata from an explicit companion headline', () => {
+    const entry = buildStageQuickReplyClosureDiagnosticEntry({
+      status: 'partial',
+      summaryLine: null,
+      companionHeadlineLine: '说明：private_key=value',
+      reasons: [],
+    })
+
+    expect(entry.headline).toBeNull()
+  })
+
+  it('does not turn a diagnostic reason into visible fallback copy', () => {
+    const entry = buildStageQuickReplyClosureDiagnosticEntry({
+      status: 'partial',
+      summaryLine: null,
+      reasons: ['项目状态待同步'],
+    })
+
+    expect(entry.headline).toBeNull()
+  })
+
+  it('does not turn a diagnostic reason into a visible next closure line', () => {
+    const entry = buildStageQuickReplyClosureDiagnosticEntry({
+      status: 'partial',
+      summaryLine: null,
+      reasons: [
+        'Next closure target is still 项目状态待同步, so the next turn should keep the repair narrow.',
+      ],
+    })
+
+    expect(entry.nextClosureLine).toBeNull()
+  })
+
+  it('does not turn a proactive diagnostic reason into visible copy', () => {
+    const entry = buildStageQuickReplyClosureDiagnosticEntry({
+      status: 'partial',
+      summaryLine: null,
+      reasons: [
+        'Proactive identity-continuity follow-through currently reads 项目状态待同步, so the next turn should keep the repair narrow.',
+      ],
+    })
+
+    expect(entry.proactiveSameHerGapLine).toBeNull()
   })
 })
