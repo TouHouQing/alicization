@@ -9,12 +9,6 @@ import type { AnimationClip } from 'three'
 import type { Ref } from 'vue'
 
 import { createVRMAnimationClip } from '@pixiv/three-vrm-animation'
-import {
-  hasAlicizationAudibleSameHerCarry,
-  hasAlicizationBodyVoiceOnlySameHerCarry,
-  hasAlicizationQuieterSameHerCarry,
-  hasAlicizationStillVoicedSameHerCarry,
-} from '@proj-alicization/stage-shared'
 import { Object3D, Vector3, VectorKeyframeTrack } from 'three'
 import { randFloat } from 'three/src/math/MathUtils.js'
 import { ref } from 'vue'
@@ -36,19 +30,16 @@ export interface GLTFUserdata extends Record<string, any> {
 export function resolveVrmGazeModeBias(input: {
   preferredBlinkCadence?: string | null | undefined
   preferredGazeMode?: string | null | undefined
-  reasonTags?: readonly string[] | null | undefined
   residentMode?: string | null | undefined
-  signature?: string | null | undefined
 }) {
   const residentMode = typeof input.residentMode === 'string' ? input.residentMode.trim() : ''
-  const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(input)
   const durableMeasuredReturn = residentMode === 'measured-return'
     && (
       input.preferredGazeMode === 'steady'
       || input.preferredGazeMode === 'soften'
     )
   const residentCadenceScale = residentMode === 'repair-before-closeness'
-    ? sameHerSoftenedReturn ? 1.24 : 1.2
+    ? 1.2
     : durableMeasuredReturn
       ? 1.18
       : residentMode === 'measured-return'
@@ -57,7 +48,7 @@ export function resolveVrmGazeModeBias(input: {
           ? 1.08
           : 1
   const residentAmplitudeScale = residentMode === 'repair-before-closeness'
-    ? sameHerSoftenedReturn ? 0.72 : 0.76
+    ? 0.76
     : durableMeasuredReturn
       ? 0.8
       : residentMode === 'measured-return'
@@ -96,40 +87,6 @@ export function resolveVrmGazeModeBias(input: {
         elevationScale: 1,
       }
   }
-}
-
-function hasSoftenedSameHerResidentCarry(input: {
-  preferredBlinkCadence?: string | null | undefined
-  preferredGazeMode?: string | null | undefined
-  reasonTags?: readonly string[] | null | undefined
-  signature?: string | null | undefined
-}) {
-  const preferredGazeMode = typeof input.preferredGazeMode === 'string'
-    ? input.preferredGazeMode.trim()
-    : ''
-  const preferredBlinkCadence = typeof input.preferredBlinkCadence === 'string'
-    ? input.preferredBlinkCadence.trim()
-    : ''
-  const softenedCadence = preferredGazeMode === 'steady'
-    || preferredGazeMode === 'soften'
-    || preferredBlinkCadence === 'quiet'
-    || preferredBlinkCadence === 'linger'
-  if (!softenedCadence)
-    return false
-
-  return hasAlicizationAudibleSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  }) || hasAlicizationBodyVoiceOnlySameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  }) || hasAlicizationQuieterSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  }) || hasAlicizationStillVoicedSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
 }
 
 const vrmAnimationPromiseCache = new Map<string, Promise<VRMAnimation | undefined>>()
@@ -281,10 +238,7 @@ export function useBlink() {
 
   function resolveBlinkIntervalRange(input?: {
     preferredBlinkCadence?: string | null | undefined
-    preferredGazeMode?: string | null | undefined
-    reasonTags?: readonly string[] | null | undefined
     residentMode?: string | null | undefined
-    signature?: string | null | undefined
   }) {
     const preferredBlinkCadence = typeof input?.preferredBlinkCadence === 'string'
       ? input.preferredBlinkCadence.trim()
@@ -292,11 +246,10 @@ export function useBlink() {
     const residentMode = typeof input?.residentMode === 'string'
       ? input.residentMode.trim()
       : ''
-    const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(input ?? {})
     const durableMeasuredReturn = residentMode === 'measured-return'
       && (preferredBlinkCadence === 'linger' || preferredBlinkCadence === 'quiet')
     const residentCadenceScale = residentMode === 'repair-before-closeness'
-      ? sameHerSoftenedReturn ? 1.22 : 1.18
+      ? 1.18
       : durableMeasuredReturn
         ? 1.14
         : residentMode === 'measured-return'
@@ -324,9 +277,7 @@ export function useBlink() {
     rendererHints?: {
       preferredBlinkCadence?: string | null | undefined
       preferredGazeMode?: string | null | undefined
-      reasonTags?: readonly string[] | null | undefined
       residentMode?: string | null | undefined
-      signature?: string | null | undefined
     } | null,
   ) {
     const speechEnergy = clampUnit(speechDynamics?.speechEnergy ?? 0)
@@ -334,10 +285,7 @@ export function useBlink() {
     const speechActive = speechEnergy > 0.04 || clampUnit(speechDynamics?.cadencePulse ?? 0) > 0.08
     const blinkIntervalRange = resolveBlinkIntervalRange({
       preferredBlinkCadence: rendererHints?.preferredBlinkCadence,
-      preferredGazeMode: rendererHints?.preferredGazeMode,
-      reasonTags: rendererHints?.reasonTags,
       residentMode: rendererHints?.residentMode,
-      signature: rendererHints?.signature,
     })
 
     timeSinceLastBlink.value += delta * (speechActive ? 0.68 : 1)
@@ -412,9 +360,7 @@ export function useIdleEyeSaccades() {
     rendererHints?: {
       preferredBlinkCadence?: string | null | undefined
       preferredGazeMode?: string | null | undefined
-      reasonTags?: readonly string[] | null | undefined
       residentMode?: string | null | undefined
-      signature?: string | null | undefined
     } | null,
   ) {
     if (!vrm?.expressionManager || !vrm.lookAt)
@@ -432,9 +378,7 @@ export function useIdleEyeSaccades() {
     const gazeModeBias = resolveVrmGazeModeBias({
       preferredBlinkCadence: rendererHints?.preferredBlinkCadence,
       preferredGazeMode: rendererHints?.preferredGazeMode,
-      reasonTags: rendererHints?.reasonTags,
       residentMode: rendererHints?.residentMode,
-      signature: rendererHints?.signature,
     })
     const amplitude = Math.max(
       0.06,
