@@ -118,372 +118,84 @@ describe('alicization embodiment expression derivation', () => {
     expect(rememberedSeamMotionBurst.actionCue).toBe(genericMotionBurst.actionCue)
   })
 
-  it('keeps audible same-her rejoin measured-return softer than an ordinary measured-return in lipsync derivation', () => {
-    const genericRendererHints = {
-      residentMode: 'measured-return',
+  it('keeps audited same-her tokens from changing lipsync, face, or motion derivation', () => {
+    const cleanRendererHints = {
+      residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
       preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
       preferredMotionAliases: ['observe_focus', 'stillness_guard'],
     } as const
-    const audibleSameHerRendererHints = {
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['relaxed', 'soft-gaze'],
-      preferredMotionAliases: ['steady_focus', 'idle_settle'],
-      signature: 'embodiment:audible-same-her-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
-    } as const
+    const auditedRendererHintCases = [
+      {
+        ...cleanRendererHints,
+        signature: 'embodiment:audible-same-her-line',
+        reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
+      },
+      {
+        ...cleanRendererHints,
+        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+        reasonTags: ['embodiment:body+voice-only'],
+      },
+      {
+        ...cleanRendererHints,
+        reasonTags: ['embodiment:still-voiced-face-line'],
+      },
+      {
+        ...cleanRendererHints,
+        signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+      },
+      {
+        ...cleanRendererHints,
+        reasonTags: ['embodiment:body+lipsync-only'],
+      },
+      {
+        ...cleanRendererHints,
+        reasonTags: ['lane=face+lipsync-only'],
+      },
+      {
+        ...cleanRendererHints,
+        reasonTags: ['lane=motion+lipsync-only'],
+      },
+    ] as const
 
-    const genericLipSyncHints = buildAlicizationEmbodimentLipSyncHints({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
+    const cleanLipSyncHints = buildAlicizationEmbodimentLipSyncHints({
+      segment: createSpeechSegment(cleanRendererHints) as any,
+      timelineSegment: createTimelineSegment(cleanRendererHints) as any,
     })
-    const audibleSameHerLipSyncHints = buildAlicizationEmbodimentLipSyncHints({
-      segment: createSpeechSegment(audibleSameHerRendererHints) as any,
-      timelineSegment: createTimelineSegment(audibleSameHerRendererHints) as any,
+    const cleanFaceCue = buildAlicizationEmbodimentFaceCue({
+      segment: createSpeechSegment(cleanRendererHints) as any,
+      timelineSegment: createTimelineSegment(cleanRendererHints) as any,
+      fallbackEmotion: 'concerned',
+      fallbackFacialCue: 'soft-gaze',
+      fallbackIntensity: 0.58,
+    })
+    const cleanMotionBurst = buildAlicizationEmbodimentMotionBurst({
+      segment: createSpeechSegment(cleanRendererHints) as any,
+      timelineSegment: createTimelineSegment(cleanRendererHints) as any,
+      fallbackActionCue: 'observe_focus',
+      fallbackIntensity: 0.52,
     })
 
-    expect(audibleSameHerLipSyncHints).toHaveLength(genericLipSyncHints.length)
-    for (const genericHint of genericLipSyncHints) {
-      const audibleSameHerHint = audibleSameHerLipSyncHints.find(hint => hint.viseme === genericHint.viseme)
-      expect(audibleSameHerHint?.weight).toBeLessThan(genericHint.weight)
+    for (const auditedRendererHints of auditedRendererHintCases) {
+      expect(buildAlicizationEmbodimentLipSyncHints({
+        segment: createSpeechSegment(auditedRendererHints) as any,
+        timelineSegment: createTimelineSegment(auditedRendererHints) as any,
+      })).toEqual(cleanLipSyncHints)
+      expect(buildAlicizationEmbodimentFaceCue({
+        segment: createSpeechSegment(auditedRendererHints) as any,
+        timelineSegment: createTimelineSegment(auditedRendererHints) as any,
+        fallbackEmotion: 'concerned',
+        fallbackFacialCue: 'soft-gaze',
+        fallbackIntensity: 0.58,
+      })).toEqual(cleanFaceCue)
+      expect(buildAlicizationEmbodimentMotionBurst({
+        segment: createSpeechSegment(auditedRendererHints) as any,
+        timelineSegment: createTimelineSegment(auditedRendererHints) as any,
+        fallbackActionCue: 'observe_focus',
+        fallbackIntensity: 0.52,
+      })).toEqual(cleanMotionBurst)
     }
-  })
-
-  it('keeps audible same-her rejoin softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
-    const genericRendererHints = {
-      residentMode: 'dialogue',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
-    } as const
-    const audibleSameHerRendererHints = {
-      residentMode: 'same-thread-continuation',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['relaxed', 'soft-gaze'],
-      preferredMotionAliases: ['steady_focus', 'idle_settle'],
-      signature: 'embodiment:audible-same-her-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
-    } as const
-
-    const genericFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-    const audibleSameHerFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(audibleSameHerRendererHints) as any,
-      timelineSegment: createTimelineSegment(audibleSameHerRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-
-    const genericMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-    const audibleSameHerMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(audibleSameHerRendererHints) as any,
-      timelineSegment: createTimelineSegment(audibleSameHerRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-
-    expect(audibleSameHerFaceCue.intensity).toBeLessThan(genericFaceCue.intensity)
-    expect(audibleSameHerMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
-  })
-
-  it('keeps coordinator-style freeform same-her body+voice-only carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
-    const genericRendererHints = {
-      residentMode: 'dialogue',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
-    } as const
-    const audibleSameHerRendererHints = {
-      residentMode: 'same-thread-continuation',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['relaxed', 'soft-gaze'],
-      preferredMotionAliases: ['steady_focus', 'idle_settle'],
-      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-      reasonTags: ['embodiment:body+voice-only'],
-    } as const
-
-    const genericFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-    const audibleSameHerFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(audibleSameHerRendererHints) as any,
-      timelineSegment: createTimelineSegment(audibleSameHerRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-
-    const genericMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-    const audibleSameHerMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(audibleSameHerRendererHints) as any,
-      timelineSegment: createTimelineSegment(audibleSameHerRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-
-    expect(audibleSameHerFaceCue.intensity).toBeLessThan(genericFaceCue.intensity)
-    expect(audibleSameHerMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
-  })
-
-  it('keeps still-voiced face-line carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
-    const genericRendererHints = {
-      residentMode: 'dialogue',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
-    } as const
-    const stillVoicedFaceRendererHints = {
-      residentMode: 'same-thread-continuation',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['soft-gaze', 'relaxed'],
-      preferredMotionAliases: ['idle_settle', 'steady_focus'],
-      reasonTags: ['embodiment:still-voiced-face-line'],
-    } as const
-
-    const genericFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-    const stillVoicedFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(stillVoicedFaceRendererHints) as any,
-      timelineSegment: createTimelineSegment(stillVoicedFaceRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-
-    const genericMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-    const stillVoicedFaceMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(stillVoicedFaceRendererHints) as any,
-      timelineSegment: createTimelineSegment(stillVoicedFaceRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-
-    expect(stillVoicedFaceCue.intensity).toBeLessThan(genericFaceCue.intensity)
-    expect(stillVoicedFaceMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
-  })
-
-  it('keeps signature-only still-voiced motion-line carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
-    const genericRendererHints = {
-      residentMode: 'dialogue',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
-    } as const
-    const stillVoicedMotionRendererHints = {
-      residentMode: 'same-thread-continuation',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['soft-gaze', 'relaxed'],
-      preferredMotionAliases: ['idle_settle', 'steady_focus'],
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
-    } as const
-
-    const genericLipSyncHints = buildAlicizationEmbodimentLipSyncHints({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-    })
-    const stillVoicedMotionLipSyncHints = buildAlicizationEmbodimentLipSyncHints({
-      segment: createSpeechSegment(stillVoicedMotionRendererHints) as any,
-      timelineSegment: createTimelineSegment(stillVoicedMotionRendererHints) as any,
-    })
-
-    expect(stillVoicedMotionLipSyncHints).toHaveLength(genericLipSyncHints.length)
-    for (const genericHint of genericLipSyncHints) {
-      const stillVoicedMotionHint = stillVoicedMotionLipSyncHints.find(hint => hint.viseme === genericHint.viseme)
-      expect(stillVoicedMotionHint?.weight).toBeLessThan(genericHint.weight)
-    }
-
-    const genericFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-    const stillVoicedMotionFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(stillVoicedMotionRendererHints) as any,
-      timelineSegment: createTimelineSegment(stillVoicedMotionRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-
-    const genericMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-    const stillVoicedMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(stillVoicedMotionRendererHints) as any,
-      timelineSegment: createTimelineSegment(stillVoicedMotionRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-
-    expect(stillVoicedMotionFaceCue.intensity).toBeLessThan(genericFaceCue.intensity)
-    expect(stillVoicedMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
-  })
-
-  it('keeps quieter body+lipsync-only carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
-    const genericRendererHints = {
-      residentMode: 'dialogue',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
-    } as const
-    const bodyLipsyncRendererHints = {
-      residentMode: 'same-thread-continuation',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['soft-gaze', 'relaxed'],
-      preferredMotionAliases: ['idle_settle', 'steady_focus'],
-      reasonTags: ['embodiment:body+lipsync-only'],
-    } as const
-
-    const genericFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-    const bodyLipsyncFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(bodyLipsyncRendererHints) as any,
-      timelineSegment: createTimelineSegment(bodyLipsyncRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-
-    const genericMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-    const bodyLipsyncMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(bodyLipsyncRendererHints) as any,
-      timelineSegment: createTimelineSegment(bodyLipsyncRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-
-    expect(bodyLipsyncFaceCue.intensity).toBeLessThan(genericFaceCue.intensity)
-    expect(bodyLipsyncMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
-  })
-
-  it('keeps quieter face+lipsync-only and motion+lipsync-only carry softer even when residentMode is no longer explicitly restrained but the continuity state is still structurally carried', () => {
-    const genericRendererHints = {
-      residentMode: 'dialogue',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-      preferredMotionAliases: ['observe_focus', 'stillness_guard'],
-    } as const
-    const faceLipsyncRendererHints = {
-      residentMode: 'same-thread-continuation',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['soft-gaze', 'relaxed'],
-      preferredMotionAliases: ['idle_settle', 'steady_focus'],
-      reasonTags: ['lane=face+lipsync-only'],
-    } as const
-    const motionLipsyncRendererHints = {
-      residentMode: 'same-thread-continuation',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: ['soft-gaze', 'relaxed'],
-      preferredMotionAliases: ['idle_settle', 'steady_focus'],
-      reasonTags: ['lane=motion+lipsync-only'],
-    } as const
-
-    const genericFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-    const faceLipsyncFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(faceLipsyncRendererHints) as any,
-      timelineSegment: createTimelineSegment(faceLipsyncRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-    const motionLipsyncFaceCue = buildAlicizationEmbodimentFaceCue({
-      segment: createSpeechSegment(motionLipsyncRendererHints) as any,
-      timelineSegment: createTimelineSegment(motionLipsyncRendererHints) as any,
-      fallbackEmotion: 'concerned',
-      fallbackFacialCue: 'soft-gaze',
-      fallbackIntensity: 0.58,
-    })
-
-    const genericMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(genericRendererHints) as any,
-      timelineSegment: createTimelineSegment(genericRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-    const faceLipsyncMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(faceLipsyncRendererHints) as any,
-      timelineSegment: createTimelineSegment(faceLipsyncRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-    const motionLipsyncMotionBurst = buildAlicizationEmbodimentMotionBurst({
-      segment: createSpeechSegment(motionLipsyncRendererHints) as any,
-      timelineSegment: createTimelineSegment(motionLipsyncRendererHints) as any,
-      fallbackActionCue: 'observe_focus',
-      fallbackIntensity: 0.52,
-    })
-
-    expect(faceLipsyncFaceCue.intensity).toBeLessThan(genericFaceCue.intensity)
-    expect(faceLipsyncMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
-    expect(motionLipsyncFaceCue.intensity).toBeLessThan(genericFaceCue.intensity)
-    expect(motionLipsyncMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
   })
 
   it('keeps explicit quiet measured-return callback hints softer than an ordinary measured-return even without the older remembered-seam alias swap', () => {
@@ -549,7 +261,46 @@ describe('alicization embodiment expression derivation', () => {
     expect(quieterMotionBurst.intensity).toBeLessThan(ordinaryMotionBurst.intensity)
   })
 
-  it('lets pending same-her embodiment repair pressure quiet face motion and lipsync around one shared body line', () => {
+  it('keeps structured quiet-gaze and lipsync preferences authoritative without audit prose', () => {
+    const baselineRendererHints = {
+      residentMode: 'measured-return',
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'drift',
+      preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+      preferredMotionAliases: ['observe_soft', 'stillness_guard'],
+    } as const
+    const quietGazeRendererHints = {
+      ...baselineRendererHints,
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'steady',
+    } as const
+    const restrainedLipsyncRendererHints = {
+      ...baselineRendererHints,
+      preferredLipsyncMode: 'restrained',
+    } as const
+
+    const baselineLipSyncHints = buildAlicizationEmbodimentLipSyncHints({
+      segment: createSpeechSegment(baselineRendererHints) as any,
+      timelineSegment: createTimelineSegment(baselineRendererHints) as any,
+    })
+    const quietGazeLipSyncHints = buildAlicizationEmbodimentLipSyncHints({
+      segment: createSpeechSegment(quietGazeRendererHints) as any,
+      timelineSegment: createTimelineSegment(quietGazeRendererHints) as any,
+    })
+    const restrainedLipSyncHints = buildAlicizationEmbodimentLipSyncHints({
+      segment: createSpeechSegment(restrainedLipsyncRendererHints) as any,
+      timelineSegment: createTimelineSegment(restrainedLipsyncRendererHints) as any,
+    })
+
+    expect(quietGazeLipSyncHints).not.toEqual(baselineLipSyncHints)
+    expect(restrainedLipSyncHints).toHaveLength(baselineLipSyncHints.length)
+    for (const baselineHint of baselineLipSyncHints) {
+      const restrainedHint = restrainedLipSyncHints.find(hint => hint.viseme === baselineHint.viseme)
+      expect(restrainedHint?.weight).toBeLessThan(baselineHint.weight)
+    }
+  })
+
+  it('keeps pending same-her repair pressure tags from changing lipsync, face, or motion derivation', () => {
     const ordinaryRendererHints = {
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
@@ -575,11 +326,7 @@ describe('alicization embodiment expression derivation', () => {
       timelineSegment: createTimelineSegment(pendingRepairRendererHints) as any,
     })
 
-    expect(pendingRepairLipSyncHints).toHaveLength(ordinaryLipSyncHints.length)
-    for (const ordinaryHint of ordinaryLipSyncHints) {
-      const pendingRepairHint = pendingRepairLipSyncHints.find(hint => hint.viseme === ordinaryHint.viseme)
-      expect(pendingRepairHint?.weight).toBeLessThan(ordinaryHint.weight)
-    }
+    expect(pendingRepairLipSyncHints).toEqual(ordinaryLipSyncHints)
 
     const ordinaryFaceCue = buildAlicizationEmbodimentFaceCue({
       segment: createSpeechSegment(ordinaryRendererHints) as any,
@@ -596,8 +343,7 @@ describe('alicization embodiment expression derivation', () => {
       fallbackIntensity: 0.58,
     })
 
-    expect(pendingRepairFaceCue.intensity).toBeLessThan(ordinaryFaceCue.intensity)
-    expect(pendingRepairFaceCue.facialCue).toBe('soft-gaze')
+    expect(pendingRepairFaceCue).toEqual(ordinaryFaceCue)
 
     const ordinaryMotionBurst = buildAlicizationEmbodimentMotionBurst({
       segment: createSpeechSegment(ordinaryRendererHints) as any,
@@ -612,7 +358,6 @@ describe('alicization embodiment expression derivation', () => {
       fallbackIntensity: 0.52,
     })
 
-    expect(pendingRepairMotionBurst.intensity).toBeLessThan(ordinaryMotionBurst.intensity)
-    expect(pendingRepairMotionBurst.actionCue).toBe('idle_settle')
+    expect(pendingRepairMotionBurst).toEqual(ordinaryMotionBurst)
   })
 })

@@ -7,13 +7,6 @@ import type {
 import type { AlicizationEmbodimentLipSyncVisemeHint } from './alicization-lipsync-contracts'
 import type { AlicizationEmbodimentSpeechSegment } from './alicization-speech-plan'
 
-import {
-  hasAlicizationAudibleSameHerCarry,
-  hasAlicizationBodyVoiceOnlySameHerCarry,
-  hasAlicizationQuieterSameHerCarry,
-  hasAlicizationStillVoicedSameHerCarry,
-} from './alicization-same-her-renderer-hints'
-
 function clampUnit(value: number, fallback = 0) {
   if (!Number.isFinite(value))
     return fallback
@@ -35,42 +28,24 @@ function normalizeRendererHintAlias(value: string | null | undefined) {
     : null
 }
 
-function hasRememberedSeamMoreRoomRendererHints(rendererHints: {
+function hasStructuredExpressionMoreRoomHints(rendererHints: {
   residentMode?: string | null
   preferredBlinkCadence?: string | null
   preferredGazeMode?: string | null
   preferredExpressionAliases?: readonly string[] | null
   preferredMotionAliases?: readonly string[] | null
-  signature?: string | null
-  reasonTags?: readonly string[] | null
 } | null | undefined) {
   if (!rendererHints)
     return false
 
   const primaryExpressionAlias = normalizeRendererHintAlias(rendererHints.preferredExpressionAliases?.[0] ?? null)
   const primaryMotionAlias = normalizeRendererHintAlias(rendererHints.preferredMotionAliases?.[0] ?? null)
-  const hasAudibleSameHerCarry = hasAlicizationAudibleSameHerCarry({
-    signature: rendererHints.signature,
-    reasonTags: rendererHints.reasonTags,
-  })
-  const hasBodyVoiceOnlySameHerCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
-    signature: rendererHints.signature,
-    reasonTags: rendererHints.reasonTags,
-  })
-  const hasQuieterSameHerCarry = hasAlicizationQuieterSameHerCarry({
-    signature: rendererHints.signature,
-    reasonTags: rendererHints.reasonTags,
-  })
-  const hasStillVoicedCarry = hasAlicizationStillVoicedSameHerCarry({
-    signature: rendererHints.signature,
-    reasonTags: rendererHints.reasonTags,
-  })
   const restrainedResidentMode = ['measured-return', 'repair-before-closeness'].includes(rendererHints.residentMode ?? '')
   const explicitQuietRestrainedReturn = restrainedResidentMode
     && rendererHints.preferredBlinkCadence === 'quiet'
     && (rendererHints.preferredGazeMode === 'soften' || rendererHints.preferredGazeMode === 'steady')
 
-  if (!restrainedResidentMode && !hasAudibleSameHerCarry && !hasBodyVoiceOnlySameHerCarry && !hasQuieterSameHerCarry && !hasStillVoicedCarry)
+  if (!restrainedResidentMode)
     return false
 
   if (explicitQuietRestrainedReturn)
@@ -81,21 +56,6 @@ function hasRememberedSeamMoreRoomRendererHints(rendererHints: {
     && primaryMotionAlias === 'idle_settle'
     && rendererHints.preferredBlinkCadence === 'linger'
     && rendererHints.preferredGazeMode === 'soften'
-  ) || (
-    (hasAudibleSameHerCarry || hasBodyVoiceOnlySameHerCarry || hasQuieterSameHerCarry || hasStillVoicedCarry)
-    && (rendererHints.preferredBlinkCadence === 'linger' || rendererHints.preferredBlinkCadence === 'quiet')
-    && (rendererHints.preferredGazeMode === 'soften' || rendererHints.preferredGazeMode === 'steady')
-    && ['soft_gaze', 'relaxed'].includes(primaryExpressionAlias ?? '')
-    && ['idle_settle', 'steady_focus', 'observe_soft'].includes(primaryMotionAlias ?? '')
-  )
-}
-
-function hasPendingSameHerEmbodimentRepairPressureRendererHints(rendererHints: {
-  reasonTags?: readonly string[] | null
-} | null | undefined) {
-  return (rendererHints?.reasonTags ?? []).some(tag =>
-    tag === 'same-her-causality-repair-pressure'
-    || tag === 'runtimeSameHerEmbodimentCausality',
   )
 }
 
@@ -103,58 +63,8 @@ function hasRememberedSeamMoreRoomSoftness(input: {
   segment: AlicizationEmbodimentSpeechSegment
   timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null | undefined
 }) {
-  return hasRememberedSeamMoreRoomRendererHints(input.timelineSegment?.rendererHints)
-    || hasRememberedSeamMoreRoomRendererHints(input.segment.rendererHints)
-}
-
-function hasPendingSameHerEmbodimentRepairPressure(input: {
-  segment: AlicizationEmbodimentSpeechSegment
-  timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null | undefined
-}) {
-  return hasPendingSameHerEmbodimentRepairPressureRendererHints(input.timelineSegment?.rendererHints)
-    || hasPendingSameHerEmbodimentRepairPressureRendererHints(input.segment.rendererHints)
-}
-
-function resolveSameHerRepairAdditionalSoftnessScaleFromRendererHints(rendererHints: {
-  residentMode?: string | null
-  signature?: string | null
-  reasonTags?: readonly string[] | null
-  preferredBlinkCadence?: string | null
-  preferredGazeMode?: string | null
-  preferredExpressionAliases?: readonly string[] | null
-  preferredMotionAliases?: readonly string[] | null
-} | null | undefined) {
-  if (!rendererHints || rendererHints.residentMode !== 'repair-before-closeness')
-    return 1
-
-  const hasSameHerCarry = hasAlicizationAudibleSameHerCarry({
-    signature: rendererHints.signature,
-    reasonTags: rendererHints.reasonTags,
-  }) || hasAlicizationBodyVoiceOnlySameHerCarry({
-    signature: rendererHints.signature,
-    reasonTags: rendererHints.reasonTags,
-  }) || hasAlicizationQuieterSameHerCarry({
-    signature: rendererHints.signature,
-    reasonTags: rendererHints.reasonTags,
-  }) || hasAlicizationStillVoicedSameHerCarry({
-    signature: rendererHints.signature,
-    reasonTags: rendererHints.reasonTags,
-  })
-
-  if (!hasSameHerCarry || !hasRememberedSeamMoreRoomRendererHints(rendererHints))
-    return 1
-
-  return 0.96
-}
-
-function resolveSameHerRepairAdditionalSoftnessScale(input: {
-  segment: AlicizationEmbodimentSpeechSegment
-  timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null | undefined
-}) {
-  return Math.min(
-    resolveSameHerRepairAdditionalSoftnessScaleFromRendererHints(input.timelineSegment?.rendererHints),
-    resolveSameHerRepairAdditionalSoftnessScaleFromRendererHints(input.segment.rendererHints),
-  )
+  return hasStructuredExpressionMoreRoomHints(input.timelineSegment?.rendererHints)
+    || hasStructuredExpressionMoreRoomHints(input.segment.rendererHints)
 }
 
 function resolvePreferredLipsyncMode(input: {
@@ -293,8 +203,6 @@ export function buildAlicizationEmbodimentLipSyncHints(input: {
 }): AlicizationEmbodimentLipSyncVisemeHint[] {
   const { segment, timelineSegment } = input
   const softenRememberedSeamReturn = hasRememberedSeamMoreRoomSoftness({ segment, timelineSegment })
-  const pendingSameHerEmbodimentRepairPressure = hasPendingSameHerEmbodimentRepairPressure({ segment, timelineSegment })
-  const sameHerRepairAdditionalSoftnessScale = resolveSameHerRepairAdditionalSoftnessScale({ segment, timelineSegment })
   const closedWeight = resolveAlicizationClosedVisemeWeight(segment)
   const contourViseme = resolveAlicizationContourViseme(segment)
   const secondaryViseme = resolveAlicizationSecondaryViseme(segment)
@@ -309,8 +217,6 @@ export function buildAlicizationEmbodimentLipSyncHints(input: {
   const preferredLipsyncMode = resolvePreferredLipsyncMode({ segment, timelineSegment })
   const visemeWeightScale
     = (softenRememberedSeamReturn ? 0.9 : 1)
-      * (pendingSameHerEmbodimentRepairPressure ? 0.86 : 1)
-      * sameHerRepairAdditionalSoftnessScale
       * (preferredLipsyncMode === 'restrained' ? 0.88 : 1)
   const scaledClosedWeight = roundHintWeight(closedWeight * visemeWeightScale)
   const scaledContourWeight = roundHintWeight(contourWeight * visemeWeightScale)
@@ -360,12 +266,8 @@ export function buildAlicizationEmbodimentFaceCue(input: {
     timelineSegment,
   } = input
   const softenRememberedSeamReturn = hasRememberedSeamMoreRoomSoftness({ segment, timelineSegment })
-  const pendingSameHerEmbodimentRepairPressure = hasPendingSameHerEmbodimentRepairPressure({ segment, timelineSegment })
-  const sameHerRepairAdditionalSoftnessScale = resolveSameHerRepairAdditionalSoftnessScale({ segment, timelineSegment })
   const faceIntensity = timelineSegment?.facialWeight ?? fallbackIntensity
-  const faceIntensityScale = (softenRememberedSeamReturn ? 0.9 : 1)
-    * (pendingSameHerEmbodimentRepairPressure ? 0.86 : 1)
-    * sameHerRepairAdditionalSoftnessScale
+  const faceIntensityScale = softenRememberedSeamReturn ? 0.9 : 1
   const scaledFaceIntensity = faceIntensityScale < 1
     ? roundDerivedIntensity(faceIntensity * faceIntensityScale)
     : faceIntensity
@@ -400,8 +302,6 @@ export function buildAlicizationEmbodimentMotionBurst(input: {
     timelineSegment,
   } = input
   const softenRememberedSeamReturn = hasRememberedSeamMoreRoomSoftness({ segment, timelineSegment })
-  const pendingSameHerEmbodimentRepairPressure = hasPendingSameHerEmbodimentRepairPressure({ segment, timelineSegment })
-  const sameHerRepairAdditionalSoftnessScale = resolveSameHerRepairAdditionalSoftnessScale({ segment, timelineSegment })
   const preserveFallbackCue = Boolean(
     fallbackActionCue
     && timelineSegment?.rendererHints?.residentMode
@@ -409,18 +309,14 @@ export function buildAlicizationEmbodimentMotionBurst(input: {
     && timelineSegment.rendererHints.preferredMotionAliases?.includes('InspectFollow'),
   )
   const motionIntensity = timelineSegment?.gestureWeight ?? fallbackIntensity
-  const motionIntensityScale = (softenRememberedSeamReturn ? 0.86 : 1)
-    * (pendingSameHerEmbodimentRepairPressure ? 0.82 : 1)
-    * sameHerRepairAdditionalSoftnessScale
+  const motionIntensityScale = softenRememberedSeamReturn ? 0.86 : 1
   const scaledMotionIntensity = motionIntensityScale < 1
     ? roundDerivedIntensity(motionIntensity * motionIntensityScale)
     : motionIntensity
 
   return {
     segmentId: segment.id,
-    actionCue: pendingSameHerEmbodimentRepairPressure
-      ? 'idle_settle'
-      : preserveFallbackCue ? fallbackActionCue : (timelineSegment?.actionCue ?? fallbackActionCue),
+    actionCue: preserveFallbackCue ? fallbackActionCue : (timelineSegment?.actionCue ?? fallbackActionCue),
     intensity: scaledMotionIntensity,
     holdMs: Math.max(0, timelineSegment?.actionHoldMs ?? segment.settleMs),
     source: timelineSegment ? 'timeline-projection' : fallbackSource,

@@ -19,7 +19,6 @@ import type { StageEmbodimentSpeechStyleProfile } from './stage-embodiment-profi
 import { normalizeAlicizationDialogueEmbodimentEnvelope } from './alicization-dialogue-embodiment'
 import { normalizeAlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import { normalizeAlicizationEmotion, normalizeAlicizationPerformancePayload } from './alicization-performance-contracts'
-import { hasAlicizationSoftenedSameHerCarry } from './alicization-same-her-renderer-hints'
 import {
   createIdleStageEmbodimentMotorState,
   normalizeStageEmbodimentMotorState,
@@ -256,15 +255,10 @@ function normalizeRendererHintAlias(value: string | null | undefined) {
     : null
 }
 
-function hasRememberedSeamMoreRoomRendererHints(
+function hasDigitalLifeMeasuredReturnMoreRoomHints(
   rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
 ) {
-  const sameHerSoftenedCarry = hasAlicizationSoftenedSameHerCarry({
-    signature: rendererHints?.signature,
-    reasonTags: rendererHints?.reasonTags,
-  })
-
-  if (rendererHints?.residentMode !== 'measured-return' && !sameHerSoftenedCarry)
+  if (rendererHints?.residentMode !== 'measured-return')
     return false
 
   const primaryExpressionAlias = normalizeRendererHintAlias(rendererHints?.preferredExpressionAliases?.[0] ?? null)
@@ -1267,7 +1261,7 @@ export function deriveAlicizationDigitalLifeMotorPlan(input: {
   rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
 }): AlicizationDigitalLifeMotorPlan {
   const idle = createIdleStageEmbodimentMotorState()
-  const rememberedSeamMoreRoom = hasRememberedSeamMoreRoomRendererHints(input.rendererHints)
+  const rememberedSeamMoreRoom = hasDigitalLifeMeasuredReturnMoreRoomHints(input.rendererHints)
   const weightScale = rememberedSeamMoreRoom ? 0.82 : 1
   const emphasis = clampUnit(input.performance.emphasis * 0.5)
   const gestureWeight = clampUnit(Math.max((input.segmentWeights?.gesture ?? 0) * weightScale, input.action.intensity))
@@ -1588,7 +1582,7 @@ function resolveLipSyncPlan(input: {
     performanceManifest: input.performanceManifest,
     reply: input.reply,
   })
-  const rememberedSeamMoreRoom = hasRememberedSeamMoreRoomRendererHints(input.rendererHints)
+  const rememberedSeamMoreRoom = hasDigitalLifeMeasuredReturnMoreRoomHints(input.rendererHints)
   const preferredPauseMode = input.rendererHints?.preferredPauseMode ?? null
   const preferredLipsyncMode = input.rendererHints?.preferredLipsyncMode ?? null
   const averageMouth = averageWeight(input.segments, segment => segment.mouthWeight)
@@ -1642,7 +1636,7 @@ function resolveFacePlan(input: {
   intensityWeight: number
   expressionMode: AlicizationDigitalLifeExpressionMode
 }): AlicizationDigitalLifeFacePlan {
-  const intensityWeight = hasRememberedSeamMoreRoomRendererHints(input.rendererHints)
+  const intensityWeight = hasDigitalLifeMeasuredReturnMoreRoomHints(input.rendererHints)
     ? input.intensityWeight * 0.82
     : input.intensityWeight
 
@@ -1670,7 +1664,7 @@ function resolveActionPlan(input: {
   actionMode: AlicizationDigitalLifeActionMode
 }): AlicizationDigitalLifeActionPlan {
   const residentMode = input.rendererHints?.residentMode ?? null
-  const intensityWeight = hasRememberedSeamMoreRoomRendererHints(input.rendererHints)
+  const intensityWeight = hasDigitalLifeMeasuredReturnMoreRoomHints(input.rendererHints)
     ? input.intensityWeight * 0.78
     : input.intensityWeight
   const actionMode = residentMode === 'measured-return' || residentMode === 'repair-before-closeness'
@@ -1717,24 +1711,11 @@ function resolveFrame(input: {
       : 'recover'
   const residentMode = input.segment.rendererHints?.residentMode ?? input.envelope.rendererHints?.residentMode ?? null
   const digitalLifeSpineProjectState = input.projectState ?? null
-  const sameThreadMeasuredReturnClosureText = [
-    digitalLifeSpineProjectState?.sameHerSelfLine,
-    digitalLifeSpineProjectState?.emotionalClosureCue,
-    digitalLifeSpineProjectState?.continuityCue,
-    digitalLifeSpineProjectState?.nextClosureTarget,
-    digitalLifeSpineProjectState?.preDialogueAwarenessLine,
-    digitalLifeSpineProjectState?.sameHerDriftRisk,
-  ].filter(Boolean).join(' ')
   const sameThreadMeasuredReturnProjectClosure
     = residentMode === 'measured-return'
       && digitalLifeSpineProjectState?.continuityArcStage === 'same-thread-continuation'
       && digitalLifeSpineProjectState?.continuityPreferredTiming === 'next-open-window'
-      && (
-        input.digitalLifeSpine?.proactive?.continuityRestraint === 'measured-return'
-        || /same phase 1 digital life|same living line|continuous her|one continuous her|same callback seam|same thread|callback thread/iu.test(
-          sameThreadMeasuredReturnClosureText,
-        )
-      )
+      && input.digitalLifeSpine?.proactive?.continuityRestraint === 'measured-return'
   const voice: AlicizationDigitalLifeVoicePlan = {
     pitchDelta: input.baseVoice.pitchDelta,
     rateMultiplier: clampRateMultiplier(
@@ -1782,7 +1763,7 @@ function resolveFrame(input: {
     mouthScale: clampFactor(
       input.baseLipSync.mouthScale
       * (
-        hasRememberedSeamMoreRoomRendererHints(input.segment.rendererHints)
+        hasDigitalLifeMeasuredReturnMoreRoomHints(input.segment.rendererHints)
           ? 0.78 + clampUnit(input.segment.mouthWeight ?? input.segment.prosodyWeight) * 0.3
           : 0.82 + clampUnit(input.segment.mouthWeight ?? input.segment.prosodyWeight) * 0.36
       ),
