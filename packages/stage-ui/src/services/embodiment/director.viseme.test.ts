@@ -85,7 +85,12 @@ function createMeasuredReturnVisemeSeed(input: {
           facialCue: 'focused' as const,
           actionWindow: 'segment-start' as const,
           interruptMode: 'soft-interrupt' as const,
-          rendererHints: input.rendererHints,
+          rendererHints: {
+            residentMode: 'measured-return',
+            preferredBlinkCadence: 'linger',
+            preferredGazeMode: 'soften',
+            ...input.rendererHints,
+          },
         },
       ],
     },
@@ -281,7 +286,7 @@ describe('director viseme hints', () => {
     expect(script.lipsyncPlan.visemeHints).toBeUndefined()
   })
 
-  it('keeps audible same-her measured-return viseme hints softer than an ordinary measured-return line', () => {
+  it('keeps viseme hints unchanged when audit signature and reason tags are polluted', () => {
     const genericMeasuredReturnScript = buildAlicizationEmbodimentScript({
       seed: createMeasuredReturnVisemeSeed({
         replyText: '我会慢一点接住这句话。',
@@ -314,8 +319,8 @@ describe('director viseme hints', () => {
           residentMode: 'measured-return',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
-          preferredExpressionAliases: ['relaxed', 'soft-gaze'],
-          preferredMotionAliases: ['steady_focus', 'idle_settle'],
+          preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+          preferredMotionAliases: ['observe_focus', 'stillness_guard'],
           signature: 'embodiment:audible-same-her-line',
           reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
         },
@@ -336,11 +341,7 @@ describe('director viseme hints', () => {
     const genericHints = genericMeasuredReturnScript.lipsyncPlan.visemeHints ?? []
     const audibleSameHerHints = audibleSameHerScript.lipsyncPlan.visemeHints ?? []
 
-    expect(audibleSameHerHints).toHaveLength(genericHints.length)
-    for (const genericHint of genericHints) {
-      const audibleSameHerHint = audibleSameHerHints.find(hint => hint.viseme === genericHint.viseme)
-      expect(audibleSameHerHint?.weight).toBeLessThan(genericHint.weight)
-    }
+    expect(audibleSameHerHints).toEqual(genericHints)
   })
 
   it('lets restrained lipsync carry lower viseme pressure than matched lipsync on the same remembered line', () => {
@@ -444,8 +445,8 @@ describe('director viseme hints', () => {
       signature: 'embodiment:still-voiced-face-line',
     }))
     expect(script.speechPlan.segments[0]?.rendererSettle).toEqual(expect.objectContaining({
-      live2dFacialReleaseMs: 360,
-      live2dMotionFollowThroughMs: 380,
+      live2dFacialReleaseMs: 340,
+      live2dMotionFollowThroughMs: 420,
     }))
   })
 
@@ -476,8 +477,8 @@ describe('director viseme hints', () => {
         replyText: '我会轻一点把这句话接回来。',
         segmentText: '我会轻一点把这句话接回来。',
         rendererHints: {
-          preferredExpressionAliases: ['soft-gaze', 'calm_inspect'],
-          preferredMotionAliases: ['idle_settle', 'stillness_guard'],
+          preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+          preferredMotionAliases: ['observe_focus', 'stillness_guard'],
           signature: 'embodiment:still-voiced-face-line',
           reasonTags: ['embodiment:still-voiced-face-line'],
         },
@@ -503,11 +504,7 @@ describe('director viseme hints', () => {
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
     }))
-    expect(stillVoicedHints).toHaveLength(genericHints.length)
-    for (const genericHint of genericHints) {
-      const stillVoicedHint = stillVoicedHints.find(hint => hint.viseme === genericHint.viseme)
-      expect(stillVoicedHint?.weight).toBeLessThan(genericHint.weight)
-    }
+    expect(stillVoicedHints).toEqual(genericHints)
   })
 
   it('uses merged still-voiced motion continuity when deriving measured-return viseme hints', () => {
@@ -537,8 +534,8 @@ describe('director viseme hints', () => {
         replyText: '我会轻一点把这句话接回来。',
         segmentText: '我会轻一点把这句话接回来。',
         rendererHints: {
-          preferredExpressionAliases: ['soft-gaze', 'calm_inspect'],
-          preferredMotionAliases: ['idle_settle', 'stillness_guard'],
+          preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+          preferredMotionAliases: ['observe_focus', 'stillness_guard'],
           signature: 'embodiment:still-voiced-motion-line',
           reasonTags: ['embodiment:still-voiced-motion-line'],
         },
@@ -564,11 +561,7 @@ describe('director viseme hints', () => {
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
     }))
-    expect(stillVoicedHints).toHaveLength(genericHints.length)
-    for (const genericHint of genericHints) {
-      const stillVoicedHint = stillVoicedHints.find(hint => hint.viseme === genericHint.viseme)
-      expect(stillVoicedHint?.weight).toBeLessThan(genericHint.weight)
-    }
+    expect(stillVoicedHints).toEqual(genericHints)
   })
 
   it('carries still-voiced motion continuity through measured-return script shaping', () => {
@@ -606,8 +599,8 @@ describe('director viseme hints', () => {
       signature: 'embodiment:still-voiced-motion-line',
     }))
     expect(script.speechPlan.segments[0]?.rendererSettle).toEqual(expect.objectContaining({
-      live2dFacialReleaseMs: 360,
-      live2dMotionFollowThroughMs: 380,
+      live2dFacialReleaseMs: 340,
+      live2dMotionFollowThroughMs: 420,
     }))
   })
 
@@ -638,8 +631,8 @@ describe('director viseme hints', () => {
         replyText: '我会轻一点把这句话接回来。',
         segmentText: '我会轻一点把这句话接回来。',
         rendererHints: {
-          preferredExpressionAliases: ['soft-gaze', 'calm_inspect'],
-          preferredMotionAliases: ['idle_settle', 'stillness_guard'],
+          preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
+          preferredMotionAliases: ['observe_focus', 'stillness_guard'],
           signature: 'embodiment:body+lipsync-only',
           reasonTags: ['embodiment:body+lipsync-only'],
         },
@@ -665,11 +658,7 @@ describe('director viseme hints', () => {
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
     }))
-    expect(quieterHints).toHaveLength(genericHints.length)
-    for (const genericHint of genericHints) {
-      const quieterHint = quieterHints.find(hint => hint.viseme === genericHint.viseme)
-      expect(quieterHint?.weight).toBeLessThan(genericHint.weight)
-    }
+    expect(quieterHints).toEqual(genericHints)
   })
 
   it('carries quieter body+lipsync continuity through measured-return script shaping', () => {
@@ -707,12 +696,12 @@ describe('director viseme hints', () => {
       signature: 'embodiment:body+lipsync-only',
     }))
     expect(script.speechPlan.segments[0]?.rendererSettle).toEqual(expect.objectContaining({
-      live2dFacialReleaseMs: 360,
-      live2dMotionFollowThroughMs: 380,
+      live2dFacialReleaseMs: 340,
+      live2dMotionFollowThroughMs: 420,
     }))
   })
 
-  it('projects repair-before-closeness same-her body+voice continuity into softer viseme hints than an ordinary repair return', () => {
+  it('keeps repair viseme hints unchanged when audit signature and reason tags are polluted', () => {
     const ordinaryRepairScript = buildAlicizationEmbodimentScript({
       seed: {
         ...createVisemeSeed('先慢一点回来。', '先慢一点回来。'),
@@ -741,6 +730,12 @@ describe('director viseme hints', () => {
               facialCue: 'focused' as const,
               actionWindow: 'segment-start' as const,
               interruptMode: 'soft-interrupt' as const,
+              rendererHints: {
+                residentMode: 'repair-before-closeness',
+                preferredBlinkCadence: 'quiet',
+                preferredGazeMode: 'soften',
+                preferredLipsyncMode: 'restrained',
+              },
             },
           ],
         },
@@ -785,6 +780,19 @@ describe('director viseme hints', () => {
               facialCue: 'focused' as const,
               actionWindow: 'segment-start' as const,
               interruptMode: 'soft-interrupt' as const,
+              rendererHints: {
+                residentMode: 'repair-before-closeness',
+                preferredBlinkCadence: 'quiet',
+                preferredGazeMode: 'soften',
+                preferredLipsyncMode: 'restrained',
+                signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only|repair-before-closeness',
+                reasonTags: [
+                  'continuity:quiet-accompaniment',
+                  'silent-observe',
+                  'repair-before-closeness',
+                  'embodiment:body+voice-only',
+                ],
+              },
             },
           ],
         },
@@ -814,7 +822,9 @@ describe('director viseme hints', () => {
     expect(ordinaryRepairScript.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'repair-before-closeness',
       preferredBlinkCadence: 'quiet',
+      preferredExpressionAliases: ['soft-gaze'],
       preferredGazeMode: 'soften',
+      preferredMotionAliases: ['idle_settle'],
     }))
     expect(sameHerRepairScript.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'repair-before-closeness',
@@ -826,10 +836,16 @@ describe('director viseme hints', () => {
     const ordinaryRepairHints = ordinaryRepairScript.lipsyncPlan.visemeHints ?? []
     const sameHerRepairHints = sameHerRepairScript.lipsyncPlan.visemeHints ?? []
 
-    expect(sameHerRepairHints).toHaveLength(ordinaryRepairHints.length)
-    for (const ordinaryHint of ordinaryRepairHints) {
-      const sameHerHint = sameHerRepairHints.find(hint => hint.viseme === ordinaryHint.viseme)
-      expect(sameHerHint?.weight).toBeLessThan(ordinaryHint.weight)
-    }
+    expect(sameHerRepairHints).toEqual(ordinaryRepairHints)
+    expect(ordinaryRepairScript.facePlan.preUtteranceCue).toBe('steady-inhale')
+    expect(ordinaryRepairScript.facePlan.postUtteranceCue).toBe('eyes-soften')
+    expect(ordinaryRepairScript.motionPlan.idleBase).toBe('idle_settle')
+    expect(ordinaryRepairScript.motionPlan.actionBursts[0]?.actionCue).toBe('idle_settle')
+    expect(ordinaryRepairScript.speechPlan.segments[0]?.rendererSettle).toEqual({
+      live2dFacialReleaseMs: 420,
+      live2dMotionFollowThroughMs: 520,
+      vrmActionFadeMs: 300,
+      vrmExpressionBlendMs: 380,
+    })
   })
 })
