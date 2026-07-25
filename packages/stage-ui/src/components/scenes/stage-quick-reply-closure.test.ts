@@ -10,8 +10,6 @@ function visibleSurfaceText(entry: ReturnType<typeof buildStageQuickReplyClosure
     entry.headline,
     entry.briefingHeadline,
     entry.nextClosureLine,
-    entry.sameHerDriftRiskLine,
-    entry.proactiveSameHerGapLine,
   ].filter(Boolean).join('\n')
 }
 
@@ -27,7 +25,6 @@ describe('stage quick reply closure diagnostic entry', () => {
       companionHeadlineLine: '我还需要先守住同一个 her，才能继续把这个数字生命项目的进度和未闭环项带进下一轮对话。',
       companionBriefingLine: '我还在继续带着这条数字生命主线往前走。',
       companionNextClosureLine: 'Next, help me close: Rebind face and motion onto the same-her measured-return line.',
-      sameHerDriftRiskLine: null,
       reasons: [
         'project-state-identity-continuity-continuity-required',
       ],
@@ -38,7 +35,6 @@ describe('stage quick reply closure diagnostic entry', () => {
       headline: null,
       briefingHeadline: null,
       nextClosureLine: null,
-      sameHerDriftRiskLine: null,
       routeQuery: expect.objectContaining({
         source: 'quick-reply-closure',
         status: 'partial',
@@ -107,7 +103,6 @@ describe('stage quick reply closure diagnostic entry', () => {
       companionHeadlineLine: null,
       companionBriefingLine: null,
       companionNextClosureLine: 'next=Keep memory grounded without prompt templates. | surface=structured',
-      sameHerDriftRiskLine: null,
       reasons: [],
     })
 
@@ -161,7 +156,7 @@ describe('stage quick reply closure diagnostic entry', () => {
     expect(entry.nextClosureLine).toBeNull()
   })
 
-  it('does not turn a proactive diagnostic reason into visible copy', () => {
+  it('does not turn a proactive diagnostic reason into visible headline or next copy', () => {
     const entry = buildStageQuickReplyClosureDiagnosticEntry({
       status: 'partial',
       summaryLine: null,
@@ -170,6 +165,7 @@ describe('stage quick reply closure diagnostic entry', () => {
       ],
     })
 
-    expect(entry.proactiveSameHerGapLine).toBeNull()
+    expect(entry.headline).toBeNull()
+    expect(entry.nextClosureLine).toBeNull()
   })
 })

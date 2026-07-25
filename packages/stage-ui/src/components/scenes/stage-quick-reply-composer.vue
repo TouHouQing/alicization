@@ -8,8 +8,8 @@ import { useRouter } from 'vue-router'
 import { useChatReplyAbort } from '../../composables'
 import { useAlicizationSelfEvolutionInspectorStore } from '../../stores/alicization-self-evolution-inspector'
 import { useChatTextComposerStore } from '../../stores/chat/text-composer-store'
+import { resolveStageDialoguePanelClosureLine } from './stage-dialogue-panel-closure-line'
 import { buildStageQuickReplyClosureDiagnosticEntry } from './stage-quick-reply-closure'
-import { resolveStageQuickReplyClosureSummary } from './stage-quick-reply-closure-summary'
 
 const composerStore = useChatTextComposerStore()
 const { draft, isComposing } = storeToRefs(composerStore)
@@ -23,8 +23,8 @@ const closureDiagnosticEntry = computed(() => buildStageQuickReplyClosureDiagnos
   preDialogueClosureSnapshot.value,
   preDialogueAwarenessSnapshot.value,
 ))
-const closureSummaryLine = computed(() => resolveStageQuickReplyClosureSummary(
-  preDialogueClosureSnapshot.value,
+const closureVisibleLine = computed(() => resolveStageDialoguePanelClosureLine(
+  closureDiagnosticEntry.value,
   {
     fallbackAwarenessLine: preDialogueAwarenessSnapshot.value?.awarenessLine ?? null,
     fallbackAwarenessCandidates: [
@@ -70,22 +70,10 @@ async function handleActionButtonClick() {
         </span>
       </summary>
       <div
-        v-if="closureSummaryLine"
+        v-if="closureVisibleLine"
         class="stage-quick-reply__closure-summary"
       >
-        {{ closureSummaryLine }}
-      </div>
-      <div
-        v-if="closureDiagnosticEntry.headline"
-        class="stage-quick-reply__closure-headline"
-      >
-        {{ closureDiagnosticEntry.headline }}
-      </div>
-      <div
-        v-if="closureDiagnosticEntry.nextClosureLine"
-        class="stage-quick-reply__closure-next"
-      >
-        {{ closureDiagnosticEntry.nextClosureLine }}
+        {{ closureVisibleLine }}
       </div>
       <div class="stage-quick-reply__closure-hint">
         {{ closureDiagnosticEntry.hint }}
@@ -187,61 +175,6 @@ async function handleActionButtonClick() {
   color: rgb(67 46 29 / 92%);
   font-size: 0.78rem;
   line-height: 1.35;
-}
-
-.stage-quick-reply__closure-headline {
-  margin-top: 0.42rem;
-  border: 1px solid rgb(149 88 46 / 18%);
-  border-radius: 0.82rem;
-  background: linear-gradient(135deg, rgb(169 103 56 / 12%) 0%, rgb(255 247 236 / 86%) 100%);
-  color: rgb(96 58 31 / 96%);
-  font-size: 0.74rem;
-  font-weight: 600;
-  line-height: 1.42;
-  padding: 0.46rem 0.58rem;
-}
-
-.stage-quick-reply__closure-next {
-  margin-top: 0.34rem;
-  color: rgb(101 70 43 / 92%);
-  font-size: 0.72rem;
-  line-height: 1.38;
-}
-
-.stage-quick-reply__closure-project-brief {
-  margin: 0.42rem 0 0;
-  padding-left: 1rem;
-  color: rgb(84 58 36 / 88%);
-  font-size: 0.73rem;
-  line-height: 1.42;
-}
-
-.stage-quick-reply__closure-project-brief-line + .stage-quick-reply__closure-project-brief-line {
-  margin-top: 0.16rem;
-}
-
-.stage-quick-reply__closure-briefing {
-  margin: 0.42rem 0 0;
-  padding-left: 1rem;
-  color: rgb(75 52 32 / 88%);
-  font-size: 0.73rem;
-  line-height: 1.42;
-}
-
-.stage-quick-reply__closure-briefing-line + .stage-quick-reply__closure-briefing-line {
-  margin-top: 0.16rem;
-}
-
-.stage-quick-reply__closure-reasons {
-  margin: 0.42rem 0 0;
-  padding-left: 1rem;
-  color: rgb(88 61 39 / 88%);
-  font-size: 0.74rem;
-  line-height: 1.45;
-}
-
-.stage-quick-reply__closure-reason + .stage-quick-reply__closure-reason {
-  margin-top: 0.18rem;
 }
 
 .stage-quick-reply__closure-hint {

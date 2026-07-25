@@ -32,7 +32,6 @@ export interface StageQuickReplyPreDialogueClosureSnapshot {
   companionHeadlineLine?: string | null
   companionBriefingLine?: string | null
   companionNextClosureLine?: string | null
-  sameHerDriftRiskLine?: string | null
   reasons: string[]
 }
 
@@ -53,8 +52,6 @@ export interface StageQuickReplyClosureDiagnosticEntry {
   headline: string | null
   briefingHeadline: string | null
   nextClosureLine: string | null
-  sameHerDriftRiskLine?: string | null
-  proactiveSameHerGapLine?: string | null
   routeQuery: Record<string, string>
 }
 
@@ -1343,8 +1340,6 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
       headline: null,
       briefingHeadline: null,
       nextClosureLine: null,
-      sameHerDriftRiskLine: null,
-      proactiveSameHerGapLine: null,
       routeQuery: {},
     }
   }
@@ -1383,7 +1378,6 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
     ? null
     : sanitizedBriefingHeadline
   const sanitizedNextClosureLine = sanitizeQuickReplyClosureVisibleLine(nextClosureLine)
-  const sanitizedSameHerDriftRiskLine = sanitizeQuickReplyClosureVisibleLine(snapshot.sameHerDriftRiskLine)
 
   return {
     visible,
@@ -1392,8 +1386,6 @@ export function buildStageQuickReplyClosureDiagnosticEntry(
     headline: sanitizedHeadline,
     briefingHeadline: dedupedBriefingHeadline,
     nextClosureLine: sanitizedNextClosureLine,
-    sameHerDriftRiskLine: sanitizedSameHerDriftRiskLine,
-    proactiveSameHerGapLine: null,
     routeQuery: visible
       ? {
           source: 'quick-reply-closure',
