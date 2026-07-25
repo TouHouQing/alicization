@@ -5,13 +5,6 @@ import type {
   CharacterPerformanceCapabilitiesManifest,
 } from '../../stores/alicization-bridge'
 
-import {
-  hasAlicizationAudibleSameHerCarry,
-  hasAlicizationBodyVoiceOnlySameHerCarry,
-  hasAlicizationQuieterSameHerCarry,
-  hasAlicizationStillVoicedSameHerCarry,
-} from '@proj-alicization/stage-shared'
-
 import { buildStageEmbodimentPerformancePlan } from '../../components/scenes/stage-embodiment-performance-plan'
 
 export interface AdaptAlicizationEmbodimentPerformanceToRendererInput {
@@ -21,26 +14,9 @@ export interface AdaptAlicizationEmbodimentPerformanceToRendererInput {
   residentPerformance?: AlicizationResidentPerformanceSnapshot | null
 }
 
-function normalizeResidentReasonTag(value: string | null | undefined) {
-  return typeof value === 'string'
-    ? value.trim().toLowerCase().replace(/-/g, '_')
-    : ''
-}
-
-function hasResidentReasonTag(
-  residentReasonTags: readonly string[] | string[] | null | undefined,
-  expectedTag: string,
-) {
-  const normalizedExpectedTag = normalizeResidentReasonTag(expectedTag)
-  return (residentReasonTags ?? []).some(reasonTag =>
-    normalizeResidentReasonTag(reasonTag) === normalizedExpectedTag,
-  )
-}
-
 function isRestProtectiveQuietCompanionshipResidentAuthority(
   input: AdaptAlicizationEmbodimentPerformanceToRendererInput,
 ) {
-  const residentReasonTags = input.residentPerformance?.reasonTags ?? []
   return (input.residentPerformance?.source === 'main-runtime' || input.residentPerformance?.source === 'browser-fallback')
     && input.residentPerformance?.stance === 'care'
     && input.residentPerformance?.embodiedPresence === 'concerned'
@@ -52,10 +28,23 @@ function isRestProtectiveQuietCompanionshipResidentAuthority(
       || input.performance.baseEmotion === 'tired'
       || input.performance.baseEmotion === 'thinking'
     )
-    && (
-      hasResidentReasonTag(residentReasonTags, 'rest-protective')
-      || hasResidentReasonTag(residentReasonTags, 'rest-protective-companionship')
-    )
+}
+
+function resolveManifestSupportedActionCue(input: {
+  fallback: string | null | undefined
+  manifest: CharacterPerformanceCapabilitiesManifest | null | undefined
+  preferred: string | null | undefined
+}): string | null {
+  const fallback = input.fallback?.trim() || null
+  const preferred = input.preferred?.trim() || null
+  if (!preferred)
+    return fallback
+  if (!input.manifest)
+    return preferred
+
+  return input.manifest.supportedActions.some(action => action.key === preferred)
+    ? preferred
+    : fallback
 }
 
 export function adaptAlicizationEmbodimentPerformanceToRenderer(
@@ -66,46 +55,11 @@ export function adaptAlicizationEmbodimentPerformanceToRenderer(
     manifest: input.manifest,
     performance: input.performance,
   })
-  const residentReasonTags = input.residentPerformance?.reasonTags ?? []
-  const hasAudibleSameHerContinuity = hasAlicizationAudibleSameHerCarry({
-    signature: input.residentPerformance?.signature ?? null,
-    reasonTags: residentReasonTags,
-  })
-  const hasBodyVoiceOnlySameHerContinuity = hasAlicizationBodyVoiceOnlySameHerCarry({
-    signature: input.residentPerformance?.signature ?? null,
-    reasonTags: residentReasonTags,
-  })
-  const hasQuieterSameHerContinuity = hasAlicizationQuieterSameHerCarry({
-    signature: input.residentPerformance?.signature ?? null,
-    reasonTags: residentReasonTags,
-  })
-  const hasStillVoicedContinuity = hasAlicizationStillVoicedSameHerCarry({
-    signature: input.residentPerformance?.signature ?? null,
-    reasonTags: residentReasonTags,
-  })
-  const quietObserveActionCue = hasResidentReasonTag(residentReasonTags, 'subconscious-proactive')
-    && hasResidentReasonTag(residentReasonTags, 'silent-observe')
-    && hasResidentReasonTag(residentReasonTags, 'continuity:quiet-accompaniment')
-    && (
-      hasResidentReasonTag(residentReasonTags, 'measured-return')
-      || hasAudibleSameHerContinuity
-      || hasBodyVoiceOnlySameHerContinuity
-      || hasQuieterSameHerContinuity
-      || hasStillVoicedContinuity
-      || hasResidentReasonTag(residentReasonTags, 'repair-before-closeness')
-      || hasResidentReasonTag(residentReasonTags, 'continuity-next-open-window')
-      || hasResidentReasonTag(residentReasonTags, 'lower-pressure')
-    )
+  const residentMode = input.residentPerformance?.performance?.residentMode
+    ?? input.residentPerformance?.performance?.action?.residentMode
+    ?? input.residentPerformance?.performance?.face?.residentMode
+    ?? null
   const restProtectiveQuietCompanionshipAuthority = isRestProtectiveQuietCompanionshipResidentAuthority(input)
-  const restrainedCallbackActionCue = hasResidentReasonTag(residentReasonTags, 'repair-before-closeness')
-    ? 'idle_settle'
-    : restProtectiveQuietCompanionshipAuthority
-      ? 'idle_settle'
-      : hasResidentReasonTag(residentReasonTags, 'measured-return')
-        ? 'observe_focus'
-        : quietObserveActionCue
-          ? 'observe_focus'
-          : 'steady_focus'
 
   const preserveQuietCompanionshipSteadyFocus = input.residentPerformance?.source === 'main-runtime'
     && input.residentPerformance?.stance === 'accompany'
@@ -121,49 +75,42 @@ export function adaptAlicizationEmbodimentPerformanceToRenderer(
     )
   const preserveRestProtectiveQuietCompanionshipIdleSettle = restProtectiveQuietCompanionshipAuthority
     && input.performance.actionCue === 'idle_settle'
-  const preserveMeasuredReturnObserveFocusAfterGentleRelease = input.residentPerformance?.source === 'main-runtime'
-    && input.residentPerformance?.stance === 'accompany'
-    && input.residentPerformance?.embodiedPresence === 'attentive'
-    && input.residentPerformance?.performance?.delivery === 'gentle'
-    && input.performance.delivery === 'gentle'
-    && input.performance.baseEmotion === 'thinking'
-    && input.performance.actionCue === 'idle_settle'
-    && (
-      hasResidentReasonTag(residentReasonTags, 'measured-return')
-      || hasAudibleSameHerContinuity
-      || hasBodyVoiceOnlySameHerContinuity
-      || hasQuieterSameHerContinuity
-      || hasStillVoicedContinuity
-    )
-    && (
-      hasResidentReasonTag(residentReasonTags, 'continuity-next-open-window')
-      || hasAudibleSameHerContinuity
-      || hasBodyVoiceOnlySameHerContinuity
-      || hasQuieterSameHerContinuity
-      || hasStillVoicedContinuity
-      || hasResidentReasonTag(residentReasonTags, 'lower-pressure')
-      || hasResidentReasonTag(residentReasonTags, 'durable-relationship-rhythm')
-    )
+  const preserveMeasuredReturnObserveFocusAfterGentleRelease
+    = input.residentPerformance?.source === 'main-runtime'
+      && input.residentPerformance?.stance === 'accompany'
+      && input.residentPerformance?.embodiedPresence === 'attentive'
+      && input.residentPerformance?.performance?.delivery === 'gentle'
+      && residentMode === 'measured-return'
+      && input.performance.delivery === 'gentle'
+      && input.performance.baseEmotion === 'thinking'
+      && input.performance.actionCue === 'idle_settle'
+
+  let performance = plan.performance
+  if (preserveMeasuredReturnObserveFocusAfterGentleRelease) {
+    performance = {
+      ...performance,
+      actionCue: resolveManifestSupportedActionCue({
+        fallback: performance.actionCue,
+        manifest: input.manifest,
+        preferred: 'observe_focus',
+      }),
+    }
+  }
+  else if (preserveRestProtectiveQuietCompanionshipIdleSettle || preserveQuietCompanionshipSteadyFocus) {
+    performance = {
+      ...performance,
+      actionCue: resolveManifestSupportedActionCue({
+        fallback: performance.actionCue,
+        manifest: input.manifest,
+        preferred: input.residentPerformance?.performance?.actionCue,
+      }),
+    }
+  }
 
   return {
-    performance: preserveMeasuredReturnObserveFocusAfterGentleRelease
-      ? {
-          ...plan.performance,
-          actionCue: 'observe_focus',
-        }
-      : preserveRestProtectiveQuietCompanionshipIdleSettle
-        ? {
-            ...plan.performance,
-            actionCue: restrainedCallbackActionCue,
-          }
-        : preserveQuietCompanionshipSteadyFocus
-          ? {
-              ...plan.performance,
-              actionCue: restrainedCallbackActionCue,
-            }
-          : plan.performance,
+    performance,
     plannedFacialCue: plan.plannedFacialCue,
-    plannedActionCue: plan.plannedActionCue,
+    plannedActionCue: performance.actionCue ?? null,
     residentPerformance: input.residentPerformance ?? null,
   }
 }

@@ -101,121 +101,200 @@ describe('live2d speech continuity', () => {
     expect(extendedTail.drive).toBeGreaterThan(defaultTail.drive)
   })
 
-  it('keeps same-thread richer still-voiced face-and-mouth continuity alive a little longer than the plainer still-voiced face line', () => {
-    const stillVoicedFaceState = createLive2DSpeechContinuityState()
-    const stillVoicedFaceMouthState = createLive2DSpeechContinuityState()
-
-    resolveLive2DSpeechContinuity(stillVoicedFaceState, {
+  it('treats polluted audit text as behaviorally equivalent to clean audit text', () => {
+    const cleanState = createLive2DSpeechContinuityState()
+    const pollutedState = createLive2DSpeechContinuityState()
+    const cleanInput = {
       deltaSeconds: 1 / 60,
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonTags: ['embodiment:still-voiced-face-line'],
       residentMode: 'same-thread-continuation',
+      segmentId: 'segment-audit-equivalence',
       speechActive: true,
       speechEnergy: 0.62,
-      speechPhase: 'playing',
+      speechPhase: 'playing' as const,
       visemeIntensity: 0.56,
-    })
-    resolveLive2DSpeechContinuity(stillVoicedFaceMouthState, {
-      deltaSeconds: 1 / 60,
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      reasonTags: ['embodiment:still-voiced-face-lipsync-line'],
-      residentMode: 'same-thread-continuation',
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-lipsync-line|lane=face+lipsync+voice-only',
-      speechActive: true,
-      speechEnergy: 0.62,
-      speechPhase: 'playing',
-      visemeIntensity: 0.56,
+    }
+
+    resolveLive2DSpeechContinuity(cleanState, cleanInput)
+    resolveLive2DSpeechContinuity(pollutedState, {
+      ...cleanInput,
+      reasonTags: [
+        'audit:untrusted-free-text',
+        'legacy:renderer-note',
+        'diagnostic:copied-context',
+      ],
+      signature: 'free-form audit payload with stale governance markers',
     })
 
-    const stillVoicedFaceTail = resolveLive2DSpeechContinuity(stillVoicedFaceState, {
-      deltaSeconds: 0.18,
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      reasonTags: ['embodiment:still-voiced-face-line'],
-      residentMode: 'same-thread-continuation',
+    const cleanTail = resolveLive2DSpeechContinuity(cleanState, {
+      ...cleanInput,
+      deltaSeconds: 0.08,
       speechActive: false,
       speechEnergy: 0,
-      speechPhase: 'idle',
+      speechPhase: 'stopping',
       visemeIntensity: 0,
     })
-    const stillVoicedFaceMouthTail = resolveLive2DSpeechContinuity(stillVoicedFaceMouthState, {
-      deltaSeconds: 0.18,
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      reasonTags: ['embodiment:still-voiced-face-lipsync-line'],
-      residentMode: 'same-thread-continuation',
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-lipsync-line|lane=face+lipsync+voice-only',
+    const pollutedTail = resolveLive2DSpeechContinuity(pollutedState, {
+      ...cleanInput,
+      deltaSeconds: 0.08,
+      reasonTags: [
+        'audit:untrusted-free-text',
+        'legacy:renderer-note',
+        'diagnostic:copied-context',
+      ],
+      signature: 'free-form audit payload with stale governance markers',
       speechActive: false,
       speechEnergy: 0,
-      speechPhase: 'idle',
+      speechPhase: 'stopping',
       visemeIntensity: 0,
     })
 
-    expect(stillVoicedFaceMouthTail.active).toBe(true)
-    expect(stillVoicedFaceMouthTail.holdSeconds).toBeGreaterThan(stillVoicedFaceTail.holdSeconds)
-    expect(stillVoicedFaceMouthTail.drive).toBeGreaterThan(stillVoicedFaceTail.drive)
+    expect(pollutedTail).toEqual(cleanTail)
+    expect(pollutedState.continuityKey).toBe(cleanState.continuityKey)
+    expect(pollutedState.holdSeconds).toBe(cleanState.holdSeconds)
   })
 
-  it('extends same-segment live2d speech carry when the tail upgrades from a still-voiced face line into a richer face-and-mouth identity-continuity', () => {
-    const stillVoicedFaceState = createLive2DSpeechContinuityState()
-    const upgradedFaceMouthState = createLive2DSpeechContinuityState()
+  it('does not let polluted audit text alter same-segment continuity carry', () => {
+    const cleanState = createLive2DSpeechContinuityState()
+    const pollutedState = createLive2DSpeechContinuityState()
+    const initialInput = {
+      deltaSeconds: 1 / 60,
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'steady',
+      residentMode: 'measured-return',
+      segmentId: 'segment-audit-upgrade',
+      speechActive: true,
+      speechEnergy: 0.62,
+      speechPhase: 'playing' as const,
+      visemeIntensity: 0.56,
+    }
 
-    resolveLive2DSpeechContinuity(stillVoicedFaceState, {
+    resolveLive2DSpeechContinuity(cleanState, initialInput)
+    resolveLive2DSpeechContinuity(pollutedState, {
+      ...initialInput,
+      reasonTags: ['audit:untrusted-free-text'],
+      signature: 'free-form audit payload with stale governance markers',
+    })
+
+    const cleanTail = resolveLive2DSpeechContinuity(cleanState, {
+      ...initialInput,
+      deltaSeconds: 0.08,
+      speechActive: false,
+      speechEnergy: 0,
+      speechPhase: 'stopping',
+      visemeIntensity: 0,
+    })
+    const pollutedTail = resolveLive2DSpeechContinuity(pollutedState, {
+      ...initialInput,
+      deltaSeconds: 0.08,
+      reasonTags: ['audit:untrusted-free-text', 'diagnostic:copied-context'],
+      signature: 'free-form audit payload with a different stale marker',
+      speechActive: false,
+      speechEnergy: 0,
+      speechPhase: 'stopping',
+      visemeIntensity: 0,
+    })
+
+    expect(pollutedTail).toEqual(cleanTail)
+    expect(pollutedState.continuityKey).toBe(cleanState.continuityKey)
+    expect(pollutedState.holdSeconds).toBe(cleanState.holdSeconds)
+  })
+
+  it('keeps same-thread softer return cadence alive a little longer than the default cadence', () => {
+    const defaultCadenceState = createLive2DSpeechContinuityState()
+    const softerCadenceState = createLive2DSpeechContinuityState()
+
+    resolveLive2DSpeechContinuity(defaultCadenceState, {
+      deltaSeconds: 1 / 60,
+      residentMode: 'same-thread-continuation',
+      speechActive: true,
+      speechEnergy: 0.62,
+      speechPhase: 'playing',
+      visemeIntensity: 0.56,
+    })
+    resolveLive2DSpeechContinuity(softerCadenceState, {
       deltaSeconds: 1 / 60,
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonTags: ['embodiment:still-voiced-face-line'],
+      residentMode: 'same-thread-continuation',
+      speechActive: true,
+      speechEnergy: 0.62,
+      speechPhase: 'playing',
+      visemeIntensity: 0.56,
+    })
+
+    const defaultCadenceTail = resolveLive2DSpeechContinuity(defaultCadenceState, {
+      deltaSeconds: 0.15,
+      residentMode: 'same-thread-continuation',
+      speechActive: false,
+      speechEnergy: 0,
+      speechPhase: 'idle',
+      visemeIntensity: 0,
+    })
+    const softerCadenceTail = resolveLive2DSpeechContinuity(softerCadenceState, {
+      deltaSeconds: 0.15,
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      residentMode: 'same-thread-continuation',
+      speechActive: false,
+      speechEnergy: 0,
+      speechPhase: 'idle',
+      visemeIntensity: 0,
+    })
+
+    expect(softerCadenceTail.active).toBe(true)
+    expect(softerCadenceTail.holdSeconds).toBeGreaterThan(defaultCadenceTail.holdSeconds)
+    expect(softerCadenceTail.drive).toBeGreaterThan(defaultCadenceTail.drive)
+  })
+
+  it('extends same-segment live2d speech carry when structured cadence upgrades', () => {
+    const defaultCadenceState = createLive2DSpeechContinuityState()
+    const upgradedCadenceState = createLive2DSpeechContinuityState()
+
+    resolveLive2DSpeechContinuity(defaultCadenceState, {
+      deltaSeconds: 1 / 60,
       residentMode: 'same-thread-continuation',
       segmentId: 'segment-live2d-same-line-upgrade',
       speechActive: true,
       speechEnergy: 0.62,
       speechPhase: 'playing',
       visemeIntensity: 0.56,
-    } as any)
-    resolveLive2DSpeechContinuity(upgradedFaceMouthState, {
+    })
+    resolveLive2DSpeechContinuity(upgradedCadenceState, {
       deltaSeconds: 1 / 60,
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      reasonTags: ['embodiment:still-voiced-face-line'],
       residentMode: 'same-thread-continuation',
       segmentId: 'segment-live2d-same-line-upgrade',
       speechActive: true,
       speechEnergy: 0.62,
       speechPhase: 'playing',
       visemeIntensity: 0.56,
-    } as any)
+    })
 
-    const stillVoicedFaceTail = resolveLive2DSpeechContinuity(stillVoicedFaceState, {
+    const defaultCadenceTail = resolveLive2DSpeechContinuity(defaultCadenceState, {
       deltaSeconds: 0.08,
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      reasonTags: ['embodiment:still-voiced-face-line'],
       residentMode: 'same-thread-continuation',
       segmentId: 'segment-live2d-same-line-upgrade',
       speechActive: false,
       speechEnergy: 0,
       speechPhase: 'stopping',
       visemeIntensity: 0,
-    } as any)
-    const upgradedFaceMouthTail = resolveLive2DSpeechContinuity(upgradedFaceMouthState, {
+    })
+    const upgradedCadenceTail = resolveLive2DSpeechContinuity(upgradedCadenceState, {
       deltaSeconds: 0.08,
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonTags: ['embodiment:still-voiced-face-lipsync-line'],
       residentMode: 'same-thread-continuation',
       segmentId: 'segment-live2d-same-line-upgrade',
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-lipsync-line|lane=face+lipsync+voice-only',
       speechActive: false,
       speechEnergy: 0,
       speechPhase: 'stopping',
       visemeIntensity: 0,
-    } as any)
+    })
 
-    expect(upgradedFaceMouthTail.active).toBe(true)
-    expect(upgradedFaceMouthTail.holdSeconds).toBeGreaterThan(stillVoicedFaceTail.holdSeconds)
-    expect(upgradedFaceMouthTail.drive).toBeGreaterThan(stillVoicedFaceTail.drive)
+    expect(upgradedCadenceTail.active).toBe(true)
+    expect(upgradedCadenceTail.holdSeconds).toBeGreaterThan(defaultCadenceTail.holdSeconds)
+    expect(upgradedCadenceTail.drive).toBeGreaterThan(defaultCadenceTail.drive)
   })
 })
 

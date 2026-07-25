@@ -3,6 +3,57 @@ import { describe, expect, it } from 'vitest'
 import { createVrmLipSyncContinuityState, resolveVrmLipSyncContinuity } from './lip-sync-continuity'
 
 describe('vrm lip sync continuity', () => {
+  it('ignores audit signature and reason tags when deriving structured resident lip continuity', () => {
+    const cleanState = createVrmLipSyncContinuityState()
+    const pollutedState = createVrmLipSyncContinuityState()
+    const cleanInput = {
+      deltaSeconds: 1 / 60,
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      residentMode: 'measured-return',
+      speechActive: true,
+      speechPhase: 'playing' as const,
+      wlipsyncSignal: 0.62,
+      fallbackSignal: 0.6,
+    }
+
+    const cleanActive = resolveVrmLipSyncContinuity(cleanState, cleanInput)
+    const pollutedActive = resolveVrmLipSyncContinuity(pollutedState, {
+      ...cleanInput,
+      reasonTags: [
+        'embodiment:audible-same-her-line',
+        'embodiment:body+voice-only',
+        'embodiment:still-voiced-face-motion-line',
+      ],
+      signature: 'resident|same-her|body+voice-only|still-voiced-motion-line',
+    })
+    const cleanTail = resolveVrmLipSyncContinuity(cleanState, {
+      ...cleanInput,
+      deltaSeconds: 0.18,
+      speechActive: false,
+      speechPhase: 'idle',
+      wlipsyncSignal: 0,
+      fallbackSignal: 0,
+    })
+    const pollutedTail = resolveVrmLipSyncContinuity(pollutedState, {
+      ...cleanInput,
+      deltaSeconds: 0.18,
+      speechActive: false,
+      speechPhase: 'idle',
+      wlipsyncSignal: 0,
+      fallbackSignal: 0,
+      reasonTags: [
+        'embodiment:audible-same-her-line',
+        'embodiment:body+voice-only',
+        'embodiment:still-voiced-face-motion-line',
+      ],
+      signature: 'resident|same-her|body+voice-only|still-voiced-motion-line',
+    })
+
+    expect(pollutedActive).toEqual(cleanActive)
+    expect(pollutedTail).toEqual(cleanTail)
+  })
+
   it('holds activity briefly when speech enters short stopping gaps', () => {
     const state = createVrmLipSyncContinuityState()
 
@@ -120,7 +171,7 @@ describe('vrm lip sync continuity', () => {
     expect(repairTail.drive).toBeGreaterThanOrEqual(measuredReturnTail.drive)
   })
 
-  it('keeps audible same-her measured-return continuity more inward than ordinary measured-return while preserving repair-first as the most restrained tier', () => {
+  it('keeps structured measured-return cadence while ignoring polluted audit fields', () => {
     const measuredReturnState = createVrmLipSyncContinuityState()
     const audibleSameHerState = createVrmLipSyncContinuityState()
     const repairState = createVrmLipSyncContinuityState()
@@ -128,6 +179,8 @@ describe('vrm lip sync continuity', () => {
     resolveVrmLipSyncContinuity(measuredReturnState, {
       deltaSeconds: 1 / 60,
       fallbackSignal: 0.6,
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
       residentMode: 'measured-return',
       speechActive: true,
       speechPhase: 'playing',
@@ -161,6 +214,8 @@ describe('vrm lip sync continuity', () => {
     const measuredReturnTail = resolveVrmLipSyncContinuity(measuredReturnState, {
       deltaSeconds: 0.18,
       fallbackSignal: 0,
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
       residentMode: 'measured-return',
       speechActive: false,
       speechPhase: 'idle',
@@ -191,21 +246,21 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(audibleSameHerTail.active).toBe(true)
+    expect(audibleSameHerTail).toEqual(measuredReturnTail)
     expect(repairTail.active).toBe(true)
-    expect(audibleSameHerTail.holdSeconds).toBeGreaterThan(measuredReturnTail.holdSeconds)
-    expect(repairTail.holdSeconds).toBeGreaterThan(audibleSameHerTail.holdSeconds)
-    expect(audibleSameHerTail.drive).toBeGreaterThan(measuredReturnTail.drive)
-    expect(repairTail.drive).toBeGreaterThanOrEqual(audibleSameHerTail.drive)
+    expect(repairTail.holdSeconds).toBeGreaterThan(measuredReturnTail.holdSeconds)
+    expect(repairTail.drive).toBeGreaterThanOrEqual(measuredReturnTail.drive)
   })
 
-  it('keeps quieter body+lipsync-only measured-return continuity more inward than ordinary measured-return without overstating it into audible-body carry', () => {
+  it('keeps structured measured-return cadence while ignoring body-lipsync audit fields', () => {
     const measuredReturnState = createVrmLipSyncContinuityState()
     const bodyLipsyncState = createVrmLipSyncContinuityState()
 
     resolveVrmLipSyncContinuity(measuredReturnState, {
       deltaSeconds: 1 / 60,
       fallbackSignal: 0.6,
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
       residentMode: 'measured-return',
       speechActive: true,
       speechPhase: 'playing',
@@ -226,6 +281,8 @@ describe('vrm lip sync continuity', () => {
     const measuredReturnTail = resolveVrmLipSyncContinuity(measuredReturnState, {
       deltaSeconds: 0.18,
       fallbackSignal: 0,
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
       residentMode: 'measured-return',
       speechActive: false,
       speechPhase: 'idle',
@@ -243,12 +300,10 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(bodyLipsyncTail.active).toBe(true)
-    expect(bodyLipsyncTail.holdSeconds).toBeGreaterThan(measuredReturnTail.holdSeconds)
-    expect(bodyLipsyncTail.drive).toBeGreaterThan(measuredReturnTail.drive)
+    expect(bodyLipsyncTail).toEqual(measuredReturnTail)
   })
 
-  it('keeps coordinator-style freeform body+voice-only measured-return continuity more inward than an otherwise equally softened measured-return', () => {
+  it('ignores polluted body-voice audit fields on measured-return continuity', () => {
     const softenedMeasuredReturnState = createVrmLipSyncContinuityState()
     const bodyVoiceState = createVrmLipSyncContinuityState()
 
@@ -298,12 +353,10 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(bodyVoiceTail.active).toBe(true)
-    expect(bodyVoiceTail.holdSeconds).toBeGreaterThan(softenedMeasuredReturnTail.holdSeconds)
-    expect(bodyVoiceTail.drive).toBeGreaterThan(softenedMeasuredReturnTail.drive)
+    expect(bodyVoiceTail).toEqual(softenedMeasuredReturnTail)
   })
 
-  it('keeps coordinator-style freeform body+voice-only repair-before-closeness continuity on a stricter resident mouth line than an otherwise equally softened repair-first return', () => {
+  it('ignores polluted body-voice audit fields on repair-before-closeness continuity', () => {
     const softenedRepairState = createVrmLipSyncContinuityState()
     const bodyVoiceRepairState = createVrmLipSyncContinuityState()
 
@@ -353,18 +406,18 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(bodyVoiceRepairTail.active).toBe(true)
-    expect(bodyVoiceRepairTail.holdSeconds).toBeGreaterThan(softenedRepairTail.holdSeconds)
-    expect(bodyVoiceRepairTail.drive).toBeGreaterThan(softenedRepairTail.drive)
+    expect(bodyVoiceRepairTail).toEqual(softenedRepairTail)
   })
 
-  it('keeps lipsync+voice-only measured-return continuity more inward than ordinary measured-return without overstating it into audible-body carry', () => {
+  it('keeps structured measured-return cadence while ignoring lipsync-voice audit fields', () => {
     const measuredReturnState = createVrmLipSyncContinuityState()
     const lipsyncVoiceState = createVrmLipSyncContinuityState()
 
     resolveVrmLipSyncContinuity(measuredReturnState, {
       deltaSeconds: 1 / 60,
       fallbackSignal: 0.6,
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
       residentMode: 'measured-return',
       speechActive: true,
       speechPhase: 'playing',
@@ -385,6 +438,8 @@ describe('vrm lip sync continuity', () => {
     const measuredReturnTail = resolveVrmLipSyncContinuity(measuredReturnState, {
       deltaSeconds: 0.18,
       fallbackSignal: 0,
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
       residentMode: 'measured-return',
       speechActive: false,
       speechPhase: 'idle',
@@ -402,12 +457,10 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(lipsyncVoiceTail.active).toBe(true)
-    expect(lipsyncVoiceTail.holdSeconds).toBeGreaterThan(measuredReturnTail.holdSeconds)
-    expect(lipsyncVoiceTail.drive).toBeGreaterThan(measuredReturnTail.drive)
+    expect(lipsyncVoiceTail).toEqual(measuredReturnTail)
   })
 
-  it('keeps face+lipsync-only measured-return continuity more inward than an otherwise equally softened measured-return', () => {
+  it('ignores polluted face-lipsync audit fields on measured-return continuity', () => {
     const softenedMeasuredReturnState = createVrmLipSyncContinuityState()
     const faceLipsyncState = createVrmLipSyncContinuityState()
 
@@ -455,12 +508,10 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(faceLipsyncTail.active).toBe(true)
-    expect(faceLipsyncTail.holdSeconds).toBeGreaterThan(softenedMeasuredReturnTail.holdSeconds)
-    expect(faceLipsyncTail.drive).toBeGreaterThan(softenedMeasuredReturnTail.drive)
+    expect(faceLipsyncTail).toEqual(softenedMeasuredReturnTail)
   })
 
-  it('keeps motion+lipsync-only measured-return continuity more inward than an otherwise equally softened measured-return', () => {
+  it('ignores polluted motion-lipsync audit fields on measured-return continuity', () => {
     const softenedMeasuredReturnState = createVrmLipSyncContinuityState()
     const motionLipsyncState = createVrmLipSyncContinuityState()
 
@@ -508,12 +559,10 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(motionLipsyncTail.active).toBe(true)
-    expect(motionLipsyncTail.holdSeconds).toBeGreaterThan(softenedMeasuredReturnTail.holdSeconds)
-    expect(motionLipsyncTail.drive).toBeGreaterThan(softenedMeasuredReturnTail.drive)
+    expect(motionLipsyncTail).toEqual(softenedMeasuredReturnTail)
   })
 
-  it('keeps same-thread still-voiced face-line continuity more inward than an otherwise equally softened same-thread continuation', () => {
+  it('ignores polluted still-voiced face audit fields on same-thread continuity', () => {
     const softenedSameThreadState = createVrmLipSyncContinuityState()
     const stillVoicedFaceState = createVrmLipSyncContinuityState()
 
@@ -561,12 +610,10 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(stillVoicedFaceTail.active).toBe(true)
-    expect(stillVoicedFaceTail.holdSeconds).toBeGreaterThan(softenedSameThreadTail.holdSeconds)
-    expect(stillVoicedFaceTail.drive).toBeGreaterThan(softenedSameThreadTail.drive)
+    expect(stillVoicedFaceTail).toEqual(softenedSameThreadTail)
   })
 
-  it('keeps same-thread richer still-voiced face-and-mouth continuity alive a little longer than the plainer still-voiced face line', () => {
+  it('ignores polluted still-voiced face-and-mouth audit fields on same-thread continuity', () => {
     const stillVoicedFaceState = createVrmLipSyncContinuityState()
     const stillVoicedFaceMouthState = createVrmLipSyncContinuityState()
 
@@ -618,12 +665,10 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(stillVoicedFaceMouthTail.active).toBe(true)
-    expect(stillVoicedFaceMouthTail.holdSeconds).toBeGreaterThan(stillVoicedFaceTail.holdSeconds)
-    expect(stillVoicedFaceMouthTail.drive).toBeGreaterThan(stillVoicedFaceTail.drive)
+    expect(stillVoicedFaceMouthTail).toEqual(stillVoicedFaceTail)
   })
 
-  it('keeps same-thread still-voiced motion-line signature-only continuity more inward than an otherwise equally softened same-thread continuation', () => {
+  it('ignores polluted still-voiced motion audit fields on same-thread continuity', () => {
     const softenedSameThreadState = createVrmLipSyncContinuityState()
     const stillVoicedMotionState = createVrmLipSyncContinuityState()
 
@@ -671,12 +716,10 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(stillVoicedMotionTail.active).toBe(true)
-    expect(stillVoicedMotionTail.holdSeconds).toBeGreaterThan(softenedSameThreadTail.holdSeconds)
-    expect(stillVoicedMotionTail.drive).toBeGreaterThan(softenedSameThreadTail.drive)
+    expect(stillVoicedMotionTail).toEqual(softenedSameThreadTail)
   })
 
-  it('keeps same-thread richer still-voiced motion-and-mouth continuity alive a little longer than the plainer still-voiced motion line', () => {
+  it('ignores polluted still-voiced motion-and-mouth audit fields on same-thread continuity', () => {
     const stillVoicedMotionState = createVrmLipSyncContinuityState()
     const stillVoicedMotionMouthState = createVrmLipSyncContinuityState()
 
@@ -728,12 +771,10 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(stillVoicedMotionMouthTail.active).toBe(true)
-    expect(stillVoicedMotionMouthTail.holdSeconds).toBeGreaterThan(stillVoicedMotionTail.holdSeconds)
-    expect(stillVoicedMotionMouthTail.drive).toBeGreaterThan(stillVoicedMotionTail.drive)
+    expect(stillVoicedMotionMouthTail).toEqual(stillVoicedMotionTail)
   })
 
-  it('keeps same-thread richer still-voiced face-and-motion continuity more inward than an otherwise equally softened same-thread continuation', () => {
+  it('ignores polluted still-voiced face-and-motion audit fields on same-thread continuity', () => {
     const softenedSameThreadState = createVrmLipSyncContinuityState()
     const stillVoicedFaceMotionState = createVrmLipSyncContinuityState()
 
@@ -783,9 +824,7 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(stillVoicedFaceMotionTail.active).toBe(true)
-    expect(stillVoicedFaceMotionTail.holdSeconds).toBeGreaterThan(softenedSameThreadTail.holdSeconds)
-    expect(stillVoicedFaceMotionTail.drive).toBeGreaterThan(softenedSameThreadTail.drive)
+    expect(stillVoicedFaceMotionTail).toEqual(softenedSameThreadTail)
   })
 
   it('respects later-segment digital-life continuity hold when it is longer than the default measured-return tail', () => {
@@ -891,7 +930,7 @@ describe('vrm lip sync continuity', () => {
     expect(switched.drive).toBeLessThan(0.02)
   })
 
-  it('refreshes same-segment continuity hold when same-her body+voice carry arrives during the stop tail', () => {
+  it('keeps same-segment continuity hold stable when only audit fields change during the stop tail', () => {
     const controlState = createVrmLipSyncContinuityState()
     const refreshedState = createVrmLipSyncContinuityState()
 
@@ -947,8 +986,6 @@ describe('vrm lip sync continuity', () => {
       wlipsyncSignal: 0,
     })
 
-    expect(refreshedTail.active).toBe(true)
-    expect(refreshedTail.holdSeconds).toBeGreaterThan(controlTail.holdSeconds)
-    expect(refreshedTail.drive).toBeGreaterThan(controlTail.drive)
+    expect(refreshedTail).toEqual(controlTail)
   })
 })

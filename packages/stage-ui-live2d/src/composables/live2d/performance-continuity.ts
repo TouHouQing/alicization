@@ -1,13 +1,5 @@
 import type { StageEmbodimentSpeechRenderPhase } from '@proj-alicization/stage-shared'
 
-import {
-  hasAlicizationAudibleSameHerCarry,
-  hasAlicizationBodyVoiceOnlySameHerCarry,
-  hasAlicizationQuieterSameHerCarry,
-  hasAlicizationStillVoicedMouthSameHerCarry,
-  hasAlicizationStillVoicedSameHerCarry,
-} from '@proj-alicization/stage-shared'
-
 export interface Live2DSpeechContinuityState {
   continuityKey: string | null
   envelope: number
@@ -91,20 +83,12 @@ function resolveContinuityKey(input: {
   continuityHoldMs?: number | null | undefined
   preferredBlinkCadence?: string | null | undefined
   preferredGazeMode?: string | null | undefined
-  reasonTags?: readonly string[] | null | undefined
   residentMode?: string | null | undefined
-  signature?: string | null | undefined
 }) {
   return JSON.stringify([
     normalizeResidentMode(input.residentMode),
     normalizeHintToken(input.preferredBlinkCadence),
     normalizeHintToken(input.preferredGazeMode),
-    typeof input.signature === 'string' ? input.signature.trim() : '',
-    (input.reasonTags ?? [])
-      .map(tag => normalizeHintToken(tag))
-      .filter(Boolean)
-      .sort()
-      .join('|'),
     Math.max(0, Math.round(Number(input.continuityHoldMs ?? 0))),
   ])
 }
@@ -135,34 +119,8 @@ export function resolveLive2DSpeechContinuity(
     continuityHoldMs: input.continuityHoldMs,
     preferredBlinkCadence: input.preferredBlinkCadence,
     preferredGazeMode: input.preferredGazeMode,
-    reasonTags: input.reasonTags,
     residentMode: input.residentMode,
-    signature: input.signature,
   })
-  const hasAudibleSameHerCarry = hasAlicizationAudibleSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const hasBodyVoiceOnlySameHerCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const hasQuieterSameHerCarry = hasAlicizationQuieterSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const hasStillVoicedSameHerCarry = hasAlicizationStillVoicedSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const hasStillVoicedMouthSameHerCarry = hasAlicizationStillVoicedMouthSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const hasStructuredSameHerCarry = hasAudibleSameHerCarry
-    || hasBodyVoiceOnlySameHerCarry
-    || hasQuieterSameHerCarry
-    || hasStillVoicedSameHerCarry
   const hasSofterReturnCadence = preferredBlinkCadence === 'linger'
     || preferredBlinkCadence === 'quiet'
     || preferredGazeMode === 'soften'
@@ -181,25 +139,18 @@ export function resolveLive2DSpeechContinuity(
   }
   state.segmentId = nextSegmentId
   state.continuityKey = nextContinuityKey
-  const stillVoicedMouthCarryHoldScale = hasStillVoicedMouthSameHerCarry ? 1.06 : 1
   const holdSecondsBias = residentMode === 'repair-before-closeness'
-    ? hasStructuredSameHerCarry
-      ? 1.34 * holdCompensationScale * stillVoicedMouthCarryHoldScale
-      : hasSofterReturnCadence
-        ? 1.28 * holdCompensationScale
-        : 1.22 * holdCompensationScale
+    ? hasSofterReturnCadence
+      ? 1.28 * holdCompensationScale
+      : 1.22 * holdCompensationScale
     : residentMode === 'measured-return'
-      ? hasStructuredSameHerCarry
-        ? 1.18 * holdCompensationScale * stillVoicedMouthCarryHoldScale
-        : hasSofterReturnCadence
-          ? 1.13 * holdCompensationScale
-          : 1.1 * holdCompensationScale
+      ? hasSofterReturnCadence
+        ? 1.13 * holdCompensationScale
+        : 1.1 * holdCompensationScale
       : residentMode === 'same-thread-continuation'
-        ? hasStructuredSameHerCarry
-          ? 1.18 * holdCompensationScale * stillVoicedMouthCarryHoldScale
-          : hasSofterReturnCadence
-            ? 1.08 * holdCompensationScale
-            : holdCompensationScale
+        ? hasSofterReturnCadence
+          ? 1.08 * holdCompensationScale
+          : holdCompensationScale
         : 1
   const continuityHoldSeconds = Number.isFinite(Number(input.continuityHoldMs))
     ? Math.max(0, Number(input.continuityHoldMs) / 1000)
@@ -210,27 +161,19 @@ export function resolveLive2DSpeechContinuity(
     && previousContinuityKey != null
     && previousContinuityKey !== nextContinuityKey
   const releaseBias = residentMode === 'repair-before-closeness'
-    ? hasStructuredSameHerCarry
-      ? 0.72
-      : hasSofterReturnCadence
-        ? 0.76
-        : 0.82
+    ? hasSofterReturnCadence
+      ? 0.76
+      : 0.82
     : residentMode === 'measured-return'
-      ? hasStructuredSameHerCarry
-        ? 0.86
-        : hasSofterReturnCadence
-          ? 0.9
-          : 0.92
+      ? hasSofterReturnCadence
+        ? 0.9
+        : 0.92
       : residentMode === 'same-thread-continuation'
-        ? hasStructuredSameHerCarry
-          ? 0.9
-          : hasSofterReturnCadence
-            ? 0.96
-            : 1
+        ? hasSofterReturnCadence
+          ? 0.96
+          : 1
         : 1
-  const softenedReleaseBias = hasStillVoicedMouthSameHerCarry
-    ? Math.max(0.72, releaseBias * 0.94)
-    : releaseBias
+  const softenedReleaseBias = releaseBias
   if (sameSegmentContinuityChanged && (state.holdSeconds > 0 || state.envelope >= resolvedConfig.activationThreshold)) {
     state.holdSeconds = Math.max(
       state.holdSeconds,
