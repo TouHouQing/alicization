@@ -1,7 +1,5 @@
 import type { AlicizationDialogueEmbodimentEnvelope } from '../../stores/alicization-bridge'
 
-import { hasAlicizationSoftenedSameHerCarry } from '@proj-alicization/stage-shared'
-
 export interface StageRuntimeEmbodimentCueState {
   segmentExpressionAliasesByEmotion: Partial<Record<string, string[]>>
   segmentMotionAliasesByEmotion: Partial<Record<string, string[]>>
@@ -28,10 +26,10 @@ function uniqueMotionAliasOrder(values: readonly string[]) {
     const normalized = value.trim()
     if (!normalized)
       continue
-    const signature = normalized.toLowerCase()
-    if (seen.has(signature))
+    const dedupeKey = normalized.toLowerCase()
+    if (seen.has(dedupeKey))
       continue
-    seen.add(signature)
+    seen.add(dedupeKey)
     result.push(normalized)
   }
 
@@ -42,32 +40,8 @@ function normalizeFollowThroughMs(rawMs: number | null | undefined) {
   return Math.max(0, Math.round(Number(rawMs ?? 0)))
 }
 
-function hasSoftenedSameHerResidentCarry(
-  rendererHints: AlicizationDialogueEmbodimentEnvelope['rendererHints'] | null | undefined,
-) {
-  const preferredGazeMode = typeof rendererHints?.preferredGazeMode === 'string'
-    ? rendererHints.preferredGazeMode.trim()
-    : ''
-  const preferredBlinkCadence = typeof rendererHints?.preferredBlinkCadence === 'string'
-    ? rendererHints.preferredBlinkCadence.trim()
-    : ''
-  const softenedCadence = preferredGazeMode === 'steady'
-    || preferredGazeMode === 'soften'
-    || preferredBlinkCadence === 'quiet'
-    || preferredBlinkCadence === 'linger'
-  if (!softenedCadence)
-    return false
-
-  return hasAlicizationSoftenedSameHerCarry({
-    signature: rendererHints?.signature,
-    reasonTags: rendererHints?.reasonTags,
-  })
-}
-
 function resolvePersonaSettleBiasMs(
   rendererHints: AlicizationDialogueEmbodimentEnvelope['rendererHints'] | null | undefined,
-  preferredExpressionAliases: readonly string[],
-  preferredMotionAliases: readonly string[],
   bodySegmentMatched?: boolean | null | undefined,
   faceSegmentMatched?: boolean | null | undefined,
   motionSegmentMatched?: boolean | null | undefined,
@@ -80,25 +54,6 @@ function resolvePersonaSettleBiasMs(
   const preferredLipsyncMode = typeof rendererHints?.preferredLipsyncMode === 'string' ? rendererHints.preferredLipsyncMode.trim() : ''
   const preferredVoiceMode = typeof rendererHints?.preferredVoiceMode === 'string' ? rendererHints.preferredVoiceMode.trim() : ''
   const preferredPacingMode = typeof rendererHints?.preferredPacingMode === 'string' ? rendererHints.preferredPacingMode.trim() : ''
-  const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(rendererHints)
-  const shouldSkipAliasSettleBias = sameHerSoftenedReturn
-    && residentMode !== 'repair-before-closeness'
-    && residentMode !== 'measured-return'
-    && residentMode !== 'quiet-companionship'
-  const aliases = new Set(
-    [...preferredExpressionAliases, ...preferredMotionAliases]
-      .map(alias => alias.trim().toLowerCase())
-      .filter(Boolean),
-  )
-
-  if (!shouldSkipAliasSettleBias) {
-    if (aliases.has('recover-soft') || aliases.has('recover_soft') || aliases.has('stillness_guard'))
-      return 180
-    if (aliases.has('calm_inspect') || aliases.has('calminspect') || aliases.has('observe_focus'))
-      return 120
-    if (aliases.has('soft-gaze') || aliases.has('soft_gaze') || aliases.has('observesoft'))
-      return 80
-  }
 
   const durableMeasuredReturn = residentMode === 'measured-return'
     && (preferredGazeMode === 'steady' || preferredGazeMode === 'soften')
@@ -119,7 +74,7 @@ function resolvePersonaSettleBiasMs(
       : 0
 
   if (residentMode === 'repair-before-closeness') {
-    return (sameHerSoftenedReturn ? 220 : 180)
+    return 180
       + (preferredPauseMode === 'longer' ? 24 : 0)
       + (preferredLipsyncMode === 'restrained' ? 20 : 0)
       + (preferredVoiceMode === 'lower-pressure' ? 16 : 0)
@@ -156,8 +111,6 @@ export function resolveRendererSettleMsWithPersonaBias(input: {
   motionSegmentMatched?: boolean | null | undefined
   lipsyncSegmentMatched?: boolean | null | undefined
   rendererHints?: AlicizationDialogueEmbodimentEnvelope['rendererHints'] | null | undefined
-  preferredExpressionAliases: readonly string[]
-  preferredMotionAliases: readonly string[]
 }) {
   const baseMs = normalizeFollowThroughMs(input.baseMs)
   if (baseMs <= 0)
@@ -165,8 +118,6 @@ export function resolveRendererSettleMsWithPersonaBias(input: {
 
   return baseMs + resolvePersonaSettleBiasMs(
     input.rendererHints,
-    input.preferredExpressionAliases,
-    input.preferredMotionAliases,
     input.bodySegmentMatched,
     input.faceSegmentMatched,
     input.motionSegmentMatched,
@@ -176,14 +127,10 @@ export function resolveRendererSettleMsWithPersonaBias(input: {
 
 function resolveFollowThroughMsWithPersonaBias(
   cue: StageRuntimeEmbodimentActiveCueInput | null | undefined,
-  preferredExpressionAliases: readonly string[],
-  preferredMotionAliases: readonly string[],
 ) {
   return resolveRendererSettleMsWithPersonaBias({
     baseMs: cue?.rendererSettle?.live2dMotionFollowThroughMs,
     rendererHints: cue?.rendererHints,
-    preferredExpressionAliases,
-    preferredMotionAliases,
   })
 }
 
@@ -202,8 +149,6 @@ export function resolveActiveCueWatchKey(
     cue?.rendererHints?.preferredLipsyncMode ?? null,
     cue?.rendererHints?.preferredVoiceMode ?? null,
     cue?.rendererHints?.preferredPacingMode ?? null,
-    cue?.rendererHints?.signature ?? null,
-    cue?.rendererHints?.reasonTags?.join('|') ?? '',
     cue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0,
     cue?.rendererSettle?.vrmActionFadeMs ?? 0,
     cue?.rendererSettle?.vrmExpressionBlendMs ?? 0,
@@ -225,39 +170,6 @@ export function mergePreferredAliases(
   return normalizeRuntimeAliasList([
     ...(runtimeAliases ?? []),
     ...(configuredAliases ?? []),
-  ])
-}
-
-function preferSofterSameHerMotionAliases(input: {
-  aliases: readonly string[]
-  rendererHints?: AlicizationDialogueEmbodimentEnvelope['rendererHints'] | null | undefined
-}) {
-  const residentMode = typeof input.rendererHints?.residentMode === 'string'
-    ? input.rendererHints.residentMode.trim().toLowerCase()
-    : ''
-  const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(input.rendererHints)
-  const shouldPreferSofterRejoin = residentMode === 'measured-return'
-    || residentMode === 'quiet-companionship'
-    || residentMode === 'repair-before-closeness'
-    || sameHerSoftenedReturn
-  if (!shouldPreferSofterRejoin)
-    return uniqueMotionAliasOrder(input.aliases)
-
-  const softerAliases = input.aliases.filter((alias) => {
-    const signature = alias.trim().toLowerCase()
-    return signature === 'observesoft'
-      || signature === 'observe_soft'
-      || signature === 'steadyfocus'
-      || signature === 'steady_focus'
-      || signature === 'idlesettle'
-      || signature === 'idle_settle'
-      || signature === 'stillnessguard'
-      || signature === 'stillness_guard'
-  })
-  const remainingAliases = input.aliases.filter(alias => !softerAliases.includes(alias))
-  return uniqueMotionAliasOrder([
-    ...softerAliases,
-    ...remainingAliases,
   ])
 }
 
@@ -324,8 +236,6 @@ export function applyRuntimeEmbodimentActiveCueState(
   return {
     followThroughMs: resolveFollowThroughMsWithPersonaBias(
       cue,
-      preferredExpressionAliases,
-      preferredMotionAliases,
     ),
     state,
   }
@@ -349,18 +259,16 @@ export function resolvePreferredMotionAliasesFromRuntimeState(
   state: StageRuntimeEmbodimentCueState,
   emotion: string,
   configuredAliases: readonly string[] | null | undefined,
-  rendererHints?: AlicizationDialogueEmbodimentEnvelope['rendererHints'] | null | undefined,
 ) {
-  return preferSofterSameHerMotionAliases({
-    aliases: mergePreferredAliases(
+  return uniqueMotionAliasOrder(
+    mergePreferredAliases(
       state.segmentMotionAliasesByEmotion[emotion],
       mergePreferredAliases(
         state.turnMotionAliasesByEmotion[emotion],
         configuredAliases,
       ),
     ),
-    rendererHints,
-  })
+  )
 }
 
 export function resolvePreferredVrmExpressionAliasesFromRuntimeState(
@@ -386,15 +294,12 @@ export function resolveLive2DSegmentMotionCueSelection(input: {
         input.state,
         emotion,
         input.configuredAliases,
-        input.cue?.rendererHints,
       )
     : []
   return {
     emotion,
     followThroughMs: resolveFollowThroughMsWithPersonaBias(
       input.cue,
-      input.state.segmentExpressionAliasesByEmotion[emotion] ?? input.state.turnExpressionAliasesByEmotion[emotion] ?? [],
-      preferredMotionAliases,
     ),
     preferredMotionAliases,
   }

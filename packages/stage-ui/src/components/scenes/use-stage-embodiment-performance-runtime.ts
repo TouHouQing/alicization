@@ -1714,12 +1714,6 @@ function syncUpcomingSegmentSnapshot(segment: StageEmbodimentSpeechPlaybackItem 
 
 function cloneActiveCue(
   cue: StageEmbodimentPerformanceState['activeCue'],
-  options?: {
-    bodySegmentMatched?: boolean | null | undefined
-    faceSegmentMatched?: boolean | null | undefined
-    motionSegmentMatched?: boolean | null | undefined
-    lipsyncSegmentMatched?: boolean | null | undefined
-  },
 ) {
   if (!cue)
     return null
@@ -1734,42 +1728,9 @@ function cloneActiveCue(
   const preferredLipsyncMode = cue.rendererHints?.preferredLipsyncMode ?? undefined
   const preferredVoiceMode = cue.rendererHints?.preferredVoiceMode ?? undefined
   const preferredPacingMode = cue.rendererHints?.preferredPacingMode ?? undefined
-  const structuredRendererHints = cue.rendererHints
-    ? {
-        ...cue.rendererHints,
-        reasonTags: undefined,
-        signature: undefined,
-      }
-    : null
-
   return {
     ...cue,
-    rendererSettle: cue.rendererSettle
-      ? {
-          live2dFacialReleaseMs: cue.rendererSettle.live2dFacialReleaseMs,
-          live2dMotionFollowThroughMs: cue.rendererSettle.live2dMotionFollowThroughMs,
-          vrmActionFadeMs: resolveRendererSettleMsWithPersonaBias({
-            baseMs: cue.rendererSettle.vrmActionFadeMs,
-            bodySegmentMatched: options?.bodySegmentMatched ?? null,
-            faceSegmentMatched: options?.faceSegmentMatched ?? null,
-            motionSegmentMatched: options?.motionSegmentMatched ?? null,
-            lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
-            preferredExpressionAliases: preferredExpressionAliases ?? [],
-            preferredMotionAliases: preferredMotionAliases ?? [],
-            rendererHints: structuredRendererHints,
-          }),
-          vrmExpressionBlendMs: resolveRendererSettleMsWithPersonaBias({
-            baseMs: cue.rendererSettle.vrmExpressionBlendMs,
-            bodySegmentMatched: options?.bodySegmentMatched ?? null,
-            faceSegmentMatched: options?.faceSegmentMatched ?? null,
-            motionSegmentMatched: options?.motionSegmentMatched ?? null,
-            lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
-            preferredExpressionAliases: preferredExpressionAliases ?? [],
-            preferredMotionAliases: preferredMotionAliases ?? [],
-            rendererHints: structuredRendererHints,
-          }),
-        }
-      : null,
+    rendererSettle: cloneRendererSettle(cue.rendererSettle),
     rendererHints: cue.rendererHints
       ? {
           residentMode: cue.rendererHints.residentMode ?? undefined,
@@ -1783,6 +1744,43 @@ function cloneActiveCue(
           preferredPacingMode,
         }
       : null,
+  }
+}
+
+function applyActiveCueRendererSettleBias(
+  cue: StageEmbodimentPerformanceState['activeCue'],
+  options?: {
+    bodySegmentMatched?: boolean | null | undefined
+    faceSegmentMatched?: boolean | null | undefined
+    motionSegmentMatched?: boolean | null | undefined
+    lipsyncSegmentMatched?: boolean | null | undefined
+  },
+) {
+  const clonedCue = cloneActiveCue(cue)
+  if (!clonedCue?.rendererSettle)
+    return clonedCue
+
+  return {
+    ...clonedCue,
+    rendererSettle: {
+      ...clonedCue.rendererSettle,
+      vrmActionFadeMs: resolveRendererSettleMsWithPersonaBias({
+        baseMs: clonedCue.rendererSettle.vrmActionFadeMs,
+        bodySegmentMatched: options?.bodySegmentMatched ?? null,
+        faceSegmentMatched: options?.faceSegmentMatched ?? null,
+        motionSegmentMatched: options?.motionSegmentMatched ?? null,
+        lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
+        rendererHints: clonedCue.rendererHints,
+      }),
+      vrmExpressionBlendMs: resolveRendererSettleMsWithPersonaBias({
+        baseMs: clonedCue.rendererSettle.vrmExpressionBlendMs,
+        bodySegmentMatched: options?.bodySegmentMatched ?? null,
+        faceSegmentMatched: options?.faceSegmentMatched ?? null,
+        motionSegmentMatched: options?.motionSegmentMatched ?? null,
+        lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
+        rendererHints: clonedCue.rendererHints,
+      }),
+    },
   }
 }
 
@@ -1876,58 +1874,6 @@ function cloneRendererSettle(
     live2dMotionFollowThroughMs: settle.live2dMotionFollowThroughMs,
     vrmActionFadeMs: settle.vrmActionFadeMs,
     vrmExpressionBlendMs: settle.vrmExpressionBlendMs,
-  }
-}
-
-function cloneCueWithoutRendererSettle(
-  cue: StageEmbodimentPerformanceState['activeCue'],
-) {
-  if (!cue)
-    return null
-
-  return {
-    ...cue,
-    rendererHints: cloneRendererHints(cue.rendererHints),
-    rendererSettle: cloneRendererSettle(cue.rendererSettle),
-  }
-}
-
-function applyPreviewRendererOnlyBodyAuthorityGuard(
-  cue: StageEmbodimentPerformanceState['activeCue'],
-  bodySegmentMatched: boolean | null | undefined,
-) {
-  if (!cue || bodySegmentMatched !== false || !cue.rendererSettle)
-    return cue
-
-  const residentMode = cue.rendererHints?.residentMode ?? null
-  if (
-    residentMode !== 'repair-before-closeness'
-    && residentMode !== 'measured-return'
-  ) {
-    return cue
-  }
-
-  const expressionAliases = cue.rendererHints?.preferredExpressionAliases ?? []
-  const motionAliases = cue.rendererHints?.preferredMotionAliases ?? []
-
-  return {
-    ...cue,
-    rendererHints: cloneRendererHints(cue.rendererHints),
-    rendererSettle: {
-      ...cue.rendererSettle,
-      vrmActionFadeMs: resolveRendererSettleMsWithPersonaBias({
-        baseMs: cue.rendererSettle.vrmActionFadeMs,
-        bodySegmentMatched: false,
-        preferredExpressionAliases: expressionAliases,
-        preferredMotionAliases: motionAliases,
-      }),
-      vrmExpressionBlendMs: resolveRendererSettleMsWithPersonaBias({
-        baseMs: cue.rendererSettle.vrmExpressionBlendMs,
-        bodySegmentMatched: false,
-        preferredExpressionAliases: expressionAliases,
-        preferredMotionAliases: motionAliases,
-      }),
-    },
   }
 }
 
@@ -2174,7 +2120,6 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
   function resolveTransientActiveCueLayer(
     now: number,
     options: {
-      bodySegmentMatched?: boolean | null
       holdMs: number
       heldCue: StageEmbodimentPerformanceState['activeCue']
       heldUntil: number
@@ -2184,12 +2129,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
   ) {
     if (options.previewCue) {
       return {
-        cue: cloneActiveCue(options.previewCue, {
-          bodySegmentMatched: options.bodySegmentMatched ?? null,
-          faceSegmentMatched: null,
-          motionSegmentMatched: null,
-          lipsyncSegmentMatched: null,
-        }),
+        cue: cloneActiveCue(options.previewCue),
         source: 'preview' as const,
         heldCue: options.heldCue,
         heldUntil: options.heldUntil,
@@ -2197,12 +2137,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     }
 
     if (options.segmentCue) {
-      const nextCue = cloneActiveCue(options.segmentCue, {
-        bodySegmentMatched: options.bodySegmentMatched ?? null,
-        faceSegmentMatched: null,
-        motionSegmentMatched: null,
-        lipsyncSegmentMatched: null,
-      })
+      const nextCue = cloneActiveCue(options.segmentCue)
       return {
         cue: nextCue,
         source: 'segment' as const,
@@ -2213,12 +2148,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
 
     if (options.heldCue && options.heldUntil > now) {
       return {
-        cue: cloneActiveCue(options.heldCue, {
-          bodySegmentMatched: options.bodySegmentMatched ?? null,
-          faceSegmentMatched: null,
-          motionSegmentMatched: null,
-          lipsyncSegmentMatched: null,
-        }),
+        cue: cloneActiveCue(options.heldCue),
         source: 'segment' as const,
         heldCue: options.heldCue,
         heldUntil: options.heldUntil,
@@ -2564,10 +2494,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       ? suppressActionCueUntilMotionAuthority(previewProjectedCue)
       : previewProjectedCue
     const previewProjectedCueForActiveLayer = previewCue
-      ? applyPreviewRendererOnlyBodyAuthorityGuard(
-          cloneCueWithoutRendererSettle(previewProjectedCueForCarry),
-          previewDriverAuthority?.bodySegmentMatched ?? null,
-        )
+      ? cloneActiveCue(previewProjectedCueForCarry)
       : previewProjectedCueForCarry
     if (previewAhead && previewSegmentId) {
       if (
@@ -2739,7 +2666,6 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       && !segmentDriverAuthority?.motionSegmentMatched
 
     const activeCueLayer = resolveTransientActiveCueLayer(now, {
-      bodySegmentMatched: segmentDriverAuthority?.bodySegmentMatched ?? previewDriverAuthority?.bodySegmentMatched ?? null,
       holdMs: resolveSegmentCueHoldMs(
         segmentProjectedCueForCarry?.emotionHoldMs,
         segmentEmotionCueHoldMs,
@@ -2984,7 +2910,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       activeActionCueSource: actionCueLayer.source,
       speechActive: speechActivelyPlaying,
       speechPhase: speech.phase,
-      activeCue: cloneActiveCue(transientCue, {
+      activeCue: applyActiveCueRendererSettleBias(transientCue, {
         bodySegmentMatched: resolvedDriverAuthority?.bodySegmentMatched ?? null,
         faceSegmentMatched: resolvedDriverAuthority?.faceSegmentMatched ?? null,
         motionSegmentMatched: resolvedDriverAuthority?.motionSegmentMatched ?? null,

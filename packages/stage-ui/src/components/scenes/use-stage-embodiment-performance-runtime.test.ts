@@ -5216,8 +5216,8 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeCue?.rendererSettle).toEqual({
       live2dFacialReleaseMs: 360,
       live2dMotionFollowThroughMs: 440,
-      vrmActionFadeMs: 520,
-      vrmExpressionBlendMs: 600,
+      vrmActionFadeMs: 460,
+      vrmExpressionBlendMs: 540,
     })
 
     scope.stop()
@@ -5873,8 +5873,8 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeCue?.rendererSettle).toEqual({
       live2dFacialReleaseMs: 320,
       live2dMotionFollowThroughMs: 440,
-      vrmActionFadeMs: 520,
-      vrmExpressionBlendMs: 600,
+      vrmActionFadeMs: 280,
+      vrmExpressionBlendMs: 360,
     })
 
     scope.stop()
@@ -6032,7 +6032,7 @@ describe('stage embodiment performance runtime', () => {
     scope.stop()
   })
 
-  it('extends vrm settle timing for structured companionship cues', async () => {
+  it('extends vrm settle timing from structured companionship mode', async () => {
     const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
     const playbackTelemetry = ref<EmbodimentPlaybackTelemetry | null>(null)
     const scope = effectScope()
@@ -6065,8 +6065,9 @@ describe('stage embodiment performance runtime', () => {
         actionWindow: 'cadence-peak',
         interruptMode: 'soft-interrupt',
         rendererHints: {
-          preferredExpressionAliases: ['recover-soft', 'soft-gaze'],
-          preferredMotionAliases: ['stillness_guard', 'observe_focus'],
+          residentMode: 'repair-before-closeness',
+          preferredExpressionAliases: ['SegmentExpression'],
+          preferredMotionAliases: ['SegmentMotion'],
         },
         rendererSettle: {
           live2dFacialReleaseMs: 420,
@@ -6113,8 +6114,8 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeCue?.rendererSettle).toEqual({
       live2dFacialReleaseMs: 420,
       live2dMotionFollowThroughMs: 520,
-      vrmActionFadeMs: 640,
-      vrmExpressionBlendMs: 720,
+      vrmActionFadeMs: 560,
+      vrmExpressionBlendMs: 640,
     })
 
     scope.stop()
@@ -6269,13 +6270,13 @@ describe('stage embodiment performance runtime', () => {
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
     }))
-    expect(runtime.state.value.activeCue?.rendererSettle?.vrmActionFadeMs).toBe(440)
-    expect(runtime.state.value.activeCue?.rendererSettle?.vrmExpressionBlendMs).toBe(500)
+    expect(runtime.state.value.activeCue?.rendererSettle?.vrmActionFadeMs).toBe(560)
+    expect(runtime.state.value.activeCue?.rendererSettle?.vrmExpressionBlendMs).toBe(620)
     expect(fullyMatchedSettle).toEqual({
       live2dFacialReleaseMs: 360,
       live2dMotionFollowThroughMs: 420,
-      vrmActionFadeMs: 440,
-      vrmExpressionBlendMs: 500,
+      vrmActionFadeMs: 460,
+      vrmExpressionBlendMs: 520,
     })
     expect(runtime.state.value.driverAuthority).toEqual(expect.objectContaining({
       bodySegmentMatched: false,
@@ -6286,11 +6287,16 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeCue?.rendererSettle?.live2dFacialReleaseMs ?? 0).toBeGreaterThanOrEqual(360)
     expect(runtime.state.value.activeCue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0).toBeGreaterThanOrEqual(420)
     expect(runtime.state.value.activeCue?.rendererSettle?.vrmActionFadeMs).toBe(
-      fullyMatchedSettle?.vrmActionFadeMs ?? 0,
+      (fullyMatchedSettle?.vrmActionFadeMs ?? 0) + 100,
     )
     expect(runtime.state.value.activeCue?.rendererSettle?.vrmExpressionBlendMs).toBe(
-      fullyMatchedSettle?.vrmExpressionBlendMs ?? 0,
+      (fullyMatchedSettle?.vrmExpressionBlendMs ?? 0) + 100,
     )
+
+    playbackTelemetry.value = baseTelemetry
+    await nextTick()
+
+    expect(runtime.state.value.activeCue?.rendererSettle).toEqual(fullyMatchedSettle)
 
     scope.stop()
   })
@@ -7071,13 +7077,13 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeCue?.rendererSettle).toEqual(expect.objectContaining({
       live2dFacialReleaseMs: 380,
       live2dMotionFollowThroughMs: 460,
-      vrmActionFadeMs: 460,
-      vrmExpressionBlendMs: 540,
+      vrmActionFadeMs: 580,
+      vrmExpressionBlendMs: 660,
     }))
     expect(runtime.state.value.activeCue?.rendererSettle?.live2dFacialReleaseMs ?? 0).toBeGreaterThanOrEqual(380)
     expect(runtime.state.value.activeCue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0).toBeGreaterThanOrEqual(460)
-    expect(runtime.state.value.activeCue?.rendererSettle?.vrmActionFadeMs ?? 0).toBeGreaterThanOrEqual(440)
-    expect(runtime.state.value.activeCue?.rendererSettle?.vrmExpressionBlendMs ?? 0).toBeGreaterThanOrEqual(500)
+    expect(runtime.state.value.activeCue?.rendererSettle?.vrmActionFadeMs ?? 0).toBeGreaterThanOrEqual(580)
+    expect(runtime.state.value.activeCue?.rendererSettle?.vrmExpressionBlendMs ?? 0).toBeGreaterThanOrEqual(660)
 
     scope.stop()
   })
@@ -7251,8 +7257,8 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeCue?.rendererSettle).toEqual({
       live2dFacialReleaseMs: 320,
       live2dMotionFollowThroughMs: 440,
-      vrmActionFadeMs: 520,
-      vrmExpressionBlendMs: 600,
+      vrmActionFadeMs: 280,
+      vrmExpressionBlendMs: 360,
     })
 
     scope.stop()

@@ -78,34 +78,34 @@ describe('stage runtime embodiment cues', () => {
     })
   })
 
-  it('extends follow-through for measured-return and repair-before-closeness persona aliases so motion settles more gently', () => {
-    const measuredReturnState = createEmptyStageRuntimeEmbodimentCueState()
-    const repairState = createEmptyStageRuntimeEmbodimentCueState()
+  it('does not infer follow-through timing from alias names', () => {
+    const firstState = createEmptyStageRuntimeEmbodimentCueState()
+    const secondState = createEmptyStageRuntimeEmbodimentCueState()
 
-    const measuredReturnResult = applyRuntimeEmbodimentActiveCueState(measuredReturnState, {
+    const firstResult = applyRuntimeEmbodimentActiveCueState(firstState, {
       emotion: 'thinking',
       rendererHints: {
-        preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-        preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+        preferredExpressionAliases: ['segment_expression', 'gentle-expression'],
+        preferredMotionAliases: ['inspect_scene', 'segment_motion'],
       },
       rendererSettle: {
         live2dMotionFollowThroughMs: 420,
       },
     })
 
-    const repairResult = applyRuntimeEmbodimentActiveCueState(repairState, {
+    const secondResult = applyRuntimeEmbodimentActiveCueState(secondState, {
       emotion: 'thinking',
       rendererHints: {
-        preferredExpressionAliases: ['recover-soft', 'soft-gaze'],
-        preferredMotionAliases: ['stillness_guard', 'observe_focus'],
+        preferredExpressionAliases: ['turn-expression', 'gentle-expression'],
+        preferredMotionAliases: ['segment_motion', 'inspect_scene'],
       },
       rendererSettle: {
         live2dMotionFollowThroughMs: 420,
       },
     })
 
-    expect(measuredReturnResult.followThroughMs).toBe(600)
-    expect(repairResult.followThroughMs).toBe(600)
+    expect(firstResult.followThroughMs).toBe(420)
+    expect(secondResult.followThroughMs).toBe(420)
   })
 
   it('still extends follow-through from companionship micro-state even when active cue aliases are absent', () => {
@@ -144,9 +144,9 @@ describe('stage runtime embodiment cues', () => {
     expect(repairResult.followThroughMs).toBeGreaterThan(measuredReturnResult.followThroughMs)
   })
 
-  it('extends repair-before-closeness settle further when same-her body+voice-only continuity is explicit even if active cue aliases are still absent', () => {
+  it('does not let renderer audit text alter repair-before-closeness settle', () => {
     const repairState = createEmptyStageRuntimeEmbodimentCueState()
-    const sameHerRepairState = createEmptyStageRuntimeEmbodimentCueState()
+    const auditedRepairState = createEmptyStageRuntimeEmbodimentCueState()
 
     const ordinaryRepairResult = applyRuntimeEmbodimentActiveCueState(repairState, {
       emotion: 'thinking',
@@ -162,7 +162,7 @@ describe('stage runtime embodiment cues', () => {
       },
     })
 
-    const sameHerRepairResult = applyRuntimeEmbodimentActiveCueState(sameHerRepairState, {
+    const auditedRepairResult = applyRuntimeEmbodimentActiveCueState(auditedRepairState, {
       emotion: 'thinking',
       rendererHints: {
         residentMode: 'repair-before-closeness',
@@ -170,15 +170,15 @@ describe('stage runtime embodiment cues', () => {
         preferredGazeMode: 'soften',
         preferredExpressionAliases: [],
         preferredMotionAliases: [],
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-        reasonTags: ['embodiment:body+voice-only'],
+        signature: 'audit:untrusted',
+        reasonTags: ['audit:untrusted'],
       },
       rendererSettle: {
         live2dMotionFollowThroughMs: 420,
       },
     })
 
-    expect(sameHerRepairResult.followThroughMs).toBeGreaterThan(ordinaryRepairResult.followThroughMs)
+    expect(auditedRepairResult.followThroughMs).toBe(ordinaryRepairResult.followThroughMs)
   })
 
   it('extends measured-return settle when the audible living line is already formed but face has not yet rejoined', () => {
@@ -195,8 +195,6 @@ describe('stage runtime embodiment cues', () => {
         preferredExpressionAliases: [],
         preferredMotionAliases: [],
       },
-      preferredExpressionAliases: [],
-      preferredMotionAliases: [],
     })).toBe(620)
   })
 
@@ -237,20 +235,21 @@ describe('stage runtime embodiment cues', () => {
     })
   })
 
-  it('applies companionship settle bias during live2d motion cue resolution, not only alias ordering', () => {
+  it('applies structured companionship settle bias during live2d motion cue resolution', () => {
     const state = createEmptyStageRuntimeEmbodimentCueState()
     applyRuntimeEmbodimentEnvelopeCueState(state, {
       emotion: 'thinking',
       rendererHints: {
-        preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-        preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+        residentMode: 'repair-before-closeness',
+        preferredExpressionAliases: ['segment_expression', 'gentle-expression'],
+        preferredMotionAliases: ['inspect_scene', 'segment_motion'],
       },
     } as any)
     applyRuntimeEmbodimentActiveCueState(state, {
       emotion: 'thinking',
       rendererHints: {
-        preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-        preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+        preferredExpressionAliases: ['segment_expression', 'gentle-expression'],
+        preferredMotionAliases: ['inspect_scene', 'segment_motion'],
       },
       rendererSettle: {
         live2dMotionFollowThroughMs: 420,
@@ -262,8 +261,9 @@ describe('stage runtime embodiment cues', () => {
       cue: {
         emotion: 'thinking',
         rendererHints: {
-          preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-          preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+          residentMode: 'repair-before-closeness',
+          preferredExpressionAliases: ['segment_expression', 'gentle-expression'],
+          preferredMotionAliases: ['inspect_scene', 'segment_motion'],
         },
         rendererSettle: {
           live2dMotionFollowThroughMs: 420,
@@ -273,23 +273,23 @@ describe('stage runtime embodiment cues', () => {
     })).toEqual({
       emotion: 'thinking',
       followThroughMs: 600,
-      preferredMotionAliases: ['observe_focus', 'stillness_guard', 'ConfiguredObserve'],
+      preferredMotionAliases: ['inspect_scene', 'segment_motion', 'ConfiguredObserve'],
     })
   })
 
-  it('prefers softer same-her rejoin motion aliases during measured-return live2d motion resolution', () => {
+  it('preserves explicit motion alias order during measured-return live2d motion resolution', () => {
     const state = createEmptyStageRuntimeEmbodimentCueState()
     applyRuntimeEmbodimentEnvelopeCueState(state, {
       emotion: 'thinking',
       rendererHints: {
-        preferredMotionAliases: ['ObserveSoft'],
+        preferredMotionAliases: ['TurnMotion'],
       },
     } as any)
     applyRuntimeEmbodimentActiveCueState(state, {
       emotion: 'thinking',
       rendererHints: {
         residentMode: 'measured-return',
-        preferredMotionAliases: ['observe_focus', 'steady_focus', 'ObserveSoft'],
+        preferredMotionAliases: ['inspect_scene', 'secondary_motion', 'TurnMotion'],
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
       },
@@ -304,7 +304,7 @@ describe('stage runtime embodiment cues', () => {
         emotion: 'thinking',
         rendererHints: {
           residentMode: 'measured-return',
-          preferredMotionAliases: ['observe_focus', 'steady_focus', 'ObserveSoft'],
+          preferredMotionAliases: ['inspect_scene', 'secondary_motion', 'TurnMotion'],
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
         },
@@ -312,31 +312,31 @@ describe('stage runtime embodiment cues', () => {
           live2dMotionFollowThroughMs: 420,
         },
       },
-      configuredAliases: ['IdleSettle'],
+      configuredAliases: ['ConfiguredIdle'],
     })).toEqual({
       emotion: 'thinking',
       followThroughMs: 540,
-      preferredMotionAliases: ['steady_focus', 'ObserveSoft', 'IdleSettle', 'observe_focus'],
+      preferredMotionAliases: ['inspect_scene', 'secondary_motion', 'TurnMotion', 'ConfiguredIdle'],
     })
   })
 
-  it('prefers softer same-her rejoin motion aliases during same-thread body+voice-only live2d motion resolution', () => {
+  it('does not reorder motion aliases from audit text during same-thread live2d motion resolution', () => {
     const state = createEmptyStageRuntimeEmbodimentCueState()
     applyRuntimeEmbodimentEnvelopeCueState(state, {
       emotion: 'thinking',
       rendererHints: {
-        preferredMotionAliases: ['ObserveSoft'],
+        preferredMotionAliases: ['TurnMotion'],
       },
     } as any)
     applyRuntimeEmbodimentActiveCueState(state, {
       emotion: 'thinking',
       rendererHints: {
         residentMode: 'same-thread-continuation',
-        preferredMotionAliases: ['observe_focus', 'steady_focus', 'ObserveSoft'],
+        preferredMotionAliases: ['inspect_scene', 'secondary_motion', 'TurnMotion'],
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-        reasonTags: ['embodiment:body+voice-only'],
+        signature: 'audit:untrusted',
+        reasonTags: ['audit:untrusted'],
       },
       rendererSettle: {
         live2dMotionFollowThroughMs: 420,
@@ -349,21 +349,21 @@ describe('stage runtime embodiment cues', () => {
         emotion: 'thinking',
         rendererHints: {
           residentMode: 'same-thread-continuation',
-          preferredMotionAliases: ['observe_focus', 'steady_focus', 'ObserveSoft'],
+          preferredMotionAliases: ['inspect_scene', 'secondary_motion', 'TurnMotion'],
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
-          signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-          reasonTags: ['embodiment:body+voice-only'],
+          signature: 'audit:untrusted',
+          reasonTags: ['audit:untrusted'],
         },
         rendererSettle: {
           live2dMotionFollowThroughMs: 420,
         },
       },
-      configuredAliases: ['IdleSettle'],
+      configuredAliases: ['ConfiguredIdle'],
     })).toEqual({
       emotion: 'thinking',
       followThroughMs: 420,
-      preferredMotionAliases: ['steady_focus', 'ObserveSoft', 'IdleSettle', 'observe_focus'],
+      preferredMotionAliases: ['inspect_scene', 'secondary_motion', 'TurnMotion', 'ConfiguredIdle'],
     })
   })
 
@@ -472,7 +472,7 @@ describe('stage runtime embodiment cues', () => {
     }))
   })
 
-  it('keeps companionship-specific expression aliases ahead of generic configured aliases for actual live2d expression selection', () => {
+  it('keeps runtime expression aliases ahead of configured aliases for actual live2d selection', () => {
     const state = createEmptyStageRuntimeEmbodimentCueState()
     const stagePerformance = useStagePerformanceStore()
 
@@ -481,13 +481,13 @@ describe('stage runtime embodiment cues', () => {
     applyRuntimeEmbodimentEnvelopeCueState(state, {
       emotion: 'thinking',
       rendererHints: {
-        preferredExpressionAliases: ['CalmInspect'],
+        preferredExpressionAliases: ['TurnExpression'],
       },
     } as any)
     applyRuntimeEmbodimentActiveCueState(state, {
       emotion: 'thinking',
       rendererHints: {
-        preferredExpressionAliases: ['RecoverSoft'],
+        preferredExpressionAliases: ['SegmentExpression'],
       },
     })
 
@@ -498,8 +498,8 @@ describe('stage runtime embodiment cues', () => {
     )
 
     expect(preferredExpressionAliases.slice(0, 3)).toEqual([
-      'RecoverSoft',
-      'CalmInspect',
+      'SegmentExpression',
+      'TurnExpression',
       'ConfiguredFocus',
     ])
     expect(resolveLive2DExpressionSelection({
@@ -508,14 +508,14 @@ describe('stage runtime embodiment cues', () => {
       expressionIntensity: 0.72,
       expressionNames: [
         'configured_focus_exp',
-        'recover_soft_exp',
+        'segment_expression_exp',
         'neutral_exp_05',
       ],
-      facialCue: 'soft-gaze',
+      facialCue: 'gentle-expression',
       facialCueIntensity: 0.74,
       preferredExpressionAliases,
     })).toEqual(expect.objectContaining({
-      name: 'recover_soft_exp',
+      name: 'segment_expression_exp',
       reason: 'preferred',
     }))
   })
@@ -570,7 +570,7 @@ describe('stage runtime embodiment cues', () => {
       facialHoldMs: 320,
       actionHoldMs: 220,
       emotionHoldMs: 320,
-      actionCue: 'observe_focus',
+      actionCue: 'inspect_scene',
       facialCue: 'focused',
       actionWindow: 'segment-start',
       interruptMode: 'soft-interrupt',
@@ -629,8 +629,8 @@ describe('stage runtime embodiment cues', () => {
 
     const performanceState = createIdleStageEmbodimentPerformanceState()
     performanceState.phase = 'speaking'
-    performanceState.activeActionCue = 'observe_focus'
-    performanceState.actionPulse.cue = 'observe_focus'
+    performanceState.activeActionCue = 'inspect_scene'
+    performanceState.actionPulse.cue = 'inspect_scene'
     performanceState.activeCue = {
       id: 'segment-vrm-script-action',
       index: 0,
@@ -647,7 +647,7 @@ describe('stage runtime embodiment cues', () => {
       facialHoldMs: 320,
       actionHoldMs: 220,
       emotionHoldMs: 320,
-      actionCue: 'observe_focus',
+      actionCue: 'inspect_scene',
       facialCue: 'focused',
       actionWindow: 'segment-start',
       interruptMode: 'soft-interrupt',
@@ -667,10 +667,10 @@ describe('stage runtime embodiment cues', () => {
         source: 'builtin' as const,
       },
       {
-        id: 'observe-focus',
-        fileName: 'observe-focus.vrma',
-        actionKey: 'observe_focus',
-        label: 'Observe Focus',
+        id: 'inspect-scene',
+        fileName: 'inspect-scene.vrma',
+        actionKey: 'inspect_scene',
+        label: 'Inspect Scene',
         description: 'Direct cue binding',
         importedAt: 2,
         source: 'builtin' as const,
@@ -678,31 +678,31 @@ describe('stage runtime embodiment cues', () => {
     ])?.actionKey).toBe('ConfiguredObserve')
   })
 
-  it('keeps quiet-accompaniment resident motion aliases biased toward steady focus before generic observe aliases', () => {
+  it('keeps explicit runtime motion aliases ahead of configured aliases', () => {
     const state = createEmptyStageRuntimeEmbodimentCueState()
 
     applyRuntimeEmbodimentEnvelopeCueState(state, {
       emotion: 'thinking',
       rendererHints: {
-        preferredMotionAliases: ['steady_focus', 'ObserveSoft'],
+        preferredMotionAliases: ['secondary_motion', 'TurnMotion'],
       },
     } as any)
 
     const preferredMotionAliases = resolvePreferredMotionAliasesFromRuntimeState(
       state,
       'thinking',
-      ['observe_focus', 'steady_focus', 'ConfiguredObserve'],
+      ['inspect_scene', 'secondary_motion', 'ConfiguredObserve'],
     )
 
     expect(preferredMotionAliases.slice(0, 4)).toEqual([
-      'steady_focus',
-      'ObserveSoft',
-      'observe_focus',
+      'secondary_motion',
+      'TurnMotion',
+      'inspect_scene',
       'ConfiguredObserve',
     ])
   })
 
-  it('keeps main-generated measured-return aliases ahead of generic configured aliases across live2d and vrm selection', () => {
+  it('keeps structured runtime aliases ahead of generic configured aliases across live2d and vrm selection', () => {
     const state = createEmptyStageRuntimeEmbodimentCueState()
     const stagePerformance = useStagePerformanceStore()
 
@@ -711,15 +711,15 @@ describe('stage runtime embodiment cues', () => {
     applyRuntimeEmbodimentEnvelopeCueState(state, {
       emotion: 'thinking',
       rendererHints: {
-        preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-        preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+        preferredExpressionAliases: ['segment_expression', 'gentle-expression'],
+        preferredMotionAliases: ['inspect_scene', 'segment_motion'],
       },
     } as any)
     applyRuntimeEmbodimentActiveCueState(state, {
       emotion: 'thinking',
       rendererHints: {
-        preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
-        preferredMotionAliases: ['observe_focus', 'stillness_guard'],
+        preferredExpressionAliases: ['segment_expression', 'gentle-expression'],
+        preferredMotionAliases: ['inspect_scene', 'segment_motion'],
       },
     })
 
@@ -740,30 +740,30 @@ describe('stage runtime embodiment cues', () => {
     )
 
     expect(preferredExpressionAliases.slice(0, 3)).toEqual([
-      'calm_inspect',
-      'soft-gaze',
+      'segment_expression',
+      'gentle-expression',
       'ConfiguredFocus',
     ])
     expect(preferredMotionAliases.slice(0, 3)).toEqual([
-      'observe_focus',
-      'stillness_guard',
+      'inspect_scene',
+      'segment_motion',
       'ConfiguredObserve',
     ])
     expect(preferredVrmExpressionAliases.slice(0, 3)).toEqual([
-      'calm_inspect',
-      'soft-gaze',
+      'segment_expression',
+      'gentle-expression',
       'ConfiguredFocus',
     ])
   })
 
   it('changes the active cue watch key when companionship micro-state changes even if id, aliases, and settle stay the same', () => {
     const measuredReturnKey = resolveActiveCueWatchKey({
-      id: 'segment-same-her-watch-key',
+      id: 'segment-structured-watch-key',
       emotion: 'thinking',
       rendererHints: {
         residentMode: 'measured-return',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
+        preferredExpressionAliases: ['TurnExpression'],
+        preferredMotionAliases: ['SegmentMotion'],
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
       },
@@ -775,12 +775,12 @@ describe('stage runtime embodiment cues', () => {
     })
 
     const repairKey = resolveActiveCueWatchKey({
-      id: 'segment-same-her-watch-key',
+      id: 'segment-structured-watch-key',
       emotion: 'thinking',
       rendererHints: {
         residentMode: 'repair-before-closeness',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
+        preferredExpressionAliases: ['TurnExpression'],
+        preferredMotionAliases: ['SegmentMotion'],
         preferredBlinkCadence: 'quiet',
         preferredGazeMode: 'soften',
       },
@@ -797,14 +797,14 @@ describe('stage runtime embodiment cues', () => {
     expect(repairKey).toContain('quiet')
   })
 
-  it('changes the active cue watch key when repair-before-closeness body+voice-only identity-continuity', () => {
+  it('keeps the active cue watch key stable when only renderer audit text changes', () => {
     const ordinaryRepairKey = resolveActiveCueWatchKey({
       id: 'segment-repair-body-voice-watch-key',
       emotion: 'thinking',
       rendererHints: {
         residentMode: 'repair-before-closeness',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
+        preferredExpressionAliases: ['TurnExpression'],
+        preferredMotionAliases: ['SegmentMotion'],
         preferredBlinkCadence: 'quiet',
         preferredGazeMode: 'soften',
       },
@@ -815,17 +815,17 @@ describe('stage runtime embodiment cues', () => {
       },
     })
 
-    const sameHerRepairKey = resolveActiveCueWatchKey({
+    const auditedRepairKey = resolveActiveCueWatchKey({
       id: 'segment-repair-body-voice-watch-key',
       emotion: 'thinking',
       rendererHints: {
         residentMode: 'repair-before-closeness',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
+        preferredExpressionAliases: ['TurnExpression'],
+        preferredMotionAliases: ['SegmentMotion'],
         preferredBlinkCadence: 'quiet',
         preferredGazeMode: 'soften',
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-        reasonTags: ['embodiment:body+voice-only'],
+        signature: 'audit:untrusted',
+        reasonTags: ['audit:untrusted'],
       },
       rendererSettle: {
         live2dMotionFollowThroughMs: 420,
@@ -834,19 +834,18 @@ describe('stage runtime embodiment cues', () => {
       },
     })
 
-    expect(sameHerRepairKey).not.toBe(ordinaryRepairKey)
-    expect(sameHerRepairKey).toContain('embodiment:audible_same_her_line')
-    expect(sameHerRepairKey).toContain('embodiment:body+voice-only')
+    expect(auditedRepairKey).toBe(ordinaryRepairKey)
+    expect(auditedRepairKey).not.toContain('audit:untrusted')
   })
 
-  it('changes the active cue watch key when same-her speech pacing micro-state changes even if aliases and settle stay the same', () => {
+  it('changes the active cue watch key when structured speech pacing micro-state changes even if aliases and settle stay the same', () => {
     const slowerLowerPressureKey = resolveActiveCueWatchKey({
-      id: 'segment-same-her-speech-pacing-watch-key',
+      id: 'segment-structured-speech-pacing-watch-key',
       emotion: 'thinking',
       rendererHints: {
         residentMode: 'measured-return',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
+        preferredExpressionAliases: ['TurnExpression'],
+        preferredMotionAliases: ['SegmentMotion'],
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
         preferredPauseMode: 'longer',
@@ -862,12 +861,12 @@ describe('stage runtime embodiment cues', () => {
     })
 
     const naturalEvenKey = resolveActiveCueWatchKey({
-      id: 'segment-same-her-speech-pacing-watch-key',
+      id: 'segment-structured-speech-pacing-watch-key',
       emotion: 'thinking',
       rendererHints: {
         residentMode: 'measured-return',
-        preferredExpressionAliases: ['RecoverSoft'],
-        preferredMotionAliases: ['StillnessGuard'],
+        preferredExpressionAliases: ['TurnExpression'],
+        preferredMotionAliases: ['SegmentMotion'],
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
         preferredPauseMode: 'natural',
@@ -889,7 +888,7 @@ describe('stage runtime embodiment cues', () => {
     expect(slowerLowerPressureKey).toContain('slower')
   })
 
-  it('extends measured-return settle further when slower lower-pressure restrained speech timing is explicit on the continuity state', () => {
+  it('extends measured-return settle further when slower lower-pressure restrained speech timing is explicit on the structured cue', () => {
     const ordinaryMeasuredReturnSettle = resolveRendererSettleMsWithPersonaBias({
       baseMs: 420,
       bodySegmentMatched: true,
@@ -907,8 +906,6 @@ describe('stage runtime embodiment cues', () => {
         preferredExpressionAliases: [],
         preferredMotionAliases: [],
       },
-      preferredExpressionAliases: [],
-      preferredMotionAliases: [],
     })
 
     const slowerLowerPressureSettle = resolveRendererSettleMsWithPersonaBias({
@@ -928,8 +925,6 @@ describe('stage runtime embodiment cues', () => {
         preferredExpressionAliases: [],
         preferredMotionAliases: [],
       },
-      preferredExpressionAliases: [],
-      preferredMotionAliases: [],
     })
 
     expect(slowerLowerPressureSettle).toBeGreaterThan(ordinaryMeasuredReturnSettle)
