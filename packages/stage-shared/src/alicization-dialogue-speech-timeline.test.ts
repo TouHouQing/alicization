@@ -5,27 +5,6 @@ import {
   normalizeAlicizationDialogueSpeechTimeline,
 } from './alicization-dialogue-speech-timeline'
 
-function withoutRendererAuditPayload(
-  timeline: ReturnType<typeof buildAlicizationDialogueSpeechTimeline>,
-) {
-  if (!timeline)
-    return timeline
-
-  return {
-    ...timeline,
-    segments: timeline.segments.map(segment => ({
-      ...segment,
-      rendererHints: segment.rendererHints
-        ? {
-            ...segment.rendererHints,
-            reasonTags: undefined,
-            signature: undefined,
-          }
-        : segment.rendererHints,
-    })),
-  }
-}
-
 describe('alicization dialogue speech timeline', () => {
   it('builds micro-dynamic cues for mouth, head, and hold windows', () => {
     const timeline = buildAlicizationDialogueSpeechTimeline({
@@ -246,12 +225,12 @@ describe('alicization dialogue speech timeline', () => {
     })
 
     expect(pollutedClosureTimeline).toEqual(cleanClosureTimeline)
-    expect(withoutRendererAuditPayload(pollutedAuditTimeline)).toEqual(
-      withoutRendererAuditPayload(cleanAuditTimeline),
-    )
+    expect(pollutedAuditTimeline).toEqual(cleanAuditTimeline)
+    expect(pollutedAuditTimeline?.segments.every((segment) => {
+      return segment.rendererHints?.signature === undefined
+        && segment.rendererHints?.reasonTags === undefined
+    })).toBe(true)
     expect(pollutedAuditTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      signature: expect.any(String),
-      reasonTags: expect.any(Array),
       preferredExpressionAliases: expect.arrayContaining(['WarmSmile', 'CalmInspect']),
       preferredMotionAliases: expect.arrayContaining(['HappyWave', 'ObserveSoft']),
     }))

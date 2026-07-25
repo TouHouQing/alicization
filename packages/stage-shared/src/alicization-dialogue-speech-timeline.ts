@@ -753,8 +753,6 @@ function resolveSegmentRendererHints(input: {
       || preferredLipsyncMode
       || preferredVoiceMode
       || preferredPacingMode
-      || envelopeRendererHints?.reasonTags?.length
-      || envelopeRendererHints?.signature
       ? {
         preferredBlinkCadence,
         preferredGazeMode,
@@ -763,8 +761,6 @@ function resolveSegmentRendererHints(input: {
         preferredVoiceMode,
         preferredPacingMode,
         residentMode: typeof residentMode === 'string' ? residentMode : undefined,
-        reasonTags: envelopeRendererHints?.reasonTags ? [...envelopeRendererHints.reasonTags] : undefined,
-        signature: envelopeRendererHints?.signature,
       } satisfies AlicizationDialogueEmbodimentRendererHints
       : null
   }
@@ -779,8 +775,6 @@ function resolveSegmentRendererHints(input: {
     preferredPacingMode,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
     residentMode: typeof residentMode === 'string' ? residentMode : undefined,
-    reasonTags: envelopeRendererHints?.reasonTags ? [...envelopeRendererHints.reasonTags] : undefined,
-    signature: envelopeRendererHints?.signature,
   } satisfies AlicizationDialogueEmbodimentRendererHints
 }
 
