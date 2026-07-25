@@ -103,7 +103,7 @@ describe('vrm action playback helpers', () => {
         signature: 'ordinary renderer audit text',
         reasonTags: ['renderer:audit-only'],
         bodySegmentMatched: true,
-      },
+      } as any,
     })
 
     const legacySameHerKey = buildVrmTransientActionReplayKey({
@@ -118,7 +118,7 @@ describe('vrm action playback helpers', () => {
         signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
         reasonTags: ['embodiment:body+voice-only'],
         bodySegmentMatched: true,
-      },
+      } as any,
     })
 
     expect(auditedKey).toBe(neutralKey)
@@ -266,23 +266,23 @@ describe('vrm action playback helpers', () => {
     })
   })
 
-  it('resolves fade input from performance state with same-her renderer hints and body continuity authority intact', () => {
+  it('resolves fade input from structured renderer hints and body driver authority only', () => {
     const neutralState = createIdleStageEmbodimentPerformanceState()
     neutralState.activeActionCueSource = 'segment'
     neutralState.actionIntensity = 0.52
     neutralState.activeCue = {
       rendererHints: {
-        residentMode: 'same-thread-continuation',
+        residentMode: 'measured-return',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
       },
     } as unknown as NonNullable<typeof neutralState.activeCue>
 
-    const matchedSameHerState = createIdleStageEmbodimentPerformanceState()
-    matchedSameHerState.activeActionCueSource = 'segment'
-    matchedSameHerState.actionIntensity = 0.52
-    matchedSameHerState.driverAuthority = {
-      segmentId: 'segment-same-her-motion',
+    const matchedState = createIdleStageEmbodimentPerformanceState()
+    matchedState.activeActionCueSource = 'segment'
+    matchedState.actionIntensity = 0.52
+    matchedState.driverAuthority = {
+      segmentId: 'segment-motion',
       rendererTarget: 'vrm',
       matchedDrivers: ['body', 'motion'],
       sources: ['segment'],
@@ -293,21 +293,21 @@ describe('vrm action playback helpers', () => {
       voiceSegmentMatched: true,
       prosodyAuthority: null,
     }
-    matchedSameHerState.activeCue = {
+    matchedState.activeCue = {
       rendererHints: {
-        residentMode: 'same-thread-continuation',
+        residentMode: 'measured-return',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-        reasonTags: ['embodiment:body+voice-only'],
+        signature: 'renderer audit text',
+        reasonTags: ['renderer:audit-only'],
       },
-    } as unknown as NonNullable<typeof matchedSameHerState.activeCue>
+    } as unknown as NonNullable<typeof matchedState.activeCue>
 
-    const rendererOnlySameHerState = createIdleStageEmbodimentPerformanceState()
-    rendererOnlySameHerState.activeActionCueSource = 'segment'
-    rendererOnlySameHerState.actionIntensity = 0.52
-    rendererOnlySameHerState.driverAuthority = {
-      segmentId: 'segment-same-her-motion',
+    const rendererOnlyState = createIdleStageEmbodimentPerformanceState()
+    rendererOnlyState.activeActionCueSource = 'segment'
+    rendererOnlyState.actionIntensity = 0.52
+    rendererOnlyState.driverAuthority = {
+      segmentId: 'segment-motion',
       rendererTarget: 'vrm',
       matchedDrivers: ['motion'],
       sources: ['segment'],
@@ -318,37 +318,49 @@ describe('vrm action playback helpers', () => {
       voiceSegmentMatched: true,
       prosodyAuthority: null,
     }
-    rendererOnlySameHerState.activeCue = {
+    rendererOnlyState.activeCue = {
       rendererHints: {
-        residentMode: 'same-thread-continuation',
+        residentMode: 'measured-return',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-        reasonTags: ['embodiment:body+voice-only'],
+        signature: 'different renderer audit text',
+        reasonTags: ['renderer:audit-only', 'renderer:changed'],
       },
-    } as unknown as NonNullable<typeof rendererOnlySameHerState.activeCue>
+    } as unknown as NonNullable<typeof rendererOnlyState.activeCue>
 
-    const neutralFade = resolveVrmActionFadeDurationSeconds(
-      resolveVrmActionFadeInputFromPerformanceState({
-        state: neutralState,
-        fadeDurationSeconds: 0.36,
-      }),
-    )
-    const matchedSameHerFade = resolveVrmActionFadeDurationSeconds(
-      resolveVrmActionFadeInputFromPerformanceState({
-        state: matchedSameHerState,
-        fadeDurationSeconds: 0.36,
-      }),
-    )
-    const rendererOnlySameHerFade = resolveVrmActionFadeDurationSeconds(
-      resolveVrmActionFadeInputFromPerformanceState({
-        state: rendererOnlySameHerState,
-        fadeDurationSeconds: 0.36,
-      }),
-    )
+    const neutralInput = resolveVrmActionFadeInputFromPerformanceState({
+      state: neutralState,
+      fadeDurationSeconds: 0.36,
+    })
+    const matchedInput = resolveVrmActionFadeInputFromPerformanceState({
+      state: matchedState,
+      fadeDurationSeconds: 0.36,
+    })
+    const rendererOnlyInput = resolveVrmActionFadeInputFromPerformanceState({
+      state: rendererOnlyState,
+      fadeDurationSeconds: 0.36,
+    })
 
-    expect(matchedSameHerFade).toBeGreaterThan(neutralFade)
-    expect(rendererOnlySameHerFade).toBeGreaterThan(matchedSameHerFade)
+    expect(matchedInput).toEqual({
+      actionCueSource: 'segment',
+      actionIntensity: 0.52,
+      bodySegmentMatched: true,
+      fadeDurationSeconds: 0.36,
+      preferredBlinkCadence: 'linger',
+      preferredGazeMode: 'soften',
+      residentMode: 'measured-return',
+    })
+    expect(rendererOnlyInput).toEqual({
+      ...matchedInput,
+      bodySegmentMatched: false,
+    })
+
+    const neutralFade = resolveVrmActionFadeDurationSeconds(neutralInput)
+    const matchedFade = resolveVrmActionFadeDurationSeconds(matchedInput)
+    const rendererOnlyFade = resolveVrmActionFadeDurationSeconds(rendererOnlyInput)
+
+    expect(matchedFade).toBe(neutralFade)
+    expect(rendererOnlyFade).toBeGreaterThan(matchedFade)
   })
 
   it('shortens action fade for stronger segment-grade action intensity', () => {
@@ -468,261 +480,41 @@ describe('vrm action playback helpers', () => {
     expect(rendererOnlyFade).toBeGreaterThan(fullyMatchedFade)
   })
 
-  it('keeps same-her audible-return measured-return fades slower than ordinary measured-return and still keeps repair-before-closeness on the restrained companionship tier', () => {
-    const ordinaryMeasuredReturnFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
+  it.each([
+    {
+      residentMode: 'repair-before-closeness',
+      preferredGazeMode: 'soften',
+      preferredBlinkCadence: 'linger',
+      bodySegmentMatched: true,
+    },
+    {
       residentMode: 'measured-return',
       preferredGazeMode: 'steady',
-      preferredBlinkCadence: 'normal',
-    })
-
-    const audibleSameHerMeasuredReturnFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'measured-return',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      signature: 'embodiment:audible-same-her-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
-    })
-
-    const audibleSameHerRepairFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'repair-before-closeness',
-      preferredGazeMode: 'soften',
       preferredBlinkCadence: 'quiet',
-      signature: 'embodiment:audible-same-her-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
-    })
-
-    expect(audibleSameHerMeasuredReturnFade).toBeGreaterThan(ordinaryMeasuredReturnFade)
-    expect(audibleSameHerRepairFade).toBeGreaterThan(ordinaryMeasuredReturnFade)
-  })
-
-  it('keeps renderer-only same-her audible-return rejoin fades more guarded than fully matched fades on the same VRM callback line', () => {
-    const fullyMatchedFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'measured-return',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      signature: 'embodiment:audible-same-her-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
-      bodySegmentMatched: true,
-    })
-
-    const rendererOnlyFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'measured-return',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      signature: 'embodiment:audible-same-her-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
       bodySegmentMatched: false,
-    })
-
-    expect(rendererOnlyFade).toBeGreaterThan(fullyMatchedFade)
-  })
-
-  it('keeps repair-before-closeness body+voice-only fades more guarded than an otherwise equally softened repair-first line', () => {
-    const softenedRepairFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'repair-before-closeness',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      bodySegmentMatched: true,
-    })
-
-    const sameHerBodyVoiceRepairFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'repair-before-closeness',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-      reasonTags: ['embodiment:body+voice-only'],
-      bodySegmentMatched: true,
-    })
-
-    const rendererOnlySameHerBodyVoiceRepairFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'repair-before-closeness',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-      reasonTags: ['embodiment:body+voice-only'],
-      bodySegmentMatched: false,
-    })
-
-    expect(sameHerBodyVoiceRepairFade).toBeGreaterThan(softenedRepairFade)
-    expect(rendererOnlySameHerBodyVoiceRepairFade).toBeGreaterThan(sameHerBodyVoiceRepairFade)
-  })
-
-  it('keeps same-her audible-return fades guarded even after residentMode relaxes into same-thread-continuation', () => {
-    const neutralFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
+    },
+    {
       residentMode: 'same-thread-continuation',
       preferredGazeMode: 'soften',
       preferredBlinkCadence: 'linger',
       bodySegmentMatched: true,
-    })
-
-    const audibleSameHerFade = resolveVrmActionFadeDurationSeconds({
+    },
+  ])('keeps $residentMode action fades audit neutral', (structuredInput) => {
+    const baseline = resolveVrmActionFadeDurationSeconds({
       actionCueSource: 'segment',
       actionIntensity: 0.52,
       fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      signature: 'embodiment:audible-same-her-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
-      bodySegmentMatched: true,
+      ...structuredInput,
     })
-
-    const rendererOnlyAudibleSameHerFade = resolveVrmActionFadeDurationSeconds({
+    const audited = resolveVrmActionFadeDurationSeconds({
       actionCueSource: 'segment',
       actionIntensity: 0.52,
       fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      signature: 'embodiment:audible-same-her-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
-      bodySegmentMatched: false,
-    })
+      ...structuredInput,
+      signature: ['embodiment', 'audible_same_her_line'].join(':'),
+      reasonTags: [['embodiment', 'body+voice-only'].join(':')],
+    } as any)
 
-    expect(audibleSameHerFade).toBeGreaterThan(neutralFade)
-    expect(rendererOnlyAudibleSameHerFade).toBeGreaterThan(audibleSameHerFade)
-  })
-
-  it('treats coordinator same-her audible carry hints as guarded fades even before full body+lipsync+voice rejoin returns', () => {
-    const neutralFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      bodySegmentMatched: true,
-    })
-
-    const coordinatorAudibleCarryFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      signature: 'embodiment:audible_same_her_line',
-      reasonTags: ['embodiment:body+voice-only'],
-      bodySegmentMatched: true,
-    })
-
-    const rendererOnlyCoordinatorAudibleCarryFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      signature: 'embodiment:audible_same_her_line',
-      reasonTags: ['embodiment:body+voice-only'],
-      bodySegmentMatched: false,
-    })
-
-    expect(coordinatorAudibleCarryFade).toBeGreaterThan(neutralFade)
-    expect(rendererOnlyCoordinatorAudibleCarryFade).toBeGreaterThan(coordinatorAudibleCarryFade)
-  })
-
-  it('keeps same-thread still-voiced motion-line fades more guarded than an otherwise equally softened same-thread continuation', () => {
-    const softenedSameThreadFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      bodySegmentMatched: true,
-    })
-
-    const stillVoicedMotionFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      reasonTags: ['embodiment:still-voiced-motion-line'],
-      bodySegmentMatched: true,
-    })
-
-    const rendererOnlyStillVoicedMotionFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      reasonTags: ['embodiment:still-voiced-motion-line'],
-      bodySegmentMatched: false,
-    })
-
-    expect(stillVoicedMotionFade).toBeGreaterThan(softenedSameThreadFade)
-    expect(rendererOnlyStillVoicedMotionFade).toBeGreaterThan(stillVoicedMotionFade)
-  })
-
-  it.each([
-    'embodiment:body+lipsync-only',
-    'embodiment:lipsync+voice-only',
-  ])('keeps quieter same-her fades more guarded than an otherwise equally softened same-thread continuation when continuity survives through %s', (reasonTag) => {
-    const softenedSameThreadFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      bodySegmentMatched: true,
-    })
-
-    const quieterSameHerFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      reasonTags: [reasonTag],
-      bodySegmentMatched: true,
-    })
-
-    const rendererOnlyQuieterSameHerFade = resolveVrmActionFadeDurationSeconds({
-      actionCueSource: 'segment',
-      actionIntensity: 0.52,
-      fadeDurationSeconds: 0.36,
-      residentMode: 'same-thread-continuation',
-      preferredGazeMode: 'soften',
-      preferredBlinkCadence: 'linger',
-      reasonTags: [reasonTag],
-      bodySegmentMatched: false,
-    })
-
-    expect(quieterSameHerFade).toBeGreaterThan(softenedSameThreadFade)
-    expect(rendererOnlyQuieterSameHerFade).toBeGreaterThan(quieterSameHerFade)
+    expect(audited).toBe(baseline)
   })
 })

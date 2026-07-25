@@ -7,13 +7,6 @@ import type {
 
 import type { VrmActionBinding } from '../../types/performance'
 
-import {
-  hasAlicizationAudibleSameHerCarry,
-  hasAlicizationBodyVoiceOnlySameHerCarry,
-  hasAlicizationQuieterSameHerCarry,
-  hasAlicizationStillVoicedSameHerCarry,
-} from '@proj-alicization/stage-shared'
-
 export interface VrmMotionExecutionState {
   cue: string | null
   segmentId: string | null
@@ -124,9 +117,7 @@ export interface VrmActionFadeInput {
   fadeDurationSeconds: number
   preferredBlinkCadence?: string | null | undefined
   preferredGazeMode?: string | null | undefined
-  reasonTags?: readonly string[] | null | undefined
   residentMode?: string | null | undefined
-  signature?: string | null | undefined
 }
 
 export function resolveVrmActionFadeInputFromPerformanceState(input: {
@@ -141,9 +132,7 @@ export function resolveVrmActionFadeInputFromPerformanceState(input: {
     fadeDurationSeconds: input.fadeDurationSeconds,
     preferredBlinkCadence: rendererHints?.preferredBlinkCadence ?? null,
     preferredGazeMode: rendererHints?.preferredGazeMode ?? null,
-    reasonTags: rendererHints?.reasonTags ?? null,
     residentMode: rendererHints?.residentMode ?? null,
-    signature: rendererHints?.signature ?? null,
   }
 }
 
@@ -174,74 +163,32 @@ export function resolveVrmActionFadeDurationSeconds(input: VrmActionFadeInput) {
   const residentMode = normalizeText(input.residentMode)
   const preferredGazeMode = normalizeText(input.preferredGazeMode)
   const preferredBlinkCadence = normalizeText(input.preferredBlinkCadence)
-  const hasAudibleSameHerCarry = hasAlicizationAudibleSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const hasBodyVoiceOnlySameHerCarry = hasAlicizationBodyVoiceOnlySameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const sameHerAudibleReturn = (
-    preferredGazeMode === 'steady'
-    || preferredGazeMode === 'soften'
-    || preferredBlinkCadence === 'quiet'
-    || preferredBlinkCadence === 'linger'
-  ) && hasAudibleSameHerCarry
-  const sameHerBodyVoiceOnlyReturn = (
-    preferredGazeMode === 'steady'
-    || preferredGazeMode === 'soften'
-    || preferredBlinkCadence === 'quiet'
-    || preferredBlinkCadence === 'linger'
-  ) && hasBodyVoiceOnlySameHerCarry
-  const sameHerQuieterReturn = (
-    preferredGazeMode === 'steady'
-    || preferredGazeMode === 'soften'
-    || preferredBlinkCadence === 'quiet'
-    || preferredBlinkCadence === 'linger'
-  ) && hasAlicizationQuieterSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const sameHerStillVoicedReturn = (
-    preferredGazeMode === 'steady'
-    || preferredGazeMode === 'soften'
-    || preferredBlinkCadence === 'quiet'
-    || preferredBlinkCadence === 'linger'
-  ) && hasAlicizationStillVoicedSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
-  const sameHerSoftenedReturn = sameHerAudibleReturn || sameHerBodyVoiceOnlyReturn || sameHerQuieterReturn || sameHerStillVoicedReturn
-  const restrainedSameHerCarry = residentMode === 'repair-before-closeness'
-    || residentMode === 'measured-return'
-    || sameHerSoftenedReturn
   const rendererOnlyRejoinScale = residentMode === 'repair-before-closeness' && input.bodySegmentMatched === false
-    ? sameHerSoftenedReturn ? 1.14 : 1.08
+    ? 1.08
     : residentMode === 'measured-return' && input.bodySegmentMatched === false
-      ? sameHerSoftenedReturn ? 1.08 : 1.04
-      : sameHerSoftenedReturn && input.bodySegmentMatched === false
+      ? 1.04
+      : 1
+  const restrainedResidentMode = residentMode === 'repair-before-closeness'
+    || residentMode === 'measured-return'
+  const softerCadence = (preferredGazeMode === 'steady' || preferredGazeMode === 'soften')
+    && (preferredBlinkCadence === 'quiet' || preferredBlinkCadence === 'linger')
+  const durableMeasuredReturnScale = restrainedResidentMode && softerCadence
+    ? 1.06
+    : 1
+  const residentModeScale = residentMode === 'repair-before-closeness'
+    ? 1.18
+    : residentMode === 'measured-return'
+      ? 1.1
+      : residentMode === 'quiet-companionship'
         ? 1.06
         : 1
-  const durableMeasuredReturnScale = restrainedSameHerCarry
-    && (preferredGazeMode === 'steady' || preferredGazeMode === 'soften')
-    && (preferredBlinkCadence === 'quiet' || preferredBlinkCadence === 'linger')
-    ? sameHerSoftenedReturn ? 1.1 : 1.06
-    : 1
+
   if (actionIntensity == null) {
     return clampRange(
       baseFade
-      * (residentMode === 'repair-before-closeness'
-        ? sameHerSoftenedReturn ? 1.24 : 1.18
-        : residentMode === 'measured-return'
-          ? sameHerSoftenedReturn ? 1.14 : 1.1
-          : sameHerSoftenedReturn
-            ? 1.08
-            : residentMode === 'quiet-companionship'
-              ? 1.06
-              : 1)
-            * rendererOnlyRejoinScale
-            * durableMeasuredReturnScale,
+      * residentModeScale
+      * rendererOnlyRejoinScale
+      * durableMeasuredReturnScale,
       0.08,
       1.2,
       baseFade,
@@ -256,15 +203,6 @@ export function resolveVrmActionFadeDurationSeconds(input: VrmActionFadeInput) {
         ? 0.7
         : 1
   const intensityScale = 1 - actionIntensity * 0.38
-  const residentModeScale = residentMode === 'repair-before-closeness'
-    ? sameHerSoftenedReturn ? 1.24 : 1.18
-    : residentMode === 'measured-return'
-      ? sameHerSoftenedReturn ? 1.14 : 1.1
-      : sameHerSoftenedReturn
-        ? 1.08
-        : residentMode === 'quiet-companionship'
-          ? 1.06
-          : 1
   return clampRange(
     baseFade * sourceFloor * intensityScale * residentModeScale * rendererOnlyRejoinScale * durableMeasuredReturnScale,
     0.08,
