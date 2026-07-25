@@ -5,13 +5,6 @@ import type {
   VrmCustomExpressionBinding,
 } from '../../types/performance'
 
-import {
-  hasAlicizationAudibleSameHerCarry,
-  hasAlicizationBodyVoiceOnlySameHerCarry,
-  hasAlicizationQuieterSameHerCarry,
-  hasAlicizationStillVoicedSameHerCarry,
-} from '@proj-alicization/stage-shared'
-
 export interface VrmDialoguePerformanceInput {
   actionCue: string | null
   baseEmotion: AlicizationEmotion
@@ -74,101 +67,6 @@ function uniqueCandidateOrder(values: Array<string | null | undefined>) {
   return result
 }
 
-function resolveSameHerExpressionPriority(
-  state: StageEmbodimentPerformanceState | null | undefined,
-  candidates: string[],
-) {
-  const rendererHints = state?.activeCue?.rendererHints
-  const residentMode = normalizeCapabilityIdentity(rendererHints?.residentMode)
-  const hasStructuredSameHerSignal = hasAlicizationAudibleSameHerCarry(rendererHints)
-    || hasAlicizationBodyVoiceOnlySameHerCarry(rendererHints)
-    || hasAlicizationQuieterSameHerCarry(rendererHints)
-    || hasAlicizationStillVoicedSameHerCarry(rendererHints)
-  const hasRestrainedResidentMode = residentMode === 'measured-return'
-    || residentMode === 'repair-before-closeness'
-    || residentMode === 'quiet-companionship'
-
-  if (!hasRestrainedResidentMode && !hasStructuredSameHerSignal)
-    return candidates
-
-  const preferredSoftReturnAliases = candidates.filter((candidate) => {
-    const signature = normalizeCapabilityIdentity(candidate)
-    return signature === 'recoversoft'
-      || signature === 'recover_soft'
-      || signature === 'calminspect'
-      || signature === 'calm_inspect'
-      || signature === 'relaxed'
-      || signature === 'soft'
-      || signature === 'softgaze'
-      || signature === 'soft_gaze'
-      || signature === 'halflid'
-      || signature === 'half_lid'
-  })
-  const remainingAliases = candidates.filter((candidate) => {
-    if (preferredSoftReturnAliases.includes(candidate))
-      return false
-
-    return !/smile|joy|cheer|bright|grin|happy/iu.test(candidate)
-  })
-
-  return uniqueCandidateOrder([
-    ...preferredSoftReturnAliases,
-    ...remainingAliases,
-  ])
-}
-
-function resolveSameHerMotionPriority(
-  state: StageEmbodimentPerformanceState | null | undefined,
-  candidates: string[],
-) {
-  const rendererHints = state?.activeCue?.rendererHints
-  const residentMode = normalizeCapabilityIdentity(rendererHints?.residentMode)
-  const preferredMotionAliases = normalizeCapabilityList(rendererHints?.preferredMotionAliases)
-  const aliasSignatures = new Set(preferredMotionAliases.map(alias => alias.toLowerCase()))
-  const hasSoftReturnMotionAlias = (
-    aliasSignatures.has('observesoft')
-    || aliasSignatures.has('observe_soft')
-    || aliasSignatures.has('steadyfocus')
-    || aliasSignatures.has('steady_focus')
-    || aliasSignatures.has('idlesettle')
-    || aliasSignatures.has('idle_settle')
-    || aliasSignatures.has('stillnessguard')
-    || aliasSignatures.has('stillness_guard')
-  )
-  const hasAudibleSameHerSignal = hasAlicizationAudibleSameHerCarry(rendererHints)
-  const hasStructuredSameHerSignal = hasAudibleSameHerSignal
-    || hasAlicizationBodyVoiceOnlySameHerCarry(rendererHints)
-    || hasAlicizationQuieterSameHerCarry(rendererHints)
-    || hasAlicizationStillVoicedSameHerCarry(rendererHints)
-  const hasSameHerSignal = hasSoftReturnMotionAlias
-    && (
-      residentMode === 'measured-return'
-      || residentMode === 'quiet-companionship'
-      || residentMode === 'repair-before-closeness'
-      || hasStructuredSameHerSignal
-    )
-
-  if (!hasSameHerSignal)
-    return candidates
-
-  const preferredSoftReturnAliases = candidates.filter((candidate) => {
-    const signature = normalizeCapabilityIdentity(candidate)
-    return signature === 'steady_focus'
-      || signature === 'steadyfocus'
-      || signature === 'idle_settle'
-      || signature === 'idlesettle'
-      || signature === 'observe_soft'
-      || signature === 'observesoft'
-      || signature === 'stillness_guard'
-      || signature === 'stillnessguard'
-  })
-  const remainingAliases = candidates.filter(candidate => !preferredSoftReturnAliases.includes(candidate))
-  return uniqueCandidateOrder([
-    ...preferredSoftReturnAliases,
-    ...remainingAliases,
-  ])
-}
-
 function resolvePerformanceAuthoritySegmentId(
   state: StageEmbodimentPerformanceState | null | undefined,
 ) {
@@ -214,13 +112,11 @@ export function resolveVrmPreferredCustomExpressionBinding(
   state: StageEmbodimentPerformanceState | null | undefined,
   bindings: VrmCustomExpressionBinding[] | null | undefined,
 ) {
-  const candidates = resolveSameHerExpressionPriority(state, [
+  const candidates = uniqueCandidateOrder([
     ...(state?.activeCue?.rendererHints?.preferredExpressionAliases ?? []),
     state?.activeFacialCue ?? null,
     state?.performance.facialCue ?? null,
-  ]
-    .map(value => normalizeCapabilityText(value))
-    .filter(Boolean))
+  ])
 
   if (candidates.length === 0)
     return undefined
@@ -252,12 +148,12 @@ export function resolveVrmPreferredActionBinding(
   state: StageEmbodimentPerformanceState | null | undefined,
   bindings: VrmActionBinding[] | null | undefined,
 ) {
-  const candidates = resolveSameHerMotionPriority(state, uniqueCandidateOrder([
+  const candidates = uniqueCandidateOrder([
     ...(state?.activeCue?.rendererHints?.preferredMotionAliases ?? []),
     state?.actionPulse.cue ?? null,
     state?.activeActionCue ?? null,
     state?.performance.actionCue ?? null,
-  ]))
+  ])
 
   if (candidates.length === 0)
     return undefined
@@ -283,18 +179,12 @@ export function resolveVrmDialogueExpressionWatchKey(
   state?: StageEmbodimentPerformanceState | null,
 ) {
   const rendererHints = state?.activeCue?.rendererHints
-  const normalizedReasonTags = normalizeCapabilityList(rendererHints?.reasonTags)
   return JSON.stringify([
     state?.phase ?? 'idle',
     resolvePerformanceAuthoritySegmentId(state),
     state?.performance.baseEmotion ?? 'neutral',
     state?.activeFacialCue ?? state?.performance.facialCue ?? null,
     normalizeCapabilityList(rendererHints?.preferredExpressionAliases),
-    rendererHints?.residentMode ?? null,
-    rendererHints?.preferredGazeMode ?? null,
-    rendererHints?.preferredBlinkCadence ?? null,
-    rendererHints?.signature ?? null,
-    normalizedReasonTags,
     state?.activeCue?.rendererSettle?.vrmExpressionBlendMs ?? 0,
     Math.round((state?.expressionIntensity ?? 0) * 10),
     Math.round((state?.facialCueIntensity ?? 0) * 10),
