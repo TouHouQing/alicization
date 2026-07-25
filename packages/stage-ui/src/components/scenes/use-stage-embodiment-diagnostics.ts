@@ -31,7 +31,6 @@ import {
   buildAlicizationMotionSummary,
   buildAlicizationVoiceSummary,
   cloneStageEmbodimentSpeechArticulationState,
-  hasAlicizationStillVoicedSameHerCarry,
   normalizeAlicizationSettleLoopToken,
   resolveAlicizationCompanionshipReasonSummary,
 } from '@proj-alicization/stage-shared'
@@ -1001,16 +1000,12 @@ function normalizeRuntimeDynamicsSummary(
     ? resolveResidentLive2DPreferredExpressionAliases({
         emotion: residentEmotion,
         configuredAliases: residentConfiguredAliases,
-        presencePosture: input.presencePosture,
-        visualPresenceState: input.visualPresenceState,
       })
     : []
   const residentVrmExpressionBias = residentEmotion
     ? resolveResidentVrmPreferredExpressionAliases({
         emotion: residentEmotion,
         configuredAliases: residentConfiguredAliases,
-        presencePosture: input.presencePosture,
-        visualPresenceState: input.visualPresenceState,
       })
     : []
   const residentLive2DResolvedExpression = residentEmotion && input.live2dRuntimeCapabilities?.supportedExpressionNames?.length
@@ -1060,78 +1055,14 @@ function normalizeRuntimeDynamicsSummary(
   const residentReasonTags = residentSnapshot?.reasonTags
     ?? input.visualPresenceState?.residentPerformance?.reasonTags
     ?? []
-  const residentStillVoicedContinuity = hasAlicizationStillVoicedSameHerCarry({
-    signature: input.performanceState?.variationToken ?? null,
-    reasonTags: residentReasonTags,
-  })
-  const emotionalKernel = input.visualPresenceState && typeof input.visualPresenceState === 'object' && 'emotionalKernel' in input.visualPresenceState
-    ? (input.visualPresenceState as { emotionalKernel?: { embodimentTone?: unknown, reasonTags?: unknown } | null }).emotionalKernel ?? null
-    : null
-  const emotionalKernelTone = normalizeSummaryString(emotionalKernel?.embodimentTone as string | null | undefined)
-  const emotionalKernelReasonTags = Array.isArray(emotionalKernel?.reasonTags)
-    ? emotionalKernel.reasonTags.filter((value): value is string => typeof value === 'string')
-    : []
-  const hasPublishedResidentSnapshot = residentSnapshot?.source === 'main-runtime'
-  const restProtectiveFallbackAuthority = emotionalKernelTone === 'rest-protective'
-    || emotionalKernelReasonTags.includes('rest-protective')
-    || emotionalKernelReasonTags.includes('rest-protective-companionship')
-    || residentReasonTags.includes('rest-protective')
-    || residentReasonTags.includes('rest-protective-companionship')
-  const residentReasonTagMode = residentReasonTags.includes('repair-before-closeness')
-    ? 'repair-before-closeness'
-    : residentReasonTags.includes('rest-protective') || residentReasonTags.includes('rest-protective-companionship')
-      ? 'quiet-companionship'
-      : residentReasonTags.includes('measured-return') || residentStillVoicedContinuity
-        ? 'measured-return'
-        : residentReasonTags.includes('continuity:quiet-accompaniment') || residentReasonTags.includes('quiet-companionship')
-          ? 'quiet-companionship'
-          : null
-  const repairFirstFallbackAuthority = emotionalKernelTone === 'repair-before-closeness'
-    || emotionalKernelReasonTags.includes('repair-before-closeness')
-    || residentReasonTags.includes('repair-before-closeness')
-  const emotionalKernelResidentMode = repairFirstFallbackAuthority
-    ? 'repair-before-closeness'
-    : restProtectiveFallbackAuthority
-      ? 'quiet-companionship'
-      : emotionalKernelTone === 'measured-return'
-        || emotionalKernelReasonTags.includes('measured-return')
-        || residentReasonTags.includes('measured-return')
-        || residentStillVoicedContinuity
-        ? 'measured-return'
-        : emotionalKernelReasonTags.includes('quiet-companionship')
-          || residentReasonTags.includes('quiet-companionship')
-          ? 'quiet-companionship'
-          : null
-  const residentSnapshotMode = repairFirstFallbackAuthority
-    && normalizeSummaryActionCue(residentSnapshot?.performance?.actionCue) === 'idle_settle'
-    && residentSnapshot?.performance?.delivery === 'gentle'
-    ? 'repair-before-closeness'
-    : restProtectiveFallbackAuthority
-      && normalizeSummaryActionCue(residentSnapshot?.performance?.actionCue) === 'idle_settle'
-      && residentSnapshot?.performance?.delivery === 'gentle'
-      ? 'quiet-companionship'
-      : normalizeSummaryActionCue(residentSnapshot?.performance?.actionCue) === 'observe_focus'
-        || residentStillVoicedContinuity
-        ? 'measured-return'
-        : normalizeSummaryActionCue(residentSnapshot?.performance?.actionCue) === 'idle_settle'
-          && residentSnapshot?.performance?.delivery === 'gentle'
-          && residentReasonTags.includes('quiet-companionship')
-          ? 'quiet-companionship'
-          : null
   const companionshipResidentMode = normalizeSummaryString(
     input.performanceState?.activeCue?.rendererHints && typeof input.performanceState.activeCue.rendererHints === 'object' && 'residentMode' in input.performanceState.activeCue.rendererHints
       ? (input.performanceState.activeCue.rendererHints as { residentMode?: unknown }).residentMode as string | null | undefined
       : null,
   ) ?? normalizeSummaryString(
-    hasPublishedResidentSnapshot ? residentReasonTagMode : emotionalKernelResidentMode,
+    input.performanceState?.residentPerformance?.residentMode,
   ) ?? normalizeSummaryString(
-    hasPublishedResidentSnapshot ? residentSnapshotMode : residentReasonTagMode,
-  ) ?? normalizeSummaryString(
-    hasPublishedResidentSnapshot ? emotionalKernelResidentMode : residentSnapshotMode,
-  ) ?? normalizeSummaryString(
-    input.digitalLifeSpineDigest?.proactive?.personaBias?.openingGuidance?.includes('repair-first')
-      ? 'repair-before-closeness'
-      : null,
+    residentSnapshot?.performance?.residentMode,
   )
   const activeCueExpressionAliases = input.performanceState?.activeCue?.rendererHints?.preferredExpressionAliases
     ? [...input.performanceState.activeCue.rendererHints.preferredExpressionAliases]
@@ -1164,22 +1095,9 @@ function normalizeRuntimeDynamicsSummary(
     : []
   const companionshipTransitionReasonTags = activeCueReasonTags.length > 0
     ? [...new Set(activeCueReasonTags)]
-    : [...new Set(
-        residentReasonTags
-          .filter(tag =>
-            tag === 'embodiment:audible-identity-continuity-line'
-            || tag === 'embodiment:body+voice-only'
-            || tag === 'embodiment:body-lipsync-voice-rejoin'
-            || tag === 'measured-return'
-            || tag === 'repair-before-closeness',
-          ),
-      )]
+    : [...new Set(residentReasonTags)]
   const companionshipTransitionSignature = activeCueSignature
-    ?? (companionshipTransitionReasonTags.includes('embodiment:audible-identity-continuity-line')
-      ? 'embodiment:audible-identity-continuity-line'
-      : companionshipTransitionReasonTags.includes('embodiment:body-lipsync-voice-rejoin')
-        ? 'embodiment:body-lipsync-voice-rejoin'
-        : null)
+    ?? normalizeSummaryString(residentSnapshot?.signature)
   const activeCueSettle = input.performanceState?.activeCue?.rendererSettle
   const companionshipTransitionSettleSummary = companionshipResidentMode || activeCueSettle
     ? [

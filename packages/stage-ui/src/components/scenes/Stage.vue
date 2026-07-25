@@ -1014,8 +1014,6 @@ const currentVrmBaseExpressionOverrides = computed(() => {
         configuredAliases: stagePerformanceStore.resolveVrmEmotionExpressionAliases(stageModelSelected.value, emotion),
         runtimeSegmentExpressionAliasesByEmotion: runtimeSegmentExpressionAliasesByEmotion.value,
         runtimeTurnExpressionAliasesByEmotion: runtimeTurnExpressionAliasesByEmotion.value,
-        presencePosture: embodimentRuntime?.presencePosture.value,
-        visualPresenceState: embodimentRuntime?.visualPresenceState.value,
       }),
     ]),
   )
@@ -1253,7 +1251,6 @@ const {
   prepareForNextMessage,
   presencePosture,
   speechRenderState,
-  visualPresenceState,
   vrmIdleActionPreference,
   vrmLookAtScreenPoint,
 } = embodimentRuntime
@@ -1272,8 +1269,6 @@ const currentLive2DPreferredExpressionAliases = computed(() => {
         configuredAliases: stagePerformanceStore.resolveLive2DEmotionExpressionAliases(stageModelSelected.value, emotion),
         runtimeSegmentExpressionAliasesByEmotion: runtimeSegmentExpressionAliasesByEmotion.value,
         runtimeTurnExpressionAliasesByEmotion: runtimeTurnExpressionAliasesByEmotion.value,
-        presencePosture: presencePosture.value,
-        visualPresenceState: visualPresenceState.value,
       })
     : []
 })

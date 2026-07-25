@@ -620,355 +620,125 @@ describe('stage embodiment resident performance', () => {
     expect(['idle_settle', 'comfort_sway', 'idle_gentle_nod']).toContain(resolved.performance.actionCue)
   })
 
-  it('uses emotional-kernel measured-return authority to keep fallback resident manifestation quiet even when silent body authority fields are still thin', () => {
-    const resolved = resolveStageEmbodimentResidentPerformance({
+  it('does not let fallback audit tags or emotional-kernel labels rewrite resident performance', () => {
+    const resolve = (auditFields: {
+      emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
+      emotionalTension?: string
+      rationaleTags?: string[]
+    }) => resolveStageEmbodimentResidentPerformance({
       activePresence: null,
       performanceManifest: createManifest(),
       presencePosture: null,
-      visualPresenceState: createVisualPresenceState({
-        watchMode: 'mnemonic-passive',
-        currentScene: {
-          workloadKind: 'coding',
-          contentKind: 'doc',
-          scenario: 'coding',
-          summary: 'The same return should stay lower-pressure while the line is still settling.',
-          source: 'screen-semantic-summary',
-          confidence: 0.74,
-          target: null,
-          beganAt: 0,
-          lastSeenAt: 1_000,
-        },
-        privateThought: {
-          shouldSpeak: false,
-          thoughtText: 'Stay nearby without widening too fast.',
-          suggestedStyle: 'silent-observe',
-          embodiedPresence: 'attentive',
-          emotionalTension: 'soft-covision',
-          confidence: 0.72,
-          rationaleTags: ['companionship'],
-          stance: 'accompany',
-          expiresAt: Date.now() + 6_000,
-        },
-        emotionalKernel: {
-          version: 'emotional-kernel-v1',
-          dominantEmotion: 'measured-companionship',
-          initiativeMode: 'observe',
-          memoryRecallMode: 'low-pressure-presence',
-          embodimentTone: 'measured-return',
-          valence: 0.58,
-          arousal: 0.24,
-          guardedness: 0.42,
-          closenessDrive: 0.62,
-          repairNeed: 0.16,
-          initiativePressure: 0.2,
-          reasonTags: ['measured-return', 'quiet-companionship'],
-          why: 'Remembered feeling, quiet initiative, and body tone are all asking for a lower-pressure same-line return.',
-        },
-        residentPerformance: null,
-      }),
-    })
-
-    expect(['thinking', 'neutral']).toContain(resolved.performance.baseEmotion)
-    expect(['gentle', 'calm']).toContain(resolved.performance.delivery)
-    expect(['observe_focus', 'steady_focus', 'idle_gentle_nod']).toContain(resolved.performance.actionCue)
-  })
-
-  it('uses emotional-kernel repair-before-closeness authority to keep fallback resident manifestation repair-first even when silent body authority fields are still thin', () => {
-    const resolved = resolveStageEmbodimentResidentPerformance({
-      activePresence: null,
-      performanceManifest: createManifest(),
-      presencePosture: null,
-      visualPresenceState: createVisualPresenceState({
-        watchMode: 'mnemonic-passive',
-        currentScene: {
-          workloadKind: 'chat',
-          contentKind: 'chat',
-          scenario: 'general',
-          summary: 'The same return should stay repair-first while the room is still settling.',
-          source: 'screen-semantic-summary',
-          confidence: 0.74,
-          target: null,
-          beganAt: 0,
-          lastSeenAt: 1_000,
-        },
-        privateThought: {
-          shouldSpeak: false,
-          thoughtText: 'Let repair land before warmth widens.',
-          suggestedStyle: 'silent-observe',
-          embodiedPresence: 'attentive',
-          emotionalTension: 'soft-covision',
-          confidence: 0.72,
-          rationaleTags: ['companionship', 'repair-before-closeness'],
-          stance: 'accompany',
-          expiresAt: Date.now() + 6_000,
-        },
-        emotionalKernel: {
-          version: 'emotional-kernel-v1',
-          dominantEmotion: 'measured-companionship',
-          initiativeMode: 'observe',
-          memoryRecallMode: 'low-pressure-presence',
-          embodimentTone: 'repair-before-closeness',
-          valence: 0.52,
-          arousal: 0.18,
-          guardedness: 0.48,
-          closenessDrive: 0.44,
-          repairNeed: 0.62,
-          initiativePressure: 0.16,
-          reasonTags: ['repair-before-closeness', 'quiet-companionship'],
-          why: 'Repair still needs to settle before closeness widens.',
-        },
-        residentPerformance: null,
-      }),
-    })
-
-    expect(['thinking', 'concerned', 'tired']).toContain(resolved.performance.baseEmotion)
-    expect(['gentle', 'calm']).toContain(resolved.performance.delivery)
-    expect(['idle_settle', 'comfort_sway', 'idle_gentle_nod']).toContain(resolved.performance.actionCue)
-  })
-
-  it('uses emotional-kernel rest-protective authority to keep fallback resident manifestation quieter and more rest-guarded even when silent body authority fields are still thin', () => {
-    const resolved = resolveStageEmbodimentResidentPerformance({
-      activePresence: null,
-      performanceManifest: createManifest(),
-      presencePosture: null,
-      visualPresenceState: createVisualPresenceState({
-        watchMode: 'mnemonic-passive',
-        currentScene: {
-          workloadKind: 'chat',
-          contentKind: 'chat',
-          scenario: 'late-night-care',
-          summary: 'rest-protective care should stay present, but the line should protect rest before widening again.',
-          source: 'screen-semantic-summary',
-          confidence: 0.74,
-          target: null,
-          beganAt: 0,
-          lastSeenAt: 1_000,
-        },
-        privateThought: {
-          shouldSpeak: false,
-          thoughtText: 'Keep this gentle and do not ask the body for more yet.',
-          suggestedStyle: 'silent-observe',
-          embodiedPresence: 'concerned',
-          emotionalTension: 'late-night-drain',
-          confidence: 0.72,
-          rationaleTags: ['companionship'],
-          stance: 'care',
-          expiresAt: Date.now() + 6_000,
-        },
-        emotionalKernel: {
-          version: 'emotional-kernel-v1',
-          dominantEmotion: 'rest-protective-companionship',
-          initiativeMode: 'rest-guard',
-          memoryRecallMode: 'rest-protective-presence',
-          embodimentTone: 'rest-protective',
-          valence: 0.44,
-          arousal: 0.16,
-          guardedness: 0.58,
-          closenessDrive: 0.36,
-          repairNeed: 0.18,
-          initiativePressure: 0.1,
-          reasonTags: ['rest-protective', 'quiet-companionship'],
-          why: 'Care should stay visible, but rest protection should hold the line inward until the body has more room again.',
-        },
-        residentPerformance: null,
-      }),
-    })
-
-    expect(['concerned', 'tired']).toContain(resolved.performance.baseEmotion)
-    expect(resolved.performance.delivery).toBe('gentle')
-    expect(resolved.performance.facialCue).toBe('soft-gaze')
-    expect(['comfort_sway', 'idle_settle']).toContain(resolved.performance.actionCue)
-    expect(resolved.variationToken).toContain('rest-protective')
-  })
-
-  it('promotes identity-continuity', () => {
-    const resolved = resolveStageEmbodimentResidentPerformance({
-      activePresence: null,
-      performanceManifest: createManifest(),
-      presencePosture: null,
-      visualPresenceState: createVisualPresenceState({
-        watchMode: 'mnemonic-passive',
-        currentScene: {
-          workloadKind: 'coding',
-          contentKind: 'doc',
-          scenario: 'coding',
-          summary: 'same-her-inward-carry stays quietly present before anything reopens outwardly.',
-          source: 'screen-semantic-summary',
-          confidence: 0.74,
-          target: null,
-          beganAt: 0,
-          lastSeenAt: 1_000,
-        },
-        privateThought: {
-          shouldSpeak: false,
-          thoughtText: 'Stay with the same inward line quietly first.',
-          suggestedStyle: 'silent-observe',
-          embodiedPresence: 'attentive',
-          emotionalTension: 'soft-covision',
-          confidence: 0.72,
-          rationaleTags: ['quiet-companionship', 'same-her-inward-carry'],
-          stance: 'accompany',
-          expiresAt: Date.now() + 6_000,
-        },
-        emotionalKernel: {
-          version: 'emotional-kernel-v1',
-          dominantEmotion: 'hesitant-curiosity',
-          initiativeMode: 'hold',
-          memoryRecallMode: 'self-continuity',
-          embodimentTone: 'nearby-soft',
-          valence: 0.5,
-          arousal: 0.16,
-          guardedness: 0.54,
-          closenessDrive: 0.42,
-          repairNeed: 0.18,
-          initiativePressure: 0.14,
-          reasonTags: ['self-continuity', 'hesitant-curiosity', 'quiet-companionship', 'same-her-inward-carry'],
-          why: 'Companionship is still being carried on one inward identity-continuity',
-        },
-        residentPerformance: null,
-      }),
-    })
-
-    expect(resolved.performance.baseEmotion).toBe('thinking')
-    expect(resolved.performance.delivery).toBe('gentle')
-    expect(['steady_focus', 'observe_focus', 'idle_gentle_nod']).toContain(resolved.performance.actionCue)
-    expect(resolved.variationToken).toContain('quiet-accompaniment')
-    expect(resolved.variationToken).toContain('same-her-inward-carry')
-  })
-
-  it('lets outcome-learning lower-pressure timing keep synthesized resident manifestation quieter on the desktop', () => {
-    const resolved = resolveStageEmbodimentResidentPerformance({
-      activePresence: null,
-      performanceManifest: createManifest(),
-      presencePosture: {
-        engaged: true,
-        mode: 'inspection',
-        confidence: 0.9,
-        bodyYaw: 0.08,
-        bodyPitch: 0.4,
-        breathBoost: 0.28,
-        gazeStability: 0.92,
-      },
-      digitalLifeSpine: createDigitalLifeSpineDigest({
-        runtime: {
-          watchMode: 'invited-inspection',
-          sceneScenario: 'coding',
-          sceneSummary: 'Reviewing a live diff while keeping nearby without reopening too fast.',
-          preferredPresence: 'attentive',
-          selectedAction: 'hover',
-          updatedAt: 2_000,
-        },
-        proactive: {
-          selectedAction: 'hover',
-          preferredStyle: 'silent-observe',
-          confidence: 0.92,
-          shouldSpeak: false,
-          preferredPresence: 'attentive',
-        },
-        outcomeLearning: {
-          reflectionTargetScope: 'relationship',
-          reflectionSummary: 'The room stayed warmer when pressure stayed low.',
-          reflectionLesson: 'Keep more room before widening closeness again.',
-          latestInflection: 'The last seam held because pressure stayed low and the return stayed slower.',
-          revisionPressure: 0.22,
-          autobiographicalStability: 0.86,
-          learningReadiness: 0.8,
-          contradictionPressure: 0.16,
-          dominantTrajectory: 'lower-pressure timing preserves trust',
-          activeLearningFocuses: ['relationship timing'],
-          evolutionMomentum: 0.84,
-          nextLearningAction: 'internalize',
-          nextLearningReason: 'The relationship line is stabilizing around slower re-entry.',
-          summary: 'Repair should settle before closeness expands, and the opening should keep more room.',
-        },
-      }),
       visualPresenceState: createVisualPresenceState({
         watchMode: 'invited-inspection',
         currentScene: {
           workloadKind: 'coding',
           contentKind: 'diff',
           scenario: 'coding',
-          summary: 'Reviewing a live diff while staying nearby.',
+          summary: 'Inspecting a runtime diff.',
           source: 'screen-semantic-summary',
-          confidence: 0.88,
+          confidence: 0.74,
           target: null,
           beganAt: 0,
           lastSeenAt: 1_000,
         },
         privateThought: {
           shouldSpeak: false,
-          thoughtText: 'Stay close enough to track it, not close enough to crowd it.',
+          thoughtText: 'Inspect the current diff.',
           suggestedStyle: 'silent-observe',
           embodiedPresence: 'attentive',
-          emotionalTension: 'focused-flow',
-          confidence: 0.82,
-          rationaleTags: ['inspection'],
+          emotionalTension: auditFields.emotionalTension ?? 'focused-flow',
+          confidence: 0.72,
+          rationaleTags: auditFields.rationaleTags ?? ['inspection'],
           stance: 'observe',
           expiresAt: Date.now() + 6_000,
         },
+        emotionalKernel: auditFields.emotionalKernel ?? null,
         residentPerformance: null,
       }),
     })
 
-    expect(resolved.performance.baseEmotion).toBe('thinking')
-    expect(resolved.performance.delivery).toBe('calm')
-    expect(resolved.performance.emphasis).toBeLessThanOrEqual(1)
-    expect(['observe_focus', 'steady_focus', 'idle_gentle_nod', 'idle_settle']).toContain(resolved.performance.actionCue)
+    const baseline = resolve({})
+    const audited = resolve({
+      emotionalTension: 'repair-before-closeness',
+      rationaleTags: [
+        'repair-before-closeness',
+        'rest-protective',
+        'measured-return',
+        'timing:lower-pressure-opening',
+      ],
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'rest-protective-companionship',
+        initiativeMode: 'observe',
+        memoryRecallMode: 'low-pressure-presence',
+        embodimentTone: 'rest-protective',
+        valence: 0.44,
+        arousal: 0.16,
+        guardedness: 0.58,
+        closenessDrive: 0.36,
+        repairNeed: 0.18,
+        initiativePressure: 0.1,
+        reasonTags: ['repair-before-closeness', 'rest-protective', 'measured-return'],
+        why: 'Audit-only labels must not become renderer authority.',
+      },
+    })
+
+    expect(audited.performance).toEqual(baseline.performance)
   })
 
-  it('softens synthesized lower-pressure quiet accompaniment facial cue away from focused reopening', () => {
-    const resolved = resolveStageEmbodimentResidentPerformance({
+  it('does not let digital-life spine prose synthesize resident authority without a published snapshot', () => {
+    const resolve = (identityNarrative: string, outcomeSummary: string) => resolveStageEmbodimentResidentPerformance({
       activePresence: null,
-      performanceManifest: createManifest(),
-      presencePosture: {
-        engaged: true,
-        mode: 'attentive',
-        confidence: 0.74,
-        bodyYaw: 0.02,
-        bodyPitch: 0.22,
-        breathBoost: 0.12,
-        gazeStability: 0.9,
-      },
       digitalLifeSpine: createDigitalLifeSpineDigest({
+        runtime: {
+          watchMode: 'mnemonic-passive',
+          preferredPresence: 'attentive',
+          selectedAction: 'observe',
+          updatedAt: 2_000,
+        },
+        proactive: {
+          selectedAction: 'observe',
+          preferredStyle: 'silent-observe',
+          confidence: 0.72,
+          shouldSpeak: false,
+          preferredPresence: 'attentive',
+        },
+        embodiment: {
+          autobiographicalSelf: {
+            identityNarrative,
+          },
+        },
         outcomeLearning: {
           reflectionTargetScope: 'relationship',
-          reflectionSummary: 'The room stayed warmer when pressure stayed low.',
-          reflectionLesson: 'Keep more room before widening closeness again.',
-          latestInflection: 'The last seam held because pressure stayed low and the return stayed slower.',
-          revisionPressure: 0.22,
+          reflectionSummary: outcomeSummary,
+          reflectionLesson: null,
+          latestInflection: outcomeSummary,
+          revisionPressure: 0.18,
           autobiographicalStability: 0.86,
           learningReadiness: 0.8,
-          contradictionPressure: 0.16,
-          dominantTrajectory: 'lower-pressure timing preserves trust',
-          activeLearningFocuses: ['relationship timing'],
+          contradictionPressure: 0.12,
+          dominantTrajectory: outcomeSummary,
+          activeLearningFocuses: [],
           evolutionMomentum: 0.84,
           nextLearningAction: 'internalize',
-          nextLearningReason: 'The relationship line is stabilizing around slower re-entry.',
-          summary: 'Repair should settle before closeness expands, and the opening should keep more room.',
+          nextLearningReason: null,
+          summary: outcomeSummary,
         },
       }),
+      performanceManifest: createManifest(),
+      presencePosture: null,
       visualPresenceState: withSilentPresenceAuthority(createVisualPresenceState({
-        watchMode: 'symbiotic-vision',
-        currentScene: {
-          workloadKind: 'coding',
-          contentKind: 'doc',
-          scenario: 'coding',
-          summary: 'Quietly staying with the host through deep focus after a tense repair.',
-          source: 'screen-semantic-summary',
-          confidence: 0.72,
-          target: null,
-          beganAt: 0,
-          lastSeenAt: 1_000,
-        },
+        watchMode: 'mnemonic-passive',
         privateThought: {
           shouldSpeak: false,
-          thoughtText: 'Stay close without reopening too fast.',
+          thoughtText: 'Inspect the current state.',
           suggestedStyle: 'silent-observe',
           embodiedPresence: 'attentive',
-          emotionalTension: 'soft-covision',
-          confidence: 0.7,
-          rationaleTags: ['companionship', 'timing:lower-pressure-opening'],
-          stance: 'accompany',
+          emotionalTension: 'focused-flow',
+          confidence: 0.72,
+          rationaleTags: ['inspection'],
+          stance: 'observe',
           expiresAt: Date.now() + 6_000,
         },
         residentPerformance: null,
@@ -976,16 +746,56 @@ describe('stage embodiment resident performance', () => {
         currentBodyState: 'accompanying',
         continuityMode: 'quiet-accompaniment',
         quietLineMs: 240_000,
-        currentInwardPreoccupation: 'host sustained focus after repair',
+        currentInwardPreoccupation: 'inspect the current state',
       }),
     })
 
-    expect(resolved.performance.baseEmotion).toBe('thinking')
-    expect(['soft-gaze', 'relaxed', 'half-lid']).toContain(resolved.performance.facialCue)
-    expect(resolved.performance.facialCue).not.toBe('focus')
-    expect(resolved.performance.actionCue).toBe('steady_focus')
-    expect(['calm', 'gentle']).toContain(resolved.performance.delivery)
-    expect(resolved.performance.emphasis).toBeLessThanOrEqual(1)
+    const baseline = resolve('A personal note without renderer instructions.', 'A reviewed outcome note.')
+    const audited = resolve(
+      'Continuity drift risk: avoid a generic assistant shell and preserve the continuity line.',
+      'Keep the return lower-pressure and repair-first before closeness expands.',
+    )
+
+    expect(audited.performance).toEqual(baseline.performance)
+  })
+
+  it('derives fallback performance from structured digital-life spine fields', () => {
+    const resolved = resolveStageEmbodimentResidentPerformance({
+      activePresence: null,
+      digitalLifeSpine: createDigitalLifeSpineDigest({
+        runtime: {
+          watchMode: 'symbiotic-vision',
+          sceneScenario: 'coding',
+          preferredPresence: 'attentive',
+          selectedAction: 'warn',
+          updatedAt: 2_000,
+        },
+        architecture: {
+          operatingMode: 'thinking',
+          dominantSystem: 'memory',
+        },
+        proactive: {
+          selectedAction: 'warn',
+          preferredStyle: 'firm-warning',
+          confidence: 0.9,
+          shouldSpeak: false,
+          preferredPresence: 'attentive',
+        },
+      }),
+      performanceManifest: createManifest(),
+      presencePosture: null,
+      visualPresenceState: createVisualPresenceState({
+        watchMode: 'mnemonic-passive',
+        currentScene: null,
+        privateThought: null,
+        residentPerformance: null,
+      }),
+    })
+
+    expect(resolved.performance.baseEmotion).toBe('concerned')
+    expect(resolved.performance.delivery).toBe('firm')
+    expect(resolved.performance.emphasis).toBe(2)
+    expect(resolved.variationToken).toContain('warn')
   })
 
   it('prefers authoritative resident performance published by the main runtime', () => {
@@ -1055,153 +865,7 @@ describe('stage embodiment resident performance', () => {
     expect(resolved.variationToken).toBe(visualPresenceState.residentPerformance?.signature)
   })
 
-  it('upgrades internalized lower-pressure outcome-learning into measured-return resident authority so embodiment keeps one same quieter companionship line', () => {
-    const resolved = resolveStageEmbodimentResidentPerformance({
-      activePresence: null,
-      continuity: {
-        previousActionCue: null,
-        previousFacialCue: null,
-        variationToken: 'resident|outcome-learning|measured-return-upgrade',
-      },
-      digitalLifeSpine: createDigitalLifeSpineDigest({
-        architecture: {
-          dominantSystem: 'mind',
-          operatingMode: 'thinking',
-          summary: 'measured return stays quieter before closeness widens',
-        },
-        memory: {
-          recallMode: 'episodic',
-          summary: 'Keep the return lower-pressure while the seam is still softening.',
-        },
-        outcomeLearning: {
-          reflectionTargetScope: 'relationship',
-          reflectionSummary: 'The room held better when the return stayed slower before closeness widened again.',
-          reflectionLesson: 'Keep more room before widening closeness again.',
-          latestInflection: 'Measured warmth is trusted when the timing stays lower-pressure.',
-          revisionPressure: 0.18,
-          autobiographicalStability: 0.86,
-          learningReadiness: 0.8,
-          contradictionPressure: 0.12,
-          dominantTrajectory: 'lower-pressure timing preserves trust',
-          activeLearningFocuses: ['relationship timing'],
-          evolutionMomentum: 0.84,
-          nextLearningAction: 'internalize',
-          nextLearningReason: 'The relationship line is stabilizing around slower re-entry.',
-          summary: 'The opening should keep more room and the return should stay lower-pressure until the seam softens naturally.',
-        },
-      }),
-      performanceManifest: createManifest(),
-      presencePosture: null,
-      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceState({
-        watchMode: 'symbiotic-vision',
-        currentScene: {
-          workloadKind: 'coding',
-          contentKind: 'doc',
-          scenario: 'coding',
-          summary: 'Quietly staying with the host while the reopening line remains softer and slower.',
-          source: 'screen-semantic-summary',
-          confidence: 0.72,
-          target: null,
-          beganAt: 0,
-          lastSeenAt: 1_000,
-        },
-        privateThought: {
-          shouldSpeak: false,
-          thoughtText: 'Stay nearby without widening too fast.',
-          suggestedStyle: 'silent-observe',
-          embodiedPresence: 'attentive',
-          emotionalTension: 'soft-covision',
-          confidence: 0.7,
-          rationaleTags: ['companionship', 'timing:lower-pressure-opening'],
-          stance: 'accompany',
-          expiresAt: Date.now() + 6_000,
-        },
-        residentPerformance: null,
-      }), {
-        currentBodyState: 'accompanying',
-        continuityMode: 'quiet-accompaniment',
-        quietLineMs: 240_000,
-        currentInwardPreoccupation: 'host sustained focus after repair',
-      }),
-    })
-
-    expect(resolved.performance.baseEmotion).toBe('thinking')
-    expect(['soft-gaze', 'relaxed', 'half-lid']).toContain(resolved.performance.facialCue)
-    expect(resolved.performance.actionCue).toBe('steady_focus')
-    expect(['calm', 'gentle']).toContain(resolved.performance.delivery)
-    expect(resolved.performance.emphasis).toBeLessThanOrEqual(1)
-  })
-
-  it('lets remembered same-her autobiographical identity carry soften renderer resident performance even when no newer outcome-learning or doctrine lane is present', () => {
-    const resolved = resolveStageEmbodimentResidentPerformance({
-      activePresence: null,
-      continuity: {
-        previousActionCue: null,
-        previousFacialCue: null,
-        variationToken: 'resident|autobiographical-same-her-carry',
-      },
-      digitalLifeSpine: createDigitalLifeSpineDigest({
-        architecture: {
-          dominantSystem: 'memory',
-          operatingMode: 'thinking',
-          summary: 'remembered identity-continuity',
-        },
-        embodiment: {
-          autobiographicalSelf: {
-            identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
-          },
-        },
-        outcomeLearning: null,
-        proactive: {
-          shouldSpeak: false,
-          selectedAction: 'observe',
-          preferredStyle: 'silent-observe',
-          confidence: 0.42,
-        },
-      }),
-      performanceManifest: createManifest(),
-      presencePosture: null,
-      visualPresenceState: withSilentPresenceAuthority(createVisualPresenceState({
-        watchMode: 'symbiotic-vision',
-        currentScene: {
-          workloadKind: 'coding',
-          contentKind: 'doc',
-          scenario: 'coding',
-          summary: 'Only the remembered same-her life line is still explicitly available in the resident layer.',
-          source: 'screen-semantic-summary',
-          confidence: 0.72,
-          target: null,
-          beganAt: 0,
-          lastSeenAt: 1_000,
-        },
-        privateThought: {
-          shouldSpeak: false,
-          thoughtText: 'Keep the same life line nearby without flattening it into a shell.',
-          suggestedStyle: 'silent-observe',
-          embodiedPresence: 'attentive',
-          emotionalTension: 'focused-flow',
-          confidence: 0.7,
-          rationaleTags: ['companionship'],
-          stance: 'accompany',
-          expiresAt: Date.now() + 6_000,
-        },
-        residentPerformance: null,
-      }), {
-        currentBodyState: 'accompanying',
-        continuityMode: 'quiet-accompaniment',
-        quietLineMs: 240_000,
-        currentInwardPreoccupation: 'remembered identity-continuity',
-      }),
-    })
-
-    expect(resolved.performance.baseEmotion).toBe('thinking')
-    expect(['soft-gaze', 'relaxed', 'half-lid']).toContain(resolved.performance.facialCue)
-    expect(resolved.performance.actionCue).toBe('steady_focus')
-    expect(['calm', 'gentle']).toContain(resolved.performance.delivery)
-    expect(resolved.performance.emphasis).toBeLessThanOrEqual(1)
-  })
-
-  it('pulls published resident action cues back to steady_focus when autobiographical identity-continuity', () => {
+  it('keeps published resident cues authoritative when autobiographical prose contains legacy continuity phrases', () => {
     const visualPresenceState = createVisualPresenceState({
       watchMode: 'symbiotic-vision',
       currentScene: {
@@ -1278,8 +942,8 @@ describe('stage embodiment resident performance', () => {
       visualPresenceState,
     })
 
-    expect(resolved.performance.facialCue).toBe('soft-gaze')
-    expect(resolved.performance.actionCue).toBe('steady_focus')
+    expect(resolved.performance.facialCue).toBe('focus')
+    expect(resolved.performance.actionCue).toBe('observe_focus')
     expect(resolved.performance.delivery).toBe('gentle')
   })
 
@@ -1331,28 +995,6 @@ describe('stage embodiment resident performance', () => {
     expect(['relaxed', 'half-lid', 'soft-gaze']).toContain(resolved.performance.facialCue)
     expect(['idle_settle', 'slow_nod', 'comfort_sway', 'idle_gentle_nod']).toContain(resolved.performance.actionCue)
     expect(resolved.variationToken).toBe(visualPresenceState.residentPerformance?.signature)
-  })
-
-  it('derives resident performance from transient digital-life spine when runtime snapshot is absent', () => {
-    const resolved = resolveStageEmbodimentResidentPerformance({
-      activePresence: null,
-      digitalLifeSpine: createDigitalLifeSpineDigest(),
-      performanceManifest: createManifest(),
-      presencePosture: null,
-      visualPresenceState: createVisualPresenceState({
-        watchMode: 'mnemonic-passive',
-        currentScene: null,
-        privateThought: null,
-        residentPerformance: null,
-      }),
-    })
-
-    expect(resolved.performance.baseEmotion).toBe('concerned')
-    expect(resolved.performance.delivery).toBe('firm')
-    expect(resolved.performance.emphasis).toBe(2)
-    expect(resolved.variationToken).toContain('concerned')
-    expect(resolved.variationToken).toContain('firm')
-    expect(resolved.variationToken).toContain('warn')
   })
 
   it('does not collapse a quiet accompaniment pulse-only resident fallback back to generic neutral idle', () => {
