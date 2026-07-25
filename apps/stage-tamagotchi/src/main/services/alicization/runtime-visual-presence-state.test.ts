@@ -63,7 +63,7 @@ describe('runtime visual presence state', () => {
     expect(result.currentBodyState).toBe('accompanying')
     expect(result.continuityMode).toBe('quiet-accompaniment')
     expect(result.quietLineMs).toBe(180000)
-    expect(result.currentInwardPreoccupation).toContain('focus')
+    expect(result.currentInwardPreoccupation).toBeNull()
   })
 
   it('derives recovering silent-body authority without widening continuity modes', () => {
@@ -74,13 +74,12 @@ describe('runtime visual presence state', () => {
       shouldSpeak: false,
       activeConversation: false,
       relationshipPressure: 0.42,
-      personaAuthoritySummary: 'quiet recovery',
     })
 
     expect(result.currentBodyState).toBe('recovering')
     expect(result.continuityMode).toBe('protective-watch')
     expect(result.quietLineMs).toBe(180_000)
-    expect(result.currentInwardPreoccupation).toContain('quiet recovery')
+    expect(result.currentInwardPreoccupation).toBeNull()
   })
 
   it('does not let recovering silent-body authority overtake active dialogue or speaking pressure', () => {
@@ -192,8 +191,7 @@ describe('runtime visual presence state', () => {
     expect(nextState.updatedAt).toBe(180_000)
     expect(nextState.watchMode).toBe(previousState.watchMode)
     expect(nextState.captureState).toEqual(previousState.captureState)
-    expect(nextState.currentInwardPreoccupation).toContain('Repair before closeness')
-    expect(nextState.currentInwardPreoccupation).toContain('identity Repair before closeness is how I keep room honest.')
+    expect(nextState.currentInwardPreoccupation).toBeNull()
   })
 
   it('applies recovering visual presence as a distinct silent body state', () => {
@@ -246,8 +244,7 @@ describe('runtime visual presence state', () => {
     expect(nextState.currentBodyState).toBe('recovering')
     expect(nextState.continuityMode).toBe('protective-watch')
     expect(nextState.quietLineMs).toBe(180_000)
-    expect(nextState.currentInwardPreoccupation).toContain('Quiet recovery')
-    expect(nextState.currentInwardPreoccupation).toContain('identity I keep watch softly while the room regains shape.')
+    expect(nextState.currentInwardPreoccupation).toBeNull()
   })
 
   it('does not inherit long focus from a stale previous scene when candidate scene is fresh', () => {
@@ -456,7 +453,7 @@ describe('runtime visual presence state', () => {
     expect(stored.currentBodyState).toBe('accompanying')
     expect(stored.continuityMode).toBe('quiet-accompaniment')
     expect(stored.emotionalKernel?.embodimentTone).toBe('measured-return')
-    expect(stored.currentInwardPreoccupation).toContain('lower-pressure same-line return')
+    expect(stored.currentInwardPreoccupation).toBeNull()
     expect(emitVisualPresenceState).toHaveBeenCalledWith('default', expect.objectContaining({
       currentBodyState: 'accompanying',
       continuityMode: 'quiet-accompaniment',
