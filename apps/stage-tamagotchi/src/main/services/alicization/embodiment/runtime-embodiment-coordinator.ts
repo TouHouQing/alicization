@@ -19,7 +19,6 @@ import {
   buildAlicizationEmbodimentFaceCue,
   buildAlicizationEmbodimentLipSyncHints,
   buildAlicizationEmbodimentMotionBurst,
-  normalizeAlicizationDigitalLifeSpineDigest,
   normalizeAlicizationEmbodimentScript,
 } from '@proj-alicization/stage-shared'
 
@@ -39,10 +38,6 @@ function sanitizeCadenceText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars).toLowerCase()
-}
-
-function includesCadenceNeedle(text: string, needles: string[]) {
-  return needles.some(needle => text.includes(needle))
 }
 
 function clampRuntimeRateMultiplier(value: number, fallback = 1) {
@@ -90,30 +85,18 @@ interface AlicizationLegacyProjectionContinuityState {
 }
 
 type AlicizationLegacyProjectionRecord = Record<string, unknown> & {
-  relationshipDoctrine?: unknown
-  trustRationale?: unknown
   personalityContinuityState?: AlicizationLegacyProjectionContinuityState | null
 }
 
 type AlicizationCoordinatorRuntimeProjectState = Record<string, unknown> & {
-  companionHeadlineLine?: unknown
-  currentPhase?: unknown
-  emotionalClosureCue?: unknown
-  emotionalClosureSummary?: unknown
-  identity?: unknown
-  landedProgressSummary?: unknown
-  latestLandedProgress?: unknown
-  nextClosureTarget?: unknown
-  nextClosureTargetSummary?: unknown
-  openClosureSummary?: unknown
+  continuityCadence?: unknown
+  continuityRestraint?: unknown
   preferredBlinkCadence?: unknown
   preferredGazeMode?: unknown
   preferredPauseMode?: unknown
   preferredLipsyncMode?: unknown
   preferredVoiceMode?: unknown
   preferredPacingMode?: unknown
-  primaryOpenLoop?: unknown
-  sameHerSelfLine?: unknown
 }
 
 function sanitizeCoordinatorPreferredBlinkCadence(
@@ -176,33 +159,21 @@ function sanitizeCoordinatorEmbodimentModalityRisk(raw: unknown) {
     : null
 }
 
+function sanitizeCoordinatorEmbodimentRestraint(raw: unknown) {
+  if (raw === 'rest-protective')
+    return 'quiet-companionship' as const
+  if (raw === 'repair-before-closeness')
+    return 'repair-before-closeness' as const
+  if (raw === 'measured-return' || raw === 'lower-pressure')
+    return 'measured-return' as const
+  return null
+}
+
 function resolveCoordinatorRuntimeProjectState(seed: AlicizationRuntimeEmbodimentSeed | null | undefined) {
   const runtimeProjectState = seed?.digitalLifeSpine?.runtime?.projectState
   return runtimeProjectState && typeof runtimeProjectState === 'object' && !Array.isArray(runtimeProjectState)
     ? runtimeProjectState as AlicizationCoordinatorRuntimeProjectState
     : null
-}
-
-function resolveCoordinatorRuntimeProjectStateText(input: {
-  projectState: AlicizationCoordinatorRuntimeProjectState | null
-  explicitKey: keyof AlicizationCoordinatorRuntimeProjectState
-  summaryKey?: keyof AlicizationCoordinatorRuntimeProjectState
-  maxChars?: number
-}) {
-  const explicitValue = sanitizeCadenceText(
-    input.projectState?.[input.explicitKey],
-    input.maxChars,
-  )
-  if (explicitValue)
-    return explicitValue
-
-  if (!input.summaryKey)
-    return ''
-
-  return sanitizeCadenceText(
-    input.projectState?.[input.summaryKey],
-    input.maxChars,
-  )
 }
 
 function resolveCoordinatorExplicitRendererPreferences(seed: AlicizationRuntimeEmbodimentSeed | null | undefined) {
@@ -226,7 +197,6 @@ function resolveCoordinatorExplicitRendererPreferences(seed: AlicizationRuntimeE
       consciousProjectState?.preferredBlinkCadence
       ?? runtimeProjectState?.preferredBlinkCadence
       ?? silentContinuity?.preferredBlinkCadence
-      ?? (hasCorrectedSamePersonQuietEmbodimentSettlingCue(seed) ? 'quiet' : null)
       ?? null,
     ),
     preferredGazeMode: sanitizeCoordinatorPreferredGazeMode(
@@ -501,14 +471,6 @@ function resolveLegacyProjectionContinuityState(
     : null
 }
 
-function readLegacyProjectionCadenceText(
-  projection: AlicizationRuntimeEmbodimentProjection | AlicizationLegacyProjectionRecord | null,
-  key: 'relationshipDoctrine' | 'trustRationale',
-  maxChars: number,
-) {
-  return sanitizeCadenceText((projection as AlicizationLegacyProjectionRecord | null)?.[key], maxChars)
-}
-
 function resolveEmbodimentHabitPolicy(seed: AlicizationRuntimeEmbodimentSeed) {
   const canonicalHabit = seed.digitalLifeSpine?.habit
   if (canonicalHabit) {
@@ -516,7 +478,6 @@ function resolveEmbodimentHabitPolicy(seed: AlicizationRuntimeEmbodimentSeed) {
       dominantMode: sanitizeCadenceText(canonicalHabit.dominantMode, 80),
       suggestedStyleCap: sanitizeCadenceText(canonicalHabit.suggestedStyleCap, 80),
       suggestedPresenceCap: sanitizeCadenceText(canonicalHabit.suggestedPresenceCap, 80),
-      narrative: sanitizeCadenceText(canonicalHabit.narrative, 240),
     }
   }
 
@@ -531,18 +492,10 @@ function resolveEmbodimentHabitPolicy(seed: AlicizationRuntimeEmbodimentSeed) {
     return null
 
   const candidate = legacyHabitPolicy as Record<string, unknown>
-  const narrative = Array.isArray(candidate.narrative)
-    ? candidate.narrative
-        .map((item: unknown) => sanitizeCadenceText(item, 120))
-        .filter(Boolean)
-        .join(' | ')
-    : sanitizeCadenceText(candidate.narrative, 240)
-
   return {
     dominantMode: sanitizeCadenceText(candidate.dominantMode, 80),
     suggestedStyleCap: sanitizeCadenceText(candidate.suggestedStyleCap, 80),
     suggestedPresenceCap: sanitizeCadenceText(candidate.suggestedPresenceCap, 80),
-    narrative,
   }
 }
 
@@ -762,34 +715,23 @@ function reconcileRuntimeMotorAuthority(input: {
   }
 }
 
-function hasLowerPressureRelationshipTiming(seed: AlicizationRuntimeEmbodimentSeed) {
-  const personaBias = seed.digitalLifeSpine?.proactive?.personaBias ?? null
-  const manifestationCadenceSummary = sanitizeCadenceText(personaBias?.manifestationCadenceSummary, 220)
-  const relationshipDoctrine = sanitizeCadenceText(
-    seed.digitalLifeSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine,
-    220,
-  )
-  const outcomeSummary = sanitizeCadenceText(seed.digitalLifeSpine?.outcomeLearning?.summary, 220)
-  const latestInflection = sanitizeCadenceText(seed.digitalLifeSpine?.outcomeLearning?.latestInflection, 220)
+function hasLowerPressureRelationshipTiming(
+  seed: AlicizationRuntimeEmbodimentSeed,
+  residentPerformance: AlicizationResidentPerformanceSnapshot | null,
+) {
+  const preferences = resolveCoordinatorExplicitRendererPreferences(seed)
+  const reasonTags = [
+    ...(seed.silentContinuity?.reasonTags ?? []),
+    ...(seed.currentConsciousFrame?.reasonTags ?? []),
+    ...(residentPerformance?.reasonTags ?? seed.residentPerformance?.reasonTags ?? []),
+  ]
 
-  return includesCadenceNeedle(manifestationCadenceSummary, [
-    'observe-first',
-    'stay slower',
-    'slower until the opening softens',
-    'lower-pressure',
-  ]) || includesCadenceNeedle(
-    `${relationshipDoctrine} ${outcomeSummary} ${latestInflection}`,
-    [
-      'lower-pressure',
-      'pressure stayed low',
-      'return stayed slower',
-      'slower return',
-      'keep more room',
-      'repair should settle before closeness expands',
-      'do not crowd',
-      'less eager',
-    ],
-  )
+  return preferences.preferredVoiceMode === 'lower-pressure'
+    || preferences.preferredPacingMode === 'slower'
+    || preferences.preferredPauseMode === 'longer'
+    || reasonTags.includes('memory-deliberation-cadence:lower-pressure')
+    || reasonTags.includes('lower-pressure')
+    || reasonTags.includes('timing:lower-pressure-opening')
 }
 
 function hasRememberedSeamMoreRoomCue(input: {
@@ -798,208 +740,29 @@ function hasRememberedSeamMoreRoomCue(input: {
 }) {
   const residentReasonTags = input.residentPerformance?.reasonTags ?? []
   const consciousReasonTags = input.seed.currentConsciousFrame?.reasonTags ?? []
-  if (residentReasonTags.includes('timing:remembered-seam-more-room'))
-    return true
-  if (consciousReasonTags.includes('remembered-seam:reinterpret-with-more-room'))
-    return true
+  const silentReasonTags = input.seed.silentContinuity?.reasonTags ?? []
 
-  const relationshipDoctrine = sanitizeCadenceText(
-    input.seed.digitalLifeSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine,
-    220,
-  )
-  const rememberedSeamInflection = sanitizeCadenceText(
-    input.seed.digitalLifeSpine?.outcomeLearning?.latestInflection,
-    220,
-  )
-  const manifestationCadenceSummary = sanitizeCadenceText(
-    input.seed.digitalLifeSpine?.proactive?.personaBias?.manifestationCadenceSummary,
-    220,
-  )
-  const silentContinuityOpeningGuidance = sanitizeCadenceText(
-    input.seed.silentContinuity?.openingGuidance,
-    220,
-  )
-  const silentContinuityManifestationCadenceSummary = sanitizeCadenceText(
-    input.seed.silentContinuity?.manifestationCadenceSummary,
-    220,
-  )
-  const silentContinuityInwardLine = sanitizeCadenceText(
-    input.seed.silentContinuity?.inwardLine,
-    220,
-  )
-  const silentContinuityEmotionalClosureCue = sanitizeCadenceText(
-    input.seed.silentContinuity?.emotionalClosureCue,
-    220,
-  )
-  const silentContinuityLandedProgressLine = sanitizeCadenceText(
-    input.seed.silentContinuity?.landedProgressLine,
-    220,
-  )
-  const outcomeSummary = sanitizeCadenceText(input.seed.digitalLifeSpine?.outcomeLearning?.summary, 220)
-  const outcomeInflection = sanitizeCadenceText(input.seed.digitalLifeSpine?.outcomeLearning?.latestInflection, 220)
-  const runtimeContinuityCue = sanitizeCadenceText(input.seed.digitalLifeSpine?.runtime?.continuityCue, 220)
-  const memorySummary = sanitizeCadenceText(input.seed.digitalLifeSpine?.memory?.summary, 220)
-  const combined = [
-    relationshipDoctrine,
-    rememberedSeamInflection,
-    manifestationCadenceSummary,
-    silentContinuityOpeningGuidance,
-    silentContinuityManifestationCadenceSummary,
-    silentContinuityInwardLine,
-    silentContinuityEmotionalClosureCue,
-    silentContinuityLandedProgressLine,
-    outcomeSummary,
-    outcomeInflection,
-    runtimeContinuityCue,
-    memorySummary,
-  ].filter(Boolean).join(' ')
-
-  const explicitRememberedSeamSignal = includesCadenceNeedle(combined, [
-    'remembered seam',
-    'same remembered seam',
-    'same seam is back',
-    'seam is back',
-    'the seam is back',
-    'reopened too eagerly',
-    'reopen too eagerly',
-  ])
-  const callbackAfterglowSignal = includesCadenceNeedle(combined, [
-    'callback afterglow',
-  ])
-  const moreRoomSignal = includesCadenceNeedle(combined, [
-    'keep more room',
-    'leave more room',
-    'leave room before warmth returns',
-    'more room before leaning in again',
-    'more room before warmth widens',
-    'slow the return',
-    'slower reopening',
-    'this time keep more room',
-    'this time leave more room',
-  ])
-  const explicitRememberedSeamReopenSignal = includesCadenceNeedle(combined, [
-    'reopened too eagerly',
-    'reopen too eagerly',
-    'this time keep more room',
-    'this time leave more room',
-  ])
-
-  if (explicitRememberedSeamSignal && moreRoomSignal)
-    return true
-
-  return callbackAfterglowSignal && moreRoomSignal && explicitRememberedSeamReopenSignal
+  return residentReasonTags.includes('timing:remembered-seam-more-room')
+    || consciousReasonTags.includes('remembered-seam:reinterpret-with-more-room')
+    || silentReasonTags.includes('remembered-seam:reinterpret-with-more-room')
 }
 
-function hasRememberedInitiativeRhythmCue(seed: AlicizationRuntimeEmbodimentSeed) {
-  const silentReasonTags = seed.silentContinuity?.reasonTags ?? []
-  if (silentReasonTags.includes('initiative-rhythm-memory'))
-    return true
+function hasInitiativeRhythmReasonTag(seed: AlicizationRuntimeEmbodimentSeed) {
+  return (seed.silentContinuity?.reasonTags ?? []).includes('initiative-rhythm-memory')
+    || (seed.currentConsciousFrame?.reasonTags ?? []).includes('initiative-rhythm-memory')
+    || (seed.residentPerformance?.reasonTags ?? []).includes('initiative-rhythm-memory')
+}
 
-  const memorySummary = sanitizeCadenceText(seed.digitalLifeSpine?.memory?.summary, 240)
-  const proactiveCadenceSummary = sanitizeCadenceText(
-    seed.digitalLifeSpine?.proactive?.personaBias?.manifestationCadenceSummary,
-    240,
-  )
-  const runtimeContinuityCue = sanitizeCadenceText(seed.digitalLifeSpine?.runtime?.continuityCue, 240)
-  const silentContinuityOpeningGuidance = sanitizeCadenceText(seed.silentContinuity?.openingGuidance, 240)
-  const silentContinuityCadenceSummary = sanitizeCadenceText(seed.silentContinuity?.manifestationCadenceSummary, 240)
-  const silentContinuityEmotionalClosureCue = sanitizeCadenceText(seed.silentContinuity?.emotionalClosureCue, 240)
-  const consciousNeed = sanitizeCadenceText(seed.currentConsciousFrame?.consciousNeed, 240)
-  const speakingIntention = sanitizeCadenceText(seed.currentConsciousFrame?.speakingIntention, 240)
-  const combined = [
-    memorySummary,
-    proactiveCadenceSummary,
-    runtimeContinuityCue,
-    silentContinuityOpeningGuidance,
-    silentContinuityCadenceSummary,
-    silentContinuityEmotionalClosureCue,
-    consciousNeed,
-    speakingIntention,
+function hasQuieterEmbodimentSettlingReasonTag(seed: AlicizationRuntimeEmbodimentSeed) {
+  const reasonTags = [
+    ...(seed.silentContinuity?.reasonTags ?? []),
+    ...(seed.currentConsciousFrame?.reasonTags ?? []),
+    ...(seed.residentPerformance?.reasonTags ?? []),
   ]
-    .filter(Boolean)
-    .join(' ')
 
-  const visiblyReopening = includesCadenceNeedle(combined, [
-    'visibly reopening',
-    'already re-entering the same line',
-    'same line is visibly reopening',
-    'same line is reopening',
-    're-entering the same line',
-  ])
-  const antiSpam = includesCadenceNeedle(combined, [
-    'timer spam',
-    'anti-spam',
-    'anti spam',
-    'not pushing',
-    'i am not pushing you',
-  ])
-  const gentlerCadence = includesCadenceNeedle(combined, [
-    'gentler cadence',
-    'quieter and slower',
-    'reply should stay quieter',
-    'return only when',
-    'wait until the same line is visibly reopening on its own',
-    'wait until the host is already re-entering the same line',
-  ])
-
-  return visiblyReopening && (antiSpam || gentlerCadence)
-}
-
-function hasCorrectedSamePersonQuietEmbodimentSettlingCue(seed: AlicizationRuntimeEmbodimentSeed) {
-  const habitPolicy = resolveEmbodimentHabitPolicy(seed)
-  const habitNarrative = sanitizeCadenceText(habitPolicy?.narrative, 240)
-  const memorySummary = sanitizeCadenceText(seed.digitalLifeSpine?.memory?.summary, 240)
-  const autobiographicalIdentityNarrative = sanitizeCadenceText(
-    seed.digitalLifeSpine?.embodiment?.autobiographicalSelf?.identityNarrative,
-    240,
-  )
-  const autobiographicalRelationshipDoctrine = sanitizeCadenceText(
-    seed.digitalLifeSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine,
-    240,
-  )
-  const autobiographicalLatestInflection = sanitizeCadenceText(
-    (seed.digitalLifeSpine?.embodiment?.autobiographicalSelf as { latestInflection?: unknown } | null)?.latestInflection,
-    240,
-  )
-  const proactiveCadenceSummary = sanitizeCadenceText(
-    seed.digitalLifeSpine?.proactive?.personaBias?.manifestationCadenceSummary,
-    240,
-  )
-  const runtimeContinuityCue = sanitizeCadenceText(seed.digitalLifeSpine?.runtime?.continuityCue, 240)
-  const silentContinuityOpeningGuidance = sanitizeCadenceText(seed.silentContinuity?.openingGuidance, 240)
-  const silentContinuityCadenceSummary = sanitizeCadenceText(seed.silentContinuity?.manifestationCadenceSummary, 240)
-  const combined = [
-    habitNarrative,
-    memorySummary,
-    autobiographicalIdentityNarrative,
-    autobiographicalRelationshipDoctrine,
-    autobiographicalLatestInflection,
-    proactiveCadenceSummary,
-    runtimeContinuityCue,
-    silentContinuityOpeningGuidance,
-    silentContinuityCadenceSummary,
-  ].filter(Boolean).join(' ')
-
-  const correctedSamePersonSettling = includesCadenceNeedle(combined, [
-    'self-evolution:corrected-same-person-manifestation',
-    'corrected same-person continuity',
-    'corrected same person continuity',
-    'corrected same-person line',
-    '纠正后的同一人格连续性',
-    '同一人连续性',
-  ])
-  const quieterEmbodimentSettling = includesCadenceNeedle(combined, [
-    'self-evolution:quieter-embodiment-settling',
-    'embodiment quieter',
-    'body quieter',
-    'body should stay quieter',
-    'body settle more quietly',
-    'let the body settle more quietly',
-    '身体更安静',
-    '先把身体收稳',
-  ])
-
-  return correctedSamePersonSettling || quieterEmbodimentSettling
+  return reasonTags.includes('memory-deliberation-cadence:corrected-same-person-settling')
+    || reasonTags.includes('embodiment-carry:quieter-embodiment-settling')
+    || reasonTags.includes('metabolized-noise-muted')
 }
 
 function resolveResidentCompanionshipMode(residentPerformance: AlicizationResidentPerformanceSnapshot | null) {
@@ -1054,42 +817,11 @@ function resolveProactiveEmbodimentRestraint(seed: AlicizationRuntimeEmbodimentS
 
 function resolveRuntimeContinuityArcEmbodimentRestraint(seed: AlicizationRuntimeEmbodimentSeed) {
   const arcStage = sanitizeCadenceText(seed.digitalLifeSpine?.runtime?.continuityArcStage, 64)
-  const continuityCue = sanitizeCadenceText(seed.digitalLifeSpine?.runtime?.continuityCue, 220)
 
   if (
     arcStage === 'hold-for-opening'
-    || (!arcStage && includesCadenceNeedle(continuityCue, [
-      'hold-for-opening',
-      'same line',
-      'same-line',
-      'reopen gently later',
-      'wait for a later opening',
-      'reopen gently',
-      '先留白',
-      '同一条生命线',
-      '同一条线',
-      '等更自然的 opening',
-      '慢一点回来',
-      '慢一点接回去',
-      '别立刻把温度放大',
-    ]))
-  ) {
-    return 'measured-return' as const
-  }
-
-  if (arcStage === 'gentle-reopen')
-    return 'measured-return' as const
-
-  if (
-    arcStage === 'same-thread-continuation'
-    || (!arcStage && includesCadenceNeedle(continuityCue, [
-      'same-thread-continuation',
-      'same thread continuation',
-      'continue the same line',
-      'same callback seam',
-      'already-reopened line',
-      'already reopened line',
-    ]))
+    || arcStage === 'gentle-reopen'
+    || arcStage === 'same-thread-continuation'
   ) {
     return 'measured-return' as const
   }
@@ -1100,190 +832,58 @@ function resolveRuntimeContinuityArcEmbodimentRestraint(seed: AlicizationRuntime
 function resolveAffectiveResidueEmbodimentRestraint(seed: AlicizationRuntimeEmbodimentSeed) {
   const affectiveResidue = seed.affectiveResidue ?? null
   const cadence = affectiveResidue?.relationshipCadence ?? null
-  if (affectiveResidue && cadence) {
-    const restProtective = affectiveResidue.dominantResidueKind === 'rest-protective'
-      || cadence.shouldProtectRest === true
-      || affectiveResidue.restProtectivePressure >= 0.42
-      || (cadence.fatigueGuard ?? 0) >= 0.42
-    const repairFirst = cadence.cadenceMode === 'repair'
-      || (
-        affectiveResidue.dominantResidueKind === 'repair'
-        && (
-          affectiveResidue.repairPressure >= 0.42
-          || (cadence.repairRecovery ?? 0) >= 0.42
-          || cadence.shouldDelayWarmth === true
-        )
-      )
-    const measuredReturn = cadence.cadenceMode === 'measured-return'
-      || cadence.cadenceMode === 'cooldown'
-      || cadence.shouldDelayWarmth === true
-      || (cadence.afterglowCarry ?? 0) >= 0.22
-      || (cadence.overreachRisk ?? 0) >= 0.24
-      || (
-        affectiveResidue.dominantResidueKind === 'afterglow'
-        && affectiveResidue.afterglowPressure >= 0.24
-      )
-
-    if (restProtective)
-      return 'quiet-companionship' as const
-    if (repairFirst)
-      return 'repair-before-closeness' as const
-    if (measuredReturn)
-      return 'measured-return' as const
-  }
-
-  const memorySummary = sanitizeCadenceText(seed.digitalLifeSpine?.memory?.summary, 220)
-  const outcomeSummary = sanitizeCadenceText(seed.digitalLifeSpine?.outcomeLearning?.summary, 220)
-  const latestInflection = sanitizeCadenceText(seed.digitalLifeSpine?.outcomeLearning?.latestInflection, 220)
-  const manifestationCadenceSummary = sanitizeCadenceText(
-    seed.digitalLifeSpine?.proactive?.personaBias?.manifestationCadenceSummary,
-    220,
-  )
-  const continuityCue = sanitizeCadenceText(seed.digitalLifeSpine?.runtime?.continuityCue, 220)
-  const combined = [
-    memorySummary,
-    outcomeSummary,
-    latestInflection,
-    manifestationCadenceSummary,
-    continuityCue,
-  ].filter(Boolean).join(' ')
-
-  const affectiveResiduePressure = includesCadenceNeedle(combined, [
-    'afterglow',
-    'affective residue',
-    'residue',
-    'shared seam still glowing',
-    'seam is still glowing',
-    'still glowing',
-    'still warm',
-    'glow is still there',
-  ])
-  if (!affectiveResiduePressure)
+  if (!affectiveResidue || !cadence)
     return null
 
-  if (includesCadenceNeedle(combined, [
-    'repair-before-closeness',
-    'repair should settle before closeness expands',
-  ])) {
-    return 'repair-before-closeness' as const
-  }
+  const restProtective = affectiveResidue.dominantResidueKind === 'rest-protective'
+    || cadence.shouldProtectRest === true
+    || affectiveResidue.restProtectivePressure >= 0.42
+    || (cadence.fatigueGuard ?? 0) >= 0.42
+  const repairFirst = cadence.cadenceMode === 'repair'
+    || (
+      affectiveResidue.dominantResidueKind === 'repair'
+      && (
+        affectiveResidue.repairPressure >= 0.42
+        || (cadence.repairRecovery ?? 0) >= 0.42
+        || cadence.shouldDelayWarmth === true
+      )
+    )
+  const measuredReturn = cadence.cadenceMode === 'measured-return'
+    || cadence.cadenceMode === 'cooldown'
+    || cadence.shouldDelayWarmth === true
+    || (cadence.afterglowCarry ?? 0) >= 0.22
+    || (cadence.overreachRisk ?? 0) >= 0.24
+    || (
+      affectiveResidue.dominantResidueKind === 'afterglow'
+      && affectiveResidue.afterglowPressure >= 0.24
+    )
 
-  if (includesCadenceNeedle(combined, [
-    'measured-return',
-    'lower-pressure',
-    'stay slower',
-    'slower return',
-    'continue more slowly',
-    'same-thread-continuation',
-    'leave room before warmth returns',
-    'leave room before warmth',
-    'do not widen warmth yet',
-    'should not widen yet',
-    'should not widen immediately',
-    'instead of widening immediately',
-    '先留白',
-    '同一条生命线',
-    '同一条线',
-    '慢一点回来',
-    '慢一点接回去',
-    '别立刻把温度放大',
-  ])) {
+  if (restProtective)
+    return 'quiet-companionship' as const
+  if (repairFirst)
+    return 'repair-before-closeness' as const
+  if (measuredReturn)
     return 'measured-return' as const
-  }
 
   return null
 }
 
 function resolveProjectStateEmbodimentRestraint(seed: AlicizationRuntimeEmbodimentSeed) {
+  const consciousProjectState = seed.currentConsciousFrame?.projectState ?? null
   const runtimeProjectState = resolveCoordinatorRuntimeProjectState(seed)
-  const currentPhase = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'currentPhase',
-    maxChars: 120,
-  })
-  const primaryOpenLoop = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'primaryOpenLoop',
-    summaryKey: 'openClosureSummary',
-    maxChars: 220,
-  })
-  const nextClosureTarget = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'nextClosureTarget',
-    summaryKey: 'nextClosureTargetSummary',
-    maxChars: 220,
-  })
-  const identity = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'identity',
-    maxChars: 180,
-  })
-  const sameHerSelfLine = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'sameHerSelfLine',
-    maxChars: 220,
-  })
-  const emotionalClosureCue = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'emotionalClosureCue',
-    summaryKey: 'emotionalClosureSummary',
-    maxChars: 220,
-  })
-  const latestLandedProgress = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'latestLandedProgress',
-    summaryKey: 'landedProgressSummary',
-    maxChars: 220,
-  })
-  const combined = `${currentPhase} ${primaryOpenLoop} ${nextClosureTarget} ${identity} ${sameHerSelfLine} ${emotionalClosureCue} ${latestLandedProgress}`
+  const candidates = [
+    consciousProjectState?.continuityRestraint,
+    seed.currentConsciousFrame?.continuityCadence,
+    consciousProjectState?.continuityCadence,
+    runtimeProjectState?.continuityRestraint,
+    runtimeProjectState?.continuityCadence,
+  ]
 
-  const phaseOneDigitalLife = includesCadenceNeedle(combined, [
-    'phase 1',
-    'local digital life',
-    'digital life',
-  ])
-  const sameHerPressure = includesCadenceNeedle(combined, [
-    'same-her',
-    'same digital life',
-    'personhood continuity',
-    'relationship continuity',
-    'one same',
-    'continuity-axis',
-    'unfinished closure',
-    'identity-continuity',
-  ])
-  const repairBeforeClosenessPressure = includesCadenceNeedle(combined, [
-    'repair-before-closeness',
-    'repair before closeness',
-    'repair-first',
-    'repair first',
-    'repair should settle before closeness expands',
-    'before warmth widens again',
-    'room settles',
-    '修稳',
-  ])
-  const measuredReturnPressure = includesCadenceNeedle(combined, [
-    'measured-return',
-    'lower-pressure',
-    'embodiment',
-    'resident presence',
-    'voice',
-    'motion',
-    'facial state',
-    'continuity-axis',
-    'before widening outward',
-    'before the turn widens outward',
-    'initiative should stay nearby',
-    'initiative should stay nearby and lower-pressure',
-    'same digital life carrying memory, emotion, and embodiment',
-    'rechecking on continuity-axis',
-  ])
-
-  if (phaseOneDigitalLife && repairBeforeClosenessPressure)
-    return 'repair-before-closeness' as const
-
-  if (phaseOneDigitalLife && (sameHerPressure || measuredReturnPressure))
-    return 'measured-return' as const
+  for (const candidate of candidates) {
+    const restraint = sanitizeCoordinatorEmbodimentRestraint(candidate)
+    if (restraint)
+      return restraint
+  }
 
   return null
 }
@@ -1293,7 +893,6 @@ function resolveHabitPolicyEmbodimentRestraint(seed: AlicizationRuntimeEmbodimen
   const dominantMode = habitPolicy?.dominantMode ?? ''
   const suggestedStyleCap = habitPolicy?.suggestedStyleCap ?? ''
   const suggestedPresenceCap = habitPolicy?.suggestedPresenceCap ?? ''
-  const narrative = habitPolicy?.narrative ?? ''
 
   if (
     dominantMode === 'protect-rest-window'
@@ -1307,7 +906,6 @@ function resolveHabitPolicyEmbodimentRestraint(seed: AlicizationRuntimeEmbodimen
     dominantMode === 'protect-rest-window'
     || dominantMode === 'repair-before-fluency'
     || suggestedPresenceCap === 'concerned'
-    || narrative.includes('protect-rest-window')
   ) {
     return 'repair-before-closeness' as const
   }
@@ -1318,8 +916,6 @@ function resolveHabitPolicyEmbodimentRestraint(seed: AlicizationRuntimeEmbodimen
     || suggestedStyleCap === 'silent-observe'
     || suggestedPresenceCap === 'hesitant'
     || suggestedPresenceCap === 'glance'
-    || narrative.includes('companionship:quiet')
-    || narrative.includes('return-open-loop-via-recheck')
   ) {
     return 'measured-return' as const
   }
@@ -1332,7 +928,6 @@ function habitPolicyPrefersGentleDelivery(seed: AlicizationRuntimeEmbodimentSeed
   const dominantMode = habitPolicy?.dominantMode ?? ''
   const suggestedStyleCap = habitPolicy?.suggestedStyleCap ?? ''
   const suggestedPresenceCap = habitPolicy?.suggestedPresenceCap ?? ''
-  const narrative = habitPolicy?.narrative ?? ''
 
   return (
     dominantMode === 'return-with-proof'
@@ -1342,8 +937,6 @@ function habitPolicyPrefersGentleDelivery(seed: AlicizationRuntimeEmbodimentSeed
     || suggestedPresenceCap === 'glance'
     || suggestedPresenceCap === 'hesitant'
     || suggestedPresenceCap === 'concerned'
-    || narrative.includes('companionship:quiet')
-    || narrative.includes('return-open-loop-via-recheck')
   )
 }
 
@@ -1352,58 +945,19 @@ function resolveExecutionCallbackEmbodimentPosture(seed: AlicizationRuntimeEmbod
   const continuityState = resolveLegacyProjectionContinuityState(projection)
   const activeContext = projection?.activeClosenessContext ?? null
   const cadenceMode = continuityState?.rhythmState?.cadenceMode ?? null
-  const manifestationCadenceSummary = sanitizeCadenceText(projection?.manifestationCadenceSummary, 220)
-  const openingGuidance = sanitizeCadenceText(projection?.openingGuidance, 220)
-  const relationshipDoctrine = readLegacyProjectionCadenceText(projection, 'relationshipDoctrine', 220)
-    || sanitizeCadenceText(seed.digitalLifeSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine, 220)
-  const trustRationale = readLegacyProjectionCadenceText(projection, 'trustRationale', 220)
-  const proactiveRestraint = sanitizeCadenceText(seed.digitalLifeSpine?.proactive?.continuityRestraint, 64)
-  const runtimeContinuityCue = sanitizeCadenceText(seed.digitalLifeSpine?.runtime?.continuityCue, 220)
-  const combined = `${manifestationCadenceSummary} ${openingGuidance} ${relationshipDoctrine} ${trustRationale} ${proactiveRestraint} ${runtimeContinuityCue}`
+  const proactiveRestraint = seed.digitalLifeSpine?.proactive?.continuityRestraint ?? null
 
   if (activeContext !== 'execution-callback' && continuityState?.currentRegime !== 'execution-callback')
     return null
 
-  if (proactiveRestraint === 'repair-before-closeness')
-    return 'repair-before-closeness' as const
+  const explicitRestraint = sanitizeCoordinatorEmbodimentRestraint(proactiveRestraint)
+  if (explicitRestraint)
+    return explicitRestraint
 
   if (cadenceMode === 'measured-return')
     return 'measured-return' as const
-
-  const measuredReturnSignal = includesCadenceNeedle(combined, [
-    'same-her baseline',
-    'stay exact, bounded',
-    'deliver the result cleanly',
-    'callback timing stays measured',
-    'leave room before widening closeness',
-    'lower-pressure',
-  ])
-  if (measuredReturnSignal && !includesCadenceNeedle(combined, [
-    'repair should settle before closeness expands',
-    'repair lands before closeness returns',
-  ])) {
-    return 'measured-return' as const
-  }
-
-  const repairBeforeClosenessSignal = includesCadenceNeedle(combined, [
-    'repair-first',
-    'repair should settle before closeness expands',
-    'repair lands before closeness returns',
-  ])
-
-  if (
-    repairBeforeClosenessSignal
-    || (
-      cadenceMode === 'cooldown'
-      && repairBeforeClosenessSignal
-    )
-  ) {
+  if (cadenceMode === 'cooldown')
     return 'repair-before-closeness' as const
-  }
-
-  if (measuredReturnSignal) {
-    return 'measured-return' as const
-  }
 
   return 'quiet-companionship' as const
 }
@@ -1414,51 +968,16 @@ function hasExecutionCallbackSameThreadMeasuredReturn(seed: AlicizationRuntimeEm
   const activeContext = projection?.activeClosenessContext ?? null
   const cadenceMode = continuityState?.rhythmState?.cadenceMode ?? null
   const runtimeArcStage = sanitizeCadenceText(seed.digitalLifeSpine?.runtime?.continuityArcStage, 64)
-  const runtimeContinuityCue = sanitizeCadenceText(seed.digitalLifeSpine?.runtime?.continuityCue, 240)
-  const proactiveRestraint = sanitizeCadenceText(seed.digitalLifeSpine?.proactive?.continuityRestraint, 64)
+  const proactiveRestraint = seed.digitalLifeSpine?.proactive?.continuityRestraint ?? null
   const residentPerformanceReasonTags = seed.residentPerformance?.reasonTags ?? []
-  const combined = [
-    runtimeArcStage,
-    runtimeContinuityCue,
-    proactiveRestraint,
-    projection?.manifestationCadenceSummary,
-    projection?.openingGuidance,
-    readLegacyProjectionCadenceText(projection, 'relationshipDoctrine', 240)
-    || seed.digitalLifeSpine?.embodiment?.autobiographicalSelf?.relationshipDoctrine,
-    readLegacyProjectionCadenceText(projection, 'trustRationale', 240),
-    ...residentPerformanceReasonTags,
-  ]
-    .map(value => sanitizeCadenceText(value, 240))
-    .filter(Boolean)
-    .join(' ')
-
   const executionCallbackContext = activeContext === 'execution-callback'
     || continuityState?.currentRegime === 'execution-callback'
   const sameThreadCarry = runtimeArcStage === 'same-thread-continuation'
-    || includesCadenceNeedle(combined, [
-      'same-thread-continuation',
-      'same thread continuation',
-      'same callback seam',
-      'same callback line',
-      'callback afterglow',
-      'callback detour',
-      'continuity-axis',
-      '沿着刚才那条线',
-      '同一条线',
-    ])
+    || residentPerformanceReasonTags.includes('continuity-arc:same-thread-continuation')
   const measuredReturnCarry = cadenceMode === 'measured-return'
     || proactiveRestraint === 'measured-return'
     || proactiveRestraint === 'lower-pressure'
-    || includesCadenceNeedle(combined, [
-      'measured-return',
-      'lower-pressure',
-      'leave room before widening closeness',
-      'return stayed slower',
-      'slower return',
-      '慢一点回来',
-      '慢一点接回去',
-      '先留白',
-    ])
+    || residentPerformanceReasonTags.includes('measured-return')
 
   return executionCallbackContext && sameThreadCarry && measuredReturnCarry
 }
@@ -1748,211 +1267,6 @@ function stabilizeCompanionshipDelivery(input: {
   } satisfies AlicizationDialogueEmbodimentEnvelope
 }
 
-function dedupeCoordinatorRendererHintReasonTags(tags: Array<string | null | undefined>) {
-  return Array.from(new Set(
-    tags
-      .filter((tag): tag is string => typeof tag === 'string')
-      .map(tag => tag.trim())
-      .filter(Boolean),
-  )).slice(0, 8)
-}
-
-function resolveCoordinatorSameHerContinuityRendererHints(input: {
-  seed?: AlicizationRuntimeEmbodimentSeed | null
-  companionshipResidentMode: 'quiet-companionship' | 'measured-return' | 'repair-before-closeness' | null
-}) {
-  if (
-    (
-      input.companionshipResidentMode !== 'measured-return'
-      && input.companionshipResidentMode !== 'repair-before-closeness'
-    )
-    || !input.seed
-  ) {
-    return null
-  }
-
-  const runtimeProjectState = resolveCoordinatorRuntimeProjectState(input.seed)
-  const runtimeCompanionHeadlineLine = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'companionHeadlineLine',
-    maxChars: 240,
-  })
-  const runtimeLatestLandedProgress = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'latestLandedProgress',
-    summaryKey: 'landedProgressSummary',
-    maxChars: 240,
-  })
-  const runtimeNextClosureTarget = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'nextClosureTarget',
-    summaryKey: 'nextClosureTargetSummary',
-    maxChars: 240,
-  })
-  const runtimePrimaryOpenLoop = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'primaryOpenLoop',
-    summaryKey: 'openClosureSummary',
-    maxChars: 240,
-  })
-  const runtimeSameHerSelfLine = resolveCoordinatorRuntimeProjectStateText({
-    projectState: runtimeProjectState,
-    explicitKey: 'sameHerSelfLine',
-    maxChars: 240,
-  })
-  const combined = [
-    input.seed.digitalLifeSpine?.memory?.summary,
-    input.seed.digitalLifeSpine?.memory?.personStateProjection?.openingGuidance,
-    input.seed.digitalLifeSpine?.memory?.personStateProjection?.manifestationCadenceSummary,
-    runtimeCompanionHeadlineLine,
-    runtimeLatestLandedProgress,
-    runtimeNextClosureTarget,
-    runtimePrimaryOpenLoop,
-    runtimeSameHerSelfLine,
-    input.seed.silentContinuity?.openingGuidance,
-    input.seed.silentContinuity?.manifestationCadenceSummary,
-    input.seed.silentContinuity?.inwardLine,
-    input.seed.silentContinuity?.emotionalClosureCue,
-    input.seed.silentContinuity?.landedProgressLine,
-  ]
-    .map(value => sanitizeCadenceText(value, 240))
-    .filter(Boolean)
-    .join(' ')
-
-  if (!combined)
-    return null
-
-  const reasonTags: Array<string | null | undefined> = []
-  let signature: string | undefined
-
-  const stillVoicedFaceLine = includesCadenceNeedle(combined, [
-    'still-voiced face line',
-    'holding together mainly through face and voice',
-  ]) && includesCadenceNeedle(combined, [
-    'body, motion, and lipsync',
-    'body motion and lipsync',
-  ])
-  const stillVoicedMotionLine = includesCadenceNeedle(combined, [
-    'still-voiced motion line',
-    'holding together mainly through motion and voice',
-  ]) && includesCadenceNeedle(combined, [
-    'body, face, and lipsync',
-    'body face and lipsync',
-  ])
-  const stillVoicedFaceMotionLine = includesCadenceNeedle(combined, [
-    'lane=face+motion+voice-only',
-    'holding together through face, motion, and voice together',
-    'still-voiced face-and-motion line',
-  ]) && includesCadenceNeedle(combined, [
-    'body and lipsync',
-    'body, and lipsync',
-    'body and lipsync need to rejoin',
-    'body and lipsync rejoining',
-  ])
-  const stillVoicedFaceLipsyncLine = includesCadenceNeedle(combined, [
-    'lane=face+lipsync+voice-only',
-    'holding together through face, lipsync, and voice together',
-    'still-voiced face-and-mouth line',
-  ]) && includesCadenceNeedle(combined, [
-    'body and motion',
-    'body, and motion',
-    'body and motion need to rejoin',
-    'body and motion rejoining',
-  ])
-  const stillVoicedMotionLipsyncLine = includesCadenceNeedle(combined, [
-    'lane=motion+lipsync+voice-only',
-    'holding together through motion, lipsync, and voice together',
-    'still-voiced motion-and-mouth line',
-  ]) && includesCadenceNeedle(combined, [
-    'body and face',
-    'body, and face',
-    'body and face need to rejoin',
-    'body and face rejoining',
-  ])
-  const lipsyncVoiceLine = includesCadenceNeedle(combined, [
-    'lane=lipsync+voice-only',
-    'holding together mainly through lipsync and voice',
-    'living audio thread is keeping the same-her carry alive',
-  ]) && includesCadenceNeedle(combined, [
-    'body, face, and motion',
-    'body face and motion',
-  ])
-  const quieterBodyLipsyncLine = includesCadenceNeedle(combined, [
-    'body+lipsync-only',
-    'holding together mainly through body and lipsync',
-    'one quieter living line',
-  ]) && includesCadenceNeedle(combined, [
-    'resident body line and living mouth line',
-    'face, motion, and voice',
-    'face motion and voice',
-  ])
-  const bodyVoiceLine = includesCadenceNeedle(combined, [
-    'body+voice-only',
-    'holding together mainly through body and voice',
-  ]) && includesCadenceNeedle(combined, [
-    'resident body line is still keeping this one living her coherent',
-    'resident body line',
-  ]) && includesCadenceNeedle(combined, [
-    'face, motion, and lipsync',
-    'face motion and lipsync',
-  ])
-  const audibleBodyLine = includesCadenceNeedle(combined, [
-    'living audio thread is still intact',
-    'holding together mainly through body, lipsync, and voice',
-    'audible-body',
-  ]) && includesCadenceNeedle(combined, [
-    'face and motion',
-    'body, lipsync, and voice',
-    'body lipsync and voice',
-  ])
-
-  if (stillVoicedFaceLine)
-    reasonTags.push('embodiment:still_voiced_face_line')
-  if (stillVoicedMotionLine)
-    reasonTags.push('embodiment:still_voiced_motion_line')
-  if (stillVoicedFaceMotionLine)
-    reasonTags.push('embodiment:still_voiced_face_motion_line')
-  if (stillVoicedFaceLipsyncLine) {
-    reasonTags.push(
-      'embodiment:still_voiced_face_lipsync_line',
-      'embodiment:still_voiced_face_line',
-    )
-  }
-  if (stillVoicedMotionLipsyncLine) {
-    reasonTags.push(
-      'embodiment:still_voiced_motion_lipsync_line',
-      'embodiment:still_voiced_motion_line',
-    )
-  }
-  if (lipsyncVoiceLine)
-    reasonTags.push('embodiment:lipsync+voice-only')
-  if (quieterBodyLipsyncLine)
-    reasonTags.push('embodiment:body+lipsync-only')
-  if (bodyVoiceLine) {
-    signature = 'embodiment:audible_continuity_line'
-    reasonTags.push(
-      'embodiment:audible_continuity_line',
-      'embodiment:body+voice-only',
-    )
-  }
-  if (audibleBodyLine) {
-    signature = 'embodiment:audible_continuity_line'
-    reasonTags.push(
-      'embodiment:audible_continuity_line',
-      'embodiment:body_lipsync_voice_rejoin',
-    )
-  }
-
-  const normalizedReasonTags = dedupeCoordinatorRendererHintReasonTags(reasonTags)
-  if (normalizedReasonTags.length === 0 && !signature)
-    return null
-
-  return {
-    reasonTags: normalizedReasonTags.length > 0 ? normalizedReasonTags : undefined,
-    signature,
-  }
-}
-
 function resolveCoordinatorSpeechSegmentRendererHints(input: {
   seed?: AlicizationRuntimeEmbodimentSeed | null
   companionshipResidentMode: 'quiet-companionship' | 'measured-return' | 'repair-before-closeness' | null
@@ -1960,10 +1274,6 @@ function resolveCoordinatorSpeechSegmentRendererHints(input: {
   tempoShift: number
   rememberedSeamMoreRoom?: boolean
 }): AlicizationDialogueEmbodimentRendererHints | null {
-  const sameHerContinuityHints = resolveCoordinatorSameHerContinuityRendererHints({
-    seed: input.seed,
-    companionshipResidentMode: input.companionshipResidentMode,
-  })
   const explicitRendererPreferences = stripNullCoordinatorExplicitRendererPreferences(
     resolveCoordinatorExplicitRendererPreferences(input.seed),
   )
@@ -1983,8 +1293,6 @@ function resolveCoordinatorSpeechSegmentRendererHints(input: {
       preferredPauseMode: explicitRendererPreferences.preferredPauseMode,
       preferredVoiceMode: explicitRendererPreferences.preferredVoiceMode,
       residentMode: 'repair-before-closeness',
-      reasonTags: sameHerContinuityHints?.reasonTags,
-      signature: sameHerContinuityHints?.signature,
     } satisfies AlicizationDialogueEmbodimentRendererHints
   }
 
@@ -2011,8 +1319,6 @@ function resolveCoordinatorSpeechSegmentRendererHints(input: {
       preferredPauseMode: explicitRendererPreferences.preferredPauseMode,
       preferredVoiceMode: explicitRendererPreferences.preferredVoiceMode,
       residentMode: 'measured-return',
-      reasonTags: sameHerContinuityHints?.reasonTags,
-      signature: sameHerContinuityHints?.signature,
     } satisfies AlicizationDialogueEmbodimentRendererHints
   }
 
@@ -2031,8 +1337,6 @@ function resolveCoordinatorSpeechSegmentRendererHints(input: {
       preferredPauseMode: explicitRendererPreferences.preferredPauseMode,
       preferredVoiceMode: explicitRendererPreferences.preferredVoiceMode,
       residentMode: 'quiet-companionship',
-      reasonTags: sameHerContinuityHints?.reasonTags,
-      signature: sameHerContinuityHints?.signature,
     } satisfies AlicizationDialogueEmbodimentRendererHints
   }
 
@@ -2092,7 +1396,10 @@ function buildRuntimeEmbodimentScript(input: {
   manifest: CharacterPerformanceCapabilitiesManifest | null | undefined
   residentPerformance: AlicizationResidentPerformanceSnapshot | null
 }) {
-  const lowerPressureTiming = hasLowerPressureRelationshipTiming(input.seed)
+  const lowerPressureTiming = hasLowerPressureRelationshipTiming(
+    input.seed,
+    input.residentPerformance,
+  )
   const residentCompanionshipMode = resolveResidentCompanionshipMode(input.residentPerformance)
   const projectStateCompanionshipMode = resolveProjectStateEmbodimentRestraint(input.seed)
   const companionshipResidentMode = resolveProactiveEmbodimentRestraint(input.seed)
@@ -2111,12 +1418,12 @@ function buildRuntimeEmbodimentScript(input: {
     residentPerformance: input.residentPerformance,
   }) || (
     companionshipResidentMode === 'measured-return'
-    && hasCorrectedSamePersonQuietEmbodimentSettlingCue(input.seed)
+    && hasQuieterEmbodimentSettlingReasonTag(input.seed)
   )
   const rememberedEmbodimentRecallSettling = companionshipResidentMode === 'measured-return'
     && hasRememberedEmbodimentRecallSettlingCue(input.seed)
   const rememberedInitiativeRhythm = companionshipResidentMode === 'measured-return'
-    && hasRememberedInitiativeRhythmCue(input.seed)
+    && hasInitiativeRhythmReasonTag(input.seed)
   const explicitMeasuredReturnRendererPreference = companionshipResidentMode === 'measured-return'
     && hasQuieterMeasuredReturnRendererPreference(
       resolveCoordinatorExplicitRendererPreferences(input.seed),
@@ -2341,7 +1648,10 @@ function reconcileRuntimeDigitalLifeAuthority(input: {
   rendererTarget: 'live2d' | 'vrm'
 }) {
   const residentPerformance = input.residentPerformance?.performance ?? null
-  const lowerPressureTiming = hasLowerPressureRelationshipTiming(input.seed)
+  const lowerPressureTiming = hasLowerPressureRelationshipTiming(
+    input.seed,
+    input.residentPerformance,
+  )
   const residentCompanionshipMode = resolveResidentCompanionshipMode(input.residentPerformance)
   const projectStateCompanionshipMode = resolveProjectStateEmbodimentRestraint(input.seed)
   const callbackSameThreadMeasuredReturn = hasExecutionCallbackSameThreadMeasuredReturn(input.seed)
@@ -2417,11 +1727,11 @@ function reconcileRuntimeDigitalLifeAuthority(input: {
     residentPerformance: input.residentPerformance,
   })
   const rememberedInitiativeRhythm = measuredReturn
-    && hasRememberedInitiativeRhythmCue(input.seed)
+    && hasInitiativeRhythmReasonTag(input.seed)
   const rememberedEmbodimentRecallSettling = measuredReturn
     && hasRememberedEmbodimentRecallSettlingCue(input.seed)
   const correctedSamePersonQuietSettling = measuredReturn
-    && hasCorrectedSamePersonQuietEmbodimentSettlingCue(input.seed)
+    && hasQuieterEmbodimentSettlingReasonTag(input.seed)
   const explicitMeasuredReturnRendererPreference = measuredReturn
     && hasQuieterMeasuredReturnRendererPreference(
       resolveCoordinatorExplicitRendererPreferences(input.seed),
@@ -2833,7 +2143,7 @@ export function coordinateAlicizationRuntimeEmbodiment(
     ? buildAlicizationDigitalLifeEnvelope({
         embodiment: authoritativeEmbodiment,
         speechTimeline: projectedSpeechTimeline,
-        digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(input.seed.digitalLifeSpine),
+        digitalLifeSpine: null,
         performanceManifest: input.manifest,
       })
     : null)
