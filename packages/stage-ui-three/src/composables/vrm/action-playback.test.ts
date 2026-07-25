@@ -67,7 +67,7 @@ describe('vrm action playback helpers', () => {
     })
   })
 
-  it('builds different transient replay keys when the same binding re-enters with new identity-continuity', () => {
+  it('keeps transient replay keys identical when only renderer audit fields change', () => {
     const binding: VrmActionBinding = {
       id: 'observe-soft-motion',
       fileName: 'observe-soft-motion.vrma',
@@ -91,7 +91,22 @@ describe('vrm action playback helpers', () => {
       },
     })
 
-    const sameHerReplayKey = buildVrmTransientActionReplayKey({
+    const auditedKey = buildVrmTransientActionReplayKey({
+      binding,
+      fadeInput: {
+        actionCueSource: 'segment',
+        actionIntensity: 0.52,
+        fadeDurationSeconds: 0.36,
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+        residentMode: 'repair-before-closeness',
+        signature: 'ordinary renderer audit text',
+        reasonTags: ['renderer:audit-only'],
+        bodySegmentMatched: true,
+      },
+    })
+
+    const legacySameHerKey = buildVrmTransientActionReplayKey({
       binding,
       fadeInput: {
         actionCueSource: 'segment',
@@ -102,11 +117,38 @@ describe('vrm action playback helpers', () => {
         residentMode: 'repair-before-closeness',
         signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
         reasonTags: ['embodiment:body+voice-only'],
-        bodySegmentMatched: false,
+        bodySegmentMatched: true,
       },
     })
 
-    expect(sameHerReplayKey).not.toBe(neutralKey)
+    expect(auditedKey).toBe(neutralKey)
+    expect(legacySameHerKey).toBe(neutralKey)
+  })
+
+  it('builds different transient replay keys when structured driver matching changes', () => {
+    const binding: VrmActionBinding = {
+      id: 'observe-soft-motion',
+      fileName: 'observe-soft-motion.vrma',
+      actionKey: 'observe_soft',
+      label: 'Observe Soft',
+      description: 'Observe with a softer identity-continuity',
+      importedAt: 0,
+      source: 'external-vrma',
+    }
+    const buildKey = (bodySegmentMatched: boolean) => buildVrmTransientActionReplayKey({
+      binding,
+      fadeInput: {
+        actionCueSource: 'segment',
+        actionIntensity: 0.52,
+        fadeDurationSeconds: 0.36,
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+        residentMode: 'repair-before-closeness',
+        bodySegmentMatched,
+      },
+    })
+
+    expect(buildKey(false)).not.toBe(buildKey(true))
   })
 
   it('freezes the current same-her authority cue into vrm motion execution state when the motion actually starts', () => {

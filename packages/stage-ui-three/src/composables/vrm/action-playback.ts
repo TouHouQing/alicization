@@ -46,13 +46,6 @@ function normalizeText(value: string | null | undefined) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function normalizeReasonTags(reasonTags: readonly string[] | null | undefined) {
-  return [...new Set((reasonTags ?? [])
-    .map(tag => normalizeText(tag).toLowerCase())
-    .filter(Boolean))]
-    .sort()
-}
-
 function roundKeyNumber(value: number | null | undefined, scale: number) {
   return Number.isFinite(value as number) ? Math.round(Number(value) * scale) : null
 }
@@ -171,8 +164,6 @@ export function buildVrmTransientActionReplayKey(input: {
     normalizeText(input.fadeInput.residentMode).toLowerCase(),
     normalizeText(input.fadeInput.preferredGazeMode).toLowerCase(),
     normalizeText(input.fadeInput.preferredBlinkCadence).toLowerCase(),
-    normalizeText(input.fadeInput.signature).toLowerCase(),
-    normalizeReasonTags(input.fadeInput.reasonTags),
     input.fadeInput.bodySegmentMatched == null ? 'unknown' : input.fadeInput.bodySegmentMatched ? 'matched' : 'renderer-only',
   ])
 }
