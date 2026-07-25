@@ -17,15 +17,9 @@ import type {
 import {
   createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentPerformanceState,
-  hasAlicizationAudibleSameHerCarry,
-  hasAlicizationBodyVoiceOnlySameHerCarry,
-  hasAlicizationQuieterSameHerCarry,
-  hasAlicizationSoftenedSameHerCarry,
-  hasAlicizationStillVoicedSameHerCarry,
   normalizeAlicizationEmbodimentScript,
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
-  normalizeAlicizationRendererHintTokens,
 } from '@proj-alicization/stage-shared'
 import { computed, onScopeDispose, readonly, ref, watch } from 'vue'
 
@@ -137,10 +131,6 @@ function resolvePerformanceCueEmotion(
   return normalizeAlicizationEmotion(emotion ?? fallback).emotion
 }
 
-function includesSpineTimingNeedle(text: string, needles: string[]) {
-  return needles.some(needle => text.includes(needle))
-}
-
 function resolveSpinePerformanceBias(digest: AlicizationDigitalLifeSpineDigest | null | undefined) {
   const mode = digest?.architecture?.operatingMode
   const watchMode = digest?.runtime.watchMode
@@ -148,10 +138,6 @@ function resolveSpinePerformanceBias(digest: AlicizationDigitalLifeSpineDigest |
   const recallMode = (digest?.memory?.recallMode ?? '').trim().toLowerCase()
   const confidence = clamp01(digest?.proactive?.confidence ?? 0.5, 0.5)
   const personaBias = digest?.proactive?.personaBias ?? null
-  const manifestationCadenceSummary = sanitizeSpineTimingText(personaBias?.manifestationCadenceSummary)
-  const relationshipDoctrine = sanitizeSpineTimingText(digest?.embodiment?.autobiographicalSelf?.relationshipDoctrine)
-  const outcomeSummary = sanitizeSpineTimingText(digest?.outcomeLearning?.summary)
-  const latestInflection = sanitizeSpineTimingText(digest?.outcomeLearning?.latestInflection)
 
   let expressionBias = 1
   let actionBias = 1
@@ -165,25 +151,6 @@ function resolveSpinePerformanceBias(digest: AlicizationDigitalLifeSpineDigest |
     || personaBias?.silenceReconnect === 'direct-approach'
   const personaCareBias = personaBias?.relationshipPosture === 'guardian'
     || personaBias?.comfortStyle === 'take-charge'
-  const lowerPressureObserveTiming = personaObserveBias
-    && (
-      includesSpineTimingNeedle(manifestationCadenceSummary, [
-        'observe-first',
-        'stay slower',
-        'slower until the opening softens',
-      ])
-      || includesSpineTimingNeedle(
-        `${relationshipDoctrine} ${outcomeSummary} ${latestInflection}`,
-        [
-          'lower-pressure',
-          'pressure stayed low',
-          'return stayed slower',
-          'slower return',
-          'keep more room',
-          'repair should settle before closeness expands',
-        ],
-      )
-    )
 
   switch (mode) {
     case 'acting':
@@ -248,16 +215,22 @@ function resolveSpinePerformanceBias(digest: AlicizationDigitalLifeSpineDigest |
       break
   }
 
-  if (recallMode.includes('working')) {
-    focusBias += 0.08
-  }
-  else if (recallMode.includes('subconscious') || recallMode.includes('dream')) {
-    breathBias += 0.08
-    actionBias -= 0.06
-  }
-  else if (recallMode.includes('episodic')) {
-    expressionBias += 0.04
-    focusBias += 0.04
+  switch (recallMode) {
+    case 'working':
+    case 'working-memory':
+    case 'working-and-long-term':
+      focusBias += 0.08
+      break
+    case 'subconscious-memory':
+      breathBias += 0.08
+      actionBias -= 0.06
+      break
+    case 'episodic':
+      expressionBias += 0.04
+      focusBias += 0.04
+      break
+    default:
+      break
   }
 
   const confidenceBias = (confidence - 0.5) * 0.12
@@ -278,13 +251,6 @@ function resolveSpinePerformanceBias(digest: AlicizationDigitalLifeSpineDigest |
     breathBias += 0.06
     expressionBias += 0.04
   }
-  if (lowerPressureObserveTiming) {
-    actionBias -= 0.06
-    focusBias += 0.06
-    breathBias += 0.04
-    prosodyBias -= 0.04
-  }
-
   return {
     actionBias: clampFactor(actionBias),
     breathBias: clampFactor(breathBias),
@@ -359,24 +325,13 @@ function resolvePerformanceFocusBase(performance: AlicizationDialoguePerformance
 
 function resolveResidentRuntimeDynamics(input: {
   performance: AlicizationDialoguePerformancePayload
-  residentReasonTags?: string[] | null | undefined
-  variationToken: string | null | undefined
 }) {
-  const variationToken = typeof input.variationToken === 'string'
-    ? input.variationToken.trim().replace(/\s+/g, ' ').slice(0, 240).toLowerCase()
-    : ''
-  const residentReasonTags = (input.residentReasonTags ?? [])
-    .map(tag => typeof tag === 'string' ? tag.trim().toLowerCase() : '')
-    .filter(Boolean)
-  const stillVoicedResidentContinuity = hasAlicizationStillVoicedSameHerCarry({
-    signature: variationToken,
-    reasonTags: residentReasonTags,
-  })
-  const durableRelationshipRhythm = residentReasonTags.includes('durable-relationship-rhythm')
-    || variationToken.includes('durable-relationship-rhythm')
+  const residentMode = input.performance.residentMode
+    ?? input.performance.action?.residentMode
+    ?? input.performance.face?.residentMode
+    ?? null
   const hasResidentBaseline = Boolean(
-    variationToken
-    || residentReasonTags.length > 0
+    residentMode
     || input.performance.actionCue
     || input.performance.facialCue
     || input.performance.baseEmotion !== 'neutral'
@@ -398,32 +353,11 @@ function resolveResidentRuntimeDynamics(input: {
     }
   }
 
-  const quietAccompaniment = variationToken.includes('quiet-accompaniment')
-    || residentReasonTags.includes('continuity:quiet-accompaniment')
-    || residentReasonTags.includes('quiet-companionship')
-    || (
-      input.performance.actionCue === 'steady_focus'
-      && input.performance.facialCue === 'focus'
-      && input.performance.delivery === 'gentle'
-      && input.performance.baseEmotion === 'thinking'
-      && input.performance.emphasis === 0
-    )
-  const protectiveWatch = variationToken.includes('protective-watch')
-    || residentReasonTags.includes('protective-watch')
-    || (
-      input.performance.actionCue === 'comfort_sway'
-      && input.performance.facialCue === 'soft-gaze'
-      && input.performance.delivery === 'gentle'
-      && (input.performance.baseEmotion === 'concerned' || input.performance.baseEmotion === 'tired')
-    )
-  const lowerPressureTiming = variationToken.includes('lower-pressure')
-    || variationToken.includes('timing:lower-pressure-opening')
-    || residentReasonTags.includes('timing:lower-pressure-opening')
-    || residentReasonTags.includes('measured-return')
-    || residentReasonTags.includes('repair-before-closeness')
-    || stillVoicedResidentContinuity
-  const durableMeasuredReturn = durableRelationshipRhythm
-    && (variationToken.includes('measured-return') || residentReasonTags.includes('measured-return'))
+  const quietAccompaniment = residentMode === 'quiet-accompaniment'
+    || residentMode === 'quiet-companionship'
+  const idleRecovery = residentMode === 'idle-recovering'
+  const lowerPressureTiming = residentMode === 'measured-return'
+    || residentMode === 'repair-before-closeness'
 
   let sustainBlend = input.performance.delivery === 'gentle' ? 0.22 : 0.24
   let cooldownBlend = input.performance.delivery === 'gentle' ? 0.14 : 0.12
@@ -454,7 +388,7 @@ function resolveResidentRuntimeDynamics(input: {
     opennessBias = -0.02
   }
 
-  if (protectiveWatch) {
+  if (idleRecovery) {
     sustainBlend = 0.2
     cooldownBlend = 0.16
     actionFloor = input.performance.actionCue ? 0.05 : 0.03
@@ -472,14 +406,6 @@ function resolveResidentRuntimeDynamics(input: {
     focusFloor += 0.03
     cooldownBlend += 0.03
     opennessBias -= 0.03
-  }
-
-  if (durableMeasuredReturn) {
-    sustainBlend = Math.max(0.1, sustainBlend - 0.02)
-    actionFloor = Math.max(0, actionFloor - 0.01)
-    expressionFloor = Math.max(0.05, expressionFloor - 0.01)
-    cooldownBlend = Math.min(0.24, cooldownBlend + 0.02)
-    opennessBias -= 0.02
     settleBias += 0.02
   }
 
@@ -498,68 +424,28 @@ function resolveResidentRuntimeDynamics(input: {
 
 export function resolveCompanionshipExpressionDampening(input: {
   activeCueResidentMode?: unknown
-  residentReasonTags?: string[] | null | undefined
   speechActive: boolean
-  variationToken: string | null | undefined
 }) {
-  const variationToken = typeof input.variationToken === 'string'
-    ? input.variationToken.trim().replace(/\s+/g, ' ').slice(0, 240).toLowerCase()
-    : ''
   const residentMode = typeof input.activeCueResidentMode === 'string'
     ? input.activeCueResidentMode.trim().toLowerCase()
     : ''
-  const residentReasonTags = (input.residentReasonTags ?? [])
-    .map(tag => typeof tag === 'string' ? tag.trim().toLowerCase() : '')
-    .filter(Boolean)
-  const stillVoicedResidentContinuity = hasAlicizationStillVoicedSameHerCarry({
-    signature: variationToken,
-    reasonTags: residentReasonTags,
-  })
-  const durableRelationshipRhythm = residentReasonTags.includes('durable-relationship-rhythm')
-    || variationToken.includes('durable-relationship-rhythm')
-  const inferredResidentMode = residentMode
-    || (residentReasonTags.includes('repair-before-closeness')
-      ? 'repair-before-closeness'
-      : residentReasonTags.includes('rest-protective') || residentReasonTags.includes('rest-protective-companionship')
-        ? 'rest-protective'
-        : residentReasonTags.includes('measured-return')
-          || stillVoicedResidentContinuity
-          ? 'measured-return'
-          : residentReasonTags.includes('continuity:quiet-accompaniment') || residentReasonTags.includes('quiet-companionship')
-            ? 'quiet-companionship'
-            : '')
-          || (variationToken.includes('repair-before-closeness')
-            ? 'repair-before-closeness'
-            : variationToken.includes('rest-protective')
-              ? 'rest-protective'
-              : variationToken.includes('measured-return')
-                || stillVoicedResidentContinuity
-                ? 'measured-return'
-                : variationToken.includes('quiet-accompaniment') || variationToken.includes('quiet-companionship')
-                  ? 'quiet-companionship'
-                  : '')
 
-  if (inferredResidentMode === 'repair-before-closeness') {
+  if (residentMode === 'repair-before-closeness') {
     return input.speechActive
       ? 0.84
       : 0.72
   }
 
-  if (inferredResidentMode === 'measured-return') {
-    if (durableRelationshipRhythm) {
-      return input.speechActive
-        ? 0.88
-        : 0.78
-    }
+  if (residentMode === 'measured-return') {
     return input.speechActive
       ? 0.92
       : 0.82
   }
 
-  if (inferredResidentMode === 'rest-protective')
+  if (residentMode === 'idle-recovering')
     return input.speechActive ? 0.9 : 0.8
 
-  if (inferredResidentMode === 'quiet-companionship')
+  if (residentMode === 'quiet-companionship')
     return input.speechActive ? 0.94 : 0.86
 
   return 1
@@ -1460,8 +1346,6 @@ function createPlaybackTelemetrySignature(
     telemetry.cue?.rendererHints?.preferredGazeMode ?? '',
     telemetry.cue?.rendererHints?.preferredBlinkCadence ?? '',
     telemetry.cue?.rendererHints?.residentMode ?? '',
-    telemetry.cue?.rendererHints?.signature ?? '',
-    telemetry.cue?.rendererHints?.reasonTags?.join('|') ?? '',
     telemetry.cue?.rendererSettle?.live2dFacialReleaseMs ?? 0,
     telemetry.cue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0,
     telemetry.cue?.rendererSettle?.vrmActionFadeMs ?? 0,
@@ -1598,56 +1482,56 @@ function resolveCueResidentMode(
   cue: {
     rendererHints?: {
       residentMode?: unknown
-      reasonTags?: readonly string[] | string[] | null
-      signature?: string | null
     } | null
   } | null | undefined,
   lifeFrame: {
     face?: {
       rendererHints?: {
         residentMode?: unknown
-        reasonTags?: readonly string[] | string[] | null
-        signature?: string | null
       } | null
     } | null
     action?: {
       rendererHints?: {
         residentMode?: unknown
-        reasonTags?: readonly string[] | string[] | null
-        signature?: string | null
       } | null
     } | null
   } | null | undefined,
 ) {
-  const cueStillVoicedContinuity = hasAlicizationStillVoicedSameHerCarry({
-    signature: cue?.rendererHints?.signature ?? null,
-    reasonTags: cue?.rendererHints?.reasonTags ?? [],
-  })
   const cueResidentMode = cue?.rendererHints?.residentMode
-  if (cueResidentMode === 'measured-return' || cueResidentMode === 'repair-before-closeness' || cueResidentMode === 'quiet-companionship')
+  if (
+    cueResidentMode === 'measured-return'
+    || cueResidentMode === 'repair-before-closeness'
+    || cueResidentMode === 'quiet-companionship'
+    || cueResidentMode === 'quiet-accompaniment'
+    || cueResidentMode === 'same-thread-continuation'
+    || cueResidentMode === 'idle-recovering'
+  ) {
     return cueResidentMode
-  if (cueStillVoicedContinuity)
-    return 'measured-return'
+  }
 
-  const faceStillVoicedContinuity = hasAlicizationStillVoicedSameHerCarry({
-    signature: lifeFrame?.face?.rendererHints?.signature ?? null,
-    reasonTags: lifeFrame?.face?.rendererHints?.reasonTags ?? [],
-  })
   const faceResidentMode = lifeFrame?.face?.rendererHints?.residentMode
-  if (faceResidentMode === 'measured-return' || faceResidentMode === 'repair-before-closeness' || faceResidentMode === 'quiet-companionship')
+  if (
+    faceResidentMode === 'measured-return'
+    || faceResidentMode === 'repair-before-closeness'
+    || faceResidentMode === 'quiet-companionship'
+    || faceResidentMode === 'quiet-accompaniment'
+    || faceResidentMode === 'same-thread-continuation'
+    || faceResidentMode === 'idle-recovering'
+  ) {
     return faceResidentMode
-  if (faceStillVoicedContinuity)
-    return 'measured-return'
+  }
 
-  const actionStillVoicedContinuity = hasAlicizationStillVoicedSameHerCarry({
-    signature: lifeFrame?.action?.rendererHints?.signature ?? null,
-    reasonTags: lifeFrame?.action?.rendererHints?.reasonTags ?? [],
-  })
   const actionResidentMode = lifeFrame?.action?.rendererHints?.residentMode
-  if (actionResidentMode === 'measured-return' || actionResidentMode === 'repair-before-closeness' || actionResidentMode === 'quiet-companionship')
+  if (
+    actionResidentMode === 'measured-return'
+    || actionResidentMode === 'repair-before-closeness'
+    || actionResidentMode === 'quiet-companionship'
+    || actionResidentMode === 'quiet-accompaniment'
+    || actionResidentMode === 'same-thread-continuation'
+    || actionResidentMode === 'idle-recovering'
+  ) {
     return actionResidentMode
-  if (actionStillVoicedContinuity)
-    return 'measured-return'
+  }
 
   return null
 }
@@ -1678,14 +1562,6 @@ function resolvePreviewSpeechTimingBias(input: {
     ?? actionHints?.residentMode
     ?? ''
   ).trim().toLowerCase()
-  const signature = cueHints?.signature
-    ?? faceHints?.signature
-    ?? actionHints?.signature
-    ?? null
-  const reasonTags = cueHints?.reasonTags
-    ?? faceHints?.reasonTags
-    ?? actionHints?.reasonTags
-    ?? []
   const preferredPauseMode = cueHints?.preferredPauseMode
     ?? faceHints?.preferredPauseMode
     ?? actionHints?.preferredPauseMode
@@ -1698,16 +1574,11 @@ function resolvePreviewSpeechTimingBias(input: {
     ?? faceHints?.preferredPacingMode
     ?? actionHints?.preferredPacingMode
     ?? null
-  const softenedSameHerReturn = hasAlicizationSoftenedSameHerCarry({
-    signature,
-    reasonTags,
-  })
   const softerCompanionshipPreview = residentMode === 'measured-return'
     || residentMode === 'repair-before-closeness'
     || residentMode === 'quiet-companionship'
     || residentMode === 'quiet-accompaniment'
     || residentMode === 'same-thread-continuation'
-    || softenedSameHerReturn
 
   if (!softerCompanionshipPreview)
     return neutralBias
@@ -1859,14 +1730,17 @@ function cloneActiveCue(
   const preferredMotionAliases = cue.rendererHints?.preferredMotionAliases
     ? [...cue.rendererHints.preferredMotionAliases]
     : undefined
-  const reasonTags = cue.rendererHints?.reasonTags
-    ? [...cue.rendererHints.reasonTags]
-    : undefined
   const preferredPauseMode = cue.rendererHints?.preferredPauseMode ?? undefined
   const preferredLipsyncMode = cue.rendererHints?.preferredLipsyncMode ?? undefined
   const preferredVoiceMode = cue.rendererHints?.preferredVoiceMode ?? undefined
   const preferredPacingMode = cue.rendererHints?.preferredPacingMode ?? undefined
-  const preserveSoftenedSameHerVrmSettle = hasAlicizationSoftenedSameHerCarry(cue.rendererHints)
+  const structuredRendererHints = cue.rendererHints
+    ? {
+        ...cue.rendererHints,
+        reasonTags: undefined,
+        signature: undefined,
+      }
+    : null
 
   return {
     ...cue,
@@ -1874,30 +1748,26 @@ function cloneActiveCue(
       ? {
           live2dFacialReleaseMs: cue.rendererSettle.live2dFacialReleaseMs,
           live2dMotionFollowThroughMs: cue.rendererSettle.live2dMotionFollowThroughMs,
-          vrmActionFadeMs: preserveSoftenedSameHerVrmSettle
-            ? cue.rendererSettle.vrmActionFadeMs
-            : resolveRendererSettleMsWithPersonaBias({
-                baseMs: cue.rendererSettle.vrmActionFadeMs,
-                bodySegmentMatched: options?.bodySegmentMatched ?? null,
-                faceSegmentMatched: options?.faceSegmentMatched ?? null,
-                motionSegmentMatched: options?.motionSegmentMatched ?? null,
-                lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
-                preferredExpressionAliases: preferredExpressionAliases ?? [],
-                preferredMotionAliases: preferredMotionAliases ?? [],
-                rendererHints: cue.rendererHints ?? null,
-              }),
-          vrmExpressionBlendMs: preserveSoftenedSameHerVrmSettle
-            ? cue.rendererSettle.vrmExpressionBlendMs
-            : resolveRendererSettleMsWithPersonaBias({
-                baseMs: cue.rendererSettle.vrmExpressionBlendMs,
-                bodySegmentMatched: options?.bodySegmentMatched ?? null,
-                faceSegmentMatched: options?.faceSegmentMatched ?? null,
-                motionSegmentMatched: options?.motionSegmentMatched ?? null,
-                lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
-                preferredExpressionAliases: preferredExpressionAliases ?? [],
-                preferredMotionAliases: preferredMotionAliases ?? [],
-                rendererHints: cue.rendererHints ?? null,
-              }),
+          vrmActionFadeMs: resolveRendererSettleMsWithPersonaBias({
+            baseMs: cue.rendererSettle.vrmActionFadeMs,
+            bodySegmentMatched: options?.bodySegmentMatched ?? null,
+            faceSegmentMatched: options?.faceSegmentMatched ?? null,
+            motionSegmentMatched: options?.motionSegmentMatched ?? null,
+            lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
+            preferredExpressionAliases: preferredExpressionAliases ?? [],
+            preferredMotionAliases: preferredMotionAliases ?? [],
+            rendererHints: structuredRendererHints,
+          }),
+          vrmExpressionBlendMs: resolveRendererSettleMsWithPersonaBias({
+            baseMs: cue.rendererSettle.vrmExpressionBlendMs,
+            bodySegmentMatched: options?.bodySegmentMatched ?? null,
+            faceSegmentMatched: options?.faceSegmentMatched ?? null,
+            motionSegmentMatched: options?.motionSegmentMatched ?? null,
+            lipsyncSegmentMatched: options?.lipsyncSegmentMatched ?? null,
+            preferredExpressionAliases: preferredExpressionAliases ?? [],
+            preferredMotionAliases: preferredMotionAliases ?? [],
+            rendererHints: structuredRendererHints,
+          }),
         }
       : null,
     rendererHints: cue.rendererHints
@@ -1911,8 +1781,6 @@ function cloneActiveCue(
           preferredLipsyncMode,
           preferredVoiceMode,
           preferredPacingMode,
-          reasonTags,
-          signature: cue.rendererHints.signature ?? undefined,
         }
       : null,
   }
@@ -1960,119 +1828,31 @@ function cloneRendererHints(
     preferredLipsyncMode: hints.preferredLipsyncMode ?? undefined,
     preferredVoiceMode: hints.preferredVoiceMode ?? undefined,
     preferredPacingMode: hints.preferredPacingMode ?? undefined,
-    reasonTags: hints.reasonTags
-      ? [...hints.reasonTags]
-      : undefined,
-    signature: hints.signature ?? undefined,
   }
 }
 
-function hasAudibleSameHerRendererCarry(
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-) {
-  return hasAlicizationAudibleSameHerCarry(rendererHints)
-}
-
-function hasBodyVoiceOnlySameHerRendererCarry(
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-) {
-  return hasAlicizationBodyVoiceOnlySameHerCarry(rendererHints)
-}
-
-function hasQuieterSameHerRendererCarry(
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-) {
-  return hasAlicizationQuieterSameHerCarry(rendererHints)
-}
-
-function hasStillVoicedFaceLineRendererCarry(
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-) {
-  const signatureTokens = rendererHints?.signature
-    ? normalizeAlicizationRendererHintTokens([rendererHints.signature])
-    : []
-  const reasonTags = normalizeAlicizationRendererHintTokens(rendererHints?.reasonTags)
-
-  return (
-    signatureTokens.some(token => token.includes('still_voiced_face_line'))
-    || signatureTokens.some(token => token.includes('still_voiced_face_motion_line'))
-    || signatureTokens.some(token => token.includes('still_voiced_face_lipsync_line'))
-    || signatureTokens.some(token => token.includes('lane=face+motion+voice_only'))
-    || signatureTokens.some(token => token.includes('lane=face+lipsync+voice_only'))
-    || reasonTags.some(tag => tag.includes('still_voiced_face_line'))
-    || reasonTags.some(tag => tag.includes('still_voiced_face_motion_line'))
-    || reasonTags.some(tag => tag.includes('still_voiced_face_lipsync_line'))
-  )
-}
-
-function hasStillVoicedMotionLineRendererCarry(
-  rendererHints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
-) {
-  const signatureTokens = rendererHints?.signature
-    ? normalizeAlicizationRendererHintTokens([rendererHints.signature])
-    : []
-  const reasonTags = normalizeAlicizationRendererHintTokens(rendererHints?.reasonTags)
-
-  return (
-    signatureTokens.some(token => token.includes('still_voiced_motion_line'))
-    || signatureTokens.some(token => token.includes('still_voiced_face_motion_line'))
-    || signatureTokens.some(token => token.includes('still_voiced_motion_lipsync_line'))
-    || signatureTokens.some(token => token.includes('lane=face+motion+voice_only'))
-    || signatureTokens.some(token => token.includes('lane=motion+lipsync+voice_only'))
-    || reasonTags.some(tag => tag.includes('still_voiced_face_motion_line'))
-    || reasonTags.some(tag => tag.includes('still_voiced_motion_line'))
-    || reasonTags.some(tag => tag.includes('still_voiced_motion_lipsync_line'))
-  )
-}
-
-function shouldSuppressSameHerCarryActionCue(input: {
+function shouldSuppressActionCueUntilMotionAuthority(input: {
   cue: StageEmbodimentPerformanceState['activeCue']
   driverAuthority: StageEmbodimentPerformanceState['driverAuthority']
+  segmentId: string | null | undefined
 }) {
   const driverAuthority = input.driverAuthority
   const actionCue = input.cue?.actionCue?.trim() || null
-  if (!input.cue || !actionCue)
+  if (!input.cue || !actionCue || !driverAuthority || driverAuthority.motionSegmentMatched)
     return false
 
-  const residentMode = input.cue.rendererHints?.residentMode ?? null
-  const reasonTags = normalizeAlicizationRendererHintTokens(input.cue.rendererHints?.reasonTags)
-  const audibleSameHerCarry = hasAudibleSameHerRendererCarry(input.cue.rendererHints)
-  const bodyVoiceOnlySameHerCarry = hasBodyVoiceOnlySameHerRendererCarry(input.cue.rendererHints)
-  const quieterSameHerCarry = hasQuieterSameHerRendererCarry(input.cue.rendererHints)
-  const stillVoicedFaceLineCarry = hasStillVoicedFaceLineRendererCarry(input.cue.rendererHints)
-  const stillVoicedMotionLineCarry = hasStillVoicedMotionLineRendererCarry(input.cue.rendererHints)
-
-  const suppressibleActionCue = actionCue === 'steady_focus'
-    || actionCue === 'observe_focus'
-    || (
-      actionCue === 'idle_settle'
-      && (residentMode === 'repair-before-closeness' || residentMode === 'measured-return')
-      && (audibleSameHerCarry || bodyVoiceOnlySameHerCarry)
-    )
-  if (!suppressibleActionCue)
+  const cueSegmentId = normalizeDriverSegmentId(input.segmentId)
+  const authoritySegmentId = normalizeDriverSegmentId(driverAuthority.segmentId)
+  if (cueSegmentId && authoritySegmentId && cueSegmentId !== authoritySegmentId)
     return false
 
-  if (!audibleSameHerCarry && !bodyVoiceOnlySameHerCarry && !quieterSameHerCarry && !stillVoicedFaceLineCarry && !stillVoicedMotionLineCarry)
-    return false
-
-  if (stillVoicedFaceLineCarry) {
-    return !driverAuthority?.bodySegmentMatched || !driverAuthority?.motionSegmentMatched
-  }
-
-  if (stillVoicedMotionLineCarry)
-    return !driverAuthority?.motionSegmentMatched
-
-  if (!driverAuthority?.bodySegmentMatched || driverAuthority?.motionSegmentMatched)
-    return false
-
-  return (
-    reasonTags.includes('embodiment:body+voice_only')
-    || reasonTags.includes('embodiment:body_lipsync_voice_rejoin')
-    || reasonTags.includes('embodiment:body+lipsync_only')
-  )
+  return driverAuthority.bodySegmentMatched
+    || driverAuthority.faceSegmentMatched
+    || driverAuthority.lipsyncSegmentMatched
+    || driverAuthority.voiceSegmentMatched === true
 }
 
-function suppressSameHerCarryActionCue(
+function suppressActionCueUntilMotionAuthority(
   cue: StageEmbodimentPerformanceState['activeCue'],
 ) {
   if (!cue)
@@ -2120,14 +1900,9 @@ function applyPreviewRendererOnlyBodyAuthorityGuard(
     return cue
 
   const residentMode = cue.rendererHints?.residentMode ?? null
-  const stillVoicedSameHerCarry = hasAlicizationStillVoicedSameHerCarry({
-    signature: cue.rendererHints?.signature ?? null,
-    reasonTags: cue.rendererHints?.reasonTags ?? [],
-  })
   if (
     residentMode !== 'repair-before-closeness'
     && residentMode !== 'measured-return'
-    && !stillVoicedSameHerCarry
   ) {
     return cue
   }
@@ -2204,12 +1979,10 @@ function mergeScriptCueRendererAuthority(
   if (!cue || !scriptCueAuthority)
     return cue
 
-  const preservePreviewContinuitySettle = hasAlicizationSoftenedSameHerCarry(cue.rendererHints)
-
   return {
     ...cue,
     rendererHints: scriptCueAuthority.rendererHints ?? cue.rendererHints,
-    rendererSettle: preservePreviewContinuitySettle && cue.rendererSettle
+    rendererSettle: cue.rendererSettle
       ? {
           live2dFacialReleaseMs: cue.rendererSettle.live2dFacialReleaseMs
             ?? scriptCueAuthority.rendererSettle?.live2dFacialReleaseMs,
@@ -2572,14 +2345,15 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       && !segmentDriverAuthority.motionSegmentMatched
       && !segmentDriverAuthority.lipsyncSegmentMatched,
     )
-    const segmentSameHerCarryActionCueSuppressed = shouldSuppressSameHerCarryActionCue({
+    const segmentActionCueSuppressedUntilMotionAuthority = shouldSuppressActionCueUntilMotionAuthority({
       cue: segmentProjectedCue,
       driverAuthority: segmentDriverAuthority,
+      segmentId,
     })
     const segmentProjectedCueForCarry = segmentBodyOnlyAuthorityCarry
       ? null
-      : segmentSameHerCarryActionCueSuppressed
-        ? suppressSameHerCarryActionCue(segmentProjectedCue)
+      : segmentActionCueSuppressedUntilMotionAuthority
+        ? suppressActionCueUntilMotionAuthority(segmentProjectedCue)
         : segmentProjectedCue
     const residentPerformance = state.value.residentPerformance
     const segmentChanged = Boolean(segmentId) && segmentId !== lastSegmentId
@@ -2606,7 +2380,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         lastPreviewPulseSegmentId = segmentId
       if (
         segmentPlaybackActive
-        && !segmentSameHerCarryActionCueSuppressed
+        && !segmentActionCueSuppressedUntilMotionAuthority
         && ((segmentCue?.actionWindow !== 'none') || segmentGestureWeight >= 0.34)
       ) {
         issueActionPulse(
@@ -2618,7 +2392,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         )
       }
     }
-    else if (shouldIssueLateSegmentRealignPulse && !segmentSameHerCarryActionCueSuppressed) {
+    else if (shouldIssueLateSegmentRealignPulse && !segmentActionCueSuppressedUntilMotionAuthority) {
       issueActionPulse(
         'segment-start',
         now,
@@ -2781,12 +2555,13 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
           telemetry: playbackTelemetry,
         })
       : null
-    const previewSameHerCarryActionCueSuppressed = shouldSuppressSameHerCarryActionCue({
+    const previewActionCueSuppressedUntilMotionAuthority = shouldSuppressActionCueUntilMotionAuthority({
       cue: previewProjectedCue,
       driverAuthority: previewDriverAuthority,
+      segmentId: previewSegmentId,
     })
-    const previewProjectedCueForCarry = previewSameHerCarryActionCueSuppressed
-      ? suppressSameHerCarryActionCue(previewProjectedCue)
+    const previewProjectedCueForCarry = previewActionCueSuppressedUntilMotionAuthority
+      ? suppressActionCueUntilMotionAuthority(previewProjectedCue)
       : previewProjectedCue
     const previewProjectedCueForActiveLayer = previewCue
       ? applyPreviewRendererOnlyBodyAuthorityGuard(
@@ -2796,7 +2571,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       : previewProjectedCueForCarry
     if (previewAhead && previewSegmentId) {
       if (
-        !previewSameHerCarryActionCueSuppressed
+        !previewActionCueSuppressedUntilMotionAuthority
         && previewSegmentId !== lastPreviewPulseSegmentId
         && (previewCue?.actionWindow === 'segment-start' || previewGestureWeight >= 0.34)
       ) {
@@ -2837,7 +2612,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       && previewLife
       && previewLife.action.actionMode === 'none'
       && !previewCue?.actionCue,
-    ) || previewSameHerCarryActionCueSuppressed
+    ) || previewActionCueSuppressedUntilMotionAuthority
     const segmentLipsyncOnlyAuthority = Boolean(
       segmentPlaybackActive
       && segmentDriverAuthority?.lipsyncSegmentMatched
@@ -3062,14 +2837,10 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const spineBias = resolveSpinePerformanceBias(options.digitalLifeSpineDigest?.value)
     const residentDynamics = resolveResidentRuntimeDynamics({
       performance: residentPerformance,
-      residentReasonTags: state.value.residentReasonTags,
-      variationToken: state.value.variationToken,
     })
     const companionshipExpressionDampening = resolveCompanionshipExpressionDampening({
       activeCueResidentMode: transientResidentMode,
-      residentReasonTags: state.value.residentReasonTags,
       speechActive: speechActivelyPlaying,
-      variationToken: state.value.variationToken,
     })
     const motionPulse = clamp01(state.value.motionPulse)
     const releaseFactor = state.value.phase === 'cooldown'
@@ -3290,6 +3061,16 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     }
   }
 
+  function shouldRefreshFromSpeechSnapshot() {
+    const speech = syncSpeechSnapshot(options.speechRenderState.value)
+    const speechActivelyPlaying = speech.active && speech.phase !== 'stopping'
+    const segmentId = resolvePlaybackItemAuthoritySegmentId(speech.item)
+
+    return state.value.speechActive !== speechActivelyPlaying
+      || state.value.speechPhase !== speech.phase
+      || (state.value.activeSegment?.segmentId ?? null) !== segmentId
+  }
+
   function armPerformance(
     input: AlicizationDialoguePerformancePayload,
     armOptions: StageEmbodimentPerformanceArmOptions = {},
@@ -3297,25 +3078,17 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const now = performance.now()
     const performancePayload = normalizeAlicizationPerformancePayload(input, input.baseEmotion)
     const variationToken = armOptions.variationToken?.trim() ?? ''
-    const signature = JSON.stringify([
+    const performanceFingerprint = JSON.stringify([
       armOptions.source ?? 'dialogue',
-      variationToken,
       performancePayload.baseEmotion,
       performancePayload.facialCue,
       performancePayload.actionCue,
       performancePayload.delivery,
       performancePayload.emphasis,
+      performancePayload.residentMode ?? null,
+      performancePayload.face?.residentMode ?? null,
+      performancePayload.action?.residentMode ?? null,
     ])
-
-    if (signature === lastArmSignature && now - lastArmedAt < rearmDedupWindowMs) {
-      updateFromSpeech(now)
-      return
-    }
-
-    lastArmSignature = signature
-    lastArmedAt = now
-    clearCooldownTimer()
-    clearTransientSpeechCarry(now)
     const explicitResidentReasonTags = (armOptions.residentReasonTags ?? [])
       .filter(tag => typeof tag === 'string' && tag.trim())
     const preservedResidentReasonTags = armOptions.preserveResidentReasonTags === false
@@ -3323,6 +3096,22 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       : explicitResidentReasonTags.length > 0
         ? [...explicitResidentReasonTags]
         : [...state.value.residentReasonTags]
+
+    if (performanceFingerprint === lastArmSignature && now - lastArmedAt < rearmDedupWindowMs) {
+      state.value = {
+        ...state.value,
+        residentReasonTags: preservedResidentReasonTags,
+        variationToken: variationToken || null,
+      }
+      if (shouldRefreshFromSpeechSnapshot())
+        updateFromSpeech(now)
+      return
+    }
+
+    lastArmSignature = performanceFingerprint
+    lastArmedAt = now
+    clearCooldownTimer()
+    clearTransientSpeechCarry(now)
 
     state.value = {
       ...state.value,
@@ -3371,22 +3160,29 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     const performancePayload = normalizeAlicizationPerformancePayload(input, input.baseEmotion)
     const variationToken = syncOptions.variationToken?.trim() ?? ''
     const residentReasonTags = (syncOptions.residentReasonTags ?? []).filter(tag => typeof tag === 'string' && tag.trim())
-    const signature = JSON.stringify([
-      variationToken,
-      residentReasonTags,
+    const performanceFingerprint = JSON.stringify([
       performancePayload.baseEmotion,
       performancePayload.facialCue,
       performancePayload.actionCue,
       performancePayload.delivery,
       performancePayload.emphasis,
+      performancePayload.residentMode ?? null,
+      performancePayload.face?.residentMode ?? null,
+      performancePayload.action?.residentMode ?? null,
     ])
 
-    if (signature === lastResidentSignature && now - lastResidentSyncedAt < rearmDedupWindowMs) {
-      updateFromSpeech(now)
+    if (performanceFingerprint === lastResidentSignature && now - lastResidentSyncedAt < rearmDedupWindowMs) {
+      state.value = {
+        ...state.value,
+        residentReasonTags: [...residentReasonTags],
+        variationToken: variationToken || state.value.variationToken,
+      }
+      if (shouldRefreshFromSpeechSnapshot())
+        updateFromSpeech(now)
       return
     }
 
-    lastResidentSignature = signature
+    lastResidentSignature = performanceFingerprint
     lastResidentSyncedAt = now
     state.value = {
       ...state.value,
@@ -3492,8 +3288,6 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.preferredGazeMode ?? '',
       () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.preferredBlinkCadence ?? '',
       () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.residentMode ?? '',
-      () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.signature ?? '',
-      () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.reasonTags?.join('|') ?? '',
       () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.live2dFacialReleaseMs ?? 0,
       () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0,
       () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.vrmActionFadeMs ?? 0,
