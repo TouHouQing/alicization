@@ -13,10 +13,8 @@ export interface VrmLipSyncContinuityInput {
   fallbackSignal: number
   preferredBlinkCadence?: string | null | undefined
   preferredGazeMode?: string | null | undefined
-  reasonTags?: readonly string[] | null | undefined
   residentMode?: string | null | undefined
   segmentId?: string | null | undefined
-  signature?: string | null | undefined
   speechActive: boolean
   speechPhase: StageEmbodimentSpeechRenderPhase | null | undefined
   wlipsyncSignal: number
