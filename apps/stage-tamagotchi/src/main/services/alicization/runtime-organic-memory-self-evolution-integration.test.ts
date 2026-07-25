@@ -71,6 +71,144 @@ const activeSelfRevisionPatch: AlicizationSelfRevisionStatePatch = {
 }
 
 describe('runtime organic memory self evolution integration', () => {
+  it('passes typed affective relationship cadence evidence into self evolution', () => {
+    const cadenceSummary = 'Typed residue keeps the return measured until repair recovery settles.'
+    const result = buildOrganicMemoryEvolutionState({
+      producedAt: 100,
+      retrievedFacts: [],
+      proceduralMemories: [],
+      hostPersonModel: null,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      personStateProjection: null,
+      affectiveResidueAuthority: 'relationship-owner',
+      affectiveResidue: {
+        version: 'affective-residue-memory-v1',
+        updatedAt: 100,
+        residues: [{
+          kind: 'repair',
+          intensity: 0.72,
+          persistence: 0.68,
+          confidence: 0.88,
+          polarity: 'protective',
+          releaseMode: 'mind-only',
+          summary: cadenceSummary,
+          sourceSignals: ['typed-affective-residue'],
+          lastUpdatedAt: 100,
+        }],
+        dominantResidueKind: 'repair',
+        afterglowPressure: 0.64,
+        repairPressure: 0.72,
+        burdenPressure: 0.16,
+        trustPressure: 0.54,
+        restProtectivePressure: 0.18,
+        relationshipCadence: {
+          cadenceMode: 'measured-return',
+          distancePosture: 'measured-room',
+          companionshipDensity: 0.36,
+          repairRecovery: 0.62,
+          overreachRisk: 0.58,
+          fatigueGuard: 0.18,
+          afterglowCarry: 0.64,
+          shouldDelayWarmth: true,
+          shouldProtectRest: false,
+          reasonTags: ['cadence-mode:measured-return', 'repair-recovery'],
+          summary: cadenceSummary,
+        },
+        sourceSignals: ['typed-affective-residue'],
+        summary: 'repair',
+      },
+    })
+
+    expect(result.selfEvolution?.relationshipCadenceSummary).toBe(cadenceSummary)
+    expect(result.selfEvolution?.sourceSignals).toContain(cadenceSummary)
+  })
+
+  it('does not treat a previously returned fallback residue as relationship-owner evidence', () => {
+    const fallbackRelationshipSummary = 'A generated fallback note says the next return should remain careful.'
+    const firstPass = buildOrganicMemoryEvolutionState({
+      producedAt: 100,
+      retrievedFacts: [],
+      proceduralMemories: [],
+      hostPersonModel: null,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      personStateProjection: null,
+      personStateEvolutionSummary: {
+        trustShift: 0.05,
+        closenessShift: -0.02,
+        repairShift: 0.06,
+        autonomyShift: 0.03,
+        burdenShift: 0.02,
+        executionTrustShift: 0.01,
+        relationshipDoctrineShift: 0.08,
+        latestDoctrine: fallbackRelationshipSummary,
+        latestBurdenLine: null,
+        latestTrustMeaning: null,
+        latestDominantRung: 'careful-return',
+        recentSummaries: [fallbackRelationshipSummary],
+        explanation: [fallbackRelationshipSummary],
+        updatedAt: 100,
+      },
+    })
+
+    const secondPass = buildOrganicMemoryEvolutionState({
+      producedAt: 200,
+      retrievedFacts: [],
+      proceduralMemories: [],
+      hostPersonModel: null,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      personStateProjection: null,
+      affectiveResidue: firstPass.affectiveResidue,
+    })
+
+    expect(secondPass.selfEvolution?.relationshipCadenceSummary ?? null).toBeNull()
+    expect(secondPass.selfEvolution?.activeLearningFocuses ?? []).not.toContain('internalize-relationship-cadence')
+    expect(JSON.stringify(secondPass.selfEvolution?.sourceSignals ?? [])).not.toContain(fallbackRelationshipSummary)
+  })
+
+  it('does not feed fallback affective residue cadence into self evolution as typed evidence', () => {
+    const fallbackRelationshipSummary = 'The relationship note says the next return should stay careful while trust settles.'
+    const result = buildOrganicMemoryEvolutionState({
+      producedAt: 100,
+      retrievedFacts: [],
+      proceduralMemories: [],
+      hostPersonModel: null,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      personStateProjection: null,
+      personStateEvolutionSummary: {
+        trustShift: 0.05,
+        closenessShift: -0.02,
+        repairShift: 0.06,
+        autonomyShift: 0.03,
+        burdenShift: 0.02,
+        executionTrustShift: 0.01,
+        relationshipDoctrineShift: 0.08,
+        latestDoctrine: fallbackRelationshipSummary,
+        latestBurdenLine: 'Moving too quickly would make the return feel crowded.',
+        latestTrustMeaning: 'Trust settles when the reply waits for enough signal.',
+        latestDominantRung: 'careful-return',
+        recentSummaries: [fallbackRelationshipSummary],
+        explanation: [fallbackRelationshipSummary],
+        updatedAt: 100,
+      },
+    })
+
+    expect(result.selfEvolution).not.toBeNull()
+    expect(result.selfEvolution?.relationshipCadenceSummary).toBeNull()
+    expect(result.selfEvolution?.activeLearningFocuses).not.toContain('internalize-relationship-cadence')
+  })
+
   it('does not turn replay tuning focus into derived causality repair pressure', () => {
     const result = buildOrganicMemoryEvolutionState({
       producedAt: 100,
@@ -151,13 +289,17 @@ describe('runtime organic memory self evolution integration', () => {
 
     expect(result.selfEvolution).toEqual(expect.objectContaining({
       activeLearningFocuses: expect.arrayContaining(['self-revision-policy-feedback']),
-      sourceSignals: expect.arrayContaining(['self-revision:domain:self-model']),
     }))
+    expect(result.selfEvolution?.sourceSignals).not.toEqual(expect.arrayContaining([
+      'self-revision:domain:self-model',
+      'learning-policy:domain:self-model',
+      activeSelfRevisionPatch.summary,
+    ]))
     expect(
       result.selfEvolution?.sourceSignals?.some(signal =>
-        signal.includes('visible proactive hold')
-        && signal.includes('subconscious carry')
-        && signal.includes('next-session feedback carry'),
+        signal.includes('visible proactive presence')
+        && signal.includes('quiet carry')
+        && signal.includes('later feedback'),
       ),
     ).toBe(false)
     expect(result.derivedMindStateBundle).toEqual(expect.objectContaining({

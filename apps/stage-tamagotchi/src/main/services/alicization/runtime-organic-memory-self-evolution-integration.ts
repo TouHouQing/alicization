@@ -78,6 +78,7 @@ export function buildOrganicMemoryEvolutionState(input: {
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   recallLatencyPolicy?: OrganicMemoryPromptContext['recallLatencyPolicy'] | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  affectiveResidueAuthority?: 'relationship-owner' | null
   recentRelationshipOutcomes?: OrganicMemoryPromptContext['recentRelationshipOutcomes'] | null
   recentMemoryReflections?: OrganicMemoryPromptContext['recentMemoryReflections'] | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
@@ -99,25 +100,35 @@ export function buildOrganicMemoryEvolutionState(input: {
     proceduralMemories: input.proceduralMemories,
   })
   const activeSelfRevisionPatch = input.activeSelfRevisionPatch ?? null
-  const legacyProjectGovernancePattern = /same[ -]her|project[-_ ]state|continuity[-_ ]?(?:hold|identity|line|thread|anchor|governance)|runtime_personhood|phase[-_ ]?1/iu
   const legacyProjectGovernancePatch = Boolean(activeSelfRevisionPatch?.projectStateContinuity)
-    || Boolean(activeSelfRevisionPatch && legacyProjectGovernancePattern.test(JSON.stringify({
-      projectStateContinuity: activeSelfRevisionPatch.projectStateContinuity,
-      reasonCodes: activeSelfRevisionPatch.reasonCodes,
-      summary: activeSelfRevisionPatch.summary,
-    })))
-  const activeSelfRevisionReasonCodes = (activeSelfRevisionPatch?.reasonCodes ?? [])
-    .filter(code => !/same-her|project[-_]state|continuity_(?:hold|identity|line)|runtime_personhood|phase[-_]?1/iu.test(code))
+  const activeSelfRevisionReasonCodes = activeSelfRevisionPatch?.reasonCodes ?? []
+  const ownedAffectiveResidue = input.affectiveResidueAuthority === 'relationship-owner'
+    ? input.affectiveResidue ?? null
+    : null
+  const affectiveResidue = input.affectiveResidue ?? buildAlicizationAffectiveResidueMemory({
+    now: input.producedAt,
+    recentRelationshipOutcomes: input.recentRelationshipOutcomes ?? null,
+    recentMemoryReflections: input.recentMemoryReflections ?? null,
+    personStateEvolutionSummary: input.personStateEvolutionSummary ?? null,
+    personalityContinuityState: input.personStateProjection?.personalityContinuityState ?? null,
+    hostPersonModel: input.hostPersonModel,
+    relationshipDynamics: input.relationshipDynamics ?? null,
+  })
   const selfEvolution = buildAlicizationSelfEvolutionKernel({
     personStateEvolutionSummary: input.personStateEvolutionSummary ?? null,
     hostPersonModel: input.hostPersonModel,
     knowledgeEvidence,
+    relationshipCadenceEvidence: ownedAffectiveResidue?.relationshipCadence
+      ? {
+          source: 'owned-affective-residue',
+          cadence: ownedAffectiveResidue.relationshipCadence,
+        }
+      : null,
     learningPolicyState: activeSelfRevisionPatch && !legacyProjectGovernancePatch
       ? {
           strictnessBias: activeSelfRevisionPatch.memoryPolicy.strictnessBias ?? 0,
           wrongThreadSuppressionBias: activeSelfRevisionPatch.memoryPolicy.wrongThreadSuppressionBias ?? 0,
           provenanceLabelBias: activeSelfRevisionPatch.memoryPolicy.provenanceLabelBias ?? 0,
-          reasonCodes: activeSelfRevisionReasonCodes,
           selfRevisionPatchCount: 1,
           selfRevisionMemoryPolicyBias: Math.max(
             activeSelfRevisionPatch.memoryPolicy.strictnessBias ?? 0,
@@ -145,10 +156,6 @@ export function buildOrganicMemoryEvolutionState(input: {
             activeSelfRevisionPatch.validation.requiresRollbackCheck ? 1 : 0,
             activeSelfRevisionPatch.validation.requiresRevalidation ? 1 : 0,
           ),
-          selfRevisionReasonCodes: [
-            ...activeSelfRevisionReasonCodes,
-            ...(activeSelfRevisionPatch.lanes ?? []).map(lane => `lane:${lane}`),
-          ].slice(0, 24),
         }
       : null,
     reflectionSummary: input.personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
@@ -157,15 +164,6 @@ export function buildOrganicMemoryEvolutionState(input: {
     reflectionPressure: input.memoryStats?.retrievalHealth?.memorySurfaceViolationRate ?? 0,
     autobiographicalLatestInflection: input.personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
     autobiographicalStability: 0.5,
-  })
-  const affectiveResidue = input.affectiveResidue ?? buildAlicizationAffectiveResidueMemory({
-    now: input.producedAt,
-    recentRelationshipOutcomes: input.recentRelationshipOutcomes ?? null,
-    recentMemoryReflections: input.recentMemoryReflections ?? null,
-    personStateEvolutionSummary: input.personStateEvolutionSummary ?? null,
-    personalityContinuityState: input.personStateProjection?.personalityContinuityState ?? null,
-    hostPersonModel: input.hostPersonModel,
-    relationshipDynamics: input.relationshipDynamics ?? null,
   })
   const derivedMindStateBundle = buildDerivedMindStateBundle({
     source: 'main-runtime',

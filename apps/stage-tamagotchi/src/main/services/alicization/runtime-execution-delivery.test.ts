@@ -2104,6 +2104,7 @@ describe('runtime execution delivery', () => {
     expect(projection?.relationshipPosture).toBe('warm')
     expect(projection?.openingGuidance).toBe('Lean closer and raise the warmth immediately.')
     expect(projection?.preferredProactiveStyle).toBe('light-nudge')
+    expect(JSON.stringify(projection)).not.toContain('continuity=repair-before-closeness')
   })
 
   it('preserves the current execution session person-state projection when an active patch exists', async () => {

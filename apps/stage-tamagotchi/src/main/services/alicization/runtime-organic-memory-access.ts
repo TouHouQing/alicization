@@ -446,6 +446,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       learningExecutionState: persistedLearningExecutionState,
       recallLatencyPolicy,
       affectiveResidue,
+      affectiveResidueAuthority: 'relationship-owner',
       recentRelationshipOutcomes: relationshipOutcomes,
       recentMemoryReflections: memoryReflections,
       relationshipDynamics,

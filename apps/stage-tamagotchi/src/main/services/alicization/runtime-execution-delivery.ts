@@ -811,7 +811,6 @@ export function createAlicizationRuntimeExecutionDelivery(
         })()
       : null
     const activeSelfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
-    const activeSelfEvolutionCandidateId = await options.getActiveSelfEvolutionCandidateId?.().catch(() => null) ?? null
     const runtimeSurface = sessionRuntimeSurface ?? liveRuntimeSurface
 
     const preferredProjection = resolvePreferredPersonStateProjection({
@@ -827,11 +826,13 @@ export function createAlicizationRuntimeExecutionDelivery(
     const activeSelfEvolution = activeSelfRevisionPatch
       ? buildAlicizationSelfEvolutionKernel({
           hostPersonModel: hostPersonModel ?? null,
+          knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(runtimeSurface?.memory.derivedMindStateBundle ?? null)
+            ?? runtimeSurface?.memory.knowledgeEvidence
+            ?? null,
           learningPolicyState: {
             strictnessBias: activeSelfRevisionPatch.memoryPolicy.strictnessBias ?? 0,
             wrongThreadSuppressionBias: activeSelfRevisionPatch.memoryPolicy.wrongThreadSuppressionBias ?? 0,
             provenanceLabelBias: activeSelfRevisionPatch.memoryPolicy.provenanceLabelBias ?? 0,
-            reasonCodes: activeSelfRevisionPatch.reasonCodes ?? [],
             selfRevisionPatchCount: 1,
             selfRevisionMemoryPolicyBias: Math.max(
               activeSelfRevisionPatch.memoryPolicy.strictnessBias ?? 0,
@@ -859,13 +860,7 @@ export function createAlicizationRuntimeExecutionDelivery(
               activeSelfRevisionPatch.validation.requiresRollbackCheck ? 1 : 0,
               activeSelfRevisionPatch.validation.requiresRevalidation ? 1 : 0,
             ),
-            selfRevisionReasonCodes: [
-              ...(activeSelfRevisionPatch.reasonCodes ?? []),
-              ...(activeSelfRevisionPatch.lanes ?? []).map(lane => `lane:${lane}`),
-              activeSelfEvolutionCandidateId ? `candidate:${activeSelfEvolutionCandidateId}` : null,
-            ].filter((value): value is string => Boolean(value)).slice(0, 24),
           },
-          reflectionLesson: activeSelfRevisionPatch.summary,
           reflectionTargetScope: activeSelfRevisionPatch.domain === 'relationship' || activeSelfRevisionPatch.domain === 'dialogue-style'
             ? 'relationship'
             : activeSelfRevisionPatch.domain === 'self-model'
