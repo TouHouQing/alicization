@@ -6,7 +6,7 @@ import type {
 import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
 import type { AlicizationEmotionalTransitionDecaySnapshot } from './emotional-ledger'
 
-import { sanitizeAlicizationMemoryEvidenceText } from '@proj-alicization/stage-shared'
+import { pickAlicizationTransparentRuntimeFailureText } from './runtime-failure-evidence'
 
 interface CreateAlicizationBodyKernelOptions {
   now?: () => number
@@ -45,46 +45,12 @@ function hasActiveBodyDrivingEmotionalTransitionDecay(
     && decay.embodimentTone === embodimentTone
 }
 
-function sanitizeBodyKernelDynamicMindText(raw: unknown, maxChars = 180) {
-  if (typeof raw !== 'string')
-    return ''
-
-  const normalized = raw.trim().replace(/\s+/g, ' ')
-  if (!normalized)
-    return ''
-
-  const segments = normalized.split(/(?<=[.!?。！？])\s+|[|\n]+/u)
-  const safeSegments = segments
-    .map(segment => segment.trim())
-    .map(segment => sanitizeAlicizationMemoryEvidenceText(segment, maxChars))
-    .filter(Boolean)
-
-  return safeSegments.join(' ').slice(0, maxChars).trim()
-}
-
-const transparentRuntimeFailurePatterns = [
-  /\bhttp\s*[45]\d\d\b/iu,
-  /\brate[- ]?limit(?:ed)?\b/iu,
-  /\b(?:econnreset|provider-auth|local-runtime-unavailable|recall-failure)\b/iu,
-  /\b(?:timeout|timed out)\b(?=.{0,80}(?:after|while|waiting|response|request|provider|tool|embedding|upstream|连接|响应|请求|工具|供应商))/iu,
-  /(?:after|while|waiting|response|request|provider|tool|embedding|upstream|连接|响应|请求|工具|供应商).{0,80}\b(?:timeout|timed out)\b/iu,
-  /(?:provider|tool|request|embedding|供应商|工具|请求|向量|调用|连接|响应).{0,80}(?:failed?|failure|error|timeout|timed out|unavailable|失败|错误|超时|不可用)/iu,
-  /(?:失败|错误|超时|不可用).{0,80}(?:provider|tool|request|embedding|供应商|工具|请求|向量|调用|连接|响应)/iu,
-] as const
-
-function isTransparentRuntimeFailureText(candidate: string) {
-  return transparentRuntimeFailurePatterns.some(pattern => pattern.test(candidate))
-}
-
 function resolveBodyKernelDynamicInwardPreoccupation(state: AlicizationVisualPresenceStateSnapshot) {
-  const candidates = [
+  return pickAlicizationTransparentRuntimeFailureText([
     state.currentInwardPreoccupation,
     state.emotionalKernel?.why,
     state.privateThought?.thoughtText,
-  ]
-    .map(candidate => sanitizeBodyKernelDynamicMindText(candidate))
-
-  return candidates.find(isTransparentRuntimeFailureText) ?? null
+  ], 180) || null
 }
 
 function hasMeasuredReturnContinuityAuthority(state: AlicizationVisualPresenceStateSnapshot) {

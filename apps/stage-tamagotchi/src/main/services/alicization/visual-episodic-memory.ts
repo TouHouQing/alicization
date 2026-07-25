@@ -75,7 +75,6 @@ import {
   deriveAlicizationResidentPerformanceSnapshot,
   normalizeAlicizationNormalVisibleReplyAuthority,
   normalizeAlicizationRuntimeDigest,
-  readRecollectionIntentFromDerivedMindStateBundle,
   sanitizeAlicizationMemoryEvidenceText,
 } from '@proj-alicization/stage-shared'
 
@@ -84,6 +83,10 @@ import { normalizeDialogueActKernel } from './dialogue-act-kernel'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { buildAlicizationEmotionalKernel } from './emotional-kernel'
 import { normalizeMindTurnFrame } from './mind-turn-frame'
+import {
+  pickAlicizationTransparentRuntimeFailureText,
+  sanitizeAlicizationTransparentRuntimeFailureText,
+} from './runtime-failure-evidence'
 
 export const visualWorkingMemoryTtlMs = 10 * 60_000
 const visualWorkingMemoryLimit = 8
@@ -138,28 +141,6 @@ function sanitizeText(raw: unknown, maxChars = 240) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-const legacyVisualInwardPreoccupationPattern
-  = /body_preoccupation\s*=|posture\s*=|presence-only hold|stay near in the current phase 1 context|landed closure keeps growing|still-open loop stays|ordinary proactive closeness/iu
-
-function sanitizeVisualDynamicMindText(raw: unknown, maxChars = 180) {
-  if (typeof raw !== 'string')
-    return ''
-
-  const normalized = sanitizeText(raw, maxChars * 4)
-  if (!normalized)
-    return ''
-
-  return normalized
-    .split(/(?<=[.!?。！？])\s+|[|\n]+/u)
-    .map(segment => segment.trim())
-    .filter(segment => segment && !legacyVisualInwardPreoccupationPattern.test(segment))
-    .map(segment => sanitizeAlicizationMemoryEvidenceText(segment, maxChars))
-    .filter(Boolean)
-    .join(' ')
-    .slice(0, maxChars)
-    .trim()
-}
-
 function sanitizeVisualDynamicEmotionalKernel(kernel: AlicizationEmotionalKernelSnapshot | null): AlicizationEmotionalKernelSnapshot | null {
   if (!kernel)
     return null
@@ -167,7 +148,7 @@ function sanitizeVisualDynamicEmotionalKernel(kernel: AlicizationEmotionalKernel
   if (!Object.prototype.hasOwnProperty.call(kernel, 'why'))
     return kernel
 
-  const why = sanitizeVisualDynamicMindText(kernel.why, 240)
+  const why = sanitizeAlicizationTransparentRuntimeFailureText(kernel.why, 240)
   if (why)
     return { ...kernel, why }
 
@@ -587,7 +568,7 @@ function normalizePresenceAuthorityQuietLineMs(raw: unknown) {
 }
 
 function normalizePresenceAuthorityCurrentInwardPreoccupation(raw: unknown) {
-  const value = sanitizeVisualDynamicMindText(raw, 160)
+  const value = sanitizeAlicizationTransparentRuntimeFailureText(raw, 160)
   return value || null
 }
 
@@ -2410,7 +2391,7 @@ function normalizeCurrentConsciousFrame(raw: unknown): AlicizationCurrentConscio
   const focusAnchorSource = normalizeFocusAnchorSource(candidate.focusAnchorSource)
   const consciousNeed = consciousNeedSource
     ? sanitizeText(candidate.consciousNeed, 420)
-    : sanitizeDialogueAnchorText(candidate.consciousNeed, 220)
+    : ''
   const consciousTension = sanitizeDialogueAnchorText(candidate.consciousTension, 220)
 
   const projectStateRaw = candidate.projectState
@@ -2433,7 +2414,7 @@ function normalizeCurrentConsciousFrame(raw: unknown): AlicizationCurrentConscio
     focusAnchor: focusAnchorSource === 'user-text'
       || focusAnchorSource === 'question'
       ? sanitizeText(candidate.focusAnchor, 180) || null
-      : sanitizeDialogueAnchorText(candidate.focusAnchor, 180) || null,
+      : null,
     focusAnchorSource,
     withheldImpulse: sanitizeDialogueAnchorText(candidate.withheldImpulse, 180) || null,
     shouldWithholdSpecificity: candidate.shouldWithholdSpecificity === true,
@@ -3048,136 +3029,19 @@ function buildEpisode(input: {
   return episode
 }
 
-function hasRememberedSeamMoreRoomCarry(text: string | null | undefined) {
-  const normalized = sanitizeText(text, 420).toLowerCase()
-  if (!normalized)
-    return false
-
-  const rememberedSeamPresent
-    = /remembered seam|same remembered relationship seam|same remembered seam|relationship seam|same line|same thread|callback line|同一条线|关系线|记住的关系缝|留白/u.test(normalized)
-  if (!rememberedSeamPresent)
-    return false
-
-  return /reopened too eagerly|too eagerly before|more room this time|this time keep more room|keep more room this time|leave more room|do not reopen it with the same eagerness|before leaning in again|这次更要留白|这次要更慢一点|不要重开得太快|上次太急/u.test(normalized)
-}
-
-function derivePresenceOnlyResidentHoldInwardPreoccupation(input: {
-  initiative?: AlicizationInitiativeSnapshot | null
-  privateThought: AlicizationPrivateThoughtSnapshot | null
-  personStateProjection: AlicizationVisualPresenceStateSnapshot['personStateProjection']
-  projectState: AlicizationVisualPresenceStateSnapshot['projectState'] | null
-  affectiveResidue: AlicizationVisualPresenceStateSnapshot['affectiveResidue']
-  derivedMindStateBundle: AlicizationDerivedMindStateBundle | null
-  fallback: string | null | undefined
-}) {
-  const fallback = sanitizeVisualDynamicMindText(input.fallback, 160)
-  const recollectionIntent = readRecollectionIntentFromDerivedMindStateBundle<AlicizationRecallGovernorSnapshot['recollectionIntent']>(
-    input.derivedMindStateBundle,
-  )
-  const recollectionAuthority = [
-    recollectionIntent?.mode,
-    recollectionIntent?.rationale,
-    recollectionIntent?.recollectionAgenda?.whyRecallNow,
-    ...(recollectionIntent?.queryHints ?? []),
-    ...(recollectionIntent?.recollectionAgenda?.candidateProcedureLines ?? []),
-    recollectionIntent?.recollectionAgenda?.uncertaintyTolerance
-      ? `uncertainty-${sanitizeText(recollectionIntent.recollectionAgenda.uncertaintyTolerance, 32)}`
-      : '',
-  ]
-    .map(candidate => sanitizeText(candidate, 220).toLowerCase())
-    .filter(Boolean)
-    .join(' ')
-  if (!recollectionAuthority)
-    return fallback || null
-
-  const cautiousEmbodimentCueCount = [
-    'embodiment_recall_strength=cautious-avoidance',
-    'reply should stay quieter and slower',
-    'body stays calmer',
-    'embodiment_face=neutral-soft',
-    'embodiment_gaze=soft',
-    'embodiment_voice=even',
-    'embodiment_pause=natural',
-    'embodiment_pacing=natural',
-  ].reduce((count, cue) => count + (recollectionAuthority.includes(cue) ? 1 : 0), 0)
-
-  if (cautiousEmbodimentCueCount < 2)
-    return fallback || null
-
-  const continuityAuthorityText = [
-    input.initiative?.why,
-    input.privateThought?.thoughtText,
-    input.personStateProjection?.summary,
-    input.personStateProjection?.openingGuidance,
-    input.personStateProjection?.manifestationCadenceSummary,
-    input.projectState?.sameHerSelfLine,
-    input.projectState?.sameHerHoldDetail,
-    input.projectState?.continuityCue,
-    input.projectState?.emotionalClosureCue,
-    input.projectState?.emotionalClosureSummary,
-    input.projectState?.nextClosureTarget,
-    input.affectiveResidue?.summary,
-    input.affectiveResidue?.relationshipCadence?.summary,
-    ...(input.affectiveResidue?.sourceSignals ?? []),
-    fallback,
-  ]
-    .map(candidate => sanitizeText(candidate, 240).toLowerCase())
-    .filter(Boolean)
-    .join(' | ')
-
-  const hasSameLineCarry
-    = /same remembered seam|remembered seam|same callback line|callback line|same thread|same line|same living line|同一条线|同一条生命线/u.test(continuityAuthorityText)
-  const hasMeasuredRoomCarry
-    = /leave more room|more room|lower-pressure|slower|quieter|before widening outward|before warmth widens|do not reopen from scratch|留白|慢一点/u.test(continuityAuthorityText)
-  if (!hasRememberedSeamMoreRoomCarry(continuityAuthorityText) && (!hasSameLineCarry || !hasMeasuredRoomCarry))
-    return fallback || null
-
-  return fallback || null
-}
-
 function derivePresenceOnlyResidentHoldContinuityRestraint(input: {
   initiative?: AlicizationInitiativeSnapshot | null
-  privateThought: AlicizationPrivateThoughtSnapshot | null
-  selfEvolution: AlicizationSelfEvolutionKernelSnapshot | null
-  personStateProjection: AlicizationVisualPresenceStateSnapshot['personStateProjection']
-  projectState: AlicizationVisualPresenceStateSnapshot['projectState'] | null
   affectiveResidue: AlicizationVisualPresenceStateSnapshot['affectiveResidue']
 }) {
   const continuityRestraint = input.initiative?.continuityRestraint
   if (continuityRestraint !== 'lower-pressure')
     return continuityRestraint
 
-  const continuityAuthorityText = [
-    input.initiative?.why,
-    input.privateThought?.thoughtText,
-    input.personStateProjection?.summary,
-    input.personStateProjection?.openingGuidance,
-    input.personStateProjection?.manifestationCadenceSummary,
-    input.projectState?.sameHerSelfLine,
-    input.projectState?.sameHerHoldDetail,
-    input.projectState?.continuityCue,
-    input.projectState?.emotionalClosureCue,
-    input.projectState?.emotionalClosureSummary,
-    input.projectState?.nextClosureTarget,
-    input.selfEvolution?.relationshipDoctrine,
-    input.selfEvolution?.trustMeaning,
-    input.selfEvolution?.relationshipCadenceSummary,
-    input.selfEvolution?.latestInflection,
-    input.affectiveResidue?.summary,
-    input.affectiveResidue?.relationshipCadence?.summary,
-    ...(input.affectiveResidue?.sourceSignals ?? []),
-  ]
-    .map(candidate => sanitizeText(candidate, 240))
-    .filter(Boolean)
-    .join(' | ')
-
-  const inferredMeasuredReturn = hasRememberedSeamMoreRoomCarry(continuityAuthorityText)
-    || (
-      /measured-return|same callback seam|same callback line|same living seam|same remembered seam|remembered relationship seam|without reopening from scratch|before widening outward|continue as the same living seam|same-thread return|same thread return|callback afterglow|same line|same living line/iu.test(continuityAuthorityText)
-      && /lower-pressure|leave more room|more room|slower|quieter|same line|same living line|same seam|same thread|callback|do not reopen from scratch|leave room before warmth returns|warmth should return slowly|留白|余韵/u.test(continuityAuthorityText)
-    )
-
-  return inferredMeasuredReturn ? 'measured-return' : continuityRestraint
+  const cadence = input.affectiveResidue?.relationshipCadence
+  return cadence?.cadenceMode === 'measured-return'
+    || cadence?.reasonTags?.includes('relationship-cadence:measured-return')
+    ? 'measured-return'
+    : continuityRestraint
 }
 
 function rebuildPresenceOnlyResidentHoldEmotionalKernel(input: {
@@ -3193,10 +3057,6 @@ function rebuildPresenceOnlyResidentHoldEmotionalKernel(input: {
 }): AlicizationEmotionalKernelSnapshot | null {
   const continuityRestraint = derivePresenceOnlyResidentHoldContinuityRestraint({
     initiative: input.initiative,
-    privateThought: input.privateThought,
-    selfEvolution: input.selfEvolution,
-    personStateProjection: input.personStateProjection,
-    projectState: input.projectState,
     affectiveResidue: input.affectiveResidue ?? input.derivedMindStateBundle?.affectiveResidue ?? null,
   })
   if (
@@ -3332,13 +3192,11 @@ export function updateVisualPresenceState(input: {
           ? 'protective-watch' as const
           : 'quiet-accompaniment' as const,
         quietLineMs: Math.max(previousState.quietLineMs, 180_000),
-        currentInwardPreoccupation: sanitizeVisualDynamicMindText(
-          input.initiative.why
-          || input.privateThought?.thoughtText
-          || previousState.currentInwardPreoccupation
-          || '',
-          160,
-        ) || normalizePresenceAuthorityCurrentInwardPreoccupation(previousState.currentInwardPreoccupation),
+        currentInwardPreoccupation: pickAlicizationTransparentRuntimeFailureText([
+          input.initiative.why,
+          input.privateThought?.thoughtText,
+          previousState.currentInwardPreoccupation,
+        ], 160) || null,
       }
     : null
 
@@ -3425,17 +3283,7 @@ export function updateVisualPresenceState(input: {
         emotionalKernel,
       }
     : runtimeDigestBase
-  const retunedInwardPreoccupation = initiativePresenceRetune
-    ? derivePresenceOnlyResidentHoldInwardPreoccupation({
-        initiative: input.initiative,
-        privateThought: input.privateThought,
-        personStateProjection,
-        projectState,
-        affectiveResidue,
-        derivedMindStateBundle,
-        fallback: initiativePresenceRetune.currentInwardPreoccupation ?? previousState.currentInwardPreoccupation,
-      })
-    : null
+  const retunedInwardPreoccupation = initiativePresenceRetune?.currentInwardPreoccupation ?? null
 
   return withResidentPerformance({
     currentBodyState: initiativePresenceRetune?.currentBodyState ?? previousState.currentBodyState,

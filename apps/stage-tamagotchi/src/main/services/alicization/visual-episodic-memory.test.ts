@@ -59,7 +59,7 @@ describe('visual episodic memory', () => {
     })
 
     expect(next.currentInwardPreoccupation).toBeNull()
-    expect(next.emotionalKernel?.why).not.toContain('presence-only hold')
+    expect(next.emotionalKernel?.why).toBeUndefined()
     expect(JSON.stringify(next)).not.toContain('body_preoccupation=rest_protection')
   })
 
@@ -96,8 +96,170 @@ describe('visual episodic memory', () => {
       currentBodyState: 'accompanying',
       continuityMode: 'quiet-accompaniment',
       quietLineMs: 240_400,
-      currentInwardPreoccupation: 'host sustained focus',
+      currentInwardPreoccupation: null,
     })
+  })
+
+  it('preserves transparent runtime failure details in inward-preoccupation persistence', () => {
+    const failureText = 'Embedding provider failed with HTTP 400: invalid parameter.'
+    const state = normalizeVisualPresenceState({
+      currentBodyState: 'warning',
+      continuityMode: 'ambient-covision',
+      quietLineMs: 0,
+      currentInwardPreoccupation: failureText,
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 12_400,
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe(failureText)
+  })
+
+  it.each([
+    'Project state documents HTTP 500 handling.',
+    'The memory note explains provider error handling and rate-limit behavior.',
+    'We should test timeout handling before release.',
+    'The guide explains tool invocation aborted behavior.',
+    '500 Internal Server Error handling is documented.',
+    'We should handle request rejected by upstream.',
+    'Handle embedding dimension mismatch before release.',
+  ])('does not mistake explanatory prose for a runtime failure: %s', (prose) => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: prose,
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBeNull()
+  })
+
+  it.each([
+    'HTTP/1.1 503 Service Unavailable',
+    '500 Internal Server Error',
+    'Provider returned 401 Unauthorized',
+    'Tool invocation aborted',
+    'ETIMEDOUT while waiting for embedding provider',
+    'ECONNREFUSED connecting to provider',
+    'Timeout',
+    'Embedding dimension mismatch',
+    'Request rejected by upstream',
+    'Invalid API key',
+    'HTTP 502 from upstream',
+  ])('preserves a transparent runtime failure variant: %s', (failureText) => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: failureText,
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe(failureText)
+  })
+
+  it('extracts consecutive runtime failure clauses without carrying preceding prose', () => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: 'Stay nearby. Provider failed. HTTP 400: invalid parameter.',
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe('Provider failed. HTTP 400: invalid parameter.')
+  })
+
+  it('prefers the most detailed runtime failure across mind candidates', () => {
+    const next = updateVisualPresenceState({
+      now: 12_500,
+      previousState: createDefaultVisualPresenceState(12_400),
+      watchMode: 'mnemonic-passive',
+      scene: null,
+      attention: null,
+      initiative: {
+        shouldSpeak: false,
+        preferredStyle: 'silent-observe',
+        continuityRestraint: 'measured-return',
+        why: 'Provider failed.',
+      } as any,
+      privateThought: {
+        shouldSpeak: false,
+        thoughtText: 'HTTP 400: invalid parameter.',
+      } as any,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      nextSuggestedProbeMs: 45_000,
+    })
+
+    expect(next.currentInwardPreoccupation).toBe('HTTP 400: invalid parameter.')
+  })
+
+  it('does not append internal reason prose after a transparent failure', () => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: 'Provider failed. Reason: keep the same-her line nearby.',
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe('Provider failed.')
+  })
+
+  it('projects embedded error JSON without carrying unrelated fields', () => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: 'Provider failed with HTTP 500: {"error":"provider failed","initiative":"keep the same-her line nearby"}',
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe('Provider failed with HTTP 500: message=provider failed')
+  })
+
+  it('preserves SiliconFlow error code and message from embedded JSON', () => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: 'Embedding provider failed with HTTP 400: {"code":20015,"message":"The parameter is invalid.","data":null}',
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe(
+      'Embedding provider failed with HTTP 400: code=20015; message=The parameter is invalid.',
+    )
+  })
+
+  it('projects embedded JSON before clause splitting', () => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: 'Provider failed with HTTP 500: {"error":"provider failed. retry later","initiative":"keep | same-her nearby"}',
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe(
+      'Provider failed with HTTP 500: message=provider failed. retry later',
+    )
+  })
+
+  it('drops malformed JSON payload fields while preserving the direct failure prefix', () => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: 'Provider failed with HTTP 500: {"error":"provider failed","initiative":"same-her"',
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe('Provider failed with HTTP 500')
+  })
+
+  it('preserves a pure structured provider error without unrelated fields', () => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: '{"code":429,"message":"rate limited","initiative":"same-her"}',
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe('code=429; message=rate limited')
+  })
+
+  it('preserves a pure OpenAI-style structured provider error', () => {
+    const state = normalizeVisualPresenceState({
+      ...createDefaultVisualPresenceState(12_400),
+      currentInwardPreoccupation: '{"error":{"message":"Incorrect API key provided","type":"invalid_request_error","code":"invalid_api_key"}}',
+    }, 12_400)
+
+    expect(state.currentInwardPreoccupation).toBe(
+      'code=invalid_api_key; message=Incorrect API key provided',
+    )
   })
 
   it('keeps runtime digest emotional-kernel aligned with the refreshed visual presence kernel', () => {
@@ -164,9 +326,10 @@ describe('visual episodic memory', () => {
       nextSuggestedProbeMs: previousState.nextSuggestedProbeMs,
     })
 
-    expect(next.emotionalKernel).toEqual(refreshedKernel)
-    expect(next.runtimeDigest?.emotionalKernel).toEqual(refreshedKernel)
-    expect(next.raw?.runtimeDigest?.emotionalKernel).toEqual(refreshedKernel)
+    const { why: _why, ...sanitizedRefreshedKernel } = refreshedKernel
+    expect(next.emotionalKernel).toEqual(sanitizedRefreshedKernel)
+    expect(next.runtimeDigest?.emotionalKernel).toEqual(sanitizedRefreshedKernel)
+    expect(next.raw?.runtimeDigest?.emotionalKernel).toEqual(sanitizedRefreshedKernel)
   })
 
   it('clears stale runtime digest emotional-kernel when visual presence has no current emotional authority', () => {
@@ -639,7 +802,7 @@ describe('visual episodic memory', () => {
       currentBodyState: 'recovering',
       continuityMode: 'protective-watch',
       quietLineMs: 180_000,
-      currentInwardPreoccupation: 'hold low-pressure care',
+      currentInwardPreoccupation: null,
     })
   })
 
@@ -746,7 +909,7 @@ describe('visual episodic memory', () => {
       currentBodyState: 'accompanying',
       continuityMode: 'quiet-accompaniment',
     })
-    expect(next.currentInwardPreoccupation ?? '').toContain('same living seam')
+    expect(next.currentInwardPreoccupation).toBeNull()
     expect(next.residentPerformance).toMatchObject({
       source: 'main-runtime',
       embodiedPresence: 'attentive',
@@ -862,7 +1025,7 @@ describe('visual episodic memory', () => {
       currentBodyState: 'accompanying',
       continuityMode: 'quiet-accompaniment',
     })
-    expect(next.currentInwardPreoccupation ?? '').toContain('continuity state inward')
+    expect(next.currentInwardPreoccupation).toBeNull()
     expect(next.emotionalKernel).toEqual(expect.objectContaining({
       version: 'emotional-kernel-v1',
       dominantEmotion: 'rest-protective-companionship',
@@ -1174,7 +1337,7 @@ describe('visual episodic memory', () => {
     }))
   })
 
-  it('rebuilds a presence-only measured-return emotional kernel from lower-pressure carry cues instead of carrying forward an older self-continuity shell', () => {
+  it('rebuilds a presence-only measured-return emotional kernel from structured restraint', () => {
     const previousState = normalizeVisualPresenceState({
       watchMode: 'mnemonic-passive',
       currentScene: {
@@ -1257,7 +1420,7 @@ describe('visual episodic memory', () => {
         shouldSpeak: false,
         preferredStyle: 'silent-observe',
         preferredPresence: 'hesitant',
-        continuityRestraint: 'lower-pressure',
+        continuityRestraint: 'measured-return',
         why: 'The callback line is still active, so stay lower-pressure and keep more room before widening outward.',
         concernId: null,
         scenario: 'coding',
@@ -1308,7 +1471,7 @@ describe('visual episodic memory', () => {
         shouldSpeak: false,
         preferredStyle: 'silent-observe',
         preferredPresence: 'hesitant',
-        continuityRestraint: 'lower-pressure',
+        continuityRestraint: 'measured-return',
         why: 'The callback line is still active, so stay lower-pressure and keep more room before widening outward.',
         concernId: null,
         scenario: 'coding',
@@ -1345,13 +1508,11 @@ describe('visual episodic memory', () => {
       embodimentTone: 'measured-return',
       reasonTags: expect.arrayContaining([
         'measured-return',
-        'quiet-companionship',
       ]),
     }))
   })
 
-  it('lets cautious embodiment recollection shape resident presence without synthesizing an inward cue', () => {
-    const initiativeWhy = 'The callback line is still active, so stay lower-pressure and keep more room before widening outward.'
+  it('does not let recollection query prose synthesize emotional or inward cues', () => {
     const previousState = normalizeVisualPresenceState({
       watchMode: 'mnemonic-passive',
       currentScene: {
@@ -1435,7 +1596,7 @@ describe('visual episodic memory', () => {
         preferredStyle: 'silent-observe',
         preferredPresence: 'hesitant',
         continuityRestraint: 'lower-pressure',
-        why: initiativeWhy,
+        why: 'Keep the current internal state stable.',
         concernId: null,
         scenario: 'coding',
         confidence: 0.82,
@@ -1561,28 +1722,15 @@ describe('visual episodic memory', () => {
 
     expect(next.emotionalKernel).toEqual(expect.objectContaining({
       version: 'emotional-kernel-v1',
-      dominantEmotion: 'measured-companionship',
-      initiativeMode: 'observe',
-      memoryRecallMode: 'low-pressure-presence',
-      embodimentTone: 'measured-return',
-      reasonTags: expect.arrayContaining([
-        'measured-return',
-        'quiet-companionship',
-        'embodiment-recall-cautious',
-      ]),
+      dominantEmotion: 'hesitant-curiosity',
+      initiativeMode: 'hold',
+      memoryRecallMode: 'self-continuity',
+      embodimentTone: 'nearby-soft',
+      reasonTags: ['self-continuity', 'hesitant-curiosity'],
     }))
-    expect(next.currentInwardPreoccupation).toBe(initiativeWhy)
-    expect(next.residentPerformance).toMatchObject({
-      performance: {
-        baseEmotion: 'thinking',
-        delivery: 'gentle',
-        emphasis: 1,
-        facialCue: 'half-lid',
-        actionCue: 'idle_settle',
-        residentMode: 'measured-return',
-      },
-    })
-    expect(next.residentPerformance?.reasonTags).toContain('timing:remembered-seam-more-room')
+    expect(next.currentInwardPreoccupation).toBeNull()
+    expect(next.residentPerformance?.reasonTags).not.toContain('timing:remembered-seam-more-room')
+    expect(next.residentPerformance?.reasonTags).not.toContain('embodiment-recall-cautious')
   })
 
   it('persists world ontology and initiative arbitration snapshots', () => {
@@ -1699,7 +1847,7 @@ describe('visual episodic memory', () => {
       consciousNeed: '',
       consciousTension: '',
       speakingIntention: '',
-      focusAnchor: 'Git commit diff in Java code editor',
+      focusAnchor: null,
       shouldWithholdSpecificity: true,
       shouldSelfRevise: false,
       confidence: 0.84,
