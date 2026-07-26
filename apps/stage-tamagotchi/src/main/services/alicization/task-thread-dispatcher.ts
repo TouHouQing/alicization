@@ -159,10 +159,7 @@ function preferDispatchPreDialogueAwarenessLine(input: {
     fallbackProjectState: buildDispatchProjectAwarenessState(input.storedProjectBriefing),
   })
 
-  return resolved
-    ?? input.payloadProjectBriefing?.preDialogueAwarenessLine
-    ?? input.storedProjectBriefing?.preDialogueAwarenessLine
-    ?? null
+  return resolved ?? null
 }
 
 function preferDispatchPreDialogueAwarenessSummary(input: {
@@ -178,9 +175,7 @@ function preferDispatchPreDialogueAwarenessSummary(input: {
   if (storedSummary && !isAlicizationThinProjectAwarenessLine(storedSummary))
     return storedSummary
 
-  return payloadSummary
-    ?? storedSummary
-    ?? preferDispatchPreDialogueAwarenessLine(input)
+  return preferDispatchPreDialogueAwarenessLine(input)
 }
 
 function mergeProjectBriefing(input: {

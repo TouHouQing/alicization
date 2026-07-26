@@ -5,6 +5,8 @@ import type {
   AlicizationTaskThreadUpsertInput,
 } from '@proj-alicization/stage-shared'
 
+import { readFileSync } from 'node:fs'
+
 import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -921,5 +923,16 @@ describe('task-thread dispatcher', () => {
         }),
       }),
     }))
+  })
+
+  it('does not keep raw pre-dialogue fallbacks after the structured resolver rejects them', () => {
+    const source = readFileSync(new URL('./task-thread-dispatcher.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toMatch(
+      /return resolved\s*\?\?\s*input\.payloadProjectBriefing\?\.preDialogueAwarenessLine/iu,
+    )
+    expect(source).not.toMatch(
+      /return payloadSummary\s*\?\?\s*storedSummary\s*\?\?\s*preferDispatchPreDialogueAwarenessLine/iu,
+    )
   })
 })

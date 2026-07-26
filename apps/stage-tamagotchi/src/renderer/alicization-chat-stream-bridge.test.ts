@@ -154,6 +154,29 @@ describe('alicization chat stream bridge', () => {
     })
   })
 
+  it.each([
+    'Before answering, keep the same-her line.',
+    'Keep measured-return pacing before replying.',
+    'Use repair-before-closeness as the response posture.',
+    'opening_policy=continue_same_her',
+    'relationship_cadence=measured_return',
+    'visibility=redacted_internal',
+  ])('does not restore rejected legacy awareness through the renderer bridge: %s', (awarenessLine) => {
+    const event = bridgeAlicizationChatMetaEventToStreamEvent({
+      cardId: 'default',
+      turnId: 'turn-legacy-awareness',
+      governance: null,
+      preDialogueAwareness: {
+        status: 'grounded',
+        summaryLine: null,
+        awarenessLine,
+        reasonPreview: [],
+      },
+    })
+
+    expect(event.preDialogueAwareness?.awarenessLine ?? null).toBeNull()
+  })
+
   it('does not promote project-state governance from accepted-start runtime metadata', () => {
     const event = bridgeAlicizationChatStartResultToStreamEvent('default', {
       accepted: true,

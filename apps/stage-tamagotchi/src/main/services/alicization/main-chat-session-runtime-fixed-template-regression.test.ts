@@ -125,6 +125,15 @@ describe('main chat session runtime template regression', () => {
     }
   })
 
+  it('keeps retired same-her project routing matchers out of the main dialogue runtime', () => {
+    const source = readFileSync(new URL('./main-chat-session-runtime.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toMatch(/function\s+(?:isBroadLegacyProjectReminderLine|isSpecificCompanionAuthorityLine|carriesLivedInSameHerAuthorityLine|looksLikeBroadProjectAwareReminderLine|carriesStructuredLandedProgressProjectAwareness)/u)
+    expect(source).not.toContain('isStrongerSameHerProjectHeadline')
+    expect(source).not.toContain('scoreRuntimeProjectStateDetailCandidate')
+    expect(source).not.toMatch(/same remembered seam|same local-first digital life project|same digital life project(?: in)? phase 1|cross-modal same-her proof|same-her inward-carry observability|one same her must stay explicit|same unfinished phase 1/iu)
+  })
+
   it('does not restore a retired context default during organic memory resolution', () => {
     const source = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
     const retiredDefaultingExpression = [

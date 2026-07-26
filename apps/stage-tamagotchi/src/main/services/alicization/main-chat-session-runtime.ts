@@ -632,6 +632,7 @@ function sanitizeOrdinaryDialogueTypedProviderFact(block: string) {
 
 function isBlockedProviderFacingTemplateLine(line: string) {
   return line.includes('content_withheld')
+    || line.includes('pre_turn_context_digest')
     || line.includes('visibility=internal-structured')
     || line.includes('phase1_local_digital_life')
     || line.includes('runtime_personhood')
@@ -1189,7 +1190,7 @@ function resolvePreparedDiagnosticsAwarenessLine(input: {
       dialogueProjectState?.companionHeadlineLine,
       1600,
     )
-    if (carriesSpecificSameHerAuthorityLine(directDialogueHeadline))
+    if (isSpecificProviderFacingProjectLine(directDialogueHeadline))
       return directDialogueHeadline
 
     return pickProjectAwarenessLineWithoutCompactSummaryShell([
@@ -1199,7 +1200,7 @@ function resolvePreparedDiagnosticsAwarenessLine(input: {
   })()
   const shouldPromoteCurrentCompanionHeadline = Boolean(
     currentCompanionHeadline
-    && carriesSpecificSameHerAuthorityLine(currentCompanionHeadline)
+    && isSpecificProviderFacingProjectLine(currentCompanionHeadline)
     && (
       !currentAwareness
       || isThinProjectAwarenessAuthorityLine(currentAwareness)
@@ -1208,7 +1209,7 @@ function resolvePreparedDiagnosticsAwarenessLine(input: {
         currentCompanionHeadline,
         currentAwareness,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         currentCompanionHeadline,
         currentAwareness,
       )
@@ -1284,7 +1285,7 @@ function resolvePreparedDiagnosticsAwarenessLine(input: {
         payloadHeadline,
         currentAwareness ?? canonicalAwareness,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         payloadHeadline,
         currentAwareness ?? canonicalAwareness,
       )
@@ -1302,7 +1303,7 @@ function resolvePreparedDiagnosticsAwarenessLine(input: {
     && !isThinProjectAwarenessAuthorityLine(currentAwareness)
     && (
       /callback return|same thread/u.test(currentAwareness)
-      || carriesSpecificSameHerAuthorityLine(currentAwareness)
+      || isSpecificProviderFacingProjectLine(currentAwareness)
       || currentAwarenessMatchesPayloadCarry
       || currentAwarenessMatchesPayloadHeadline
       || (
@@ -1310,7 +1311,7 @@ function resolvePreparedDiagnosticsAwarenessLine(input: {
         && (
           hasDistinctEmbodimentClosureCue(currentAwareness)
           || carriesExplicitProjectClosureTriplet(currentAwareness)
-          || isStrongerSameHerProjectHeadline(currentAwareness, preferredPayloadAwareness ?? canonicalAwareness)
+          || isStrongerProviderFacingProjectLine(currentAwareness, preferredPayloadAwareness ?? canonicalAwareness)
         )
       )
     ),
@@ -1371,7 +1372,7 @@ function resolvePreparedDiagnosticsAwarenessLine(input: {
     && currentAwareness
     && !preferredPayloadAwareness
     && !/callback return|same thread/u.test(currentAwareness)
-    && !carriesSpecificSameHerAuthorityLine(currentAwareness)
+    && !isSpecificProviderFacingProjectLine(currentAwareness)
     && !hasModalitySpecificEmbodimentCue(currentAwareness)
     && !currentAwareness.includes('Phase 1: Local Digital Life')
     && canonicalAwareness.includes('Phase 1: Local Digital Life')
@@ -1810,68 +1811,36 @@ function isThinProjectAwarenessAuthorityLine(value: unknown) {
     || (
       /泛化工程说明|泛化项目播报/u.test(normalized)
       && /数字生命项目|local-first digital life project/u.test(normalized)
-      && !/同一个 her|同一个她|same-her|same living line|one living her|one continuous her/u.test(lowerCased)
+      && !/memory|recall|persona|relationship|tool|provider|error|timeout|记忆|回想|人格|关系|工具|模型|失败|超时/u.test(lowerCased)
     )
 }
 
-function carriesLivedInSameHerAuthorityLine(value: unknown) {
+function isSpecificProviderFacingProjectLine(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)
   if (!normalized || isBlockedFixedTemplateEvidence(normalized) || isThinProjectAwarenessAuthorityLine(normalized))
     return false
 
-  if (
-    looksLikeBroadProjectAwareReminderLine(normalized)
-    && !carriesSpecificSameHerAuthorityLine(normalized)
-    && !/same-her hold|same remembered seam|callback line|keep more room this time|同一个她|同一个 her|数字生命主线|泛化助手/u.test(
-      normalized,
-    )
-  ) {
-    return false
-  }
-
-  return /same-her hold|same remembered seam|callback line|keep more room this time|repair-before-closeness/iu.test(
-    normalized,
-  )
-  || /继续|沿着|别飘回|不要退回|不要掉回|同一个她|同一个 her|数字生命主线|泛化助手|generic assistant|project shell/u.test(
-    normalized,
-  )
-  || carriesSpecificSameHerAuthorityLine(normalized)
-}
-
-function looksLikeBroadProjectAwareReminderLine(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized)
-    return false
-  if (isBlockedFixedTemplateEvidence(normalized))
-    return false
-
-  return /^(before answering|before speaking)/iu.test(normalized)
-    && (
-      /digital life project|phase 1|still-open|closure|what has already landed is|life loop|local-first digital life/u.test(
-        normalized.toLowerCase(),
-      )
-      || /数字生命项目|闭环|已落地|还没闭环|还没收住|主线/u.test(normalized)
-    )
-}
-
-function carriesStructuredLandedProgressProjectAwareness(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized)
-    return false
-  if (isBlockedFixedTemplateEvidence(normalized))
+  if (isLegacyProjectAwarenessTemplateShell(normalized) || isCanonicalStructuredProjectAwareness(normalized))
     return false
 
   const lowerCased = normalized.toLowerCase()
-  const carriesPhase = /phase 1|第一阶段|阶段一/iu.test(normalized)
-  const carriesLandedProgress = /\blanded:|what has already landed is/u.test(lowerCased) || /已落地/u.test(normalized)
-  const carriesStillOpenClosure
-    = /the still-open closure is|still-open closure|open=|still need/u.test(lowerCased)
-      || /未闭环|还没闭环|还差|还没收住/u.test(normalized)
-
-  return carriesPhase && carriesLandedProgress && carriesStillOpenClosure
+  return hasModalitySpecificEmbodimentCue(normalized)
+    || /\b(?:memory|recall|working memory|long-term memory|episode|reflection|persona|relationship|tool|provider|latency|error|timeout)\b/u.test(lowerCased)
+    || /记忆|回想|长期|短期|人格|关系|工具|模型|失败|超时/u.test(normalized)
 }
 
-function isStrongerSameHerProjectHeadline(candidate: unknown, baseline?: unknown) {
+function isStructuredProjectAwarenessLine(value: unknown) {
+  const normalized = normalizeProviderFacingProjectText(value, 1600)
+  if (!normalized)
+    return false
+  if (isBlockedFixedTemplateEvidence(normalized))
+    return false
+
+  return isCanonicalStructuredProjectAwareness(normalized)
+    || /(?:^|[\s|;])(?:landed|open|next|status|provider|tool|recall|memory|embedding|latency|error)=/iu.test(normalized)
+}
+
+function isStrongerProviderFacingProjectLine(candidate: unknown, baseline?: unknown) {
   const candidateText = normalizeProviderFacingProjectText(candidate, 1600)
   if (!candidateText || isBlockedFixedTemplateEvidence(candidateText) || isThinProjectAwarenessAuthorityLine(candidateText))
     return false
@@ -1879,28 +1848,20 @@ function isStrongerSameHerProjectHeadline(candidate: unknown, baseline?: unknown
   if (!isCanonicalStructuredProjectAwareness(candidateText) && containsAlicizationFixedTemplateResidue(candidateText))
     return false
 
-  const candidateScore = scoreAlicizationProjectAwarenessLine(candidateText)
+  const scoreProjectLine = (line: string) => {
+    let score = scoreAlicizationProjectAwarenessLine(line) + Math.min(line.length, 400) / 400
+    if (isStructuredProjectAwarenessLine(line))
+      score += 3
+    if (isSpecificProviderFacingProjectLine(line))
+      score += 1
+    return score
+  }
+  const candidateScore = scoreProjectLine(candidateText)
   const baselineText = normalizeProviderFacingProjectText(baseline, 1600)
-  if (!baselineText) {
-    return candidateScore >= 5 && isCanonicalStructuredProjectAwareness(candidateText)
-  }
+  if (!baselineText)
+    return candidateScore > 0
 
-  if (
-    carriesLivedInSameHerAuthorityLine(baselineText)
-    && !carriesLivedInSameHerAuthorityLine(candidateText)
-    && (looksLikeBroadProjectAwareReminderLine(candidateText) || isCanonicalStructuredProjectAwareness(candidateText))
-  ) {
-    return false
-  }
-  if (
-    carriesLivedInSameHerAuthorityLine(candidateText)
-    && !carriesLivedInSameHerAuthorityLine(baselineText)
-    && (looksLikeBroadProjectAwareReminderLine(baselineText) || isCanonicalStructuredProjectAwareness(baselineText))
-  ) {
-    return true
-  }
-
-  return candidateScore > scoreAlicizationProjectAwarenessLine(baselineText)
+  return candidateScore > scoreProjectLine(baselineText)
 }
 
 function carriesExplicitProjectClosureTriplet(value: unknown) {
@@ -1925,39 +1886,6 @@ function hasModalitySpecificEmbodimentCue(value: unknown) {
     return false
 
   return /body|face|motion|lipsync|voice|cross-modal/u.test(normalized)
-}
-
-function isSpecificCompanionAuthorityLine(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized || isBlockedFixedTemplateEvidence(normalized) || isThinProjectAwarenessAuthorityLine(normalized))
-    return false
-  if (carriesExplicitProjectClosureTriplet(normalized) || isCanonicalStructuredProjectAwareness(normalized))
-    return false
-
-  const lowerCased = normalized.toLowerCase()
-  const carriesSameHerLivingLine = /continuity_(?:line|identity|thread)|project_state_review|living (?:audio )?thread|holding together mainly through/u.test(lowerCased)
-  const carriesClosurePressure = hasDistinctEmbodimentClosureCue(normalized)
-    || /phase 1|unfinished closure|still active|closure settles|closure work|needs .*rejoin|still needs .*rejoin|cross-modal/u.test(lowerCased)
-
-  return carriesSameHerLivingLine && carriesClosurePressure
-}
-
-function carriesSpecificSameHerAuthorityLine(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized || isBlockedFixedTemplateEvidence(normalized))
-    return false
-
-  return isSpecificCompanionAuthorityLine(normalized)
-    || (
-      !carriesExplicitProjectClosureTriplet(normalized)
-      && !isCanonicalStructuredProjectAwareness(normalized)
-      && /holding together mainly through|living (?:audio )?thread|continuity_(?:line|identity|thread)|project_state_review/u.test(
-        normalized.toLowerCase(),
-      )
-      && /phase 1|voice|face|motion|lipsync|body|embodiment|initiative|closure|still active|still needs|rejoin/u.test(
-        normalized.toLowerCase(),
-      )
-    )
 }
 
 function isCompactProjectStatePreflightSummary(value: unknown) {
@@ -2018,7 +1946,7 @@ function pickPreferredProjectPreflightSummary(
   return bestRich ?? bestAny
 }
 
-function isPhase1ProjectStatePreflightAwarenessLine(value: unknown) {
+function isLegacyProjectStatePreflightAwarenessLine(value: unknown) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)
   if (!normalized)
     return false
@@ -2089,61 +2017,11 @@ function resolvePreferredPayloadAwarenessLine(input: {
   if (!headlineLine)
     return awarenessLine
 
-  if (
-    carriesLivedInSameHerAuthorityLine(awarenessLine)
-    && !carriesLivedInSameHerAuthorityLine(headlineLine)
-    && (looksLikeBroadProjectAwareReminderLine(headlineLine) || isCanonicalStructuredProjectAwareness(headlineLine))
-  ) {
-    return awarenessLine
-  }
-
-  const awarenessCarriesProjectClosure = /phase 1|memory|initiative|embodiment|closure/u.test(awarenessLine.toLowerCase())
-  const headlineLooksNarrowEmbodiment
-    = hasDistinctEmbodimentClosureCue(headlineLine)
-      && !/phase 1|memory|initiative|closure/u.test(headlineLine.toLowerCase())
-
-  if (
-    awarenessCarriesProjectClosure
-    && headlineLooksNarrowEmbodiment
-    && !isThinProjectAwarenessAuthorityLine(awarenessLine)
-  ) {
-    return awarenessLine
-  }
-
-  const headlineLooksEmbodimentNarrowerThanAwareness = embodimentHeadlineWouldOverNarrowProjectAwareness({
+  if (embodimentHeadlineWouldOverNarrowProjectAwareness({
     headlineLine,
     awarenessLine,
-  })
-  if (headlineLooksEmbodimentNarrowerThanAwareness)
+  })) {
     return awarenessLine
-
-  const headlineCarriesEmbodimentSameHerClosure = Boolean(
-    headlineLine
-    && !isThinProjectAwarenessAuthorityLine(headlineLine)
-    && hasDistinctEmbodimentClosureCue(headlineLine)
-    && /same living line|same-her|same her|one living her|one continuous her/u.test(headlineLine.toLowerCase()),
-  )
-  const awarenessLooksThinOrCompact = Boolean(
-    !awarenessLine
-    || isThinProjectAwarenessAuthorityLine(awarenessLine)
-    || isCompactProjectStatePreflightSummary(awarenessLine),
-  )
-  if (headlineCarriesEmbodimentSameHerClosure && awarenessLooksThinOrCompact)
-    return headlineLine
-
-  const headlineCarriesSameHerClosure
-    = /same living line|same-her|same her|one living her|one continuous her|without splitting her continuity/u.test(headlineLine.toLowerCase())
-      && /phase 1|memory|initiative|embodiment|closure/u.test(headlineLine.toLowerCase())
-  const awarenessCarriesStructuredClosure
-    = carriesExplicitProjectClosureTriplet(awarenessLine)
-      || /what has already landed is|the still-open closure is|generic assistant shell|detached project shell|landed farther/u.test(awarenessLine.toLowerCase())
-
-  if (
-    headlineCarriesSameHerClosure
-    && !awarenessCarriesStructuredClosure
-    && !isThinProjectAwarenessAuthorityLine(headlineLine)
-  ) {
-    return headlineLine
   }
 
   return pickStrongerProjectAwarenessLine([awarenessLine, headlineLine], 1600)
@@ -2170,80 +2048,48 @@ function shouldPreserveProjectAwarenessLineVerbatim(candidate: unknown, baseline
   if (/泛化助手/u.test(candidateText))
     return true
 
-  return isStrongerSameHerProjectHeadline(candidateText, baseline)
+  return isStrongerProviderFacingProjectLine(candidateText, baseline)
 }
 
-function scoreRuntimeProjectStateDetailCandidate(
+function scoreRuntimeProjectStateDetail(
   value: unknown,
-  kind: 'identity' | 'landed' | 'open' | 'next' | 'same-her' | 'drift' | 'awareness',
+  kind: 'identity' | 'landed' | 'open' | 'next' | 'continuity' | 'drift' | 'awareness',
 ) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)?.toLowerCase() ?? ''
-  if (!normalized)
+  const text = normalizeProviderFacingProjectText(value, 1600)
+  if (!text)
     return Number.NEGATIVE_INFINITY
-  if (isBlockedFixedTemplateEvidence(normalized))
+  if (isBlockedFixedTemplateEvidence(text))
     return Number.NEGATIVE_INFINITY
 
-  let score = scoreAlicizationProjectAwarenessLine(normalized) + Math.min(normalized.length, 400) / 200
+  const normalized = text.toLowerCase()
+  let score = scoreAlicizationProjectAwarenessLine(text) + Math.min(text.length, 400) / 200
 
-  if (/thin runtime .* only/u.test(normalized))
-    score -= 8
-  if (/same digital life \| keep the closure seam explicit|keep the same digital life project in view/u.test(normalized))
-    score -= 5
-
-  if (kind === 'identity') {
-    if (/(?:^|\|\s*)identity=|project_state_review/u.test(normalized))
-      score += 8
-    if (/fresh shell|not a fresh shell|not a new shell|rebuilt each turn|rebuilt for this turn|fresh assistant restart/u.test(normalized))
-      score += 6
-  }
-
-  if (kind === 'landed') {
-    if (/landed|already survives|already survive|same-thread|reminder|proactive|provider-facing/u.test(normalized))
-      score += 4
-    if (/^same-session mirror carry|repeated next-turn carry|scene-switch same-line continuity/u.test(normalized))
-      score += 8
-    if (/same-session mirror carry already survives noisy returns and runtime preparation/u.test(normalized))
-      score += 6
-    if (/live project awareness already survives into the current conscious frame/u.test(normalized))
-      score += 5
-    if (normalized.startsWith('continuity, memory, execution'))
-      score -= 8
-  }
-  if (kind === 'open' && /still need|still needs|initiative|memory|embodiment|closure seam|open_loop=|memory_dialogue_embodiment_closure/u.test(normalized))
-    score += 4
-  if (kind === 'open' && /memory still needs stronger end-to-end closure across turns, initiative, and embodiment/u.test(normalized))
-    score -= 4
-  if (kind === 'next' && /keep|next closure|measured-return|return|first answer beat|next=|embodiment_scale_validation/u.test(normalized))
-    score += 4
-  if (kind === 'next' && /current project-state awareness explicit|first visible answer beat|provider-facing answer|current conscious frame/u.test(normalized))
-    score += 6
-  if (kind === 'next' && /summary-only next closure|before local fluency takes over/u.test(normalized))
-    score += 6
-  if (kind === 'next' && /living audio thread|holding together mainly through|without dropping the living audio thread|rejoin|audible-body/u.test(normalized))
-    score += 8
-  if (kind === 'next' && /project identity carry|phase 1 route carry|unresolved closure carry|anthropomorphic emotional closure|same-her inward-carry observability/u.test(normalized))
+  if (/thin runtime .* only|placeholder|generic .* only/iu.test(normalized))
     score -= 6
-  if (kind === 'next' && /generic next target|generic next closure|generic closure shell|generic closure summary|generic callback summary|steadier carry of this project, this phase, and the life loop that remains open/u.test(normalized))
-    score -= 10
-  if (kind === 'same-her' && /project_anchor=|continuity_(?:identity|line|thread)|project_state_review/u.test(normalized))
-    score += 4
-  if (kind === 'drift' && /drift|generic guidance|project shell|detached/u.test(normalized))
+  if (isStructuredProjectAwarenessLine(text))
     score += 3
-  if (kind === 'drift' && /project-summary voice|generic assistant shell|generic task shell|generic callback shell|generic project shell|detached project narration|detached project shell/u.test(normalized))
-    score += 6
-  if (kind === 'drift' && /continuity drift|unfinished continuity drift|project_state_review drift/u.test(normalized))
-    score += 4
-  if (kind === 'drift' && /summary-only drift risk|live drift risk|remembered same-her drift risk/u.test(normalized))
-    score += 2
-  if (kind === 'awareness' && /memory and execution continuity have landed farther|holding together mainly through/u.test(normalized))
-    score += 4
+  if (hasDistinctEmbodimentClosureCue(text))
+    score += 1
+
+  const kindMarkers: Record<typeof kind, RegExp> = {
+    identity: /identity|persona|relationship|profile|self|身份|人格|关系|自我/iu,
+    landed: /landed|completed|applied|verified|persisted|updated|success|已落地|完成|通过|持久化/iu,
+    open: /open|pending|missing|remaining|todo|unresolved|failed|未完成|待处理|缺失|失败/iu,
+    next: /next|target|action|reindex|retry|validate|continue|下一步|继续|重建|验证/iu,
+    continuity: /continuity|thread|session|memory|recall|relationship|anchor|连续|上下文|记忆|关系/iu,
+    drift: /drift|risk|fallback|detached|generic|error|failed|风险|漂移|回退|失败/iu,
+    awareness: /awareness|summary|context|status|health|signal|状态|上下文|摘要|指标/iu,
+  }
+
+  if (kindMarkers[kind].test(text))
+    score += 3
 
   return score
 }
 
 function pickPreferredRuntimeProjectStateDetail(
   values: Array<unknown>,
-  kind: 'identity' | 'landed' | 'open' | 'next' | 'same-her' | 'drift' | 'awareness',
+  kind: 'identity' | 'landed' | 'open' | 'next' | 'continuity' | 'drift' | 'awareness',
   maxChars = 1600,
 ) {
   let best: string | null = null
@@ -2254,7 +2100,7 @@ function pickPreferredRuntimeProjectStateDetail(
     if (!normalized)
       continue
 
-    const score = scoreRuntimeProjectStateDetailCandidate(normalized, kind)
+    const score = scoreRuntimeProjectStateDetail(normalized, kind)
     if (score > bestScore) {
       best = normalized
       bestScore = score
@@ -2301,7 +2147,7 @@ function pickPreferredRuntimeProjectPhase(
 
 function looksLikeThinRuntimeProjectStateDetail(
   value: unknown,
-  kind: 'landed' | 'open' | 'next' | 'same-her',
+  kind: 'landed' | 'open' | 'next' | 'continuity',
 ) {
   const normalized = normalizeProviderFacingProjectText(value, 1600)?.toLowerCase() ?? ''
   if (!normalized)
@@ -2319,7 +2165,7 @@ function looksLikeThinRuntimeProjectStateDetail(
     return /project continuity still needs closure|still needs closure|needs closure|thin runtime open(?: loop)? only|current project-state awareness explicit|first visible answer beat/u.test(normalized)
   }
 
-  if (kind === 'same-her')
+  if (kind === 'continuity')
     return /project-state answer before widening|keep the line gentle for now|generic project continuity hold|placeholder/u.test(normalized)
 
   if (/current project-state awareness explicit|first visible answer beat|summary-only next closure|before local fluency takes over/u.test(normalized))
@@ -2401,21 +2247,21 @@ function shouldPreferRuntimeCompanionHeadline(input: {
   const awarenessLine = normalizeProviderFacingProjectText(input.awarenessLine, 1600)
   if (!companionHeadlineLine)
     return false
-  const companionIsSpecificAuthorityLine = isSpecificCompanionAuthorityLine(companionHeadlineLine)
-  const awarenessAlreadyCarriesFocusedSameHerClosure = Boolean(
+  const companionIsSpecificProjectLine = isSpecificProviderFacingProjectLine(companionHeadlineLine)
+  const awarenessAlreadyCarriesFocusedProjectLine = Boolean(
     awarenessLine
     && !isThinProjectAwarenessAuthorityLine(awarenessLine)
     && !isCanonicalStructuredProjectAwareness(awarenessLine)
     && (
       shouldPreserveProjectAwarenessLineVerbatim(awarenessLine, companionHeadlineLine)
-      || isStrongerSameHerProjectHeadline(awarenessLine, companionHeadlineLine)
+      || isStrongerProviderFacingProjectLine(awarenessLine, companionHeadlineLine)
     ),
   )
-  if (awarenessAlreadyCarriesFocusedSameHerClosure)
+  if (awarenessAlreadyCarriesFocusedProjectLine)
     return false
 
   return (
-    companionIsSpecificAuthorityLine
+    companionIsSpecificProjectLine
     || hasModalitySpecificEmbodimentCue(companionHeadlineLine)
   )
   && (
@@ -2424,7 +2270,7 @@ function shouldPreferRuntimeCompanionHeadline(input: {
     || isCanonicalStructuredProjectAwareness(awarenessLine)
     || !carriesProjectIdentityAnchor(awarenessLine)
     || shouldPreserveProjectAwarenessLineVerbatim(companionHeadlineLine, awarenessLine)
-    || isStrongerSameHerProjectHeadline(companionHeadlineLine, awarenessLine)
+    || isStrongerProviderFacingProjectLine(companionHeadlineLine, awarenessLine)
   )
 }
 
@@ -2472,10 +2318,10 @@ function scoreResolvedRuntimeProjectCarry(projectState: {
 }) {
   let score = 0
 
-  score += Math.max(0, scoreRuntimeProjectStateDetailCandidate(projectState.preDialogueAwarenessLine, 'awareness'))
-  score += Math.max(0, scoreRuntimeProjectStateDetailCandidate(projectState.latestLandedProgress, 'landed')) / 2
-  score += Math.max(0, scoreRuntimeProjectStateDetailCandidate(projectState.primaryOpenLoop, 'open')) / 2
-  score += Math.max(0, scoreRuntimeProjectStateDetailCandidate(projectState.nextClosureTarget, 'next')) / 2
+  score += Math.max(0, scoreRuntimeProjectStateDetail(projectState.preDialogueAwarenessLine, 'awareness'))
+  score += Math.max(0, scoreRuntimeProjectStateDetail(projectState.latestLandedProgress, 'landed')) / 2
+  score += Math.max(0, scoreRuntimeProjectStateDetail(projectState.primaryOpenLoop, 'open')) / 2
+  score += Math.max(0, scoreRuntimeProjectStateDetail(projectState.nextClosureTarget, 'next')) / 2
 
   if (shouldPreferRuntimeCompanionHeadline({
     awarenessLine: projectState.preDialogueAwarenessLine ?? null,
@@ -2778,8 +2624,8 @@ function readProjectStateFallbackFromSessionMirror(
     = readContinuitySummaryMarker(continuityArcSummary, ['next'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['next'], 1600)
   const sameHerSelfLine
-    = readContinuitySummaryMarker(continuityArcSummary, ['continuity_anchor', 'same_her', 'same-her'], 1600)
-      ?? readContinuitySummaryMarker(continuityProjectSummary, ['continuity_anchor', 'same_her', 'same-her'], 1600)
+    = readContinuitySummaryMarker(continuityArcSummary, ['continuity_anchor', 'same_her', 'continuity'], 1600)
+      ?? readContinuitySummaryMarker(continuityProjectSummary, ['continuity_anchor', 'same_her', 'continuity'], 1600)
   const sameHerDriftRisk
     = readContinuitySummaryMarker(continuityArcSummary, ['continuity_drift_risk', 'drift_risk', 'same_her_drift_risk'], 1600)
       ?? readContinuitySummaryMarker(continuityProjectSummary, ['continuity_drift_risk', 'drift_risk', 'same_her_drift_risk'], 1600)
@@ -3136,7 +2982,7 @@ function readRuntimeProjectStateFromSurface(
   const sameHerSelfLine = (() => {
     const preferredAnySameHerSelfLine = pickPreferredRuntimeProjectStateDetail(
       sameHerSelfLineCandidates,
-      'same-her',
+      'continuity',
       1600,
     )
     if (
@@ -3150,10 +2996,10 @@ function readRuntimeProjectStateFromSurface(
           return Boolean(
             normalized
             && normalized !== canonicalSameHerSelfLine
-            && !looksLikeThinRuntimeProjectStateDetail(normalized, 'same-her'),
+            && !looksLikeThinRuntimeProjectStateDetail(normalized, 'continuity'),
           )
         }),
-        'same-her',
+        'continuity',
         1600,
       )
       if (preferredRuntimeSpecificSameHerSelfLine)
@@ -3163,7 +3009,7 @@ function readRuntimeProjectStateFromSurface(
     return preferredAnySameHerSelfLine
       ?? pickPreferredRuntimeProjectStateDetail([
         sessionMirrorProjectState.sameHerSelfLine,
-      ], 'same-her', 1600)
+      ], 'continuity', 1600)
       ?? brief.sameHerSelfLine
   })()
   const liveSameHerDriftRisk = pickPreferredRuntimeProjectStateDetail([
@@ -3197,7 +3043,7 @@ function readRuntimeProjectStateFromSurface(
   const sameHerHoldDetail = (() => {
     const preferredAnySameHerHoldDetail = pickPreferredRuntimeProjectStateDetail(
       sameHerHoldDetailCandidates,
-      'same-her',
+      'continuity',
       1600,
     )
     if (
@@ -3210,12 +3056,12 @@ function readRuntimeProjectStateFromSurface(
           const normalized = normalizeProviderFacingProjectText(candidate, 1600)
           return Boolean(normalized && normalized !== canonicalSameHerHoldDetail)
         }),
-        'same-her',
+        'continuity',
         1600,
       )
       if (
         preferredRuntimeSpecificSameHerHoldDetail
-        && !looksLikeThinRuntimeProjectStateDetail(preferredRuntimeSpecificSameHerHoldDetail, 'same-her')
+        && !looksLikeThinRuntimeProjectStateDetail(preferredRuntimeSpecificSameHerHoldDetail, 'continuity')
       ) {
         return preferredRuntimeSpecificSameHerHoldDetail
       }
@@ -4206,7 +4052,7 @@ function seedPreparedRuntimeProjectAwareness(input: {
         payloadProjectState.explicitPayloadProjectHeadline,
         preferredPayloadAwarenessLine,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         payloadProjectState.explicitPayloadProjectHeadline,
         preferredPayloadAwarenessLine,
       )
@@ -4281,12 +4127,12 @@ function seedPreparedRuntimeProjectAwareness(input: {
       !currentAwarenessCandidate
       || isThinProjectAwarenessAuthorityLine(currentAwarenessCandidate)
       || isCompactProjectStatePreflightSummary(currentAwarenessCandidate)
-      || isPhase1ProjectStatePreflightAwarenessLine(currentAwarenessCandidate)
+      || isLegacyProjectStatePreflightAwarenessLine(currentAwarenessCandidate)
       || shouldPreserveProjectAwarenessLineVerbatim(
         preferredPayloadSeedAwarenessLine,
         currentAwarenessCandidate,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         preferredPayloadSeedAwarenessLine,
         currentAwarenessCandidate,
       )
@@ -4349,7 +4195,7 @@ function seedPreparedRuntimeProjectAwareness(input: {
     currentProjectState.companionHeadlineLine,
     resolvedSurfaceProjectState.companionHeadlineLine,
     preferredCompanionHeadlineLine,
-  ].map(value => carriesSpecificSameHerAuthorityLine(value) ? value : null), 1600)
+  ].map(value => isSpecificProviderFacingProjectLine(value) ? value : null), 1600)
   const preferredNextClosureTarget
     = normalizeProviderFacingProjectText(currentProjectState.nextClosureTarget, 1600)
       ?? normalizeProviderFacingProjectText(resolvedSurfaceProjectState.nextClosureTarget, 1600)
@@ -4397,7 +4243,7 @@ function seedPreparedRuntimeProjectAwareness(input: {
     sameHerSelfLine: pickPreferredRuntimeProjectStateDetail([
       currentProjectState.sameHerSelfLine,
       resolvedSurfaceProjectState.sameHerSelfLine,
-    ], 'same-her', 1600),
+    ], 'continuity', 1600),
     latestLandedProgress: pickPreferredRuntimeProjectStateDetail([
       currentProjectState.latestLandedProgress,
       currentProjectState.latestProgress,
@@ -4430,7 +4276,7 @@ function seedPreparedRuntimeProjectAwareness(input: {
     && (
       !preferredAwarenessLine
       || isCanonicalStructuredProjectAwareness(preferredAwarenessLine)
-      || isPhase1ProjectStatePreflightAwarenessLine(preferredAwarenessLine)
+      || isLegacyProjectStatePreflightAwarenessLine(preferredAwarenessLine)
       || (
         preferredAwarenessLine !== resolvedAwarenessLine
         && !carriesRichPhase1ProjectAwareness(preferredAwarenessLine)
@@ -4466,7 +4312,7 @@ function seedPreparedRuntimeProjectAwareness(input: {
         preferredSpecificCompanionAuthorityLine,
         preferredAwarenessLine,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         preferredSpecificCompanionAuthorityLine,
         preferredAwarenessLine,
       )
@@ -4488,7 +4334,7 @@ function seedPreparedRuntimeProjectAwareness(input: {
     && seededAwarenessLineBase
     && !seededAwarenessLineBase.startsWith('Before answering')
     && awarenessCarriesBroaderProjectFrame(seededAwarenessLineBase)
-    && !carriesSpecificSameHerAuthorityLine(seededAwarenessLineBase)
+    && !isSpecificProviderFacingProjectLine(seededAwarenessLineBase)
     && !hasModalitySpecificEmbodimentCue(seededAwarenessLineBase),
   )
   const seededAwarenessLine = shouldPreferAnchoredPreparedAwarenessForThinPayloadSummary
@@ -4682,7 +4528,7 @@ function seedPreparedRuntimeProjectAwareness(input: {
       : pickPreferredRuntimeProjectStateDetail([
         currentProjectState.sameHerSelfLine,
         resolvedSurfaceProjectState.sameHerSelfLine,
-      ], 'same-her', 1600)
+      ], 'continuity', 1600)
       ?? currentProjectState.sameHerSelfLine,
     sameHerDriftRisk: preferStrongerSameHerDriftRisk({
       current: shouldReCanonicalizeThinPreparedAwareness
@@ -4840,20 +4686,20 @@ function resolvePreferredRuntimeSurface(input: {
   const spineDirectAwarenessLine = readDirectSurfaceAwarenessLine(spineRuntimeSurface)
   const preparedCompanionHeadlineLine = readSurfaceCompanionHeadlineLine(preparedRuntimeSurface)
   const spineCompanionHeadlineLine = readSurfaceCompanionHeadlineLine(spineRuntimeSurface)
-  const preparedCarriesSpecificSameHerAuthority = carriesSpecificSameHerAuthorityLine(preparedDirectAwarenessLine)
-    || carriesSpecificSameHerAuthorityLine(preparedCompanionHeadlineLine)
-  const spineCarriesSpecificSameHerAuthority = carriesSpecificSameHerAuthorityLine(spineDirectAwarenessLine)
-    || carriesSpecificSameHerAuthorityLine(spineCompanionHeadlineLine)
+  const preparedCarriesSpecificProjectLine = isSpecificProviderFacingProjectLine(preparedDirectAwarenessLine)
+    || isSpecificProviderFacingProjectLine(preparedCompanionHeadlineLine)
+  const spineCarriesSpecificProjectLine = isSpecificProviderFacingProjectLine(spineDirectAwarenessLine)
+    || isSpecificProviderFacingProjectLine(spineCompanionHeadlineLine)
   if (
-    preparedCarriesSpecificSameHerAuthority
-    && !spineCarriesSpecificSameHerAuthority
+    preparedCarriesSpecificProjectLine
+    && !spineCarriesSpecificProjectLine
     && !shouldPreserveProjectAwarenessLineVerbatim(spineDirectAwarenessLine, preparedDirectAwarenessLine)
   ) {
     return preparedRuntimeSurface
   }
   if (
-    spineCarriesSpecificSameHerAuthority
-    && !preparedCarriesSpecificSameHerAuthority
+    spineCarriesSpecificProjectLine
+    && !preparedCarriesSpecificProjectLine
     && !shouldPreserveProjectAwarenessLineVerbatim(preparedDirectAwarenessLine, spineDirectAwarenessLine)
   ) {
     return spineRuntimeSurface
@@ -4868,7 +4714,7 @@ function resolvePreferredRuntimeSurface(input: {
     spineDirectAwarenessLine
     && isCanonicalStructuredProjectAwareness(spineDirectAwarenessLine)
     && preparedAwarenessLineLacksFullPhaseAnchor
-    && !preparedCarriesSpecificSameHerAuthority
+    && !preparedCarriesSpecificProjectLine
   ) {
     return spineRuntimeSurface
   }
@@ -4909,7 +4755,7 @@ function resolvePreferredRuntimeSurface(input: {
         preparedDirectAwarenessLine,
         spineDirectAwarenessLine,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         preparedDirectAwarenessLine,
         spineDirectAwarenessLine,
       )
@@ -4932,7 +4778,7 @@ function resolvePreferredRuntimeSurface(input: {
         spineDirectAwarenessLine,
         preparedDirectAwarenessLine,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         spineDirectAwarenessLine,
         preparedDirectAwarenessLine,
       )
@@ -4995,7 +4841,7 @@ function resolvePreferredRuntimeSurface(input: {
   const spineProjectState = readRuntimeProjectStateFromSurface(spineRuntimeSurface)
   const preparedSpecificModalityAuthorityShouldOverrideStructuredSpine = Boolean(
     preparedDirectAwarenessLine
-    && carriesSpecificSameHerAuthorityLine(preparedDirectAwarenessLine)
+    && isSpecificProviderFacingProjectLine(preparedDirectAwarenessLine)
     && hasModalitySpecificEmbodimentCue(preparedDirectAwarenessLine)
     && shouldPreserveProjectAwarenessLineVerbatim(
       preparedDirectAwarenessLine,
@@ -5011,7 +4857,7 @@ function resolvePreferredRuntimeSurface(input: {
 
   const spineSpecificModalityAuthorityShouldOverrideStructuredPrepared = Boolean(
     spineDirectAwarenessLine
-    && carriesSpecificSameHerAuthorityLine(spineDirectAwarenessLine)
+    && isSpecificProviderFacingProjectLine(spineDirectAwarenessLine)
     && hasModalitySpecificEmbodimentCue(spineDirectAwarenessLine)
     && shouldPreserveProjectAwarenessLineVerbatim(
       spineDirectAwarenessLine,
@@ -5172,7 +5018,7 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
     : currentCompanionHeadlineLine
   const shouldPromoteCurrentCompanionHeadline = Boolean(
     providerSafeCurrentCompanionHeadlineLine
-    && carriesSpecificSameHerAuthorityLine(providerSafeCurrentCompanionHeadlineLine)
+    && isSpecificProviderFacingProjectLine(providerSafeCurrentCompanionHeadlineLine)
     && (
       !currentDirectAwarenessLine
       || isThinProjectAwarenessAuthorityLine(currentDirectAwarenessLine)
@@ -5181,7 +5027,7 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
         providerSafeCurrentCompanionHeadlineLine,
         currentDirectAwarenessLine,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         providerSafeCurrentCompanionHeadlineLine,
         currentDirectAwarenessLine,
       )
@@ -5208,7 +5054,7 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
     if (
       currentLooksTruncated
       || looksLikeThinRuntimeProjectStateDetail(currentText, kind)
-      || scoreRuntimeProjectStateDetailCandidate(resolvedText, kind) > scoreRuntimeProjectStateDetailCandidate(currentText, kind)
+      || scoreRuntimeProjectStateDetail(resolvedText, kind) > scoreRuntimeProjectStateDetail(currentText, kind)
     ) {
       return resolvedText
     }
@@ -5270,7 +5116,7 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
       pickPreferredRuntimeProjectStateDetail([
         resolvedProjectState.sameHerSelfLine,
         currentProjectState.sameHerSelfLine,
-      ], 'same-her', 1600)
+      ], 'continuity', 1600)
       ?? currentProjectState.sameHerSelfLine,
     sameHerDriftRisk:
       preferStrongerSameHerDriftRisk({
@@ -5282,7 +5128,7 @@ function alignPreparedRuntimeSurfaceProjectStateCarry(
       pickPreferredRuntimeProjectStateDetail([
         currentProjectState.sameHerHoldDetail,
         resolvedProjectState.sameHerHoldDetail,
-      ], 'same-her', 1600)
+      ], 'continuity', 1600)
       ?? currentProjectState.sameHerHoldDetail,
     emotionalClosureSummary:
       pickPreferredRuntimeProjectStateDetail([
@@ -5575,7 +5421,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
       )
       || (
         runtimeProjectState.sameHerSelfLine
-        && !looksLikeThinRuntimeProjectStateDetail(runtimeProjectState.sameHerSelfLine, 'same-her')
+        && !looksLikeThinRuntimeProjectStateDetail(runtimeProjectState.sameHerSelfLine, 'continuity')
         && selectedRuntimeAwarenessLine.includes(runtimeProjectState.sameHerSelfLine)
         && !normalizeProviderFacingProjectText(
           runtimeProjectState.preDialogueAwarenessLine,
@@ -5594,13 +5440,13 @@ export function rebuildProviderFacingMindTurnContract(input: {
         headlineLine: payloadProjectState.explicitPayloadProjectHeadline,
       })
     : null
-  const payloadSpecificSameHerEmbodimentAuthorityLine = [
+  const payloadSpecificEmbodimentProjectLine = [
     normalizeProviderFacingProjectText(payloadProjectState.explicitPayloadProjectHeadline, 1600),
     payloadAwarenessLine,
   ].find(line =>
     Boolean(
       line
-      && carriesSpecificSameHerAuthorityLine(line)
+      && isSpecificProviderFacingProjectLine(line)
       && hasModalitySpecificEmbodimentCue(line),
     ),
   ) ?? null
@@ -5618,16 +5464,14 @@ export function rebuildProviderFacingMindTurnContract(input: {
       || isCompactProjectStatePreflightSummary(payloadProjectState.explicitPayloadProjectPreflightSummary)
     ),
   )
-  const payloadPreflightSummaryHasExplicitSameHerPhase1Carry = Boolean(
+  const payloadPreflightSummaryHasStructuredProjectCarry = Boolean(
     payloadProjectState.explicitPayloadProjectPreflightSummary
-    && /same local-first digital life project(?: in)? phase 1|same digital life project(?: in)? phase 1/iu.test(
-      payloadProjectState.explicitPayloadProjectPreflightSummary,
-    ),
+    && isStructuredProjectAwarenessLine(payloadProjectState.explicitPayloadProjectPreflightSummary),
   )
   const preferredPayloadRebuildAwarenessLine
-    = payloadSpecificSameHerEmbodimentAuthorityLine ?? payloadAwarenessLine
+    = payloadSpecificEmbodimentProjectLine ?? payloadAwarenessLine
   const preferredPayloadRebuildAwarenessLineLooksThin = Boolean(
-    !payloadSpecificSameHerEmbodimentAuthorityLine
+    !payloadSpecificEmbodimentProjectLine
     && payloadAwarenessLineLooksThin,
   )
   const payloadShouldSeedRebuildAwareness = Boolean(
@@ -5636,9 +5480,6 @@ export function rebuildProviderFacingMindTurnContract(input: {
     && (
       !runtimeProjectState.preDialogueAwarenessLine
       || isThinProjectAwarenessAuthorityLine(runtimeProjectState.preDialogueAwarenessLine)
-      || /same local-first digital life project and the unfinished phase 1 closure seam still belongs to one living her/iu.test(
-        runtimeProjectState.preDialogueAwarenessLine,
-      )
       || (
         isCanonicalStructuredProjectAwareness(runtimeProjectState.preDialogueAwarenessLine)
         && !carriesExplicitProjectClosureTriplet(preferredPayloadRebuildAwarenessLine)
@@ -5647,7 +5488,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
         preferredPayloadRebuildAwarenessLine,
         runtimeProjectState.preDialogueAwarenessLine,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         preferredPayloadRebuildAwarenessLine,
         runtimeProjectState.preDialogueAwarenessLine,
       )
@@ -5658,19 +5499,19 @@ export function rebuildProviderFacingMindTurnContract(input: {
     && (
       !runtimeProjectState.companionHeadlineLine
       || isThinProjectAwarenessAuthorityLine(runtimeProjectState.companionHeadlineLine)
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         payloadProjectState.explicitPayloadProjectHeadline,
         runtimeProjectState.companionHeadlineLine,
       )
     ),
   )
-  const runtimeSpecificSameHerEmbodimentAuthorityLine = [
+  const runtimeSpecificEmbodimentProjectLine = [
     selectedRuntimeCompanionHeadlineLine,
     selectedRuntimeAwarenessLine,
   ].find(line =>
     Boolean(
       line
-      && carriesSpecificSameHerAuthorityLine(line)
+      && isSpecificProviderFacingProjectLine(line)
       && hasModalitySpecificEmbodimentCue(line)
       && (
         !runtimeProjectState.preDialogueAwarenessLine
@@ -5680,7 +5521,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
           line,
           runtimeProjectState.preDialogueAwarenessLine,
         )
-        || isStrongerSameHerProjectHeadline(
+        || isStrongerProviderFacingProjectLine(
           line,
           runtimeProjectState.preDialogueAwarenessLine,
         )
@@ -5688,7 +5529,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
     ),
   ) ?? null
   const preferredRuntimeRebuildAwarenessLine
-    = runtimeSpecificSameHerEmbodimentAuthorityLine
+    = runtimeSpecificEmbodimentProjectLine
       ?? selectedRuntimeVerbatimAwarenessLine
       ?? runtimeProjectState.preDialogueAwarenessLine
   const shouldPreferPayloadPreflightSummary = Boolean(
@@ -5701,10 +5542,8 @@ export function rebuildProviderFacingMindTurnContract(input: {
       || isThinProjectAwarenessAuthorityLine(runtimeProjectState.preflightSummary)
       || isCompactProjectStatePreflightSummary(runtimeProjectState.preflightSummary)
       || (
-        payloadPreflightSummaryHasExplicitSameHerPhase1Carry
-        && !/same local-first digital life project(?: in)? phase 1|same digital life project(?: in)? phase 1/iu.test(
-          runtimeProjectState.preflightSummary ?? '',
-        )
+        payloadPreflightSummaryHasStructuredProjectCarry
+        && !isStructuredProjectAwarenessLine(runtimeProjectState.preflightSummary)
       )
     ),
   )
@@ -5774,7 +5613,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
         companionHeadlineLine:
           payloadShouldSeedRebuildHeadline
             ? payloadProjectState.explicitPayloadProjectHeadline
-            : runtimeSpecificSameHerEmbodimentAuthorityLine
+            : runtimeSpecificEmbodimentProjectLine
               ?? runtimeProjectState.companionHeadlineLine
               ?? preferredRuntimeRebuildAwarenessLine
               ?? null,
@@ -5984,7 +5823,7 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
     && directPayloadPreflightSummaryLooksThin
     && isLegacyProjectAwarenessTemplateShell(normalizedAwarenessLine)
     && !isLegacyProjectAwarenessTemplateShell(rebuiltAwarenessLine)
-    && !carriesSpecificSameHerAuthorityLine(rebuiltAwarenessLine)
+    && !isSpecificProviderFacingProjectLine(rebuiltAwarenessLine)
     && !hasModalitySpecificEmbodimentCue(rebuiltAwarenessLine)
     && /identity=runtime_personhood|phase=life_core|memory_dialogue_embodiment_closure|project_identity_route_carry|continuity_progress=|embodiment_scale_validation|owner=project_state_governance/iu.test(
       rebuiltAwarenessLine,
@@ -6030,12 +5869,12 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
     ),
   )
   const normalizedCarriesStrongerRuntimeSpecificClosure = Boolean(
-    scoreRuntimeProjectStateDetailCandidate(normalizedLatestLandedProgress, 'landed')
-    > scoreRuntimeProjectStateDetailCandidate(preferredLatestLandedProgress, 'landed')
-    || scoreRuntimeProjectStateDetailCandidate(normalizedPrimaryOpenLoop, 'open')
-    > scoreRuntimeProjectStateDetailCandidate(preferredPrimaryOpenLoop, 'open')
-    || scoreRuntimeProjectStateDetailCandidate(normalizedNextClosureTarget, 'next')
-    > scoreRuntimeProjectStateDetailCandidate(preferredNextClosureTarget, 'next'),
+    scoreRuntimeProjectStateDetail(normalizedLatestLandedProgress, 'landed')
+    > scoreRuntimeProjectStateDetail(preferredLatestLandedProgress, 'landed')
+    || scoreRuntimeProjectStateDetail(normalizedPrimaryOpenLoop, 'open')
+    > scoreRuntimeProjectStateDetail(preferredPrimaryOpenLoop, 'open')
+    || scoreRuntimeProjectStateDetail(normalizedNextClosureTarget, 'next')
+    > scoreRuntimeProjectStateDetail(preferredNextClosureTarget, 'next'),
   )
   if (
     normalizedCarriesStrongerRuntimeSpecificClosure
@@ -6062,7 +5901,7 @@ function preferPreparedRuntimeSpecificMindTurnContractAwareness(input: {
         rebuiltAwarenessLine,
         normalizedAwarenessLine,
       )
-      || isStrongerSameHerProjectHeadline(
+      || isStrongerProviderFacingProjectLine(
         rebuiltAwarenessLine,
         normalizedAwarenessLine,
       )
@@ -6238,9 +6077,9 @@ function readProviderFacingPayloadProjectState(
       return repairedLine
     }
     if (
-      isStrongerSameHerProjectHeadline(repairedLine, directLine)
+      isStrongerProviderFacingProjectLine(repairedLine, directLine)
       && !directPreservedVerbatim
-      && !isStrongerSameHerProjectHeadline(directLine, repairedLine)
+      && !isStrongerProviderFacingProjectLine(directLine, repairedLine)
     ) {
       return repairedLine
     }
@@ -6415,63 +6254,61 @@ function readProviderFacingPayloadProjectState(
     )
     ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.awarenessLine, 1600)
     ?? normalizeProviderFacingProjectAwarenessPayloadText(resolvedPayloadIdentity?.companionBriefingLine, 1600)
-  const directPayloadProjectSameHerAwarenessLine = pickProjectAwarenessLineWithoutCompactSummaryShell([
+  const directPayloadProjectContinuityAwarenessLine = pickProjectAwarenessLineWithoutCompactSummaryShell([
     directPayloadProjectSameHerHoldDetail,
     directPayloadProjectSameHerSelfLine,
   ], 1600)
   const directPayloadStructuredProjectAwarenessLine = pickProjectAwarenessLineWithoutCompactSummaryShell([
-    carriesStructuredLandedProgressProjectAwareness(directPayloadProjectBaseAwarenessLine)
+    isStructuredProjectAwarenessLine(directPayloadProjectBaseAwarenessLine)
       ? directPayloadProjectBaseAwarenessLine
       : null,
-    carriesStructuredLandedProgressProjectAwareness(directPayloadProjectHeadline)
+    isStructuredProjectAwarenessLine(directPayloadProjectHeadline)
       ? directPayloadProjectHeadline
       : null,
-    carriesStructuredLandedProgressProjectAwareness(directPayloadProjectAwarenessLine)
+    isStructuredProjectAwarenessLine(directPayloadProjectAwarenessLine)
       ? directPayloadProjectAwarenessLine
       : null,
   ], 1600)
-  const shouldPreferDirectPayloadSameHerHoldDetailOverBroaderReminder = Boolean(
+  const shouldPreferDirectPayloadContinuityDetailOverBroaderReminder = Boolean(
     directPayloadProjectSameHerHoldDetail
-    && directPayloadProjectSameHerAwarenessLine === directPayloadProjectSameHerHoldDetail
+    && directPayloadProjectContinuityAwarenessLine === directPayloadProjectSameHerHoldDetail
     && directPayloadProjectAwarenessLine
     && awarenessCarriesBroaderProjectFrame(directPayloadProjectAwarenessLine)
-    && !carriesSpecificSameHerAuthorityLine(directPayloadProjectAwarenessLine)
+    && !isSpecificProviderFacingProjectLine(directPayloadProjectAwarenessLine)
     && !directPayloadStructuredProjectAwarenessLine,
   )
   const repairedDirectPayloadProjectAwarenessLine = (
-    directPayloadProjectSameHerAwarenessLine
+    directPayloadProjectContinuityAwarenessLine
     && (
-      shouldPreferDirectPayloadSameHerHoldDetailOverBroaderReminder
+      shouldPreferDirectPayloadContinuityDetailOverBroaderReminder
       || (
         !directPayloadProjectAwarenessLine
         || isThinProjectAwarenessAuthorityLine(directPayloadProjectAwarenessLine)
         || shouldPreserveProjectAwarenessLineVerbatim(
-          directPayloadProjectSameHerAwarenessLine,
+          directPayloadProjectContinuityAwarenessLine,
           directPayloadProjectAwarenessLine,
         )
-        || isStrongerSameHerProjectHeadline(
-          directPayloadProjectSameHerAwarenessLine,
+        || isStrongerProviderFacingProjectLine(
+          directPayloadProjectContinuityAwarenessLine,
           directPayloadProjectAwarenessLine,
         )
       )
     )
   )
-    ? directPayloadProjectSameHerAwarenessLine
+    ? directPayloadProjectContinuityAwarenessLine
     : directPayloadProjectAwarenessLine
-  const directPayloadSameHerHoldDetailLooksLivedIn = Boolean(
+  const directPayloadContinuityHoldDetailLooksSpecific = Boolean(
     directPayloadProjectSameHerHoldDetail
-    && /same-her hold|same remembered seam|measured-return|repair-before-closeness|rest-protective|lower-pressure|callback line|keep more room this time/iu.test(
-      directPayloadProjectSameHerHoldDetail,
-    ),
+    && isSpecificProviderFacingProjectLine(directPayloadProjectSameHerHoldDetail),
   )
-  const shouldPreferPayloadSameHerHoldDetailAsAwarenessTruth = Boolean(
-    directPayloadSameHerHoldDetailLooksLivedIn
+  const shouldPreferPayloadContinuityHoldDetailAsAwarenessTruth = Boolean(
+    directPayloadContinuityHoldDetailLooksSpecific
     && repairedDirectPayloadProjectAwarenessLine === directPayloadProjectSameHerHoldDetail
     && !directPayloadStructuredProjectAwarenessLine,
   )
   const preferredDirectPayloadProjectAwarenessLine = directPayloadStructuredProjectAwarenessLine
     ?? (
-      !shouldPreferPayloadSameHerHoldDetailAsAwarenessTruth
+      !shouldPreferPayloadContinuityHoldDetailAsAwarenessTruth
       && directPayloadProjectCompanionBriefingLine
       && !isThinProjectAwarenessAuthorityLine(directPayloadProjectCompanionBriefingLine)
         ? (
@@ -6699,9 +6536,9 @@ export const __alicizationTestOnly = {
   applyProviderFacingProjectStateToRuntimeSurface,
   enrichExecutionProjectBriefingWithPersonMemoryCapsule,
   isBlockedFixedTemplateEvidence,
-  isStrongerSameHerProjectHeadline,
+  isStrongerProviderFacingProjectLine,
   isThinProjectAwarenessAuthorityLine,
-  scoreRuntimeProjectStateDetailCandidate,
+  scoreRuntimeProjectStateDetail,
   overrideMindTurnContractNextClosureTarget,
   preferIncomingDialogueSessionMirror,
   readProjectStateFallbackFromSessionMirror,
@@ -7944,7 +7781,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       mirrorProjectStateFallback.sameHerSelfLine,
       preludeSpineRuntimeProjectState.sameHerSelfLine,
       fresherRuntimeProjectState.sameHerSelfLine,
-    ], 'same-her', 1600)
+    ], 'continuity', 1600)
     let preferredSeedAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
       runtimeProjectState: {
         preDialogueAwarenessLine:
@@ -8003,19 +7840,19 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
     ?? preludeSpineRuntimeProjectState.preDialogueAwarenessLine
     ?? fresherRuntimeProjectState.preDialogueAwarenessLine
-    const preferredSeedAwarenessCarriesRuntimeSpecificSameHer = Boolean(
+    const preferredSeedAwarenessCarriesRuntimeContinuityDetail = Boolean(
       preferredSeedAwarenessLine
       && preferredSeedSameHerSelfLine
-      && !looksLikeThinRuntimeProjectStateDetail(preferredSeedSameHerSelfLine, 'same-her')
+      && !looksLikeThinRuntimeProjectStateDetail(preferredSeedSameHerSelfLine, 'continuity')
       && preferredSeedAwarenessLine.includes(preferredSeedSameHerSelfLine),
     )
-    const preferredSeedAwarenessCandidateWouldDropRuntimeSpecificSameHer = Boolean(
+    const preferredSeedAwarenessCandidateWouldDropRuntimeContinuityDetail = Boolean(
       preferredSeedAwarenessCandidate
-      && preferredSeedAwarenessCarriesRuntimeSpecificSameHer
+      && preferredSeedAwarenessCarriesRuntimeContinuityDetail
       && !normalizeProviderFacingProjectText(preferredSeedAwarenessCandidate, 1600)?.includes(preferredSeedSameHerSelfLine ?? ''),
     )
     const shouldReplacePreferredSeedAwarenessLineWithCandidate = Boolean(
-      !preferredSeedAwarenessCandidateWouldDropRuntimeSpecificSameHer
+      !preferredSeedAwarenessCandidateWouldDropRuntimeContinuityDetail
       && (
         preferredSeedAwarenessCandidate
         && shouldPreserveProjectAwarenessLineVerbatim(
@@ -8025,7 +7862,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         && (
           !preferredSeedAwarenessLine
           || isThinProjectAwarenessAuthorityLine(preferredSeedAwarenessLine)
-          || isStrongerSameHerProjectHeadline(
+          || isStrongerProviderFacingProjectLine(
             preferredSeedAwarenessCandidate,
             preferredSeedAwarenessLine,
           )
@@ -8045,7 +7882,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           preferredSeedCompanionCandidate,
           preferredSeedAwarenessLine,
         )
-        || isStrongerSameHerProjectHeadline(
+        || isStrongerProviderFacingProjectLine(
           preferredSeedCompanionCandidate,
           preferredSeedAwarenessLine,
         )
@@ -8211,7 +8048,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const preferredSeedNextClosureTarget = fresherDirectNextClosureTarget
       && !fresherDirectNextClosureTargetLooksTruncated
       && !looksLikeThinRuntimeProjectStateDetail(fresherDirectNextClosureTarget, 'next')
-      && !/cross-modal same-her proof|same-her inward-carry observability/iu.test(fresherDirectNextClosureTarget)
+      && !isLegacyProjectAwarenessTemplateShell(fresherDirectNextClosureTarget)
       ? fresherDirectNextClosureTarget
       : pickPreferredRuntimeProjectStateDetail([
         preludeDirectNextClosureTarget,
@@ -8248,12 +8085,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       primaryOpenLoop: preferredSeedPrimaryOpenLoop ?? fresherRuntimeProjectState.primaryOpenLoop,
       nextClosureTarget: preferredSeedNextClosureTarget ?? fresherRuntimeProjectState.nextClosureTarget,
     })
-    const preferredSeedAwarenessAlreadyCarriesLivedInSameHerClosure = Boolean(
+    const preferredSeedAwarenessAlreadyCarriesSpecificProjectClosure = Boolean(
       preferredSeedAwarenessLine
       && !isThinProjectAwarenessAuthorityLine(preferredSeedAwarenessLine)
       && !isCanonicalStructuredProjectAwareness(preferredSeedAwarenessLine)
       && (
-        carriesSpecificSameHerAuthorityLine(preferredSeedAwarenessLine)
+        isSpecificProviderFacingProjectLine(preferredSeedAwarenessLine)
         || shouldPreserveProjectAwarenessLineVerbatim(
           preferredSeedAwarenessLine,
           preferredSeedAnchoredAwarenessLine,
@@ -8263,12 +8100,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         )
       ),
     )
-    const preferredSeedCompanionAlreadyCarriesLivedInSameHerClosure = Boolean(
+    const preferredSeedCompanionAlreadyCarriesSpecificProjectClosure = Boolean(
       preferredSeedCompanionCandidate
       && !isThinProjectAwarenessAuthorityLine(preferredSeedCompanionCandidate)
       && !isCanonicalStructuredProjectAwareness(preferredSeedCompanionCandidate)
       && (
-        carriesSpecificSameHerAuthorityLine(preferredSeedCompanionCandidate)
+        isSpecificProviderFacingProjectLine(preferredSeedCompanionCandidate)
         || shouldPreserveProjectAwarenessLineVerbatim(
           preferredSeedCompanionCandidate,
           preferredSeedAnchoredAwarenessLine,
@@ -8278,17 +8115,17 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         )
       ),
     )
-    const preferredSeedSameHerSelfLineLooksLikeGenericSummaryCarry = Boolean(
+    const preferredSeedContinuityLineLooksLikeGenericSummaryCarry = Boolean(
       preferredSeedSameHerSelfLine
       && /^(?:owner=project_state_governance|identity=runtime_personhood)\.?$/iu.test(preferredSeedSameHerSelfLine),
     )
-    const shouldPreferAnchoredSameHerContinuitySeed = Boolean(
+    const shouldPreferAnchoredContinuitySeed = Boolean(
       preferredSeedAnchoredAwarenessLine
       && preferredSeedSameHerSelfLine
-      && !preferredSeedSameHerSelfLineLooksLikeGenericSummaryCarry
-      && !preferredSeedAwarenessAlreadyCarriesLivedInSameHerClosure
-      && !preferredSeedCompanionAlreadyCarriesLivedInSameHerClosure
-      && !looksLikeThinRuntimeProjectStateDetail(preferredSeedSameHerSelfLine, 'same-her')
+      && !preferredSeedContinuityLineLooksLikeGenericSummaryCarry
+      && !preferredSeedAwarenessAlreadyCarriesSpecificProjectClosure
+      && !preferredSeedCompanionAlreadyCarriesSpecificProjectClosure
+      && !looksLikeThinRuntimeProjectStateDetail(preferredSeedSameHerSelfLine, 'continuity')
       && /identity=runtime_personhood|owner=project_state_governance|continuity_identity|memory_dialogue_embodiment_closure|generic project shell|generic assistant/iu.test(
         preferredSeedSameHerSelfLine,
       )
@@ -8302,7 +8139,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       )
       && !/callback return|same thread/iu.test(preferredSeedAwarenessLine ?? ''),
     )
-    if (shouldPreferAnchoredSameHerContinuitySeed) {
+    if (shouldPreferAnchoredContinuitySeed) {
       preferredSeedAwarenessLine = preferredSeedAnchoredAwarenessLine
     }
     const preferredSeedPayloadProjectState = readProviderFacingPayloadProjectState(rawPayload)
@@ -8325,7 +8162,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       preferredSeedAwarenessLine
       && !isLegacyProjectAwarenessTemplateShell(preferredSeedAwarenessLine)
       && (
-        carriesLivedInSameHerAuthorityLine(preferredSeedAwarenessLine)
+        isSpecificProviderFacingProjectLine(preferredSeedAwarenessLine)
         || looksLikeNarrowContinuityCadenceAwarenessLine(preferredSeedAwarenessLine)
       )
       && !awarenessCarriesBroaderProjectFrame(preferredSeedAwarenessLine),
@@ -8414,12 +8251,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       && preferredSeedAwarenessIsHoldOnlyDetail
       && preferredSeedDirectDialogueAwarenessLooksThin
     ) {
-      const preferredSeedHasRuntimeSpecificSameHer = Boolean(
+      const preferredSeedHasRuntimeContinuityDetail = Boolean(
         preferredSeedSameHerSelfLine
         && canonicalSameHerSelfLine
         && preferredSeedSameHerSelfLine !== canonicalSameHerSelfLine,
       )
-      preferredSeedAwarenessLine = preferredSeedHasRuntimeSpecificSameHer
+      preferredSeedAwarenessLine = preferredSeedHasRuntimeContinuityDetail
         ? preferredSeedAnchoredAwarenessLine ?? canonicalPreDialogueAwarenessLine
         : canonicalPreDialogueAwarenessLine
     }
@@ -8470,7 +8307,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       && preferredSeedAwarenessLine
       && !preferredSeedAwarenessLine.startsWith('Before answering')
       && awarenessCarriesBroaderProjectFrame(preferredSeedAwarenessLine)
-      && !carriesSpecificSameHerAuthorityLine(preferredSeedAwarenessLine)
+      && !isSpecificProviderFacingProjectLine(preferredSeedAwarenessLine)
       && !hasModalitySpecificEmbodimentCue(preferredSeedAwarenessLine),
     )
     const shouldPreferAnchoredProjectStateSeed = Boolean(
@@ -8483,7 +8320,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       && preferredSeedAnchoredAwarenessLine
       && preferredSeedAwarenessLine
       && !carriesProjectIdentityAnchor(preferredSeedAwarenessLine)
-      && !carriesSpecificSameHerAuthorityLine(preferredSeedAwarenessLine)
+      && !isSpecificProviderFacingProjectLine(preferredSeedAwarenessLine)
       && !/callback return|same thread/iu.test(preferredSeedAwarenessLine),
     )
     if (shouldPreferAnchoredProjectStateSeed || shouldPreferAnchoredProjectStateSeedForThinPayloadSummary) {
@@ -8510,7 +8347,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             preferredSeedCompanionCandidate,
             preferredSeedAwarenessLine,
           )
-          || isStrongerSameHerProjectHeadline(
+          || isStrongerProviderFacingProjectLine(
             preferredSeedCompanionCandidate,
             preferredSeedAwarenessLine,
           )
@@ -8537,7 +8374,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           preferredSeedPayloadAwarenessLine,
           preferredSeedAwarenessLine,
         )
-        || isStrongerSameHerProjectHeadline(
+        || isStrongerProviderFacingProjectLine(
           preferredSeedPayloadAwarenessLine,
           preferredSeedAwarenessLine,
         )
@@ -8560,7 +8397,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             normalizedPreferredSeedPayloadHeadline,
             preferredSeedPayloadAwarenessLine,
           )
-          || isStrongerSameHerProjectHeadline(
+          || isStrongerProviderFacingProjectLine(
             normalizedPreferredSeedPayloadHeadline,
             preferredSeedPayloadAwarenessLine,
           )
@@ -8583,9 +8420,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       && !carriesExplicitProjectClosureTriplet(preferredSeedCompanionCandidate)
       && !isCanonicalStructuredProjectAwareness(preferredSeedCompanionCandidate),
     )
-    const preferredSeedCompanionIsSpecificSameHerAuthorityHeadline = Boolean(
+    const preferredSeedCompanionIsSpecificProjectHeadline = Boolean(
       preferredSeedCompanionCandidate
-      && carriesSpecificSameHerAuthorityLine(preferredSeedCompanionCandidate)
+      && isSpecificProviderFacingProjectLine(preferredSeedCompanionCandidate)
       && !carriesExplicitProjectClosureTriplet(preferredSeedCompanionCandidate)
       && !isCanonicalStructuredProjectAwareness(preferredSeedCompanionCandidate),
     )
@@ -8593,11 +8430,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       preferredSeedCompanionCandidate
       && (
         preferredSeedCompanionIsSpecificEmbodimentHeadline
-        || preferredSeedCompanionIsSpecificSameHerAuthorityHeadline
+        || preferredSeedCompanionIsSpecificProjectHeadline
       )
       && !isThinProjectAwarenessAuthorityLine(preferredSeedCompanionCandidate)
       && (
-        carriesSpecificSameHerAuthorityLine(preferredSeedCompanionCandidate)
+        isSpecificProviderFacingProjectLine(preferredSeedCompanionCandidate)
         || !embodimentHeadlineWouldOverNarrowProjectAwareness({
           headlineLine: preferredSeedCompanionCandidate,
           awarenessLine: preferredSeedAwarenessLine,
@@ -8608,7 +8445,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           preferredSeedCompanionCandidate,
           preferredSeedAwarenessLine,
         )
-        || isStrongerSameHerProjectHeadline(
+        || isStrongerProviderFacingProjectLine(
           preferredSeedCompanionCandidate,
           preferredSeedAwarenessLine,
         )
@@ -8632,7 +8469,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       && preferredSeedAwarenessLine
       && !preferredSeedAwarenessLine.startsWith('Before answering')
       && awarenessCarriesBroaderProjectFrame(preferredSeedAwarenessLine)
-      && !carriesSpecificSameHerAuthorityLine(preferredSeedAwarenessLine)
+      && !isSpecificProviderFacingProjectLine(preferredSeedAwarenessLine)
       && !hasModalitySpecificEmbodimentCue(preferredSeedAwarenessLine),
     )
     if (shouldReAnchorPreparedSeedAwarenessForThinPayloadSummary) {
@@ -8713,12 +8550,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       if (!looksLikeNarrowContinuityCadenceAwarenessLine(preferredSeedAwarenessLine))
         return providerSafeSeedAwarenessLine(preferredSeedAwarenessLine)
 
-      const preferredSeedHasRuntimeSpecificSameHer = Boolean(
+      const preferredSeedHasRuntimeContinuityDetail = Boolean(
         preferredSeedSameHerSelfLine
         && canonicalSameHerSelfLine
         && preferredSeedSameHerSelfLine !== canonicalSameHerSelfLine,
       )
-      const preferred = preferredSeedHasRuntimeSpecificSameHer
+      const preferred = preferredSeedHasRuntimeContinuityDetail
         ? preferredSeedAnchoredAwarenessLine ?? canonicalPreDialogueAwarenessLine
         : canonicalPreDialogueAwarenessLine ?? preferredSeedAnchoredAwarenessLine ?? preferredSeedAwarenessLine
       return providerSafeSeedAwarenessLine(preferred)
@@ -8857,7 +8694,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           ], 'next', 1600)
           const normalizedSameHerSelfLine = pickPreferredRuntimeProjectStateDetail([
             normalizedMindTurnContract.projectState?.sameHerSelfLine,
-          ], 'same-her', 1600)
+          ], 'continuity', 1600)
           const returnPayloadProjectState = readProviderFacingPayloadProjectState(rawPayload)
           const returnPayloadPreflightSummaryLooksThin = Boolean(
             returnPayloadProjectState.explicitPayloadProjectPreflightSummary
@@ -8894,13 +8731,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
               )
             ),
           )
-          const normalizedAwarenessCarriesSpecificRuntimeSameHerAuthorityOmittedByCanonical = Boolean(
+          const normalizedAwarenessCarriesRuntimeContinuityDetailOmittedByCanonical = Boolean(
             canonicalAwarenessLine
             && normalizedAwarenessLine
             && normalizedSameHerSelfLine
             && normalizedSameHerSelfLine !== canonicalSameHerSelfLine
-            && !looksLikeThinRuntimeProjectStateDetail(normalizedSameHerSelfLine, 'same-her')
-            && !/one same her must stay explicit|same project-aware self|same unfinished phase 1 digital-life line/iu.test(normalizedSameHerSelfLine)
+            && !looksLikeThinRuntimeProjectStateDetail(normalizedSameHerSelfLine, 'continuity')
             && normalizedAwarenessLine.includes(normalizedSameHerSelfLine)
             && !canonicalAwarenessLine.includes(normalizedSameHerSelfLine),
           )
@@ -8915,10 +8751,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             && shouldTreatReturnAsProjectStateAnswer
             && normalizedAwarenessLine
             && normalizedIdentity
-            && /same local-first digital life project|not a new shell|not a fresh shell|rebuilt each turn|rebuilt for this turn/iu.test(normalizedIdentity)
+            && !isBlockedFixedTemplateEvidence(normalizedIdentity)
             && carriesExplicitProjectClosureTriplet(normalizedAwarenessLine)
             && !normalizedAwarenessCarriesSpecificRuntimeClosureOmittedByCanonical
-            && !normalizedAwarenessCarriesSpecificRuntimeSameHerAuthorityOmittedByCanonical,
+            && !normalizedAwarenessCarriesRuntimeContinuityDetailOmittedByCanonical,
           )
           if (!shouldCanonicalizeProjectStateAnswerReturn)
             return normalizedMindTurnContract
@@ -9131,9 +8967,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         && preparedSelectionAwarenessMissesRuntimeCarry
         && !carriesProjectIdentityAnchor(preparedSelectionAwareness.awarenessLine)
         && !/callback return|same thread/u.test(preparedSelectionAwareness.awarenessLine)
-        && !carriesSpecificSameHerAuthorityLine(preparedSelectionAwareness.awarenessLine)
+        && !isSpecificProviderFacingProjectLine(preparedSelectionAwareness.awarenessLine)
         && !hasModalitySpecificEmbodimentCue(preparedSelectionAwareness.awarenessLine)
-        && !carriesSpecificSameHerAuthorityLine(
+        && !isSpecificProviderFacingProjectLine(
           normalizePreparedExecutionText(preparedSelectionProjectState?.companionHeadlineLine, 1600)
           ?? preparedSelectionAwareness.companionHeadlineLine,
         )
@@ -9162,7 +8998,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           || preparedSelectionAwarenessMissesRuntimeCarry
         )
         && carriesProjectIdentityAnchor(rebuiltDiagnosticAwarenessLine)
-        && !carriesSpecificSameHerAuthorityLine(preparedSelectionAwareness.awarenessLine)
+        && !isSpecificProviderFacingProjectLine(preparedSelectionAwareness.awarenessLine)
         && !hasModalitySpecificEmbodimentCue(preparedSelectionAwareness.awarenessLine)
       ) {
         preparedSelectionAwareness = {

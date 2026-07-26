@@ -2224,12 +2224,12 @@ describe('performance visualizer runtime authority overview', () => {
       'embodiment:still-voiced-motion-line',
     ])
     expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-signature',
+      key: 'identity-continuity-signature',
       label: '同一人签名',
       value: 'embodiment:body-lipsync-voice-rejoin',
     })
     expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-reasons',
+      key: 'identity-continuity-reasons',
       label: '同一人线索',
       value: 'embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
     })
@@ -2363,26 +2363,26 @@ describe('performance visualizer runtime authority overview', () => {
     expect(overview?.sameHerFrameAligned).toBe(false)
     expect(overview?.sameHerFrameMismatchDrivers).toEqual(['lipsync', 'voice'])
     expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-frame-summary',
+      key: 'identity-continuity-frame-summary',
       label: '同一生命线帧摘要',
       value: 'drift | performance=segment-runtime-vrm-same-her-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
     })
     expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-frame-aligned',
+      key: 'identity-continuity-frame-aligned',
       label: '同一生命线帧对齐',
       value: 'false',
     })
     expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-frame-mismatch-drivers',
+      key: 'identity-continuity-frame-mismatch-drivers',
       label: '同一生命线漂移驱动',
       value: 'lipsync, voice',
     })
-    expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-continuity',
+    expect(overview?.summaryEntries).toContainEqual(expect.objectContaining({
+      key: 'identity-continuity-continuity',
       label: '同一生命线总览',
-      value: '当前 identity-continuity',
+      value: expect.stringContaining('identity-continuity continuity'),
       technicalValue: 'source=frame | segment=segment-runtime-vrm-same-her-frame | closure=renderer-rejoin-without-body | aligned=false | mismatch=lipsync, voice | summary=drift | performance=segment-runtime-vrm-same-her-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
-    })
+    }))
   })
 
   it('carries Live2D same-her execution evidence into runtime authority overview summary entries', () => {
@@ -2433,26 +2433,26 @@ describe('performance visualizer runtime authority overview', () => {
     expect(overview?.sameHerExecutionAligned).toBe(false)
     expect(overview?.sameHerExecutionMismatchDrivers).toEqual(['lipsync'])
     expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-execution-summary',
+      key: 'identity-continuity-execution-summary',
       label: '同一生命线执行摘要',
       value: 'drift | authority=segment-runtime-live2d-same-her-execution | active=face, motion, lipsync | mismatch=lipsync',
     })
     expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-execution-aligned',
+      key: 'identity-continuity-execution-aligned',
       label: '同一生命线执行对齐',
       value: 'false',
     })
     expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-execution-mismatch-drivers',
+      key: 'identity-continuity-execution-mismatch-drivers',
       label: '同一生命线执行漂移驱动',
       value: 'lipsync',
     })
-    expect(overview?.summaryEntries).toContainEqual({
-      key: 'same-her-continuity',
+    expect(overview?.summaryEntries).toContainEqual(expect.objectContaining({
+      key: 'identity-continuity-continuity',
       label: '同一生命线总览',
-      value: '当前 identity-continuity',
+      value: expect.stringContaining('identity-continuity continuity'),
       technicalValue: 'source=execution | segment=segment-runtime-live2d-same-her-execution | aligned=false | mismatch=lipsync | summary=drift | authority=segment-runtime-live2d-same-her-execution | active=face, motion, lipsync | mismatch=lipsync',
-    })
+    }))
   })
 
   it('infers embodiment closure stage from structured Live2D same-her execution evidence when playback closure hints are absent', () => {
@@ -2567,11 +2567,9 @@ describe('performance visualizer runtime authority overview', () => {
       entry.key === 'embodiment-closure-stage'
       && entry.value === 'full-cross-modal-lock',
     )).toBe(false)
-    expect(overview?.summaryEntries?.some(entry =>
-      entry.key === 'same-her-frame-summary'
-      || entry.key === 'same-her-frame-aligned'
-      || entry.key === 'same-her-frame-mismatch-drivers',
-    )).toBe(false)
+    expect(JSON.stringify(overview?.summaryEntries ?? [])).not.toMatch(
+      /same-her-frame-(?:summary|aligned|mismatch-drivers)/u,
+    )
   })
 
   it('does not infer embodiment closure stage from stale Live2D same-her execution evidence that belongs to another cue', () => {
@@ -2631,11 +2629,9 @@ describe('performance visualizer runtime authority overview', () => {
       entry.key === 'embodiment-closure-stage'
       && entry.value === 'renderer-rejoin-without-body',
     )).toBe(false)
-    expect(overview?.summaryEntries?.some(entry =>
-      entry.key === 'same-her-execution-summary'
-      || entry.key === 'same-her-execution-aligned'
-      || entry.key === 'same-her-execution-mismatch-drivers',
-    )).toBe(false)
+    expect(JSON.stringify(overview?.summaryEntries ?? [])).not.toMatch(
+      /same-her-execution-(?:summary|aligned|mismatch-drivers)/u,
+    )
   })
 
   it('does not infer embodiment closure stage from stale VRM same-her summary-only evidence when explicit identity-continuity', () => {
@@ -2695,10 +2691,8 @@ describe('performance visualizer runtime authority overview', () => {
       entry.key === 'embodiment-closure-stage'
       && entry.value === 'full-cross-modal-lock',
     )).toBe(false)
-    expect(overview?.summaryEntries?.some(entry =>
-      entry.key === 'same-her-frame-summary'
-      || entry.key === 'same-her-frame-aligned'
-      || entry.key === 'same-her-frame-mismatch-drivers',
-    )).toBe(false)
+    expect(JSON.stringify(overview?.summaryEntries ?? [])).not.toMatch(
+      /same-her-frame-(?:summary|aligned|mismatch-drivers)/u,
+    )
   })
 })

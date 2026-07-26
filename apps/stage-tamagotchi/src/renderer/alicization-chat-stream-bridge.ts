@@ -340,7 +340,7 @@ export function bridgeAlicizationChatMetaEventToStreamEvent(
               ?? null,
             sameHerSelfLine: bridgedProjectState?.sameHerSelfLine ?? null,
           },
-        }) || normalizedPreDialogueAwareness.awarenessLine),
+        })),
         emotionalClosureCue: sanitizeBridgeMetadataText(normalizedPreDialogueAwareness.emotionalClosureCue),
         reasonPreview: sanitizeBridgeReasonPreview(normalizedPreDialogueAwareness.reasonPreview),
       }

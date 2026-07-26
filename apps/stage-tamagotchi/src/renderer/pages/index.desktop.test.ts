@@ -275,7 +275,8 @@ describe('stage desktop page helpers', () => {
         providerConfig: { apiKey: 'test-key' },
         origin: 'ui-user',
       }))
-      expect(ingest.mock.calls[0]?.[1]).not.toHaveProperty('preDialogueSendIdentity')
+      const ingestOptions = (ingest.mock.calls[0] as unknown[] | undefined)?.[1]
+      expect(ingestOptions).not.toHaveProperty('preDialogueSendIdentity')
     })
   })
 })

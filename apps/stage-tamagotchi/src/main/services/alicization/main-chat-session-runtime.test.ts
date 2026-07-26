@@ -2937,9 +2937,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const organicInput = (lastOrganicCall?.[0] ?? {}) as {
       recallSeed?: string
     }
-    expect(String(organicInput?.recallSeed ?? '')).toContain('continuity_held_autonomy:')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('thread=thread-runtime')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('intent=follow-through')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('continuity_held_autonomy:')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('thread_id=thread-runtime')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('intent_id=follow-through')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('same-line/closure-seam')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('project-carry/phase-1')
   })
@@ -3208,10 +3208,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const organicInput = (lastOrganicCall?.[0] ?? {}) as {
       recallSeed?: string
     }
-    expect(String(organicInput?.recallSeed ?? '')).toContain('continuity_held_autonomy:')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('continuity_held_autonomy:')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('loop:')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('thread=thread-held-autonomy-later')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('thread_id=thread-held-autonomy-later')
     expect(second.sessionMirror?.continuityArcSummary).toBeNull()
     expect(second.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.personalityContinuityState?.rhythmState?.cadenceMode).toBe('measured-return')
   })
@@ -3353,10 +3353,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const organicInput = (lastOrganicCall?.[0] ?? {}) as {
       recallSeed?: string
     }
-    expect(String(organicInput?.recallSeed ?? '')).toContain('continuity_held_autonomy:')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('thread=thread-runtime-deferred')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('continuity_held_autonomy:')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('thread_id=thread-runtime-deferred')
     expect(String(organicInput?.recallSeed ?? '')).toContain('defer_reason=busy-host')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('why_now=Stay near the unresolved compile seam without reopening visible speech.')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('model_summary=stay near the unresolved compile seam without reopening visible speech')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
     expect(second.sessionMirror).toBeTruthy()
   })

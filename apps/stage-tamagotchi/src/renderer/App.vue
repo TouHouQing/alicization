@@ -399,8 +399,6 @@ async function readLatestRendererProjectStateObservation() {
     const observation = readConversationTurnProjectStateObservation({
       ...turns[index],
       origin: 'user-turn',
-      visibleReplyCritic: null,
-      visibleReplyClosure: null,
     })
     if (observation)
       return observation
