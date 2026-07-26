@@ -52,14 +52,30 @@ describe('alicization project awareness', () => {
     expect(resolved).toBe('The user returned to the same code file and asked a direct question.')
   })
 
-  it('keeps structured evidence scoring separate from legacy governance cues', () => {
-    const structured = 'landed=memory extraction is traceable | open=semantic recall needs evidence | source=working-memory'
+  it('prefers a natural observation over legacy governance cues', () => {
+    const naturalObservation = 'The user returned to the memory settings page and asked about semantic retrieval.'
     const legacy = 'same-her=legacy'
 
-    expect(scoreAlicizationProjectAwarenessLine(structured)).toBeGreaterThan(0)
+    expect(scoreAlicizationProjectAwarenessLine(naturalObservation)).toBeGreaterThan(0)
     expect(scoreAlicizationProjectAwarenessLine(legacy)).toBeLessThan(
-      scoreAlicizationProjectAwarenessLine(structured),
+      scoreAlicizationProjectAwarenessLine(naturalObservation),
     )
+  })
+
+  it('does not reward renderer signatures or recovery prose as awareness evidence', () => {
+    const naturalObservation = 'The user returned to the same code file and asked a direct question about memory retrieval.'
+    const legacyRendererCues = [
+      'signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+      'same-segment face+motion+body recovery@segment-legacy | remaining-open=lipsync+voice',
+      'continuity=embodiment:still-voiced-face-line | actual source is face and voice',
+    ]
+
+    for (const legacyRendererCue of legacyRendererCues) {
+      expect(scoreAlicizationProjectAwarenessLine(legacyRendererCue)).toBeLessThan(
+        scoreAlicizationProjectAwarenessLine(naturalObservation),
+      )
+      expect(isAlicizationThinProjectAwarenessLine(legacyRendererCue)).toBe(true)
+    }
   })
 
   it('treats empty or governance-only awareness as thin', () => {

@@ -5,7 +5,7 @@ import { buildAlicizationEmbodimentLoopSummary } from './alicization-embodiment-
 describe('alicization embodiment loop summary', () => {
   it('keeps natural closure facts with the real live2d and vrm-facing lane facts', () => {
     const summary = buildAlicizationEmbodimentLoopSummary({
-      authoritySummary: 'lane=body+face+motion-only | continuity state',
+      authoritySummary: 'embodiment_lanes=body+face+motion | pending_lanes=lipsync+voice',
       currentBodyState: 'body continuity remains present while lipsync and voice rejoin',
       emotion: 'thinking',
       facialCue: 'focused',
@@ -61,7 +61,7 @@ describe('alicization embodiment loop summary', () => {
     expect(summary).toContain('Status: partial.')
     expect(summary).toContain('Pending lanes: lipsync, voice.')
     expect(summary.match(/Active embodiment lanes:/gu)).toHaveLength(1)
-    expect(summary).not.toContain('lane=body+face+motion-only')
+    expect(summary).not.toContain('embodiment_lanes=body+face+motion')
     expect(summary).not.toContain('body continuity remains present while lipsync and voice rejoin')
     expect(summary).toContain('emotion=thinking')
     expect(summary).toContain('mode=energy-phoneme-hybrid')
@@ -72,7 +72,7 @@ describe('alicization embodiment loop summary', () => {
 
   it('starts with natural embodiment closure facts without appending raw closure inputs', () => {
     const summary = buildAlicizationEmbodimentLoopSummary({
-      authoritySummary: 'lane=body+face+motion-only | continuity state from authority',
+      authoritySummary: 'embodiment_lanes=body+face+motion | pending_lanes=lipsync+voice',
       currentBodyState: 'body continuity is active',
       emotion: 'thinking',
       facialCue: 'focused',
@@ -100,7 +100,7 @@ describe('alicization embodiment loop summary', () => {
 
   it('keeps inward carry as natural closure evidence while preserving lane reasons', () => {
     const summary = buildAlicizationEmbodimentLoopSummary({
-      authoritySummary: 'lane=body+face+motion-only | continuity-inward-carry | quiet-companionship',
+      authoritySummary: 'embodiment_lanes=body+face+motion | pending_lanes=lipsync+voice | evidence=low-pressure-inward-carry',
       currentBodyState: 'continuity state stays inward before widening outward again.',
       language: 'zh-CN',
       companionshipMode: 'measured-return',
@@ -115,7 +115,7 @@ describe('alicization embodiment loop summary', () => {
     expect(summary).toContain('Pending lanes: lipsync, voice.')
     expect(summary).toContain('Evidence: low-pressure-inward-carry.')
     expect(summary).toContain('reason=Keep the continuity state inward for now, and leave room before widening outward again')
-    expect(summary).not.toContain('continuity-inward-carry')
+    expect(summary).not.toContain('evidence=low-pressure-inward-carry')
     expect(summary).not.toContain('quiet-companionship')
     expect(summary).not.toContain('continuity state stays inward before widening outward again.')
   })
@@ -130,7 +130,7 @@ describe('alicization embodiment loop summary', () => {
   it('keeps emotion plus blink and gaze continuity visible on voice and lipsync lanes when body+lipsync carry is still the quieter host-facing living line', () => {
     const summary = buildAlicizationEmbodimentLoopSummary({
       authoritySummary: 'identity-continuity',
-      currentBodyState: 'lane=body+lipsync-only | keep the continuity state inward while face, motion, and voice rejoin',
+      currentBodyState: 'embodiment_lanes=body+lipsync | pending_lanes=face+motion+voice',
       emotion: 'thinking',
       language: 'zh-CN',
       closureBias: 0.35,

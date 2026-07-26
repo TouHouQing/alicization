@@ -41,7 +41,7 @@ describe('alicization embodiment closure', () => {
   it('returns natural reminder and headline facts from lane-shrinkage evidence', () => {
     expectNaturalEmbodimentClosureFacts(
       describeAlicizationEmbodimentClosureReminder({
-        authoritySummary: 'continuity remains alive, but lane=lipsync-only under the current renderer authority.',
+        authoritySummary: 'embodiment_lanes=lipsync | pending_lanes=body+face+motion+voice',
         currentBodyState: null,
       }),
       {
@@ -53,7 +53,7 @@ describe('alicization embodiment closure', () => {
     expectNaturalEmbodimentClosureFacts(
       describeAlicizationEmbodimentClosureHeadline({
         authoritySummary: null,
-        currentBodyState: 'lane=face+motion-only | visible continuity still present but no longer fully cross-modal',
+        currentBodyState: 'embodiment_lanes=face+motion | pending_lanes=body+lipsync+voice',
       }),
       {
         lane: 'face+motion-only',
@@ -65,7 +65,7 @@ describe('alicization embodiment closure', () => {
   it('keeps voice and audible-body lanes as natural embodiment facts', () => {
     expectNaturalEmbodimentClosureFacts(
       describeAlicizationEmbodimentClosureReminder({
-        authoritySummary: 'continuity remains alive, but lane=voice-only under the current renderer authority.',
+        authoritySummary: 'embodiment_lanes=voice | pending_lanes=body+face+motion+lipsync',
         currentBodyState: null,
       }),
       {
@@ -76,7 +76,7 @@ describe('alicization embodiment closure', () => {
 
     expectNaturalEmbodimentClosureFacts(
       describeAlicizationEmbodimentClosureReminder({
-        authoritySummary: 'lane=body+voice-only | resident body and voice are still carrying the continuity line.',
+        authoritySummary: 'embodiment_lanes=body+voice | pending_lanes=face+motion+lipsync',
         currentBodyState: 'body and voice are aligned while lipsync, face, and motion still need to catch up.',
       }),
       {
@@ -87,7 +87,7 @@ describe('alicization embodiment closure', () => {
 
     expectNaturalEmbodimentClosureFacts(
       describeAlicizationEmbodimentClosureReminder({
-        authoritySummary: 'lane=body+lipsync+voice-only | living audio thread | pending-rejoin=face+motion',
+        authoritySummary: 'embodiment_lanes=body+lipsync+voice | pending_lanes=face+motion',
         currentBodyState: 'resident body continuity and voice prosody stay aligned while lipsync carries the line.',
       }),
       {
@@ -100,7 +100,7 @@ describe('alicization embodiment closure', () => {
   it('keeps long-horizon emotional memory and runtime lane authority as natural evidence', () => {
     expectNaturalEmbodimentClosureFacts(
       describeAlicizationEmbodimentClosureReminder({
-        authoritySummary: 'lane=lipsync-only | convergence=emotion-memory-lipsync | long-horizon remembered emotional carry says lipsync is still carrying the continuity line.',
+        authoritySummary: 'embodiment_lanes=lipsync | pending_lanes=body+face+motion+voice | evidence=long-horizon-emotion-memory',
         currentBodyState: 'continuity line is still held through lipsync while body, face, motion, and voice catch up.',
       }),
       {
@@ -112,7 +112,7 @@ describe('alicization embodiment closure', () => {
 
     expectNaturalEmbodimentClosureFacts(
       describeAlicizationEmbodimentClosureReminder({
-        authoritySummary: 'lane=face+motion+lipsync+voice-only | face+motion+lipsync+voice recovery@segment-live2d-visible-rejoin-no-body-1 | pending-rejoin=body',
+        authoritySummary: 'embodiment_lanes=face+motion+lipsync+voice | pending_lanes=body | evidence=runtime-lane-authority',
         currentBodyState: 'visible recovery without body carry remains explicit while body continuity still needs to catch back up.',
       }),
       {
@@ -126,8 +126,8 @@ describe('alicization embodiment closure', () => {
   it('keeps inward carry and full cross-modal lock as natural closure facts', () => {
     expectNaturalEmbodimentClosureFacts(
       describeAlicizationEmbodimentClosureReminder({
-        authoritySummary: 'same-segment face+motion+body recovery@segment-live2d-inward-carry | remaining-open=lipsync+voice | continuity-inward-carry | quiet-companionship',
-        currentBodyState: 'lane=body+face+motion-only | continuity line stays inward before widening outward again.',
+        authoritySummary: 'embodiment_lanes=body+face+motion | pending_lanes=lipsync+voice | evidence=low-pressure-inward-carry+runtime-lane-authority',
+        currentBodyState: 'embodiment_lanes=body+face+motion | pending_lanes=lipsync+voice',
       }),
       {
         lane: 'body+face+motion-only',
@@ -138,8 +138,8 @@ describe('alicization embodiment closure', () => {
 
     expectNaturalEmbodimentClosureFacts(
       describeAlicizationEmbodimentClosureHeadline({
-        authoritySummary: 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | same living segment together',
-        currentBodyState: 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | same living segment together',
+        authoritySummary: 'authority=body+face+motion+lipsync+voice | segment=locked',
+        currentBodyState: 'authority=body+face+motion+lipsync+voice | segment=locked',
       }),
       {
         lane: 'body+face+motion+lipsync+voice',
@@ -163,13 +163,13 @@ describe('alicization embodiment closure', () => {
 
   it('does not infer a full cross-modal lock from split or contradictory authority evidence', () => {
     const splitAcrossSources = describeAlicizationEmbodimentClosureHeadline({
-      authoritySummary: 'authority-body:yes | authority-face:yes | authority-motion:yes',
-      currentBodyState: 'authority-lipsync:yes | authority-voice:yes | same living segment together',
+      authoritySummary: 'authority=body+face+motion',
+      currentBodyState: 'authority=lipsync+voice | segment=locked',
     })
     expect(splitAcrossSources).toBe('')
 
     const contradictoryLane = describeAlicizationEmbodimentClosureHeadline({
-      authoritySummary: 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | lane=face-only',
+      authoritySummary: 'authority=body+face+motion+lipsync+voice | segment=locked | embodiment_lanes=face | pending_lanes=body+motion+lipsync+voice',
       currentBodyState: null,
     })
     expectNaturalEmbodimentClosureFacts(contradictoryLane, {
@@ -179,7 +179,7 @@ describe('alicization embodiment closure', () => {
     expect(contradictoryLane).not.toContain('Evidence: full-cross-modal-lock.')
 
     const contradictoryMissingLane = describeAlicizationEmbodimentClosureHeadline({
-      authoritySummary: 'authority-body:yes | authority-face:yes | authority-motion:yes | authority-lipsync:yes | authority-voice:yes | missing_lanes=body',
+      authoritySummary: 'authority=body+face+motion+lipsync+voice | segment=locked | missing_lanes=body',
       currentBodyState: null,
     })
     expect(contradictoryMissingLane).toBe('')
@@ -192,7 +192,7 @@ describe('alicization embodiment closure', () => {
 
     const canonicalLockWithContradictorySource = describeAlicizationEmbodimentClosureHeadline({
       authoritySummary: 'authority=body+face+motion+lipsync+voice | segment=locked',
-      currentBodyState: 'lane=face-only | visible continuity still present',
+      currentBodyState: 'embodiment_lanes=face | pending_lanes=body+motion+lipsync+voice',
     })
     expect(canonicalLockWithContradictorySource).not.toContain('Status: closed.')
     expect(canonicalLockWithContradictorySource).not.toContain('Evidence: full-cross-modal-lock.')
@@ -204,8 +204,8 @@ describe('alicization embodiment closure', () => {
     expect(legacyMarkerWithMissingLane).toBe('')
 
     const splitTokensWithLegacyMarker = describeAlicizationEmbodimentClosureHeadline({
-      authoritySummary: 'authority-body:yes | authority-face:yes | bodyContinuityPhase=full-cross-modal-lock',
-      currentBodyState: 'authority-motion:yes | authority-lipsync:yes | authority-voice:yes',
+      authoritySummary: 'authority=body+face',
+      currentBodyState: 'authority=motion+lipsync+voice',
     })
     expect(splitTokensWithLegacyMarker).toBe('')
   })
@@ -220,6 +220,27 @@ describe('alicization embodiment closure', () => {
       authoritySummary: 'continuity remains broadly shared',
       currentBodyState: 'face+motion+lipsync aligned',
     })).toBe('')
+  })
+
+  it('does not derive visible closure facts from legacy lane, signature, or prose cues', () => {
+    const legacyInputs = [
+      'lane=body+lipsync+voice-only | living audio thread | pending-rejoin=face+motion',
+      'signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+      'same-segment face+motion+body recovery@segment-legacy | remaining-open=lipsync+voice',
+      'continuity=embodiment:still-voiced-face-line | actual source is face and voice',
+      '当前 continuity continuity 主要由口型和声音托住，身体、表情、动作还没重新接回。',
+    ]
+
+    for (const legacyInput of legacyInputs) {
+      expect(describeAlicizationEmbodimentClosureReminder({
+        authoritySummary: legacyInput,
+        currentBodyState: legacyInput,
+      })).toBe('')
+      expect(describeAlicizationEmbodimentClosureHeadline({
+        authoritySummary: legacyInput,
+        currentBodyState: legacyInput,
+      })).toBe('')
+    }
   })
 
   it('describes project and open-loop closure as natural facts', () => {
