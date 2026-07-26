@@ -38,7 +38,7 @@ function normalizeText(value: string | null | undefined) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function normalizeTextList(values: readonly string[] | null | undefined) {
+function normalizeMotionAliasList(values: readonly string[] | null | undefined) {
   return [...new Set((values ?? [])
     .map(value => normalizeText(value).toLowerCase())
     .filter(Boolean))]
@@ -122,9 +122,7 @@ export function buildLive2DActionPulseReplayKey(input: {
     normalizeText(rendererHints?.residentMode).toLowerCase(),
     normalizeText(rendererHints?.preferredBlinkCadence).toLowerCase(),
     normalizeText(rendererHints?.preferredGazeMode).toLowerCase(),
-    normalizeText(rendererHints?.signature).toLowerCase(),
-    normalizeTextList(rendererHints?.reasonTags),
-    normalizeTextList(rendererHints?.preferredMotionAliases),
+    normalizeMotionAliasList(rendererHints?.preferredMotionAliases),
     input.state?.driverAuthority?.bodySegmentMatched == null
       ? 'unknown'
       : input.state.driverAuthority.bodySegmentMatched ? 'matched' : 'renderer-only',

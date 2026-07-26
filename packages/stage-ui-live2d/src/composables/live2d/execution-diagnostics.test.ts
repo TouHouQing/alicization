@@ -937,7 +937,7 @@ describe('live2d execution diagnostics', () => {
     })
   })
 
-  it('keeps cadence-aware same-her follow-through cue context visible after live2d motion outlives the cleared active cue', () => {
+  it('keeps cadence-aware follow-through cue context visible after live2d motion outlives the cleared active cue', () => {
     const performanceState = createIdleStageEmbodimentPerformanceState()
     performanceState.phase = 'cooldown'
     performanceState.performance.baseEmotion = 'thinking'
@@ -951,9 +951,9 @@ describe('live2d execution diagnostics', () => {
       currentMotion: {
         group: 'StillnessGuard',
         index: 2,
-        segmentId: 'segment-same-her-follow-through-1',
+        segmentId: 'segment-live2d-follow-through-1',
         cue: {
-          id: 'segment-same-her-follow-through-1',
+          id: 'segment-live2d-follow-through-1',
           emotion: 'thinking',
           facialCue: 'soft-gaze',
           rendererHints: {
@@ -966,8 +966,8 @@ describe('live2d execution diagnostics', () => {
             preferredLipsyncMode: 'restrained',
             preferredVoiceMode: 'lower-pressure',
             preferredPacingMode: 'slower',
-            reasonTags: ['same-her-return'],
-            signature: 'same-her-hold:slower-lower-pressure',
+            reasonTags: ['audit:renderer-only'],
+            signature: 'renderer audit text',
           },
           rendererSettle: {
             live2dFacialReleaseMs: 380,
@@ -984,7 +984,7 @@ describe('live2d execution diagnostics', () => {
     expect(snapshot.activeMotion).toEqual({
       group: 'StillnessGuard',
       index: 2,
-      segmentId: 'segment-same-her-follow-through-1',
+      segmentId: 'segment-live2d-follow-through-1',
     })
     expect(snapshot.cue).toEqual({
       emotion: 'thinking',
@@ -998,8 +998,8 @@ describe('live2d execution diagnostics', () => {
       preferredLipsyncMode: 'restrained',
       preferredVoiceMode: 'lower-pressure',
       preferredPacingMode: 'slower',
-      reasonTags: ['same-her-return'],
-      signature: 'same-her-hold:slower-lower-pressure',
+      reasonTags: ['audit:renderer-only'],
+      signature: 'renderer audit text',
       live2dFacialReleaseMs: 380,
       live2dMotionFollowThroughMs: 560,
     })

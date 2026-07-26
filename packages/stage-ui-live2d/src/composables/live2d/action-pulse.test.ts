@@ -94,7 +94,7 @@ describe('live2d action pulse binding resolver', () => {
     })).toBeUndefined()
   })
 
-  it('builds a different replay key when the same motion re-enters with new identity-continuity', () => {
+  it('keeps audit metadata out of replay keys while preserving structured driver authority', () => {
     const neutralState = createIdleStageEmbodimentPerformanceState()
     neutralState.activeActionCueSource = 'segment'
     neutralState.activeCue = {
@@ -117,19 +117,41 @@ describe('live2d action pulse binding resolver', () => {
       prosodyAuthority: null,
     }
 
-    const sameHerRendererOnlyState = createIdleStageEmbodimentPerformanceState()
-    sameHerRendererOnlyState.activeActionCueSource = 'segment'
-    sameHerRendererOnlyState.activeCue = {
+    const auditedState = createIdleStageEmbodimentPerformanceState()
+    auditedState.activeActionCueSource = 'segment'
+    auditedState.activeCue = {
       rendererHints: {
         residentMode: 'repair-before-closeness',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-        reasonTags: ['embodiment:body+voice-only'],
+        signature: 'renderer audit text',
+        reasonTags: ['audit:renderer-only'],
       },
-    } as unknown as NonNullable<typeof sameHerRendererOnlyState.activeCue>
-    sameHerRendererOnlyState.driverAuthority = {
-      segmentId: 'segment-same-her-motion',
+    } as unknown as NonNullable<typeof auditedState.activeCue>
+    auditedState.driverAuthority = {
+      segmentId: 'segment-neutral-motion',
+      rendererTarget: 'live2d',
+      matchedDrivers: ['motion'],
+      sources: ['segment'],
+      bodySegmentMatched: true,
+      faceSegmentMatched: true,
+      motionSegmentMatched: true,
+      lipsyncSegmentMatched: true,
+      voiceSegmentMatched: true,
+      prosodyAuthority: null,
+    }
+
+    const rendererOnlyState = createIdleStageEmbodimentPerformanceState()
+    rendererOnlyState.activeActionCueSource = 'segment'
+    rendererOnlyState.activeCue = {
+      rendererHints: {
+        residentMode: 'repair-before-closeness',
+        preferredBlinkCadence: 'linger',
+        preferredGazeMode: 'soften',
+      },
+    } as unknown as NonNullable<typeof rendererOnlyState.activeCue>
+    rendererOnlyState.driverAuthority = {
+      segmentId: 'segment-renderer-motion',
       rendererTarget: 'live2d',
       matchedDrivers: ['motion'],
       sources: ['segment'],
@@ -149,15 +171,24 @@ describe('live2d action pulse binding resolver', () => {
       },
       state: neutralState,
     })
-    const sameHerKey = buildLive2DActionPulseReplayKey({
+    const auditedKey = buildLive2DActionPulseReplayKey({
       binding: {
         actionKey: 'observe_soft',
         motionName: 'ObserveSoft',
         motionIndex: 0,
       },
-      state: sameHerRendererOnlyState,
+      state: auditedState,
+    })
+    const rendererOnlyKey = buildLive2DActionPulseReplayKey({
+      binding: {
+        actionKey: 'observe_soft',
+        motionName: 'ObserveSoft',
+        motionIndex: 0,
+      },
+      state: rendererOnlyState,
     })
 
-    expect(sameHerKey).not.toBe(neutralKey)
+    expect(auditedKey).toBe(neutralKey)
+    expect(rendererOnlyKey).not.toBe(neutralKey)
   })
 })

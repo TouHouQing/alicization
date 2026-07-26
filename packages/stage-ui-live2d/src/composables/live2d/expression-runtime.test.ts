@@ -153,7 +153,7 @@ describe('live2d expression runtime', () => {
     )
   })
 
-  it('keeps restrained same-her live2d action capabilities available even when discovered expressions are sparse', () => {
+  it('keeps restrained live2d action capabilities available even when discovered expressions are sparse', () => {
     const snapshot = buildLive2DRuntimeCapabilitySnapshot([
       'neutral_exp_05',
     ])

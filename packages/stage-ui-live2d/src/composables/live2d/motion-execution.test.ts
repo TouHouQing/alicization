@@ -12,7 +12,7 @@ import {
 describe('live2d motion execution runtime state', () => {
   it('captures the real started motion and clears the stale action as soon as that motion finishes', () => {
     const controller = createLive2DMotionExecutionStateController()
-    const sameHerFollowThroughCue: Live2DMotionExecutionCueSnapshot = {
+    const auditFollowThroughCue: Live2DMotionExecutionCueSnapshot = {
       id: 'segment-observe-soft-1',
       emotion: 'thinking',
       facialCue: 'soft-gaze',
@@ -26,8 +26,8 @@ describe('live2d motion execution runtime state', () => {
         preferredLipsyncMode: 'restrained',
         preferredVoiceMode: 'lower-pressure',
         preferredPacingMode: 'slower',
-        reasonTags: ['same-her-return'],
-        signature: 'same-her-hold:slower-lower-pressure',
+        reasonTags: ['audit:renderer-only'],
+        signature: 'renderer audit text',
       },
       rendererSettle: {
         live2dFacialReleaseMs: 380,
@@ -42,16 +42,16 @@ describe('live2d motion execution runtime state', () => {
       cue: null,
     })
 
-    controller.handleMotionStart('ObserveSoft', 1, 'segment-observe-soft-1', sameHerFollowThroughCue)
+    controller.handleMotionStart('ObserveSoft', 1, 'segment-observe-soft-1', auditFollowThroughCue)
     expect(controller.state.value).toEqual({
       group: 'ObserveSoft',
       index: 1,
       segmentId: 'segment-observe-soft-1',
-      cue: sameHerFollowThroughCue,
+      cue: auditFollowThroughCue,
     })
 
-    sameHerFollowThroughCue.rendererHints = {
-      ...sameHerFollowThroughCue.rendererHints,
+    auditFollowThroughCue.rendererHints = {
+      ...auditFollowThroughCue.rendererHints,
       preferredMotionAliases: ['StillnessGuard', 'ObserveSoft'],
     }
     expect(controller.state.value.cue?.rendererHints?.preferredMotionAliases).toEqual(['StillnessGuard'])
