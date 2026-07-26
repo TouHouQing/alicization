@@ -18,7 +18,7 @@ describe('alicization motion summary', () => {
       confidence: 0.88,
       segmentId: 'segment-vrm-1',
     })).toBe(
-      'motion=inspect_follow | mode=attentive | tail=measured-return | blink=linger | gaze=soften | reason=Deliver the result on the continuity_thread, but leave room before widening closeness | idle=idle_settle | intensity=0.44 | hold=220ms | src=timeline-projection | conf=0.88 | seg=segment-vrm-1',
+      'motion=inspect_follow | mode=attentive | tail=measured-return | blink=linger | gaze=soften | reason=Deliver the result on the same living thread, but leave room before widening closeness | idle=idle_settle | intensity=0.44 | hold=220ms | src=timeline-projection | conf=0.88 | seg=segment-vrm-1',
     )
   })
 
@@ -38,7 +38,7 @@ describe('alicization motion summary', () => {
     })).toBe('motion=steady_focus')
   })
 
-  it('can carry identity-continuity', () => {
+  it('can carry a structured continuity reason without projecting a fixed template', () => {
     expect(buildAlicizationMotionSummary({
       actionCue: 'observe_focus',
       residentMode: 'measured-return',
@@ -46,11 +46,11 @@ describe('alicization motion summary', () => {
       preferredGazeMode: 'soften',
       reasonSummary: 'Keep the continuity state inward for now, and leave room before widening outward again',
     })).toBe(
-      'motion=observe_focus | tail=measured-return | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower',
+      'motion=observe_focus | tail=measured-return | blink=linger | gaze=soften | reason=Keep the continuity state inward for now, and leave room before widening outward again',
     )
   })
 
-  it('can carry an audible-body timing marker when measured-return observe-focus is still holding the living line at lower pressure', () => {
+  it('can carry an audible timing marker without projecting a fixed rejoin template', () => {
     expect(buildAlicizationMotionSummary({
       actionCue: 'observe_focus',
       attentionMode: 'ambient-covision',
@@ -64,21 +64,21 @@ describe('alicization motion summary', () => {
       confidence: 0.88,
       segmentId: 'segment-audible-body-motion-1',
     })).toBe(
-      'motion=observe_focus | mode=ambient-covision | tail=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | reason=continuity_hold=audible_body_carry; rejoin=face+motion | hold=300ms | src=timeline-projection | conf=0.88 | seg=segment-audible-body-motion-1',
+      'motion=observe_focus | mode=ambient-covision | tail=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | reason=Keep the continuity state audible while face and motion rejoin | hold=300ms | src=timeline-projection | conf=0.88 | seg=segment-audible-body-motion-1',
     )
   })
 
-  it('normalizes vrm settle_idle into the same canonical idle_settle summary as live2d so the builtin settle loop reads like one inward line', () => {
+  it('normalizes vrm settle_idle into the canonical idle_settle summary used by live2d', () => {
     expect(buildAlicizationMotionSummary({
       actionCue: 'settle_idle',
       idleBase: 'settle_idle',
       residentMode: 'quiet-companionship',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
-      reasonSummary: 'Stay nearby without reopening too fast while the same inward line settles.',
+      reasonSummary: 'Stay nearby without reopening too fast while the settle loop calms.',
       segmentId: 'segment-vrm-settle-loop-1',
     })).toBe(
-      'motion=idle_settle | tail=quiet-companionship | blink=quiet | gaze=soften | reason=Stay nearby without reopening too fast while the same inward line settles. | idle=idle_settle | seg=segment-vrm-settle-loop-1',
+      'motion=idle_settle | tail=quiet-companionship | blink=quiet | gaze=soften | reason=Stay nearby without reopening too fast while the settle loop calms. | idle=idle_settle | seg=segment-vrm-settle-loop-1',
     )
   })
 })

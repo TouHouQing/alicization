@@ -1,5 +1,5 @@
 import { sanitizeAlicizationStructuredInternalText } from './alicization-fixed-template-sanitizer'
-import { normalizeAlicizationSettleLoopToken } from './alicization-same-her-renderer-hints'
+import { normalizeAlicizationSettleLoopToken } from './alicization-renderer-hint-normalization'
 
 function normalizeSummaryString(raw: unknown) {
   if (typeof raw !== 'string')
