@@ -11,8 +11,6 @@ import {
 } from './stage-embodiment-diagnostics-alerts'
 import {
   buildStageEmbodimentCompanionshipReasonSurfaceSummary,
-  buildStageEmbodimentContinuitySignatureSurfaceSummary,
-  buildStageEmbodimentContinuitySourceSurfaceSummary,
   buildStageEmbodimentDriverSurfaceSummary,
   buildStageEmbodimentLipSyncExecutionSurfaceSummary,
   buildStageEmbodimentLoopSurfaceSummary,
@@ -142,13 +140,6 @@ const vrmMotionSurfaceSummary = computed(() => buildStageEmbodimentMotionExecuti
 ))
 const companionshipReasonSurfaceSummary = computed(() => buildStageEmbodimentCompanionshipReasonSurfaceSummary(
   props.diagnostics.performance.runtimeDynamics.companionshipTransition.reasonSummary,
-))
-const companionshipContinuitySourceSurfaceSummary = computed(() => buildStageEmbodimentContinuitySourceSurfaceSummary({
-  reasonTags: props.diagnostics.performance.runtimeDynamics.companionshipTransition.reasonTags,
-  signature: props.diagnostics.performance.runtimeDynamics.companionshipTransition.signature,
-}))
-const companionshipContinuitySignatureSurfaceSummary = computed(() => buildStageEmbodimentContinuitySignatureSurfaceSummary(
-  props.diagnostics.performance.runtimeDynamics.companionshipTransition.signature,
 ))
 
 function formatUnit(value: number) {
@@ -293,12 +284,6 @@ function formatPoint(value: { x: number, y: number }) {
         </div>
         <div :class="['text-white/62']">
           reason: {{ companionshipReasonSurfaceSummary ?? 'none' }}
-        </div>
-        <div :class="['text-white/62']">
-          continuity: {{ companionshipContinuitySourceSurfaceSummary ?? 'none' }}
-        </div>
-        <div :class="['text-white/62']">
-          signature: {{ companionshipContinuitySignatureSurfaceSummary ?? 'none' }}
         </div>
         <div :class="['text-white/62']">
           settle: {{ diagnostics.performance.runtimeDynamics.companionshipTransition.settleSummary ?? diagnostics.speech.authoritySummary?.settleSummary ?? 'none' }}

@@ -3,7 +3,6 @@ import {
   buildAlicizationFaceSummary,
   buildAlicizationLipsyncSummary,
   buildAlicizationMotionSummary,
-  normalizeAlicizationRendererHintToken,
   normalizeAlicizationSettleLoopToken,
 } from '@proj-alicization/stage-shared'
 
@@ -99,102 +98,35 @@ interface StageEmbodimentRendererAlignmentSurfaceInput {
   voiceDriverSegmentId?: string | null
 }
 
-function buildExplicitSameHerContinuitySurface(input: {
-  reasonTags?: readonly string[] | null
-  signature?: string | null
-}) {
-  const signature = normalizeText(input.signature)
-  const reasonTags = (input.reasonTags ?? [])
-    .map(tag => normalizeText(tag))
-    .filter((tag): tag is string => Boolean(tag))
-  const continuityTags = [
-    signature,
-    ...reasonTags,
-  ].filter((value): value is string =>
-    value === 'embodiment:audible-continuity-line'
-    || value === 'embodiment:body+voice-only'
-    || value === 'embodiment:body-lipsync-voice-rejoin',
-  )
-
-  if (continuityTags.length > 0)
-    return `continuity=${[...new Set(continuityTags)].join('+')}`
-
-  const normalizedHintTokens = [
-    signature,
-    ...reasonTags,
-  ]
-    .map(value => normalizeAlicizationRendererHintToken(value))
-    .filter((value): value is string => Boolean(value))
-
-  const explicitContinuityTags: string[] = []
-
-  if (normalizedHintTokens.some(value =>
-    value.includes('embodiment:body+lipsync_only')
-    || value.includes('body+lipsync_only'),
-  )) {
-    explicitContinuityTags.push('embodiment:body+lipsync-only')
-  }
-
-  if (normalizedHintTokens.some(value =>
-    value.includes('embodiment:lipsync+voice_only')
-    || value.includes('lipsync+voice_only'),
-  )) {
-    explicitContinuityTags.push('embodiment:lipsync+voice-only')
-  }
-
-  if (normalizedHintTokens.some(value =>
-    value.includes('embodiment:still_voiced_face_motion_line')
-    || value.includes('still_voiced_face_motion_line'),
-  )) {
-    explicitContinuityTags.push('embodiment:still-voiced-face-motion-line')
-  }
-
-  if (normalizedHintTokens.some(value =>
-    value.includes('embodiment:still_voiced_motion_lipsync_line')
-    || value.includes('still_voiced_motion_lipsync_line'),
-  )) {
-    explicitContinuityTags.push(
-      'embodiment:still-voiced-motion-lipsync-line',
-      'embodiment:still-voiced-motion-line',
-    )
-  }
-
-  if (normalizedHintTokens.some(value =>
-    value.includes('embodiment:still_voiced_motion_line')
-    || value.includes('still_voiced_motion_line'),
-  )) {
-    explicitContinuityTags.push('embodiment:still-voiced-motion-line')
-  }
-
-  if (normalizedHintTokens.some(value =>
-    value.includes('embodiment:still_voiced_face_lipsync_line')
-    || value.includes('still_voiced_face_lipsync_line'),
-  )) {
-    explicitContinuityTags.push(
-      'embodiment:still-voiced-face-lipsync-line',
-      'embodiment:still-voiced-face-line',
-    )
-  }
-
-  if (normalizedHintTokens.some(value =>
-    value.includes('embodiment:still_voiced_face_line')
-    || value.includes('still_voiced_face_line'),
-  )) {
-    explicitContinuityTags.push('embodiment:still-voiced-face-line')
-  }
-
-  if (explicitContinuityTags.length === 0)
-    return null
-
-  return `continuity=${[...new Set(explicitContinuityTags)].join('+')}`
-}
-
 function normalizeText(value: string | null | undefined) {
   if (typeof value !== 'string')
     return null
 
   const normalized = value.trim()
   return normalized || null
+}
+
+const STAGE_EMBODIMENT_SURFACE_LANES = ['body', 'face', 'motion', 'lipsync', 'voice'] as const
+
+type StageEmbodimentSurfaceLane = typeof STAGE_EMBODIMENT_SURFACE_LANES[number]
+
+function buildStructuredEmbodimentLaneSummary(
+  activeLanes: StageEmbodimentSurfaceLane[],
+  evidence?: 'runtime-lane-authority',
+) {
+  const uniqueActiveLanes = STAGE_EMBODIMENT_SURFACE_LANES
+    .filter(lane => activeLanes.includes(lane))
+  if (uniqueActiveLanes.length === 0 || uniqueActiveLanes.length === STAGE_EMBODIMENT_SURFACE_LANES.length)
+    return null
+
+  const pendingLanes = STAGE_EMBODIMENT_SURFACE_LANES
+    .filter(lane => !uniqueActiveLanes.includes(lane))
+
+  return [
+    `embodiment_lanes=${uniqueActiveLanes.join('+')}`,
+    `pending_lanes=${pendingLanes.join('+')}`,
+    evidence ? `evidence=${evidence}` : null,
+  ].filter((value): value is string => Boolean(value)).join(' | ')
 }
 
 function parseDelimitedSummaryParts(summary: string | null | undefined) {
@@ -671,17 +603,15 @@ export function buildStageEmbodimentContinuitySourceSurfaceSummary(input: {
   reasonTags?: readonly string[] | null
   signature?: string | null
 }) {
-  return buildExplicitSameHerContinuitySurface({
-    reasonTags: input.reasonTags,
-    signature: input.signature,
-  })
+  void input
+  return null
 }
 
 export function buildStageEmbodimentContinuitySignatureSurfaceSummary(
   signature: string | null | undefined,
 ) {
-  const normalized = normalizeText(signature)
-  return normalized ? `signature=${normalized}` : null
+  void signature
+  return null
 }
 
 export function buildStageEmbodimentLipSyncExecutionSurfaceSummary(
@@ -771,7 +701,7 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && lipsyncSegmentId !== bodySegmentId
     && faceSegmentId !== bodySegmentId
     && motionSegmentId !== bodySegmentId
-    ? `body+voice recovery@${bodySegmentId}`
+    ? buildStructuredEmbodimentLaneSummary(['body', 'voice'], 'runtime-lane-authority')
     : null
   const bodyLipsyncVoiceRecovery = bodySegmentId
     && lipsyncSegmentId
@@ -780,7 +710,7 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && bodySegmentId === voiceSegmentId
     && faceSegmentId !== bodySegmentId
     && motionSegmentId !== bodySegmentId
-    ? `body+lipsync+voice recovery@${bodySegmentId}`
+    ? buildStructuredEmbodimentLaneSummary(['body', 'lipsync', 'voice'], 'runtime-lane-authority')
     : null
   const lipsyncVoiceRecovery = lipsyncSegmentId
     && voiceSegmentId
@@ -788,14 +718,14 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && !bodySegmentId
     && faceSegmentId !== lipsyncSegmentId
     && motionSegmentId !== lipsyncSegmentId
-    ? `lipsync+voice recovery@${lipsyncSegmentId}`
+    ? buildStructuredEmbodimentLaneSummary(['lipsync', 'voice'], 'runtime-lane-authority')
     : null
   const bodyOnlyRecovery = bodySegmentId
     && voiceSegmentId !== bodySegmentId
     && lipsyncSegmentId !== bodySegmentId
     && faceSegmentId !== bodySegmentId
     && motionSegmentId !== bodySegmentId
-    ? `body-only recovery@${bodySegmentId}`
+    ? buildStructuredEmbodimentLaneSummary(['body'], 'runtime-lane-authority')
     : null
   const faceMotionLipsyncVoiceRecovery = faceSegmentId
     && motionSegmentId
@@ -807,7 +737,7 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && !bodySegmentId
     && normalizeText(input.faceDriverCue)
     && normalizeText(input.motionDriverCue)
-    ? `face+motion+lipsync+voice recovery@${faceSegmentId}`
+    ? buildStructuredEmbodimentLaneSummary(['face', 'motion', 'lipsync', 'voice'], 'runtime-lane-authority')
     : null
   const sameSegmentRecovery = faceSegmentId
     && motionSegmentId
@@ -815,7 +745,12 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && !faceMotionLipsyncVoiceRecovery
     && normalizeText(input.faceDriverCue)
     && normalizeText(input.motionDriverCue)
-    ? `same-segment face+motion${bodySegmentId === faceSegmentId ? '+body' : ''} recovery@${faceSegmentId}`
+    ? buildStructuredEmbodimentLaneSummary(
+        bodySegmentId === faceSegmentId
+          ? ['body', 'face', 'motion']
+          : ['face', 'motion'],
+        'runtime-lane-authority',
+      )
     : null
   const remainingOpenClosure = bodySegmentId
     && faceSegmentId
@@ -825,7 +760,7 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && !voiceSegmentId
     && normalizeText(input.faceDriverCue)
     && normalizeText(input.motionDriverCue)
-    ? 'remaining-open=lipsync+voice'
+    ? 'pending_lanes=lipsync+voice'
     : null
   const pendingFaceMotionRejoin = bodySegmentId
     && lipsyncSegmentId
@@ -898,21 +833,11 @@ export function buildStageEmbodimentRendererAlignmentSurfaceSummary(
     && normalizeText(input.motionDriverCue)
     ? 'partial=body'
     : null
-  const explicitSameHerContinuity = buildExplicitSameHerContinuitySurface({
-    reasonTags: input.reasonTags,
-    signature: input.signature,
-  })
-  const explicitSameHerSignature = buildStageEmbodimentContinuitySignatureSurfaceSummary(
-    input.signature,
-  )
-
   const parts = [
     predicted || actual ? `${predicted ?? 'none'} -> ${actual ?? 'none'}` : null,
     normalizeText(input.residentMode) ? `mode=${normalizeText(input.residentMode)}` : null,
     normalizeText(input.preferredBlinkCadence) ? `blink=${normalizeText(input.preferredBlinkCadence)}` : null,
     normalizeText(input.preferredGazeMode) ? `gaze=${normalizeText(input.preferredGazeMode)}` : null,
-    explicitSameHerContinuity,
-    explicitSameHerSignature,
     normalizeText(input.status),
     normalizeText(input.driftKind),
     normalizeText(input.reason),
@@ -972,13 +897,6 @@ export function buildStageEmbodimentDriverSurfaceSummary(
         segmentId: livingLineInput.face.segmentId,
       })
     : null
-  const faceContinuitySource = buildStageEmbodimentContinuitySourceSurfaceSummary({
-    reasonTags: livingLineInput.face?.reasonTags,
-    signature: livingLineInput.face?.signature,
-  })
-  const faceContinuitySignature = buildStageEmbodimentContinuitySignatureSurfaceSummary(
-    livingLineInput.face?.signature,
-  )
   const motionSummary = livingLineInput.motion?.cue
     ? buildAlicizationMotionSummary({
         actionCue: livingLineInput.motion.cue,
@@ -996,13 +914,6 @@ export function buildStageEmbodimentDriverSurfaceSummary(
         segmentId: livingLineInput.motion.segmentId,
       })
     : null
-  const motionContinuitySource = buildStageEmbodimentContinuitySourceSurfaceSummary({
-    reasonTags: livingLineInput.motion?.reasonTags,
-    signature: livingLineInput.motion?.signature,
-  })
-  const motionContinuitySignature = buildStageEmbodimentContinuitySignatureSurfaceSummary(
-    livingLineInput.motion?.signature,
-  )
   const lipsyncSummary = livingLineInput.lipsync?.cue
     ? buildAlicizationLipsyncSummary({
         mode: livingLineInput.lipsync.mode,
@@ -1021,22 +932,8 @@ export function buildStageEmbodimentDriverSurfaceSummary(
         segmentId: livingLineInput.lipsync.segmentId,
       })
     : null
-  const lipsyncContinuitySource = buildStageEmbodimentContinuitySourceSurfaceSummary({
-    reasonTags: livingLineInput.lipsync?.reasonTags,
-    signature: livingLineInput.lipsync?.signature,
-  })
-  const lipsyncContinuitySignature = buildStageEmbodimentContinuitySignatureSurfaceSummary(
-    livingLineInput.lipsync?.signature,
-  )
   const voiceSummary = normalizeText(livingLineInput.voice)
     ?? buildVoiceAuthorityFallbackSurfaceSummary(livingLineInput.voiceAuthority)
-  const voiceContinuitySource = buildStageEmbodimentContinuitySourceSurfaceSummary({
-    reasonTags: livingLineInput.voiceAuthority?.reasonTags,
-    signature: livingLineInput.voiceAuthority?.signature,
-  })
-  const voiceContinuitySignature = buildStageEmbodimentContinuitySignatureSurfaceSummary(
-    livingLineInput.voiceAuthority?.signature,
-  )
 
   const survivingLanes = [
     bodySummary ? 'body' : null,
@@ -1045,16 +942,16 @@ export function buildStageEmbodimentDriverSurfaceSummary(
     lipsyncSummary ? 'lipsync' : null,
     voiceSummary ? 'voice' : null,
   ].filter((value): value is string => Boolean(value))
-  const laneSummary = survivingLanes.length > 0 && survivingLanes.length < 5
-    ? `lane=${survivingLanes.join('+')}-only`
-    : null
+  const laneSummary = buildStructuredEmbodimentLaneSummary(
+    survivingLanes as StageEmbodimentSurfaceLane[],
+  )
 
   const parts = [
     bodySummary,
-    faceSummary ? [faceSummary, faceContinuitySource, faceContinuitySignature].filter((value): value is string => Boolean(value)).join(' | ') : null,
-    motionSummary ? [motionSummary, motionContinuitySource, motionContinuitySignature].filter((value): value is string => Boolean(value)).join(' | ') : null,
-    lipsyncSummary ? [lipsyncSummary, lipsyncContinuitySource, lipsyncContinuitySignature].filter((value): value is string => Boolean(value)).join(' | ') : null,
-    voiceSummary ? [voiceSummary, voiceContinuitySource, voiceContinuitySignature].filter((value): value is string => Boolean(value)).join(' | ') : null,
+    faceSummary,
+    motionSummary,
+    lipsyncSummary,
+    voiceSummary,
     buildEmbodimentClosureSurfaceSummary(livingLineInput),
     laneSummary,
   ].filter((value): value is string => Boolean(value))
@@ -1091,12 +988,13 @@ function buildStageEmbodimentLoopClosureCarrySummary(
   if (!faceMotionBodySameSegment)
     return null
 
-  const parts = [
-    `same-segment face+motion+body recovery@${bodySegmentId}`,
-    !lipsyncSegmentId && !hasVoice ? 'remaining-open=lipsync+voice' : null,
-  ].filter((value): value is string => Boolean(value))
+  if (lipsyncSegmentId || hasVoice)
+    return null
 
-  return parts.length > 0 ? parts.join(' | ') : null
+  return buildStructuredEmbodimentLaneSummary(
+    ['body', 'face', 'motion'],
+    'runtime-lane-authority',
+  )
 }
 
 export function buildStageEmbodimentLoopSurfaceSummary(

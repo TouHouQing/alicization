@@ -19,72 +19,67 @@ describe('stage embodiment diagnostics overlay summary', () => {
     )).toBe('reason=Memory deliberation still says let repair settle first on the continuity line before closeness widens again')
   })
 
-  it('builds a direct companionship continuity source summary for audible continuity return diagnostics cards', () => {
+  it('does not promote continuity reason tags into diagnostics authority', () => {
     expect(buildStageEmbodimentContinuitySourceSurfaceSummary({
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
       signature: 'embodiment:audible-continuity-line',
-    })).toBe('continuity=embodiment:audible-continuity-line+embodiment:body-lipsync-voice-rejoin')
+    })).toBeNull()
   })
 
-  it('keeps body+voice-only continuity distinct on diagnostics cards when the resident body line stays audible before lipsync returns', () => {
+  it('does not promote body and voice audit tags into diagnostics authority', () => {
     expect(buildStageEmbodimentContinuitySourceSurfaceSummary({
       reasonTags: ['embodiment:body+voice-only'],
       signature: 'embodiment:audible-continuity-line',
-    })).toBe('continuity=embodiment:audible-continuity-line+embodiment:body+voice-only')
+    })).toBeNull()
   })
 
-  it('builds a direct companionship continuity signature summary for audible continuity return diagnostics cards', () => {
+  it('does not expose renderer audit signatures as diagnostics authority', () => {
     expect(buildStageEmbodimentContinuitySignatureSurfaceSummary(
       'embodiment:audible-continuity-line',
-    )).toBe('signature=embodiment:audible-continuity-line')
+    )).toBeNull()
   })
 
-  it('keeps signature-only still-voiced motion-line continuity readable on diagnostics cards instead of dropping it to none', () => {
-    expect(buildStageEmbodimentContinuitySourceSurfaceSummary({
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
-    })).toBe('continuity=embodiment:still-voiced-motion-line')
+  it('does not turn signature-only fixed cues into structured runtime lane authority', () => {
+    const signatures = [
+      'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
+      'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-line',
+      'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line',
+      'resident|main-runtime|accompanying|quiet-accompaniment|lipsync+voice-only',
+      'resident|main-runtime|accompanying|quiet-accompaniment|body+lipsync-only',
+    ]
+
+    for (const signature of signatures) {
+      const summary = buildStageEmbodimentRendererAlignmentSurfaceSummary({
+        predicted: null,
+        actual: null,
+        signature,
+      })
+
+      expect(summary).toBeNull()
+    }
   })
 
-  it('keeps signature-only still-voiced face-line continuity readable on diagnostics cards instead of dropping it to none', () => {
-    expect(buildStageEmbodimentContinuitySourceSurfaceSummary({
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-line',
-    })).toBe('continuity=embodiment:still-voiced-face-line')
-  })
-
-  it('keeps richer still-voiced face-and-mouth continuity readable on diagnostics cards without collapsing it back to the broader face-line label', () => {
-    expect(buildStageEmbodimentContinuitySourceSurfaceSummary({
-      reasonTags: [
+  it('does not turn still-voiced reason cues into structured runtime lane authority without lane evidence', () => {
+    const reasonTagSets = [
+      [
         'embodiment:still-voiced-face-lipsync-line',
         'embodiment:still-voiced-face-line',
       ],
-    })).toBe('continuity=embodiment:still-voiced-face-lipsync-line+embodiment:still-voiced-face-line')
-  })
-
-  it('keeps richer still-voiced motion-and-mouth continuity readable on diagnostics cards without collapsing it back to the broader motion-line label', () => {
-    expect(buildStageEmbodimentContinuitySourceSurfaceSummary({
-      reasonTags: [
+      [
         'embodiment:still-voiced-motion-lipsync-line',
         'embodiment:still-voiced-motion-line',
       ],
-    })).toBe('continuity=embodiment:still-voiced-motion-lipsync-line+embodiment:still-voiced-motion-line')
-  })
+    ]
 
-  it('keeps signature-only still-voiced face-and-motion continuity readable on diagnostics cards instead of flattening it into separate face or motion labels', () => {
-    expect(buildStageEmbodimentContinuitySourceSurfaceSummary({
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line',
-    })).toBe('continuity=embodiment:still-voiced-face-motion-line')
-  })
+    for (const reasonTags of reasonTagSets) {
+      const summary = buildStageEmbodimentRendererAlignmentSurfaceSummary({
+        predicted: null,
+        actual: null,
+        reasonTags,
+      })
 
-  it('keeps signature-only quieter lipsync-and-voice continuity readable on diagnostics cards instead of dropping the surviving audible line to a generic lane label', () => {
-    expect(buildStageEmbodimentContinuitySourceSurfaceSummary({
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|lipsync+voice-only',
-    })).toBe('continuity=embodiment:lipsync+voice-only')
-  })
-
-  it('keeps signature-only quieter body-and-lipsync continuity readable on diagnostics cards instead of dropping the surviving inward line to a generic lane label', () => {
-    expect(buildStageEmbodimentContinuitySourceSurfaceSummary({
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|body+lipsync-only',
-    })).toBe('continuity=embodiment:body+lipsync-only')
+      expect(summary).toBeNull()
+    }
   })
 
   it('summarizes active mouth execution proof with dominant viseme, weight, and segment', () => {
@@ -535,8 +530,8 @@ describe('stage embodiment diagnostics overlay summary', () => {
       },
     } as any)
 
-    expect(summary).toContain('continuity=embodiment:audible-continuity-line+embodiment:body-lipsync-voice-rejoin')
-    expect(summary).toContain('signature=embodiment:audible-continuity-line')
+    expect(summary).not.toContain('continuity=')
+    expect(summary).not.toContain('signature=')
   })
 
   it('surfaces softer ambient-covision attention wording in diagnostics when measured-return motion is still carrying the lower-pressure observe-focus line after release', () => {
@@ -623,7 +618,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
         confidence: 0.94,
         segmentId: 'segment-lipsync-only-measured-return',
       },
-    } as any)).toContain('lane=lipsync-only')
+    } as any)).toContain('embodiment_lanes=lipsync | pending_lanes=body+face+motion+voice')
   })
 
   it('marks face as the only surviving continuity lane when motion and lipsync have already dropped out', () => {
@@ -644,7 +639,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       },
       motion: null,
       lipsync: null,
-    } as any)).toContain('lane=face-only')
+    } as any)).toContain('embodiment_lanes=face | pending_lanes=body+motion+lipsync+voice')
   })
 
   it('marks motion as the only surviving continuity lane when face and lipsync authority have already thinned away', () => {
@@ -666,7 +661,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
         segmentId: 'segment-motion-only-measured-return',
       },
       lipsync: null,
-    } as any)).toContain('lane=motion-only')
+    } as any)).toContain('embodiment_lanes=motion | pending_lanes=body+face+lipsync+voice')
   })
 
   it('marks the surviving lane combination when one embodiment channel has dropped out during a noisier continuity return', () => {
@@ -698,7 +693,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
         confidence: 0.94,
         segmentId: 'segment-face-lipsync-measured-return',
       },
-    } as any)).toContain('lane=face+lipsync-only')
+    } as any)).toContain('embodiment_lanes=face+lipsync | pending_lanes=body+motion+voice')
   })
 
   it('counts voice as a first-class surviving continuity lane when renderer body lanes have already thinned away', () => {
@@ -708,7 +703,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       motion: null,
       lipsync: null,
       voice: 'zh-CN | closure=0.84 | precision=0.90 | companion=measured-return | blink=linger | gaze=soften | reason=keep the continuity line audible while body execution thins first',
-    } as any)).toContain('lane=voice-only')
+    } as any)).toContain('embodiment_lanes=voice | pending_lanes=body+face+motion+lipsync')
   })
 
   it('counts explicit voiceAuthority as a first-class surviving continuity lane even before formatted voice text exists', () => {
@@ -733,9 +728,9 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: null,
     } as any)
 
-    expect(summary).toContain('lane=voice-only')
-    expect(summary).toContain('continuity=embodiment:audible-continuity-line')
-    expect(summary).toContain('signature=embodiment:audible-continuity-line')
+    expect(summary).toContain('embodiment_lanes=voice | pending_lanes=body+face+motion+lipsync')
+    expect(summary).not.toContain('continuity=')
+    expect(summary).not.toContain('signature=')
     expect(summary).toContain('segment-voice-authority-only-lane-1')
   })
 
@@ -754,7 +749,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       motion: null,
       lipsync: null,
       voice: null,
-    } as any)).toContain('lane=body-only')
+    } as any)).toContain('embodiment_lanes=body | pending_lanes=face+motion+lipsync+voice')
   })
 
   it('counts body and voice together when the resident body line and audible line survive while visible expression lanes thin away', () => {
@@ -790,9 +785,9 @@ describe('stage embodiment diagnostics overlay summary', () => {
     } as any)
 
     expect(summary).toContain('body=repair-before-closeness')
-    expect(summary).toContain('continuity=embodiment:audible-continuity-line+embodiment:body+voice-only')
-    expect(summary).toContain('signature=embodiment:audible-continuity-line')
-    expect(summary).toContain('lane=body+voice-only')
+    expect(summary).not.toContain('continuity=')
+    expect(summary).not.toContain('signature=')
+    expect(summary).toContain('embodiment_lanes=body+voice | pending_lanes=face+motion+lipsync')
     expect(summary).toContain('pause=longer')
     expect(summary).toContain('lipsyncMode=restrained')
     expect(summary).toContain('voiceMode=lower-pressure')
@@ -825,7 +820,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: null,
     } as any)
 
-    expect(summary).toContain('lane=voice-only')
+    expect(summary).toContain('embodiment_lanes=voice | pending_lanes=body+face+motion+lipsync')
     expect(summary).toContain('pause=longer')
     expect(summary).toContain('lipsyncMode=restrained')
     expect(summary).toContain('voiceMode=lower-pressure')
@@ -887,7 +882,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: 'zh-CN | closure=0.84 | precision=0.90 | companion=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | reason=keep every embodiment lane on one living return line',
     } as any)
 
-    expect(summary).not.toContain('lane=')
+    expect(summary).not.toContain('embodiment_lanes=')
     expect(summary).toContain('timing=audible-body-carry')
   })
 
@@ -913,7 +908,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
 
     expect(summary).toContain('companion=repair-before-closeness')
     expect(summary).toContain('reason=hold the same cautious line in voice and mouth before closeness widens again')
-    expect(summary).toContain('lane=lipsync+voice-only')
+    expect(summary).toContain('embodiment_lanes=lipsync+voice | pending_lanes=body+face+motion')
   })
 
   it('keeps continuity visible when a vrm lipsync tail is the only surviving host-facing line and voice text has already settled away', () => {
@@ -958,9 +953,9 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: null,
     } as any)
 
-    expect(summary).toContain('lane=lipsync+voice-only')
-    expect(summary).toContain('continuity=embodiment:audible-continuity-line')
-    expect(summary).toContain('signature=embodiment:audible-continuity-line')
+    expect(summary).toContain('embodiment_lanes=lipsync+voice | pending_lanes=body+face+motion')
+    expect(summary).not.toContain('continuity=')
+    expect(summary).not.toContain('signature=')
     expect(summary).toContain('segment-vrm-tail-continuity-1')
   })
 
@@ -1056,7 +1051,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: null,
     } as any)
 
-    expect(summary).toContain('lane=body+lipsync-only')
+    expect(summary).toContain('embodiment_lanes=body+lipsync | pending_lanes=face+motion+voice')
     expect(summary).toContain('timing=body-lipsync-carry')
     expect(summary).not.toContain('segment-stale-face-shell')
     expect(summary).not.toContain('segment-stale-motion-shell')
@@ -1119,7 +1114,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: 'zh-CN | closure=0.81 | precision=0.88 | companion=repair-before-closeness | blink=quiet | gaze=soften | reason=hold the same cautious line in voice and mouth before closeness widens again | seg=segment-lipsync-voice-repair-first',
     } as any)
 
-    expect(summary).toContain('lane=lipsync+voice-only')
+    expect(summary).toContain('embodiment_lanes=lipsync+voice | pending_lanes=body+face+motion')
     expect(summary).toContain('companion=repair-before-closeness')
     expect(summary).not.toContain('segment-stale-face-shell')
     expect(summary).not.toContain('segment-stale-motion-shell')
@@ -1183,7 +1178,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: 'zh-CN | closure=0.74 | precision=0.82 | companion=measured-return | blink=linger | gaze=soften | reason=keep the continuity line visible in voice and expression only | seg=segment-authority-face-voice-1',
     } as any)
 
-    expect(summary).toContain('lane=face+voice-only')
+    expect(summary).toContain('embodiment_lanes=face+voice | pending_lanes=body+motion+lipsync')
     expect(summary).not.toContain('segment-stale-motion-shell')
     expect(summary).not.toContain('segment-stale-lipsync-shell')
   })
@@ -1244,7 +1239,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: 'zh-CN | closure=0.71 | precision=0.80 | companion=measured-return | blink=linger | gaze=soften | reason=keep the continuity line visible in voice and motion only | seg=segment-authority-motion-voice-1',
     } as any)
 
-    expect(summary).toContain('lane=motion+voice-only')
+    expect(summary).toContain('embodiment_lanes=motion+voice | pending_lanes=body+face+lipsync')
     expect(summary).not.toContain('segment-stale-face-shell')
     expect(summary).not.toContain('segment-stale-lipsync-shell')
   })
@@ -1307,7 +1302,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: 'zh-CN | closure=0.74 | precision=0.82 | companion=measured-return | blink=linger | gaze=soften | reason=keep the continuity line visible in voice expression and mouth only | seg=segment-current-face-mouth-voice',
     } as any)
 
-    expect(summary).toContain('lane=face+lipsync+voice-only')
+    expect(summary).toContain('embodiment_lanes=face+lipsync+voice | pending_lanes=body+motion')
     expect(summary).toContain('zh-CN | closure=0.74 | precision=0.82')
     expect(summary).toContain('seg=segment-current-face-mouth-voice')
     expect(summary).not.toContain('segment-stale-motion-shell')
@@ -1370,7 +1365,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: 'zh-CN | closure=0.71 | precision=0.80 | companion=measured-return | blink=linger | gaze=soften | reason=keep the continuity line visible in voice motion and mouth only | seg=segment-current-motion-mouth-voice',
     } as any)
 
-    expect(summary).toContain('lane=motion+lipsync+voice-only')
+    expect(summary).toContain('embodiment_lanes=motion+lipsync+voice | pending_lanes=body+face')
     expect(summary).toContain('zh-CN | closure=0.71 | precision=0.80')
     expect(summary).toContain('seg=segment-current-motion-mouth-voice')
     expect(summary).not.toContain('segment-stale-face-shell')
@@ -1394,7 +1389,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       motionDriverSource: 'timeline-projection',
       motionDriverSegmentId: 'segment-live2d-later-living-line',
     } as any)).toBe(
-      'Soft Gaze -> Focus Inspect | mode=measured-return | blink=linger | gaze=soften | drifted | alias-resolution-drift | preferred | face=focused@cue-bridge seg=segment-live2d-later-living-line | motion=observe_focus@timeline-projection seg=segment-live2d-later-living-line | same-segment face+motion recovery@segment-live2d-later-living-line',
+      'Soft Gaze -> Focus Inspect | mode=measured-return | blink=linger | gaze=soften | drifted | alias-resolution-drift | preferred | face=focused@cue-bridge seg=segment-live2d-later-living-line | motion=observe_focus@timeline-projection seg=segment-live2d-later-living-line | embodiment_lanes=face+motion | pending_lanes=body+lipsync+voice | evidence=runtime-lane-authority',
     )
   })
 
@@ -1416,7 +1411,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       motionDriverSegmentId: 'segment-live2d-reformed-with-body',
       bodyDriverSegmentId: 'segment-live2d-reformed-with-body',
     } as any)).toBe(
-      'Soft Gaze -> Focus Inspect | mode=measured-return | blink=linger | gaze=soften | drifted | alias-resolution-drift | preferred | face=focused@cue-bridge seg=segment-live2d-reformed-with-body | motion=observe_focus@timeline-projection seg=segment-live2d-reformed-with-body | same-segment face+motion+body recovery@segment-live2d-reformed-with-body | remaining-open=lipsync+voice',
+      'Soft Gaze -> Focus Inspect | mode=measured-return | blink=linger | gaze=soften | drifted | alias-resolution-drift | preferred | face=focused@cue-bridge seg=segment-live2d-reformed-with-body | motion=observe_focus@timeline-projection seg=segment-live2d-reformed-with-body | embodiment_lanes=body+face+motion | pending_lanes=lipsync+voice | evidence=runtime-lane-authority | pending_lanes=lipsync+voice',
     )
   })
 
@@ -1462,10 +1457,12 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: null,
     } as any)
 
-    expect(summary).toContain('lane=body+face+motion-only')
+    expect(summary).toContain('Active embodiment lanes: body, face, motion.')
+    expect(summary).toContain('Pending lanes: lipsync, voice.')
     expect(summary).toContain('reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower')
-    expect(summary).toContain('same-segment face+motion+body recovery@segment-live2d-inward-carry')
-    expect(summary).toContain('remaining-open=lipsync+voice')
+    expect(summary).toContain('Evidence: runtime-lane-authority.')
+    expect(summary).not.toContain('recovery@')
+    expect(summary).not.toContain('remaining-open=')
   })
 
   it('does not keep voice marked as still-open in the loop summary once explicit voiceAuthority has already rejoined the same inward living line', () => {
@@ -1522,8 +1519,10 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: null,
     } as any)
 
-    expect(summary).toContain('same-segment face+motion+body recovery@segment-live2d-inward-carry-voice-authority')
-    expect(summary).not.toContain('remaining-open=lipsync+voice')
+    expect(summary).toContain('Active embodiment lanes: body, face, motion, voice.')
+    expect(summary).toContain('Pending lanes: lipsync.')
+    expect(summary).not.toContain('Evidence: runtime-lane-authority.')
+    expect(summary).not.toContain('remaining-open=')
   })
 
   it('rebuilds thin voice lane continuity from the current body+lipsync living line instead of leaving host-facing loop summaries with a thinner voiced shell', () => {
@@ -1681,7 +1680,8 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: 'zh-CN | closure=0.74 | precision=0.82 | companion=measured-return | blink=linger | gaze=soften | reason=keep the continuity line visible in voice expression and mouth only | seg=segment-current-face-mouth-voice',
     } as any)
 
-    expect(summary).toContain('lane=face+lipsync+voice-only')
+    expect(summary).toContain('Active embodiment lanes: face, lipsync, voice.')
+    expect(summary).toContain('Pending lanes: body, motion.')
     expect(summary).toContain('zh-CN | closure=0.74 | precision=0.82')
     expect(summary).toContain('seg=segment-current-face-mouth-voice')
     expect(summary).not.toContain('segment-stale-motion-shell')
@@ -1744,7 +1744,8 @@ describe('stage embodiment diagnostics overlay summary', () => {
       voice: 'zh-CN | closure=0.71 | precision=0.80 | companion=measured-return | blink=linger | gaze=soften | reason=keep the continuity line visible in voice motion and mouth only | seg=segment-current-motion-mouth-voice',
     } as any)
 
-    expect(summary).toContain('lane=motion+lipsync+voice-only')
+    expect(summary).toContain('Active embodiment lanes: motion, lipsync, voice.')
+    expect(summary).toContain('Pending lanes: body, face.')
     expect(summary).toContain('zh-CN | closure=0.71 | precision=0.80')
     expect(summary).toContain('seg=segment-current-motion-mouth-voice')
     expect(summary).not.toContain('segment-stale-face-shell')
@@ -1769,7 +1770,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       motionDriverSegmentId: 'segment-live2d-reformed-with-body-prose',
       bodyDriverSegmentId: 'segment-live2d-reformed-with-body-prose',
     } as any)).toBe(
-      'Soft Gaze -> Focus Inspect | mode=measured-return | blink=linger | gaze=soften | drifted | alias-resolution-drift | body, face, and motion authority have already re-formed on the same segment. | face=focused@cue-bridge seg=segment-live2d-reformed-with-body-prose | motion=observe_focus@timeline-projection seg=segment-live2d-reformed-with-body-prose | same-segment face+motion+body recovery@segment-live2d-reformed-with-body-prose | remaining-open=lipsync+voice',
+      'Soft Gaze -> Focus Inspect | mode=measured-return | blink=linger | gaze=soften | drifted | alias-resolution-drift | body, face, and motion authority have already re-formed on the same segment. | face=focused@cue-bridge seg=segment-live2d-reformed-with-body-prose | motion=observe_focus@timeline-projection seg=segment-live2d-reformed-with-body-prose | embodiment_lanes=body+face+motion | pending_lanes=lipsync+voice | evidence=runtime-lane-authority | pending_lanes=lipsync+voice',
     )
   })
 
@@ -1791,7 +1792,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       motionDriverSegmentId: null,
       bodyDriverSegmentId: 'segment-live2d-body-first-return',
     } as any)).toBe(
-      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-body-first | body-only recovery@segment-live2d-body-first-return | pending-rejoin=face+motion+lipsync+voice',
+      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-body-first | embodiment_lanes=body | pending_lanes=face+motion+lipsync+voice | evidence=runtime-lane-authority | partial=face+motion+lipsync+voice',
     )
   })
 
@@ -1814,7 +1815,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: 'segment-live2d-body-voice-first-return',
       voiceDriverSegmentId: 'segment-live2d-body-voice-first-return',
     } as any)).toBe(
-      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-body-voice-first | body+voice recovery@segment-live2d-body-voice-first-return | pending-rejoin=face+motion+lipsync',
+      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-body-voice-first | embodiment_lanes=body+voice | pending_lanes=face+motion+lipsync | evidence=runtime-lane-authority | partial=face+motion+lipsync',
     )
   })
 
@@ -1840,7 +1841,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       lipsyncDriverSegmentId: 'segment-live2d-audible-body-first-return',
       voiceDriverSegmentId: 'segment-live2d-audible-body-first-return',
     } as any)).toBe(
-      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | continuity=embodiment:audible-continuity-line+embodiment:body-lipsync-voice-rejoin | signature=embodiment:audible-continuity-line | drifted | runtime-only-visible | resident-audible-body-first | body+lipsync+voice recovery@segment-live2d-audible-body-first-return | audible-body rejoin@segment-live2d-audible-body-first-return | pending-rejoin=face+motion',
+      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-audible-body-first | embodiment_lanes=body+lipsync+voice | pending_lanes=face+motion | evidence=runtime-lane-authority | audible-body rejoin@segment-live2d-audible-body-first-return | partial=face+motion',
     )
   })
 
@@ -1865,7 +1866,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: 'segment-live2d-audible-body-first-return',
       lipsyncDriverSegmentId: 'segment-live2d-audible-body-first-return',
       voiceDriverSegmentId: 'segment-live2d-audible-body-first-return',
-    } as any)).toBe('focus=body+lipsync+voice | pending=face+motion')
+    } as any)).toBe('Focus: body+lipsync+voice. Pending: face+motion.')
   })
 
   it('builds a renderer lane focus summary when the resident body line is the only surviving continuity carry', () => {
@@ -1885,7 +1886,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       motionDriverSource: null,
       motionDriverSegmentId: null,
       bodyDriverSegmentId: 'segment-live2d-body-first-return',
-    } as any)).toBe('focus=resident-body | pending=face+motion+lipsync+voice')
+    } as any)).toBe('Focus: resident-body. Pending: face+motion+lipsync+voice.')
   })
 
   it('builds a renderer lane focus summary when body face and motion have already rejoined but lipsync and voice remain open', () => {
@@ -1905,7 +1906,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       motionDriverSource: 'timeline-projection',
       motionDriverSegmentId: 'segment-live2d-reformed-with-body',
       bodyDriverSegmentId: 'segment-live2d-reformed-with-body',
-    } as any)).toBe('focus=body+face+motion | pending=lipsync+voice')
+    } as any)).toBe('Focus: body+face+motion. Pending: lipsync+voice.')
   })
 
   it('builds a renderer lane focus summary when only lipsync and voice have re-formed the audible continuity line', () => {
@@ -1927,17 +1928,16 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: null,
       lipsyncDriverSegmentId: 'segment-live2d-audible-voice-first-return',
       voiceDriverSegmentId: 'segment-live2d-audible-voice-first-return',
-    } as any)).toBe('focus=lipsync+voice | pending=body+face+motion')
+    } as any)).toBe('Focus: lipsync+voice. Pending: body+face+motion.')
   })
 
-  it('builds a renderer lane focus summary when face and voice are the surviving still-voiced continuity carry', () => {
+  it('builds a renderer lane focus summary when face and voice share runtime lane authority', () => {
     expect(buildStageEmbodimentRendererLaneFocusSurfaceSummary({
       predicted: 'Soft Gaze',
       actual: 'Resident Hold',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-line',
       status: 'drifted',
       driftKind: 'runtime-only-visible',
       reason: 'resident-still-voiced-face-first',
@@ -1950,17 +1950,16 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: null,
       lipsyncDriverSegmentId: null,
       voiceDriverSegmentId: 'segment-live2d-still-voiced-face-return',
-    } as any)).toBe('focus=face+voice | pending=body+motion+lipsync')
+    } as any)).toBe('Focus: face+voice. Pending: body+motion+lipsync.')
   })
 
-  it('builds a renderer lane focus summary when motion and voice are the surviving still-voiced continuity carry', () => {
+  it('builds a renderer lane focus summary when motion and voice share runtime lane authority', () => {
     expect(buildStageEmbodimentRendererLaneFocusSurfaceSummary({
       predicted: 'Soft Gaze',
       actual: 'Resident Hold',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line',
       status: 'drifted',
       driftKind: 'runtime-only-visible',
       reason: 'resident-still-voiced-motion-first',
@@ -1973,7 +1972,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: null,
       lipsyncDriverSegmentId: null,
       voiceDriverSegmentId: 'segment-live2d-still-voiced-motion-return',
-    } as any)).toBe('focus=motion+voice | pending=body+face+lipsync')
+    } as any)).toBe('Focus: motion+voice. Pending: body+face+lipsync.')
   })
 
   it('builds a renderer lane focus summary when face and lipsync are the surviving quieter visible continuity carry before body motion and voice rejoin', () => {
@@ -1995,7 +1994,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: null,
       lipsyncDriverSegmentId: 'segment-live2d-visible-face-mouth-return',
       voiceDriverSegmentId: null,
-    } as any)).toBe('focus=face+lipsync | pending=body+motion+voice')
+    } as any)).toBe('Focus: face+lipsync. Pending: body+motion+voice.')
   })
 
   it('builds a renderer lane focus summary when motion and lipsync are the surviving quieter visible continuity carry before body face and voice rejoin', () => {
@@ -2017,20 +2016,16 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: null,
       lipsyncDriverSegmentId: 'segment-live2d-visible-motion-mouth-return',
       voiceDriverSegmentId: null,
-    } as any)).toBe('focus=motion+lipsync | pending=body+face+voice')
+    } as any)).toBe('Focus: motion+lipsync. Pending: body+face+voice.')
   })
 
-  it('builds a renderer lane focus summary when face lipsync and voice are the surviving still-voiced continuity carry', () => {
+  it('builds a renderer lane focus summary when face lipsync and voice share runtime lane authority', () => {
     expect(buildStageEmbodimentRendererLaneFocusSurfaceSummary({
       predicted: 'Soft Gaze',
       actual: 'Resident Hold',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonTags: [
-        'embodiment:still-voiced-face-lipsync-line',
-        'embodiment:still-voiced-face-line',
-      ],
       status: 'drifted',
       driftKind: 'runtime-only-visible',
       reason: 'resident-still-voiced-face-mouth-first',
@@ -2043,20 +2038,16 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: null,
       lipsyncDriverSegmentId: 'segment-live2d-still-voiced-face-mouth-return',
       voiceDriverSegmentId: 'segment-live2d-still-voiced-face-mouth-return',
-    } as any)).toBe('focus=face+lipsync+voice | pending=body+motion')
+    } as any)).toBe('Focus: face+lipsync+voice. Pending: body+motion.')
   })
 
-  it('builds a renderer lane focus summary when motion lipsync and voice are the surviving still-voiced continuity carry', () => {
+  it('builds a renderer lane focus summary when motion lipsync and voice share runtime lane authority', () => {
     expect(buildStageEmbodimentRendererLaneFocusSurfaceSummary({
       predicted: 'Soft Gaze',
       actual: 'Resident Hold',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      reasonTags: [
-        'embodiment:still-voiced-motion-lipsync-line',
-        'embodiment:still-voiced-motion-line',
-      ],
       status: 'drifted',
       driftKind: 'runtime-only-visible',
       reason: 'resident-still-voiced-motion-mouth-first',
@@ -2069,17 +2060,16 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: null,
       lipsyncDriverSegmentId: 'segment-live2d-still-voiced-motion-mouth-return',
       voiceDriverSegmentId: 'segment-live2d-still-voiced-motion-mouth-return',
-    } as any)).toBe('focus=motion+lipsync+voice | pending=body+face')
+    } as any)).toBe('Focus: motion+lipsync+voice. Pending: body+face.')
   })
 
-  it('builds a renderer lane focus summary when face motion and voice are the surviving still-voiced continuity carry', () => {
+  it('builds a renderer lane focus summary when face motion and voice share runtime lane authority', () => {
     expect(buildStageEmbodimentRendererLaneFocusSurfaceSummary({
       predicted: 'Soft Gaze',
       actual: 'Resident Hold',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line',
       status: 'drifted',
       driftKind: 'runtime-only-visible',
       reason: 'resident-still-voiced-face-motion-first',
@@ -2092,7 +2082,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: null,
       lipsyncDriverSegmentId: null,
       voiceDriverSegmentId: 'segment-live2d-still-voiced-face-motion-return',
-    } as any)).toBe('focus=face+motion+voice | pending=body+lipsync')
+    } as any)).toBe('Focus: face+motion+voice. Pending: body+lipsync.')
   })
 
   it('builds a renderer lane focus summary when face motion lipsync and voice have visibly rejoined before body returns', () => {
@@ -2114,7 +2104,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       bodyDriverSegmentId: null,
       lipsyncDriverSegmentId: 'segment-live2d-visible-rejoin-no-body-1',
       voiceDriverSegmentId: 'segment-live2d-visible-rejoin-no-body-1',
-    } as any)).toBe('focus=face+motion+lipsync+voice | pending=body')
+    } as any)).toBe('Focus: face+motion+lipsync+voice. Pending: body.')
   })
 
   it('keeps lipsync+voice recovery visible on the renderer alignment surface summary when the audible continuity line re-forms before body face and motion return', () => {
@@ -2137,7 +2127,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       lipsyncDriverSegmentId: 'segment-live2d-audible-voice-first-return',
       voiceDriverSegmentId: 'segment-live2d-audible-voice-first-return',
     } as any)).toBe(
-      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-audible-voice-first | lipsync+voice recovery@segment-live2d-audible-voice-first-return | pending-rejoin=body+face+motion',
+      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-audible-voice-first | embodiment_lanes=lipsync+voice | pending_lanes=body+face+motion | evidence=runtime-lane-authority | partial=body+face+motion',
     )
   })
 
@@ -2161,18 +2151,17 @@ describe('stage embodiment diagnostics overlay summary', () => {
       lipsyncDriverSegmentId: null,
       voiceDriverSegmentId: 'segment-live2d-audible-voice-first-return',
     } as any)).toBe(
-      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-audible-voice-first | pending-rejoin=face+motion+voice',
+      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-audible-voice-first | partial=face+motion+voice',
     )
   })
 
-  it('keeps still-voiced face-and-motion continuity explicit on the renderer alignment surface summary when face motion and voice are the surviving carry before body and lipsync return', () => {
+  it('keeps structured face-and-motion runtime lane authority explicit before body and lipsync return', () => {
     expect(buildStageEmbodimentRendererAlignmentSurfaceSummary({
       predicted: 'Soft Gaze',
       actual: 'Resident Hold',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line',
       status: 'drifted',
       driftKind: 'runtime-only-visible',
       reason: 'resident-still-voiced-face-motion-first',
@@ -2186,7 +2175,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       lipsyncDriverSegmentId: null,
       voiceDriverSegmentId: 'segment-live2d-runtime-still-voiced-face-motion-1',
     } as any)).toBe(
-      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | continuity=embodiment:still-voiced-face-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-motion-line | drifted | runtime-only-visible | resident-still-voiced-face-motion-first | face=soft-gaze@prosody-authority seg=segment-live2d-runtime-still-voiced-face-motion-1 | motion=observe_focus@timeline-projection seg=segment-live2d-runtime-still-voiced-face-motion-1 | same-segment face+motion recovery@segment-live2d-runtime-still-voiced-face-motion-1 | pending-rejoin=body+lipsync',
+      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-still-voiced-face-motion-first | face=soft-gaze@prosody-authority seg=segment-live2d-runtime-still-voiced-face-motion-1 | motion=observe_focus@timeline-projection seg=segment-live2d-runtime-still-voiced-face-motion-1 | embodiment_lanes=face+motion | pending_lanes=body+lipsync+voice | evidence=runtime-lane-authority | partial=body+lipsync',
     )
   })
 
@@ -2210,7 +2199,7 @@ describe('stage embodiment diagnostics overlay summary', () => {
       lipsyncDriverSegmentId: 'segment-live2d-visible-rejoin-no-body-1',
       voiceDriverSegmentId: 'segment-live2d-visible-rejoin-no-body-1',
     } as any)).toBe(
-      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-visible-rejoin-no-body | face=soft-gaze@prosody-authority seg=segment-live2d-visible-rejoin-no-body-1 | motion=observe_focus@timeline-projection seg=segment-live2d-visible-rejoin-no-body-1 | face+motion+lipsync+voice recovery@segment-live2d-visible-rejoin-no-body-1 | pending-rejoin=body',
+      'Soft Gaze -> Resident Hold | mode=measured-return | blink=linger | gaze=soften | drifted | runtime-only-visible | resident-visible-rejoin-no-body | face=soft-gaze@prosody-authority seg=segment-live2d-visible-rejoin-no-body-1 | motion=observe_focus@timeline-projection seg=segment-live2d-visible-rejoin-no-body-1 | embodiment_lanes=face+motion+lipsync+voice | pending_lanes=body | evidence=runtime-lane-authority | partial=body',
     )
   })
 })

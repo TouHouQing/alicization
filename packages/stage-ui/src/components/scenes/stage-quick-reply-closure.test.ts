@@ -89,10 +89,30 @@ describe('stage quick reply closure diagnostic entry', () => {
       routeQuery: expect.objectContaining({
         source: 'quick-reply-closure',
         status: 'partial',
-        focus: 'identity-continuity-continuity',
-        eventFocus: 'renderer-authority',
-        sameHerClosureStage: 'audible-body-carry',
+        focus: 'project-state',
+        eventFocus: 'takeover-audit',
       }),
+    }))
+  })
+
+  it('does not let legacy renderer reasons reopen a closed visible diagnostic', () => {
+    const entry = buildStageQuickReplyClosureDiagnosticEntry({
+      status: 'closed',
+      summaryLine: null,
+      companionHeadlineLine: null,
+      companionBriefingLine: null,
+      companionNextClosureLine: null,
+      reasons: [
+        'continuity=embodiment:still-voiced-motion-line | signature=resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-motion-line | lane=motion+voice-only',
+      ],
+    })
+
+    expect(entry).toEqual(expect.objectContaining({
+      visible: false,
+      headline: null,
+      briefingHeadline: null,
+      nextClosureLine: null,
+      routeQuery: {},
     }))
   })
 
