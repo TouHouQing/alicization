@@ -5589,7 +5589,7 @@ describe('stage embodiment performance runtime', () => {
     expect(['stopping', 'idle']).toContain(runtime.speech.speechRenderState.value.phase)
     expect(runtime.speech.playbackTelemetry.value?.rendererTarget).toBe('vrm')
     expect(runtime.speech.playbackTelemetry.value?.drivers.motion).toEqual(expect.objectContaining({
-      actionCue: 'observe_focus',
+      actionCue: 'steady_focus',
       holdMs: 280,
       source: 'timeline-projection',
       confidence: 0.88,
@@ -5602,14 +5602,14 @@ describe('stage embodiment performance runtime', () => {
     }))
     expect(runtime.performanceRuntime.state.value.activeCueSource).toBe('preview')
     expect(runtime.performanceRuntime.state.value.activeCue).toEqual(expect.objectContaining({
-      actionCue: 'observe_focus',
+      actionCue: 'steady_focus',
       settleMode: 'linger',
     }))
     expect(runtime.performanceRuntime.state.value.activeCue?.rendererSettle).toEqual(expect.objectContaining({
       vrmActionFadeMs: expect.any(Number),
       vrmExpressionBlendMs: expect.any(Number),
     }))
-    expect(runtime.performanceRuntime.state.value.activeActionCue).toBe('observe_focus')
+    expect(runtime.performanceRuntime.state.value.activeActionCue).toBe('steady_focus')
     expect(runtime.performanceRuntime.state.value.activeActionCueSource).toBe('preview')
 
     runtime.speech.dispose()
@@ -6641,6 +6641,66 @@ describe('stage embodiment performance runtime', () => {
       preferredMotionAliases: ['ObserveSoft'],
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
+      preferredPauseMode: 'longer',
+      preferredLipsyncMode: 'restrained',
+      preferredVoiceMode: 'lower-pressure',
+      preferredPacingMode: 'slower',
+    }))
+
+    scope.stop()
+  })
+
+  it('refreshes the active cue when only speech timing preferences change', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const upcomingSpeechSegment = ref(createStageEmbodimentSpeechPlaybackItem({
+      intentId: 'intent-speech-timing-preferences',
+      streamId: 'stream-speech-timing-preferences',
+      segmentId: 'segment-speech-timing-preferences',
+      text: '保持同一段话，只改变节奏偏好。',
+      special: null,
+      cue: createPlaybackCueFixture({
+        id: 'segment-speech-timing-preferences',
+        rendererHints: {
+          preferredPauseMode: 'natural',
+          preferredLipsyncMode: 'matched',
+          preferredVoiceMode: 'even',
+          preferredPacingMode: 'natural',
+        },
+      }),
+    }))
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({
+      speechRenderState,
+      upcomingSpeechSegment,
+    }))!
+
+    await nextTick()
+    expect(runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
+      preferredPauseMode: 'natural',
+      preferredLipsyncMode: 'matched',
+      preferredVoiceMode: 'even',
+      preferredPacingMode: 'natural',
+    }))
+
+    upcomingSpeechSegment.value = createStageEmbodimentSpeechPlaybackItem({
+      intentId: 'intent-speech-timing-preferences',
+      streamId: 'stream-speech-timing-preferences',
+      segmentId: 'segment-speech-timing-preferences',
+      text: '保持同一段话，只改变节奏偏好。',
+      special: null,
+      cue: createPlaybackCueFixture({
+        id: 'segment-speech-timing-preferences',
+        rendererHints: {
+          preferredPauseMode: 'longer',
+          preferredLipsyncMode: 'restrained',
+          preferredVoiceMode: 'lower-pressure',
+          preferredPacingMode: 'slower',
+        },
+      }),
+    })
+
+    await nextTick()
+    expect(runtime.state.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
       preferredPauseMode: 'longer',
       preferredLipsyncMode: 'restrained',
       preferredVoiceMode: 'lower-pressure',
