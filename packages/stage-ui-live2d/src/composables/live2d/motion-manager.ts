@@ -8,7 +8,6 @@ import type { ComputedRef, Ref } from 'vue'
 
 import type { BeatSyncController } from './beat-sync'
 
-import { hasAlicizationSoftenedSameHerCarry } from '@proj-alicization/stage-shared'
 import { computed, shallowRef } from 'vue'
 
 import { useLive2DIdleEyeFocus } from './animation'
@@ -128,8 +127,6 @@ function resolveRendererSettleActiveCueKey(
     performanceState?.activeCue?.rendererHints?.preferredGazeMode ?? null,
     performanceState?.activeCue?.rendererHints?.preferredBlinkCadence ?? null,
     performanceState?.activeCue?.rendererHints?.residentMode ?? null,
-    performanceState?.activeCue?.rendererHints?.signature ?? null,
-    performanceState?.activeCue?.rendererHints?.reasonTags?.join('|') ?? '',
     Math.max(0, Math.round(Number(performanceState?.activeCue?.rendererSettle?.live2dFacialReleaseMs ?? 0))),
   ])
 }
@@ -141,27 +138,23 @@ function resolveCurrentIdleGazeBias(
     preferredBlinkCadence: performanceState?.activeCue?.rendererHints?.preferredBlinkCadence,
     preferredGazeMode: performanceState?.activeCue?.rendererHints?.preferredGazeMode,
     residentMode: performanceState?.activeCue?.rendererHints?.residentMode,
-    reasonTags: performanceState?.activeCue?.rendererHints?.reasonTags,
-    signature: performanceState?.activeCue?.rendererHints?.signature,
   })
 }
 
 export function resolveLive2DAutoBlinkDelayRange(input: {
   preferredBlinkCadence?: string | null | undefined
   preferredGazeMode?: string | null | undefined
-  reasonTags?: readonly string[] | null | undefined
   residentMode?: string | null | undefined
-  signature?: string | null | undefined
 }) {
-  const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(input)
+  const softenedCadence = hasStructuredSoftenedReturnCadence(input)
   const residentMode = typeof input.residentMode === 'string'
     ? input.residentMode.trim()
     : ''
   const residentCadenceScale = residentMode === 'repair-before-closeness'
-    ? sameHerSoftenedReturn ? 1.04 : 1
-    : residentMode === 'measured-return' && sameHerSoftenedReturn
+    ? softenedCadence ? 1.04 : 1
+    : residentMode === 'measured-return' && softenedCadence
       ? 1.03
-      : residentMode === 'same-thread-continuation' && sameHerSoftenedReturn
+      : residentMode === 'same-thread-continuation' && softenedCadence
         ? 1.03
         : 1
 
@@ -183,33 +176,31 @@ export function resolveLive2DAutoBlinkDelayRange(input: {
 export function resolveLive2DGazeModeBias(input: {
   preferredBlinkCadence?: string | null | undefined
   preferredGazeMode?: string | null | undefined
-  reasonTags?: readonly string[] | null | undefined
   residentMode?: string | null | undefined
-  signature?: string | null | undefined
 }) {
-  const sameHerSoftenedReturn = hasSoftenedSameHerResidentCarry(input)
+  const softenedCadence = hasStructuredSoftenedReturnCadence(input)
   const residentMode = typeof input.residentMode === 'string'
     ? input.residentMode.trim()
     : ''
   const residentAmplitudeScale = residentMode === 'repair-before-closeness'
-    ? sameHerSoftenedReturn ? 0.96 : 1
-    : residentMode === 'measured-return' && sameHerSoftenedReturn
+    ? softenedCadence ? 0.96 : 1
+    : residentMode === 'measured-return' && softenedCadence
       ? 0.98
-      : residentMode === 'same-thread-continuation' && sameHerSoftenedReturn
+      : residentMode === 'same-thread-continuation' && softenedCadence
         ? 0.98
         : 1
   const residentStabilityBias = residentMode === 'repair-before-closeness'
-    ? sameHerSoftenedReturn ? 0.02 : 0
-    : residentMode === 'measured-return' && sameHerSoftenedReturn
+    ? softenedCadence ? 0.02 : 0
+    : residentMode === 'measured-return' && softenedCadence
       ? 0.01
-      : residentMode === 'same-thread-continuation' && sameHerSoftenedReturn
+      : residentMode === 'same-thread-continuation' && softenedCadence
         ? 0.01
         : 0
   const residentEyeOpenBias = residentMode === 'repair-before-closeness'
-    ? sameHerSoftenedReturn ? -0.02 : 0
-    : residentMode === 'measured-return' && sameHerSoftenedReturn
+    ? softenedCadence ? -0.02 : 0
+    : residentMode === 'measured-return' && softenedCadence
       ? -0.01
-      : residentMode === 'same-thread-continuation' && sameHerSoftenedReturn
+      : residentMode === 'same-thread-continuation' && softenedCadence
         ? -0.01
         : 0
 
@@ -245,11 +236,9 @@ export function resolveLive2DGazeModeBias(input: {
   }
 }
 
-function hasSoftenedSameHerResidentCarry(input: {
+function hasStructuredSoftenedReturnCadence(input: {
   preferredBlinkCadence?: string | null | undefined
   preferredGazeMode?: string | null | undefined
-  reasonTags?: readonly string[] | null | undefined
-  signature?: string | null | undefined
 }) {
   const preferredGazeMode = typeof input.preferredGazeMode === 'string'
     ? input.preferredGazeMode.trim()
@@ -261,13 +250,7 @@ function hasSoftenedSameHerResidentCarry(input: {
     || preferredGazeMode === 'soften'
     || preferredBlinkCadence === 'quiet'
     || preferredBlinkCadence === 'linger'
-  if (!softenedCadence)
-    return false
-
-  return hasAlicizationSoftenedSameHerCarry({
-    signature: input.signature,
-    reasonTags: input.reasonTags,
-  })
+  return softenedCadence
 }
 
 export function resolveLive2DSpeechFacialNuance(input: {
@@ -877,8 +860,6 @@ export function useMotionUpdatePluginAutoEyeBlink(): MotionManagerPlugin {
       preferredBlinkCadence: ctx.performanceState.value?.activeCue?.rendererHints?.preferredBlinkCadence,
       preferredGazeMode: ctx.performanceState.value?.activeCue?.rendererHints?.preferredGazeMode,
       residentMode: ctx.performanceState.value?.activeCue?.rendererHints?.residentMode,
-      reasonTags: ctx.performanceState.value?.activeCue?.rendererHints?.reasonTags,
-      signature: ctx.performanceState.value?.activeCue?.rendererHints?.signature,
     })
     const blinkDelayRangeKey = resolveBlinkDelayRangeKey(blinkDelayRange)
 
@@ -1114,10 +1095,8 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
       deltaSeconds: dt,
       preferredBlinkCadence: performanceState?.activeCue?.rendererHints?.preferredBlinkCadence,
       preferredGazeMode: performanceState?.activeCue?.rendererHints?.preferredGazeMode,
-      reasonTags: performanceState?.activeCue?.rendererHints?.reasonTags,
       residentMode: performanceState?.activeCue?.rendererHints?.residentMode,
       segmentId: resolveSpeechAuthoritySegmentId(speech),
-      signature: performanceState?.activeCue?.rendererHints?.signature,
       speechActive: speech?.active === true,
       speechEnergy: clamp01(speech?.dynamics.speechEnergy ?? 0),
       speechPhase: speech?.phase,
@@ -1198,8 +1177,6 @@ export function useMotionUpdatePluginPerformanceLayers(): MotionManagerPlugin {
       preferredBlinkCadence: performanceState?.activeCue?.rendererHints?.preferredBlinkCadence,
       preferredGazeMode: performanceState?.activeCue?.rendererHints?.preferredGazeMode,
       residentMode: performanceState?.activeCue?.rendererHints?.residentMode,
-      reasonTags: performanceState?.activeCue?.rendererHints?.reasonTags,
-      signature: performanceState?.activeCue?.rendererHints?.signature,
     })
     const gazeStability = clamp01(motorGazeStability + gazeModeBias.stabilityBias)
     const gazeAzimuth = clampRange(motorGazeAzimuth * gazeModeBias.azimuthScale, -1, 1)

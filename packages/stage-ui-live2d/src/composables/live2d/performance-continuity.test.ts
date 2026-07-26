@@ -255,7 +255,7 @@ describe('live2d speech continuity', () => {
     resolveLive2DSpeechContinuity(defaultCadenceState, {
       deltaSeconds: 1 / 60,
       residentMode: 'same-thread-continuation',
-      segmentId: 'segment-live2d-same-line-upgrade',
+      segmentId: 'segment-live2d-cadence-upgrade',
       speechActive: true,
       speechEnergy: 0.62,
       speechPhase: 'playing',
@@ -264,7 +264,7 @@ describe('live2d speech continuity', () => {
     resolveLive2DSpeechContinuity(upgradedCadenceState, {
       deltaSeconds: 1 / 60,
       residentMode: 'same-thread-continuation',
-      segmentId: 'segment-live2d-same-line-upgrade',
+      segmentId: 'segment-live2d-cadence-upgrade',
       speechActive: true,
       speechEnergy: 0.62,
       speechPhase: 'playing',
@@ -274,7 +274,7 @@ describe('live2d speech continuity', () => {
     const defaultCadenceTail = resolveLive2DSpeechContinuity(defaultCadenceState, {
       deltaSeconds: 0.08,
       residentMode: 'same-thread-continuation',
-      segmentId: 'segment-live2d-same-line-upgrade',
+      segmentId: 'segment-live2d-cadence-upgrade',
       speechActive: false,
       speechEnergy: 0,
       speechPhase: 'stopping',
@@ -285,7 +285,7 @@ describe('live2d speech continuity', () => {
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
       residentMode: 'same-thread-continuation',
-      segmentId: 'segment-live2d-same-line-upgrade',
+      segmentId: 'segment-live2d-cadence-upgrade',
       speechActive: false,
       speechEnergy: 0,
       speechPhase: 'stopping',

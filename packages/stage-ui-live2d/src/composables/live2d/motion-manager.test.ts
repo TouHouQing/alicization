@@ -509,7 +509,7 @@ describe('live2d motion manager performance layers', () => {
     expect(ctx.live2dLipSyncExecutionState.value.segmentId).toBe('segment-motion')
   })
 
-  it('prefers the active digital-life living line over a stale playback segment id for live2d mouth execution proof', async () => {
+  it('prefers the active digital-life frame over a stale playback segment id for live2d mouth execution proof', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
     const plugin = useMotionUpdatePluginPerformanceLayers()
     const baseSpeech = createSpeechRenderState()
@@ -528,10 +528,10 @@ describe('live2d motion manager performance layers', () => {
           segmentId: 'segment-stale-performance-shell',
           cue: {
             ...baseSpeech.item!.cue!,
-            id: 'segment-current-living-line',
+            id: 'segment-current-frame',
           },
           digitalLifeFrame: {
-            id: 'segment-current-living-line',
+            id: 'segment-current-frame',
           } as any,
         },
       },
@@ -539,10 +539,10 @@ describe('live2d motion manager performance layers', () => {
 
     drivePlugin(plugin, ctx)
 
-    expect(ctx.live2dLipSyncExecutionState.value.segmentId).toBe('segment-current-living-line')
+    expect(ctx.live2dLipSyncExecutionState.value.segmentId).toBe('segment-current-frame')
   })
 
-  it('keeps the aligned playback living line over a stale cue shell for live2d mouth execution proof', async () => {
+  it('keeps the aligned playback segment over a stale cue shell for live2d mouth execution proof', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
     const plugin = useMotionUpdatePluginPerformanceLayers()
     const baseSpeech = createSpeechRenderState()
@@ -558,7 +558,7 @@ describe('live2d motion manager performance layers', () => {
         ...baseSpeech,
         item: {
           ...baseSpeech.item!,
-          segmentId: 'segment-current-living-line',
+          segmentId: 'segment-current-frame',
           cue: {
             ...baseSpeech.item!.cue!,
             id: 'turn-stale-cue-shell:0',
@@ -570,10 +570,10 @@ describe('live2d motion manager performance layers', () => {
 
     drivePlugin(plugin, ctx)
 
-    expect(ctx.live2dLipSyncExecutionState.value.segmentId).toBe('segment-current-living-line')
+    expect(ctx.live2dLipSyncExecutionState.value.segmentId).toBe('segment-current-frame')
   })
 
-  it('falls back to the active digital-life frame living line when live2d mouth execution loses explicit cue authority', async () => {
+  it('falls back to the active digital-life frame when live2d mouth execution loses explicit cue authority', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
     const plugin = useMotionUpdatePluginPerformanceLayers()
     const baseSpeech = createSpeechRenderState()
@@ -1045,84 +1045,39 @@ describe('live2d motion manager performance layers', () => {
     expect(steadyGaze.elevationScale).toBeGreaterThan(softenGaze.elevationScale)
   })
 
-  it('keeps repair-before-closeness same-her body+voice blink cadence quieter than an otherwise equally softened ordinary repair return', async () => {
+  it('uses structured resident mode to extend quiet blink cadence', async () => {
     const { resolveLive2DAutoBlinkDelayRange } = await import('./motion-manager')
 
-    const ordinaryRepairBlink = resolveLive2DAutoBlinkDelayRange({
-      residentMode: 'repair-before-closeness',
+    const dialogueBlink = resolveLive2DAutoBlinkDelayRange({
+      residentMode: 'dialogue',
       preferredBlinkCadence: 'quiet',
     })
-    const sameHerRepairBlink = resolveLive2DAutoBlinkDelayRange({
+    const repairBlink = resolveLive2DAutoBlinkDelayRange({
       residentMode: 'repair-before-closeness',
       preferredBlinkCadence: 'quiet',
-      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-      reasonTags: ['embodiment:body+voice-only'],
     })
 
-    expect(sameHerRepairBlink.minDelayMs).toBeGreaterThan(ordinaryRepairBlink.minDelayMs)
-    expect(sameHerRepairBlink.maxDelayMs).toBeGreaterThan(ordinaryRepairBlink.maxDelayMs)
+    expect(repairBlink.minDelayMs).toBeGreaterThan(dialogueBlink.minDelayMs)
+    expect(repairBlink.maxDelayMs).toBeGreaterThan(dialogueBlink.maxDelayMs)
   })
 
-  it('keeps repair-before-closeness same-her body+voice gaze bias steadier than an otherwise equally softened ordinary repair return', async () => {
+  it('uses structured resident mode to steady softened gaze', async () => {
     const { resolveLive2DGazeModeBias } = await import('./motion-manager')
 
-    const ordinaryRepairGaze = resolveLive2DGazeModeBias({
+    const dialogueGaze = resolveLive2DGazeModeBias({
+      residentMode: 'dialogue',
+      preferredBlinkCadence: 'quiet',
+      preferredGazeMode: 'soften',
+    })
+    const repairGaze = resolveLive2DGazeModeBias({
       residentMode: 'repair-before-closeness',
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
     })
-    const sameHerRepairGaze = resolveLive2DGazeModeBias({
-      residentMode: 'repair-before-closeness',
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-      reasonTags: ['embodiment:body+voice-only'],
-    })
 
-    expect(sameHerRepairGaze.stabilityBias).toBeGreaterThan(ordinaryRepairGaze.stabilityBias)
-    expect(sameHerRepairGaze.azimuthScale).toBeLessThan(ordinaryRepairGaze.azimuthScale)
-    expect(sameHerRepairGaze.elevationScale).toBeLessThan(ordinaryRepairGaze.elevationScale)
-  })
-
-  it('keeps measured-return still-voiced face-and-motion blink cadence quieter than an otherwise equally softened ordinary measured-return return', async () => {
-    const { resolveLive2DAutoBlinkDelayRange } = await import('./motion-manager')
-
-    const ordinaryMeasuredReturnBlink = resolveLive2DAutoBlinkDelayRange({
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-    })
-    const sameHerMeasuredReturnBlink = resolveLive2DAutoBlinkDelayRange({
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      signature: 'resident|main-runtime|embodiment:still_voiced_face_motion_line|lane=face+motion+voice-only',
-      reasonTags: ['embodiment:still_voiced_face_motion_line'],
-    })
-
-    expect(sameHerMeasuredReturnBlink.minDelayMs).toBeGreaterThan(ordinaryMeasuredReturnBlink.minDelayMs)
-    expect(sameHerMeasuredReturnBlink.maxDelayMs).toBeGreaterThan(ordinaryMeasuredReturnBlink.maxDelayMs)
-  })
-
-  it('keeps measured-return still-voiced face-and-motion gaze bias steadier than an otherwise equally softened ordinary measured-return return', async () => {
-    const { resolveLive2DGazeModeBias } = await import('./motion-manager')
-
-    const ordinaryMeasuredReturnGaze = resolveLive2DGazeModeBias({
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-    })
-    const sameHerMeasuredReturnGaze = resolveLive2DGazeModeBias({
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      signature: 'resident|main-runtime|embodiment:still_voiced_face_motion_line|lane=face+motion+voice-only',
-      reasonTags: ['embodiment:still_voiced_face_motion_line'],
-    })
-
-    expect(sameHerMeasuredReturnGaze.stabilityBias).toBeGreaterThan(ordinaryMeasuredReturnGaze.stabilityBias)
-    expect(sameHerMeasuredReturnGaze.azimuthScale).toBeLessThan(ordinaryMeasuredReturnGaze.azimuthScale)
-    expect(sameHerMeasuredReturnGaze.elevationScale).toBeLessThan(ordinaryMeasuredReturnGaze.elevationScale)
+    expect(repairGaze.stabilityBias).toBeGreaterThan(dialogueGaze.stabilityBias)
+    expect(repairGaze.azimuthScale).toBeLessThan(dialogueGaze.azimuthScale)
+    expect(repairGaze.elevationScale).toBeLessThan(dialogueGaze.elevationScale)
   })
 
   it('keeps stronger speech prosody compatible with the same base cue labels while facial nuance bias stays well-formed', async () => {
@@ -1232,21 +1187,21 @@ describe('live2d motion manager performance layers', () => {
     expect(readParameter(extendedModel, 'ParamMouthOpen')).toBeGreaterThan(readParameter(defaultModel, 'ParamMouthOpen'))
   })
 
-  it('keeps same-thread richer still-voiced face-and-mouth carry a little more alive on the live2d mouth line than the plainer still-voiced face line', async () => {
+  it('keeps same-thread live2d mouth carry audit neutral', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
-    const plainPlugin = useMotionUpdatePluginPerformanceLayers()
-    const richerPlugin = useMotionUpdatePluginPerformanceLayers()
-    const plainModel = createMockModel(createModelParameterIds())
-    const richerModel = createMockModel(createModelParameterIds())
+    const baselinePlugin = useMotionUpdatePluginPerformanceLayers()
+    const auditedPlugin = useMotionUpdatePluginPerformanceLayers()
+    const baselineModel = createMockModel(createModelParameterIds())
+    const auditedModel = createMockModel(createModelParameterIds())
 
-    const plainSpeech = createSpeechRenderState()
-    const richerSpeech = {
-      ...plainSpeech,
-      item: plainSpeech.item ? { ...plainSpeech.item } : null,
+    const baselineSpeech = createSpeechRenderState()
+    const auditedSpeech = {
+      ...baselineSpeech,
+      item: baselineSpeech.item ? { ...baselineSpeech.item } : null,
     }
 
-    const plainCtx = createPluginContext({
-      model: plainModel,
+    const baselineCtx = createPluginContext({
+      model: baselineModel,
       performanceState: createPerformanceState({
         baseEmotion: 'thinking',
         delivery: 'calm',
@@ -1256,10 +1211,10 @@ describe('live2d motion manager performance layers', () => {
         preferredGazeMode: 'soften',
         residentMode: 'same-thread-continuation',
       }),
-      speechRenderState: plainSpeech as ReturnType<typeof createSpeechRenderState>,
+      speechRenderState: baselineSpeech as ReturnType<typeof createSpeechRenderState>,
     })
-    const richerCtx = createPluginContext({
-      model: richerModel,
+    const auditedCtx = createPluginContext({
+      model: auditedModel,
       performanceState: createPerformanceState({
         baseEmotion: 'thinking',
         delivery: 'calm',
@@ -1269,81 +1224,68 @@ describe('live2d motion manager performance layers', () => {
         preferredGazeMode: 'soften',
         residentMode: 'same-thread-continuation',
       }),
-      speechRenderState: richerSpeech as ReturnType<typeof createSpeechRenderState>,
+      speechRenderState: auditedSpeech as ReturnType<typeof createSpeechRenderState>,
     })
 
-    plainCtx.performanceState.value = {
-      ...plainCtx.performanceState.value,
+    auditedCtx.performanceState.value = {
+      ...auditedCtx.performanceState.value,
       activeCue: {
-        ...plainCtx.performanceState.value.activeCue,
+        ...auditedCtx.performanceState.value.activeCue,
         rendererHints: {
-          ...plainCtx.performanceState.value.activeCue.rendererHints,
-          reasonTags: ['embodiment:still-voiced-face-line'],
+          ...auditedCtx.performanceState.value.activeCue.rendererHints,
+          reasonTags: ['audit:renderer-only'],
           residentMode: 'same-thread-continuation',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
-        },
-      },
-    }
-    richerCtx.performanceState.value = {
-      ...richerCtx.performanceState.value,
-      activeCue: {
-        ...richerCtx.performanceState.value.activeCue,
-        rendererHints: {
-          ...richerCtx.performanceState.value.activeCue.rendererHints,
-          reasonTags: ['embodiment:still-voiced-face-lipsync-line'],
-          residentMode: 'same-thread-continuation',
-          preferredBlinkCadence: 'linger',
-          preferredGazeMode: 'soften',
-          signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-lipsync-line|lane=face+lipsync+voice-only',
+          signature: 'renderer audit text',
         },
       },
     }
 
-    drivePlugin(plainPlugin, plainCtx, 8)
-    drivePlugin(richerPlugin, richerCtx, 8)
+    drivePlugin(baselinePlugin, baselineCtx, 8)
+    drivePlugin(auditedPlugin, auditedCtx, 8)
 
-    plainCtx.speechRenderState.value = createPostStopSpeechRenderState(plainSpeech as ReturnType<typeof createSpeechRenderState>)
-    richerCtx.speechRenderState.value = createPostStopSpeechRenderState(richerSpeech as ReturnType<typeof createSpeechRenderState>)
+    baselineCtx.speechRenderState.value = createPostStopSpeechRenderState(baselineSpeech as ReturnType<typeof createSpeechRenderState>)
+    auditedCtx.speechRenderState.value = createPostStopSpeechRenderState(auditedSpeech as ReturnType<typeof createSpeechRenderState>)
 
-    drivePluginWithDelta(plainPlugin, plainCtx, { now: 180, timeDeltaSeconds: 0.1 })
-    drivePluginWithDelta(richerPlugin, richerCtx, { now: 180, timeDeltaSeconds: 0.1 })
-    drivePluginWithDelta(plainPlugin, plainCtx, { now: 280, timeDeltaSeconds: 0.1 })
-    drivePluginWithDelta(richerPlugin, richerCtx, { now: 280, timeDeltaSeconds: 0.1 })
-    drivePluginWithDelta(plainPlugin, plainCtx, { now: 380, timeDeltaSeconds: 0.1 })
-    drivePluginWithDelta(richerPlugin, richerCtx, { now: 380, timeDeltaSeconds: 0.1 })
+    drivePluginWithDelta(baselinePlugin, baselineCtx, { now: 180, timeDeltaSeconds: 0.1 })
+    drivePluginWithDelta(auditedPlugin, auditedCtx, { now: 180, timeDeltaSeconds: 0.1 })
+    drivePluginWithDelta(baselinePlugin, baselineCtx, { now: 280, timeDeltaSeconds: 0.1 })
+    drivePluginWithDelta(auditedPlugin, auditedCtx, { now: 280, timeDeltaSeconds: 0.1 })
+    drivePluginWithDelta(baselinePlugin, baselineCtx, { now: 380, timeDeltaSeconds: 0.1 })
+    drivePluginWithDelta(auditedPlugin, auditedCtx, { now: 380, timeDeltaSeconds: 0.1 })
 
-    expect(readParameter(richerModel, 'ParamMouthOpen')).toBeGreaterThan(readParameter(plainModel, 'ParamMouthOpen'))
+    expect(readParameter(auditedModel, 'ParamMouthOpen')).toBeCloseTo(readParameter(baselineModel, 'ParamMouthOpen'), 6)
   })
 
-  it('extends the live2d mouth carry on the same living segment when stopping upgrades from a still-voiced face line into a richer face-and-mouth continuity line', async () => {
+  it('keeps same-segment live2d mouth carry pinned when audit metadata changes after stopping', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
-    const plainPlugin = useMotionUpdatePluginPerformanceLayers()
-    const upgradedPlugin = useMotionUpdatePluginPerformanceLayers()
-    const plainModel = createMockModel(createModelParameterIds())
-    const upgradedModel = createMockModel(createModelParameterIds())
+    const baselinePlugin = useMotionUpdatePluginPerformanceLayers()
+    const auditedPlugin = useMotionUpdatePluginPerformanceLayers()
+    const baselineModel = createMockModel(createModelParameterIds())
+    const auditedModel = createMockModel(createModelParameterIds())
 
     const createSameSegmentSpeech = () => ({
       ...createSpeechRenderState(),
       item: {
         ...createSpeechRenderState().item!,
-        segmentId: 'segment-live2d-same-line-upgrade',
+        segmentId: 'segment-live2d-mouth-carry',
         cue: {
           ...createSpeechRenderState().item!.cue!,
-          id: 'segment-live2d-same-line-upgrade',
+          id: 'segment-live2d-mouth-carry',
         },
         digitalLifeFrame: {
           ...createSpeechRenderState().item!.digitalLifeFrame,
-          id: 'segment-live2d-same-line-upgrade',
+          id: 'segment-live2d-mouth-carry',
         },
       },
     })
 
-    const plainSpeech = createSameSegmentSpeech()
-    const upgradedSpeech = createSameSegmentSpeech()
+    const baselineSpeech = createSameSegmentSpeech()
+    const auditedSpeech = createSameSegmentSpeech()
 
-    const plainCtx = createPluginContext({
-      model: plainModel,
+    const baselineCtx = createPluginContext({
+      model: baselineModel,
       performanceState: createPerformanceState({
         baseEmotion: 'thinking',
         delivery: 'calm',
@@ -1353,10 +1295,10 @@ describe('live2d motion manager performance layers', () => {
         preferredGazeMode: 'soften',
         residentMode: 'same-thread-continuation',
       }),
-      speechRenderState: plainSpeech as ReturnType<typeof createSpeechRenderState>,
+      speechRenderState: baselineSpeech as ReturnType<typeof createSpeechRenderState>,
     })
-    const upgradedCtx = createPluginContext({
-      model: upgradedModel,
+    const auditedCtx = createPluginContext({
+      model: auditedModel,
       performanceState: createPerformanceState({
         baseEmotion: 'thinking',
         delivery: 'calm',
@@ -1366,61 +1308,34 @@ describe('live2d motion manager performance layers', () => {
         preferredGazeMode: 'soften',
         residentMode: 'same-thread-continuation',
       }),
-      speechRenderState: upgradedSpeech as ReturnType<typeof createSpeechRenderState>,
+      speechRenderState: auditedSpeech as ReturnType<typeof createSpeechRenderState>,
     })
 
-    plainCtx.performanceState.value = {
-      ...plainCtx.performanceState.value,
+    drivePlugin(baselinePlugin, baselineCtx, 8)
+    drivePlugin(auditedPlugin, auditedCtx, 8)
+
+    baselineCtx.speechRenderState.value = createPostStopSpeechRenderState(baselineSpeech as ReturnType<typeof createSpeechRenderState>)
+    auditedCtx.speechRenderState.value = createPostStopSpeechRenderState(auditedSpeech as ReturnType<typeof createSpeechRenderState>)
+    auditedCtx.performanceState.value = {
+      ...auditedCtx.performanceState.value,
       activeCue: {
-        ...plainCtx.performanceState.value.activeCue,
+        ...auditedCtx.performanceState.value.activeCue,
         rendererHints: {
-          ...plainCtx.performanceState.value.activeCue.rendererHints,
-          reasonTags: ['embodiment:still-voiced-face-line'],
+          ...auditedCtx.performanceState.value.activeCue.rendererHints,
+          reasonTags: ['audit:renderer-only'],
           residentMode: 'same-thread-continuation',
           preferredBlinkCadence: 'linger',
           preferredGazeMode: 'soften',
-        },
-      },
-    }
-    upgradedCtx.performanceState.value = {
-      ...upgradedCtx.performanceState.value,
-      activeCue: {
-        ...upgradedCtx.performanceState.value.activeCue,
-        rendererHints: {
-          ...upgradedCtx.performanceState.value.activeCue.rendererHints,
-          reasonTags: ['embodiment:still-voiced-face-line'],
-          residentMode: 'same-thread-continuation',
-          preferredBlinkCadence: 'linger',
-          preferredGazeMode: 'soften',
+          signature: 'renderer audit text',
         },
       },
     }
 
-    drivePlugin(plainPlugin, plainCtx, 8)
-    drivePlugin(upgradedPlugin, upgradedCtx, 8)
+    drivePluginWithDelta(baselinePlugin, baselineCtx, { now: 180, timeDeltaSeconds: 0.08 })
+    drivePluginWithDelta(auditedPlugin, auditedCtx, { now: 180, timeDeltaSeconds: 0.08 })
 
-    plainCtx.speechRenderState.value = createPostStopSpeechRenderState(plainSpeech as ReturnType<typeof createSpeechRenderState>)
-    upgradedCtx.speechRenderState.value = createPostStopSpeechRenderState(upgradedSpeech as ReturnType<typeof createSpeechRenderState>)
-    upgradedCtx.performanceState.value = {
-      ...upgradedCtx.performanceState.value,
-      activeCue: {
-        ...upgradedCtx.performanceState.value.activeCue,
-        rendererHints: {
-          ...upgradedCtx.performanceState.value.activeCue.rendererHints,
-          reasonTags: ['embodiment:still-voiced-face-lipsync-line'],
-          residentMode: 'same-thread-continuation',
-          preferredBlinkCadence: 'linger',
-          preferredGazeMode: 'soften',
-          signature: 'resident|main-runtime|accompanying|quiet-accompaniment|still-voiced-face-lipsync-line|lane=face+lipsync+voice-only',
-        },
-      },
-    }
-
-    drivePluginWithDelta(plainPlugin, plainCtx, { now: 180, timeDeltaSeconds: 0.08 })
-    drivePluginWithDelta(upgradedPlugin, upgradedCtx, { now: 180, timeDeltaSeconds: 0.08 })
-
-    expect(readParameter(upgradedModel, 'ParamMouthOpen')).toBeGreaterThan(readParameter(plainModel, 'ParamMouthOpen'))
-    expect(upgradedCtx.live2dLipSyncExecutionState.value.segmentId).toBe('segment-live2d-same-line-upgrade')
+    expect(readParameter(auditedModel, 'ParamMouthOpen')).toBeCloseTo(readParameter(baselineModel, 'ParamMouthOpen'), 6)
+    expect(auditedCtx.live2dLipSyncExecutionState.value.segmentId).toBe('segment-live2d-mouth-carry')
   })
 
   it('keeps the live2d mouth carry segment pinned to the speech line that actually started it even after later authority metadata arrives', async () => {
@@ -1695,10 +1610,10 @@ describe('live2d motion manager performance layers', () => {
     expect(lateExtendedStopCheek).toBeGreaterThanOrEqual(beforeStopCheek * 0.35)
   })
 
-  it('refreshes the live2d facial release window before expiry fallback when identity-continuity', async () => {
+  it('does not refresh the live2d facial release window when only audit metadata changes before expiry', async () => {
     const { useMotionUpdatePluginPerformanceLayers } = await import('./motion-manager')
     const controlPlugin = useMotionUpdatePluginPerformanceLayers()
-    const refreshedPlugin = useMotionUpdatePluginPerformanceLayers()
+    const auditedPlugin = useMotionUpdatePluginPerformanceLayers()
     const createBaselinePerformanceState = () => createPerformanceState({
       baseEmotion: 'thinking',
       delivery: 'calm',
@@ -1727,47 +1642,44 @@ describe('live2d motion manager performance layers', () => {
       }),
     })
     const controlModel = createMockModel(createModelParameterIds())
-    const refreshedModel = createMockModel(createModelParameterIds())
+    const auditedModel = createMockModel(createModelParameterIds())
     const controlCtx = createPluginContext({
       model: controlModel,
       performanceState: createBaselinePerformanceState(),
       speechRenderState: createSpeechRenderState(),
     })
-    const refreshedCtx = createPluginContext({
-      model: refreshedModel,
+    const auditedCtx = createPluginContext({
+      model: auditedModel,
       performanceState: createBaselinePerformanceState(),
       speechRenderState: createSpeechRenderState(),
     })
 
     drivePlugin(controlPlugin, controlCtx, 12)
-    drivePlugin(refreshedPlugin, refreshedCtx, 12)
+    drivePlugin(auditedPlugin, auditedCtx, 12)
 
     controlCtx.speechRenderState.value = createPostStopSpeechRenderState(controlCtx.speechRenderState.value)
-    refreshedCtx.speechRenderState.value = createPostStopSpeechRenderState(refreshedCtx.speechRenderState.value)
-    refreshedCtx.performanceState.value = {
-      ...refreshedCtx.performanceState.value,
+    auditedCtx.speechRenderState.value = createPostStopSpeechRenderState(auditedCtx.speechRenderState.value)
+    auditedCtx.performanceState.value = {
+      ...auditedCtx.performanceState.value,
       activeCue: {
-        ...refreshedCtx.performanceState.value.activeCue,
+        ...auditedCtx.performanceState.value.activeCue,
         rendererHints: {
-          ...refreshedCtx.performanceState.value.activeCue.rendererHints,
-          signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-          reasonTags: ['embodiment:body+voice-only'],
-        },
-        rendererSettle: {
-          live2dFacialReleaseMs: 860,
+          ...auditedCtx.performanceState.value.activeCue.rendererHints,
+          signature: 'renderer audit text',
+          reasonTags: ['audit:renderer-only'],
         },
       },
     }
 
     for (const now of [208, 224, 240]) {
       drivePluginAtTime(controlPlugin, controlCtx, now)
-      drivePluginAtTime(refreshedPlugin, refreshedCtx, now)
+      drivePluginAtTime(auditedPlugin, auditedCtx, now)
     }
 
     const controlPostExpiryCheek = readParameter(controlModel, 'ParamCheek')
-    const refreshedPostExpiryCheek = readParameter(refreshedModel, 'ParamCheek')
+    const auditedPostExpiryCheek = readParameter(auditedModel, 'ParamCheek')
 
-    expect(refreshedPostExpiryCheek).toBeGreaterThan(controlPostExpiryCheek + 0.01)
+    expect(auditedPostExpiryCheek).toBeCloseTo(controlPostExpiryCheek, 6)
   })
 })
 
@@ -1939,7 +1851,7 @@ describe('live2d auto blink authority', () => {
     })
   })
 
-  it('passes same-her idle gaze bias through the idle focus plugin while the idle motion line is carrying embodiment', async () => {
+  it('passes structured idle gaze bias through the idle focus plugin while ignoring audit metadata', async () => {
     const {
       resolveLive2DGazeModeBias,
       useMotionUpdatePluginIdleFocus,
@@ -1961,8 +1873,6 @@ describe('live2d auto blink authority', () => {
       preferredGazeMode: 'soften',
       preferredBlinkCadence: 'quiet',
       residentMode: 'repair-before-closeness',
-      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-      reasonTags: ['embodiment:body+voice-only'],
     })
 
     ctx.isIdleMotion = true
@@ -1972,8 +1882,8 @@ describe('live2d auto blink authority', () => {
         ...ctx.performanceState.value.activeCue,
         rendererHints: {
           ...ctx.performanceState.value.activeCue.rendererHints,
-          signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-          reasonTags: ['embodiment:body+voice-only'],
+          signature: 'renderer audit text',
+          reasonTags: ['audit:renderer-only'],
         },
       },
     }
@@ -1987,7 +1897,7 @@ describe('live2d auto blink authority', () => {
     )
   })
 
-  it('passes same-her idle gaze bias through the idle-disable fallback before stopping idle motion', async () => {
+  it('passes structured idle gaze bias through the idle-disable fallback while ignoring audit metadata', async () => {
     const {
       resolveLive2DGazeModeBias,
       useMotionUpdatePluginIdleDisable,
@@ -2011,8 +1921,6 @@ describe('live2d auto blink authority', () => {
       preferredGazeMode: 'steady',
       preferredBlinkCadence: 'quiet',
       residentMode: 'repair-before-closeness',
-      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-      reasonTags: ['embodiment:body+voice-only'],
     })
 
     ctx.isIdleMotion = true
@@ -2027,8 +1935,8 @@ describe('live2d auto blink authority', () => {
         ...ctx.performanceState.value.activeCue,
         rendererHints: {
           ...ctx.performanceState.value.activeCue.rendererHints,
-          signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
-          reasonTags: ['embodiment:body+voice-only'],
+          signature: 'renderer audit text',
+          reasonTags: ['audit:renderer-only'],
         },
       },
     }
