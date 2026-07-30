@@ -171,7 +171,7 @@ describe('main chat runtime surface', () => {
   })
 
   it.each(['backgrounded', 'muted'] as const)(
-    'keeps organic self while excluding the legacy recall fact when persona mode is %s',
+    'drops detached organic self and legacy recall facts when persona mode is %s',
     (personaKernelMode) => {
       const organicSelf = JSON.stringify({
         type: 'alicization-organic-self-context',
@@ -196,7 +196,7 @@ describe('main chat runtime surface', () => {
         personaKernelMode,
       }))
 
-      expect(findFactMessage(result.messages, 'alicization-organic-self-context')?.content).toBe(organicSelf)
+      expect(findFactMessage(result.messages, 'alicization-organic-self-context')).toBeUndefined()
       expect(findFactMessage(result.messages, 'alicization-long-term-memory-recall')).toBeUndefined()
     },
   )
@@ -332,6 +332,41 @@ describe('main chat runtime surface', () => {
       {
         role: 'system',
         content: JSON.stringify({
+          type: 'alicization-organic-self-context',
+          data: { activeThoughts: ['detached one-shot self state'] },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-personality-state',
+          data: { obedience: 0, liveliness: 0, sensibility: 0 },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-personality-thresholds',
+          data: { lowAxes: ['obedience'] },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-execution-settlement-context',
+          data: { reply: 'detached settlement context' },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-execution-settlement-request',
+          data: { instruction: 'detached settlement request' },
+        }),
+      },
+      {
+        role: 'system',
+        content: JSON.stringify({
           type: 'alicization-long-term-memory-recall',
           data: { owner: 'LongTermMemoryRecall', evidence: [] },
         }),
@@ -360,6 +395,10 @@ describe('main chat runtime surface', () => {
     expect(parseFact(filtered[1]?.content).type).toBe('alicization-turn-memory-context')
     expect(filtered[2]?.content).toBe('你好')
     expect(filtered.some(message => String(message.content).includes('# SOUL'))).toBe(false)
+    expect(filtered.some(message => String(message.content).includes('organic-self-context'))).toBe(false)
+    expect(filtered.some(message => String(message.content).includes('personality-state'))).toBe(false)
+    expect(filtered.some(message => String(message.content).includes('personality-thresholds'))).toBe(false)
+    expect(filtered.some(message => String(message.content).includes('execution-settlement'))).toBe(false)
     expect(filtered.some(message => String(message.content).includes('alicization-long-term-memory-recall'))).toBe(false)
     expect(filtered.some(message => String(message.content).includes('dialogue-session-mirror'))).toBe(false)
     expect(filtered.some(message => String(message.content).includes('PROJECT_STATE'))).toBe(false)

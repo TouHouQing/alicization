@@ -112,8 +112,17 @@ describe('fixed reply governance removal', () => {
   it('uses the typed Provider fact allowlist instead of parsing legacy dialogue governance fields', () => {
     const sessionSource = readServiceSource('./main-chat-session-runtime.ts')
     const surfaceSource = readServiceSource('./main-chat-runtime-surface.ts')
+    const ordinaryDialogueOnlyFactTypes = [
+      'alicization-organic-self-context',
+      'alicization-personality-state',
+      'alicization-personality-thresholds',
+      'alicization-execution-settlement-context',
+      'alicization-execution-settlement-request',
+    ]
 
     expect(surfaceSource).toContain('filterAlicizationProviderSystemMessages')
+    for (const factType of ordinaryDialogueOnlyFactTypes)
+      expect(surfaceSource).not.toContain(`'${factType}'`)
     expect(sessionSource).not.toMatch(
       /sanitizeOrdinaryDialogueProviderMessages|sanitizeOrdinaryDialogueProviderSystemBlock|sanitizeOrdinaryDialogueTypedProviderFact|ordinaryDialogueFixedGovernanceCuePattern|ordinaryDialogueFixedGovernanceFieldNamePattern/u,
     )
