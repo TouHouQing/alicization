@@ -518,10 +518,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) {
     const recallSeed = normalizeOrganicRecallText(input.recallSeed)
-    const structuredSceneRecall = input.recallGovernor?.mode === 'scene'
-      && input.recallGovernor?.recollectionIntent?.searchEpisodes === true
-      && input.recallGovernor?.carryAsMemory === true
-    if (!recallSeed || (input.recallGovernor?.mode === 'scene' && !structuredSceneRecall))
+    if (!recallSeed)
       return []
     const snapshot = input.retrievalPolicySnapshot ?? await resolveTurnRetrievalPolicySnapshot({
       recallSeed,
@@ -534,6 +531,27 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       budgetClass: input.budgetClass,
       policy: snapshot.policy,
     })
+    const allowDream = input.recallGovernor?.mode === 'self-continuity'
+      || input.recallGovernor?.mode === 'emotional-resonance'
+    const effectiveEpisodicLimit = Math.max(
+      input.recallGovernor?.mode === 'emotional-resonance' ? 4 : 3,
+      plan.episodicLimit,
+    )
+    const episodicSearchParameters = {
+      threadAnchors: input.recallGovernor?.threadAnchors ?? [],
+      affectAnchors: input.recallGovernor?.affectAnchors ?? [],
+      relationshipAnchors: input.recallGovernor?.relationshipAnchors ?? [],
+      sceneAnchor: input.recallGovernor?.sceneAnchor ?? null,
+      salienceBias: input.recallGovernor?.salienceBias ?? 0.5,
+      carryAsMemory: input.recallGovernor?.carryAsMemory ?? false,
+      allowDream,
+      recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
+    }
+    const queryScope = {
+      mode: input.recallGovernor?.mode ?? null,
+      limit: effectiveEpisodicLimit,
+      ...episodicSearchParameters,
+    }
     void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
     const cacheKey = buildAlicizationMemoryAccessCacheKey({
       namespace: 'episodic',
@@ -541,6 +559,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       plan,
       sessionId: input.sessionId ?? null,
       turnId: input.turnId ?? null,
+      queryScope,
     })
     const cached = readTransientRecallCache<AlicizationEpisodicEventRecord[]>(cacheKey)
     if (cached) {
@@ -565,20 +584,10 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
 
     const rows = await options.searchEpisodicEvents({
       recallSeed,
-      limit: Math.max(
-        input.recallGovernor?.mode === 'emotional-resonance' ? 4 : 3,
-        plan.episodicLimit,
-      ),
+      limit: effectiveEpisodicLimit,
       sessionId: input.sessionId ?? null,
       turnId: input.turnId ?? null,
-      threadAnchors: input.recallGovernor?.threadAnchors ?? [],
-      affectAnchors: input.recallGovernor?.affectAnchors ?? [],
-      relationshipAnchors: input.recallGovernor?.relationshipAnchors ?? [],
-      sceneAnchor: input.recallGovernor?.sceneAnchor ?? null,
-      salienceBias: input.recallGovernor?.salienceBias ?? 0.5,
-      carryAsMemory: input.recallGovernor?.carryAsMemory ?? false,
-      allowDream: input.recallGovernor?.mode === 'self-continuity' || input.recallGovernor?.mode === 'emotional-resonance',
-      recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
+      ...episodicSearchParameters,
     }).catch(() => [])
     if ((input.recallGovernor?.carryAsMemory ?? false) && rows.length > 0)
       invalidateTransientRecallCacheNamespace('consolidation')

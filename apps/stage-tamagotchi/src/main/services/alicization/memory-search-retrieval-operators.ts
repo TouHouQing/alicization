@@ -25,10 +25,7 @@ import {
 import { rankFactsByLearningTuning } from './learning-tuned-fact-ranking'
 import { buildProceduralMemoryAbstractions } from './memory-procedural-abstraction'
 import { buildMemoryRecollectionWindows } from './memory-recollection-windows'
-import {
-  deriveSessionMirrorRecollectionIntent,
-  isPresentFacingSelfCritiqueRecallSeed,
-} from './runtime-organic-memory-search-prelude'
+import { deriveSessionMirrorRecollectionIntent } from './runtime-organic-memory-search-prelude'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -74,7 +71,7 @@ function uniqueRecallSeedBlocks(values: Array<string | null | undefined>, maxIte
   return result
 }
 
-const structuredRecallSeedLinePattern = /^(?:mirror_runtime_continuity|continuity_held_autonomy|continuity_project_state|continuity_cadence_reconfirmation|continuity_afterglow|humanlike_memory_recall):/iu
+const legacyStructuredRecallSeedLinePattern = /^(?:mirror_runtime_continuity|continuity_[a-z_]+|humanlike_memory_recall):/iu
 
 function sanitizeRecallSeedBlockForMemoryPrompt(raw: unknown) {
   const normalized = typeof raw === 'string'
@@ -90,32 +87,10 @@ function sanitizeRecallSeedBlockForMemoryPrompt(raw: unknown) {
   if (!normalized)
     return ''
 
-  const normalizedLines = normalized.split('\n')
-  const hasStructuredRecallSeedLine = normalizedLines.some(line => structuredRecallSeedLinePattern.test(line))
-  const carriesFixedProjectTemplate
-    = /project:\s*Alicization is a local-first digital life project|Alicization is a local-first digital life project|Phase 1:\s*Local Digital Life|Same Phase 1 digital life|one continuous "?her"?|one same still-open closure work/iu.test(normalized)
-  if (carriesFixedProjectTemplate && !hasStructuredRecallSeedLine) {
-    const prefix = sanitizeAlicizationProviderFacingText(
-      normalized.split(/\s+\|\s+project:/iu)[0] ?? '',
-      180,
-    )
-    const safePrefix = prefix && prefix !== alicizationFixedTemplateReplacement
-      ? prefix
-      : ''
-    const structuredProject = [
-      'project:continuity_context=present',
-      /open=|still needs|unfinished/iu.test(normalized) ? 'open=continuity_pending' : '',
-      /already landed|already survives|has landed|some closure/iu.test(normalized) ? 'landed=partial' : '',
-    ].filter(Boolean).join('; ')
-    return uniqueRecallSeedBlocks([safePrefix, structuredProject], 2).join(' | ')
-  }
-
-  const sanitizedLines = normalizedLines
+  const sanitizedLines = normalized
+    .split('\n')
+    .filter(line => !legacyStructuredRecallSeedLinePattern.test(line))
     .map((line) => {
-      if (structuredRecallSeedLinePattern.test(line)) {
-        return sanitizeStructuredRecallSeedLineForMemorySearch(line)
-      }
-
       return sanitizeNaturalRecallSeedLineForMemorySearch(line)
     })
     .filter(line => line && line !== alicizationFixedTemplateReplacement)
@@ -124,40 +99,10 @@ function sanitizeRecallSeedBlockForMemoryPrompt(raw: unknown) {
 }
 
 function sanitizeNaturalRecallSeedLineForMemorySearch(raw: string) {
-  const normalized = sanitizeStructuredRecallSeedLineForMemorySearch(raw)
-  const sanitized = sanitizeAlicizationProviderFacingText(normalized, 800)
+  const sanitized = sanitizeAlicizationProviderFacingText(raw, 800)
   return sanitized && sanitized !== alicizationFixedTemplateReplacement
     ? sanitized
     : ''
-}
-
-function sanitizeStructuredRecallSeedLineForMemorySearch(raw: string) {
-  return raw
-    .trim()
-    .replace(/\s+/g, ' ')
-    .replace(/\bBefore (?:answering|speaking|acting),?\s*(?:remember\s*)?/giu, 'structured_carry=')
-    .replace(/\bAlicization is (?:still )?(?:the same )?(?:a )?local-first digital life project\b/giu, 'continuity_project')
-    .replace(/\bthis is still the same digital life project\b/giu, 'continuity_project')
-    .replace(/\bsame digital life project\b/giu, 'continuity_project')
-    .replace(/\blocal-first digital life project\b/giu, 'continuity_project')
-    .replace(/\bPhase\s*1\s*:\s*Local Digital Life\b/giu, 'life_loop')
-    .replace(/\bSame Phase 1 digital life\b/giu, 'life_loop')
-    .replace(/\bcross-modal same-her proof\b/giu, 'embodiment_scale_validation')
-    .replace(/\bsame-her proof\b/giu, 'continuity_proof')
-    .replace(/\bsame-her closure\b/giu, 'identity-continuity closure')
-    .replace(/\bsame-her\b/giu, 'identity-continuity')
-    .replace(/\bsame her\b/giu, 'identity-continuity')
-    .replace(/\bsame living line\b/giu, 'continuity_line')
-    .replace(/\bsame-line\b/giu, 'continuity_line')
-    .replace(/\bsame line\b/giu, 'continuity_line')
-    .replace(/\bsame-life\b/giu, 'identity-continuity')
-    .replace(/\bone continuous "?her"?\b/giu, 'identity_continuity')
-    .replace(/\bone living her\b/giu, 'identity_continuity')
-    .replace(/同一个\s*her/giu, 'identity_continuity')
-    .replace(/同一个她/gu, 'identity_continuity')
-    .replace(/数字生命主线/gu, 'continuity_line')
-    .slice(0, 1800)
-    .trim()
 }
 
 const relationshipCuePattern = /relationship|bond|trust|care|boundary|space|repair|tone|distance|靠近|关系|信任|边界|空间|修复|语气|距离/u
@@ -280,7 +225,6 @@ export async function resolveMemorySearchPrelude(
     input.recallGovernor?.recallSeed,
     sessionMirrorRecollectionIntent ? input.sessionMirrorRecollection?.foreground : null,
   ].map(sanitizeRecallSeedBlockForMemoryPrompt), 8).join('\n')
-  const suppressAssociativeRecall = input.recallGovernor?.suppressAssociativeRecall === true
   const seedTriggeredHeuristicIntent = recallSeed
     ? input.policy.deriveSceneTriggeredRecollectionIntent({
         recallSeed,
@@ -292,51 +236,26 @@ export async function resolveMemorySearchPrelude(
       ?? sessionMirrorRecollectionIntent
       ?? seedTriggeredHeuristicIntent
       ?? null
-  if (recallSeed && isPresentFacingSelfCritiqueRecallSeed(recallSeed)) {
-    return {
-      snapshot,
-      relationshipDynamics: relationshipDynamics ?? null,
-      hostPersonModel,
-      recallSeed,
-      heuristicRecollectionIntent: null,
-      retrievedFacts: [],
-      recalledFragments: [],
-      recalledEpisodes: [],
-      recollectionIntent: null,
-      activeRecollectionIntent: null,
-      memoryTuningAdvice,
-    }
-  }
-  if (recallSeed && suppressAssociativeRecall && !heuristicRecollectionIntent) {
-    return {
-      snapshot,
-      relationshipDynamics: relationshipDynamics ?? null,
-      hostPersonModel,
-      recallSeed,
-      heuristicRecollectionIntent: null,
-      retrievedFacts: [],
-      recalledFragments: [],
-      recalledEpisodes: [],
-      recollectionIntent: null,
-      activeRecollectionIntent: null,
-      memoryTuningAdvice,
-    }
-  }
   const retrievedFacts = recallSeed
     ? rankFactsByLearningTuning({
         facts: await input.access.retrieveMemoryFacts(recallSeed, 4),
         tuningAdvice: memoryTuningAdvice,
       })
     : []
-  const allowRecalledFragments = input.recallGovernor
-    ? input.recallGovernor.allowRecalledFragments === true
-    : Boolean(recallSeed)
-  const recalledFragments = allowRecalledFragments && recallSeed
+  const normalizedRecalledFragmentCap = Number.isFinite(input.recallGovernor?.recalledFragmentCap)
+    ? Math.floor(Number(input.recallGovernor?.recalledFragmentCap))
+    : 0
+  const recalledFragmentCap = normalizedRecalledFragmentCap > 0
+    ? normalizedRecalledFragmentCap
+    : undefined
+  const recalledFragmentSourceBudget = (input.recallGovernor?.recalledFragmentSourceBudget ?? [])
+    .filter(item => Number.isFinite(item.maxItems) && item.maxItems > 0)
+  const recalledFragments = recallSeed
     ? (
         await input.access.recallSubconsciousFragmentsWithGovernor({
           text: recallSeed,
-          recalledFragmentCap: input.recallGovernor?.recalledFragmentCap,
-          recalledFragmentSourceBudget: input.recallGovernor?.recalledFragmentSourceBudget ?? [],
+          recalledFragmentCap,
+          recalledFragmentSourceBudget,
         })
       ).filter(fragment => !input.policy.isPersonaResidueMemoryText(fragment.text))
     : []
@@ -356,12 +275,18 @@ export async function resolveMemorySearchPrelude(
   const preliminaryActiveRecollectionIntent = preliminaryRecollectionIntent?.mode && preliminaryRecollectionIntent.mode !== 'none'
     ? preliminaryRecollectionIntent
     : null
-  const recalledEpisodes = allowRecalledFragments && recallSeed
+  const episodicRecallGovernor = preliminaryActiveRecollectionIntent
+    ? {
+        ...input.recallGovernor,
+        recollectionIntent: preliminaryActiveRecollectionIntent,
+      } as AlicizationRecallGovernorSnapshot
+    : input.recallGovernor ?? null
+  const recalledEpisodes = recallSeed
     ? await input.access.recallEpisodicEventsWithGovernor({
         recallSeed,
         sessionId: input.sessionId ?? null,
         turnId: input.turnId ?? null,
-        recallGovernor: input.recallGovernor ?? null,
+        recallGovernor: episodicRecallGovernor,
         budgetClass: input.budgetClass,
         retrievalPolicySnapshot: input.retrievalPolicySnapshot ?? null,
       })

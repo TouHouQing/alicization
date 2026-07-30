@@ -267,14 +267,35 @@ export function buildAlicizationMemoryAccessCacheKey(input: {
   plan: AlicizationMemoryAccessibilityPlan
   sessionId?: string | null
   turnId?: string | null
+  queryScope?: {
+    mode?: AlicizationRecallGovernorSnapshot['mode'] | null
+    limit?: number
+    threadAnchors?: string[]
+    affectAnchors?: string[]
+    relationshipAnchors?: string[]
+    sceneAnchor?: string | null
+    salienceBias?: number | null
+    carryAsMemory?: boolean
+    allowDream?: boolean
+    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+  } | null
 }) {
   return [
     input.namespace,
+    input.plan.budgetClass,
     input.plan.latencyClass,
     input.plan.expansionMode,
+    input.plan.verificationStrictness,
+    input.plan.wrongThreadSuppressionBias,
+    input.plan.provenanceLabelingBias,
+    input.plan.preferredLayers.join(','),
+    input.plan.episodicLimit,
+    input.plan.consolidationLimit,
+    input.plan.conversationLimit,
     normalizeText(input.recallSeed, 240).toLowerCase(),
     normalizeText(input.sessionId, 120),
     normalizeText(input.turnId, 120),
+    JSON.stringify(input.queryScope ?? null),
   ].join('::')
 }
 

@@ -649,8 +649,8 @@ describe('runtime-organic-memory-access', () => {
     expect(searchMemoryConsolidations).toHaveBeenCalledTimes(1)
   })
 
-  it('allows scene episodic recall from the structured governor without prose passwords', async () => {
-    const searchEpisodicEvents = vi.fn(async () => [{
+  it('keeps scene episodic recall active without a structured governor intent', async () => {
+    const recalledEpisode = {
       id: 'episode-repair-1',
       cardId: 'default',
       decisionTraceId: 'trace-repair-1',
@@ -682,7 +682,25 @@ describe('runtime-organic-memory-access', () => {
       recallCount: 0,
       reconsolidationCount: 0,
       latestReconsolidation: null,
-    } as any])
+    } as any
+    const searchEpisodicEvents = vi.fn()
+      .mockResolvedValueOnce([recalledEpisode])
+      .mockResolvedValueOnce([{
+        ...recalledEpisode,
+        id: 'episode-release-1',
+        threadAnchor: 'release review',
+        salience: 0.92,
+      }])
+      .mockResolvedValueOnce([{
+        ...recalledEpisode,
+        id: 'episode-self-continuity-1',
+        threadAnchor: 'relationship memory',
+      }])
+      .mockResolvedValueOnce([{
+        ...recalledEpisode,
+        id: 'episode-emotional-resonance-1',
+        threadAnchor: 'relationship memory',
+      }])
 
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
@@ -740,25 +758,67 @@ describe('runtime-organic-memory-access', () => {
         relationshipAnchors: [],
         sceneAnchor: 'scene:coding | migration.sql',
         salienceBias: 0.66,
-        carryAsMemory: true,
-        recollectionIntent: {
-          mode: 'experience-pattern',
-          temporalFocus: 'experience-matched',
-          searchEpisodes: true,
-          searchConversations: false,
-          searchProceduralExperience: false,
-          queryHints: ['database migration', 'schema review'],
-          rationale: 'structured-governor:scene-episodic-recall',
-          confidence: 0.84,
-        },
+        carryAsMemory: false,
+        recollectionIntent: null,
+      } as any,
+    })
+    const updatedEpisodes = await runtime.recallEpisodicEventsWithGovernor({
+      recallSeed: '继续数据库迁移检查',
+      recallGovernor: {
+        mode: 'scene',
+        threadAnchors: ['release review'],
+        affectAnchors: [],
+        relationshipAnchors: [],
+        sceneAnchor: 'scene:coding | release.sql',
+        salienceBias: 0.92,
+        carryAsMemory: false,
+        recollectionIntent: null,
+      } as any,
+    })
+    const selfContinuityEpisodes = await runtime.recallEpisodicEventsWithGovernor({
+      recallSeed: '想起之前的关系变化',
+      recallGovernor: {
+        mode: 'self-continuity',
+        threadAnchors: ['relationship memory'],
+        affectAnchors: [],
+        relationshipAnchors: [],
+        carryAsMemory: false,
+        recollectionIntent: null,
+      } as any,
+    })
+    const emotionalResonanceEpisodes = await runtime.recallEpisodicEventsWithGovernor({
+      recallSeed: '想起之前的关系变化',
+      recallGovernor: {
+        mode: 'emotional-resonance',
+        threadAnchors: ['relationship memory'],
+        affectAnchors: [],
+        relationshipAnchors: [],
+        carryAsMemory: false,
+        recollectionIntent: null,
       } as any,
     })
 
-    expect(searchEpisodicEvents).toHaveBeenCalledTimes(1)
+    expect(searchEpisodicEvents).toHaveBeenCalledTimes(4)
     expect(episodes).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'episode-repair-1',
         threadAnchor: 'migration review',
+      }),
+    ]))
+    expect(updatedEpisodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'episode-release-1',
+        threadAnchor: 'release review',
+      }),
+    ]))
+    expect(selfContinuityEpisodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'episode-self-continuity-1',
+      }),
+    ]))
+    expect(emotionalResonanceEpisodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'episode-emotional-resonance-1',
       }),
     ]))
   })
