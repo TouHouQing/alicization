@@ -91,11 +91,7 @@ function rankByBenchmarkTuningBias<T>(input: {
     .map((item, index) => {
       let score = (input.items.length - index) / Math.max(1, input.items.length)
       const provenance = input.getProvenance?.(item) ?? null
-      const text = sanitizeOrganicMemoryText(input.toText(item), 260).toLowerCase()
-      const relationshipCue = /relationship|bond|trust|care|boundary|space|repair|tone|distance|关系|信任|边界|空间|修复|语气|距离/u.test(text)
 
-      if ((input.mode === 'episode' || input.mode === 'conversation') && relationshipCue)
-        score += tuningAdvice.retrievalAdjustments.relationshipBoost
       if ((input.mode === 'episode' || input.mode === 'conversation') && (provenance === 'reconstructed' || provenance === 'dreamt' || provenance === 'inferred' || provenance === 'shadow'))
         score -= tuningAdvice.retrievalAdjustments.wrongThreadPenalty
 
@@ -155,26 +151,10 @@ function deriveExecutionCallbackCarryFromContext(input: {
   recalledEpisodes: AlicizationEpisodicEventRecord[]
 }) {
   for (const episode of input.recalledEpisodes) {
-    const haystack = [
-      episode.threadAnchor,
-      episode.whatHappened,
-      episode.whatChanged,
-      episode.relationshipMeaning,
-      episode.lesson,
-      episode.sourceSummary,
-      ...episode.tags,
-      ...episode.emotionTags,
-    ].filter(Boolean).join(' ').toLowerCase()
-    if (!/execution-callback|callback|soft-handoff|result-mode|result-lead/u.test(haystack))
+    const tags = new Set(episode.tags.map(tag => sanitizeOrganicMemoryText(tag, 80).toLowerCase()))
+    if (!tags.has('execution-callback'))
       continue
 
-    const carryMode = /same-her-drift-risk|task-shell|generic task shell|generic productivity|generic assistant/u.test(haystack)
-      ? 'lower-pressure' as const
-      : /lower-pressure|leave room|keep room|space first|bounded/u.test(haystack)
-        ? 'lower-pressure' as const
-        : /trust warming|trust warmed|trust open|soft handoff/u.test(haystack)
-          ? 'trust-warming' as const
-          : 'execution-callback' as const
     const summary = sanitizeOrganicMemoryText(
       episode.relationshipMeaning
       || episode.lesson
@@ -186,7 +166,7 @@ function deriveExecutionCallbackCarryFromContext(input: {
       continue
 
     return {
-      carryMode,
+      carryMode: 'execution-callback' as const,
       confidence: Math.max(0, Math.min(1, Number(episode.latestReconsolidation?.confidence ?? episode.confidence ?? 0))),
       source: 'session-continuity' as const,
       summary,
@@ -1329,13 +1309,11 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           followUpAffordance: resolvedFollowUpAffordance,
         }
       : null
-    const activeThoughts = options?.recallGovernor?.allowActiveThoughts === false
-      ? []
-      : selectPromptActiveThoughts({
-          activeThoughts: snapshot.activeThoughts,
-          recallSeed,
-          recalledFragments,
-        })
+    const activeThoughts = selectPromptActiveThoughts({
+      activeThoughts: snapshot.activeThoughts,
+      recallSeed,
+      recalledFragments,
+    })
     const executionCallbackCarry = deriveExecutionCallbackCarryFromContext({
       recalledEpisodes: constrainedDeliberatedEpisodes,
     })
@@ -1567,5 +1545,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
 }
 
 export const __alicizationOrganicMemoryPromptTestOnly = {
+  deriveExecutionCallbackCarryFromContext,
   rankByBenchmarkTuningBias,
 }

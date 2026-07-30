@@ -103,10 +103,7 @@ function resolveRelationDrift(input: {
     return 'repairing' as const
   }
 
-  if (
-    input.answerCompiler?.relationshipPosture === 'restrained'
-    || input.discourseState?.screenReferenceMode === 'required'
-  ) {
+  if (input.discourseState?.screenReferenceMode === 'required') {
     return 'guarded' as const
   }
 

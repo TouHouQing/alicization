@@ -33,6 +33,38 @@ describe('buildDialogueWorldThread', () => {
     expect(state?.activeThread).not.toContain('Stay with the current dialogue seam')
   })
 
+  it('does not turn reply posture into a relationship recall cue', () => {
+    const state = buildDialogueWorldThread({
+      now: 15_000,
+      conversationState: {
+        jointThread: '继续看当前这条记忆链路。',
+        hostMove: '继续看当前这条记忆链路。',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'neutral',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: [],
+        shouldHoldThread: false,
+        confidence: 0.72,
+        narrative: [],
+        updatedAt: 15_000,
+      } as any,
+      answerCompiler: {
+        relationshipPosture: 'restrained',
+        screenReferenceMode: 'helpful',
+      } as any,
+      previous: {
+        relationDrift: 'steady',
+      } as any,
+    })
+
+    expect(state?.relationDrift).toBe('steady')
+    expect(state?.recallKeys).not.toContain('relation:guarded')
+  })
+
   it('carries the live coding seam across turns instead of flattening it into generic memory', () => {
     const state = buildDialogueWorldThread({
       now: 20_000,

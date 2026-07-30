@@ -615,7 +615,7 @@ describe('buildRecallGovernor', () => {
       'cadence:cooldown',
       'distance:protect-space',
     ]))
-    expect(governor?.recollectionIntent?.rationale).toContain('emotional carry')
+    expect(governor?.recollectionIntent?.rationale).toBe('recollection:autobiographical-history:affective-residue')
   })
 
   it('keeps dialogue-first attune turns thread-bound unless self-carry is explicitly eligible', () => {
