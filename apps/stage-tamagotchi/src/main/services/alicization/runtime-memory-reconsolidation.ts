@@ -431,8 +431,8 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         confidence: 0.78,
         recollectionAgenda: {
           whyRecallNow: selfContinuityInwardLine
-            ? `The host corrected a recalled reply line, so the remembered way of answering should be updated while retaining the relevant inward memory: ${selfContinuityInwardLine}.`
-            : 'The host corrected a recalled reply line, so the remembered way of answering should be updated for the next similar turn.',
+            ? `source=host-correction | target=similar-turn | evidence=${selfContinuityInwardLine}`
+            : 'source=host-correction | target=similar-turn',
           goalSimilarity: 0.78,
           relationshipNeed: 0.72,
           affectivePull: 0.44,
@@ -441,14 +441,14 @@ export function createAlicizationRuntimeMemoryReconsolidation(
             {
               scope: 'experience-matched',
               weight: 0.88,
-              rationale: 'Search the same remembered reply way before generic history.',
+              rationale: 'source=host-correction | scope=experience-matched',
             },
           ],
           candidateEraFacets: [
             {
               facet: 'relationship-era',
               weight: 0.82,
-              rationale: 'This correction is mainly about how closeness and reply posture land.',
+              rationale: 'source=host-correction | facet=relationship-era',
             },
           ],
           candidateProcedureLines: recallTexts.slice(0, 4),

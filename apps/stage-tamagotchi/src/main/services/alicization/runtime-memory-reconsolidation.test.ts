@@ -124,6 +124,14 @@ describe('runtime memory reconsolidation', () => {
         ]),
       }),
     }))
+    const searchCalls = searchEpisodicEvents.mock.calls as unknown as Array<
+      [{ recollectionIntent?: { recollectionAgenda?: unknown } }]
+    >
+    const recollectionIntent = searchCalls[0]?.[0]?.recollectionIntent
+    expect(JSON.stringify(recollectionIntent?.recollectionAgenda)).toContain('source=host-correction')
+    expect(JSON.stringify(recollectionIntent?.recollectionAgenda)).not.toMatch(
+      /should be updated|Search the same remembered reply way|before generic history|reply posture/iu,
+    )
     expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({
         kind: 'memory-reconsolidated',

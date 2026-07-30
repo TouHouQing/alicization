@@ -189,7 +189,7 @@ function goalLabel(kind: AlicizationGoalKind, anchor: string, appraisal: Aliciza
     case 'browse': return `host is browsing ${subject}`
     case 'stay-near': return `stay near ${subject} without crowding it`
     case 'guard-focus': return `protect the host focus around ${subject}`
-    case 'clarify-scene': return `re-ground the scene before speaking about ${subject}`
+    case 'clarify-scene': return `scene clarity around ${subject}`
     case 'help-resolve': return `help the host resolve ${subject}`
     case 'care-body': return `care for the host body before ${subject} hardens`
     case 'recover-thread': return `recover the broken foreground thread around ${subject}`
