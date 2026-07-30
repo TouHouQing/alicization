@@ -10,11 +10,12 @@ import {
 describe('runtime memory reconsolidation', () => {
   it('collects recall telemetry and coherence state from mind events', () => {
     const recallTexts = collectRecallTelemetryTexts({
-      whyNow: 'same seam again',
-      inwardLine: 'return to the seam',
-      visibleLine: 'stay on the same seam',
-      selectedEpisodeSummaries: ['we repaired the runtime seam'],
-      selectedRelationshipLines: ['leave more room'],
+      untrustedText: 'control-plane-only',
+      selectedEpisodes: [{
+        summary: 'we repaired the runtime state',
+        untrustedText: 'control-plane-only',
+      }],
+      selectedRelationshipLines: ['host expects the correction to persist'],
     }, (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback)
     const coherence = collectReplyMemoryCoherenceState({
       coherenceState: 'missed',
@@ -24,16 +25,17 @@ describe('runtime memory reconsolidation', () => {
       matchedCueKinds: ['episode', 'procedure'],
     }, (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback)
 
-    expect(recallTexts).toEqual(expect.arrayContaining([
-      'same seam again',
-      'return to the seam',
-    ]))
+    expect(recallTexts).toEqual([
+      'we repaired the runtime state',
+      'host expects the correction to persist',
+    ])
+    expect(recallTexts).not.toContain('control-plane-only')
     expect(coherence).toEqual(expect.objectContaining({
       coherenceState: 'missed',
       surfacePolicy: 'internal-only',
       matchedCueKinds: ['episode', 'procedure'],
     }))
-    expect(buildDialogueFeedbackReconsolidationRationale('robotic')).toContain('robotic')
+    expect(buildDialogueFeedbackReconsolidationRationale('robotic')).toBe('source=dialogue-feedback | feedback=robotic')
   })
 
   it('reconsolidates dialogue feedback and appends a memory-reconsolidated mind event', async () => {
@@ -41,13 +43,13 @@ describe('runtime memory reconsolidation', () => {
       {
         kind: 'recall-attribution',
         payload: {
-          whyNow: 'the host is reacting to the same seam',
-          selectedEpisodeSummaries: ['上一轮像模板壳'],
+          whyNow: 'the host corrected an inaccurate recollection',
+          selectedEpisodeSummaries: ['上一轮遗漏了关键事实'],
           selectedSituations: [{
-            id: 'memory-situation:reply-rehumanize',
+            id: 'memory-situation:dialogue-correction',
             kind: 'mixed',
-            summary: 'same-her rehumanize seam',
-            evidenceSummary: 'relationship-context=the host was testing whether she would stay one same person instead of slipping into a tool shell | host-attitude=宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术 | affective-residue=repair pressure and unfinished same-her worry still remain | execution-carry=patch verified before outward reply again | embodiment-carry=slower blink, steadier gaze, lower-pressure reopening',
+            summary: 'dialogue correction evidence',
+            evidenceSummary: 'relationship-context=the host corrected an inaccurate recollection | host-attitude=宿主希望更正被记录并在相似场景中可召回 | affective-residue=unfinished correction pressure remains | execution-carry=patch verification completed | embodiment-carry=slower blink and steadier gaze',
             statusReason: 'graph-selected-current-line',
             sourceKinds: ['event-graph', 'episodic-event', 'relationship', 'procedure', 'self-model'],
           }],
@@ -80,16 +82,16 @@ describe('runtime memory reconsolidation', () => {
       cardId: 'card-1',
       decisionTraceId: 'trace-1',
       feedback: 'robotic',
-      previousAssistantText: '上一句像模板壳。',
-      userText: '你这句太模板了',
+      previousAssistantText: '上一句遗漏了关键事实。',
+      userText: '你漏掉了关键事实',
       sessionId: 'session-1',
       turnId: 'turn-1',
       at: 10,
       feedbackExperience: {
-        felt: 'I felt the identity-continuity',
-        relationshipMeaning: 'The host heard the previous Alicization reply as a tool shell, so identity-continuity',
-        lesson: 'Let the body return like this: rehumanize, steadier gaze, slower blink, lower-pressure voice.',
-        tags: ['dialogue-feedback', 'feedback:robotic', 'body-rehumanize', 'continuity-same-her', 'residue-shell-pressure'],
+        felt: 'The recalled detail did not match the event.',
+        relationshipMeaning: 'The host corrected an inaccurate recollection.',
+        lesson: 'Store the correction with its evidence and retrieval scope.',
+        tags: ['dialogue-feedback', 'feedback:robotic', 'body-steady-gaze', 'residue-correction-pressure'],
       },
     })
 
@@ -101,60 +103,66 @@ describe('runtime memory reconsolidation', () => {
       carryAsMemory: true,
       reconsolidationDecisionTraceId: 'trace-1',
       affectAnchors: expect.arrayContaining([
-        'experience-tag:body-rehumanize',
-        'experience-tag:continuity-same-her',
-        'experience-tag:residue-shell-pressure',
-        'situation-affective-residue:repair pressure and unfinished same-her worry still remain',
-        'situation-execution-carry:patch verified before outward reply again',
-        'situation-embodiment-carry:slower blink, steadier gaze, lower-pressure reopening',
+        'experience-tag:body-steady-gaze',
+        'experience-tag:residue-correction-pressure',
+        'situation-affective-residue:unfinished correction pressure remains',
+        'situation-execution-carry:patch verification completed',
+        'situation-embodiment-carry:slower blink and steadier gaze',
       ]),
       relationshipAnchors: expect.arrayContaining([
-        'The host heard the previous Alicization reply as a tool shell, so identity-continuity',
-        'the host was testing whether she would stay one same person instead of slipping into a tool shell',
-        '宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术',
+        'The host corrected an inaccurate recollection.',
+        'the host corrected an inaccurate recollection',
+        '宿主希望更正被记录并在相似场景中可召回',
       ]),
       recollectionIntent: expect.objectContaining({
         mode: 'relationship-history',
-        rationale: 'Dialogue feedback: robotic.',
+        rationale: 'source=dialogue-feedback | feedback=robotic',
         queryHints: expect.arrayContaining([
-          'I felt the identity-continuity',
-          'Let the body return like this: rehumanize, steadier gaze, slower blink, lower-pressure voice.',
-          'same-her rehumanize seam',
-          'relationship-context=the host was testing whether she would stay one same person instead of slipping into a tool shell | host-attitude=宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术 | affective-residue=repair pressure and unfinished same-her worry still remain | execution-carry=patch verified before outward reply again | embodiment-carry=slower blink, steadier gaze, lower-pressure reopening',
+          'The recalled detail did not match the event.',
+          'Store the correction with its evidence and retrieval scope.',
+          'dialogue correction evidence',
+          'relationship-context=the host corrected an inaccurate recollection | host-attitude=宿主希望更正被记录并在相似场景中可召回 | affective-residue=unfinished correction pressure remains | execution-carry=patch verification completed | embodiment-carry=slower blink and steadier gaze',
         ]),
       }),
     }))
     const searchCalls = searchEpisodicEvents.mock.calls as unknown as Array<
       [{ recollectionIntent?: { recollectionAgenda?: unknown } }]
     >
-    const recollectionIntent = searchCalls[0]?.[0]?.recollectionIntent
-    expect(JSON.stringify(recollectionIntent?.recollectionAgenda)).toContain('source=host-correction')
-    expect(JSON.stringify(recollectionIntent?.recollectionAgenda)).not.toMatch(
-      /should be updated|Search the same remembered reply way|before generic history|reply posture/iu,
-    )
+    const recollectionAgenda = searchCalls[0]?.[0]?.recollectionIntent?.recollectionAgenda
+    expect(recollectionAgenda).toEqual(expect.objectContaining({
+      whyRecallNow: 'source=host-correction | target=similar-turn',
+      candidateTimeScopes: expect.arrayContaining([
+        expect.objectContaining({
+          rationale: 'source=host-correction | scope=experience-matched',
+        }),
+      ]),
+      candidateEraFacets: expect.arrayContaining([
+        expect.objectContaining({
+          rationale: 'source=host-correction | facet=relationship-era',
+        }),
+      ]),
+    }))
     expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({
         kind: 'memory-reconsolidated',
         payload: expect.objectContaining({
           feedback: 'robotic',
           feedbackExperience: expect.objectContaining({
-            felt: expect.stringContaining('identity-continuity'),
-            embodimentTags: ['body-rehumanize', 'continuity-same-her', 'residue-shell-pressure'],
+            felt: 'The recalled detail did not match the event.',
+            embodimentTags: ['body-steady-gaze', 'residue-correction-pressure'],
           }),
           selectedSituations: expect.arrayContaining([
             expect.objectContaining({
-              id: 'memory-situation:reply-rehumanize',
+              id: 'memory-situation:dialogue-correction',
               kind: 'mixed',
-              summary: 'same-her rehumanize seam',
-              relationshipContext: 'the host was testing whether she would stay one same person instead of slipping into a tool shell',
-              hostAttitude: '宿主更在意她不要断线成工具壳，而不是只听一段顺滑的话术',
-              affectiveResidue: 'repair pressure and unfinished same-her worry still remain',
-              executionCarry: 'patch verified before outward reply again',
-              embodimentCarry: 'slower blink, steadier gaze, lower-pressure reopening',
+              summary: 'dialogue correction evidence',
+              relationshipContext: 'the host corrected an inaccurate recollection',
+              hostAttitude: '宿主希望更正被记录并在相似场景中可召回',
+              affectiveResidue: 'unfinished correction pressure remains',
+              executionCarry: 'patch verification completed',
+              embodimentCarry: 'slower blink and steadier gaze',
             }),
           ]),
-          selfContinuityInwardLine: null,
-          selfContinuitySourceTags: [],
           reconsolidatedCount: 1,
         }),
       }),
@@ -162,7 +170,7 @@ describe('runtime memory reconsolidation', () => {
     expect(appendAuditLog).not.toHaveBeenCalled()
   })
 
-  it('reconsolidates execution-result feedback and appends a richer identity-continuity', async () => {
+  it('reconsolidates execution-result feedback and appends the resulting evidence', async () => {
     const listMindTurnEvents = vi.fn(async () => [])
     const searchEpisodicEvents = vi.fn(async () => [{ id: 'episode-execution-1' }])
     const appendMindTurnEvents = vi.fn(async () => {})
@@ -188,12 +196,12 @@ describe('runtime memory reconsolidation', () => {
       sessionId: 'session-1',
       turnId: 'subconscious:thread-1',
       at: 20,
-      goal: 'keep callback continuity alive',
+      goal: 'preserve callback evidence',
       outcome: 'done',
       feedbackExperience: {
         felt: 'I felt the result become something genuinely useful to the host.',
         relationshipMeaning: 'The host treated the proactive codex result as useful and worth repeating.',
-        lesson: 'Keep the callback same-her, grounded, and quietly continuous instead of collapsing into a detached utility notice.',
+        lesson: 'Store the completed action, result, and host assessment as recallable evidence.',
         tags: ['execution-result', 'codex', 'feedback:valued', 'phase-1-local-digital-life'],
       },
     })
@@ -204,7 +212,7 @@ describe('runtime memory reconsolidation', () => {
       reconsolidationDecisionTraceId: 'trace-execution-1',
       affectAnchors: expect.arrayContaining([
         'execution-feedback:valued',
-        'goal:keep callback continuity alive',
+        'goal:preserve callback evidence',
         'experience-tag:execution-result',
         'experience-tag:feedback:valued',
       ]),
@@ -215,12 +223,29 @@ describe('runtime memory reconsolidation', () => {
       ]),
       recollectionIntent: expect.objectContaining({
         mode: 'relationship-history',
-        rationale: 'Execution feedback: valued.',
+        rationale: 'source=execution-feedback | feedback=valued',
         queryHints: expect.arrayContaining([
           'I felt the result become something genuinely useful to the host.',
-          'Keep the callback same-her, grounded, and quietly continuous instead of collapsing into a detached utility notice.',
+          'Store the completed action, result, and host assessment as recallable evidence.',
         ]),
       }),
+    }))
+    const executionSearchCalls = searchEpisodicEvents.mock.calls as unknown as Array<
+      [{ recollectionIntent?: { recollectionAgenda?: unknown } }]
+    >
+    const executionRecollectionAgenda = executionSearchCalls[0]?.[0]?.recollectionIntent?.recollectionAgenda
+    expect(executionRecollectionAgenda).toEqual(expect.objectContaining({
+      whyRecallNow: 'source=execution-feedback | target=goal | goal=preserve callback evidence',
+      candidateTimeScopes: expect.arrayContaining([
+        expect.objectContaining({
+          rationale: 'source=execution-feedback | scope=experience-matched',
+        }),
+      ]),
+      candidateEraFacets: expect.arrayContaining([
+        expect.objectContaining({
+          rationale: 'source=execution-feedback | facet=relationship-era',
+        }),
+      ]),
     }))
     expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({
@@ -228,7 +253,7 @@ describe('runtime memory reconsolidation', () => {
         payload: expect.objectContaining({
           source: 'execution-result-feedback',
           feedback: 'valued',
-          goal: 'keep callback continuity alive',
+          goal: 'preserve callback evidence',
           outcome: 'done',
           feedbackExperience: expect.objectContaining({
             felt: 'I felt the result become something genuinely useful to the host.',
@@ -276,16 +301,16 @@ describe('runtime memory reconsolidation', () => {
       sessionId: 'session-1',
       turnId: 'subconscious:memory-os-execution-1',
       at: 22,
-      goal: 'keep Memory OS callback continuity alive',
-      outcome: 'same-person callback carry stayed visible',
+      goal: 'preserve Memory OS callback evidence',
+      outcome: 'callback evidence remained available',
       memoryClosureExecution: {
         authority: 'memory-os',
-        carry: 'Carry the callback result into the next same-person reply instead of treating it as a fresh utility task.',
+        carry: 'retired-memory-control-payload',
         nextLearningAction: 'verify',
         shouldVerify: true,
         shouldReflect: true,
         activeLearningFocuses: ['memory closure authority', 'execution callback carry'],
-        reasonTags: ['memory-os', 'execution-feedback', 'same-person-callback'],
+        reasonTags: ['memory-os', 'execution-feedback', 'callback-evidence'],
         closureState: {
           state: 'open',
           open: true,
@@ -299,7 +324,6 @@ describe('runtime memory reconsolidation', () => {
     } as any)
 
     expect(searchEpisodicEvents).toHaveBeenCalledWith(expect.objectContaining({
-      recallSeed: expect.stringContaining('Carry the callback result into the next same-person reply'),
       affectAnchors: expect.arrayContaining([
         'execution-feedback:valued',
         'memory-os-learning:verify',
@@ -309,20 +333,19 @@ describe('runtime memory reconsolidation', () => {
       ]),
       relationshipAnchors: expect.arrayContaining([
         'Memory OS execution carry',
-        'Carry the callback result into the next same-person reply instead of treating it as a fresh utility task.',
         'memory closure authority',
         'execution callback carry',
       ]),
       recollectionIntent: expect.objectContaining({
         queryHints: expect.arrayContaining([
-          'Carry the callback result into the next same-person reply instead of treating it as a fresh utility task.',
           'next-learning-action=verify',
           'active-learning-focus=memory closure authority',
           'active-learning-focus=execution callback carry',
         ]),
-        rationale: expect.stringContaining('Memory OS carry:'),
+        rationale: expect.not.stringContaining('retired-memory-control-payload'),
       }),
     }))
+    expect(JSON.stringify(searchEpisodicEvents.mock.calls)).not.toContain('retired-memory-control-payload')
     expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({
         kind: 'memory-reconsolidated',
@@ -330,6 +353,7 @@ describe('runtime memory reconsolidation', () => {
           source: 'execution-result-feedback',
           memoryClosureExecution: expect.objectContaining({
             authority: 'memory-os',
+            carry: null,
             nextLearningAction: 'verify',
             shouldVerify: true,
             shouldReflect: true,
@@ -385,7 +409,7 @@ describe('runtime memory reconsolidation', () => {
         queryHints: expect.arrayContaining([
           'effect=mutate permission=none confirmation=required risk=implicit-or-explicit-confirmation-required audit=blocked-before-dispatch interrupt=no-process-started',
         ]),
-        rationale: expect.stringContaining('Safety gate:'),
+        rationale: expect.stringContaining('source=safety-gate'),
       }),
     }))
     expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([
@@ -448,7 +472,7 @@ describe('runtime memory reconsolidation', () => {
         queryHints: expect.arrayContaining([
           'approval=host-confirmed previous=needs-affirmation resumed=planned previousPermission=none permission=explicit effect=mutate risk=medium confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation',
         ]),
-        rationale: expect.stringContaining('Resume confirmation:'),
+        rationale: expect.stringContaining('source=resume-confirmation'),
       }),
     }))
     expect(appendMindTurnEvents).toHaveBeenCalledWith(expect.arrayContaining([

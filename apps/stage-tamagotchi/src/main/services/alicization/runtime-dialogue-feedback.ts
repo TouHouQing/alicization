@@ -30,10 +30,6 @@ interface AlicizationFeedbackMemoryExperience {
   tags?: string[] | null
 }
 
-function sanitizeProjectCarryText(raw: unknown, sanitizeText: CreateAlicizationRuntimeDialogueFeedbackOptions['sanitizeText']) {
-  return sanitizeText(raw, '').replace(/\s+/g, ' ').slice(0, 320)
-}
-
 function extractStructuredAffectiveResidue(
   structured: Record<string, unknown> | null,
 ): AlicizationAffectiveResidueMemorySnapshot | null {
@@ -110,8 +106,6 @@ interface CreateAlicizationRuntimeDialogueFeedbackOptions {
       turnId: string | null
       at: number
       feedbackExperience?: AlicizationFeedbackMemoryExperience | null
-      selfContinuityInwardLine?: string | null
-      selfContinuitySourceTags?: string[] | null
     }) => Promise<void>
   }
   alicizationDb: {
@@ -212,22 +206,7 @@ export function createAlicizationRuntimeDialogueFeedback(
     const governance = structured?.governance && typeof structured.governance === 'object' && !Array.isArray(structured.governance)
       ? structured.governance as Record<string, unknown>
       : null
-    const selfContinuityAuthority = structured?.personStateProjection
-      && typeof structured.personStateProjection === 'object'
-      && !Array.isArray(structured.personStateProjection)
-      && (structured.personStateProjection as Record<string, unknown>).selfContinuityAuthority
-      && typeof (structured.personStateProjection as Record<string, unknown>).selfContinuityAuthority === 'object'
-      && !Array.isArray((structured.personStateProjection as Record<string, unknown>).selfContinuityAuthority)
-      ? ((structured.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>)
-      : null
     const decisionTraceId = options.sanitizeText(governance?.decisionTraceId, '') || null
-    const selfContinuityInwardLine = sanitizeProjectCarryText(selfContinuityAuthority?.inwardLine, options.sanitizeText) || null
-    const selfContinuitySourceTags = Array.isArray(selfContinuityAuthority?.sourceTags)
-      ? selfContinuityAuthority.sourceTags
-          .map(tag => sanitizeProjectCarryText(tag, options.sanitizeText))
-          .filter(Boolean)
-          .slice(0, 12)
-      : []
     const affectiveResidue = extractStructuredAffectiveResidue(structured)
     const closure = options.attachSynthesizedReflections(options.buildDialogueReplyFeedbackOutcomeClosure({
       now: at,
@@ -251,19 +230,9 @@ export function createAlicizationRuntimeDialogueFeedback(
       turnId: options.sanitizeText(latest.turnId, '') || null,
       at,
       feedbackExperience,
-      selfContinuityInwardLine,
-      selfContinuitySourceTags,
     })
     const previousDynamics = await options.alicizationDb.getLatestRelationshipDynamics().catch(() => null)
-    const hostAttitude = feedback === 'received'
-      ? 'dialogue_feedback=received; trust_delta=positive; reply_policy=continue_human_authored; visibility=structured'
-      : feedback === 'robotic'
-        ? 'dialogue_feedback=robotic; trust_delta=negative; reply_policy=remove_template_shell; visibility=structured'
-        : feedback === 'missed'
-          ? 'dialogue_feedback=missed; trust_delta=repair_required; reply_policy=correct_before_continue; visibility=structured'
-          : feedback === 'intrusive'
-            ? 'dialogue_feedback=intrusive; distance_delta=more_space; reply_policy=lower_pressure; visibility=structured'
-            : 'dialogue_feedback=interrupted; distance_delta=paused; reply_policy=wait_for_new_user_opening; visibility=structured'
+    const hostAttitude = `dialogue_feedback=${feedback}`
     await options.alicizationDb.appendRelationshipDynamics({
       hostAttitude,
       previousHostAttitude: previousDynamics?.hostAttitude ?? null,

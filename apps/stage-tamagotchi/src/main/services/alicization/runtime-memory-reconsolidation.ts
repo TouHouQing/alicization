@@ -80,10 +80,6 @@ export function collectRecallTelemetryTexts(payload: Record<string, unknown> | n
       texts.push(text)
   }
 
-  push(payload?.whyNow)
-  push(payload?.inwardLine)
-  push(payload?.visibleLine)
-
   for (const key of ['selectedPeriods', 'selectedEpisodes', 'selectedProcedures', 'selectedBundles', 'selectedChains'] as const) {
     const items = Array.isArray(payload?.[key]) ? payload[key] : []
     for (const item of items) {
@@ -92,10 +88,6 @@ export function collectRecallTelemetryTexts(payload: Record<string, unknown> | n
       const candidate = item as Record<string, unknown>
       push(candidate.summary)
       push(candidate.label)
-      push(candidate.approach)
-      push(candidate.rationale)
-      push(candidate.currentStance)
-      push(candidate.answerPosture)
       push(candidate.relationshipLine)
     }
   }
@@ -201,7 +193,7 @@ function sanitizeMemoryClosureExecution(
     : []
   const normalized = {
     authority: 'memory-os',
-    carry: sanitizeText(input.carry, '').slice(0, 220) || null,
+    carry: null,
     nextLearningAction: sanitizeText(input.nextLearningAction, '').slice(0, 80) || null,
     shouldVerify: input.shouldVerify === true,
     shouldReflect: input.shouldReflect === true,
@@ -236,7 +228,6 @@ function collectMemoryClosureExecutionTexts(
     return []
 
   return uniqueReconsolidationTexts([
-    input.carry,
     input.nextLearningAction ? `next-learning-action=${input.nextLearningAction}` : null,
     ...input.activeLearningFocuses.map(focus => `active-learning-focus=${focus}`),
     input.shouldVerify ? 'memory-os-verify' : null,
@@ -326,13 +317,13 @@ function collectRecallSituations(
 export function buildDialogueFeedbackReconsolidationRationale(
   feedback: AlicizationDialogueReplyFeedbackKind,
 ) {
-  return `Dialogue feedback: ${feedback}.`
+  return `source=dialogue-feedback | feedback=${feedback}`
 }
 
 function buildExecutionResultFeedbackReconsolidationRationale(
   feedback: AlicizationExecutionResultFeedbackKind,
 ) {
-  return `Execution feedback: ${feedback}.`
+  return `source=execution-feedback | feedback=${feedback}`
 }
 
 export function createAlicizationRuntimeMemoryReconsolidation(
@@ -348,8 +339,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
     turnId: string | null
     at: number
     feedbackExperience?: AlicizationFeedbackMemoryExperience | null
-    selfContinuityInwardLine?: string | null
-    selfContinuitySourceTags?: string[] | null
   }) => {
     const decisionTraceId = options.sanitizeMindGovernanceDecisionTraceId(input.decisionTraceId)
     if (!decisionTraceId || !input.feedback || input.feedback === 'received')
@@ -371,13 +360,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
       ...feedbackExperienceTexts,
       ...collectRecallTelemetryTexts(recallEvent.payload, options.sanitizeText),
     ], 12)
-    const selfContinuityInwardLine = options.sanitizeText(input.selfContinuityInwardLine, '').slice(0, 220) || null
-    const selfContinuitySourceTags = Array.isArray(input.selfContinuitySourceTags)
-      ? input.selfContinuitySourceTags
-          .map(tag => options.sanitizeText(tag, '').slice(0, 64))
-          .filter(tag => Boolean(tag) && tag !== 'project-state-carry')
-          .slice(0, 12)
-      : []
     if (recallTexts.length === 0)
       return
 
@@ -385,7 +367,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
     const feedbackSeed = [
       input.userText,
       input.previousAssistantText,
-      selfContinuityInwardLine ?? '',
       ...recallTexts,
       coherence.coherenceState ? `coherence:${coherence.coherenceState}` : '',
     ].filter(Boolean).join(' | ')
@@ -416,7 +397,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
           item.relationshipContext ?? '',
           item.hostAttitude ?? '',
         ])),
-        selfContinuityInwardLine ? `self-continuity:${selfContinuityInwardLine}` : '',
         coherence.coherenceState ? `reply-memory-coherence:${coherence.coherenceState}` : '',
       ].filter(Boolean),
       carryAsMemory: true,
@@ -430,9 +410,7 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         rationale: buildDialogueFeedbackReconsolidationRationale(input.feedback),
         confidence: 0.78,
         recollectionAgenda: {
-          whyRecallNow: selfContinuityInwardLine
-            ? `source=host-correction | target=similar-turn | evidence=${selfContinuityInwardLine}`
-            : 'source=host-correction | target=similar-turn',
+          whyRecallNow: 'source=host-correction | target=similar-turn',
           goalSimilarity: 0.78,
           relationshipNeed: 0.72,
           affectivePull: 0.44,
@@ -483,8 +461,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         feedback: input.feedback,
         feedbackExperience,
         selectedSituations,
-        selfContinuityInwardLine,
-        selfContinuitySourceTags,
         recallCueCount: recallTexts.length,
         recalledEpisodeIds: reconsolidated.map(event => event.id),
         reconsolidatedCount: reconsolidated.length,
@@ -568,7 +544,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
       relationshipAnchors: [
         'execution callback return',
         memoryClosureExecution ? 'Memory OS execution carry' : '',
-        memoryClosureExecution?.carry ?? '',
         ...(memoryClosureExecution?.activeLearningFocuses ?? []),
         safetyGateSummary ? 'execution safety restraint' : '',
         safetyGateSummary ? options.sanitizeText(safetyGateSummary.match(/\binterrupt=\S+/u)?.[0], '').slice(0, 80) : '',
@@ -588,13 +563,15 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         queryHints: recallTexts,
         rationale: [
           buildExecutionResultFeedbackReconsolidationRationale(input.feedback),
-          memoryClosureExecution?.carry ? `Memory OS carry: ${memoryClosureExecution.carry}.` : '',
-          safetyGateSummary ? `Safety gate: ${safetyGateSummary}.` : '',
-          resumeConfirmationSummary ? `Resume confirmation: ${resumeConfirmationSummary}.` : '',
+          memoryClosureExecution
+            ? `source=memory-os | next-learning-action=${memoryClosureExecution.nextLearningAction ?? 'none'}`
+            : '',
+          safetyGateSummary ? `source=safety-gate | evidence=${safetyGateSummary}` : '',
+          resumeConfirmationSummary ? `source=resume-confirmation | evidence=${resumeConfirmationSummary}` : '',
         ].filter(Boolean).join(' '),
         confidence: 0.8,
         recollectionAgenda: {
-          whyRecallNow: `The host just reacted to an execution callback return for ${options.sanitizeText(input.goal, 'this execution line').slice(0, 120)}, so Alicization should remember how the current execution context ought to come back after acting.`,
+          whyRecallNow: `source=execution-feedback | target=goal | goal=${options.sanitizeText(input.goal, 'execution').slice(0, 120)}`,
           goalSimilarity: 0.84,
           relationshipNeed: 0.74,
           affectivePull: 0.42,
@@ -603,14 +580,14 @@ export function createAlicizationRuntimeMemoryReconsolidation(
             {
               scope: 'experience-matched',
               weight: 0.9,
-              rationale: 'Search previous execution-return moments before falling back to generic history.',
+              rationale: 'source=execution-feedback | scope=experience-matched',
             },
           ],
           candidateEraFacets: [
             {
               facet: 'relationship-era',
               weight: 0.8,
-              rationale: 'This feedback is about how execution results should land between her and the host.',
+              rationale: 'source=execution-feedback | facet=relationship-era',
             },
           ],
           candidateProcedureLines: recallTexts

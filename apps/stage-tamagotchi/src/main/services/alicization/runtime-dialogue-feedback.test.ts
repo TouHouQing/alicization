@@ -38,7 +38,7 @@ describe('runtime dialogue feedback', () => {
     const runtime = createAlicizationRuntimeDialogueFeedback({
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-      readLatestUserMessageText: () => '你这句太模板了',
+      readLatestUserMessageText: () => '你漏掉了刚才的关键事实',
       ensureActiveOrLatestSessionId: async () => 'session-1',
       withCardScope: async (_cardId, task) => await task(),
       ensureDialogueReplyFeedbackAck: async () => '',
@@ -47,12 +47,6 @@ describe('runtime dialogue feedback', () => {
         format: 'mind-turn-v1',
         governance: {
           decisionTraceId: 'trace-1',
-        },
-        personStateProjection: {
-          selfContinuityAuthority: {
-            inwardLine: 'structured continuity digest.',
-            sourceTags: ['autobiographical-self', 'project-state-carry'],
-          },
         },
       }),
       deriveDialogueReplyFeedbackKind: () => 'robotic',
@@ -67,7 +61,7 @@ describe('runtime dialogue feedback', () => {
         listConversationTurnsBySession: async () => [{
           turnId: 'turn-1',
           sessionId: 'session-1',
-          assistantText: '上一句像模板壳。',
+          assistantText: '我刚才遗漏了关键事实。',
           structuredJson: '{}',
           createdAt: 1,
         }],
@@ -88,16 +82,15 @@ describe('runtime dialogue feedback', () => {
     expect(result).toBe('robotic')
     expect(persistOutcomeClosure).toHaveBeenCalled()
     expect(persistOutcomeClosure).toHaveBeenCalledWith('card-1', expect.objectContaining({
-      memoryFacts: expect.arrayContaining([
-        expect.objectContaining({
-          subject: 'project',
-          predicate: 'closure',
-          object: expect.stringContaining('memory_continuity=local_runtime'),
-        }),
-      ]),
+      memoryFacts: [],
+      reflections: [],
       episodicEvents: expect.arrayContaining([
         expect.objectContaining({
-          lesson: expect.stringContaining('one continuous response context'),
+          sourceKind: 'dialogue-feedback',
+          whatHappened: expect.stringContaining('feedback=robotic'),
+          felt: null,
+          relationshipMeaning: null,
+          lesson: null,
         }),
       ]),
     }))
@@ -105,22 +98,15 @@ describe('runtime dialogue feedback', () => {
       cardId: 'card-1',
       decisionTraceId: 'trace-1',
       feedback: 'robotic',
-      feedbackExperience: expect.objectContaining({
-        felt: expect.stringContaining('reply shelled over'),
-        relationshipMeaning: expect.stringContaining('tool shell'),
-        lesson: expect.stringContaining('Let the body return like this'),
-        tags: expect.arrayContaining([
-          'dialogue-feedback',
-          'feedback:robotic',
-          'body-rehumanize',
-          'continuity-evidence',
-          'residue-shell-pressure',
-        ]),
-      }),
-      selfContinuityInwardLine: 'structured continuity digest.',
-      selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry'],
+      feedbackExperience: {
+        felt: null,
+        relationshipMeaning: null,
+        lesson: null,
+        tags: ['dialogue-feedback', 'feedback:robotic'],
+      },
     }))
     expect(appendRelationshipDynamics).toHaveBeenCalledWith(expect.objectContaining({
+      hostAttitude: 'dialogue_feedback=robotic',
       source: 'dialogue-feedback:robotic',
     }))
     expect(persistDialogueReplyFeedbackAck).toHaveBeenCalled()
@@ -155,8 +141,8 @@ describe('runtime dialogue feedback', () => {
               confidence: 0.84,
               polarity: 'warm',
               releaseMode: 'delay-until-open-window',
-              summary: 'The line is still settling inwardly before it can reopen.',
-              sourceSignals: ['same-thread-afterglow'],
+              summary: 'The previous turn remains emotionally salient.',
+              sourceSignals: ['previous-turn-affect'],
               lastUpdatedAt: 88_100,
             }],
             dominantResidueKind: 'afterglow',
@@ -166,8 +152,8 @@ describe('runtime dialogue feedback', () => {
             trustPressure: 0.47,
             restProtectivePressure: 0.18,
             relationshipCadence: {
-              cadenceMode: 'measured-return',
-              distancePosture: 'measured-room',
+              cadenceMode: 'repair',
+              distancePosture: 'observed',
               companionshipDensity: 0.52,
               repairRecovery: 0.31,
               overreachRisk: 0.36,
@@ -175,11 +161,11 @@ describe('runtime dialogue feedback', () => {
               afterglowCarry: 0.62,
               shouldDelayWarmth: true,
               shouldProtectRest: false,
-              reasonTags: ['same-thread-afterglow'],
-              summary: 'Leave measured room before reopening the same line.',
+              reasonTags: ['previous-turn-affect'],
+              summary: 'Relationship cadence evidence from the previous turn.',
             },
-            sourceSignals: ['same-thread-afterglow'],
-            summary: 'The same line still wants a measured return.',
+            sourceSignals: ['previous-turn-affect'],
+            summary: 'The previous turn remains emotionally salient.',
           },
           derivedMindStateBundle: {
             affectiveResidue: {
@@ -192,8 +178,8 @@ describe('runtime dialogue feedback', () => {
                 confidence: 0.87,
                 polarity: 'protective',
                 releaseMode: 'delay-until-open-window',
-                summary: 'Repair still wants the line to stay quieter than before.',
-                sourceSignals: ['repair-before-closeness'],
+                summary: 'The host correction remains emotionally salient.',
+                sourceSignals: ['host-correction'],
                 lastUpdatedAt: 88_200,
               }],
               dominantResidueKind: 'repair',
@@ -204,7 +190,7 @@ describe('runtime dialogue feedback', () => {
               restProtectivePressure: 0.26,
               relationshipCadence: {
                 cadenceMode: 'repair',
-                distancePosture: 'protect-space',
+                distancePosture: 'observed',
                 companionshipDensity: 0.44,
                 repairRecovery: 0.72,
                 overreachRisk: 0.39,
@@ -212,11 +198,11 @@ describe('runtime dialogue feedback', () => {
                 afterglowCarry: 0.46,
                 shouldDelayWarmth: true,
                 shouldProtectRest: false,
-                reasonTags: ['repair-before-closeness'],
-                summary: 'Repair cadence still wants quiet room.',
+                reasonTags: ['host-correction'],
+                summary: 'Relationship cadence evidence from the host correction.',
               },
-              sourceSignals: ['repair-before-closeness'],
-              summary: 'Repair residue is still carrying the line inwardly.',
+              sourceSignals: ['host-correction'],
+              summary: 'The host correction remains emotionally salient.',
             },
           },
         },
@@ -256,7 +242,7 @@ describe('runtime dialogue feedback', () => {
       affectiveResidue: expect.objectContaining({
         dominantResidueKind: 'afterglow',
         relationshipCadence: expect.objectContaining({
-          cadenceMode: 'measured-return',
+          cadenceMode: 'repair',
         }),
       }),
     }))

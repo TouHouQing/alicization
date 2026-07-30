@@ -8,12 +8,10 @@ describe('runtime memory runtime', () => {
       {
         kind: 'recall-attribution',
         payload: {
-          whyNow: 'The remembered runtime seam still matters here.',
-          inwardLine: 'structured continuity digest.',
           selectedEpisodes: [
             {
-              summary: 'repair before closeness landed better on the same thread',
-              relationshipLine: 'leave room before widening closeness',
+              summary: 'runtime verification completed on the selected thread',
+              relationshipLine: 'the host corrected the missing detail',
             },
           ],
         },
@@ -21,8 +19,8 @@ describe('runtime memory runtime', () => {
       {
         kind: 'reply-memory-coherence',
         payload: {
-          coherenceState: 'stable-seam',
-          surfacePolicy: 'repair-first',
+          coherenceState: 'matched',
+          surfacePolicy: 'evidence-only',
           explicitSurfaceExpected: true,
           explicitSurfaceObserved: true,
           matchedCueKinds: ['relationship-line'],
@@ -62,14 +60,14 @@ describe('runtime memory runtime', () => {
           occurredAt: 10,
           whereSummary: 'focused work',
           withWhom: ['host'],
-          threadAnchor: 'runtime seam',
-          whatHappened: 'repair before closeness landed better',
+          threadAnchor: 'runtime verification',
+          whatHappened: 'verification completed with corrected evidence',
           felt: null,
           emotionTags: [],
-          whatChanged: 'The host opened more when the reply stayed grounded.',
-          relationshipMeaning: 'Repair before closeness keeps trust stable.',
-          lesson: 'Repair before closeness.',
-          sourceSummary: 'runtime seam',
+          whatChanged: 'The corrected evidence was recorded.',
+          relationshipMeaning: 'The host correction was associated with a successful verification.',
+          lesson: 'verification=evidence_checked',
+          sourceSummary: 'runtime verification',
           confidence: 0.82,
           salience: 0.76,
           sceneAttachment: 0.5,
@@ -99,12 +97,12 @@ describe('runtime memory runtime', () => {
           burdenShift: 0,
           executionTrustShift: 0,
           relationshipDoctrineShift: 0.08,
-          latestDoctrine: 'Repair before closeness.',
-          latestBurdenLine: 'Do not crowd the host when focused.',
-          latestTrustMeaning: 'Trust rises when the reply stays grounded.',
-          latestDominantRung: 'space-first',
-          recentSummaries: ['Repair before closeness.'],
-          explanation: ['Repair before closeness.'],
+          latestDoctrine: 'evidence=verified',
+          latestBurdenLine: 'focus_state=recorded',
+          latestTrustMeaning: 'trust_signal=verified-result',
+          latestDominantRung: 'evidence-first',
+          recentSummaries: ['evidence=verified'],
+          explanation: ['evidence=verified'],
           updatedAt: 10,
         }),
         readMindHead: async () => null,
@@ -145,13 +143,11 @@ describe('runtime memory runtime', () => {
       cardId: 'card-1',
       decisionTraceId: 'trace-1',
       feedback: 'robotic',
-      previousAssistantText: '模板壳',
-      userText: '你这句太模板了',
+      previousAssistantText: '遗漏了关键事实',
+      userText: '你漏掉了关键事实',
       sessionId: 'session-1',
       turnId: 'turn-1',
       at: 10,
-      selfContinuityInwardLine: 'structured continuity digest.',
-      selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry'],
     })
 
     expect(context.hostAttitude).toBe('warm')
@@ -181,10 +177,6 @@ describe('runtime memory runtime', () => {
         payload: expect.objectContaining({
           source: 'dialogue-feedback',
           feedback: 'robotic',
-          projectState: expect.objectContaining({
-            selfContinuityInwardLine: 'structured continuity digest.',
-            selfContinuitySourceTags: ['autobiographical-self', 'project-state-carry'],
-          }),
         }),
       }),
     ]))
