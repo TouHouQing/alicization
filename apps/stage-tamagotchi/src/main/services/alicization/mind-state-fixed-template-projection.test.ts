@@ -1827,9 +1827,6 @@ describe('mind state fixed-template projection cleanup', () => {
       turnId: 'subconscious:default:deferred',
       scenario: 'coding',
       reason: 'proactive-visible-presence-without-utterance',
-      projectState: {
-        emotionalClosureCue: 'Keep this return low-pressure on the continuity state and let repair-before-closeness settle before widening warmth again.',
-      },
       autonomy: {
         whyNow: '',
         sourceThreadId: 'thread-runtime',

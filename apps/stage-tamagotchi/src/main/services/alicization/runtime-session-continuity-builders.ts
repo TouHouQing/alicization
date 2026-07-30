@@ -15,12 +15,6 @@ import type {
 } from './proactive-feedback'
 
 import {
-  alicizationFixedTemplateReplacement,
-  containsAlicizationFixedTemplateResidue,
-  formatAlicizationProjectStateAwarenessFields,
-} from '@proj-alicization/stage-shared'
-
-import {
   buildDeferredAutonomyCanonicalSignal,
   deferredAutonomyContinuityBudgets,
   normalizeDeferredAutonomyCanonicalFreeText,
@@ -67,194 +61,21 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       : []
   }
 
-  type ProjectStateCarryField
-    = | 'identity'
-      | 'phase'
-      | 'awareness'
-      | 'preflight'
-      | 'landed'
-      | 'open'
-      | 'next'
-      | 'continuity_anchor'
-      | 'continuity_hold'
-      | 'continuity_drift_risk'
-      | 'emotional_closure'
-      | 'summary'
-      | 'generic'
-
-  function extractStructuredProjectStateField(structured: string, key: string) {
-    return structured
-      .split('|')
-      .map(part => part.trim())
-      .find(part => part.startsWith(`${key}=`))
-      ?.replace(new RegExp(`^${key}=`, 'u'), '')
-      .trim()
-      || ''
-  }
-
-  function structureEmbodimentProjectCarry(raw: string) {
-    const lower = raw.toLowerCase()
-    const mentionedLanes = [
-      /\bbody\b|身体/u.test(lower) ? 'body' : '',
-      /\bface\b|表情/u.test(lower) ? 'face' : '',
-      /\bmotion\b|动作/u.test(lower) ? 'motion' : '',
-      /\blipsync\b|lip sync|唇型/u.test(lower) ? 'lipsync' : '',
-      /\bvoice\b|声音/u.test(lower) ? 'voice' : '',
-    ].filter(Boolean)
-    if (!mentionedLanes.length)
-      return ''
-
-    const pendingSource = lower.match(/(?:while|but)\s+([^.!?。]+?)\s+(?:need|needs|still need|still needs|还要|需要)\s+(?:to\s+)?(?:rejoin|close|接回|闭环)/u)?.[1] ?? ''
-    const pendingLanes = [
-      /\bbody\b|身体/u.test(pendingSource) ? 'body' : '',
-      /\bface\b|表情/u.test(pendingSource) ? 'face' : '',
-      /\bmotion\b|动作/u.test(pendingSource) ? 'motion' : '',
-      /\blipsync\b|lip sync|唇型/u.test(pendingSource) ? 'lipsync' : '',
-      /\bvoice\b|声音/u.test(pendingSource) ? 'voice' : '',
-    ].filter(Boolean)
-    const activeLanes = mentionedLanes.filter(lane => !pendingLanes.includes(lane))
-
-    return [
-      `embodiment_lanes=${(activeLanes.length ? activeLanes : mentionedLanes).join('+')}`,
-      pendingLanes.length ? `pending_lanes=${pendingLanes.join('+')}` : '',
-      `status=${pendingLanes.length ? 'missing_lanes' : 'partial'}`,
-    ].filter(Boolean).join('; ')
-  }
-
-  function structuredProjectStateCarryFromFixedTemplate(
-    normalized: string,
-    maxChars: number,
-    field: ProjectStateCarryField,
-  ) {
-    if (field === 'identity')
-      return ''
-    if (field === 'phase')
-      return ''
-
-    const embodimentFact = structureEmbodimentProjectCarry(normalized)
-    if (embodimentFact && (field === 'awareness' || field === 'summary'))
-      return embodimentFact
-
-    if (
-      (field === 'next' || field === 'emotional_closure')
-      && /repair[_-]before[_-]closeness|repair before closeness|repair-first|repair first|先修复|修复优先/u.test(normalized)
-    ) {
-      return ''
-    }
-
-    if (field === 'preflight') {
-      const carriesExplicitProjectFacts
-        = /(?:^|\|\s*)(identity|phase|landed|open|next|continuity_anchor|continuity_hold|continuity_drift_risk|emotional_closure)=/iu.test(normalized)
-          || /memory|initiative|embodiment|dialogue|execution|visible reply|voice|face|motion|lipsync|记忆|主动性|具身|对话|执行/u.test(normalized)
-      if (!carriesExplicitProjectFacts)
-        return alicizationFixedTemplateReplacement
-    }
-
-    if (field === 'summary') {
-      const lower = normalized.toLowerCase()
-      const summaryHasOldCue = /callback|回调|lower-pressure|low-pressure|measured-return|measured return|leave room|more room|repair[_-]before[_-]closeness|repair before closeness|repair-first|repair first|先修复|修复优先/u.test(lower)
-      if (summaryHasOldCue)
-        return ''
-    }
-
-    const structuredAwareness = formatAlicizationProjectStateAwarenessFields({
-      identity: normalized,
-      currentPhase: normalized,
-      latestLandedProgress: normalized,
-      primaryOpenLoop: normalized,
-      nextClosureTarget: normalized,
-      sameHerSelfLine: normalized,
-      sameHerHoldDetail: normalized,
-      sameHerDriftRisk: normalized,
-      emotionalClosureCue: normalized,
-      summary: normalized,
-      maxChars,
-    })
-
-    if (field === 'awareness' || field === 'preflight')
-      return structuredAwareness
-
-    const fieldKey = field === 'landed'
-      ? 'landed'
-      : field === 'open'
-        ? 'open'
-        : field === 'next'
-          ? 'next'
-          : field === 'continuity_anchor'
-            ? 'continuity_anchor'
-            : field === 'continuity_hold'
-              ? 'continuity_hold'
-              : field === 'continuity_drift_risk'
-                ? 'continuity_drift_risk'
-                : field === 'emotional_closure'
-                  ? 'continuity_hold'
-                  : field === 'summary'
-                    ? 'summary'
-                    : ''
-    if (!fieldKey)
-      return alicizationFixedTemplateReplacement
-
-    return extractStructuredProjectStateField(structuredAwareness, fieldKey)
-      || alicizationFixedTemplateReplacement
-  }
-
-  function sanitizeProjectStateCarryText(
+  function sanitizeAfterglowEvidenceText(
     raw: unknown,
     maxChars: number,
-    field: ProjectStateCarryField = 'generic',
   ) {
-    const normalized = sanitizeBriefText(typeof raw === 'string' ? raw : '', maxChars)
-    if (!normalized)
-      return ''
-    if (!containsAlicizationFixedTemplateResidue(normalized))
-      return normalized
-
-    return sanitizeBriefText(
-      structuredProjectStateCarryFromFixedTemplate(normalized, maxChars, field),
-      maxChars,
-    ) || alicizationFixedTemplateReplacement
+    return sanitizeBriefText(typeof raw === 'string' ? raw : '', maxChars)
   }
 
   function sanitizeRuntimeContinuityToken(raw: unknown, maxChars: number) {
-    const normalized = sanitizeBriefText(typeof raw === 'string' ? raw : '', maxChars)
-    if (!normalized)
-      return ''
-    return containsAlicizationFixedTemplateResidue(normalized)
-      ? sanitizeBriefText(
-          normalized
-            .replace(/same[-_ ]her/giu, 'continuity')
-            .replace(/same[-_ ]living[-_ ]line/giu, 'continuity-line')
-            .replace(/same[-_ ]digital[-_ ]life/giu, 'phase1-local-digital-life')
-            .replace(/phase\s*1\s*:\s*local\s*digital\s*life/giu, 'phase1-local-digital-life')
-            .replace(/one[-_ ]?continuous[-_ ]?her/giu, 'continuity')
-            .replace(/local[-_ ]first[-_ ]digital[-_ ]life[-_ ]project/giu, 'phase1-local-digital-life')
-            .replace(/同一个\s*her|同一个她/giu, 'continuity')
-            .replace(/数字生命主线/gu, 'phase1-local-digital-life'),
-          maxChars,
-        )
-      : normalized
+    return sanitizeBriefText(typeof raw === 'string' ? raw : '', maxChars)
   }
 
   function normalizeExecutionDeliveryStatus(
     status: AlicizationTaskThreadRecord['status'],
   ): AlicizationAgentSessionActionInput['status'] {
     return status === 'completed' ? 'completed' : 'failed'
-  }
-
-  function resolveProjectStateCarryFromEvent(event: AlicizationEpisodicEventRecord) {
-    void event
-    return {
-      projectStatePreDialogueAwarenessLine: null,
-      projectStatePreflightSummary: null,
-      projectLatestLandedProgress: null,
-      projectIdentity: null,
-      projectPhase: null,
-      projectStateSameHerSelfLine: null,
-      projectPrimaryOpenLoop: null,
-      projectNextClosureTarget: null,
-      projectStateOpenFocusSummary: null,
-      projectStateNextFocusSummary: null,
-    }
   }
 
   function buildExecutionDeliveryAction(entry: {
@@ -492,13 +313,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const outcomeName = sanitizeText(outcome.outcome) || 'observed'
     const turnId = sanitizeRuntimeContinuityToken(outcome.turnId, 120)
     const learningAction = sanitizeText(outcome.learningAction ?? '') || null
-    const learningFocuses = Array.isArray(outcome.learningFocuses)
-      ? outcome.learningFocuses
-          .map(item => sanitizeBriefText(item, 96))
-          .filter(item => Boolean(item) && item !== 'same-her-inward-carry')
-          .slice(0, 3)
-      : []
-
     return {
       kind: 'proactive',
       state: 'observed',
@@ -516,10 +330,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         scenario,
         outcome: outcomeName,
         learningAction,
-        learningFocuses,
-        projectStateOpenFocusSummary: null,
-        projectStateNextFocusSummary: null,
-        projectStateEmotionalClosureCue: null,
       },
     }
   }
@@ -563,12 +373,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     const scenario = sanitizeText(input.pending.scenario) || 'general'
     const turnId = sanitizeRuntimeContinuityToken(input.pending.turnId, 120)
     const learningAction = sanitizeText(input.pending.learningAction ?? '') || null
-    const learningFocuses = Array.isArray(input.pending.learningFocuses)
-      ? input.pending.learningFocuses
-          .map(item => sanitizeBriefText(item, 96))
-          .filter(item => Boolean(item) && item !== 'same-her-inward-carry')
-          .slice(0, 3)
-      : []
     return {
       kind: 'proactive',
       state: 'pending',
@@ -587,10 +391,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         deliveredAt: Math.max(0, Math.floor(Number(input.pending.deliveredAt) || 0)),
         feedbackWindowMs: Math.max(1_000, Math.floor(Number(input.pending.feedbackWindowMs) || proactiveReplyWindowMs)),
         learningAction,
-        learningFocuses,
-        projectStateOpenFocusSummary: null,
-        projectStateNextFocusSummary: null,
-        projectStateEmotionalClosureCue: null,
       },
     }
   }
@@ -600,30 +400,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     turnId: string
     scenario: string
     reason: string
-    projectState?: {
-      preflightSummary?: string | null
-      preDialogueAwarenessLine?: string | null
-      preDialogueAwarenessSummary?: string | null
-      companionHeadlineLine?: string | null
-      companionBriefingLine?: string | null
-      identity?: string | null
-      currentPhase?: string | null
-      latestProgress?: string | null
-      latestLandedProgress?: string | null
-      landedProgressSummary?: string | null
-      memoryClosureSummary?: string | null
-      primaryOpenLoop?: string | null
-      openClosureSummary?: string | null
-      nextClosureTarget?: string | null
-      nextClosureTargetSummary?: string | null
-      sameHerSelfLine?: string | null
-      sameHerHoldDetail?: string | null
-      sameHerDriftRisk?: string | null
-      sameHerDriftRiskSummary?: string | null
-      openFocusSummary?: string | null
-      nextFocusSummary?: string | null
-      emotionalClosureCue?: string | null
-    } | null
     autonomy?: {
       deferReason?: string | null
       whyNow?: string | null
@@ -728,8 +504,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       sourceConcernId,
       sourceThreadId,
       sourceThoughtThreadId,
-      summary: summarySelection.summary,
-      summaryOwner: summarySelection.summaryOwner,
       targetThreadId,
       threadId: sourceThreadId || targetThreadId,
       turnId,
@@ -942,34 +716,9 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     return candidates.map((event) => {
       const ageMinutes = Math.max(0, (now - event.occurredAt) / 60_000)
       const threadAnchor = sanitizeRuntimeContinuityToken(event.threadAnchor ?? '', 120)
-      const tags = event.tags.map(tag => sanitizeRuntimeContinuityToken(tag, 80).toLowerCase()).filter(Boolean)
-      const tagSet = new Set(tags)
-      const projectStateCarry = resolveProjectStateCarryFromEvent(event)
-      const looksLikeExecutionCallback = [
-        'execution-callback',
-        'callback',
-        'result-mode',
-        'result-lead',
-        'soft-handoff',
-      ].some(tag => tagSet.has(tag))
-      const carryMode = looksLikeExecutionCallback
-        ? (
-            ['repair-before-closeness', 'repair-first', 'callback-repair'].some(tag => tagSet.has(tag))
-              ? 'repair-before-closeness'
-              : ['lower-pressure', 'leave-room', 'bounded-room', 'space-first'].some(tag => tagSet.has(tag))
-                  ? 'lower-pressure'
-                  : ['trust-warming', 'soft-handoff', 'trust-open'].some(tag => tagSet.has(tag))
-                      ? 'trust-warming'
-                      : 'execution-callback'
-          )
-        : null
-      const summaryLine = sanitizeProjectStateCarryText(
-        event.relationshipMeaning
-        || event.lesson
-        || event.whatChanged
-        || event.whatHappened,
+      const summaryLine = sanitizeAfterglowEvidenceText(
+        event.whatHappened,
         160,
-        'summary',
       )
       const sourceTag = event.sourceKind === 'maintenance'
         ? 'afterglow'
@@ -979,18 +728,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
       return {
         kind: 'runtime' as const,
         state: ageMinutes <= 360 ? 'fresh' as const : 'observed' as const,
-        label: looksLikeExecutionCallback
-          ? `afterglow:execution-callback:${carryMode}`
-          : `afterglow:${sourceTag}`,
-        summary: [
-          threadAnchor ? `thread=${threadAnchor}` : '',
-          looksLikeExecutionCallback ? 'continuity=execution-callback' : '',
-          carryMode ? `carry-mode=${carryMode}` : '',
-          summaryLine ? `carry=${summaryLine}` : '',
-          `source=${event.sourceKind}`,
-          `provenance=${event.latestReconsolidation?.provenance ?? event.provenance}`,
-          `${ageMinutes.toFixed(1)}m old`,
-        ].filter(Boolean).join(' | '),
+        label: `afterglow:${sourceTag}`,
+        summary: summaryLine || null,
         signature: [
           'autobiographical-afterglow',
           sanitizeRuntimeContinuityToken(event.id, 160),
@@ -1007,9 +746,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
           sessionId: event.sessionId ?? null,
           fromPreviousSession: Boolean(activeSessionId && event.sessionId && event.sessionId !== activeSessionId),
           afterglowTag: sourceTag,
-          continuityKind: looksLikeExecutionCallback ? 'execution-callback' : 'afterglow',
-          executionCallbackCarryMode: carryMode,
-          ...projectStateCarry,
         },
       } satisfies AlicizationAgentSessionContinuityInput
     })

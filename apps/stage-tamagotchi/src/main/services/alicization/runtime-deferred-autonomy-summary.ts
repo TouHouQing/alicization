@@ -1,7 +1,7 @@
 import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
 export type DeferredAutonomySummaryMode = 'deferred' | 'held-autonomy'
-export type DeferredAutonomySummaryOwner = 'failure' | 'why-now' | 'execution-intent'
+export type DeferredAutonomySummaryOwner = 'failure'
 export const deferredAutonomyCanonicalVersion = 'deferred-autonomy-v1'
 
 export interface DeferredAutonomyCanonicalSummaryValidation {
@@ -156,8 +156,6 @@ export interface BuildDeferredAutonomyCanonicalSignalInput {
   sourceConcernId: string
   sourceThreadId: string
   sourceThoughtThreadId: string
-  summary: string | null
-  summaryOwner: DeferredAutonomySummaryOwner | null
   targetThreadId: string
   threadId: string
   turnId: string
@@ -193,21 +191,7 @@ export function buildDeferredAutonomyCanonicalSignal(
     deferredAutonomyContinuityBudgets.executionIntentSummary,
   )
   const failure = normalizeDeferredAutonomyTypedFailure(input.failure)
-  const summaryOwner = failure
-    ? 'failure'
-    : input.summaryOwner === 'failure'
-      ? null
-      : input.summaryOwner
-  const summary = failure || (
-    summaryOwner === 'why-now'
-      ? whyNow
-      : summaryOwner === 'execution-intent'
-        ? executionIntentSummary
-        : normalizeDeferredAutonomyCanonicalFreeText(
-            input.summary,
-            deferredAutonomyContinuityBudgets.whyNow,
-          )
-  )
+  const summaryOwner = failure ? 'failure' : null
   const structuredDeferReason = deferReason && deferReason !== failure
     ? deferReason
     : null
@@ -216,7 +200,7 @@ export function buildDeferredAutonomyCanonicalSignal(
     kind: 'proactive',
     state: input.source === 'proactive-deferred' ? 'pending' : 'observed',
     label: `proactive:${subject}:${input.source === 'proactive-deferred' ? 'deferred' : 'held-autonomy'}`,
-    summary: summary || null,
+    summary: failure || null,
     signature: [
       input.source,
       input.turnId || 'turn',
@@ -261,45 +245,12 @@ export function normalizeDeferredAutonomyCanonicalText(
   return normalizeDeferredAutonomyRawText(value).slice(0, maxChars)
 }
 
-const historicalContinuityGovernanceFingerprints = new Set([
-  '40:fd39cad0',
-  '46:48ddcc05',
-])
-
-const legacyPreviousGovernanceMarkerPattern
-  = /(?:^|[^\p{L}\p{N}_])legacy_previous_governance(?:$|[^\p{L}\p{N}_])/iu
-
-export function containsLegacyPreviousGovernanceMarker(raw: unknown) {
-  return typeof raw === 'string'
-    && legacyPreviousGovernanceMarkerPattern.test(raw)
-}
-
-function fingerprintHistoricalContinuityGovernanceText(raw: string) {
-  const normalized = normalizeDeferredAutonomyRawText(raw).toLowerCase()
-  let hash = 2_166_136_261
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash ^= normalized.charCodeAt(index)
-    hash = Math.imul(hash, 16_777_619) >>> 0
-  }
-  return `${normalized.length}:${hash.toString(16).padStart(8, '0')}`
-}
-
-export function isHistoricalContinuityGovernanceText(raw: unknown) {
-  if (typeof raw !== 'string')
-    return false
-  const normalized = normalizeDeferredAutonomyRawText(raw).toLowerCase()
-  return historicalContinuityGovernanceFingerprints.has(
-    fingerprintHistoricalContinuityGovernanceText(normalized),
-  )
-  || containsLegacyPreviousGovernanceMarker(normalized)
-}
-
 export function normalizeDeferredAutonomyCanonicalFreeText(
   value: unknown,
   maxChars: number = deferredAutonomyContinuityBudgets.executionIntentSummary,
 ) {
   const normalized = normalizeDeferredAutonomyRawText(value)
-  if (!normalized || isHistoricalContinuityGovernanceText(normalized))
+  if (!normalized)
     return ''
 
   const direct = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
@@ -452,11 +403,7 @@ function normalizeInferredFailureCandidate(value: unknown) {
 }
 
 export function readDeferredAutonomySummaryOwner(raw: unknown): DeferredAutonomySummaryOwner | null {
-  return raw === 'failure'
-    || raw === 'why-now'
-    || raw === 'execution-intent'
-    ? raw
-    : null
+  return raw === 'failure' ? raw : null
 }
 
 export function validateDeferredAutonomyCanonicalSummary(
@@ -495,12 +442,10 @@ export function validateDeferredAutonomyCanonicalSummary(
   const executionIntentSummary = normalizeDeferredAutonomyRawText(input.executionIntentSummary)
   if (failure) {
     const safeWhyNow = whyNow.length <= deferredAutonomyContinuityBudgets.whyNow
-      && !isHistoricalContinuityGovernanceText(whyNow)
       ? whyNow
       : ''
     const safeExecutionIntentSummary = executionIntentSummary.length
       <= deferredAutonomyContinuityBudgets.executionIntentSummary
-      && !isHistoricalContinuityGovernanceText(executionIntentSummary)
       ? executionIntentSummary
       : ''
     return {
@@ -522,55 +467,19 @@ export function validateDeferredAutonomyCanonicalSummary(
     return failClosed
   }
 
-  const safeWhyNow = isHistoricalContinuityGovernanceText(whyNow) ? '' : whyNow
-  const safeExecutionIntentSummary = isHistoricalContinuityGovernanceText(executionIntentSummary)
-    ? ''
-    : executionIntentSummary
-  if (summaryOwner === 'failure')
-    return failClosed
-  if (summaryOwner === 'execution-intent') {
-    if (
-      !safeExecutionIntentSummary
-      || isHistoricalContinuityGovernanceText(summary)
-      || summary !== executionIntentSummary
-    ) {
-      return failClosed
-    }
-    return {
-      executionIntentSummary: safeExecutionIntentSummary,
-      failure: null,
-      isCanonicalVersion: true,
-      isValid: true,
-      summary,
-      summaryOwner,
-      whyNow: safeWhyNow || null,
-    }
-  }
-  if (summaryOwner === 'why-now') {
-    if (
-      !safeWhyNow
-      || isHistoricalContinuityGovernanceText(summary)
-      || summary !== whyNow
-    ) {
-      return failClosed
-    }
-    return {
-      executionIntentSummary: safeExecutionIntentSummary || null,
-      failure: null,
-      isCanonicalVersion: true,
-      isValid: true,
-      summary,
-      summaryOwner,
-      whyNow: safeWhyNow,
-    }
-  }
-
-  if (summary || whyNow || executionIntentSummary)
+  const safeWhyNow = whyNow
+  const safeExecutionIntentSummary = executionIntentSummary
+  if (summaryOwner === 'failure' || summary)
     return failClosed
 
   return {
-    ...failClosed,
+    executionIntentSummary: safeExecutionIntentSummary || null,
+    failure: null,
+    isCanonicalVersion: true,
     isValid: true,
+    summary: null,
+    summaryOwner: null,
+    whyNow: safeWhyNow || null,
   }
 }
 
@@ -584,30 +493,25 @@ export function resolveDeferredAutonomySummary(input: ResolveDeferredAutonomySum
     deferredAutonomyContinuityBudgets.executionIntentSummary,
   )
   const ownerTexts: Array<{
-    owner: Exclude<DeferredAutonomySummaryOwner, 'failure'>
     text: string
     inferenceSource: unknown
   }> = input.mode === 'deferred'
     ? [
         {
-          owner: 'why-now',
           text: whyNow,
           inferenceSource: input.inferenceSources?.whyNow ?? input.whyNow,
         },
         {
-          owner: 'execution-intent',
           text: executionIntentSummary,
           inferenceSource: input.inferenceSources?.executionIntentSummary ?? input.executionIntentSummary,
         },
       ]
     : [
         {
-          owner: 'execution-intent',
           text: executionIntentSummary,
           inferenceSource: input.inferenceSources?.executionIntentSummary ?? input.executionIntentSummary,
         },
         {
-          owner: 'why-now',
           text: whyNow,
           inferenceSource: input.inferenceSources?.whyNow ?? input.whyNow,
         },
@@ -640,10 +544,9 @@ export function resolveDeferredAutonomySummary(input: ResolveDeferredAutonomySum
     }
   }
 
-  const summaryEntry = ownerTexts.find(entry => Boolean(entry.text))
   return {
-    summary: summaryEntry?.text ?? null,
+    summary: null,
     failure: null,
-    summaryOwner: summaryEntry?.owner ?? null,
+    summaryOwner: null,
   }
 }

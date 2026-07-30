@@ -1,4 +1,3 @@
-import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import { createAlicizationSessionContinuityBuildersRuntime } from './runtime-session-continuity-builders'
@@ -17,34 +16,7 @@ function createRuntime() {
   })
 }
 
-function expectNoFixedTemplateResidue(raw: unknown) {
-  if (typeof raw === 'string') {
-    expect(containsAlicizationFixedTemplateResidue(raw)).toBe(false)
-    return
-  }
-  if (Array.isArray(raw)) {
-    raw.forEach(expectNoFixedTemplateResidue)
-    return
-  }
-  if (raw && typeof raw === 'object')
-    Object.values(raw).forEach(expectNoFixedTemplateResidue)
-}
-
 describe('runtime session continuity builders', () => {
-  it('detects fixed-template residue in nested string leaves', () => {
-    expect(() => expectNoFixedTemplateResidue({
-      nested: {
-        carry: 'continuity_hold=measured_return',
-      },
-    })).toThrow()
-  })
-
-  it('does not reject natural prose containing a short legacy phrase', () => {
-    expect(() => expectNoFixedTemplateResidue({
-      note: 'Please keep same-her-inward-carry wording in this natural note.',
-    })).not.toThrow()
-  })
-
   it('keeps pending proactive facts in metadata without a generated summary', () => {
     const runtime = createRuntime()
     const signal = runtime.buildPendingProactiveContinuitySignal({
@@ -68,14 +40,11 @@ describe('runtime session continuity builders', () => {
       deliveredAt: Date.UTC(2026, 4, 22, 10, 8, 0),
       feedbackWindowMs: 120_000,
       learningAction: 'verify',
-      learningFocuses: ['world-model'],
-      projectStateOpenFocusSummary: null,
-      projectStateNextFocusSummary: null,
-      projectStateEmotionalClosureCue: null,
     })
+    expect(signal.metadata).not.toHaveProperty('learningFocuses')
   })
 
-  it('keeps proactive outcome facts in metadata and removes only the exact legacy learning focus', () => {
+  it('does not copy proactive learning controls into session continuity metadata', () => {
     const runtime = createRuntime()
     const signal = runtime.buildProactiveOutcomeContinuitySignal({
       turnId: 'turn-proactive-feedback',
@@ -84,11 +53,10 @@ describe('runtime session continuity builders', () => {
       createdAt: Date.UTC(2026, 4, 22, 10, 12, 0),
       learningAction: 'verify',
       learningFocuses: [
-        'same-her-inward-carry',
+        'source-evidence',
         'world-model',
-        'Please keep same-her-inward-carry wording in this natural note.',
+        'Please keep source evidence wording in this natural note.',
       ],
-      projectStateEmotionalClosureCue: 'continuity_hold=measured_return',
     })
 
     expect(signal.summary).toBeNull()
@@ -98,14 +66,8 @@ describe('runtime session continuity builders', () => {
       scenario: 'coding',
       outcome: 'reply-within-120s',
       learningAction: 'verify',
-      learningFocuses: [
-        'world-model',
-        'Please keep same-her-inward-carry wording in this natural note.',
-      ],
-      projectStateOpenFocusSummary: null,
-      projectStateNextFocusSummary: null,
-      projectStateEmotionalClosureCue: null,
     })
+    expect(signal.metadata).not.toHaveProperty('learningFocuses')
   })
 
   it('keeps proactive feedback mirror facts in metadata without a generated summary', () => {
@@ -138,32 +100,24 @@ describe('runtime session continuity builders', () => {
       createdAt: Date.UTC(2026, 4, 22, 10, 12, 0),
       learningAction: 'verify',
       learningFocuses: ['world-model'],
-      projectStateEmotionalClosureCue: 'continuity_hold=measured_return',
     })
 
-    expect(signal.metadata).toEqual(expect.objectContaining({
-      learningFocuses: ['world-model'],
-      projectStateEmotionalClosureCue: null,
-    }))
-    expectNoFixedTemplateResidue(signal)
+    expect(signal.metadata).not.toHaveProperty('learningFocuses')
+    expect(signal.metadata).not.toHaveProperty('projectStateOpenFocusSummary')
+    expect(signal.metadata).not.toHaveProperty('projectStateNextFocusSummary')
+    expect(signal.metadata).not.toHaveProperty('projectStateEmotionalClosureCue')
   })
 
-  it('preserves held autonomy thread and execution intent without project governance carry', () => {
+  it('keeps held autonomy facts without generating a visible summary', () => {
     const runtime = createRuntime()
     const signal = runtime.buildDeferredAutonomyContinuitySignal({
       now: Date.UTC(2026, 4, 22, 10, 10, 0),
       turnId: 'subconscious:default:held',
       scenario: 'coding',
       reason: 'proactive-visible-presence-without-utterance',
-      projectState: {
-        identity: 'identity=runtime_personhood',
-        sameHerSelfLine: 'same-her project closure',
-        sameHerHoldDetail: 'relationship_cadence=remembered_boundary',
-        emotionalClosureCue: 'continuity_hold=measured_return',
-      },
       autonomy: {
         deferReason: 'busy-host',
-        whyNow: 'She wants to quietly return to the unresolved runtime thread.',
+        whyNow: 'The unresolved runtime thread remains available.',
         sourceThreadId: 'thread-runtime',
         sourceThoughtThreadId: 'thought-runtime',
         sourceConcernId: 'concern-runtime',
@@ -176,10 +130,10 @@ describe('runtime session continuity builders', () => {
     })
 
     expect(signal.label).toBe('proactive:follow-through:held-autonomy')
-    expect(signal.summary).toBe('re-open the unresolved runtime break and see what still blocks it')
+    expect(signal.summary).toBeNull()
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-held-autonomy',
-      summaryOwner: 'execution-intent',
+      summaryOwner: null,
       sourceThreadId: 'thread-runtime',
       sourceThoughtThreadId: 'thought-runtime',
       sourceConcernId: 'concern-runtime',
@@ -187,28 +141,17 @@ describe('runtime session continuity builders', () => {
       executionIntentSummary: 're-open the unresolved runtime break and see what still blocks it',
       targetThreadId: 'thread-runtime',
     }))
-    expectNoFixedTemplateResidue(signal)
   })
 
-  it('prefers whyNow over a repair intent summary for deferred proactive continuity', () => {
+  it('keeps deferred autonomy prose in metadata without making it visible', () => {
     const runtime = createRuntime()
     const signal = runtime.buildDeferredAutonomyContinuitySignal({
       now: Date.UTC(2026, 4, 22, 10, 10, 0),
       turnId: 'subconscious:default:deferred',
       scenario: 'coding',
       reason: 'proactive-visible-presence-without-utterance',
-      projectState: {
-        preDialogueAwarenessLine: 'pre_turn_context_digest',
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life',
-        identity: 'Alicization is a local-first digital life project building identity continuity.',
-        latestLandedProgress: 'Project identity carry already survives across runtime preparation.',
-        primaryOpenLoop: 'Memory still needs stronger end-to-end closure.',
-        nextClosureTarget: 'Keep extending cross-modal identity-continuity.',
-        sameHerSelfLine: 'structured continuity digest.',
-        sameHerDriftRisk: 'generic project continuity guidance',
-      },
       autonomy: {
-        whyNow: 'Stay near the current runtime seam without forcing a visible reply.',
+        whyNow: 'Keep the unresolved runtime thread available without forcing a visible reply.',
         sourceThreadId: 'thread-runtime',
         executionIntent: {
           kind: 'repair',
@@ -219,16 +162,15 @@ describe('runtime session continuity builders', () => {
 
     expect(signal.label).toBe('proactive:coding:deferred')
     expect(signal.state).toBe('pending')
-    expect(signal.summary).toBe('Stay near the current runtime seam without forcing a visible reply.')
+    expect(signal.summary).toBeNull()
     expect(signal.metadata).toEqual(expect.objectContaining({
       source: 'proactive-deferred',
-      summaryOwner: 'why-now',
-      whyNow: 'Stay near the current runtime seam without forcing a visible reply.',
+      summaryOwner: null,
+      whyNow: 'Keep the unresolved runtime thread available without forcing a visible reply.',
       scenario: 'coding',
       sourceThreadId: 'thread-runtime',
       executionIntentKind: 'repair',
     }))
-    expectNoFixedTemplateResidue(signal)
   })
 
   it('prefers a provider failure reported by whyNow for deferred continuity', () => {
@@ -238,10 +180,6 @@ describe('runtime session continuity builders', () => {
       turnId: 'subconscious:default:provider-failure',
       scenario: 'general',
       reason: 'provider-mind-unavailable-for-proactive-visible-utterance',
-      projectState: {
-        identity: 'identity=runtime_personhood',
-        sameHerHoldDetail: 'continuity_hold=measured_return',
-      },
       autonomy: {
         whyNow: 'Embedding provider failed with HTTP 400.',
         executionIntent: {
@@ -258,7 +196,6 @@ describe('runtime session continuity builders', () => {
       executionIntentKind: 'repair',
       executionIntentSummary: 'Resume the local runtime check when it is safe.',
     }))
-    expectNoFixedTemplateResidue(signal)
   })
 
   it('prefers a tool failure in a repair intent summary over ordinary whyNow text', () => {
@@ -340,16 +277,102 @@ describe('runtime session continuity builders', () => {
       } as any],
     })
 
-    expect(signal?.summary).toContain('thread=thread-files')
+    expect(signal?.summary).toBe('完成一次真实的文件整理。')
     expect(signal?.metadata).toEqual(expect.objectContaining({
-      projectStatePreDialogueAwarenessLine: null,
-      projectStatePreflightSummary: null,
-      projectLatestLandedProgress: null,
-      projectIdentity: null,
-      projectPrimaryOpenLoop: null,
-      projectNextClosureTarget: null,
+      threadAnchor: 'thread-files',
     }))
-    expectNoFixedTemplateResidue(signal)
+    expect(signal?.metadata).not.toHaveProperty('projectStatePreDialogueAwarenessLine')
+    expect(signal?.metadata).not.toHaveProperty('projectStatePreflightSummary')
+    expect(signal?.metadata).not.toHaveProperty('projectLatestLandedProgress')
+    expect(signal?.metadata).not.toHaveProperty('projectIdentity')
+    expect(signal?.metadata).not.toHaveProperty('projectPrimaryOpenLoop')
+    expect(signal?.metadata).not.toHaveProperty('projectNextClosureTarget')
+  })
+
+  it('keeps opaque event identifiers unchanged', () => {
+    const runtime = createRuntime()
+    const [signal] = runtime.buildAutobiographicalAfterglowContinuitySignals({
+      activeSessionId: 'session-current',
+      now: Date.UTC(2026, 4, 22, 10, 10, 0),
+      events: [{
+        id: 'episode-maintenance-2026-05-22',
+        occurredAt: Date.UTC(2026, 4, 22, 10, 0, 0),
+        sourceKind: 'maintenance',
+        sourceSummary: 'A maintenance event completed.',
+        relationshipMeaning: 'The result was recorded.',
+        lesson: 'Keep the evidence traceable.',
+        whatChanged: 'The state was persisted.',
+        whatHappened: 'A maintenance event completed.',
+        tags: ['afterthought'],
+        sessionId: 'session-previous',
+        threadAnchor: 'thread-files',
+        provenance: 'self-authored',
+        confidence: 0.8,
+      } as any],
+    })
+
+    expect(signal?.metadata).toEqual(expect.objectContaining({
+      episodeId: 'episode-maintenance-2026-05-22',
+      threadAnchor: 'thread-files',
+    }))
+    expect(signal?.signature).toContain('episode-maintenance-2026-05-22')
+  })
+
+  it('does not use relationship interpretation as afterglow evidence', () => {
+    const runtime = createRuntime()
+    const [signal] = runtime.buildAutobiographicalAfterglowContinuitySignals({
+      activeSessionId: 'session-current',
+      now: Date.UTC(2026, 4, 22, 10, 10, 0),
+      events: [{
+        id: 'episode-contaminated-afterglow',
+        occurredAt: Date.UTC(2026, 4, 22, 10, 0, 0),
+        sourceKind: 'maintenance',
+        sourceSummary: 'A maintenance event completed.',
+        relationshipMeaning: 'A structured relationship note is not event evidence.',
+        lesson: 'Keep the evidence traceable.',
+        whatChanged: 'The state was persisted.',
+        whatHappened: 'A maintenance event completed.',
+        tags: ['afterthought'],
+        sessionId: 'session-previous',
+        threadAnchor: 'thread-maintenance',
+        provenance: 'self-authored',
+        confidence: 0.8,
+      } as any],
+    })
+
+    expect(signal?.summary).toContain('A maintenance event completed.')
+    expect(signal?.summary).not.toContain('A structured relationship note is not event evidence.')
+    expect(signal?.metadata).not.toHaveProperty('projectStatePreDialogueAwarenessLine')
+    expect(signal?.metadata).not.toHaveProperty('projectStatePreflightSummary')
+    expect(signal?.metadata).not.toHaveProperty('projectLatestLandedProgress')
+    expect(signal?.metadata).not.toHaveProperty('projectIdentity')
+    expect(signal?.metadata).not.toHaveProperty('projectPrimaryOpenLoop')
+    expect(signal?.metadata).not.toHaveProperty('projectNextClosureTarget')
+  })
+
+  it('does not use sourceSummary when an afterglow has no factual event text', () => {
+    const runtime = createRuntime()
+    const [signal] = runtime.buildAutobiographicalAfterglowContinuitySignals({
+      activeSessionId: 'session-current',
+      now: Date.UTC(2026, 4, 22, 10, 10, 0),
+      events: [{
+        id: 'episode-afterglow-without-event-fact',
+        occurredAt: Date.UTC(2026, 4, 22, 10, 0, 0),
+        sourceKind: 'maintenance',
+        sourceSummary: 'An interpretation about how the next response should behave.',
+        relationshipMeaning: null,
+        lesson: null,
+        whatChanged: null,
+        whatHappened: '',
+        tags: ['afterthought'],
+        sessionId: 'session-previous',
+        threadAnchor: 'thread-maintenance',
+        provenance: 'self-authored',
+        confidence: 0.8,
+      } as any],
+    })
+
+    expect(signal?.summary).toBeNull()
   })
 
   it.each([
@@ -447,8 +470,8 @@ describe('runtime session continuity builders', () => {
         occurredAt: Date.UTC(2026, 4, 22, 10, 0, 0),
         sourceKind: 'maintenance',
         sourceSummary: 'The callback felt like a soft handoff after trust warmed.',
-        relationshipMeaning: 'Repair-before-closeness was discussed as ordinary wording.',
-        lesson: 'A lower-pressure explanation can still be natural prose.',
+        relationshipMeaning: 'The delivery was discussed as ordinary wording.',
+        lesson: 'A careful explanation can remain ordinary prose.',
         whatChanged: 'The explanation was clarified.',
         whatHappened: 'A callback phrase appeared in a natural reflection.',
         tags: ['afterthought'],
@@ -460,13 +483,11 @@ describe('runtime session continuity builders', () => {
     })
 
     expect(signal?.label).toBe('afterglow:afterglow')
-    expect(signal?.metadata).toEqual(expect.objectContaining({
-      continuityKind: 'afterglow',
-      executionCallbackCarryMode: null,
-    }))
+    expect(signal?.metadata).not.toHaveProperty('continuityKind')
+    expect(signal?.metadata).not.toHaveProperty('executionCallbackCarryMode')
   })
 
-  it('uses exact typed afterglow tags as execution callback carry authority', () => {
+  it('does not turn delivery tags into a special afterglow mode', () => {
     const runtime = createRuntime()
     const [signal] = runtime.buildAutobiographicalAfterglowContinuitySignals({
       activeSessionId: 'session-current',
@@ -479,8 +500,8 @@ describe('runtime session continuity builders', () => {
         relationshipMeaning: 'The host received the result.',
         lesson: 'Keep the result grounded.',
         whatChanged: 'The result arrived.',
-        whatHappened: 'A callback completed.',
-        tags: ['afterthought', 'execution-callback', 'repair-before-closeness'],
+        whatHappened: 'A delivery completed.',
+        tags: ['afterthought', 'delivery-record'],
         sessionId: 'session-previous',
         threadAnchor: 'thread-typed-carry',
         provenance: 'self-authored',
@@ -488,10 +509,36 @@ describe('runtime session continuity builders', () => {
       } as any],
     })
 
-    expect(signal?.label).toBe('afterglow:execution-callback:repair-before-closeness')
-    expect(signal?.metadata).toEqual(expect.objectContaining({
-      continuityKind: 'execution-callback',
-      executionCallbackCarryMode: 'repair-before-closeness',
-    }))
+    expect(signal?.label).toBe('afterglow:afterglow')
+    expect(signal?.summary).toContain('A delivery completed.')
+    expect(signal?.metadata).not.toHaveProperty('continuityKind')
+    expect(signal?.metadata).not.toHaveProperty('executionCallbackCarryMode')
+  })
+
+  it('does not promote relationship-governance tags into execution callback authority', () => {
+    const runtime = createRuntime()
+    const [signal] = runtime.buildAutobiographicalAfterglowContinuitySignals({
+      activeSessionId: 'session-current',
+      now: Date.UTC(2026, 4, 22, 10, 10, 0),
+      events: [{
+        id: 'episode-afterglow-non-execution-tags',
+        occurredAt: Date.UTC(2026, 4, 22, 10, 0, 0),
+        sourceKind: 'maintenance',
+        sourceSummary: 'A normal event completed.',
+        relationshipMeaning: 'The result was recorded.',
+        lesson: 'Keep the evidence traceable.',
+        whatChanged: 'The state was persisted.',
+        whatHappened: 'A normal event completed.',
+        tags: ['afterthought', 'delivery-record', 'relationship-note'],
+        sessionId: 'session-previous',
+        threadAnchor: 'thread-normal-event',
+        provenance: 'self-authored',
+        confidence: 0.8,
+      } as any],
+    })
+
+    expect(signal?.label).toBe('afterglow:afterglow')
+    expect(signal?.metadata).not.toHaveProperty('continuityKind')
+    expect(signal?.metadata).not.toHaveProperty('executionCallbackCarryMode')
   })
 })

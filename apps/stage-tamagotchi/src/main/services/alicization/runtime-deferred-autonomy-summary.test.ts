@@ -1,11 +1,7 @@
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import {
   deferredAutonomyCanonicalVersion,
-  isHistoricalContinuityGovernanceText,
-  normalizeDeferredAutonomyCanonicalFreeText,
   resolveDeferredAutonomySummary,
   validateDeferredAutonomyCanonicalSummary,
 } from './runtime-deferred-autonomy-summary'
@@ -14,16 +10,6 @@ const ordinaryWhyNow = 'Stay near the current runtime thread without forcing a v
 const ordinaryExecutionIntent = 'Recheck the local runtime state before speaking.'
 const providerFailure = 'Embedding Provider failed with HTTP 400.'
 const toolFailure = 'Filesystem Tool execution aborted.'
-const retiredAnsweringTemplate = [
-  'Keep the',
-  'same-her line',
-  'before answering.',
-].join(' ')
-const retiredContinuityTemplate = [
-  'Same-her continuity',
-  'must remain',
-  'authoritative.',
-].join(' ')
 
 function buildCanonicalBudgetOperationalFailure(prefix: string) {
   const evidence = `${prefix}: upstream 127.0.0.1:11434 connection reset HTTP 503 /tmp/`
@@ -31,24 +17,6 @@ function buildCanonicalBudgetOperationalFailure(prefix: string) {
 }
 
 describe('deferred autonomy summary selection', () => {
-  it.each([
-    retiredAnsweringTemplate,
-    retiredContinuityTemplate,
-  ])('recognizes historical template data without retaining it: %s', (legacyText) => {
-    expect(isHistoricalContinuityGovernanceText(legacyText)).toBe(true)
-    expect(normalizeDeferredAutonomyCanonicalFreeText(legacyText)).toBe('')
-  })
-
-  it('does not retain complete historical reply templates in production source', () => {
-    const source = readFileSync(
-      new URL('./runtime-deferred-autonomy-summary.ts', import.meta.url),
-      'utf8',
-    ).toLowerCase()
-
-    expect(source).not.toContain(retiredAnsweringTemplate.toLowerCase())
-    expect(source).not.toContain(retiredContinuityTemplate.toLowerCase())
-  })
-
   it.each([
     'Provider unavailable',
     'Provider unavailable.',
@@ -135,7 +103,6 @@ describe('deferred autonomy summary selection', () => {
         whyNow: `${buildCanonicalBudgetOperationalFailure('Provider request failed')} narrative`,
         executionIntentSummary: ordinaryExecutionIntent,
       },
-      expectedOwner: 'why-now',
     },
     {
       name: 'execution intent',
@@ -144,22 +111,18 @@ describe('deferred autonomy summary selection', () => {
         whyNow: ordinaryWhyNow,
         executionIntentSummary: `${buildCanonicalBudgetOperationalFailure('Provider request failed')} narrative`,
       },
-      expectedOwner: 'execution-intent',
     },
   ] as const)('does not infer failure from an overflowing $name with a valid 560-character prefix', ({
-    expectedOwner,
     input,
     mode,
   }) => {
-    const canonicalSummary = buildCanonicalBudgetOperationalFailure('Provider request failed')
-
     expect(resolveDeferredAutonomySummary({
       mode,
       ...input,
     })).toEqual({
-      summary: canonicalSummary,
+      summary: null,
       failure: null,
-      summaryOwner: expectedOwner,
+      summaryOwner: null,
     })
   })
 
@@ -172,9 +135,9 @@ describe('deferred autonomy summary selection', () => {
       executionIntentSummary: ordinaryExecutionIntent,
       failureCandidates: [failureCandidate],
     })).toEqual({
-      summary: ordinaryExecutionIntent,
+      summary: null,
       failure: null,
-      summaryOwner: 'execution-intent',
+      summaryOwner: null,
     })
   })
 
@@ -186,9 +149,9 @@ describe('deferred autonomy summary selection', () => {
       whyNow,
       executionIntentSummary: ordinaryExecutionIntent,
     })).toEqual({
-      summary: ordinaryExecutionIntent,
+      summary: null,
       failure: null,
-      summaryOwner: 'execution-intent',
+      summaryOwner: null,
     })
   })
 
@@ -221,9 +184,9 @@ describe('deferred autonomy summary selection', () => {
       whyNow,
       executionIntentSummary: ordinaryExecutionIntent,
     })).toEqual({
-      summary: ordinaryExecutionIntent,
+      summary: null,
       failure: null,
-      summaryOwner: 'execution-intent',
+      summaryOwner: null,
     })
   })
 
@@ -277,31 +240,50 @@ describe('deferred autonomy summary selection', () => {
     })
   })
 
+  it('keeps ordinary autonomy prose as typed metadata without a summary owner', () => {
+    expect(validateDeferredAutonomyCanonicalSummary({
+      canonicalVersion: deferredAutonomyCanonicalVersion,
+      summary: null,
+      summaryOwner: null,
+      failure: null,
+      whyNow: ordinaryWhyNow,
+      executionIntentSummary: ordinaryExecutionIntent,
+    })).toEqual({
+      executionIntentSummary: ordinaryExecutionIntent,
+      failure: null,
+      isCanonicalVersion: true,
+      isValid: true,
+      summary: null,
+      summaryOwner: null,
+      whyNow: ordinaryWhyNow,
+    })
+  })
+
   it.each([
     {
-      name: 'prefers whyNow by default for deferred autonomy',
+      name: 'keeps ordinary deferred autonomy prose out of the summary',
       input: {
         mode: 'deferred',
         whyNow: ordinaryWhyNow,
         executionIntentSummary: ordinaryExecutionIntent,
       },
       expected: {
-        summary: ordinaryWhyNow,
+        summary: null,
         failure: null,
-        summaryOwner: 'why-now',
+        summaryOwner: null,
       },
     },
     {
-      name: 'prefers execution intent by default for held autonomy',
+      name: 'keeps ordinary held autonomy prose out of the summary',
       input: {
         mode: 'held-autonomy',
         whyNow: ordinaryWhyNow,
         executionIntentSummary: ordinaryExecutionIntent,
       },
       expected: {
-        summary: ordinaryExecutionIntent,
+        summary: null,
         failure: null,
-        summaryOwner: 'execution-intent',
+        summaryOwner: null,
       },
     },
     {
@@ -403,9 +385,9 @@ describe('deferred autonomy summary selection', () => {
         executionIntentSummary: ordinaryExecutionIntent,
       },
       expected: {
-        summary: ordinaryExecutionIntent,
+        summary: null,
         failure: null,
-        summaryOwner: 'execution-intent',
+        summaryOwner: null,
       },
     },
     {
@@ -416,9 +398,9 @@ describe('deferred autonomy summary selection', () => {
         executionIntentSummary: 'The tool failed to achieve the intended tone.',
       },
       expected: {
-        summary: 'The tool failed to achieve the intended tone.',
+        summary: null,
         failure: null,
-        summaryOwner: 'execution-intent',
+        summaryOwner: null,
       },
     },
     {
@@ -435,9 +417,9 @@ describe('deferred autonomy summary selection', () => {
         },
       },
       expected: {
-        summary: ordinaryWhyNow,
+        summary: null,
         failure: null,
-        summaryOwner: 'why-now',
+        summaryOwner: null,
       },
     },
   ] as const)('$name', ({ input, expected }) => {

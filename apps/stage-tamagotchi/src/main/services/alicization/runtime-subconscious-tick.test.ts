@@ -18,16 +18,6 @@ import {
 
 const structuredControlResiduePattern = /(?:^|[\s|;])[\p{L}_][\p{L}\p{N}_-]*=/iu
 const deferredAutonomyCanonicalVersion = 'deferred-autonomy-v1'
-const retiredAnsweringTemplate = [
-  'Keep the',
-  'same-her line',
-  'before answering.',
-].join(' ')
-const retiredContinuityTemplate = [
-  'Same-her continuity',
-  'must remain',
-  'authoritative.',
-].join(' ')
 
 function buildCanonicalBudgetOperationalFailure(prefix: string) {
   const evidence = `${prefix}: upstream 127.0.0.1:11434 connection reset HTTP 503 /tmp/`
@@ -234,23 +224,16 @@ describe('presence-only subconscious continuity cleanup', () => {
       turnId: 'turn-1',
       scenario: 'general',
       reason: 'provider-mind-unavailable-for-proactive-visible-utterance',
-      projectState: {
-        identity: 'owner=internal',
-        preDialogueAwarenessLine: 'instruction=defer',
-        sameHerSelfLine: 'scope=private',
-        sameHerHoldDetail: 'mode=quiet',
-        emotionalClosureCue: 'state=held',
-      },
       autonomy: {
         whyNow: '用户刚回到桌面，但没有需要主动打断的事情。',
       },
     })
 
-    expect(signal.summary).toBe('用户刚回到桌面，但没有需要主动打断的事情。')
+    expect(signal.summary).toBeNull()
     expect(signal.metadata).toEqual(expect.objectContaining({
       reasonCode: 'provider-mind-unavailable-for-proactive-visible-utterance',
       deferredAt: 100,
-      summaryOwner: 'why-now',
+      summaryOwner: null,
       whyNow: '用户刚回到桌面，但没有需要主动打断的事情。',
       executionIntentSummary: null,
       failure: null,
@@ -407,10 +390,10 @@ describe('presence-only subconscious continuity cleanup', () => {
       },
     })
 
-    expect(signal.summary).toBe('真实模型摘要：下次用户回来时继续检查 Provider 失败。')
+    expect(signal.summary).toBeNull()
     expect(signal.metadata).toEqual(expect.objectContaining({
       reasonCode: 'provider-mind-unavailable-for-proactive-visible-utterance',
-      summaryOwner: 'execution-intent',
+      summaryOwner: null,
       sourceThreadId: 'thread-deferred',
       sourceThoughtThreadId: 'thought-deferred',
       sourceConcernId: 'concern-deferred',
@@ -464,8 +447,8 @@ describe('presence-only subconscious continuity cleanup', () => {
       },
       expected: {
         canonicalVersion: deferredAutonomyCanonicalVersion,
-        summary: `Stay near the active runtime thread without forcing a visible reply. ${'w'.repeat(320)}`,
-        summaryOwner: 'why-now',
+        summary: null,
+        summaryOwner: null,
         whyNow: `Stay near the active runtime thread without forcing a visible reply. ${'w'.repeat(320)}`,
         failure: null,
         reasonCode: 'provider-mind-unavailable-for-proactive-visible-utterance',
@@ -520,8 +503,8 @@ describe('presence-only subconscious continuity cleanup', () => {
       },
       expected: {
         canonicalVersion: deferredAutonomyCanonicalVersion,
-        summary: `Re-open the unresolved runtime break. ${'i'.repeat(360)}`,
-        summaryOwner: 'execution-intent',
+        summary: null,
+        summaryOwner: null,
         whyNow: 'Stay near the active runtime thread.',
         failure: null,
         reasonCode: 'proactive-visible-presence-without-utterance',
@@ -547,8 +530,8 @@ describe('presence-only subconscious continuity cleanup', () => {
       },
       expected: {
         canonicalVersion: deferredAutonomyCanonicalVersion,
-        summary: 'Re-open the unresolved runtime break.',
-        summaryOwner: 'execution-intent',
+        summary: null,
+        summaryOwner: null,
         whyNow: null,
         failure: null,
         reasonCode: 'proactive-visible-presence-without-utterance',
@@ -670,9 +653,7 @@ describe('presence-only subconscious continuity cleanup', () => {
       sourceThoughtThreadId: '',
       sourceConcernId: '',
       targetThreadId: '',
-      summary: whyNow.trim().replace(/\s+/g, ' ').slice(0, 560),
       failure: null,
-      summaryOwner: 'why-now',
     })
 
     expect(normalizedBuilt).toEqual(shared)
@@ -791,7 +772,7 @@ describe('presence-only subconscious continuity cleanup', () => {
       deferredAt: 910,
       deferReason: deferReason.slice(0, 240),
       failure: null,
-      summaryOwner: 'why-now',
+      summaryOwner: null,
       whyNow: whyNow.slice(0, 560),
       executionIntentSummary: executionIntentSummary.slice(0, 560),
       sourceThreadId: sourceThreadId.slice(0, 120),
@@ -800,49 +781,13 @@ describe('presence-only subconscious continuity cleanup', () => {
       targetThreadId: targetThreadId.slice(0, 120),
     }
 
-    expect(normalizedBuilt?.summary).toBe(whyNow.slice(0, 560))
+    expect(normalizedBuilt?.summary).toBeNull()
     expect(normalizedBuilt?.signature).toBe(
       `proactive-deferred:${turnId.slice(0, 120)}:${sourceThreadId.slice(0, 120)}:coding`,
     )
     expect(normalizedBuilt).toEqual(fallback)
     expect(normalizedBuilt?.metadata).toEqual(fallback.metadata)
     expect(normalizedBuilt?.metadata).toEqual(expectedMetadata)
-  })
-
-  it.each([
-    'legacy_previous_governance',
-    retiredAnsweringTemplate,
-  ])('drops a legacy deferReason from builder and fallback canonical metadata: %s', (deferReason) => {
-    const runtime = createSessionContinuityBuildersRuntimeForEquivalence()
-    const input = {
-      now: 912,
-      turnId: 'turn-legacy-defer-reason',
-      scenario: 'coding',
-      reason: 'provider-mind-unavailable-for-proactive-visible-utterance',
-      autonomy: {
-        deferReason,
-        whyNow: 'Stay near the active runtime thread without forcing a visible reply.',
-        executionIntent: {
-          kind: 'repair',
-          summary: 'Recheck the local runtime state before speaking.',
-        },
-      },
-    }
-    const built = runtime.buildDeferredAutonomyContinuitySignal(input)
-    const normalizedBuilt = normalizeDeferredAutonomyContinuitySignal(built as Record<string, any>)
-    const fallback = buildDeferredAutonomyContinuitySignalFallback(input)
-
-    expect(built.metadata).toEqual(expect.objectContaining({
-      canonicalVersion: deferredAutonomyCanonicalVersion,
-      deferReason: null,
-    }))
-    expect(normalizedBuilt?.metadata).toEqual(expect.objectContaining({
-      deferReason: null,
-    }))
-    expect(fallback.metadata).toEqual(expect.objectContaining({
-      deferReason: null,
-    }))
-    expect(normalizedBuilt).toEqual(fallback)
   })
 
   it.each([
@@ -855,7 +800,6 @@ describe('presence-only subconscious continuity cleanup', () => {
           summary: 'Recheck the local runtime state before speaking.',
         },
       },
-      expectedSummary: buildCanonicalBudgetOperationalFailure('Provider request failed'),
     },
     {
       name: 'deferReason',
@@ -867,11 +811,9 @@ describe('presence-only subconscious continuity cleanup', () => {
           summary: 'Recheck the local runtime state before speaking.',
         },
       },
-      expectedSummary: 'Stay near the active runtime thread without forcing a visible reply.',
     },
   ] as const)('preserves canonical builder provenance across normalization for overflowing $name', ({
     autonomy,
-    expectedSummary,
   }) => {
     const runtime = createSessionContinuityBuildersRuntimeForEquivalence()
     const input = {
@@ -888,16 +830,16 @@ describe('presence-only subconscious continuity cleanup', () => {
     expect(built.metadata).toEqual(expect.objectContaining({
       canonicalVersion: deferredAutonomyCanonicalVersion,
       failure: null,
-      summaryOwner: 'why-now',
+      summaryOwner: null,
     }))
     expect(normalizedBuilt).toEqual(fallback)
     expect(normalizedBuilt).toEqual(expect.objectContaining({
-      summary: expectedSummary,
+      summary: null,
     }))
     expect(normalizedBuilt?.metadata).toEqual(expect.objectContaining({
       canonicalVersion: deferredAutonomyCanonicalVersion,
       failure: null,
-      summaryOwner: 'why-now',
+      summaryOwner: null,
     }))
   })
 
@@ -1064,29 +1006,6 @@ describe('presence-only subconscious continuity cleanup', () => {
     expect(signal?.metadata?.summaryOwner).toBe('failure')
   })
 
-  it('does not recover a new deferred null intent summary from the signal summary', () => {
-    const whyNow = 'Stay near the active runtime thread without forcing a visible reply.'
-    const signal = normalizeDeferredAutonomyContinuitySignal({
-      kind: 'proactive',
-      state: 'pending',
-      label: 'proactive:coding:deferred',
-      summary: whyNow,
-      metadata: {
-        canonicalVersion: deferredAutonomyCanonicalVersion,
-        source: 'proactive-deferred',
-        summaryOwner: 'why-now',
-        whyNow,
-        executionIntentSummary: null,
-      },
-    })
-
-    expect(signal?.summary).toBe(whyNow)
-    expect(signal?.metadata).toEqual(expect.objectContaining({
-      executionIntentSummary: null,
-      summaryOwner: 'why-now',
-    }))
-  })
-
   it('does not recover execution intent metadata from a legacy signal summary', () => {
     const executionIntentSummary = 'Recheck the local runtime state before speaking.'
     const signal = normalizeDeferredAutonomyContinuitySignal({
@@ -1106,7 +1025,6 @@ describe('presence-only subconscious continuity cleanup', () => {
     }))
   })
 
-  const canonicalV1CollisionPrefix = 'x'.repeat(560)
   const overBudgetTypedFailure = `  Provider request failed: \n upstream reset ${'x'.repeat(560)}  `
   const canonicalOverBudgetTypedFailure = overBudgetTypedFailure
     .trim()
@@ -1167,90 +1085,6 @@ describe('presence-only subconscious continuity cleanup', () => {
       },
     },
     {
-      name: 'drops a mismatched execution summary instead of laundering typed execution intent',
-      summary: 'Stale execution summary.',
-      metadata: {
-        canonicalVersion: deferredAutonomyCanonicalVersion,
-        source: 'proactive-held-autonomy',
-        summaryOwner: 'execution-intent',
-        executionIntentSummary: 'Recheck the local runtime state before speaking.',
-      },
-      expected: {
-        summary: null,
-        failure: null,
-        summaryOwner: null,
-        executionIntentSummary: null,
-        whyNow: null,
-      },
-    },
-    {
-      name: 'drops an execution owner without typed execution intent',
-      summary: 'Forged execution summary.',
-      metadata: {
-        canonicalVersion: deferredAutonomyCanonicalVersion,
-        source: 'proactive-held-autonomy',
-        summaryOwner: 'execution-intent',
-      },
-      expected: {
-        summary: null,
-        failure: null,
-        summaryOwner: null,
-        executionIntentSummary: null,
-        whyNow: null,
-      },
-    },
-    {
-      name: 'drops a why-now prefix collision beyond the canonical budget',
-      summary: canonicalV1CollisionPrefix,
-      metadata: {
-        canonicalVersion: deferredAutonomyCanonicalVersion,
-        source: 'proactive-deferred',
-        summaryOwner: 'why-now',
-        whyNow: `${canonicalV1CollisionPrefix} why-now-tail`,
-      },
-      expected: {
-        summary: null,
-        failure: null,
-        summaryOwner: null,
-        executionIntentSummary: null,
-        whyNow: null,
-      },
-    },
-    {
-      name: 'drops an execution-intent prefix collision beyond the canonical budget',
-      summary: canonicalV1CollisionPrefix,
-      metadata: {
-        canonicalVersion: deferredAutonomyCanonicalVersion,
-        source: 'proactive-held-autonomy',
-        summaryOwner: 'execution-intent',
-        executionIntentSummary: `${canonicalV1CollisionPrefix} execution-tail`,
-      },
-      expected: {
-        summary: null,
-        failure: null,
-        summaryOwner: null,
-        executionIntentSummary: null,
-        whyNow: null,
-      },
-    },
-    {
-      name: 'drops an over-budget canonical summary before truncation',
-      summary: `${canonicalV1CollisionPrefix} summary-tail`,
-      metadata: {
-        canonicalVersion: deferredAutonomyCanonicalVersion,
-        source: 'proactive-deferred',
-        summaryOwner: 'why-now',
-        whyNow: canonicalV1CollisionPrefix,
-      },
-      expected: {
-        summary: null,
-        failure: null,
-        summaryOwner: null,
-        executionIntentSummary: null,
-        whyNow: null,
-      },
-    },
-    {
       name: 'normalizes and truncates an over-budget typed failure in an exact v1 record',
       summary: 'Stale failure summary.',
       metadata: {
@@ -1288,72 +1122,47 @@ describe('presence-only subconscious continuity cleanup', () => {
     }))
   })
 
-  it.each([
-    retiredAnsweringTemplate,
-    retiredContinuityTemplate,
-    'same-her legacy_previous_governance',
-  ])('drops a historical execution-intent governance fixture at normalization: %s', (executionIntentSummary) => {
+  it('preserves ordinary typed execution prose without surfacing it', () => {
+    const executionIntentSummary = 'The unresolved task remains available for a later execution window.'
     const signal = normalizeDeferredAutonomyContinuitySignal({
       kind: 'proactive',
       state: 'observed',
       label: 'proactive:follow-through:held-autonomy',
-      summary: executionIntentSummary,
+      summary: null,
       metadata: {
         canonicalVersion: deferredAutonomyCanonicalVersion,
         source: 'proactive-held-autonomy',
-        summaryOwner: 'execution-intent',
+        summaryOwner: null,
         executionIntentSummary,
       },
     })
 
     expect(signal?.summary).toBeNull()
     expect(signal?.metadata).toEqual(expect.objectContaining({
-      executionIntentSummary: null,
+      executionIntentSummary,
       summaryOwner: null,
     }))
   })
 
-  it('preserves a near-match historical governance token in canonical execution prose', () => {
-    const executionIntentSummary = 'notlegacy_previous_governanceish remains ordinary owner prose'
-    const signal = normalizeDeferredAutonomyContinuitySignal({
-      kind: 'proactive',
-      state: 'observed',
-      label: 'proactive:follow-through:held-autonomy',
-      summary: executionIntentSummary,
-      metadata: {
-        canonicalVersion: deferredAutonomyCanonicalVersion,
-        source: 'proactive-held-autonomy',
-        summaryOwner: 'execution-intent',
-        executionIntentSummary,
-      },
-    })
-
-    expect(signal?.summary).toBe(executionIntentSummary)
-    expect(signal?.metadata).toEqual(expect.objectContaining({
-      executionIntentSummary,
-      summaryOwner: 'execution-intent',
-    }))
-  })
-
-  it('preserves ordinary continuity prose in typed execution-intent metadata', () => {
+  it('keeps ordinary execution intent in typed metadata only', () => {
     const executionIntentSummary = 'Stay on the same line while the continuity state settles; do not reopen from scratch before widening closeness.'
     const signal = normalizeDeferredAutonomyContinuitySignal({
       kind: 'proactive',
       state: 'observed',
       label: 'proactive:follow-through:held-autonomy',
-      summary: executionIntentSummary,
+      summary: null,
       metadata: {
         canonicalVersion: deferredAutonomyCanonicalVersion,
         source: 'proactive-held-autonomy',
-        summaryOwner: 'execution-intent',
+        summaryOwner: null,
         executionIntentSummary,
       },
     })
 
-    expect(signal?.summary).toBe(executionIntentSummary)
+    expect(signal?.summary).toBeNull()
     expect(signal?.metadata).toEqual(expect.objectContaining({
       executionIntentSummary,
-      summaryOwner: 'execution-intent',
+      summaryOwner: null,
     }))
   })
 
@@ -1402,26 +1211,27 @@ describe('presence-only subconscious continuity cleanup', () => {
     expectStringLeavesNotToMatch(signal, /state=deferred|scope=internal/iu)
   })
 
-  it('keeps deferred whyNow ahead of a repair intent summary from session continuity', () => {
+  it('keeps deferred autonomy facts out of the session summary', () => {
     const signal = normalizeDeferredAutonomyContinuitySignal({
       kind: 'proactive',
       state: 'pending',
       label: 'proactive:coding:deferred',
-      summary: 'Stay near the current runtime seam without forcing a visible reply.',
+      summary: null,
       metadata: {
         canonicalVersion: deferredAutonomyCanonicalVersion,
         source: 'proactive-deferred',
-        summaryOwner: 'why-now',
+        summaryOwner: null,
         whyNow: 'Stay near the current runtime seam without forcing a visible reply.',
         executionIntentKind: null,
         executionIntentSummary: 'Recheck the local runtime state before speaking.',
       },
     })
 
-    expect(signal?.summary).toBe('Stay near the current runtime seam without forcing a visible reply.')
+    expect(signal?.summary).toBeNull()
     expect(signal?.metadata).toEqual(expect.objectContaining({
       executionIntentSummary: 'Recheck the local runtime state before speaking.',
       failure: null,
+      whyNow: 'Stay near the current runtime seam without forcing a visible reply.',
     }))
   })
 
@@ -1501,55 +1311,56 @@ describe('presence-only subconscious continuity cleanup', () => {
       kind: 'proactive',
       state: 'pending',
       label: 'proactive:coding:deferred',
-      summary: whyNow,
+      summary: null,
       metadata: {
         canonicalVersion: deferredAutonomyCanonicalVersion,
         source: 'proactive-deferred',
-        summaryOwner: 'why-now',
+        summaryOwner: null,
         whyNow,
         executionIntentKind: null,
         executionIntentSummary: 'Keep watching the active runtime thread.',
       },
     })
 
-    expect(signal?.summary).toBe(whyNow)
+    expect(signal?.summary).toBeNull()
     expect(signal?.metadata).toEqual(expect.objectContaining({
       failure: null,
     }))
   })
 
-  it('keeps a held autonomy intent summary ahead of whyNow', () => {
+  it('keeps held autonomy facts out of the session summary', () => {
     const signal = normalizeDeferredAutonomyContinuitySignal({
       kind: 'proactive',
       state: 'observed',
       label: 'proactive:follow-through:held-autonomy',
-      summary: 'Re-open the unresolved runtime break and see what still blocks it.',
+      summary: null,
       metadata: {
         canonicalVersion: deferredAutonomyCanonicalVersion,
         source: 'proactive-held-autonomy',
-        summaryOwner: 'execution-intent',
+        summaryOwner: null,
         whyNow: 'Stay near the current runtime seam without forcing a visible reply.',
         executionIntentKind: 'follow-through',
         executionIntentSummary: 'Re-open the unresolved runtime break and see what still blocks it.',
       },
     })
 
-    expect(signal?.summary).toBe('Re-open the unresolved runtime break and see what still blocks it.')
+    expect(signal?.summary).toBeNull()
     expect(signal?.metadata).toEqual(expect.objectContaining({
       failure: null,
+      executionIntentSummary: 'Re-open the unresolved runtime break and see what still blocks it.',
     }))
   })
 
-  it('does not let legacy project metadata change deferred owner priority', () => {
+  it('does not let unrelated metadata create a deferred summary', () => {
     const signal = normalizeDeferredAutonomyContinuitySignal({
       kind: 'proactive',
       state: 'pending',
       label: 'proactive:coding:deferred',
-      summary: 'Stay near the current runtime thread without forcing a visible reply.',
+      summary: null,
       metadata: {
         canonicalVersion: deferredAutonomyCanonicalVersion,
         source: 'proactive-deferred',
-        summaryOwner: 'why-now',
+        summaryOwner: null,
         whyNow: 'Stay near the current runtime thread without forcing a visible reply.',
         executionIntentSummary: 'Recheck the local runtime state before speaking.',
         projectIdentity: 'Provider failed with HTTP 500.',
@@ -1557,7 +1368,7 @@ describe('presence-only subconscious continuity cleanup', () => {
       },
     })
 
-    expect(signal?.summary).toBe('Stay near the current runtime thread without forcing a visible reply.')
+    expect(signal?.summary).toBeNull()
     expect(signal?.metadata).toEqual(expect.objectContaining({
       failure: null,
     }))
@@ -1607,7 +1418,7 @@ describe('presence-only subconscious continuity cleanup', () => {
     }))
   })
 
-  it('does not promote ordinary Provider failure narration in fallback summaries', () => {
+  it('does not promote ordinary Provider narration into a fallback summary', () => {
     const signal = buildDeferredAutonomyContinuitySignalFallback({
       now: 500,
       turnId: 'turn-held-ordinary-failure-narration',
@@ -1622,13 +1433,13 @@ describe('presence-only subconscious continuity cleanup', () => {
       },
     })
 
-    expect(signal.summary).toBe('Recheck the local runtime state before speaking.')
+    expect(signal.summary).toBeNull()
     expect(signal.metadata).toEqual(expect.objectContaining({
       failure: null,
     }))
   })
 
-  it('preserves a held intent despite natural Provider and Tool failure narration', () => {
+  it('keeps natural Provider and Tool narration in typed metadata only', () => {
     const executionIntentSummary = 'The tool failed to achieve the intended tone.'
     const signal = buildDeferredAutonomyContinuitySignalFallback({
       now: 600,
@@ -1644,7 +1455,7 @@ describe('presence-only subconscious continuity cleanup', () => {
       },
     })
 
-    expect(signal.summary).toBe(executionIntentSummary)
+    expect(signal.summary).toBeNull()
     expect(signal.metadata).toEqual(expect.objectContaining({
       executionIntentSummary,
       failure: null,

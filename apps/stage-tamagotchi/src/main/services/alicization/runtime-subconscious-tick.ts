@@ -463,20 +463,6 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
   turnId: string
   scenario: string
   reason: string
-  projectState?: {
-    preflightSummary?: string | null
-    preDialogueAwarenessLine?: string | null
-    companionHeadlineLine?: string | null
-    emotionalClosureCue?: string | null
-    emotionalClosureSummary?: string | null
-    identity?: string | null
-    currentPhase?: string | null
-    primaryOpenLoop?: string | null
-    nextClosureTarget?: string | null
-    sameHerSelfLine?: string | null
-    sameHerDriftRisk?: string | null
-    sameHerHoldDetail?: string | null
-  } | null
   autonomy?: {
     deferReason?: string | null
     whyNow?: string | null
@@ -569,7 +555,7 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
       failureCandidates: [input.autonomy?.deferReason],
     },
   })
-  const { failure, summary: continuitySummary, summaryOwner } = summarySelection
+  const { failure } = summarySelection
   return buildDeferredAutonomyCanonicalSignal({
     createdAt: input.now,
     deferReason,
@@ -583,8 +569,6 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
     sourceConcernId,
     sourceThreadId,
     sourceThoughtThreadId,
-    summary: continuitySummary,
-    summaryOwner,
     targetThreadId,
     threadId,
     turnId,
@@ -787,7 +771,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     turnId: string
     scenario: string
     reason: string
-    projectState?: Record<string, unknown> | null
     autonomy?: {
       deferReason?: string | null
       whyNow?: string | null
@@ -802,14 +785,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     } | null
   }) {
     const signal = typeof buildDeferredAutonomyContinuitySignal === 'function'
-      ? buildDeferredAutonomyContinuitySignal({
-          ...input,
-          projectState: input.projectState ?? null,
-        })
-      : buildDeferredAutonomyContinuitySignalFallback({
-          ...input,
-          projectState: input.projectState ?? null,
-        })
+      ? buildDeferredAutonomyContinuitySignal(input)
+      : buildDeferredAutonomyContinuitySignalFallback(input)
 
     return normalizeDeferredAutonomyContinuitySignal(signal)
   }
@@ -1964,7 +1941,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
                 turnId,
                 scenario: structured?.proactive?.scenario ?? decision.scenario,
                 reason: proactiveVisibleUtterance.decision.reason,
-                projectState: null,
                 autonomy: committedDigitalLifeSpine.current.runtimeSurface.agency.autonomy ?? null,
               }),
             ],
