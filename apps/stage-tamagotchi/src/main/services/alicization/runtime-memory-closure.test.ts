@@ -1,5 +1,3 @@
-import type { AlicizationHumanlikeMemoryCandidate } from './humanlike-memory'
-
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -10,9 +8,7 @@ import {
 import { createAlicizationRuntimeMemoryClosure } from './runtime-memory-closure'
 
 interface MindTurnWriteback {
-  payload?: {
-    humanlikeMemoryCandidate?: AlicizationHumanlikeMemoryCandidate | null
-  } & Record<string, unknown>
+  payload?: Record<string, unknown>
   [key: string]: unknown
 }
 
@@ -120,11 +116,11 @@ function createReplySurface(extra: JsonRecord = {}) {
   } as unknown as Parameters<typeof buildReplyOutcomeClosure>[0]['runtimeSurface']
 }
 
-function latestCandidates(mock: { mock: { calls: unknown[][] } }) {
+function latestMindTurnPayloads(mock: { mock: { calls: unknown[][] } }) {
   return mock.mock.calls
     .flatMap(call => Array.isArray(call[0]) ? call[0] : [])
-    .map(event => (event && typeof event === 'object' ? (event as MindTurnWriteback).payload?.humanlikeMemoryCandidate : null))
-    .filter((candidate): candidate is AlicizationHumanlikeMemoryCandidate => Boolean(candidate))
+    .map(event => (event && typeof event === 'object' ? (event as MindTurnWriteback).payload : null))
+    .filter((payload): payload is Record<string, unknown> => Boolean(payload))
 }
 
 function allWrittenValues(fixture: ReturnType<typeof createRuntimeFixture>) {
@@ -179,7 +175,7 @@ function expectNoValue(value: unknown, text: string) {
 }
 
 describe('runtime memory closure', () => {
-  it('把真实对话与主人的反馈写成可审计的人格候选和状态更新事件', async () => {
+  it('把真实对话与主人反馈写成可审计记忆和状态更新，不再生成本地人格候选', async () => {
     const fixture = createRuntimeFixture()
     const userText = '我刚才是在说这个具体问题。'
     const assistantText = '我先回应你真正指出的部分。'
@@ -207,12 +203,21 @@ describe('runtime memory closure', () => {
       previousAssistantText: assistantText,
     }))
 
-    const candidates = latestCandidates(fixture.appendMindTurnEvents)
-    expect(candidates.length).toBeGreaterThanOrEqual(2)
-    expect(JSON.stringify(candidates)).toContain(userText)
-    expect(JSON.stringify(candidates)).toContain(assistantText)
-    expect(JSON.stringify(candidates)).toContain(feedbackText)
-    expect(candidates.every(candidate => candidate.sourceChannels.includes('dialogue'))).toBe(true)
+    const memoryWrites = JSON.stringify([
+      fixture.appendEpisodicEvents.mock.calls,
+      fixture.upsertMemoryReflections.mock.calls,
+      fixture.upsertMindHead.mock.calls,
+    ])
+    expect(memoryWrites).toContain(userText)
+    expect(memoryWrites).toContain(assistantText)
+    expect(memoryWrites).toContain(feedbackText)
+    expect(latestMindTurnPayloads(fixture.appendMindTurnEvents)).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          humanlikeMemoryCandidate: expect.anything(),
+        }),
+      ]),
+    )
     expect(fixture.appendMindTurnEvents.mock.calls.flatMap(call => call[0] ?? [])).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: 'person-state-updated',
@@ -255,12 +260,11 @@ describe('runtime memory closure', () => {
 
     await fixture.runtime.persistOutcomeClosure('default', executionClosure)
 
-    const candidate = latestCandidates(fixture.appendMindTurnEvents).at(-1)
-    expect(candidate).toBeDefined()
     expect(JSON.stringify(fixture.appendEpisodicEvents.mock.calls)).toContain(providerFailure)
     expect(JSON.stringify(fixture.upsertMemoryFacts.mock.calls)).toContain(deniedEvidence)
     expect(JSON.stringify(fixture.upsertMemoryFacts.mock.calls)).toContain(confirmationEvidence)
     expect(JSON.stringify(fixture.appendPersonaReinforcementEvents.mock.calls)).not.toContain(providerFailure)
+    expect(JSON.stringify(fixture.appendMindTurnEvents.mock.calls)).not.toContain('humanlikeMemoryCandidate')
   })
 
   it('只带中性旧噪音时不会生成旧字段、节奏状态、固定 lesson 或人格强化内容', async () => {
@@ -387,6 +391,72 @@ describe('runtime memory closure', () => {
     expect(JSON.stringify(reinforcementWrites)).not.toContain(failureText)
     expect(JSON.stringify(reinforcementWrites)).not.toContain(rawTranscript)
     expect(JSON.stringify(fixture.appendEpisodicEvents.mock.calls)).toContain(failureText)
+  })
+
+  it('不把情绪或具身 ledger 自动包装成长期事件和确认反思', async () => {
+    const fixture = createRuntimeFixture()
+
+    await fixture.runtime.persistOutcomeClosure('default', {
+      relationshipOutcomes: [],
+      reinforcementEvents: [],
+      memoryFacts: [],
+      reflections: [],
+      episodicEvents: [],
+      emotionalTransitionLedger: {
+        createdAt: 48_900,
+        turnId: 'turn-ledger',
+        previousEmotion: 'neutral',
+        nextEmotion: 'focused',
+        transitionKind: 'focus-shift',
+        changedAxes: ['arousal'],
+        decayPolicy: {
+          mode: 'time-window',
+          carryTtlMs: 60_000,
+        },
+        memoryWriteback: {
+          shouldWrite: true,
+          lane: 'emotional-continuity',
+          reason: 'runtime-ledger-evidence',
+        },
+        initiativeSuppression: {
+          mode: 'none',
+          reason: 'runtime-ledger-evidence',
+        },
+        embodimentDrive: {
+          shouldDrive: false,
+          tone: null,
+          reason: 'runtime-ledger-evidence',
+        },
+        traceSummary: 'runtime-ledger-evidence',
+        replayLine: 'runtime-ledger-evidence',
+      },
+      embodimentContinuityLedger: {
+        createdAt: 48_900,
+        turnId: 'turn-ledger',
+        continuityPhase: 'partial-carry',
+        carryingLanes: ['body'],
+        droppedLanes: ['face'],
+        pendingRejoinLanes: ['face'],
+        rejoinedLanes: [],
+        sourceTags: ['renderer-diagnostics'],
+        memoryWriteback: {
+          shouldWrite: true,
+          lane: 'cross-modal-continuity',
+          reason: 'runtime-ledger-evidence',
+        },
+        selfRevisionCandidate: {
+          shouldPropose: true,
+          reasonCodes: ['embodiment-lane-dropped:face'],
+        },
+        traceSummary: 'runtime-ledger-evidence',
+        replayLine: 'runtime-ledger-evidence',
+      },
+    } as never)
+
+    expect(fixture.appendEpisodicEvents).not.toHaveBeenCalled()
+    expect(fixture.upsertMemoryReflections).not.toHaveBeenCalled()
+    expect(fixture.appendPersonaReinforcementEvents).not.toHaveBeenCalled()
+    expect(fixture.appendMindTurnEvents).not.toHaveBeenCalled()
   })
 
   it('非活动 card 的 autobiographical backfill 仍通过 card scope 持久化', async () => {
