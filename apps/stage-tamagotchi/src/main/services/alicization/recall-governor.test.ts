@@ -97,6 +97,7 @@ describe('buildRecallGovernor', () => {
       recalledFragmentSourceBudget: [],
       carryAsMemory: true,
     }))
+    expect(governor?.narrative.join(' | ')).not.toMatch(/(?:suppress|allow):(?:associative|active-thoughts|recalled-fragments)/u)
   })
 
   it('admits emotionally resonant memory when the live thread is felt rather than purely visual', () => {
@@ -163,11 +164,14 @@ describe('buildRecallGovernor', () => {
         afterglowFromScenario: null,
         emotionalTension: 'late-night-drain',
       },
+      answerCompiler: {
+        suppressAssociativeRecall: true,
+      } as any,
     })
 
     expect(governor).toEqual(expect.objectContaining({
       mode: 'emotional-resonance',
-      suppressAssociativeRecall: false,
+      suppressAssociativeRecall: true,
       allowActiveThoughts: true,
       allowRecalledFragments: true,
       recalledFragmentCap: 3,

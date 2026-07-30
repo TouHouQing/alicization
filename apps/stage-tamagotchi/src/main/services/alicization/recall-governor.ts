@@ -505,7 +505,7 @@ export function buildRecallGovernor(input: {
   const allowActiveThoughts = resolvedMode !== 'none'
     && resolvedMode !== 'scene'
     && (resolvedMode !== 'thread' || !suppressAssociativeRecall)
-  const allowRecalledFragments = !suppressAssociativeRecall && (resolvedMode === 'emotional-resonance' || resolvedMode === 'self-continuity')
+  const allowRecalledFragments = resolvedMode === 'emotional-resonance' || resolvedMode === 'self-continuity'
   const dialogueFirstTurn = input.dialogueEncounter?.dialogueFirst === true
     || input.dialogueEncounter?.screenReferenceMode === 'avoid'
   const sceneAttachmentCues = dialogueFirstTurn ? [] : buildSceneAttachmentCues(input.sceneContext ?? null)
@@ -682,9 +682,6 @@ export function buildRecallGovernor(input: {
     rationale,
     narrative: uniqueList([
       `mode:${mode}`,
-      suppressAssociativeRecall ? 'suppress:associative' : 'allow:associative',
-      allowActiveThoughts ? 'allow:active-thoughts' : 'suppress:active-thoughts',
-      allowRecalledFragments ? 'allow:recalled-fragments' : 'suppress:recalled-fragments',
       allowRecalledFragments ? `recalled-fragment-cap:${recalledFragmentCap}` : null,
       ...recalledFragmentSourceBudget.map(item => `recalled-fragment-source:${item.sourceKind}:${item.maxItems}`),
       carryAsMemory ? 'carry:memory' : 'carry:none',
