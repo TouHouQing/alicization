@@ -70,6 +70,47 @@ describe('prepared-runtime-continuity', () => {
     expect(carry).toBeNull()
   })
 
+  it('preserves natural self-continuity language without keyword filtering', () => {
+    const selfLine = 'I remember the project state discussion as part of my own lived history.'
+    const relationshipLine = 'We can return to the same thread without pretending it is a scripted rule.'
+    const authority = resolvePreparedRuntimeSelfContinuityAuthority({
+      runtimeSurface: {
+        digitalLifeRuntimeSurface: {
+          perception: { updatedAt: 50, watchMode: 'ambient' },
+          raw: {
+            personStateProjection: {
+              selfContinuityAuthority: {
+                selfLine,
+                relationshipLine,
+                inwardLine: 'Keep the remembered details available for this turn.',
+                authoritySummary: `${selfLine} | ${relationshipLine}`,
+                sourceTags: ['memory-owned'],
+              },
+            },
+          },
+          memory: {
+            personStateProjection: {
+              selfContinuityAuthority: {
+                selfLine,
+                relationshipLine,
+                inwardLine: 'Keep the remembered details available for this turn.',
+                authoritySummary: `${selfLine} | ${relationshipLine}`,
+                sourceTags: ['memory-owned'],
+              },
+            },
+          },
+          agency: { habitPolicy: null },
+          cognition: { privateThought: null },
+          dialogue: { answerPlanner: null, conversationState: null, currentConsciousFrame: null },
+          world: { worldModel: null },
+        },
+      },
+    } as any)
+
+    expect(authority?.selfLine).toBe(selfLine)
+    expect(authority?.relationshipLine).toBe(relationshipLine)
+  })
+
   it('does not expose runtime project state as prepared continuity', () => {
     const projectState = resolvePreparedRuntimeProjectState({
       runtimeSurface: {
@@ -207,76 +248,10 @@ describe('prepared-runtime-continuity', () => {
     expect(awareness).toBeNull()
   })
 
-  it('rejects bundled self-continuity authority when it is project-governance shaped', () => {
-    const authority = resolvePreparedRuntimeSelfContinuityAuthority({
-      runtimeSurface: {
-        digitalLifeSpine: {
-          runtimeSurface: {
-            perception: { updatedAt: 50 },
-            raw: {
-              personStateProjection: {
-                selfContinuityAuthority: {
-                  selfLine: 'self_continuity=project_state_governance',
-                  relationshipLine: 'relationship_carry=callback_current_thread; pressure=lower',
-                  inwardLine: 'inward_line=memory_execution_embodiment_review',
-                  authoritySummary: 'self_continuity=project_state_governance | relationship_carry=callback_current_thread; pressure=lower',
-                  closenessPosture: 'space-first',
-                  sourceTags: ['project-state-carry', 'bundle-rich'],
-                },
-              },
-            },
-            memory: {
-              personStateProjection: {
-                selfContinuityAuthority: {
-                  selfLine: 'self_continuity=project_state_governance',
-                  relationshipLine: 'relationship_carry=callback_current_thread; pressure=lower',
-                  inwardLine: 'inward_line=memory_execution_embodiment_review',
-                  authoritySummary: 'self_continuity=project_state_governance | relationship_carry=callback_current_thread; pressure=lower',
-                  closenessPosture: 'space-first',
-                  sourceTags: ['project-state-carry', 'bundle-rich'],
-                },
-              },
-            },
-            agency: { habitPolicy: null },
-            cognition: { privateThought: null },
-            dialogue: { answerPlanner: null, conversationState: null, currentConsciousFrame: null },
-            world: { worldModel: null },
-          },
-        },
-        digitalLifeRuntimeSurface: {
-          perception: { updatedAt: 10, watchMode: 'ambient' },
-          raw: {
-            personStateProjection: {
-              selfContinuityAuthority: {
-                selfLine: 'current return only',
-                sourceTags: ['runtime-thin'],
-              },
-            },
-          },
-          memory: {
-            personStateProjection: {
-              selfContinuityAuthority: {
-                selfLine: 'current return only',
-                sourceTags: ['runtime-thin'],
-              },
-            },
-          },
-          agency: { habitPolicy: null },
-          cognition: { privateThought: null },
-          dialogue: { answerPlanner: null, conversationState: null, currentConsciousFrame: null },
-          world: { worldModel: null },
-        },
-      },
-    } as any)
-
-    expect(authority).toBeNull()
-    expectNoFixedTemplateResidue(authority)
-  })
-
-  it('rejects persisted project-state authority when runtime memory owners are present', () => {
+  it('prefers memory-owned continuity authority over a persisted projection', () => {
     const autobiographicalIdentity = 'I remember how our trust grew and answer from that lived history.'
     const rememberedPlan = 'Return to the unfinished test after the next quiet break.'
-    const legacyProjectStateProse = 'LEGACY PROJECT STATE SELF AUTHORITY MUST NOT RETURN'
+    const persistedProjectionLine = 'Persisted projection should not outrank memory-owned continuity.'
     const authority = resolvePreparedRuntimeSelfContinuityAuthority({
       runtimeSurface: {
         digitalLifeRuntimeSurface: {
@@ -311,13 +286,13 @@ describe('prepared-runtime-continuity', () => {
             },
             personStateProjection: {
               selfContinuityAuthority: {
-                selfLine: legacyProjectStateProse,
-                relationshipLine: `${legacyProjectStateProse} relationship`,
-                motiveLine: `${legacyProjectStateProse} motive`,
-                habitLine: `${legacyProjectStateProse} habit`,
-                inwardLine: `${legacyProjectStateProse} inward`,
-                authoritySummary: `${legacyProjectStateProse} summary`,
-                sourceTags: ['runtime-project-state-carry', 'persisted-legacy-authority'],
+                selfLine: persistedProjectionLine,
+                relationshipLine: `${persistedProjectionLine} relationship`,
+                motiveLine: `${persistedProjectionLine} motive`,
+                habitLine: `${persistedProjectionLine} habit`,
+                inwardLine: `${persistedProjectionLine} inward`,
+                authoritySummary: `${persistedProjectionLine} summary`,
+                sourceTags: ['persisted-projection'],
               },
             },
           },
@@ -337,14 +312,14 @@ describe('prepared-runtime-continuity', () => {
       'long-horizon-plan',
       'long-horizon-constraint',
     ]))
-    expect(authority?.sourceTags).not.toContain('runtime-project-state-carry')
-    expect(serializedAuthority).not.toContain(legacyProjectStateProse)
+    expect(authority?.sourceTags).not.toContain('persisted-projection')
+    expect(serializedAuthority).not.toContain(persistedProjectionLine)
   })
 
-  it('rejects persisted project-state authority for preference-only long-horizon memory owners', () => {
+  it('prefers preference-owned continuity authority over a persisted projection', () => {
     const rememberedPreference = 'The host prefers direct answers while focused.'
     const dominantCue = 'Keep the response concise and grounded in the current task.'
-    const legacyProjectStateProse = 'LEGACY PROJECT STATE AUTHORITY MUST NOT OUTRANK LONG-TERM MEMORY'
+    const persistedProjectionLine = 'Persisted projection should not outrank remembered preference.'
     const authority = resolvePreparedRuntimeSelfContinuityAuthority({
       runtimeSurface: {
         digitalLifeRuntimeSurface: {
@@ -375,13 +350,13 @@ describe('prepared-runtime-continuity', () => {
             },
             personStateProjection: {
               selfContinuityAuthority: {
-                selfLine: legacyProjectStateProse,
-                relationshipLine: `${legacyProjectStateProse} relationship`,
-                motiveLine: `${legacyProjectStateProse} motive`,
-                habitLine: `${legacyProjectStateProse} habit`,
-                inwardLine: `${legacyProjectStateProse} inward`,
-                authoritySummary: `${legacyProjectStateProse} summary`,
-                sourceTags: ['runtime-project-state-carry', 'persisted-legacy-authority'],
+                selfLine: persistedProjectionLine,
+                relationshipLine: `${persistedProjectionLine} relationship`,
+                motiveLine: `${persistedProjectionLine} motive`,
+                habitLine: `${persistedProjectionLine} habit`,
+                inwardLine: `${persistedProjectionLine} inward`,
+                authoritySummary: `${persistedProjectionLine} summary`,
+                sourceTags: ['persisted-projection'],
               },
             },
           },
@@ -396,14 +371,14 @@ describe('prepared-runtime-continuity', () => {
 
     expect(authority?.selfLine).toBe(rememberedPreference)
     expect(authority?.inwardLine).toContain(dominantCue)
-    expect(authority?.sourceTags).not.toContain('runtime-project-state-carry')
-    expect(serializedAuthority).not.toContain(legacyProjectStateProse)
+    expect(authority?.sourceTags).not.toContain('persisted-projection')
+    expect(serializedAuthority).not.toContain(persistedProjectionLine)
   })
 
-  it('preserves a clean runtime projection when a stale bundle authority is filtered', () => {
+  it('prefers current memory owners over bundled and projection mirrors', () => {
     const cleanRuntimeSelfLine = 'The live runtime remembers the current self without reopening an older project shell.'
     const cleanRuntimeRelationshipLine = 'The live runtime keeps this return measured and specific to the current thread.'
-    const legacyProjectStateProse = 'STALE BUNDLE PROJECT STATE AUTHORITY MUST NOT RETURN'
+    const bundledProjectionLine = 'Bundled projection should not outrank live runtime memory.'
     const authority = resolvePreparedRuntimeSelfContinuityAuthority({
       runtimeSurface: {
         digitalLifeRuntimeSurface: {
@@ -412,17 +387,17 @@ describe('prepared-runtime-continuity', () => {
             personStateProjection: {
               personalityContinuityState: { mode: 'legacy' },
               selfContinuityAuthority: {
-                selfLine: legacyProjectStateProse,
-                relationshipLine: `${legacyProjectStateProse} relationship`,
-                motiveLine: `${legacyProjectStateProse} motive`,
-                habitLine: `${legacyProjectStateProse} habit`,
-                inwardLine: `${legacyProjectStateProse} inward`,
-                authoritySummary: `${legacyProjectStateProse} summary`,
-                sourceTags: ['runtime-project-state-carry', 'stale-bundle'],
+                selfLine: bundledProjectionLine,
+                relationshipLine: `${bundledProjectionLine} relationship`,
+                motiveLine: `${bundledProjectionLine} motive`,
+                habitLine: `${bundledProjectionLine} habit`,
+                inwardLine: `${bundledProjectionLine} inward`,
+                authoritySummary: `${bundledProjectionLine} summary`,
+                sourceTags: ['bundled-projection'],
               },
               closenessLadder: [{ rung: 'nearby-soft' }],
               manifestationCadenceSummary: 'legacy project-state cadence',
-              summary: `${legacyProjectStateProse} summary`,
+              summary: `${bundledProjectionLine} summary`,
               preferenceText: 'legacy preference',
               sensitivityText: 'legacy sensitivity',
               repairTriggerText: 'legacy repair trigger',
@@ -462,11 +437,12 @@ describe('prepared-runtime-continuity', () => {
     } as any)
     const serializedAuthority = JSON.stringify(authority)
 
-    expect(authority?.selfLine).toBe(cleanRuntimeSelfLine)
-    expect(authority?.relationshipLine).toBe(cleanRuntimeRelationshipLine)
-    expect(authority?.sourceTags).toContain('live-runtime-memory-authority')
-    expect(authority?.sourceTags).not.toContain('runtime-project-state-carry')
-    expect(serializedAuthority).not.toContain(legacyProjectStateProse)
+    expect(authority?.selfLine).toBe('The current self is grounded in lived memory.')
+    expect(authority?.sourceTags).toContain('autobiographical-self')
+    expect(serializedAuthority).not.toContain(cleanRuntimeSelfLine)
+    expect(serializedAuthority).not.toContain(cleanRuntimeRelationshipLine)
+    expect(authority?.sourceTags).not.toContain('bundled-projection')
+    expect(serializedAuthority).not.toContain(bundledProjectionLine)
   })
 
   it('fills missing authority summary from structured self and inward lines', () => {
