@@ -22,8 +22,6 @@ export function buildProactiveRecallSeed(
 
 export function tuneOrganicMemoryPromptContextForExecutiveTurn(input: {
   context: OrganicMemoryPromptContext
-  suppressAssociativeRecall: boolean
-  personaKernelMode: 'full' | 'backgrounded' | 'muted'
   recallGovernor?: unknown
 }) {
   return input.context

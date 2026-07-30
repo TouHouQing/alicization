@@ -24,8 +24,6 @@ describe('runtime organic memory surface planning', () => {
 
     const result = tuneOrganicMemoryPromptContextForExecutiveTurn({
       context,
-      suppressAssociativeRecall: true,
-      personaKernelMode: 'muted',
       recallGovernor: {
         allowActiveThoughts: false,
         allowRecalledFragments: false,

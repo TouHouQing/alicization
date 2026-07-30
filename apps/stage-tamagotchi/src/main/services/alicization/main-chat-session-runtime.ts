@@ -399,8 +399,6 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   scheduleReminderTask: BuildMainGatewayToolsOptions['scheduleReminderTask']
   tuneOrganicMemoryPromptContextForExecutiveTurn: (input: {
     context: OrganicMemoryPromptContext
-    suppressAssociativeRecall: boolean
-    personaKernelMode: AlicizationMindTurnGovernance['personaKernelMode']
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
   }) => OrganicMemoryPromptContext
   invokeMcpCallTool: BuildMainGatewayToolsOptions['invokeMcpCallTool']
@@ -2265,8 +2263,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           digitalLifeRuntimeSurface: digitalLifeSpine?.runtimeSurface
             ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface
             ?? null,
-          suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
-          personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
           resolveContext: async () => await options.resolveOrganicMemoryPromptContext({
             recallSeed: organicRecallSeed,
             recallGovernor: prelude.perceptionAugmentation.recallGovernor,
@@ -2280,8 +2276,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           }),
           tuneContext: input => options.tuneOrganicMemoryPromptContextForExecutiveTurn({
             context: input.context,
-            suppressAssociativeRecall: Boolean(input.suppressAssociativeRecall),
-            personaKernelMode: (input.personaKernelMode ?? prelude.perceptionAugmentation.chatGovernance.personaKernelMode) as AlicizationMindTurnGovernance['personaKernelMode'],
             recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           }),
           nowMs: getNow,

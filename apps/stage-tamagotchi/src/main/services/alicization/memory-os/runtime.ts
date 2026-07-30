@@ -190,8 +190,6 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
   sessionId?: string | null
   budgetClass?: string | null
   retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
-  suppressAssociativeRecall?: boolean | null
-  personaKernelMode?: string | null
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   resolveContext: (input: {
     recallSeed: string
@@ -204,8 +202,6 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
   }) => Promise<OrganicMemoryPromptContext>
   tuneContext?: (input: {
     context: OrganicMemoryPromptContext
-    suppressAssociativeRecall?: boolean | null
-    personaKernelMode?: string | null
     recallGovernor?: unknown
   }) => Promise<OrganicMemoryPromptContext> | OrganicMemoryPromptContext
   nowMs?: () => number
@@ -224,8 +220,6 @@ export async function runAlicizationMemoryOsTurnRuntime(input: {
   const context = input.tuneContext
     ? await input.tuneContext({
         context: rawContext,
-        suppressAssociativeRecall: input.suppressAssociativeRecall,
-        personaKernelMode: input.personaKernelMode,
         recallGovernor: input.recallGovernor,
       })
     : rawContext
