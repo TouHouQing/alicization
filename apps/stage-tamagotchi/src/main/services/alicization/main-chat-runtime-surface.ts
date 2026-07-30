@@ -89,8 +89,6 @@ const alicizationProviderFactTypes = new Set([
   'alicization-execution-settlement-request',
   'alicization-host',
   'alicization-inspection',
-  'alicization-long-term-memory-recall',
-  'alicization-memory-context',
   'alicization-organic-self-context',
   'alicization-persona-directives',
   'alicization-persona-profile',

@@ -173,7 +173,7 @@ describe('main chat runtime surface', () => {
   })
 
   it.each(['backgrounded', 'muted'] as const)(
-    'keeps organic self and recalled memory facts when legacy persona mode is %s',
+    'keeps organic self while excluding the legacy recall fact when persona mode is %s',
     (personaKernelMode) => {
       const organicSelf = JSON.stringify({
         type: 'alicization-organic-self-context',
@@ -195,7 +195,7 @@ describe('main chat runtime surface', () => {
       }))
 
       expect(findFactMessage(result.messages, 'alicization-organic-self-context')?.content).toBe(organicSelf)
-      expect(findFactMessage(result.messages, 'alicization-long-term-memory-recall')?.content).toBe(longTermRecall)
+      expect(findFactMessage(result.messages, 'alicization-long-term-memory-recall')).toBeUndefined()
     },
   )
 
@@ -308,7 +308,7 @@ describe('main chat runtime surface', () => {
     })
   })
 
-  it('drops raw SOUL prose while keeping typed host and memory facts at the provider boundary', () => {
+  it('drops raw SOUL prose and legacy memory facts while keeping the unified memory envelope', () => {
     const messages: Message[] = [
       {
         role: 'system',
@@ -354,12 +354,12 @@ describe('main chat runtime surface', () => {
 
     const filtered = filterAlicizationProviderSystemMessages(messages)
 
-    expect(filtered).toHaveLength(4)
+    expect(filtered).toHaveLength(3)
     expect(parseFact(filtered[0]?.content).type).toBe('alicization-host')
     expect(parseFact(filtered[1]?.content).type).toBe('alicization-turn-memory-context')
-    expect(parseFact(filtered[2]?.content).type).toBe('alicization-long-term-memory-recall')
-    expect(filtered[3]?.content).toBe('你好')
+    expect(filtered[2]?.content).toBe('你好')
     expect(filtered.some(message => String(message.content).includes('# SOUL'))).toBe(false)
+    expect(filtered.some(message => String(message.content).includes('alicization-long-term-memory-recall'))).toBe(false)
     expect(filtered.some(message => String(message.content).includes('dialogue-session-mirror'))).toBe(false)
     expect(filtered.some(message => String(message.content).includes('PROJECT_STATE'))).toBe(false)
   })

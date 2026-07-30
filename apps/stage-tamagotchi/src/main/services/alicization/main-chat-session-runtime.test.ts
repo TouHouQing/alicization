@@ -50,43 +50,30 @@ type PreparedPreludeWithRuntimeSurface = AlicizationPreparedMainChatPrelude & {
 
 interface ParsedAlicizationTurnMemoryContext {
   type: 'alicization-turn-memory-context'
-  version: string
-  workingMemory: {
+  data: {
     version: string
-    owner: string
-    current: {
-      currentUserMove?: string | null
+    workingMemory: {
+      version: string
+      owner: string
+      current: {
+        currentUserMove?: string | null
+        [key: string]: unknown
+      }
+      rememberedItems: string[]
       [key: string]: unknown
     }
-    obligations: string[]
-    audit: {
-      failureTurnIds: string[]
-      [key: string]: unknown
-    }
-    [key: string]: unknown
-  }
-  longTermRecall: {
-    owner: string
-    intent: {
-      mode: string
-      riskFlags: string[]
-      [key: string]: unknown
-    }
-    plan: {
-      riskFlags: string[]
-      [key: string]: unknown
-    }
-    evidence: Array<{
-      candidate: {
+    longTermRecall: {
+      owner: string
+      status: string
+      evidence: Array<{
         id: string
         summary: string
         source: string
         [key: string]: unknown
-      }
+      }>
       [key: string]: unknown
-    }>
-    [key: string]: unknown
-  } | null
+    } | null
+  }
 }
 
 function parseAlicizationTurnMemoryContext(message: Message) {
@@ -95,8 +82,8 @@ function parseAlicizationTurnMemoryContext(message: Message) {
 
   try {
     const parsed = JSON.parse(message.content) as Partial<ParsedAlicizationTurnMemoryContext>
-    return parsed.type === 'alicization-turn-memory-context'
-      ? parsed as ParsedAlicizationTurnMemoryContext
+    return parsed.type === 'alicization-turn-memory-context' && parsed.data
+      ? parsed.data
       : null
   }
   catch {
@@ -549,7 +536,7 @@ function createOpenAgentTurn(getSensorySnapshot: () => Promise<AlicizationSensor
 }
 
 describe('resolvePreparedRuntimeSurfaceSelection', () => {
-  it('allows typed memory facts and drops untyped system blocks at the Provider boundary', () => {
+  it('allows only the unified typed memory envelope at the Provider boundary', () => {
     const recallFact = buildAlicizationProviderFactBlock('alicization-long-term-memory-recall', {
       owner: 'LongTermMemoryRecall',
       status: 'recalled',
@@ -564,17 +551,29 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const filtered = filterAlicizationProviderSystemMessages([
       { role: 'system', content: 'pre_turn_context_digest' },
       { role: 'system', content: recallFact },
+      {
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-turn-memory-context',
+          data: {
+            version: 'alicization-main-chat-memory-context-v1',
+            workingMemory: {
+              owner: 'working-memory',
+            },
+            longTermRecall: null,
+          },
+        }),
+      },
     ] as Message[])
 
     expect(filtered).toHaveLength(1)
     expect(JSON.parse(String(filtered[0]?.content))).toMatchObject({
-      type: 'alicization-long-term-memory-recall',
+      type: 'alicization-turn-memory-context',
       data: {
-        owner: 'LongTermMemoryRecall',
-        evidence: [{
-          id: 'reflection-no-fixed-reply',
-          summary: '不要使用固定模板；用户反对模板化人格/记忆回复。',
-        }],
+        version: 'alicization-main-chat-memory-context-v1',
+        workingMemory: {
+          owner: 'working-memory',
+        },
       },
     })
     expect(String(filtered[0]?.content).trim().startsWith('{')).toBe(true)
@@ -4971,7 +4970,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
     expect(result.memoryFailures).toEqual([])
     expect(message.content).toBe(result.memoryContext.providerSystemBlock)
-    expect(context).toEqual(JSON.parse(result.memoryContext.providerSystemBlock))
+    expect(context).toEqual(JSON.parse(result.memoryContext.providerSystemBlock).data)
     expect(context.workingMemory.current.currentUserMove).toContain('继续这个本地数字生命的工作记忆线。')
     expect(context.workingMemory).not.toHaveProperty('authorityLine')
     expect(context.workingMemory).not.toHaveProperty('longTermQueue')
@@ -5113,7 +5112,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(workingMemoryText).toContain('不是这个，别再用旧模板了。')
     expect(workingMemoryText).not.toContain('carry_execution:')
     expect(workingMemoryText).toContain('execution_callback_status:failed')
-    expect(context.workingMemory.audit.failureTurnIds.length).toBeGreaterThan(0)
+    expect(context.workingMemory).not.toHaveProperty('audit')
     expect(context.workingMemory).not.toHaveProperty('longTermQueue')
   })
 
@@ -5185,8 +5184,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
   it('keeps typed failure turns in WorkingMemory audit without enqueueing their user text', async () => {
     const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
+    const workingMemoryStore = createWorkingMemoryStore()
     const { runtime } = createWorkingMemoryRuntimeFixture({
       enqueueWorkingMemoryLongTermQueue,
+      workingMemoryStore,
       listConversationTurnsBySession: vi.fn(async () => [{
         turnId: 'turn-working-memory-provider-auth-failure',
         sessionId: 'session-1',
@@ -5222,16 +5223,19 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude,
     })
 
-    expect(result.memoryContext.workingMemory.audit.failureTurnIds).toContain(
+    expect(workingMemoryStore.latest('default')?.audit.failureTurnIds).toContain(
       'turn-working-memory-provider-auth-failure:alice',
     )
+    expect(result.memoryContext.workingMemory).not.toHaveProperty('audit')
     expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
   })
 
   it('restores hidden memory side-failure rows into WorkingMemory audit without visible assistant text', async () => {
     const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
+    const workingMemoryStore = createWorkingMemoryStore()
     const { runtime } = createWorkingMemoryRuntimeFixture({
       enqueueWorkingMemoryLongTermQueue,
+      workingMemoryStore,
       listConversationTurnsBySession: vi.fn(async () => [{
         turnId: 'turn-provider:memory-failure:long-term-memory-recall:0',
         sessionId: 'session-1',
@@ -5279,9 +5283,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude,
     })
 
-    expect(result.memoryContext.workingMemory.audit.failureTurnIds).toContain(
+    expect(workingMemoryStore.latest('default')?.audit.failureTurnIds).toContain(
       'turn-provider:memory-failure:long-term-memory-recall:0:alice',
     )
+    expect(result.memoryContext.workingMemory).not.toHaveProperty('audit')
     expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
   })
 
@@ -5421,17 +5426,16 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       owner: 'long-term-memory-recall',
       evidence: [
         expect.objectContaining({
-          candidate: expect.objectContaining({
-            id: 'episode-game-last-week',
-            source: 'episodic_events',
-          }),
+          id: 'episode-game-last-week',
+          source: 'episodic_events',
         }),
       ],
     }))
     expect(result.memoryContext.availableLongTermEvidenceIds).toEqual(['episode-game-last-week'])
-    expect(context.longTermRecall).toEqual(JSON.parse(result.memoryContext.providerSystemBlock).longTermRecall)
-    expect(context.longTermRecall?.intent.mode).toBe('episodic')
-    expect(context.longTermRecall?.evidence[0]?.candidate.summary).toContain('Minecraft')
+    expect(context.longTermRecall).toEqual(JSON.parse(result.memoryContext.providerSystemBlock).data.longTermRecall)
+    expect(context.longTermRecall).not.toHaveProperty('intent')
+    expect(context.longTermRecall).not.toHaveProperty('plan')
+    expect(context.longTermRecall?.evidence[0]?.summary).toContain('Minecraft')
     expect(text).not.toMatch(/\[[A-Z][A-Z0-9_]{4,}\]/u)
     expect(context.workingMemory).not.toHaveProperty('longTermQueue')
   })
@@ -5473,10 +5477,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         currentUserMove: expect.stringContaining('继续上次的记忆任务'),
       },
     })
-    expect(result.memoryContext.longTermRecall?.intent.riskFlags).toContain('recall-failed')
-    expect(result.memoryContext.longTermRecall?.plan.riskFlags).toContain('recall-failed')
+    expect(result.memoryContext.longTermRecall?.status).toBe('empty')
     expect(result.memoryContext.longTermRecall?.evidence).toEqual([])
-    expect(context.longTermRecall?.intent.riskFlags).toContain('recall-failed')
+    expect(context.longTermRecall?.status).toBe('empty')
     expect(result.memoryFailures).toHaveLength(1)
     const [failure] = result.memoryFailures
     if (!failure)
@@ -5502,11 +5505,13 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
   it('replaces an existing typed memory context without dropping ordinary messages', async () => {
     const staleMemoryContext = JSON.stringify({
       type: 'alicization-turn-memory-context',
-      version: 'stale-memory-context',
-      workingMemory: {
-        owner: 'stale-owner',
+      data: {
+        version: 'stale-memory-context',
+        workingMemory: {
+          owner: 'stale-owner',
+        },
+        longTermRecall: null,
       },
-      longTermRecall: null,
     })
     const ordinaryMessages: Message[] = [
       {

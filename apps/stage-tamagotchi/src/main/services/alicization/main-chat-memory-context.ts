@@ -7,15 +7,35 @@ export interface AlicizationWorkingMemoryProviderContext {
   version: 'working-memory-owner-context-v1'
   owner: 'working-memory'
   scope: WorkingMemoryOwnerContext['scope']
-  current: WorkingMemoryOwnerContext['current']
-  obligations: string[]
-  queryHints: string[]
-  audit: WorkingMemoryOwnerContext['audit']
+  current: Pick<
+    WorkingMemoryOwnerContext['current'],
+    'threadTitle' | 'currentUserMove' | 'activeTask' | 'taskStatus'
+  >
+  rememberedItems: string[]
 }
 
-export interface AlicizationLongTermMemoryRecallProviderContext
-  extends LongTermMemoryEvidenceBundle {
+export interface AlicizationLongTermMemoryRecallProviderEvidence {
+  id: string
+  kind: LongTermMemoryEvidenceBundle['evidence'][number]['candidate']['kind']
+  summary: string
+  source: string
+  confidence: number
+  salience: number | null
+  updatedAt: number | null
+  occurredAt: number | null
+  threadId: string | null
+  threadAnchor: string | null
+  cues: string[]
+  entities: string[]
+  sensitivity: LongTermMemoryEvidenceBundle['evidence'][number]['candidate']['sensitivity']
+  retrievalScore: number
+}
+
+export interface AlicizationLongTermMemoryRecallProviderContext {
   owner: 'long-term-memory-recall'
+  status: 'recalled' | 'empty'
+  confidence: number
+  evidence: AlicizationLongTermMemoryRecallProviderEvidence[]
 }
 
 export interface AlicizationMainChatMemoryContext {
@@ -34,25 +54,22 @@ function projectProviderWorkingMemory(
     owner: context.owner,
     scope: context.scope,
     current: {
-      ...context.current,
-      threadTitle: sanitizeAlicizationMemoryEvidenceText(context.current.threadTitle, 220) || null,
-      currentUserMove: context.current.currentUserMove,
-      activeTask: sanitizeAlicizationMemoryEvidenceText(context.current.activeTask, 220) || null,
+      threadTitle: sanitizeProviderMemoryFactText(context.current.threadTitle, 220) || null,
+      currentUserMove: normalizeProviderCurrentUserMove(context.current.currentUserMove),
+      activeTask: sanitizeProviderMemoryFactText(context.current.activeTask, 220) || null,
+      taskStatus: context.current.taskStatus,
     },
-    obligations: context.obligations
+    rememberedItems: context.obligations
       .map(normalizeProviderWorkingMemoryLine)
-      .map(value => sanitizeAlicizationMemoryEvidenceText(value, 260))
+      .map(value => sanitizeProviderMemoryFactText(value, 260))
       .filter(Boolean),
-    queryHints: context.queryHints
-      .map(value => sanitizeAlicizationMemoryEvidenceText(value, 180))
-      .filter(Boolean),
-    audit: {
-      ...context.audit,
-      notes: context.audit.notes
-        .map(value => sanitizeAlicizationMemoryEvidenceText(value, 260))
-        .filter(Boolean),
-    },
   }
+}
+
+function normalizeProviderCurrentUserMove(raw: unknown) {
+  if (typeof raw !== 'string')
+    return null
+  return raw.trim().replace(/\s+/gu, ' ').slice(0, 360).trim() || null
 }
 
 function normalizeProviderWorkingMemoryLine(raw: string) {
@@ -68,34 +85,39 @@ function normalizeAvailableLongTermEvidenceId(raw: unknown) {
   return raw.trim()
 }
 
-function sanitizeProviderMemoryMetadataValue(raw: unknown): unknown {
-  if (typeof raw === 'string')
-    return sanitizeAlicizationMemoryEvidenceText(raw, 360)
-  if (Array.isArray(raw)) {
-    return raw
-      .map(sanitizeProviderMemoryMetadataValue)
-      .filter(value => value !== '' && value !== null && value !== undefined)
-  }
-  if (!raw || typeof raw !== 'object')
-    return raw
-  return Object.fromEntries(
-    Object.entries(raw).map(([key, value]) => [
-      key,
-      sanitizeProviderMemoryMetadataValue(value),
-    ]),
-  )
-}
-
 function isProviderEligibleReviewStatus(reviewStatus: unknown) {
   // Durable fact/episode/consolidation sources predate reviewStatus; review queues always set it explicitly.
   return reviewStatus == null || reviewStatus === 'confirmed'
+}
+
+function containsRetiredMemoryGovernanceResidue(raw: string) {
+  return /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_state|projectstate|continuity_hold|continuity_drift_risk|emotional_closure)\s*=/iu.test(raw)
+    || /visibility\s*=\s*redacted_internal/iu.test(raw)
+}
+
+function sanitizeProviderMemoryFactText(raw: unknown, maxChars: number) {
+  const sanitized = sanitizeAlicizationMemoryEvidenceText(raw, maxChars)
+  return sanitized && !containsRetiredMemoryGovernanceResidue(sanitized)
+    ? sanitized
+    : ''
+}
+
+function finiteNumberOrNull(raw: unknown) {
+  return Number.isFinite(raw) ? Number(raw) : null
+}
+
+function clamp01(raw: unknown) {
+  const value = Number(raw)
+  if (!Number.isFinite(value))
+    return 0
+  return Math.max(0, Math.min(1, value))
 }
 
 function sanitizeLongTermRecallEvidence(
   item: LongTermMemoryEvidenceBundle['evidence'][number],
 ) {
   const summary = sanitizeAlicizationMemoryEvidenceText(item.candidate.summary, 360)
-  if (!summary)
+  if (!summary || containsRetiredMemoryGovernanceResidue(summary))
     return null
 
   const sanitizeList = (values: string[] | null | undefined, maxItems: number, maxChars: number) =>
@@ -105,18 +127,21 @@ function sanitizeLongTermRecallEvidence(
       .slice(0, maxItems)
 
   return {
-    ...item,
-    candidate: {
-      ...item.candidate,
-      summary,
-      source: sanitizeAlicizationMemoryEvidenceText(item.candidate.source, 120) || 'memory',
-      threadAnchor: sanitizeAlicizationMemoryEvidenceText(item.candidate.threadAnchor, 180) || null,
-      cues: sanitizeList(item.candidate.cues, 12, 120),
-      entities: sanitizeList(item.candidate.entities, 12, 120),
-    },
-    queryMatches: sanitizeList(item.queryMatches, 12, 140),
-    rankReasons: sanitizeList(item.rankReasons, 12, 180),
-  } satisfies LongTermMemoryEvidenceBundle['evidence'][number]
+    id: normalizeAvailableLongTermEvidenceId(item.candidate.id),
+    kind: item.candidate.kind,
+    summary,
+    source: sanitizeAlicizationMemoryEvidenceText(item.candidate.source, 120) || 'memory',
+    confidence: clamp01(item.candidate.confidence),
+    salience: finiteNumberOrNull(item.candidate.salience),
+    updatedAt: finiteNumberOrNull(item.candidate.updatedAt),
+    occurredAt: finiteNumberOrNull(item.candidate.occurredAt),
+    threadId: sanitizeAlicizationMemoryEvidenceText(item.candidate.threadId, 160) || null,
+    threadAnchor: sanitizeAlicizationMemoryEvidenceText(item.candidate.threadAnchor, 180) || null,
+    cues: sanitizeList(item.candidate.cues, 12, 120),
+    entities: sanitizeList(item.candidate.entities, 12, 120),
+    sensitivity: item.candidate.sensitivity ?? null,
+    retrievalScore: clamp01(item.score),
+  } satisfies AlicizationLongTermMemoryRecallProviderEvidence
 }
 
 function normalizeWorkingMemoryProviderContext(
@@ -130,9 +155,7 @@ function normalizeWorkingMemoryProviderContext(
 function normalizeLongTermRecallProviderContext(
   context: LongTermMemoryEvidenceBundle,
 ): AlicizationLongTermMemoryRecallProviderContext {
-  const cloned = structuredClone(context) as AlicizationLongTermMemoryRecallProviderContext
-  cloned.intent = sanitizeProviderMemoryMetadataValue(cloned.intent) as typeof cloned.intent
-  cloned.plan = sanitizeProviderMemoryMetadataValue(cloned.plan) as typeof cloned.plan
+  const cloned = structuredClone(context)
   const evidence: AlicizationLongTermMemoryRecallProviderContext['evidence'] = []
   const seen = new Set<string>()
 
@@ -148,15 +171,18 @@ function normalizeLongTermRecallProviderContext(
       continue
 
     seen.add(id)
-    normalizedItem.candidate.id = id
+    normalizedItem.id = id
     evidence.push(normalizedItem)
     if (evidence.length >= 16)
       break
   }
 
-  cloned.owner = 'long-term-memory-recall'
-  cloned.evidence = evidence
-  return cloned
+  return {
+    owner: 'long-term-memory-recall',
+    status: evidence.length > 0 ? 'recalled' : 'empty',
+    confidence: clamp01(cloned.confidence),
+    evidence,
+  }
 }
 
 export function buildAlicizationMainChatMemoryContext(input: {
@@ -169,13 +195,15 @@ export function buildAlicizationMainChatMemoryContext(input: {
     ? normalizeLongTermRecallProviderContext(input.longTermRecall)
     : null
   const availableLongTermEvidenceIds = longTermRecall
-    ? longTermRecall.evidence.map(item => item.candidate.id)
+    ? longTermRecall.evidence.map(item => item.id)
     : []
   const providerSystemBlock = JSON.stringify({
     type: 'alicization-turn-memory-context',
-    version,
-    workingMemory,
-    longTermRecall,
+    data: {
+      version,
+      workingMemory,
+      longTermRecall,
+    },
   })
 
   return {

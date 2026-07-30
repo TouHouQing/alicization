@@ -141,7 +141,7 @@ describe('main chat memory context', () => {
     })
     const parsed = JSON.parse(context.providerSystemBlock)
 
-    expect(parsed.workingMemory.obligations).toEqual([
+    expect(parsed.data.workingMemory.rememberedItems).toEqual([
       rawCorrection,
       '保留用户的任务和时间事实',
     ])
@@ -172,12 +172,12 @@ describe('main chat memory context', () => {
     const serialized = context.providerSystemBlock
     expect(serialized).not.toContain(openingPolicyCue)
     expect(serialized).not.toContain('visibility=redacted_internal')
-    expect(context.longTermRecall?.evidence.map(item => item.candidate.id)).toEqual([
+    expect(context.longTermRecall?.evidence.map(item => item.id)).toEqual([
       'memory-confirmed',
     ])
   })
 
-  it('sanitizes provider planning metadata at the memory boundary without rewriting the user move', () => {
+  it('keeps memory facts while removing retrieval and audit policy from the Provider envelope', () => {
     const context = buildAlicizationMainChatMemoryContext({
       workingMemory: {
         ...workingMemoryFixture,
@@ -217,16 +217,22 @@ describe('main chat memory context', () => {
       },
     })
     const parsed = JSON.parse(context.providerSystemBlock)
+    const providerData = parsed.data
 
-    expect(parsed.workingMemory.current.threadTitle).toBeNull()
-    expect(parsed.workingMemory.current.currentUserMove)
+    expect(providerData.workingMemory.current.threadTitle).toBeNull()
+    expect(providerData.workingMemory.current.currentUserMove)
       .toContain('opening_policy')
-    expect(parsed.workingMemory.obligations).toEqual([
+    expect(providerData.workingMemory.rememberedItems).toEqual([
       'Provider timed out after 30 seconds.',
     ])
-    expect(parsed.workingMemory.queryHints).toEqual(['长期记忆分页'])
-    expect(parsed.workingMemory.audit.notes).toEqual(['Provider failure remains visible.'])
-    expect(JSON.stringify(parsed.longTermRecall)).not.toMatch(
+    expect(providerData.workingMemory).not.toHaveProperty('queryHints')
+    expect(providerData.workingMemory).not.toHaveProperty('audit')
+    expect(providerData.longTermRecall).not.toHaveProperty('intent')
+    expect(providerData.longTermRecall).not.toHaveProperty('plan')
+    expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('queryMatches')
+    expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('rankReasons')
+    expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('visibleMode')
+    expect(JSON.stringify(providerData.longTermRecall)).not.toMatch(
       /opening_policy=|relationship_cadence=|visibility=redacted_internal/iu,
     )
   })
@@ -249,10 +255,10 @@ describe('main chat memory context', () => {
       },
     })
 
-    expect(context.longTermRecall?.evidence.map(item => item.candidate.id)).toEqual([
+    expect(context.longTermRecall?.evidence.map(item => item.id)).toEqual([
       'memory-correction',
     ])
-    expect(context.longTermRecall?.evidence[0]?.candidate.summary)
+    expect(context.longTermRecall?.evidence[0]?.summary)
       .toBe('用户明确要求不要再用 same-her 这类固定话术。')
   })
 
@@ -268,53 +274,49 @@ describe('main chat memory context', () => {
       version: 'working-memory-owner-context-v1',
       owner: workingMemoryFixture.owner,
       scope: workingMemoryFixture.scope,
-      current: workingMemoryFixture.current,
-      obligations: ['finish the typed memory context foundation'],
-      queryHints: workingMemoryFixture.queryHints,
-      audit: workingMemoryFixture.audit,
+      current: {
+        threadTitle: workingMemoryFixture.current.threadTitle,
+        currentUserMove: workingMemoryFixture.current.currentUserMove,
+        activeTask: workingMemoryFixture.current.activeTask,
+        taskStatus: workingMemoryFixture.current.taskStatus,
+      },
+      rememberedItems: ['finish the typed memory context foundation'],
     })
     expect(context.workingMemory).not.toHaveProperty('authorityLine')
     expect(context.workingMemory).not.toHaveProperty('longTermQueue')
+    expect(context.workingMemory).not.toHaveProperty('queryHints')
+    expect(context.workingMemory).not.toHaveProperty('audit')
     expect(context.longTermRecall).toMatchObject({
       owner: 'long-term-memory-recall',
-      intent: longTermRecallFixture.intent,
-      plan: longTermRecallFixture.plan,
+      status: 'recalled',
+      confidence: longTermRecallFixture.confidence,
       evidence: [{
-        candidate: {
-          id: 'memory-1',
-        },
-        rankReasons: [
-          'confirmed evidence',
-          'ranked by query match',
-        ],
+        id: 'memory-1',
+        summary: 'Confirmed long-term memory evidence 1.',
+        source: 'memory_facts',
+        retrievalScore: 0.91,
       }],
     })
-    expect(context.longTermRecall?.evidence.map(entry => entry.candidate.id)).toEqual(
+    expect(context.longTermRecall?.evidence.map(entry => entry.id)).toEqual(
       context.availableLongTermEvidenceIds,
     )
     expect(context.availableLongTermEvidenceIds).toEqual(['memory-1'])
     expect(parsed).toMatchObject({
       type: 'alicization-turn-memory-context',
-      version: context.version,
-      longTermRecall: {
-        owner: 'long-term-memory-recall',
-        evidence: [{
-          candidate: {
+      data: {
+        version: context.version,
+        longTermRecall: {
+          owner: 'long-term-memory-recall',
+          evidence: [{
             id: 'memory-1',
-          },
-          rankReasons: [
-            'confirmed evidence',
-            'ranked by query match',
-          ],
-        }],
+          }],
+        },
       },
     })
     expect(context.providerSystemBlock).not.toContain(authorityCue)
     expect(context.providerSystemBlock).not.toContain(pendingCandidateText)
-    expect(parsed.longTermRecall.evidence[0].rankReasons).toEqual([
-      'confirmed evidence',
-      'ranked by query match',
-    ])
+    expect(parsed.data.longTermRecall).not.toHaveProperty('intent')
+    expect(parsed.data.longTermRecall).not.toHaveProperty('plan')
   })
 
   it('isolates output from later input mutation', () => {
@@ -337,47 +339,31 @@ describe('main chat memory context', () => {
 
     expect(context.workingMemory.scope.cardId).toBe('card-1')
     expect(context.workingMemory.current.currentUserMove).toBe('Continue Task 2A')
-    expect(context.workingMemory.obligations).toEqual([
+    expect(context.workingMemory.rememberedItems).toEqual([
       'finish the typed memory context foundation',
     ])
-    expect(context.workingMemory.audit.notes).toEqual([
-      'Keep pending review material outside provider context.',
-    ])
-    expect(context.longTermRecall?.evidence[0].candidate.id).toBe('memory-1')
-    expect(context.longTermRecall?.evidence[0].candidate.summary)
+    expect(context.longTermRecall?.evidence[0].id).toBe('memory-1')
+    expect(context.longTermRecall?.evidence[0].summary)
       .toBe('Confirmed long-term memory evidence 1.')
-    expect(context.longTermRecall?.evidence[0].rankReasons).toEqual([
-      'confirmed evidence',
-      'ranked by query match',
-    ])
     expect(JSON.parse(context.providerSystemBlock)).toMatchObject({
-      workingMemory: {
-        scope: {
-          cardId: 'card-1',
-        },
-        current: {
-          currentUserMove: 'Continue Task 2A',
-        },
-        obligations: [
-          'finish the typed memory context foundation',
-        ],
-        audit: {
-          notes: [
-            'Keep pending review material outside provider context.',
+      data: {
+        workingMemory: {
+          scope: {
+            cardId: 'card-1',
+          },
+          current: {
+            currentUserMove: 'Continue Task 2A',
+          },
+          rememberedItems: [
+            'finish the typed memory context foundation',
           ],
         },
-      },
-      longTermRecall: {
-        evidence: [{
-          candidate: {
+        longTermRecall: {
+          evidence: [{
             id: 'memory-1',
             summary: 'Confirmed long-term memory evidence 1.',
-          },
-          rankReasons: [
-            'confirmed evidence',
-            'ranked by query match',
-          ],
-        }],
+          }],
+        },
       },
     })
     expect(context.availableLongTermEvidenceIds).toEqual(['memory-1'])

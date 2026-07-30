@@ -516,13 +516,20 @@ function readLatestUserMessageText(messages: Message[]) {
   return normalizePreparedExecutionText(readTransportContentAsText(latestUserMessage?.content), 1200) || ''
 }
 
-function isAlicizationTurnMemoryContextSystemMessage(message: Message) {
+const alicizationProviderMemoryFactTypes = new Set([
+  'alicization-long-term-memory-recall',
+  'alicization-memory-context',
+  'alicization-turn-memory-context',
+])
+
+function isAlicizationProviderMemorySystemMessage(message: Message) {
   if (message.role !== 'system' || typeof message.content !== 'string')
     return false
 
   try {
     const parsed = JSON.parse(message.content) as { type?: unknown }
-    return parsed?.type === 'alicization-turn-memory-context'
+    return typeof parsed?.type === 'string'
+      && alicizationProviderMemoryFactTypes.has(parsed.type)
   }
   catch {
     return false
@@ -534,7 +541,7 @@ function injectAlicizationMainChatMemoryContext(
   context: AlicizationMainChatMemoryContext,
 ) {
   const messagesWithoutMemoryContext = messages.filter(
-    message => !isAlicizationTurnMemoryContextSystemMessage(message),
+    message => !isAlicizationProviderMemorySystemMessage(message),
   )
   const firstNonSystemIndex = messagesWithoutMemoryContext.findIndex(
     message => message.role !== 'system',
@@ -3198,6 +3205,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     messages = runtimeSurface.messages
     messages = filterAlicizationProviderSystemMessages(messages)
     messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
+    messages = filterAlicizationProviderSystemMessages(messages)
     sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeRuntimeSurface)
     sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeSpine?.runtimeSurface ?? null)
     runtimeSurface.messages = messages
