@@ -143,31 +143,6 @@ function dedupeCuePool(values: Array<string | null | undefined>) {
   return deduped
 }
 
-function filterCompanionshipResidentModeAliases(input: {
-  aliases: string[]
-  kind: 'expression' | 'motion'
-  residentMode: unknown
-}) {
-  if (
-    input.residentMode !== 'measured-return'
-    && input.residentMode !== 'repair-before-closeness'
-    && input.residentMode !== 'quiet-companionship'
-  ) {
-    return input.aliases
-  }
-
-  const warmExpressionPattern = /smile|joy|cheer|bright|grin|happy/iu
-  const warmMotionPattern = /happy|joy|cheer|smile|wave|excited|raise|sway_relaxed/iu
-
-  return input.aliases.filter((alias) => {
-    if (typeof alias !== 'string')
-      return false
-    if (input.kind === 'expression')
-      return !warmExpressionPattern.test(alias)
-    return !warmMotionPattern.test(alias)
-  })
-}
-
 function normalizeRendererHintAliases(raw: unknown) {
   if (!Array.isArray(raw))
     return []
@@ -573,79 +548,8 @@ function resolvePersonaSpeechStyleSummary(personaBias: PersonaSpeechTimingBias, 
 export function resolveProjectClosureSpeechEmbodimentBias(
   projectState?: AlicizationRuntimeProjectStateDigest | null,
 ): ProjectClosureSpeechEmbodimentBias | null {
-  const continuityCadence = typeof projectState?.continuityCadence === 'string'
-    ? projectState.continuityCadence.trim().toLowerCase()
-    : ''
-  const explicitResidentMode = continuityCadence === 'repair-before-closeness'
-    ? 'repair-before-closeness'
-    : continuityCadence === 'measured-return'
-      ? 'measured-return'
-      : continuityCadence === 'rest-protective'
-        ? 'quiet-companionship'
-        : undefined
-  const explicitBlinkCadence = projectState?.preferredBlinkCadence === 'normal'
-    || projectState?.preferredBlinkCadence === 'linger'
-    || projectState?.preferredBlinkCadence === 'quiet'
-    ? projectState.preferredBlinkCadence
-    : undefined
-  const explicitGazeMode = projectState?.preferredGazeMode === 'steady'
-    || projectState?.preferredGazeMode === 'soften'
-    || projectState?.preferredGazeMode === 'drift'
-    ? projectState.preferredGazeMode
-    : undefined
-  const explicitPauseMode = projectState?.preferredPauseMode === 'longer'
-    || projectState?.preferredPauseMode === 'natural'
-    ? projectState.preferredPauseMode
-    : undefined
-  const explicitLipsyncMode = projectState?.preferredLipsyncMode === 'restrained'
-    || projectState?.preferredLipsyncMode === 'matched'
-    ? projectState.preferredLipsyncMode
-    : undefined
-  const explicitVoiceMode = projectState?.preferredVoiceMode === 'lower-pressure'
-    || projectState?.preferredVoiceMode === 'even'
-    ? projectState.preferredVoiceMode
-    : undefined
-  const explicitPacingMode = projectState?.preferredPacingMode === 'slower'
-    || projectState?.preferredPacingMode === 'natural'
-    ? projectState.preferredPacingMode
-    : undefined
-  const residentMode = explicitResidentMode
-  const fallbackBlinkCadence = residentMode === 'repair-before-closeness'
-    ? 'quiet'
-    : residentMode === 'measured-return' || residentMode === 'quiet-companionship'
-      ? 'linger'
-      : undefined
-  const fallbackGazeMode = residentMode === 'repair-before-closeness'
-    || residentMode === 'measured-return'
-    || residentMode === 'quiet-companionship'
-    ? 'soften'
-    : undefined
-  const preferredBlinkCadence = explicitBlinkCadence ?? fallbackBlinkCadence
-  const preferredGazeMode = explicitGazeMode ?? fallbackGazeMode
-  const preferredPauseMode = explicitPauseMode
-  const preferredLipsyncMode = explicitLipsyncMode
-
-  if (
-    !residentMode
-    && !preferredBlinkCadence
-    && !preferredGazeMode
-    && !preferredPauseMode
-    && !preferredLipsyncMode
-    && !explicitVoiceMode
-    && !explicitPacingMode
-  ) {
-    return null
-  }
-
-  return {
-    preferredBlinkCadence,
-    preferredGazeMode,
-    preferredPauseMode,
-    preferredLipsyncMode,
-    preferredVoiceMode: explicitVoiceMode,
-    preferredPacingMode: explicitPacingMode,
-    residentMode,
-  }
+  void projectState
+  return null
 }
 
 function resolveSegmentEmotion(input: {
@@ -698,83 +602,21 @@ function resolveSegmentRendererHints(input: {
   turnEmotion: AlicizationEmotion
 }) {
   const manifestHints = resolveManifestEmotionHints(input.performanceManifest, input.segmentEmotion)
-  const useTurnEnvelopeAliases = input.segmentEmotion === input.turnEmotion
-  const projectClosureBias = resolveProjectClosureSpeechEmbodimentBias(input.projectState)
-  const envelopeRendererHints = normalizeSegmentRendererHints(input.embodiment?.rendererHints)
-  const residentMode = envelopeRendererHints?.residentMode ?? projectClosureBias?.residentMode ?? null
-  const companionshipExpressionAliases = residentMode === 'repair-before-closeness'
-    ? ['RecoverSoft']
-    : residentMode === 'measured-return'
-      ? ['CalmInspect']
-      : residentMode === 'quiet-companionship'
-        ? ['ObserveSoft']
-        : []
-  const companionshipMotionAliases = residentMode === 'repair-before-closeness'
-    ? ['StillnessGuard']
-    : residentMode === 'measured-return'
-      ? ['ObserveSoft']
-      : residentMode === 'quiet-companionship'
-        ? ['StillnessGuard']
-        : []
-  const preferredBlinkCadence = projectClosureBias?.preferredBlinkCadence === 'quiet'
-    ? 'quiet'
-    : envelopeRendererHints?.preferredBlinkCadence ?? projectClosureBias?.preferredBlinkCadence
-  const preferredGazeMode = envelopeRendererHints?.preferredGazeMode ?? projectClosureBias?.preferredGazeMode
-  const preferredPauseMode = envelopeRendererHints?.preferredPauseMode ?? projectClosureBias?.preferredPauseMode
-  const preferredLipsyncMode = envelopeRendererHints?.preferredLipsyncMode ?? projectClosureBias?.preferredLipsyncMode
-  const preferredVoiceMode = envelopeRendererHints?.preferredVoiceMode ?? projectClosureBias?.preferredVoiceMode
-  const preferredPacingMode = envelopeRendererHints?.preferredPacingMode ?? projectClosureBias?.preferredPacingMode
-  const preferredExpressionAliases = filterCompanionshipResidentModeAliases({
-    aliases: dedupeCuePool([
-      ...(useTurnEnvelopeAliases ? envelopeRendererHints?.preferredExpressionAliases ?? [] : []),
-      ...companionshipExpressionAliases,
-      ...(manifestHints?.preferredExpressionAliases ?? []),
-      ...resolveStageEmbodimentLive2DExpressionAliases(input.segmentEmotion),
-      ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.segmentEmotion),
-    ]),
-    kind: 'expression',
-    residentMode,
-  })
-  const preferredMotionAliases = filterCompanionshipResidentModeAliases({
-    aliases: dedupeCuePool([
-      ...(useTurnEnvelopeAliases ? envelopeRendererHints?.preferredMotionAliases ?? [] : []),
-      ...companionshipMotionAliases,
-      ...(manifestHints?.preferredMotionAliases ?? []),
-      ...resolveStageEmbodimentLive2DMotionAliases(input.segmentEmotion),
-    ]),
-    kind: 'motion',
-    residentMode,
-  })
-  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0) {
-    return residentMode
-      || preferredBlinkCadence
-      || preferredGazeMode
-      || preferredPauseMode
-      || preferredLipsyncMode
-      || preferredVoiceMode
-      || preferredPacingMode
-      ? {
-        preferredBlinkCadence,
-        preferredGazeMode,
-        preferredPauseMode,
-        preferredLipsyncMode,
-        preferredVoiceMode,
-        preferredPacingMode,
-        residentMode: typeof residentMode === 'string' ? residentMode : undefined,
-      } satisfies AlicizationDialogueEmbodimentRendererHints
-      : null
-  }
+  const preferredExpressionAliases = dedupeCuePool([
+    ...(manifestHints?.preferredExpressionAliases ?? []),
+    ...resolveStageEmbodimentLive2DExpressionAliases(input.segmentEmotion),
+    ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.segmentEmotion),
+  ])
+  const preferredMotionAliases = dedupeCuePool([
+    ...(manifestHints?.preferredMotionAliases ?? []),
+    ...resolveStageEmbodimentLive2DMotionAliases(input.segmentEmotion),
+  ])
+  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0)
+    return null
 
   return {
-    preferredBlinkCadence,
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
-    preferredGazeMode,
-    preferredPauseMode,
-    preferredLipsyncMode,
-    preferredVoiceMode,
-    preferredPacingMode,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
-    residentMode: typeof residentMode === 'string' ? residentMode : undefined,
   } satisfies AlicizationDialogueEmbodimentRendererHints
 }
 
@@ -978,7 +820,6 @@ function resolveSegmentEmotionHoldMs(input: {
 function resolveSegmentRendererSettleHints(input: {
   delivery: AlicizationPerformanceDelivery
   personaBias: PersonaSpeechTimingBias
-  residentMode?: string | null
   segmentCount: number
   segmentIndex: number
   settleMode: AlicizationDialogueSpeechSettleMode
@@ -1034,27 +875,6 @@ function resolveSegmentRendererSettleHints(input: {
     : input.personaBias.directReconnect
       ? -40
       : 0
-  const companionshipFacialReleaseBias = input.residentMode === 'measured-return'
-    ? 120
-    : input.residentMode === 'repair-before-closeness'
-      ? 40
-      : input.residentMode === 'quiet-companionship'
-        ? 60
-        : 0
-  const companionshipExpressionBlendBias = input.residentMode === 'measured-return'
-    ? 90
-    : input.residentMode === 'repair-before-closeness'
-      ? 40
-      : input.residentMode === 'quiet-companionship'
-        ? 55
-        : 0
-  const companionshipActionFadeBias = input.residentMode === 'measured-return'
-    ? 50
-    : input.residentMode === 'repair-before-closeness'
-      ? 20
-      : input.residentMode === 'quiet-companionship'
-        ? 25
-        : 0
   const personaMotionBias = input.personaBias.observeFirst
     ? 40
     : input.personaBias.directReconnect
@@ -1066,20 +886,19 @@ function resolveSegmentRendererSettleHints(input: {
       settleFacialReleaseBase
       + phraseTailWeight * 260
       + deliveryFacialReleaseBias
-      + personaFacialReleaseBias
-      + companionshipFacialReleaseBias,
+      + personaFacialReleaseBias,
       80,
       1600,
       320,
     )),
     vrmExpressionBlendMs: Math.round(clampRange(
-      settleBlendBase + phraseTailWeight * 180 + deliveryBlendBias + companionshipExpressionBlendBias,
+      settleBlendBase + phraseTailWeight * 180 + deliveryBlendBias,
       60,
       960,
       240,
     )),
     vrmActionFadeMs: Math.round(clampRange(
-      settleActionFadeBase + phraseTailWeight * 160 + deliveryActionFadeBias + companionshipActionFadeBias,
+      settleActionFadeBase + phraseTailWeight * 160 + deliveryActionFadeBias,
       80,
       1200,
       220,
@@ -1103,31 +922,13 @@ function buildSegmentCuePool(input: {
   ])
 }
 
-function isDurableCompanionshipActionCue(actionCue: string) {
-  return actionCue === 'observe_focus' || actionCue === 'steady_focus'
-}
-
 function shouldPreserveExplicitActionCueAcrossSegments(input: {
   explicitCue?: string | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
 }) {
-  const explicitCue = typeof input.explicitCue === 'string' ? input.explicitCue.trim() : ''
-  if (!explicitCue)
-    return false
-
-  const rendererTarget = input.performanceManifest?.renderer === 'vrm' ? 'vrm' : 'live2d'
-  const residentMode = input.embodiment?.rendererHints?.residentMode ?? null
-  const companionshipCarry = residentMode === 'measured-return'
-    || residentMode === 'repair-before-closeness'
-    || residentMode === 'quiet-companionship'
-  if (!companionshipCarry)
-    return false
-
-  if (rendererTarget !== 'vrm')
-    return isDurableCompanionshipActionCue(explicitCue)
-
-  return true
+  void input
+  return false
 }
 
 function resolvePreservedSegmentActionCue(input: {
@@ -1389,7 +1190,6 @@ export function buildAlicizationDialogueSpeechTimeline(
     const rendererSettle = resolveSegmentRendererSettleHints({
       delivery: performance.delivery,
       personaBias: personaTimingBias,
-      residentMode: rendererHints?.residentMode ?? null,
       segmentCount: chunks.length,
       segmentIndex: index,
       settleMode,

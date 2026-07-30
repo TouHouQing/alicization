@@ -31,7 +31,6 @@ import {
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
   detectAlicizationExecutionCapabilityInquiry,
   detectAlicizationExecutionRoutingIntent,
-  isAlicizationDecorativePersonaTemplateContamination,
   isAlicizationProviderSchemaUnsupportedError,
   looksLikeAlicizationStructuredPayloadText,
   resolveAlicizationChatFailureSurface,
@@ -217,9 +216,8 @@ function sanitizeAlicizationAuditDetails(
   for (const [key, value] of Object.entries(details)) {
     if (key === 'candidateReply') {
       sanitized.candidateReplyChars = typeof value === 'string' ? value.length : 0
-      sanitized.candidateReplyFixedTemplateBlocked = typeof value === 'string'
-        ? isAlicizationDecorativePersonaTemplateContamination(value)
-        || containsChatVisibleReplyFixedTemplateResidue(value)
+      sanitized.candidateReplyInternalLeakBlocked = typeof value === 'string'
+        ? containsChatVisibleReplyFixedTemplateResidue(value)
         : true
       continue
     }
@@ -2225,22 +2223,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return stageFailureSurface(inspectedOutput.leakDetected ? 'internal-leak' : 'structured-contract')
         }
 
-        if (
-          isAlicizationDecorativePersonaTemplateContamination(finalReply)
-          || containsChatVisibleReplyFixedTemplateResidue(finalReply)
-        ) {
+        if (containsChatVisibleReplyFixedTemplateResidue(finalReply)) {
           await appendAlicizationAuditLog({
             level: 'critical',
             category: 'alicization.visible-reply',
-            action: 'runtime-authoritative-template-contamination-blocked',
-            message: 'Blocked contaminated provider output without renderer-authored replacement speech.',
+            action: 'runtime-authoritative-internal-leak-blocked',
+            message: 'Blocked structured internal text from the provider-visible reply.',
             details: {
               sessionId,
               turnId,
               candidateReplyChars: finalReply.length,
             },
           })
-          return stageFailureSurface('template-contamination')
+          return stageFailureSurface('internal-leak')
         }
 
         return setStagedAssistantResolution({
@@ -2616,26 +2611,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
           newMessages = sanitized.messages as any
         }
-      }
-      else if (Object.keys(contextsSnapshot).length > 0) {
-        const system = newMessages.slice(0, 1)
-        const afterSystem = newMessages.slice(1, newMessages.length)
-
-        newMessages = [
-          ...system,
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: ''
-                  + 'These are the contextual information retrieved or on-demand updated from other modules, you may use them as context for chat, or reference of the next action, tool call, etc.:\n'
-                  + `${Object.entries(contextsSnapshot).map(([key, value]) => `Module ${key}: ${JSON.stringify(value)}`).join('\n')}\n`,
-              },
-            ],
-          },
-          ...afterSystem,
-        ]
       }
 
       streamingMessageContext.composedMessage = newMessages as Message[]

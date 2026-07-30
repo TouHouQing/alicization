@@ -8,8 +8,8 @@ import {
 } from './alicization-dialogue-embodiment'
 
 describe('alicization dialogue embodiment', () => {
-  it('keeps dialogue-first care rhythm steadier instead of oscillating every turn', () => {
-    const embodiment = resolveAlicizationDialogueEmbodiment({
+  it('keeps dialogue governance from overriding provider emotion and performance inputs', () => {
+    const input: ResolveAlicizationDialogueEmbodimentInput = {
       candidateEmotion: 'concerned',
       candidatePerformance: {
         baseEmotion: 'concerned',
@@ -34,12 +34,16 @@ describe('alicization dialogue embodiment', () => {
       },
       reply: '我在，你慢一点也可以。',
       thought: 'stay close without crowding',
+    }
+    const governed = resolveAlicizationDialogueEmbodiment(input)
+    const ungoverned = resolveAlicizationDialogueEmbodiment({
+      ...input,
+      governance: null,
     })
 
-    expect(embodiment.emotion).toBe('concerned')
-    expect(embodiment.performance.delivery).toBe('gentle')
-    expect(embodiment.speechStyle.rateMultiplier).toBeLessThan(1)
-    expect(embodiment.speechStyle.pitchDelta).toBeLessThanOrEqual(8)
+    expect(governed).toEqual(ungoverned)
+    expect(governed.emotion).toBe('neutral')
+    expect(governed.performance.delivery).toBe('calm')
   })
 
   it('preserves an explicit supported VRM action from structured continuity state', () => {
@@ -152,8 +156,8 @@ describe('alicization dialogue embodiment', () => {
     expect(pollutedEnvelope).toEqual(cleanEnvelope)
   })
 
-  it('keeps structured mind-turn rejoin authoritative for measured-return', () => {
-    const embodiment = resolveAlicizationDialogueEmbodiment({
+  it('ignores legacy mind-turn continuity cues when resolving embodiment behavior', () => {
+    const input: ResolveAlicizationDialogueEmbodimentInput = {
       candidateEmotion: 'thinking',
       candidatePerformance: {
         baseEmotion: 'thinking',
@@ -163,6 +167,13 @@ describe('alicization dialogue embodiment', () => {
         delivery: 'calm',
         emphasis: 0,
       },
+      reply: '我会继续看这一处。',
+      thought: '',
+      turnId: 'legacy-mind-turn-cue-isolation',
+    }
+    const cleanEmbodiment = resolveAlicizationDialogueEmbodiment(input)
+    const poisonedEmbodiment = resolveAlicizationDialogueEmbodiment({
+      ...input,
       governance: {
         mindTurnFrame: {
           obligation: {
@@ -174,19 +185,9 @@ describe('alicization dialogue embodiment', () => {
           },
         },
       },
-      reply: '我会继续看这一处。',
-      thought: '',
     })
 
-    expect(embodiment.emotion).toBe('thinking')
-    expect(embodiment.performance.delivery).toBe('hesitant')
-    expect(embodiment.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredExpressionAliases: expect.arrayContaining(['CalmInspect']),
-      preferredMotionAliases: expect.arrayContaining(['ObserveSoft']),
-    }))
+    expect(poisonedEmbodiment).toEqual(cleanEmbodiment)
   })
 
   it('preserves renderer audit payload during envelope normalization', () => {

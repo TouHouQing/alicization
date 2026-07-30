@@ -2219,25 +2219,7 @@ function buildConversationEpisodicEvent(input: {
     ? sanitizeText(input.record.structured.emotion)
     : ''
   const origin = input.record.origin === 'subconscious-proactive' ? 'proactive' : 'reply'
-  const relationshipShift = input.record.origin === 'subconscious-proactive'
-    ? {
-        closenessDelta: 0.02,
-        trustDelta: 0.01,
-        burdenDelta: 0,
-        boundaryDelta: 0,
-        misreadDelta: 0,
-        repairDelta: 0,
-        openLoopDelta: 0.03,
-      }
-    : {
-        closenessDelta: 0.01,
-        trustDelta: 0.01,
-        burdenDelta: 0,
-        boundaryDelta: 0,
-        misreadDelta: 0,
-        repairDelta: 0,
-        openLoopDelta: 0.01,
-      }
+  const observedText = sanitizeBriefText([user, reply].filter(Boolean).join('\n'), 280)
   return {
     id: nanoid(),
     cardId: input.cardId,
@@ -2248,8 +2230,8 @@ function buildConversationEpisodicEvent(input: {
     provenance: 'observed',
     occurredAt: input.record.createdAt,
     whereSummary: input.record.origin === 'subconscious-proactive'
-      ? `${sanitizeText(proactive?.scenario) || 'general'} proactive window`
-      : 'browser fallback conversation turn',
+      ? sanitizeText(proactive?.scenario) || null
+      : null,
     withWhom: ['host'],
     threadAnchor: sanitizeBriefText(
       typeof governance?.focusAnchor === 'string'
@@ -2257,35 +2239,24 @@ function buildConversationEpisodicEvent(input: {
         : user || reply,
       160,
     ) || null,
-    whatHappened: sanitizeBriefText(
-      input.record.origin === 'subconscious-proactive'
-        ? `A proactive browser fallback turn was delivered. ${[reply, user].filter(Boolean).join(' ')}`
-        : `A browser fallback dialogue turn happened. ${[user, reply].filter(Boolean).join(' ')}`,
-      280,
-    ),
+    whatHappened: observedText || `turn:${input.record.turnId}`,
     felt: emotion || null,
     emotionTags: [emotion || '', input.record.origin === 'subconscious-proactive' ? 'proactive' : 'dialogue'].filter(Boolean),
-    whatChanged: input.record.origin === 'subconscious-proactive'
-      ? 'A proactive opening entered the shared history.'
-      : 'A dialogue turn became part of the living continuity.',
-    relationshipMeaning: input.record.origin === 'subconscious-proactive'
-      ? 'Proactive presence became part of the bond history.'
-      : 'The conversation itself became autobiographical memory.',
-    lesson: input.record.origin === 'subconscious-proactive'
-      ? 'Browser fallback should preserve proactive turns as real continuity, not transient UI events.'
-      : 'Fallback dialogue should still leave autobiographical residue.',
-    sourceSummary: 'browser fallback conversation record',
+    whatChanged: null,
+    relationshipMeaning: null,
+    lesson: null,
+    sourceSummary: null,
     confidence: input.record.origin === 'subconscious-proactive' ? 0.7 : 0.62,
     salience: input.record.origin === 'subconscious-proactive' ? 0.58 : 0.44,
     sceneAttachment: input.record.origin === 'subconscious-proactive' ? 0.34 : 0.22,
     consolidationPriority: input.record.origin === 'subconscious-proactive' ? 0.52 : 0.34,
-    relationshipShift,
+    relationshipShift: null,
     derivedFrom: [{
       kind: 'turn',
       id: input.record.turnId,
       label: input.record.origin,
     }],
-    tags: [input.record.origin, sanitizeText(proactive?.scenario) || 'general'].filter(Boolean),
+    tags: [input.record.origin, sanitizeText(proactive?.scenario)].filter(Boolean),
     createdAt: input.record.createdAt,
     updatedAt: input.record.createdAt,
     lastRecalledAt: null,
@@ -2310,41 +2281,21 @@ function buildProactiveOutcomeEpisodicEvent(input: {
     sourceKind: 'proactive',
     provenance: 'observed',
     occurredAt: input.at,
-    whereSummary: `${input.entry.scenario} proactive settlement`,
+    whereSummary: input.entry.scenario,
     withWhom: ['host'],
     threadAnchor: input.entry.scenario,
-    whatHappened: `A browser fallback proactive turn was settled as ${input.outcome}.`,
-    felt: input.outcome === 'reply-within-120s' || input.outcome === 'positive'
-      ? 'The host left the opening alive enough for proactive continuity.'
-      : input.outcome === 'dismiss'
-        ? 'The host closed the opening and boundary pressure rose.'
-        : 'The opening faded without a reply.',
+    whatHappened: `outcome:${input.outcome}`,
+    felt: null,
     emotionTags: ['proactive', input.outcome],
-    whatChanged: input.outcome === 'dismiss'
-      ? 'Boundary pressure increased and initiative should get lighter.'
-      : input.outcome === 'ignored'
-        ? 'The opening did not hold; initiative should soften.'
-        : 'Proactive presence was received as part of the shared line.',
-    relationshipMeaning: input.outcome === 'dismiss'
-      ? 'Dismissed proactive turns should not be forgotten in fallback mode.'
-      : 'Proactive settlement should shape the same bond line as main runtime.',
-    lesson: input.outcome === 'reply-within-120s' || input.outcome === 'positive'
-      ? 'Positive proactive reception should reinforce continuity.'
-      : 'Negative proactive reception should reduce pressure next time.',
-    sourceSummary: 'browser proactive outcome',
+    whatChanged: null,
+    relationshipMeaning: null,
+    lesson: null,
+    sourceSummary: null,
     confidence: input.outcome === 'dismiss' ? 0.82 : 0.74,
     salience: input.outcome === 'dismiss' ? 0.78 : input.outcome === 'ignored' ? 0.62 : 0.56,
     sceneAttachment: input.entry.scenario === 'late-night-care' ? 0.44 : 0.3,
     consolidationPriority: input.outcome === 'dismiss' ? 0.8 : 0.58,
-    relationshipShift: {
-      closenessDelta: input.outcome === 'dismiss' ? -0.04 : 0.03,
-      trustDelta: input.outcome === 'dismiss' ? -0.05 : 0.03,
-      burdenDelta: input.outcome === 'dismiss' ? 0.08 : input.outcome === 'ignored' ? 0.03 : -0.01,
-      boundaryDelta: input.outcome === 'dismiss' ? -0.08 : input.outcome === 'ignored' ? -0.03 : 0.01,
-      misreadDelta: input.outcome === 'dismiss' ? 0.05 : input.outcome === 'ignored' ? 0.02 : -0.01,
-      repairDelta: 0,
-      openLoopDelta: input.outcome === 'reply-within-120s' ? 0.03 : 0,
-    },
+    relationshipShift: null,
     derivedFrom: [{
       kind: 'turn',
       id: input.entry.turnId,

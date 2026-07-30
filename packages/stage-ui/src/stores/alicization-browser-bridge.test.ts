@@ -9,7 +9,12 @@ import { reactive } from 'vue'
 
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 import { installBrowserAlicizationBridge } from './alicization-browser-bridge'
-import { buildConversationTurnsKey, buildPerformanceManifestKey } from './alicization-browser-storage'
+import { buildBrowserMemoryConsolidations } from './alicization-browser-organic-memory'
+import {
+  buildConversationTurnsKey,
+  buildEpisodicEventsKey,
+  buildPerformanceManifestKey,
+} from './alicization-browser-storage'
 
 const storageMap = new Map<string, unknown>()
 
@@ -734,14 +739,13 @@ describe('browser alicization bridge visual presence listeners', () => {
     })
     expect(stateUpdates[0]?.privateThought?.rationaleTags).toEqual(expect.arrayContaining([
       'digital-life-spine',
-      'memory-carry:carry-thread',
-      'carry:mode:carry-thread',
       'dominant:memory',
     ]))
     expect(stateUpdates[0]?.residentPerformance?.reasonTags).toEqual(expect.arrayContaining([
       'resident-performance',
+      'body:accompanying',
       'continuity:quiet-accompaniment',
-      'thought:memory-carry:carry-thread',
+      'scene:coding',
     ]))
 
     stopState?.()
@@ -980,6 +984,188 @@ describe('browser alicization bridge visual presence listeners', () => {
       'carry:recollection:foreground',
       'dominant:memory',
     ]))
+  })
+
+  it('keeps browser fallback episodic memory factual without inventing relationship or persona evidence', async () => {
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const userText = '我信任你，也希望你记住这段原始对话。'
+    const assistantText = '我们因此变得更亲近，并形成固定关系偏好。'
+
+    await bridge.appendConversationTurn?.({
+      turnId: 'turn-browser-no-invented-relationship',
+      sessionId: 'session-browser-no-invented-relationship',
+      origin: 'user-turn',
+      userText,
+      assistantText,
+      structured: {
+        emotion: 'neutral',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+      },
+      createdAt: Date.now(),
+    } as any)
+
+    const episodicMemory = storageMap.get(buildEpisodicEventsKey('default')) as {
+      events?: Array<Record<string, unknown>>
+    } | undefined
+    const event = episodicMemory?.events?.[0]
+    expect(event).toEqual(expect.objectContaining({
+      relationshipMeaning: null,
+      lesson: null,
+      whatChanged: null,
+      relationshipShift: null,
+    }))
+
+    const snapshot = await bridge.getOrganicMemorySnapshot?.()
+    expect(snapshot?.hostPersonModel ?? null).toBeNull()
+    expect(snapshot?.selfEvolution ?? null).toBeNull()
+    expect(snapshot?.learningExecutionState ?? null).toBeNull()
+    expect(snapshot?.memoryConsolidations?.filter(item => item.facet === 'relationship-era')).toEqual([])
+    expect(JSON.stringify(snapshot?.hostPersonModel ?? null)).not.toContain(userText)
+    expect(JSON.stringify(snapshot?.hostPersonModel ?? null)).not.toContain(assistantText)
+  })
+
+  it('does not create relationship-era consolidation from incomplete or weak reconsolidation evidence', () => {
+    const incomplete = {
+      id: 'event-incomplete-reconsolidation',
+      occurredAt: 10,
+      updatedAt: 10,
+      salience: 0.9,
+      confidence: 0.95,
+      provenance: 'observed',
+      threadAnchor: 'raw-thread-anchor-must-not-qualify',
+      whatHappened: 'raw transcript must not qualify relationship consolidation',
+      lesson: null,
+      whatChanged: null,
+      relationshipMeaning: null,
+      sourceKind: 'reply',
+      tags: [],
+      latestReconsolidation: {
+        at: 20,
+        decisionTraceId: 'trace-incomplete',
+        provenance: 'remembered',
+        confidence: 0.9,
+        reason: 'A trace exists, but the evidence is incomplete.',
+        emotionTags: ['reviewable'],
+        relationshipMeaning: 'Only a relationship summary exists.',
+        lesson: null,
+      },
+    }
+    const weak = {
+      ...incomplete,
+      id: 'event-weak-reconsolidation',
+      latestReconsolidation: {
+        at: 21,
+        decisionTraceId: 'trace-weak',
+        provenance: 'reconstructed',
+        confidence: 0.94,
+        reason: 'This reconstruction is not confirmed evidence.',
+        emotionTags: ['uncertain'],
+        relationshipMeaning: 'A reconstructed relationship summary exists.',
+        lesson: 'A reconstructed lesson exists.',
+      },
+    }
+
+    const relationshipConsolidations = buildBrowserMemoryConsolidations([incomplete, weak] as any[])
+      .filter(item => item.facet === 'relationship-era')
+
+    expect(relationshipConsolidations).toEqual([])
+  })
+
+  it('builds relationship-era consolidation only from complete reviewable reconsolidation fields', () => {
+    const rawTranscript = 'RAW_TRANSCRIPT_MUST_NOT_ENTER_RELATIONSHIP_CONSOLIDATION'
+    const rawThreadAnchor = 'RAW_THREAD_ANCHOR_MUST_NOT_ENTER_RELATIONSHIP_CUES'
+    const reconsolidationAt = Date.UTC(2026, 6, 28, 8, 30, 0)
+    const event = {
+      id: 'event-reviewable-relationship',
+      occurredAt: Date.UTC(2026, 6, 20, 8, 30, 0),
+      updatedAt: Date.UTC(2026, 6, 20, 8, 30, 0),
+      salience: 0.12,
+      confidence: 0.11,
+      provenance: 'shadow',
+      threadAnchor: rawThreadAnchor,
+      whatHappened: rawTranscript,
+      lesson: 'raw event lesson',
+      whatChanged: 'raw event change',
+      relationshipMeaning: 'raw event relationship meaning',
+      sourceKind: 'reply',
+      tags: ['raw-event-tag'],
+      latestReconsolidation: {
+        at: reconsolidationAt,
+        decisionTraceId: 'trace-reviewed-relationship',
+        provenance: 'remembered',
+        confidence: 0.88,
+        reason: 'Reviewed evidence connects the relationship meaning to a trace.',
+        emotionTags: ['reviewed-evidence', 'relationship'],
+        relationshipMeaning: 'Reviewed relationship meaning.',
+        lesson: 'Reviewed relationship lesson.',
+      },
+    }
+
+    const relationshipConsolidation = buildBrowserMemoryConsolidations([event] as any[])
+      .find(item => item.facet === 'relationship-era')
+
+    expect(relationshipConsolidation).toEqual({
+      id: 'browser-autobio-relationship:trace-reviewed-relationship',
+      kind: 'autobiographical',
+      facet: 'relationship-era',
+      periodKey: 'relationship-2026-07-28',
+      periodStartedAt: reconsolidationAt,
+      periodEndedAt: reconsolidationAt,
+      summary: 'Reviewed relationship meaning.',
+      lesson: 'Reviewed relationship lesson.',
+      cues: [
+        'Reviewed relationship meaning.',
+        'Reviewed relationship lesson.',
+        'Reviewed evidence connects the relationship meaning to a trace.',
+        'reviewed-evidence',
+        'relationship',
+      ],
+      confidence: 0.88,
+      dominantProvenance: 'remembered',
+    })
+    expect(JSON.stringify(relationshipConsolidation)).not.toContain(rawTranscript)
+    expect(JSON.stringify(relationshipConsolidation)).not.toContain(rawThreadAnchor)
+    expect(relationshipConsolidation?.confidence).not.toBe(event.confidence)
+  })
+
+  it('keeps proactive outcome episodic relationship fields empty after feedback settlement', async () => {
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await bridge.appendConversationTurn?.({
+      turnId: 'turn-browser-proactive-outcome-factual',
+      sessionId: 'session-browser-proactive-outcome-factual',
+      origin: 'subconscious-proactive',
+      userText: '',
+      assistantText: '这是一条待反馈的主动消息。',
+      structured: {
+        proactive: {
+          scenario: 'coding',
+          feedbackWindowMs: 120_000,
+        },
+      },
+      createdAt: Date.now(),
+    } as any)
+    await bridge.reportProactiveFeedback?.({
+      turnId: 'turn-browser-proactive-outcome-factual',
+      feedback: 'dismiss',
+    } as any)
+
+    const episodicMemory = storageMap.get(buildEpisodicEventsKey('default')) as {
+      events?: Array<Record<string, unknown>>
+    } | undefined
+    const outcomeEvent = episodicMemory?.events?.find(event => event.whatHappened === 'outcome:dismiss')
+    expect(outcomeEvent).toEqual(expect.objectContaining({
+      relationshipMeaning: null,
+      lesson: null,
+      whatChanged: null,
+      relationshipShift: null,
+    }))
   })
 
   it('derives dynamic project-state facts from hidden failure artifact turns', async () => {

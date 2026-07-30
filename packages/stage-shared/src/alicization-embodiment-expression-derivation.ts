@@ -18,64 +18,6 @@ function roundHintWeight(value: number) {
   return Number(clampUnit(value).toFixed(2))
 }
 
-function roundDerivedIntensity(value: number) {
-  return Number(clampUnit(value).toFixed(2))
-}
-
-function normalizeRendererHintAlias(value: string | null | undefined) {
-  return typeof value === 'string'
-    ? value.trim().toLowerCase().replace(/-/g, '_')
-    : null
-}
-
-function hasStructuredExpressionMoreRoomHints(rendererHints: {
-  residentMode?: string | null
-  preferredBlinkCadence?: string | null
-  preferredGazeMode?: string | null
-  preferredExpressionAliases?: readonly string[] | null
-  preferredMotionAliases?: readonly string[] | null
-} | null | undefined) {
-  if (!rendererHints)
-    return false
-
-  const primaryExpressionAlias = normalizeRendererHintAlias(rendererHints.preferredExpressionAliases?.[0] ?? null)
-  const primaryMotionAlias = normalizeRendererHintAlias(rendererHints.preferredMotionAliases?.[0] ?? null)
-  const restrainedResidentMode = ['measured-return', 'repair-before-closeness'].includes(rendererHints.residentMode ?? '')
-  const explicitQuietRestrainedReturn = restrainedResidentMode
-    && rendererHints.preferredBlinkCadence === 'quiet'
-    && (rendererHints.preferredGazeMode === 'soften' || rendererHints.preferredGazeMode === 'steady')
-
-  if (!restrainedResidentMode)
-    return false
-
-  if (explicitQuietRestrainedReturn)
-    return true
-
-  return (
-    primaryExpressionAlias === 'soft_gaze'
-    && primaryMotionAlias === 'idle_settle'
-    && rendererHints.preferredBlinkCadence === 'linger'
-    && rendererHints.preferredGazeMode === 'soften'
-  )
-}
-
-function hasRememberedSeamMoreRoomSoftness(input: {
-  segment: AlicizationEmbodimentSpeechSegment
-  timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null | undefined
-}) {
-  return hasStructuredExpressionMoreRoomHints(input.timelineSegment?.rendererHints)
-    || hasStructuredExpressionMoreRoomHints(input.segment.rendererHints)
-}
-
-function resolvePreferredLipsyncMode(input: {
-  segment: AlicizationEmbodimentSpeechSegment
-  timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null | undefined
-}) {
-  return input.timelineSegment?.rendererHints?.preferredLipsyncMode
-    ?? input.segment.rendererHints?.preferredLipsyncMode
-    ?? null
-}
-
 export function resolveAlicizationClosedVisemeWeight(segment: AlicizationEmbodimentSpeechSegment) {
   const prosody = segment.prosody
   const emphasis = prosody?.emphasisStrength ?? 0.5
@@ -202,7 +144,6 @@ export function buildAlicizationEmbodimentLipSyncHints(input: {
   timelineSegment: AlicizationDialogueSpeechTimeline['segments'][number] | null
 }): AlicizationEmbodimentLipSyncVisemeHint[] {
   const { segment, timelineSegment } = input
-  const softenRememberedSeamReturn = hasRememberedSeamMoreRoomSoftness({ segment, timelineSegment })
   const closedWeight = resolveAlicizationClosedVisemeWeight(segment)
   const contourViseme = resolveAlicizationContourViseme(segment)
   const secondaryViseme = resolveAlicizationSecondaryViseme(segment)
@@ -214,33 +155,25 @@ export function buildAlicizationEmbodimentLipSyncHints(input: {
   if (confidence === null)
     return []
 
-  const preferredLipsyncMode = resolvePreferredLipsyncMode({ segment, timelineSegment })
-  const visemeWeightScale
-    = (softenRememberedSeamReturn ? 0.9 : 1)
-      * (preferredLipsyncMode === 'restrained' ? 0.88 : 1)
-  const scaledClosedWeight = roundHintWeight(closedWeight * visemeWeightScale)
-  const scaledContourWeight = roundHintWeight(contourWeight * visemeWeightScale)
-  const scaledOpenWeight = roundHintWeight(openWeight * visemeWeightScale)
-
   return [
     {
       segmentId: segment.id,
       viseme: 'closed',
-      weight: scaledClosedWeight,
+      weight: closedWeight,
       source: 'prosody-authority',
       confidence,
     },
     {
       segmentId: segment.id,
       viseme: contourViseme,
-      weight: scaledContourWeight,
+      weight: contourWeight,
       source: 'prosody-authority',
       confidence,
     },
     {
       segmentId: segment.id,
       viseme: secondaryViseme,
-      weight: scaledOpenWeight,
+      weight: openWeight,
       source: 'prosody-authority',
       confidence,
     },
@@ -265,18 +198,13 @@ export function buildAlicizationEmbodimentFaceCue(input: {
     segment,
     timelineSegment,
   } = input
-  const softenRememberedSeamReturn = hasRememberedSeamMoreRoomSoftness({ segment, timelineSegment })
   const faceIntensity = timelineSegment?.facialWeight ?? fallbackIntensity
-  const faceIntensityScale = softenRememberedSeamReturn ? 0.9 : 1
-  const scaledFaceIntensity = faceIntensityScale < 1
-    ? roundDerivedIntensity(faceIntensity * faceIntensityScale)
-    : faceIntensity
 
   return {
     segmentId: segment.id,
     emotion: timelineSegment?.emotion ?? fallbackEmotion,
     facialCue: timelineSegment?.facialCue ?? fallbackFacialCue,
-    intensity: scaledFaceIntensity,
+    intensity: faceIntensity,
     holdMs: Math.max(0, timelineSegment?.facialHoldMs ?? segment.settleMs),
     preUtteranceCue: resolveAlicizationSegmentPreUtteranceCue(segment),
     postUtteranceCue: resolveAlicizationSegmentPostUtteranceCue(segment),
@@ -301,23 +229,12 @@ export function buildAlicizationEmbodimentMotionBurst(input: {
     segment,
     timelineSegment,
   } = input
-  const softenRememberedSeamReturn = hasRememberedSeamMoreRoomSoftness({ segment, timelineSegment })
-  const preserveFallbackCue = Boolean(
-    fallbackActionCue
-    && timelineSegment?.rendererHints?.residentMode
-    && ['measured-return', 'repair-before-closeness'].includes(timelineSegment.rendererHints.residentMode)
-    && timelineSegment.rendererHints.preferredMotionAliases?.includes('InspectFollow'),
-  )
   const motionIntensity = timelineSegment?.gestureWeight ?? fallbackIntensity
-  const motionIntensityScale = softenRememberedSeamReturn ? 0.86 : 1
-  const scaledMotionIntensity = motionIntensityScale < 1
-    ? roundDerivedIntensity(motionIntensity * motionIntensityScale)
-    : motionIntensity
 
   return {
     segmentId: segment.id,
-    actionCue: preserveFallbackCue ? fallbackActionCue : (timelineSegment?.actionCue ?? fallbackActionCue),
-    intensity: scaledMotionIntensity,
+    actionCue: timelineSegment?.actionCue ?? fallbackActionCue,
+    intensity: motionIntensity,
     holdMs: Math.max(0, timelineSegment?.actionHoldMs ?? segment.settleMs),
     source: timelineSegment ? 'timeline-projection' : fallbackSource,
     confidence: timelineSegment ? resolveAlicizationTimelineProjectionConfidence(timelineSegment) : fallbackConfidence,

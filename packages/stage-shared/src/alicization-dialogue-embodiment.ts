@@ -83,24 +83,11 @@ export interface ResolveAlicizationDialogueEmbodimentInput {
 interface DialogueEncounterSnapshot {
   apologySignal: boolean
   careSignal: boolean
-  dialogueFirst: boolean
   energeticSignal: boolean
   firmSignal: boolean
-  measuredReturnReopenSignal: boolean
-  obligation: string
   questionSignal: boolean
   teasingSignal: boolean
   uncertaintySignal: boolean
-}
-
-function carriesMeasuredReturnCallbackReopenSignal(input: {
-  governance?: AlicizationDialogueEmbodimentGovernanceLike | null
-}) {
-  return input.governance?.mindTurnFrame?.obligation?.openingMove === 'rejoin-remembered-seam'
-    || (
-      input.governance?.mindTurnFrame?.self?.embodiedPresence === 'hesitant'
-      && input.governance?.mindTurnFrame?.self?.emotionalTension === 'soft-covision'
-    )
 }
 
 const deliveryPitchAdjustments: Record<AlicizationPerformanceDelivery, number> = {
@@ -182,7 +169,6 @@ function normalizeRendererHintAliases(raw: unknown) {
 function shouldPreserveExplicitRendererActionCue(input: {
   candidatePerformance?: AlicizationDialoguePerformancePayload | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
-  governance?: AlicizationDialogueEmbodimentGovernanceLike | null
   previous?: AlicizationDialogueEmbodimentPreviousState | null
 }) {
   const explicitCue = normalizeCue(input.candidatePerformance?.actionCue)
@@ -199,12 +185,7 @@ function shouldPreserveExplicitRendererActionCue(input: {
   if (normalizeCue(input.previous?.actionCue) === explicitCue)
     return true
 
-  const continuityCarry = input.governance?.screenReferenceMode === 'avoid'
-    || input.governance?.answerSubject === 'relationship'
-    || input.governance?.answerSubject === 'host-state'
-    || input.governance?.answerSubject === 'alicization-self'
-
-  return continuityCarry
+  return false
 }
 
 function normalizeEmbodimentRendererHints(raw: unknown): AlicizationDialogueEmbodimentRendererHints | null {
@@ -297,37 +278,17 @@ function selectCueWithVariation(input: {
 }
 
 function inferEncounter(input: {
-  governance?: AlicizationDialogueEmbodimentGovernanceLike | null
   reply: string
 }): DialogueEncounterSnapshot {
   const reply = input.reply
   const normalizedReply = reply.toLowerCase()
-  const obligation = input.governance?.answerAct ?? 'answer'
-  const dialogueFirst
-    = input.governance?.answerSubject === 'alicization-self'
-      || input.governance?.answerSubject === 'relationship'
-      || input.governance?.answerSubject === 'host-state'
-      || input.governance?.screenReferenceMode === 'avoid'
-  const measuredReturnReopenSignal
-    = carriesMeasuredReturnCallbackReopenSignal({
-      governance: input.governance,
-    })
-    || input.governance?.mindTurnFrame?.self?.embodiedPresence === 'hesitant'
 
   return {
-    obligation,
-    dialogueFirst,
     apologySignal: /抱歉|对不起|不好意思|sorry|apolog/i.test(reply),
-    careSignal: /别急|慢慢|先休息|照顾|没关系|take it easy|rest|care/i.test(reply)
-      || obligation === 'care'
-      || input.governance?.turnMode === 'care'
-      || input.governance?.turnMode === 'accompany',
-    firmSignal: /必须|立刻|马上|务必|stop|must|need to/i.test(reply)
-      || (input.governance?.repairState != null && input.governance.repairState !== 'none'),
-    measuredReturnReopenSignal,
+    careSignal: /别急|慢慢|先休息|照顾|没关系|take it easy|rest|care/i.test(reply),
+    firmSignal: /必须|立刻|马上|务必|stop|must|need to/i.test(reply),
     energeticSignal: /[!！]{2,}|太好了|真棒|awesome|great|wow/i.test(reply),
-    uncertaintySignal: /也许|可能|不确定|我想|我觉得|maybe|perhaps|i think/i.test(reply)
-      || obligation === 'ask-reground',
+    uncertaintySignal: /也许|可能|不确定|我想|我觉得|maybe|perhaps|i think/i.test(reply),
     questionSignal: /[?？]/.test(reply),
     teasingSignal: /哼|逗你|坏笑|tease|playful/i.test(normalizedReply),
   }
@@ -345,26 +306,21 @@ function resolveBaseEmotion(input: {
 
   if (encounter.apologySignal)
     resolved = 'apologetic'
-  else if (encounter.firmSignal && encounter.dialogueFirst && !encounter.measuredReturnReopenSignal)
+  else if (encounter.firmSignal)
     resolved = 'angry'
-  else if (encounter.measuredReturnReopenSignal && (candidateEmotion === 'thinking' || candidateEmotion === 'concerned'))
-    resolved = candidateEmotion === 'concerned' ? 'concerned' : 'thinking'
   else if (encounter.careSignal)
     resolved = 'concerned'
   else if (encounter.uncertaintySignal || encounter.questionSignal)
     resolved = 'thinking'
   else if (encounter.energeticSignal)
     resolved = 'happy'
-  else if (encounter.obligation === 'defer')
-    resolved = 'tired'
 
   if (
     candidateEmotion === 'concerned'
     && resolved === 'thinking'
     && !encounter.apologySignal
-    && (!encounter.firmSignal || !encounter.dialogueFirst)
+    && !encounter.firmSignal
     && !encounter.energeticSignal
-    && encounter.obligation !== 'defer'
   ) {
     resolved = 'concerned'
   }
@@ -377,8 +333,6 @@ function resolveBaseEmotion(input: {
       || encounter.questionSignal
 
   if (!strongSignal && resolved === previousEmotion) {
-    if (encounter.dialogueFirst && (resolved === 'concerned' || resolved === 'thinking'))
-      return resolved
     if (resolved === 'neutral')
       resolved = 'thinking'
     else if (resolved === 'thinking')
@@ -401,10 +355,8 @@ function resolveDelivery(input: {
 
   if (encounter.teasingSignal)
     resolved = 'teasing'
-  else if (encounter.firmSignal && !encounter.measuredReturnReopenSignal)
+  else if (encounter.firmSignal)
     resolved = 'firm'
-  else if (encounter.measuredReturnReopenSignal && input.emotion === 'thinking')
-    resolved = 'hesitant'
   else if (encounter.careSignal || input.emotion === 'concerned' || input.emotion === 'apologetic')
     resolved = 'gentle'
   else if (encounter.energeticSignal || input.emotion === 'happy' || input.emotion === 'surprised')
@@ -413,8 +365,6 @@ function resolveDelivery(input: {
     resolved = 'hesitant'
 
   if (previousDelivery === resolved) {
-    if (encounter.dialogueFirst && (resolved === 'gentle' || resolved === 'hesitant'))
-      return resolved
     if (resolved === 'calm')
       resolved = input.emotion === 'thinking' ? 'hesitant' : 'gentle'
     else if (resolved === 'hesitant')
@@ -454,17 +404,6 @@ function resolvePostureHint(input: {
 }): StageEmbodimentPresencePostureMode {
   const governance = input.governance
   if (
-    input.encounter.measuredReturnReopenSignal
-    && (
-      governance?.embodiedPresence === 'hesitant'
-      || input.delivery === 'hesitant'
-      || input.emotion === 'thinking'
-    )
-  ) {
-    return 'hesitant'
-  }
-
-  if (
     governance?.embodiedPresence === 'concerned'
     || input.encounter.careSignal
     || input.emotion === 'concerned'
@@ -495,8 +434,6 @@ function resolvePostureHint(input: {
     governance?.embodiedPresence === 'attentive'
     || input.delivery === 'firm'
     || input.delivery === 'energetic'
-    || input.encounter.dialogueFirst
-    || (governance?.repairState != null && governance.repairState !== 'none')
   ) {
     return 'attentive'
   }
@@ -517,25 +454,17 @@ function resolveSpeechStyle(input: {
     : input.emphasis === 1
       ? 1.02
       : 1
-  const dialogueFirstSoften = input.encounter?.dialogueFirst === true
-    && (input.emotion === 'concerned' || input.emotion === 'apologetic' || input.delivery === 'gentle')
-  const reflectiveSlowdown = input.encounter?.dialogueFirst === true
-    && input.emotion === 'thinking'
-    && input.delivery === 'hesitant'
 
   return {
     pitchDelta: clampPitchDelta(
       baseStyle.pitchDelta
       + deliveryPitchAdjustments[input.delivery]
-      + (dialogueFirstSoften ? -2 : 0)
       + emphasisPitch,
     ),
     rateMultiplier: clampRateMultiplier(
       baseStyle.rateMultiplier
       * deliveryRateAdjustments[input.delivery]
-      * emphasisRate
-      * (dialogueFirstSoften ? 0.96 : 1)
-      * (reflectiveSlowdown ? 0.98 : 1),
+      * emphasisRate,
     ),
   } satisfies StageEmbodimentSpeechStyleProfile
 }
@@ -546,25 +475,19 @@ function resolveDialogueEmbodimentRendererHints(input: {
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
 }): AlicizationDialogueEmbodimentRendererHints | null {
   const manifestHints = input.performanceManifest?.embodimentHints?.[input.emotion]
-  const measuredReturnReopenSignal = carriesMeasuredReturnCallbackReopenSignal({
-    governance: input.governance,
-  })
   const preferredExpressionAliases = dedupeCues([
     ...(manifestHints?.preferredExpressionAliases ?? []),
     ...resolveStageEmbodimentLive2DExpressionAliases(input.emotion),
     ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.emotion),
-    ...(measuredReturnReopenSignal ? ['CalmInspect'] : []),
   ])
   const preferredMotionAliases = dedupeCues([
     ...(manifestHints?.preferredMotionAliases ?? []),
     ...resolveStageEmbodimentLive2DMotionAliases(input.emotion),
-    ...(measuredReturnReopenSignal ? ['ObserveSoft'] : []),
   ])
 
   if (
     preferredExpressionAliases.length === 0
     && preferredMotionAliases.length === 0
-    && !measuredReturnReopenSignal
   ) {
     return null
   }
@@ -572,9 +495,6 @@ function resolveDialogueEmbodimentRendererHints(input: {
   return {
     preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
     preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
-    preferredBlinkCadence: measuredReturnReopenSignal ? 'linger' : undefined,
-    preferredGazeMode: measuredReturnReopenSignal ? 'soften' : undefined,
-    residentMode: measuredReturnReopenSignal ? 'measured-return' : undefined,
   }
 }
 
@@ -639,14 +559,12 @@ export function resolveAlicizationDialogueEmbodiment(
 ): AlicizationDialogueEmbodimentEnvelope {
   const reply = input.reply.trim()
   const encounter = inferEncounter({
-    governance: input.governance,
     reply,
   })
   const variationToken = clampVariationToken([
     input.turnId?.trim() || '',
     input.governance?.decisionTraceId?.trim() || '',
     input.previous?.variationToken?.trim() || '',
-    encounter.obligation,
     reply.slice(0, 96),
   ]
     .join('|')
@@ -684,7 +602,6 @@ export function resolveAlicizationDialogueEmbodiment(
   const actionCue = shouldPreserveExplicitRendererActionCue({
     candidatePerformance: input.candidatePerformance,
     performanceManifest: input.performanceManifest,
-    governance: input.governance,
     previous: input.previous,
   })
     ? normalizeCue(input.candidatePerformance?.actionCue)

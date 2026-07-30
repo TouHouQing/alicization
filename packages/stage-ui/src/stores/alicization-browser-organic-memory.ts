@@ -1,6 +1,5 @@
 import type {
   AlicizationEpisodicEventRecord,
-  AlicizationHostPersonModelSnapshot,
   AlicizationMemoryProvenance,
   AlicizationOrganicMemorySnapshot,
   AlicizationSubconsciousFragment,
@@ -25,6 +24,19 @@ export interface BrowserMemoryConsolidationSnapshot {
   confidence: number
   dominantProvenance: AlicizationMemoryProvenance
 }
+
+interface ReviewableRelationshipReconsolidation {
+  at: number
+  decisionTraceId: string
+  provenance: 'observed' | 'remembered'
+  confidence: number
+  reason: string
+  emotionTags: string[]
+  relationshipMeaning: string
+  lesson: string
+}
+
+const minimumReviewableRelationshipConfidence = 0.75
 
 function clamp01(value: number) {
   if (Number.isNaN(value))
@@ -56,120 +68,49 @@ function uniqueTexts(values: Array<unknown>, maxItems = 8) {
   return result
 }
 
-function computeBrowserTrustScore(events: AlicizationEpisodicEventRecord[]) {
-  if (events.length === 0)
-    return 0.48
-  let score = 0.48
-  for (const event of events) {
-    const shift = event.relationshipShift
-    if (!shift)
-      continue
-    score += Math.max(0, shift.trustDelta) * 0.6
-    score += Math.max(0, shift.closenessDelta) * 0.22
-    score += Math.max(0, shift.repairDelta) * 0.18
-    score -= Math.max(0, shift.misreadDelta) * 0.4
-    score -= Math.max(0, shift.burdenDelta) * 0.25
-    score -= Math.max(0, -shift.boundaryDelta) * 0.45
-  }
-  return clamp01(score)
-}
-
-export function buildBrowserHostPersonModel(events: AlicizationEpisodicEventRecord[]): AlicizationHostPersonModelSnapshot | null {
-  if (events.length === 0)
+function resolveReviewableRelationshipReconsolidation(
+  event: AlicizationEpisodicEventRecord,
+): ReviewableRelationshipReconsolidation | null {
+  const reconsolidation = event.latestReconsolidation
+  if (!reconsolidation)
     return null
-  const recent = [...events]
-    .sort((left, right) => right.salience - left.salience || right.occurredAt - left.occurredAt)
-    .slice(0, 16)
-  const trustScore = computeBrowserTrustScore(recent)
-  const stage = trustScore < 0.32
-    ? 'guarded'
-    : trustScore < 0.52
-      ? 'cautious-open'
-      : trustScore < 0.76
-        ? 'warming'
-        : 'trusted'
 
-  const routines = uniqueTexts(recent.flatMap((event) => {
-    const text = `${event.whereSummary ?? ''} ${event.whatHappened} ${event.tags.join(' ')}`
-    return [
-      /focused|debug|coding|cursor|runtime|工作|写代码/u.test(text) ? 'Focused work windows usually need space first.' : null,
-      /late[- ]?night|夜|熬夜|drain|累/u.test(text) ? 'Late-night windows need softer pace and rest-sensitive care.' : null,
-      /execution|callback|cli|codex|结果|执行/u.test(text) ? 'Execution flows land best when proposal and callback stay bounded.' : null,
-    ]
-  }), 5)
-  const sensitivities = uniqueTexts(recent.flatMap((event) => {
-    const text = `${event.whatHappened} ${event.whatChanged ?? ''} ${event.relationshipMeaning ?? ''}`
-    return [
-      /intrusive|pressure|太近|太重|打扰|boundary/u.test(text) ? 'Pressure and over-close timing become intrusive quickly.' : null,
-      /robotic|template|机械|机器人|系统/u.test(text) ? 'Template-like speech breaks the sense of a living reply.' : null,
-      /busy|focused|累|忙|疲惫/u.test(text) ? 'When the host is busy or tired, interruption cost rises quickly.' : null,
-    ]
-  }), 6)
-  const repairTriggers = uniqueTexts(recent.flatMap((event) => {
-    const text = `${event.whatHappened} ${event.relationshipMeaning ?? ''} ${event.lesson ?? ''}`
-    return [
-      /not this|repair|missed|澄清|修复|不是这个/u.test(text) ? 'When the host says not this, repair the seam before continuing.' : null,
-      /robotic|template|机械|机器人/u.test(text) ? 'If the reply feels robotic, replace shell wording with lived continuity.' : null,
-      /intrusive|boundary|太近|打扰/u.test(text) ? 'If closeness feels heavy, reopen with lighter presence.' : null,
-    ]
-  }), 5)
-  const recurrentBurdens = uniqueTexts(recent.flatMap((event) => {
-    const text = `${event.whereSummary ?? ''} ${event.whatHappened} ${event.whatChanged ?? ''}`
-    return [
-      /late[- ]?night|夜|熬夜|累/u.test(text) ? 'Late-night fatigue turns small nudges into real burden.' : null,
-      /focused|debug|coding|工作|写代码/u.test(text) ? 'Focused work is easy to overload with extra conversational pressure.' : null,
-      /callback|execution|结果|执行/u.test(text) && /intrusive|打扰|pressure/u.test(text) ? 'Execution callbacks can feel interruptive when timing is off.' : null,
-    ]
-  }), 5)
-
-  const preferredClosenessByContext = uniqueTexts(recent.map((event) => {
-    const text = `${event.whereSummary ?? ''} ${event.whatHappened} ${event.tags.join(' ')}`
-    if (/focused|debug|coding|工作|写代码/u.test(text))
-      return 'focused-work: Lighter touch and less interruption pressure.'
-    if (/late[- ]?night|夜|熬夜|drain|累/u.test(text))
-      return 'late-night: Soft care can come closer, but pacing should stay gentle.'
-    if (/execution|callback|cli|codex|执行|结果/u.test(text))
-      return 'execution: Keep proposal, action, and callback bounded.'
-    return 'general: Stay near, but keep the approach responsive to the host move.'
-  }), 4).map((item) => {
-    const [context, ...rest] = item.split(':')
-    return {
-      context: sanitizeText(context),
-      preference: sanitizeText(rest.join(':')),
-      confidence: 0.72,
-    }
-  })
+  const at = Number(reconsolidation.at)
+  const confidence = Number(reconsolidation.confidence)
+  const decisionTraceId = sanitizeText(reconsolidation.decisionTraceId)
+  const reason = sanitizeBriefText(reconsolidation.reason, 220)
+  const relationshipMeaning = sanitizeBriefText(reconsolidation.relationshipMeaning, 280)
+  const lesson = sanitizeBriefText(reconsolidation.lesson, 220)
+  const provenance = reconsolidation.provenance
+  if (
+    !Number.isFinite(at)
+    || at <= 0
+    || !decisionTraceId
+    || (provenance !== 'observed' && provenance !== 'remembered')
+    || !Number.isFinite(confidence)
+    || confidence < minimumReviewableRelationshipConfidence
+    || confidence > 1
+    || !reason
+    || !relationshipMeaning
+    || !lesson
+  ) {
+    return null
+  }
 
   return {
-    summary: uniqueTexts([
-      routines[0] ? `routine=${routines[0]}` : null,
-      sensitivities[0] ? `sensitivity=${sensitivities[0]}` : null,
-      repairTriggers[0] ? `repair=${repairTriggers[0]}` : null,
-    ], 3).join(' | '),
-    routines,
-    sensitivities,
-    repairTriggers,
-    trustLadder: {
-      stage,
-      score: trustScore,
-      rationale: stage === 'guarded'
-        ? 'Distance still closes quickly; openings must be earned.'
-        : stage === 'cautious-open'
-          ? 'There is room, but trust still depends on timing and repair.'
-          : stage === 'warming'
-            ? 'Warmth can land when continuity stays coherent.'
-            : 'Trust is strong enough for more direct warmth when timing stays good.',
-    },
-    preferredClosenessByContext,
-    recurrentBurdens,
-    narrative: uniqueTexts([
-      ...routines,
-      ...sensitivities,
-      ...repairTriggers,
-      ...recurrentBurdens,
-    ], 8),
-    updatedAt: Math.max(...recent.map(event => event.updatedAt), Date.now()),
+    at,
+    decisionTraceId,
+    provenance,
+    confidence,
+    reason,
+    emotionTags: uniqueTexts(reconsolidation.emotionTags, 5),
+    relationshipMeaning,
+    lesson,
   }
+}
+
+export function buildBrowserHostPersonModel(_events: AlicizationEpisodicEventRecord[]) {
+  return null
 }
 
 export function buildBrowserMemoryConsolidations(events: AlicizationEpisodicEventRecord[]): BrowserMemoryConsolidationSnapshot[] {
@@ -180,10 +121,10 @@ export function buildBrowserMemoryConsolidations(events: AlicizationEpisodicEven
     .sort((left, right) => right.occurredAt - left.occurredAt || right.salience - left.salience)
     .slice(0, 20)
   const latest = recent[0] ?? null
-  const relationshipEvents = recent.filter((event) => {
-    const text = `${event.relationshipMeaning ?? ''} ${event.lesson ?? ''} ${event.whatChanged ?? ''}`
-    return Boolean(event.relationshipShift) || /trust|boundary|repair|靠近|关系|信任|边界|修复/iu.test(text)
-  })
+  const relationshipEvidence = recent
+    .map(resolveReviewableRelationshipReconsolidation)
+    .filter((item): item is ReviewableRelationshipReconsolidation => item !== null)
+    .sort((left, right) => right.confidence - left.confidence || right.at - left.at)
   const taskEvents = recent.filter((event) => {
     const text = `${event.sourceKind} ${event.threadAnchor ?? ''} ${event.whatHappened} ${event.lesson ?? ''}`
     return /execution|reply|proposal|result|callback|cli|codex|claude|patch|verify|runtime|执行|回调|补丁|核验/u.test(text)
@@ -202,27 +143,32 @@ export function buildBrowserMemoryConsolidations(events: AlicizationEpisodicEven
       periodKey: new Date(latest.occurredAt).toISOString().slice(0, 10),
       periodStartedAt: Math.min(...recent.map(event => event.occurredAt)),
       periodEndedAt: Math.max(...recent.map(event => event.occurredAt)),
-      summary: sanitizeBriefText(latest.relationshipMeaning || latest.whatChanged || latest.whatHappened, 280),
-      lesson: sanitizeBriefText(latest.lesson ?? '', 220) || null,
-      cues: uniqueTexts([latest.threadAnchor, latest.whereSummary, latest.whatHappened, latest.relationshipMeaning], 5),
+      summary: sanitizeBriefText(latest.whatHappened, 280),
+      lesson: sanitizeBriefText(latest.latestReconsolidation?.lesson ?? '', 220) || null,
+      cues: uniqueTexts([latest.threadAnchor, latest.whereSummary, latest.whatHappened], 5),
       confidence: clamp01((latest.confidence * 0.62) + (latest.salience * 0.38)),
       dominantProvenance: latest.latestReconsolidation?.provenance ?? latest.provenance,
     })
   }
-  if (relationshipEvents.length > 0) {
-    const strongest = relationshipEvents[0]!
+  if (relationshipEvidence.length > 0) {
+    const strongest = relationshipEvidence[0]!
     summaries.push({
-      id: `browser-autobio-relationship:${strongest.id}`,
+      id: `browser-autobio-relationship:${strongest.decisionTraceId}`,
       kind: 'autobiographical',
       facet: 'relationship-era',
-      periodKey: `relationship-${new Date(strongest.occurredAt).toISOString().slice(0, 10)}`,
-      periodStartedAt: Math.min(...relationshipEvents.map(event => event.occurredAt)),
-      periodEndedAt: Math.max(...relationshipEvents.map(event => event.occurredAt)),
-      summary: sanitizeBriefText(strongest.relationshipMeaning || strongest.whatChanged || strongest.whatHappened, 280),
-      lesson: sanitizeBriefText(strongest.lesson ?? '', 220) || null,
-      cues: uniqueTexts(relationshipEvents.flatMap(event => [event.relationshipMeaning, event.lesson, event.threadAnchor]), 5),
-      confidence: clamp01(relationshipEvents.reduce((sum, event) => sum + event.confidence, 0) / relationshipEvents.length),
-      dominantProvenance: pickDominantAlicizationMemoryProvenance(relationshipEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
+      periodKey: `relationship-${new Date(strongest.at).toISOString().slice(0, 10)}`,
+      periodStartedAt: Math.min(...relationshipEvidence.map(item => item.at)),
+      periodEndedAt: Math.max(...relationshipEvidence.map(item => item.at)),
+      summary: strongest.relationshipMeaning,
+      lesson: strongest.lesson,
+      cues: uniqueTexts(relationshipEvidence.flatMap(item => [
+        item.relationshipMeaning,
+        item.lesson,
+        item.reason,
+        ...item.emotionTags,
+      ]), 5),
+      confidence: clamp01(relationshipEvidence.reduce((sum, item) => sum + item.confidence, 0) / relationshipEvidence.length),
+      dominantProvenance: pickDominantAlicizationMemoryProvenance(relationshipEvidence.map(item => item.provenance)),
     })
   }
   if (taskEvents.length > 0) {
@@ -235,8 +181,8 @@ export function buildBrowserMemoryConsolidations(events: AlicizationEpisodicEven
       periodStartedAt: Math.min(...taskEvents.map(event => event.occurredAt)),
       periodEndedAt: Math.max(...taskEvents.map(event => event.occurredAt)),
       summary: sanitizeBriefText(strongest.whatHappened || strongest.lesson || strongest.whatChanged || '', 280),
-      lesson: sanitizeBriefText(strongest.lesson ?? strongest.whatChanged ?? '', 220) || null,
-      cues: uniqueTexts(taskEvents.flatMap(event => [event.threadAnchor, event.whatHappened, event.lesson]), 5),
+      lesson: sanitizeBriefText(strongest.latestReconsolidation?.lesson ?? '', 220) || null,
+      cues: uniqueTexts(taskEvents.flatMap(event => [event.threadAnchor, event.whatHappened]), 5),
       confidence: clamp01(taskEvents.reduce((sum, event) => sum + event.confidence, 0) / taskEvents.length),
       dominantProvenance: pickDominantAlicizationMemoryProvenance(taskEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
     })
@@ -249,7 +195,7 @@ export function buildBrowserMemoryConsolidations(events: AlicizationEpisodicEven
       periodStartedAt: Math.min(...taskEvents.map(event => event.occurredAt)),
       periodEndedAt: Math.max(...taskEvents.map(event => event.occurredAt)),
       summary: sanitizeBriefText(strongest.whatHappened || strongest.lesson || strongest.whatChanged || '', 280),
-      lesson: sanitizeBriefText(strongest.lesson ?? '', 220) || null,
+      lesson: sanitizeBriefText(strongest.latestReconsolidation?.lesson ?? '', 220) || null,
       cues: uniqueTexts(taskEvents.flatMap(event => [event.threadAnchor, event.whereSummary, ...event.tags]), 5),
       confidence: clamp01(taskEvents.reduce((sum, event) => sum + event.confidence * 0.6 + event.salience * 0.4, 0) / taskEvents.length),
       dominantProvenance: pickDominantAlicizationMemoryProvenance(taskEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
@@ -265,8 +211,8 @@ export function buildBrowserMemoryConsolidations(events: AlicizationEpisodicEven
       periodStartedAt: Math.min(...selfEvents.map(event => event.occurredAt)),
       periodEndedAt: Math.max(...selfEvents.map(event => event.occurredAt)),
       summary: sanitizeBriefText(strongest.whatHappened || strongest.lesson || strongest.whatChanged || '', 280),
-      lesson: sanitizeBriefText(strongest.lesson ?? strongest.whatChanged ?? '', 220) || null,
-      cues: uniqueTexts(selfEvents.flatMap(event => [event.whatHappened, event.lesson, event.threadAnchor]), 5),
+      lesson: sanitizeBriefText(strongest.latestReconsolidation?.lesson ?? '', 220) || null,
+      cues: uniqueTexts(selfEvents.flatMap(event => [event.whatHappened, event.threadAnchor]), 5),
       confidence: clamp01(selfEvents.reduce((sum, event) => sum + event.confidence, 0) / selfEvents.length),
       dominantProvenance: pickDominantAlicizationMemoryProvenance(selfEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
     })

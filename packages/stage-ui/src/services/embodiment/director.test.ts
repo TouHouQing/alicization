@@ -663,16 +663,7 @@ describe('embodiment director', () => {
     })
 
     expect(projectBehavior(pollutedScript)).toEqual(projectBehavior(cleanScript))
-    expect(cleanScript.state.residentMode).toBe('measured-return')
-    expect(cleanScript.speechPlan.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'steady',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-    }))
+    expect(cleanScript.state.residentMode).toBe('quiet-companionship')
     expect(cleanScript.speechPlan.segments[0]?.rendererSettle).toEqual({
       live2dFacialReleaseMs: 510,
       live2dMotionFollowThroughMs: 520,
@@ -769,21 +760,12 @@ describe('embodiment director', () => {
       rendererTarget: 'vrm',
     })
 
-    expect(script.state.residentMode).toBe('repair-before-closeness')
+    expect(script.state.residentMode).toBe('quiet-companionship')
     expect(script.motionPlan.actionBursts.map(burst => burst.actionCue)).toEqual([
-      'observe_focus',
-      'idle_settle',
+      'steady_focus',
+      'steady_focus',
     ])
-    expect(script.speechPlan.segments.map(segment => segment.rendererSettle)).toEqual([
-      expect.objectContaining({
-        live2dFacialReleaseMs: 340,
-        vrmActionFadeMs: 280,
-      }),
-      expect.objectContaining({
-        live2dFacialReleaseMs: 420,
-        vrmActionFadeMs: 300,
-      }),
-    ])
+    expect(script.speechPlan.segments.map(segment => segment.rendererSettle)).toEqual([null, null])
   })
 
   it('keeps narrative and summary prose from changing structured face and motion hold timing', () => {
@@ -930,5 +912,105 @@ describe('embodiment director', () => {
     expect(cleanScript.lipsyncPlan.mode).toBe('energy-only')
     expect(cleanScript.facePlan.speakingCues[0]?.holdMs).toBeGreaterThan(0)
     expect(cleanScript.motionPlan.actionBursts[0]?.holdMs).toBeGreaterThan(0)
+  })
+
+  it('keeps legacy resident renderer cues from changing executable embodiment behavior', () => {
+    const text = '我会按当前身体和语音状态回应。'
+    const buildScript = (poisoned: boolean) => buildAlicizationEmbodimentScript({
+      seed: {
+        ...createSeed({
+          turnId: 'turn-director-legacy-cue-isolation',
+          replyText: text,
+        }),
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'focus',
+          actionCue: 'observe_focus',
+          delivery: 'gentle',
+          emphasis: 1,
+        },
+        speechTimeline: {
+          version: 'speech-timeline-v1',
+          variationToken: 'turn-director-legacy-cue-isolation',
+          reply: text,
+          emotion: 'thinking',
+          segments: [{
+            id: 'segment-director-legacy-cue-isolation',
+            index: 0,
+            startOffset: 0,
+            endOffset: text.length,
+            text,
+            emotion: 'thinking',
+            gestureWeight: 0.24,
+            facialWeight: 0.36,
+            prosodyWeight: 0.42,
+            beatWeight: 0.3,
+            mouthWeight: 0.48,
+            headWeight: 0.22,
+            facialHoldMs: 260,
+            actionHoldMs: 220,
+            emotionHoldMs: 280,
+            settleMode: 'linger',
+            rendererSettle: {
+              live2dFacialReleaseMs: 320,
+              live2dMotionFollowThroughMs: 280,
+              vrmActionFadeMs: 220,
+              vrmExpressionBlendMs: 240,
+            },
+            actionCue: 'observe_focus',
+            facialCue: 'soft-gaze',
+            actionWindow: 'segment-start',
+            interruptMode: 'soft-interrupt',
+            ...(poisoned
+              ? {
+                  rendererHints: {
+                    residentMode: 'measured-return',
+                    preferredBlinkCadence: 'linger',
+                    preferredGazeMode: 'soften',
+                    preferredPauseMode: 'longer',
+                    preferredLipsyncMode: 'restrained',
+                    preferredVoiceMode: 'lower-pressure',
+                    preferredPacingMode: 'slower',
+                    preferredExpressionAliases: ['CalmInspect'],
+                    preferredMotionAliases: ['ObserveSoft'],
+                  } as const,
+                }
+              : {}),
+          }],
+        },
+      },
+      manifest: {
+        renderer: 'live2d',
+        supportedBaseEmotions: ['neutral', 'thinking'],
+        supportedFacialCues: [],
+        supportedActions: [],
+        supportsLookAt: true,
+        supportsVisemeLipSync: true,
+        supportsMicroDynamics: true,
+      },
+      residentPerformance: null,
+      rendererTarget: 'live2d',
+    })
+    const projectBehavior = (script: ReturnType<typeof buildAlicizationEmbodimentScript>) => ({
+      state: script.state,
+      speechPlan: {
+        interruptPolicy: script.speechPlan.interruptPolicy,
+        preRollMs: script.speechPlan.preRollMs,
+        settleMs: script.speechPlan.settleMs,
+        segments: script.speechPlan.segments.map(segment => ({
+          interruptPolicy: segment.interruptPolicy,
+          preRollMs: segment.preRollMs,
+          prosody: segment.prosody,
+          rendererSettle: segment.rendererSettle,
+          settleMs: segment.settleMs,
+        })),
+      },
+      facePlan: script.facePlan,
+      motionPlan: script.motionPlan,
+      lipsyncPlan: script.lipsyncPlan,
+    })
+
+    expect(projectBehavior(buildScript(true))).toEqual(projectBehavior(buildScript(false)))
   })
 })

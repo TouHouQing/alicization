@@ -10,6 +10,7 @@ import { useChatOrchestratorStore } from './chat'
 
 const hookCapture = vi.hoisted(() => ({
   beforeSendContexts: [] as any[],
+  contextsSnapshot: {} as Record<string, unknown>,
 }))
 
 const streamMock = vi.fn()
@@ -161,7 +162,7 @@ vi.mock('./chat/stream-store', () => ({
 vi.mock('./chat/context-store', () => ({
   useChatContextStore: () => ({
     ingestContextMessage: vi.fn(),
-    getContextsSnapshot: () => ({}),
+    getContextsSnapshot: () => hookCapture.contextsSnapshot,
   }),
 }))
 
@@ -373,6 +374,7 @@ describe('chat orchestrator reply authority', () => {
     suspendKillSwitchMock.mockReset()
     resumeKillSwitchMock.mockReset()
     hookCapture.beforeSendContexts.length = 0
+    hookCapture.contextsSnapshot = {}
     executeRealtimeQueryTurnMock.mockResolvedValue({ handled: false })
     appendConversationTurnMock.mockResolvedValue(undefined)
     appendAuditLogMock.mockResolvedValue(undefined)
@@ -436,6 +438,46 @@ describe('chat orchestrator reply authority', () => {
     expect(streamMock.mock.calls[0]?.[3]).toEqual(expect.objectContaining({
       responseFormat: alicizationProviderResponseFormat,
     }))
+  })
+
+  it('does not turn renderer context snapshots into an extra Provider user prompt without a bridge', async () => {
+    const reply = 'Provider 只收到原始用户消息。'
+    const fullText = createProviderFullText(reply)
+    hookCapture.contextsSnapshot = {
+      diagnostics: {
+        sentinel: 'renderer-context-must-not-become-a-prompt',
+      },
+    }
+    streamMock.mockImplementation(async (_model, _provider, _messages, options) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: fullText,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('只发送这一条用户消息', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const providerMessages = streamMock.mock.calls[0]?.[2] as any[]
+    const serializedMessages = JSON.stringify(providerMessages)
+    expect(providerMessages.filter(message => message.role === 'user')).toHaveLength(1)
+    expect(serializedMessages).not.toContain('renderer-context-must-not-become-a-prompt')
+    expect(serializedMessages).not.toContain('These are the contextual information retrieved')
   })
 
   it('persists the main-process provider artifact from finish fullText', async () => {

@@ -82,7 +82,68 @@ describe('alicization dialogue speech timeline', () => {
     }))
   })
 
-  it('keeps explicit resident modes authoritative for aliases and settle timing', () => {
+  it('keeps legacy project-state and renderer continuity cues behaviorally inert', () => {
+    const input = {
+      reply: '我先把这一处稳住，然后继续。',
+      candidateEmotion: 'thinking',
+      candidatePerformance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'soft-gaze',
+        actionCue: 'steady_focus',
+        delivery: 'gentle',
+        emphasis: 0,
+      },
+      embodiment: {
+        emotion: 'thinking',
+        variationToken: 'legacy-timeline-cue-isolation',
+        postureHint: 'attentive',
+        speechStyle: {
+          rateMultiplier: 1,
+          pitchDelta: 0,
+        },
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: 'soft-gaze',
+          actionCue: 'steady_focus',
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+      },
+    } as const
+    const cleanTimeline = buildAlicizationDialogueSpeechTimeline(input)
+    const poisonedTimeline = buildAlicizationDialogueSpeechTimeline({
+      ...input,
+      embodiment: {
+        ...input.embodiment,
+        rendererHints: {
+          residentMode: 'measured-return',
+          preferredBlinkCadence: 'linger',
+          preferredGazeMode: 'soften',
+          preferredPauseMode: 'longer',
+          preferredLipsyncMode: 'restrained',
+          preferredVoiceMode: 'lower-pressure',
+          preferredPacingMode: 'slower',
+          preferredExpressionAliases: ['CalmInspect'],
+          preferredMotionAliases: ['ObserveSoft'],
+        },
+      },
+      projectState: {
+        continuityCadence: 'repair-before-closeness',
+        preferredBlinkCadence: 'quiet',
+        preferredGazeMode: 'steady',
+        preferredPauseMode: 'longer',
+        preferredLipsyncMode: 'restrained',
+        preferredVoiceMode: 'lower-pressure',
+        preferredPacingMode: 'slower',
+      },
+    })
+
+    expect(poisonedTimeline).toEqual(cleanTimeline)
+  })
+
+  it('keeps legacy resident modes from changing aliases or settle timing', () => {
     const buildTimeline = (
       residentMode: 'measured-return' | 'quiet-companionship' | 'repair-before-closeness',
     ) => {
@@ -124,29 +185,24 @@ describe('alicization dialogue speech timeline', () => {
     const repairTimeline = buildTimeline('repair-before-closeness')
     const quietTimeline = buildTimeline('quiet-companionship')
 
-    expect(measuredReturnTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      preferredExpressionAliases: expect.arrayContaining(['CalmInspect']),
-      preferredMotionAliases: expect.arrayContaining(['ObserveSoft']),
-      residentMode: 'measured-return',
-    }))
-    expect(repairTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      preferredExpressionAliases: expect.arrayContaining(['RecoverSoft']),
-      preferredMotionAliases: expect.arrayContaining(['StillnessGuard']),
-      residentMode: 'repair-before-closeness',
-    }))
-    expect(quietTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      preferredExpressionAliases: expect.arrayContaining(['ObserveSoft']),
-      preferredMotionAliases: expect.arrayContaining(['StillnessGuard']),
-      residentMode: 'quiet-companionship',
-    }))
+    expect(measuredReturnTimeline?.segments.map(segment => ({
+      rendererHints: segment.rendererHints,
+      rendererSettle: segment.rendererSettle,
+    }))).toEqual(repairTimeline?.segments.map(segment => ({
+      rendererHints: segment.rendererHints,
+      rendererSettle: segment.rendererSettle,
+    })))
+    expect(quietTimeline?.segments.map(segment => ({
+      rendererHints: segment.rendererHints,
+      rendererSettle: segment.rendererSettle,
+    }))).toEqual(repairTimeline?.segments.map(segment => ({
+      rendererHints: segment.rendererHints,
+      rendererSettle: segment.rendererSettle,
+    })))
     expect(measuredReturnTimeline?.segments.length).toBeGreaterThan(1)
     expect(measuredReturnTimeline?.segments.every((segment) => {
-      return segment.actionCue === 'steady_focus'
-        && segment.rendererHints?.residentMode === 'measured-return'
+      return segment.rendererHints?.residentMode === undefined
     })).toBe(true)
-    expect(measuredReturnTimeline?.segments[0]?.rendererSettle?.live2dFacialReleaseMs).toBeGreaterThan(
-      repairTimeline?.segments[0]?.rendererSettle?.live2dFacialReleaseMs ?? 0,
-    )
   })
 
   it('keeps closure prose and renderer audit text from changing renderer or timing behavior', () => {
@@ -230,14 +286,16 @@ describe('alicization dialogue speech timeline', () => {
       return segment.rendererHints?.signature === undefined
         && segment.rendererHints?.reasonTags === undefined
     })).toBe(true)
-    expect(pollutedAuditTimeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      preferredExpressionAliases: expect.arrayContaining(['WarmSmile', 'CalmInspect']),
-      preferredMotionAliases: expect.arrayContaining(['HappyWave', 'ObserveSoft']),
-    }))
+    expect(pollutedAuditTimeline?.segments[0]?.rendererHints?.preferredExpressionAliases)
+      .not
+      .toEqual(expect.arrayContaining(['WarmSmile', 'CalmInspect']))
+    expect(pollutedAuditTimeline?.segments[0]?.rendererHints?.preferredMotionAliases)
+      .not
+      .toEqual(expect.arrayContaining(['HappyWave', 'ObserveSoft']))
   })
 
-  it('applies explicit project continuity cadence and preferred renderer modes', () => {
-    const timeline = buildAlicizationDialogueSpeechTimeline({
+  it('keeps project continuity cadence and preferred renderer modes behaviorally inert', () => {
+    const input = {
       reply: '我会再慢一点，把这一处接回来。',
       candidateEmotion: 'thinking',
       candidatePerformance: {
@@ -248,6 +306,10 @@ describe('alicization dialogue speech timeline', () => {
         delivery: 'calm',
         emphasis: 0,
       },
+    } as const
+    const cleanTimeline = buildAlicizationDialogueSpeechTimeline(input)
+    const governedTimeline = buildAlicizationDialogueSpeechTimeline({
+      ...input,
       projectState: {
         currentPhase: 'Phase 1: Local Digital Life',
         emotionalClosureCue: 'audit text only',
@@ -261,17 +323,7 @@ describe('alicization dialogue speech timeline', () => {
       },
     })
 
-    expect(timeline?.segments[0]?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-      preferredExpressionAliases: expect.arrayContaining(['CalmInspect']),
-      preferredMotionAliases: expect.arrayContaining(['ObserveSoft']),
-    }))
+    expect(governedTimeline).toEqual(cleanTimeline)
   })
 
   it('normalizes and clamps extended micro-dynamic fields from transport payloads', () => {

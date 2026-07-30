@@ -63,4 +63,64 @@ describe('embodiment speech planner', () => {
       tempoShift: 0,
     })
   })
+
+  it('keeps legacy resident and voice hints from changing executable speech behavior', () => {
+    const text = '我会按当前语音数据继续。'
+    const buildPlan = (poisoned: boolean) => buildAlicizationEmbodimentSpeechPlan({
+      turnId: 'turn-legacy-speech-planner-cue-isolation',
+      replyText: text,
+      speechTimeline: {
+        version: 'speech-timeline-v1',
+        variationToken: 'turn-legacy-speech-planner-cue-isolation',
+        reply: text,
+        emotion: 'thinking',
+        segments: [{
+          id: 'segment-legacy-speech-planner-cue-isolation',
+          index: 0,
+          startOffset: 0,
+          endOffset: text.length,
+          text,
+          gestureWeight: 0.3,
+          facialWeight: 0.4,
+          prosodyWeight: 0.52,
+          beatWeight: 0.36,
+          actionCue: 'steady_focus',
+          facialCue: 'soft-gaze',
+          actionWindow: 'segment-start',
+          interruptMode: 'soft-interrupt',
+          settleMode: 'linger',
+          facialHoldMs: 260,
+          actionHoldMs: 220,
+          emotionHoldMs: 280,
+          ...(poisoned
+            ? {
+                rendererHints: {
+                  residentMode: 'measured-return',
+                  preferredBlinkCadence: 'linger',
+                  preferredGazeMode: 'soften',
+                  preferredPauseMode: 'longer',
+                  preferredLipsyncMode: 'restrained',
+                  preferredVoiceMode: 'lower-pressure',
+                  preferredPacingMode: 'slower',
+                } as const,
+              }
+            : {}),
+        }],
+      },
+      digitalLife: null,
+    })
+    const projectBehavior = (plan: ReturnType<typeof buildAlicizationEmbodimentSpeechPlan>) => ({
+      interruptPolicy: plan.interruptPolicy,
+      preRollMs: plan.preRollMs,
+      settleMs: plan.settleMs,
+      segments: plan.segments.map(segment => ({
+        interruptPolicy: segment.interruptPolicy,
+        preRollMs: segment.preRollMs,
+        prosody: segment.prosody,
+        settleMs: segment.settleMs,
+      })),
+    })
+
+    expect(projectBehavior(buildPlan(true))).toEqual(projectBehavior(buildPlan(false)))
+  })
 })

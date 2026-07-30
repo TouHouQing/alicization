@@ -1,7 +1,6 @@
 import type {
   AlicizationEmbodimentScriptRendererTarget,
   AlicizationEmbodimentScriptV1,
-  AlicizationEmbodimentSpeechPlan,
 } from '@proj-alicization/stage-shared'
 
 import type {
@@ -41,32 +40,6 @@ export interface BuildAlicizationEmbodimentScriptInput {
   rendererTarget: AlicizationEmbodimentScriptRendererTarget
 }
 
-type SpeechRendererHints = AlicizationEmbodimentSpeechPlan['segments'][number]['rendererHints']
-type RestrainedResidentMode = 'measured-return' | 'repair-before-closeness'
-
-function resolveRestrainedCallbackResidentMode(
-  rendererHints: SpeechRendererHints,
-): RestrainedResidentMode | null {
-  if (rendererHints?.residentMode === 'repair-before-closeness')
-    return 'repair-before-closeness'
-  if (rendererHints?.residentMode === 'measured-return')
-    return 'measured-return'
-  return null
-}
-
-function resolveScriptRestrainedResidentMode(
-  speechPlan: AlicizationEmbodimentSpeechPlan,
-): RestrainedResidentMode | null {
-  const residentModes = speechPlan.segments
-    .map(segment => resolveRestrainedCallbackResidentMode(segment.rendererHints))
-
-  if (residentModes.includes('repair-before-closeness'))
-    return 'repair-before-closeness'
-  if (residentModes.includes('measured-return'))
-    return 'measured-return'
-  return null
-}
-
 function residentPerformanceForExecution(
   residentPerformance: AlicizationResidentPerformanceSnapshot | null,
 ) {
@@ -82,13 +55,9 @@ function residentPerformanceForExecution(
 function resolveResidentMode(input: {
   residentPerformance: AlicizationResidentPerformanceSnapshot | null
   digitalLife: AlicizationEmbodimentSeedLike['digitalLife']
-  restrainedResidentMode: RestrainedResidentMode | null
 }) {
   if (input.digitalLife?.mode === 'recovering')
     return 'idle-recovering' as const
-
-  if (input.restrainedResidentMode)
-    return input.restrainedResidentMode
 
   const residentSource = input.residentPerformance?.source
   if (residentSource === 'browser-fallback' || residentSource === 'main-runtime')
@@ -126,111 +95,13 @@ function isRestProtectiveQuietCompanionshipResidentAuthority(input: {
     )
 }
 
-function resolveRestrainedCallbackMotionBaseline(input: {
-  rendererHints: SpeechRendererHints
-  residentMode: RestrainedResidentMode | null
+function resolveQuietCompanionshipMotionBaseline(input: {
   restProtective: boolean
 }) {
-  if (input.restProtective || input.residentMode === 'repair-before-closeness')
+  if (input.restProtective)
     return 'idle_settle'
 
-  if (input.residentMode !== 'measured-return')
-    return null
-
-  if (
-    input.rendererHints?.preferredMotionAliases?.includes('steady_focus')
-    || input.rendererHints?.preferredGazeMode === 'steady'
-  ) {
-    return 'steady_focus'
-  }
-
-  return 'observe_focus'
-}
-
-function mergeSpeechSegmentRendererHints(input: {
-  rendererHints: SpeechRendererHints
-}) {
-  const residentMode = resolveRestrainedCallbackResidentMode(input.rendererHints)
-  if (!residentMode) {
-    return input.rendererHints ?? null
-  }
-
-  if (residentMode === 'repair-before-closeness') {
-    return {
-      ...input.rendererHints,
-      preferredBlinkCadence: input.rendererHints?.preferredBlinkCadence ?? 'quiet' as const,
-      preferredGazeMode: input.rendererHints?.preferredGazeMode ?? 'soften' as const,
-      preferredExpressionAliases: input.rendererHints?.preferredExpressionAliases ?? ['soft-gaze'],
-      preferredMotionAliases: input.rendererHints?.preferredMotionAliases ?? ['idle_settle'],
-      residentMode: 'repair-before-closeness',
-    }
-  }
-
-  return {
-    ...input.rendererHints,
-    preferredBlinkCadence: input.rendererHints?.preferredBlinkCadence ?? 'linger' as const,
-    preferredGazeMode: input.rendererHints?.preferredGazeMode ?? 'soften' as const,
-    residentMode: 'measured-return',
-  }
-}
-
-function projectSpeechSegmentRendererSettle(input: {
-  rendererHints: SpeechRendererHints
-  rendererSettle: AlicizationEmbodimentSpeechPlan['segments'][number]['rendererSettle']
-}) {
-  const residentMode = resolveRestrainedCallbackResidentMode(input.rendererHints)
-  if (!residentMode)
-    return input.rendererSettle ?? null
-
-  const baseFacialReleaseMs = Math.max(
-    input.rendererSettle?.live2dFacialReleaseMs ?? 0,
-    residentMode === 'repair-before-closeness'
-      ? 420
-      : residentMode === 'measured-return'
-        ? 340
-        : 0,
-  )
-  const baseMotionFollowThroughMs = Math.max(
-    input.rendererSettle?.live2dMotionFollowThroughMs ?? 0,
-    residentMode === 'repair-before-closeness'
-      ? 520
-      : residentMode === 'measured-return'
-        ? 420
-        : 0,
-  )
-  const baseVrmActionFadeMs = Math.max(
-    input.rendererSettle?.vrmActionFadeMs ?? 0,
-    residentMode === 'repair-before-closeness'
-      ? 300
-      : residentMode === 'measured-return'
-        ? 280
-        : 0,
-  )
-  const baseVrmExpressionBlendMs = Math.max(
-    input.rendererSettle?.vrmExpressionBlendMs ?? 0,
-    residentMode === 'repair-before-closeness'
-      ? 380
-      : residentMode === 'measured-return'
-        ? 360
-        : 0,
-  )
-
-  if (
-    baseFacialReleaseMs <= 0
-    && baseMotionFollowThroughMs <= 0
-    && baseVrmActionFadeMs <= 0
-    && baseVrmExpressionBlendMs <= 0
-  ) {
-    return input.rendererSettle ?? null
-  }
-
-  return {
-    ...input.rendererSettle,
-    live2dFacialReleaseMs: baseFacialReleaseMs > 0 ? baseFacialReleaseMs : input.rendererSettle?.live2dFacialReleaseMs,
-    live2dMotionFollowThroughMs: baseMotionFollowThroughMs > 0 ? baseMotionFollowThroughMs : input.rendererSettle?.live2dMotionFollowThroughMs,
-    vrmActionFadeMs: baseVrmActionFadeMs > 0 ? baseVrmActionFadeMs : input.rendererSettle?.vrmActionFadeMs,
-    vrmExpressionBlendMs: baseVrmExpressionBlendMs > 0 ? baseVrmExpressionBlendMs : input.rendererSettle?.vrmExpressionBlendMs,
-  }
+  return 'steady_focus'
 }
 
 function resolveMicroExpressionTimingCues(input: {
@@ -325,10 +196,6 @@ export function buildAlicizationEmbodimentScript(
     speechTimeline: input.seed.speechTimeline,
     digitalLife: input.seed.digitalLife,
   })
-  const restrainedCallbackResidentMode = resolveScriptRestrainedResidentMode(speechPlan)
-  const structuredRendererHints = speechPlan.segments.find(segment =>
-    resolveRestrainedCallbackResidentMode(segment.rendererHints) === restrainedCallbackResidentMode,
-  )?.rendererHints ?? null
   const restProtectiveQuietCompanionshipResidentAuthority
     = isRestProtectiveQuietCompanionshipResidentAuthority({
       residentPerformance: executionResidentPerformance,
@@ -340,9 +207,7 @@ export function buildAlicizationEmbodimentScript(
       performance: adapted.performance,
     })
     || restProtectiveQuietCompanionshipResidentAuthority
-  const restrainedCallbackMotionBaseline = resolveRestrainedCallbackMotionBaseline({
-    rendererHints: structuredRendererHints,
-    residentMode: restrainedCallbackResidentMode,
+  const quietCompanionshipMotionBaseline = resolveQuietCompanionshipMotionBaseline({
     restProtective: restProtectiveQuietCompanionshipResidentAuthority,
   })
   const microExpressionTiming = resolveMicroExpressionTimingCues({
@@ -351,16 +216,7 @@ export function buildAlicizationEmbodimentScript(
     emphasis: adapted.performance.emphasis,
     digitalLifeSpine: input.seed.digitalLifeSpine,
   })
-  const speechPlanSegments = speechPlan.segments.map(segment => ({
-    ...segment,
-    rendererHints: mergeSpeechSegmentRendererHints({
-      rendererHints: segment.rendererHints ?? null,
-    }),
-    rendererSettle: projectSpeechSegmentRendererSettle({
-      rendererHints: segment.rendererHints ?? null,
-      rendererSettle: segment.rendererSettle ?? null,
-    }),
-  }))
+  const speechPlanSegments = speechPlan.segments
   const timelineSegmentById = new Map(
     (input.seed.speechTimeline?.segments ?? []).map(segment => [segment.id, segment] as const),
   )
@@ -384,35 +240,25 @@ export function buildAlicizationEmbodimentScript(
       fallbackActionCue: adapted.performance.actionCue ?? null,
       fallbackIntensity: fallbackActionIntensity,
     })
-    const segmentResidentMode = resolveRestrainedCallbackResidentMode(segment.rendererHints)
-    const segmentMotionBaseline = resolveRestrainedCallbackMotionBaseline({
-      rendererHints: segment.rendererHints,
-      residentMode: segmentResidentMode,
-      restProtective: restProtectiveQuietCompanionshipResidentAuthority,
-    })
     return {
       ...burst,
       actionCue: quietCompanionshipResidentAuthority
-        ? segmentResidentMode === 'repair-before-closeness'
-          ? (segmentMotionBaseline ?? 'idle_settle')
-          : (
-              restProtectiveQuietCompanionshipResidentAuthority
-              && (
-                burst.actionCue === 'steady_focus'
-                || burst.actionCue === 'observe_focus'
-                || burst.actionCue === 'companion_settle_nod'
+        ? restProtectiveQuietCompanionshipResidentAuthority
+        && (
+          burst.actionCue === 'steady_focus'
+          || burst.actionCue === 'observe_focus'
+          || burst.actionCue === 'companion_settle_nod'
+          || burst.actionCue === 'idle_gentle_nod'
+        )
+          ? quietCompanionshipMotionBaseline
+          : burst.actionCue === 'observe_focus'
+            ? quietCompanionshipMotionBaseline
+            : (
+                burst.actionCue === 'companion_settle_nod'
                 || burst.actionCue === 'idle_gentle_nod'
               )
-                ? (segmentMotionBaseline ?? 'idle_settle')
-                : burst.actionCue === 'observe_focus'
-                  ? (segmentMotionBaseline ?? 'steady_focus')
-                  : (
-                      burst.actionCue === 'companion_settle_nod'
-                      || burst.actionCue === 'idle_gentle_nod'
-                    )
-                      ? (segmentMotionBaseline ?? 'steady_focus')
-                      : burst.actionCue
-            )
+                ? quietCompanionshipMotionBaseline
+                : burst.actionCue
         : burst.actionCue,
     }
   })
@@ -436,7 +282,6 @@ export function buildAlicizationEmbodimentScript(
       residentMode: resolveResidentMode({
         residentPerformance: input.residentPerformance,
         digitalLife: input.seed.digitalLife,
-        restrainedResidentMode: restrainedCallbackResidentMode,
       }),
     },
     speechPlan: {
@@ -448,20 +293,16 @@ export function buildAlicizationEmbodimentScript(
     },
     facePlan: {
       preUtteranceCue: quietCompanionshipResidentAuthority
-        ? restrainedCallbackResidentMode
-          ? 'steady-inhale'
-          : 'soft-breath'
+        ? 'soft-breath'
         : microExpressionTiming.preUtteranceCue,
       postUtteranceCue: quietCompanionshipResidentAuthority
-        ? restrainedCallbackResidentMode
-          ? 'eyes-soften'
-          : 'soft-release'
+        ? 'soft-release'
         : microExpressionTiming.postUtteranceCue,
       speakingCues,
     },
     motionPlan: {
       idleBase: quietCompanionshipResidentAuthority
-        ? (restrainedCallbackMotionBaseline ?? 'steady_focus')
+        ? quietCompanionshipMotionBaseline
         : adapted.performance.actionCue ?? 'idle_settle',
       actionBursts,
       attentionMode: input.manifest?.supportsLookAt === false || quietCompanionshipResidentAuthority
