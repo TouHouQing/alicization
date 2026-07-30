@@ -12,28 +12,11 @@ import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
 import { createHash, randomUUID } from 'node:crypto'
 
 import { errorMessageFrom } from '@moeru/std'
-import {
-  buildAlicizationProviderFactBlock,
-  sanitizeAlicizationProviderFacingText,
-} from '@proj-alicization/stage-shared'
+import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
-import {
-  deriveAlicizationAgentRuntimeTelemetryFromSession,
-  deriveAlicizationRuntimeSnapshot,
-} from './alicization-runtime-architecture'
-import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
-import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
 import { createAlicizationRuntimeCallChain } from './runtime-call-chain'
-import {
-  deferredAutonomyCanonicalVersion,
-  deferredAutonomyContinuityBudgets,
-  deferredAutonomyProviderMetadataSchema,
-  normalizeDeferredAutonomyCanonicalDeferReason,
-  normalizeDeferredAutonomyRawText,
-  readDeferredAutonomySummaryOwner,
-  validateDeferredAutonomyCanonicalSummary,
-} from './runtime-deferred-autonomy-summary'
+import { normalizeDeferredAutonomyRawText } from './runtime-deferred-autonomy-summary'
 
 type AlicizationAgentTaskKind = 'executor' | 'mcp' | 'runtime' | 'sensory'
 type AlicizationAgentTaskStatus = 'completed' | 'failed' | 'pending'
@@ -130,7 +113,6 @@ export interface AlicizationAgentTurnRuntime {
       sensorySnapshot?: AlicizationSensoryCacheSnapshot
     },
   ) => Promise<AlicizationExecutionRuntimeContext>
-  buildSessionSystemBlock: () => string
   getSensorySnapshot: (options?: { forceRefresh?: boolean }) => Promise<AlicizationSensoryCacheSnapshot>
   getSessionSnapshot: () => AlicizationAgentSessionSnapshot
   ingestDigitalLifeArchitecture: (architecture: AlicizationDigitalLifeArchitectureSnapshot | null | undefined) => void
@@ -164,18 +146,16 @@ export interface OpenAlicizationAgentTurnInput {
 interface CreateAlicizationAgentRuntimeOptions {
   getNow?: () => number
   maxContinuityHistory?: number
-  maxContinuityInSystemBlock?: number
   getSensorySnapshot: () => Promise<AlicizationSensoryCacheSnapshot> | AlicizationSensoryCacheSnapshot
   maxTaskHistory?: number
-  maxTasksInSystemBlock?: number
+  maxRecentTasksInExecutionContext?: number
   resolveConversationSessionId?: (cardId: string) => Promise<string | null | undefined> | string | null | undefined
   sessionTtlMs?: number
 }
 
 const defaultMaxTaskHistory = 12
-const defaultMaxTasksInSystemBlock = 4
+const defaultMaxRecentTasksInExecutionContext = 4
 const defaultMaxContinuityHistory = 8
-const defaultMaxContinuityInSystemBlock = 4
 const defaultSessionTtlMs = 10 * 60 * 1000
 
 function sanitizeText(raw: unknown, maxChars = 160) {
@@ -198,108 +178,6 @@ function sanitizePhaseId(raw: unknown) {
   if (!text)
     return ''
   return text.toLowerCase().replace(/[^a-z0-9:_-]+/g, '-')
-}
-
-function sanitizeProviderFactText(raw: unknown, maxChars = 180) {
-  return sanitizeAlicizationProviderFacingText(raw, maxChars, '') || ''
-}
-
-function sanitizeProviderContinuitySummary(raw: unknown, maxChars = 240) {
-  const text = sanitizeProviderFactText(raw, maxChars)
-  const containsStructuredSegment = text
-    .split(/\s*[;|]\s*/u)
-    .some(segment => /^[\p{L}_][\p{L}\p{N}_-]*\s*=/u.test(segment))
-  return containsStructuredSegment ? '' : text
-}
-
-function projectAgentSessionFactMetadata(
-  raw: unknown,
-  options?: {
-    canonicalSummaryValidation?: ReturnType<typeof validateDeferredAutonomyCanonicalSummary>
-    requiresSummaryProvenance?: boolean
-  },
-) {
-  const metadata = asRecord(raw)
-  if (!metadata)
-    return null
-
-  const projected: Record<string, unknown> = {}
-  if (metadata.canonicalVersion === deferredAutonomyCanonicalVersion)
-    projected.canonicalVersion = deferredAutonomyCanonicalVersion
-  const source = sanitizeProviderFactText(metadata.source, 80)
-  const requiresSummaryProvenance
-    = options?.requiresSummaryProvenance === true
-      || source === 'proactive-deferred'
-      || source === 'proactive-held-autonomy'
-  const canonicalSummaryValidation = options?.canonicalSummaryValidation
-  const summaryOwner = requiresSummaryProvenance
-    ? canonicalSummaryValidation?.summaryOwner ?? null
-    : readDeferredAutonomySummaryOwner(metadata.summaryOwner)
-  const allowsCanonicalSummaryMetadata
-    = !requiresSummaryProvenance
-      || canonicalSummaryValidation?.isValid === true
-  const textFields = Object.entries(deferredAutonomyProviderMetadataSchema.textFields)
-    .map(([field, schema]) => [
-      field,
-      requiresSummaryProvenance ? schema.canonicalMaxChars : schema.legacyMaxChars,
-    ] as const)
-  for (const [field, maxChars] of textFields) {
-    if (
-      requiresSummaryProvenance
-      && (
-        field === 'deferReason'
-        || field === 'executionIntentSummary'
-      )
-      && !allowsCanonicalSummaryMetadata
-    ) {
-      continue
-    }
-    const rawValue = requiresSummaryProvenance
-      ? field === 'executionIntentSummary'
-        ? canonicalSummaryValidation?.executionIntentSummary
-        : field === 'deferReason'
-          ? normalizeDeferredAutonomyCanonicalDeferReason(metadata.deferReason)
-          : metadata[field]
-      : metadata[field]
-    const value = sanitizeProviderFactText(rawValue, maxChars)
-    if (value)
-      projected[field] = value
-  }
-
-  for (const field of ['deliveredAt', 'feedbackWindowMs', 'deferredAt'] as const) {
-    const value = metadata[field]
-    if (typeof value === 'number' && Number.isFinite(value))
-      projected[field] = Math.max(0, Math.floor(value))
-  }
-
-  const learningFocuses = Array.isArray(metadata.learningFocuses)
-    ? metadata.learningFocuses
-        .map(focus => sanitizeProviderFactText(
-          focus,
-          deferredAutonomyProviderMetadataSchema.learningFocuses.itemCanonicalMaxChars,
-        ))
-        .filter(Boolean)
-        .slice(0, deferredAutonomyProviderMetadataSchema.learningFocuses.maxItems)
-    : []
-  if (learningFocuses.length > 0)
-    projected.learningFocuses = learningFocuses
-
-  const failure = requiresSummaryProvenance
-    ? canonicalSummaryValidation?.failure ?? ''
-    : sanitizeText(metadata.failure, deferredAutonomyProviderMetadataSchema.failure.legacyMaxChars)
-  if (
-    failure
-    && (
-      !requiresSummaryProvenance
-      || (allowsCanonicalSummaryMetadata && summaryOwner === 'failure')
-    )
-  ) {
-    projected.failure = failure
-  }
-  if (summaryOwner && allowsCanonicalSummaryMetadata)
-    projected.summaryOwner = summaryOwner
-
-  return Object.keys(projected).length > 0 ? projected : null
 }
 
 function normalizeMetadata(raw?: Record<string, unknown>) {
@@ -401,7 +279,7 @@ function readRawTaskStatusDetail(task: AlicizationAgentTaskRecord) {
   return threadStatus
 }
 
-function selectRecentTasksForSystemBlock(tasks: AlicizationAgentTaskRecord[], limit: number) {
+function selectRecentTasksForExecutionContext(tasks: AlicizationAgentTaskRecord[], limit: number) {
   const safeLimit = Math.max(0, Math.floor(limit))
   if (safeLimit === 0)
     return []
@@ -418,38 +296,6 @@ function selectRecentTasksForSystemBlock(tasks: AlicizationAgentTaskRecord[], li
 
   return [...tail.slice(1), latestProactiveFeedback]
     .sort((left, right) => left.startedAt - right.startedAt)
-}
-
-function extractContinuityArcStage(raw: unknown) {
-  const text = sanitizeText(raw, 220).toLowerCase()
-  if (!text)
-    return ''
-  if (text.includes('same-thread-continuation'))
-    return 'same-thread-continuation'
-  if (text.includes('gentle-reopen'))
-    return 'gentle-reopen'
-  if (text.includes('hold-for-opening'))
-    return 'hold-for-opening'
-  if (text.includes('mirror-carry'))
-    return 'mirror-carry'
-  return ''
-}
-
-function deriveAgentSessionInitiativeRestraint(input: {
-  digitalLifeLineSummary?: string | null
-  spine?: AlicizationDigitalLifeSpineSnapshot | null
-}) {
-  const legacySpine = asRecord(input.spine)
-  const legacyRuntime = asRecord(legacySpine?.runtime)
-  const legacyProactive = asRecord(legacySpine?.proactive)
-  const arcStage = sanitizeText(legacyRuntime?.continuityArcStage, 120)
-    || extractContinuityArcStage(input.digitalLifeLineSummary)
-    || sanitizeText(legacyProactive?.dominantConcernKind, 120)
-
-  if (arcStage)
-    return arcStage
-
-  return sanitizeText(legacyRuntime?.continuityCadence, 120)
 }
 
 function sanitizeContinuityFactSlug(raw: unknown, maxChars = 64) {
@@ -483,171 +329,14 @@ function sanitizeDeferredAutonomyContinuityLabel(raw: unknown, maxChars = 80) {
   return `${label.slice(0, maxChars - suffix.length)}${suffix}`
 }
 
-function resolveAgentDeferredAutonomySummaryProjection(
-  signal: Pick<AlicizationAgentContinuityRecord, 'summary' | 'metadata'>,
-) {
-  const metadata = asRecord(signal.metadata)
-  const canonicalSummaryValidation = validateDeferredAutonomyCanonicalSummary({
-    canonicalVersion: metadata?.canonicalVersion,
-    executionIntentSummary: metadata?.executionIntentSummary,
-    failure: metadata?.failure,
-    summary: signal.summary,
-    summaryOwner: metadata?.summaryOwner,
-    whyNow: metadata?.whyNow,
-  })
-  const failClosed = {
-    canonicalSummaryValidation,
-    summary: null,
-    summaryOwner: null,
-  }
-  if (!canonicalSummaryValidation.isValid)
-    return failClosed
-
-  if (canonicalSummaryValidation.summaryOwner === 'failure') {
-    return {
-      canonicalSummaryValidation,
-      summary: canonicalSummaryValidation.failure,
-      summaryOwner: 'failure' as const,
-    }
-  }
-
-  const summary = sanitizeProviderContinuitySummary(
-    canonicalSummaryValidation.summary,
-    deferredAutonomyContinuityBudgets.whyNow,
-  ) || null
-  if (canonicalSummaryValidation.summaryOwner && !summary) {
-    return {
-      canonicalSummaryValidation: {
-        ...canonicalSummaryValidation,
-        executionIntentSummary: null,
-        failure: null,
-        isValid: false,
-        summary: null,
-        summaryOwner: null,
-        whyNow: null,
-      },
-      summary: null,
-      summaryOwner: null,
-    }
-  }
-  return {
-    canonicalSummaryValidation,
-    summary,
-    summaryOwner: canonicalSummaryValidation.summaryOwner,
-  }
-}
-
-function toAgentSessionContinuityFact(signal: AlicizationAgentContinuityRecord) {
-  const metadata = asRecord(signal.metadata)
-  const requiresSummaryProvenance = isDeferredAutonomyContinuitySignal(signal)
-  const summaryProjection = requiresSummaryProvenance
-    ? resolveAgentDeferredAutonomySummaryProjection(signal)
-    : {
-        canonicalSummaryValidation: undefined,
-        summary: sanitizeProviderContinuitySummary(signal.summary) || null,
-        summaryOwner: readDeferredAutonomySummaryOwner(metadata?.summaryOwner),
-      }
-  const continuity = {
-    arcStage: sanitizeContinuityFactSlug(metadata?.continuityArcStage, 120),
-    cadence: sanitizeContinuityFactSlug(metadata?.continuityCadence, 120),
-    residentMode: sanitizeContinuityFactSlug(metadata?.residentMode, 120),
-  }
-  const projectedMetadata = projectAgentSessionFactMetadata(metadata, {
-    canonicalSummaryValidation: requiresSummaryProvenance
-      ? summaryProjection.canonicalSummaryValidation
-      : undefined,
-    requiresSummaryProvenance,
-  })
-  return {
-    kind: signal.kind,
-    state: signal.state,
-    label: sanitizeProviderFactText(signal.label, 80) || signal.kind,
-    summary: summaryProjection.summary,
-    createdAt: signal.createdAt,
-    timing: sanitizeContinuityFactSlug(metadata?.timing),
-    ...(Object.values(continuity).some(Boolean) ? { continuity } : {}),
-    ...(projectedMetadata ? { metadata: projectedMetadata } : {}),
-  }
-}
-
-function toAgentSessionSensoryFact(snapshot: AlicizationSensoryCacheSnapshot | null) {
-  const foregroundWindow = snapshot?.sample.foregroundWindow ?? null
-  const capture = snapshot?.capture ?? null
-  return {
-    foregroundWindow: foregroundWindow
-      ? {
-          appName: sanitizeProviderFactText(foregroundWindow.appName, 80) || null,
-          processName: sanitizeProviderFactText(foregroundWindow.processName, 80) || null,
-          title: sanitizeProviderFactText(foregroundWindow.title, 120) || null,
-        }
-      : null,
-    capture: capture
-      ? {
-          health: capture.health ?? null,
-          permission: capture.permission ?? null,
-          sourceCount: typeof capture.sourceCount === 'number' ? capture.sourceCount : null,
-          degradedReasons: capture.degradedReasons
-            .map(reason => sanitizeProviderFactText(reason, 120))
-            .filter(Boolean),
-          lastError: sanitizeProviderFactText(capture.lastError, 220) || null,
-        }
-      : null,
-  }
-}
-
-function selectContinuitySignalsForSystemBlock(
-  signals: AlicizationAgentContinuityRecord[],
-  limit: number,
-) {
-  const safeLimit = Math.max(1, Math.floor(limit))
-  if (signals.length <= safeLimit)
-    return signals.slice()
-
-  const tail = signals.slice(-safeLimit)
-  const hasProactiveOutcome = tail.some(signal =>
-    signal.kind === 'proactive'
-    && signal.state !== 'pending'
-    && String(signal.label).includes('reply-within-120s'),
-  )
-  if (hasProactiveOutcome)
-    return tail
-
-  const latestProactiveOutcomeIndex = signals.findLastIndex(signal =>
-    signal.kind === 'proactive'
-    && signal.state !== 'pending'
-    && String(signal.label).includes('reply-within-120s'),
-  )
-  if (latestProactiveOutcomeIndex < 0)
-    return tail
-
-  const next = tail.slice(1)
-  next.push(signals[latestProactiveOutcomeIndex]!)
-  return next
-    .sort((left, right) => Number(left.createdAt) - Number(right.createdAt))
-}
-
 function isDigitalLifeContinuitySignal(signal: Pick<AlicizationAgentContinuityRecord, 'kind' | 'label' | 'metadata'>) {
   return signal.kind === 'presence'
     && sanitizeText(signal.label, 80) === 'digital-life-line'
     && sanitizeText(signal.metadata?.source, 64) === 'digital-life-runtime'
 }
 
-function findLatestDigitalLifeContinuitySignal(signals: AlicizationAgentContinuityRecord[]) {
-  for (let index = signals.length - 1; index >= 0; index -= 1) {
-    const signal = signals[index]
-    if (signal?.kind !== 'presence')
-      continue
-    if (sanitizeText(signal.metadata?.source, 64) !== 'digital-life-runtime')
-      continue
-    return signal
-  }
-
-  return null
-}
-
 function toExecutionActionDigest(task: AlicizationAgentTaskRecord) {
   const threadStatus = readRawTaskStatusDetail(task)
-  const projectedMetadata = projectAgentSessionFactMetadata(task.metadata)
   return {
     kind: task.kind,
     status: task.status,
@@ -662,9 +351,8 @@ function toExecutionActionDigest(task: AlicizationAgentTaskRecord) {
       || threadStatus === 'cancelled'
         ? threadStatus
         : null,
-    label: sanitizeProviderFactText(task.label, 120) || task.kind,
-    summary: sanitizeProviderFactText(task.summary, 180) || null,
-    ...(projectedMetadata ? { metadata: projectedMetadata } : {}),
+    label: sanitizeAlicizationProviderFacingText(task.label, 120, '') || task.kind,
+    summary: sanitizeAlicizationProviderFacingText(task.summary, 180, '') || null,
   } as const
 }
 
@@ -753,9 +441,11 @@ function resolveAgentExecutionFactBriefing(
 export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRuntimeOptions) {
   const getNow = options.getNow ?? Date.now
   const maxContinuityHistory = Math.max(1, Math.floor(options.maxContinuityHistory ?? defaultMaxContinuityHistory))
-  const maxContinuityInSystemBlock = Math.max(1, Math.floor(options.maxContinuityInSystemBlock ?? defaultMaxContinuityInSystemBlock))
   const maxTaskHistory = Math.max(1, Math.floor(options.maxTaskHistory ?? defaultMaxTaskHistory))
-  const maxTasksInSystemBlock = Math.max(1, Math.floor(options.maxTasksInSystemBlock ?? defaultMaxTasksInSystemBlock))
+  const maxRecentTasksInExecutionContext = Math.max(
+    1,
+    Math.floor(options.maxRecentTasksInExecutionContext ?? defaultMaxRecentTasksInExecutionContext),
+  )
   const sessionTtlMs = Math.max(1_000, Math.floor(options.sessionTtlMs ?? defaultSessionTtlMs))
   const sessions = new Map<string, AlicizationAgentSessionRecord>()
 
@@ -989,90 +679,12 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
       touchSession(session)
     }
 
-    const buildSessionSystemBlock = () => {
-      const recentContinuitySignals = selectContinuitySignalsForSystemBlock(
-        session.continuitySignals,
-        maxContinuityInSystemBlock,
-      )
-      const recentTasks = selectRecentTasksForSystemBlock(session.tasks, maxTasksInSystemBlock)
-      const digitalLifeLine = session.digitalLifeSpine?.continuitySignal
-        ?? findLatestDigitalLifeContinuitySignal(session.continuitySignals)
-      const sessionInitiativeRestraint = deriveAgentSessionInitiativeRestraint({
-        digitalLifeLineSummary: digitalLifeLine?.summary ?? null,
-        spine: session.digitalLifeSpine,
-      })
-      const digitalLifeDigest = projectAlicizationDigitalLifeSpineDigest(session.digitalLifeSpine)
-      const memoryCarryPolicy = deriveAlicizationDialogueMemoryCarryPolicy({
-        now: getNow(),
-        spine: session.digitalLifeSpine,
-      })
-      const runtimeDigest = deriveAlicizationRuntimeSnapshot({
-        spine: session.digitalLifeSpine,
-        agentRuntime: deriveAlicizationAgentRuntimeTelemetryFromSession({
-          tasks: recentTasks,
-          continuitySignals: session.continuitySignals,
-          lastSensorySnapshot: session.lastSensorySnapshot,
-        }),
-      })
-      const architecture = session.digitalLifeSpine?.architecture ?? session.digitalLifeArchitecture
-
-      return buildAlicizationProviderFactBlock('alicization-agent-session', {
-        version: 'alicization-agent-session-v1',
-        session: {
-          id: session.id,
-          conversationSessionId: session.conversationSessionId,
-          cardId: session.cardId,
-        },
-        owners: {
-          shortTerm: 'WorkingMemory',
-          longTermRecall: 'LongTermMemoryRecall',
-        },
-        failureSurface: 'transparent',
-        sensory: toAgentSessionSensoryFact(session.lastSensorySnapshot),
-        memory: {
-          summary: sanitizeProviderFactText(digitalLifeDigest?.memory?.summary, 220) || null,
-          recallMode: sanitizeText(digitalLifeDigest?.memory?.recallMode, 64) || null,
-          carry: {
-            mode: memoryCarryPolicy.mode,
-            allowMirrorCarry: memoryCarryPolicy.allowMirrorCarry,
-            reflectionPressure: memoryCarryPolicy.reflectionPressure,
-            reasonTags: memoryCarryPolicy.reasonTags,
-            recallSeed: sanitizeProviderFactText(memoryCarryPolicy.recallSeed, 360) || null,
-          },
-        },
-        digitalLife: {
-          continuitySummary: sanitizeProviderFactText(digitalLifeLine?.summary, 220) || null,
-          continuityArcStage: sessionInitiativeRestraint || null,
-          initiativeRestraint: sessionInitiativeRestraint || null,
-          presence: {
-            mode: architecture?.operatingMode ?? null,
-            style: session.digitalLifeSpine?.proactive?.preferredStyle ?? null,
-            shouldSpeak: typeof session.digitalLifeSpine?.proactive?.shouldSpeak === 'boolean'
-              ? session.digitalLifeSpine.proactive.shouldSpeak
-              : null,
-          },
-          architecture: {
-            operatingMode: architecture?.operatingMode ?? null,
-            dominantSystem: architecture?.dominantSystem ?? null,
-            supportingSystems: architecture?.supportingSystems ?? [],
-            governingFocus: sanitizeProviderFactText(architecture?.governingFocus, 180) || null,
-          },
-          runtime: {
-            dominantChannel: runtimeDigest?.dominantChannel ?? null,
-            shouldSpeak: runtimeDigest?.shouldProactivelySpeak ?? null,
-            shouldAct: runtimeDigest?.shouldProactivelyAct ?? null,
-            continuityPressure: runtimeDigest?.continuityPressure ?? null,
-            companionshipPressure: runtimeDigest?.companionshipPressure ?? null,
-          },
-        },
-        continuitySignals: recentContinuitySignals.map(toAgentSessionContinuityFact),
-        recentActions: recentTasks.map(toExecutionActionDigest),
-      })
-    }
-
     const buildExecutionRuntimeContext: AlicizationAgentTurnRuntime['buildExecutionRuntimeContext'] = async (identity) => {
       const sensorySnapshot = identity?.sensorySnapshot ?? await getSensorySnapshot()
-      const recentTasks = selectRecentTasksForSystemBlock(session.tasks, maxTasksInSystemBlock)
+      const recentTasks = selectRecentTasksForExecutionContext(
+        session.tasks,
+        maxRecentTasksInExecutionContext,
+      )
       return buildAlicizationExecutionRuntimeContext({
         agentSessionId: session.id,
         affectiveResidue: identity?.affectiveResidue ?? null,
@@ -1105,7 +717,6 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
       agentSessionId: session.id,
       conversationSessionId,
       buildExecutionRuntimeContext,
-      buildSessionSystemBlock,
       getSensorySnapshot,
       getSessionSnapshot,
       ingestDigitalLifeArchitecture,

@@ -3379,20 +3379,24 @@ describe('alicization runtime project-state audit helpers', () => {
     })
 
     expect(dreamSystemTexts).toHaveLength(1)
-    const dreamAgentSessionFact = findAlicizationProviderFactInSystemText(
-      dreamSystemTexts[0]!,
-      'alicization-agent-session',
-    )
-    expect(dreamAgentSessionFact?.data.session).toMatchObject({
+    const dreamAudit = dbStub.appendAuditLog.mock.calls
+      .map(call => call[0])
+      .find((item: any) =>
+        item.category === 'alicization.dream'
+        && item.action === 'metabolism-generated'
+        && item.payload?.reason === 'unit-task-planning-mirror',
+      )
+    expect(dreamAudit?.payload?.dreamHydrationSnapshot).toMatchObject({
       conversationSessionId: 'session-task-planning-dream',
     })
-    expect(dreamAgentSessionFact?.data.recentActions).toEqual(expect.arrayContaining([
+    expect(dreamAudit?.payload?.agentRuntime?.recentActions).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: 'executor',
         label: 'plan:codex',
         status: 'pending',
       }),
     ]))
+    expect(dreamSystemTexts[0]).not.toContain('alicization-agent-session')
     expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
     expect(dreamSystemTexts[0]).not.toContain('女仆')
   })
@@ -10240,33 +10244,35 @@ describe('alicization runtime project-state audit helpers', () => {
       reason: 'unit-dream-loop-2',
     })
 
-    expect(dreamSystemTexts).toHaveLength(2)
-    const firstDreamAgentSessionFact = findAlicizationProviderFactInSystemText(
-      dreamSystemTexts[0]!,
-      'alicization-agent-session',
-    )
-    const secondDreamAgentSessionFact = findAlicizationProviderFactInSystemText(
-      dreamSystemTexts[1]!,
-      'alicization-agent-session',
-    )
-    expect(firstDreamAgentSessionFact?.data.session).toMatchObject({
+    expect(dreamSystemTexts.length).toBeGreaterThanOrEqual(2)
+    const dreamAudits = dbStub.appendAuditLog.mock.calls
+      .map(call => call[0])
+      .filter((item: any) =>
+        item.category === 'alicization.dream'
+        && item.action === 'metabolism-generated',
+      )
+    const firstDreamAudit = dreamAudits.find((item: any) => item.payload?.reason === 'unit-dream-loop-1')
+    const secondDreamAudit = dreamAudits.find((item: any) => item.payload?.reason === 'unit-dream-loop-2')
+    expect(firstDreamAudit?.payload?.dreamHydrationSnapshot).toMatchObject({
       conversationSessionId: 'session-dream-loop',
     })
-    expect(firstDreamAgentSessionFact?.data.recentActions).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        label: 'main_gateway:dream',
-      }),
-    ]))
-    expect(secondDreamAgentSessionFact?.data.session).toMatchObject({
+    expect(secondDreamAudit?.payload?.dreamHydrationSnapshot).toMatchObject({
       conversationSessionId: 'session-dream-loop',
     })
-    expect(secondDreamAgentSessionFact?.data.recentActions).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        kind: 'runtime',
-        label: 'main_gateway:dream',
-        status: 'completed',
-      }),
-    ]))
+    const firstDreamActions = firstDreamAudit?.payload?.agentRuntime?.recentActions ?? []
+    const secondDreamActions = secondDreamAudit?.payload?.agentRuntime?.recentActions ?? []
+    expect(firstDreamActions.filter((item: any) =>
+      item.kind === 'runtime'
+      && item.label === 'main_gateway:dream'
+      && item.status === 'completed',
+    )).toHaveLength(1)
+    expect(secondDreamActions.filter((item: any) =>
+      item.kind === 'runtime'
+      && item.label === 'main_gateway:dream'
+      && item.status === 'completed',
+    )).toHaveLength(2)
+    for (const dreamSystemText of dreamSystemTexts)
+      expect(dreamSystemText).not.toContain('alicization-agent-session')
     expect(dreamSystemTexts.join('\n')).not.toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
   })
 
@@ -13806,23 +13812,35 @@ describe('alicization runtime project-state audit helpers', () => {
       })
 
       expect(dreamSystemTexts).toHaveLength(1)
-      const dreamAgentSessionFact = findAlicizationProviderFactInSystemText(
-        dreamSystemTexts[0]!,
-        'alicization-agent-session',
-      )
-      expect(dreamAgentSessionFact?.data.session).toMatchObject({
+      const dreamAudit = dbStub.appendAuditLog.mock.calls
+        .map(call => call[0])
+        .find((item: any) =>
+          item.category === 'alicization.dream'
+          && item.action === 'metabolism-generated'
+          && item.payload?.reason === 'unit-proactive-ignored-dream',
+        )
+      expect(dreamAudit?.payload?.dreamHydrationSnapshot).toMatchObject({
         conversationSessionId: 'session-proactive-ignored-dream',
       })
-      expect(dreamAgentSessionFact?.data.continuitySignals).toEqual(expect.arrayContaining([
+      expect(dreamAudit?.payload?.dreamHydrationSnapshot?.continuityLabels).toEqual(expect.arrayContaining([
+        'proactive:coding:ignored',
+      ]))
+      expect(dreamAudit?.payload?.dreamHydrationSnapshot?.continuitySources).toEqual(expect.arrayContaining([
         expect.objectContaining({
           label: 'proactive:coding:ignored',
+          outcome: 'ignored',
+          source: 'proactive-feedback',
+          state: 'observed',
         }),
       ]))
-      expect(dreamAgentSessionFact?.data.recentActions).toEqual(expect.arrayContaining([
+      expect(dreamAudit?.payload?.agentRuntime?.recentActions).toEqual(expect.arrayContaining([
         expect.objectContaining({
+          kind: 'runtime',
           label: 'proactive-feedback:coding:ignored',
+          status: 'completed',
         }),
       ]))
+      expect(dreamSystemTexts[0]).not.toContain('alicization-agent-session')
       expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_AGENT_SESSION]')
       expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_PROJECT_STATE]')
       expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
