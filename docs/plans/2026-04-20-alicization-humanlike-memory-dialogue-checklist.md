@@ -58,22 +58,15 @@
 目标是把这些都降为 candidate providers，由 recollection planner 最终决定 foreground memory。
 evidence: `runtime-organic-memory-prompt.test.ts` / `runtime-organic-memory-prompt.ts` / `runtime.ts`
 
-- [x] 做 reply-surface recollection speech generator
+- [x] 让 Provider 根据召回证据自然表达确定度
 说明：
-不能只靠 response contract 约束 remembered/approximate。
-需要专门的生成式层，决定：
-`我记得……`
-`我隐约记得……`
-`我大概想起那段时间……`
-`如果按我以前一般的做法……`
-并且由心智决定何时说得更确定，何时保留模糊。
+召回 evidence 必须携带来源、置信度、时间与关系信息，由 Provider 根据这些事实决定表达确定度；本地代码不生成回忆台词。
 evidence: `runtime-organic-memory-prompt.test.ts` / `response-surface-contract.test.ts` / `main-chat-session-runtime.test.ts`
 
-- [x] 把正常路径里的 deterministic/local-only 用户可见回复彻底降为故障兜底
+- [x] 删除正常路径里的 deterministic/local-only 用户可见回复
 说明：
-Greeting / identity / repair / memory follow-up / execution follow-up 这类正常内容回复，不能再有本地模板 authority。
-正常情况下都必须走 LLM-authored。
-evidence: `main-chat-active-dialogue-loop.ts` / `main-chat-active-dialogue-loop.test.ts` / `main-chat-background-run.test.ts`
+Greeting / identity / repair / memory follow-up / execution follow-up 等正常内容都由 Provider 生成；失败使用类型化透明失败面。
+evidence: `main-chat-single-dialogue-mainline-audit.test.ts` / `main-chat-session-runtime-fixed-template-regression.test.ts`
 
 - [x] 做 memory mention gating
 说明：
@@ -84,11 +77,10 @@ evidence: `main-chat-active-dialogue-loop.ts` / `main-chat-active-dialogue-loop.
 什么时候应该只说 gist 不说细节
 evidence: `runtime-organic-memory-prompt.test.ts` / `main-chat-session-runtime.test.ts`
 
-- [x] 做 recollection confidence discipline 的可见回复闭环
+- [x] 把 recollection confidence / provenance 写入 Provider facts
 说明：
-记忆的不确定性不能只停在内部结构里。
-需要回复层真正按照 confidence / provenance 来改变说法和细节密度。
-evidence: `response-surface-contract.test.ts` / `runtime-organic-memory-prompt.test.ts`
+记忆的不确定性必须以可追溯 evidence 进入 Provider 请求，本地代码不决定可见措辞。
+evidence: `main-chat-memory-context.test.ts` / `long-term-memory-recall.test.ts`
 
 ## P0 必做：把长期记忆从“摘要存储”推进成“自传性记忆”
 

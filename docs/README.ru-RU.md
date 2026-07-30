@@ -60,7 +60,7 @@ Alicization пытается решить более сложную задачу
 | Возможность | Текущий статус | Что это значит сегодня |
 | --- | --- | --- |
 | Источник истины `SOUL.md` и Genesis | Реализовано | Первичный onboarding записывает начальные значения личности, рамку отношений и правила границ в `SOUL.md`, а runtime затем постоянно читает и обновляет его. |
-| Структурированный диалоговый контракт | Реализовано | Вывод диалога принудительно приводится к `thought / emotion / reply`; нарушения контракта приводят к ресемплингу или безопасному откату. |
+| Диалоговая магистраль с ответом Provider | Реализовано | Видимый ответ создаёт Provider; ошибки тайм-аута, Provider, инструмента или контракта показываются явно и исключаются из памяти и обучения личности. |
 | Prompt Budget и SOUL Anchor | Реализовано | В длинных сессиях runtime защищает soul anchor, чтобы личность не смывало шумом контекста. |
 | Локальная память и аудит | Реализовано | SQLite хранит диалоговые ходы, факты памяти, подсознательные фрагменты, напоминания и журналы аудита. |
 | Subconscious Tick и проактивные ходы | Реализовано | Фоновое "сердцебиение" по минутам накапливает tension и может проактивно запускать care, компенсацию напоминаний или разговор. |
@@ -106,8 +106,8 @@ flowchart LR
 ### Основной цикл
 
 1. Новый запрос хода создаётся либо пользовательским вводом, либо подсознанием и планировщиком напоминаний в фоне.
-2. Runtime собирает основной prompt из `SOUL.md`, фрагментов контекста, результатов поиска по памяти и фиксированных системных ограничений.
-3. Модель обязана вернуть структурированный `thought / emotion / reply`; при нарушении контракта система делает ресемплинг или безопасный fallback.
+2. Основной runtime собирает вход Provider из `SOUL.md`, WorkingMemory, свидетельств LongTermMemoryRecall, текущего хода и структурированных runtime-фактов.
+3. Видимый ответ создаёт Provider; ошибки тайм-аута, Provider, инструмента или контракта показываются явно без переписывания на стороне Renderer.
 4. Принятые ходы записываются в SQLite и рассылаются в слой присутствия в нормализованном формате.
 5. Асинхронные пайплайны затем решают, запускать ли извлечение памяти, обновление подсознания, dreaming или планирование напоминаний.
 6. Если нужен инструмент, запрос входит в MCP-гейты разрешений, песочницы рабочего пространства и плоскость управления Kill Switch, а не получает прямую власть на исполнение.
@@ -304,13 +304,13 @@ Project Alicization использует [`xsai`](https://github.com/moeru-ai/xs
 | [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](../apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | Системные пробы и сенсорная кэш-шина. |
 | [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](../apps/stage-tamagotchi/src/main/services/alicization/state.ts) | Состояние Kill Switch и runtime-аудита. |
 | [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](../apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | MCP-вызовы инструментов, подтверждения разрешений, sandbox рабочего пространства и агрегация аудита. |
-| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](../packages/stage-ui/src/composables/alicization-prompt-composer.ts) | Составляет runtime-prompt из `SOUL.md`, контекста и фиксированных шаблонов. |
-| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Защита prompt budget, guardrails структурированного вывода, безопасный fallback и очистка отображения. |
+| [`apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`](../apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts) | Диалоговый pipeline основного процесса для SOUL, WorkingMemory, свидетельств LongTermMemoryRecall, структурированных Provider facts и прозрачных поверхностей ошибок. |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Утилиты prompt budget, сжатие диалога, маскирование исходящих данных и очистка отображения. |
 | [`packages/stage-ui/src/stores/alicization-bridge.ts`](../packages/stage-ui/src/stores/alicization-bridge.ts) | Общие контракты Alicization и bridge-типы между runtime, renderer, памятью и диалоговыми payload. |
 | [`packages/stage-ui/src/stores/alicization-epoch1.ts`](../packages/stage-ui/src/stores/alicization-epoch1.ts) | Alicization state bus и bootstrap-логика на стороне renderer. |
 | [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](../packages/stage-ui/src/stores/alicization-execution-engine.ts) | Движок исполнения запросов в реальном времени и стратегии компенсации инструментов. |
 | [`packages/stage-ui/src/stores/alicization-presence-dispatcher.ts`](../packages/stage-ui/src/stores/alicization-presence-dispatcher.ts) | Диспетчер присутствия, нормализующий диалоговый вывод и рассылающий его в Live2D, TTS и другие listener'ы. |
-| [`packages/stage-shared`](../packages/stage-shared) | Prompt-шаблоны, общие ограничения и Alicization-логика, переиспользуемая между поверхностями. |
+| [`packages/stage-shared`](../packages/stage-shared) | Стабильные контракты, Provider facts и общая семантика памяти/диалога для разных поверхностей. |
 
 ## Поверхности монорепозитория
 
@@ -325,8 +325,8 @@ Project Alicization использует [`xsai`](https://github.com/moeru-ai/xs
 ### Shared Layers
 
 - `docs`: workspace сайта документации.
-- `packages/stage-ui`: общие бизнес-компоненты, Alicization stores, композиция диалога и frontend bridge-слои.
-- `packages/stage-shared`: prompt-шаблоны, общая логика и cross-surface ограничения.
+- `packages/stage-ui`: общие бизнес-компоненты, Alicization stores, состояние Renderer, слой присутствия и frontend bridge-слои.
+- `packages/stage-shared`: стабильные контракты, Provider facts, общая логика и cross-surface семантика памяти/диалога.
 - `packages/ui`: переиспользуемые UI primitives.
 - `packages/i18n`: мультиязычные текстовые ресурсы.
 - `packages/server-*`: server runtime, SDK и общие протоколы.

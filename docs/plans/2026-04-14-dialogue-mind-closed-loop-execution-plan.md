@@ -1,41 +1,16 @@
-# 2026-04-14 Dialogue Mind Closed Loop Execution Plan
+# 历史归档：2026-04-14 Dialogue Mind Closed Loop
 
-## Internal Grade
+> 状态：已失效
+> 归档更新：2026-07-30
 
-L
+原计划中的并行对话 lane、Renderer 侧普通回复生成与确定性工具结果包装已经从生产链路删除，不再作为实现或回滚方案。
 
-## Wave Structure
+现行边界：
 
-1. 建立共享 utility / realtime query parser。
-2. 重构 active dialogue fast-path lane 与本地回复渲染。
-3. 补测试并验证 main/browser/UI 三端链路。
+- 普通可见回复只来自 Provider。
+- 主进程会话运行时统一装配 SOUL、WorkingMemory、LongTermMemoryRecall 与结构化 Provider facts。
+- Renderer 只负责传输、展示、中断与透明失败面。
+- 工具执行结果作为事实返回 Provider，不由本地代码编写结果台词。
+- 超时、Provider、工具、权限、协议、召回和持久化失败不得伪装成普通回复。
 
-## Ownership Boundaries
-
-1. Shared parsing:
-   `packages/stage-shared/src/*`
-2. Main runtime dialogue:
-   `apps/stage-tamagotchi/src/main/services/alicization/*`
-3. Browser/UI realtime bridge:
-   `packages/stage-ui/src/stores/*`
-
-## Verification Commands
-
-1. `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.test.ts`
-2. `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/runtime-realtime.test.ts`
-3. `pnpm exec vitest run packages/stage-ui/src/stores/alicization-browser-bridge.test.ts`
-4. `pnpm exec vitest run packages/stage-shared/src/alicization-realtime-query-parser.test.ts`
-5. `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
-6. `pnpm -F @proj-alicization/stage-ui typecheck`
-7. `pnpm -F @proj-alicization/stage-shared typecheck`
-
-## Rollback Rules
-
-1. 如果共享 parser 引入回归，先保留 API 形状，再回滚调用点接入。
-2. 如果 fast-path lane 重构导致工具/执行链退化，保留 deterministic payoff 分支，局部回退 lane 映射。
-
-## Cleanup Expectations
-
-1. 不提交 `docs/plans/**`、`docs/requirements/**`。
-2. 不提交 `N.E.K.O/**`、`claude-code-main/**`。
-3. 源码提交前重新检查索引，确认只包含本仓库业务代码改动。
+现行依据：`docs/superpowers/specs/2026-07-13-alicization-single-memory-dialogue-mainline-design.md`。

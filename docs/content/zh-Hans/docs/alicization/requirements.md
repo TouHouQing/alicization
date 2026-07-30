@@ -78,18 +78,19 @@ Alicization（Artificial Labile Intelligent Cybernated Existence）定位为：
 - 人格变化来源至少包括：宿主语气反馈、长期互动历史、主动轮次结果、任务成败。
 - 人格漂移必须能回写到 `SOUL.md` 并在重启后恢复。
 
-#### ALICIZATION-F1.3 结构化对话合约
+#### ALICIZATION-F1.3 Provider 对话权威与透明失败
 
-- 主对话输出必须为结构化对象：`thought`、`emotion`、`reply`。
-- 合约解析失败时，必须先尝试重采样；仍失败时走安全回退，而不是打崩主链路。
-- `contractFailed=true` 的轮次不得参与人格漂移和异步记忆固化。
+- 普通可见回复必须来自当前配置的 Provider。
+- Renderer 与本地运行时代码不得生成、修补或改写普通回复。
+- 超时、Provider、工具、权限、协议、召回、持久化与结构校验失败必须返回类型化透明失败面。
+- `contractFailed=true` 或其他失败产物不得参与人格漂移、长期记忆固化、persona learning 或训练。
 - 审计默认只记录必要字段；仅在显式调试模式下保留更敏感的内部推理内容。
 
-#### ALICIZATION-F1.4 Prompt Budget 与灵魂锚点保护
+#### ALICIZATION-F1.4 Provider Context Budget 与人格证据保护
 
-- 长会话下必须优先保留 `SOUL.md` 与固定结构化合约锚点。
-- 卡片级 `custom_directives` 必须作为低优先级附加指令注入，不得覆盖安全边界。
-- 当 `SOUL.md` 或上下文超预算时，必须走可审计的降级策略。
+- 长会话下必须在主进程优先保留 `SOUL.md`、WorkingMemory 当前状态和预算内的 LongTermMemoryRecall 证据。
+- 卡片级 `custom_directives` 属于用户治理输入，不得被 Renderer 复制成并行人格状态。
+- 上下文压缩、截断或拒绝必须可审计，并且不得生成替代性的普通回复。
 
 ### 5.2 记忆、潜意识与梦境（F2）
 

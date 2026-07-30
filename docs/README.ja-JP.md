@@ -60,7 +60,7 @@ Alicization が解こうとしているのは、もっと難しい問題です�
 | 機能 | 現在の状態 | 今わかること |
 | --- | --- | --- |
 | `SOUL.md` 真源と Genesis | 実装済み | 初回オンボーディングで人格の初期値、関係性、境界ルールを `SOUL.md` に書き込み、実行時にも継続的に読み書きします。 |
-| 構造化対話契約 | 実装済み | 対話出力は `thought / emotion / reply` に強制され、契約違反時は再サンプリングまたは安全フォールバックに入ります。 |
+| Provider 生成の対話メインライン | 実装済み | 表示される返信は Provider が生成し、タイムアウト、Provider、ツール、契約の失敗は透明に示され、記憶と人格学習から除外されます。 |
 | Prompt Budget と SOUL Anchor | 実装済み | 長い会話でも、人格がコンテキストノイズで流されないように soul anchor を優先して保護します。 |
 | ローカル記憶と監査パイプライン | 実装済み | SQLite に会話ターン、記憶ファクト、無意識断片、リマインダー、監査ログを保存します。 |
 | 無意識 Tick と能動ターン | 実装済み | 分単位のバックグラウンド心拍が tension を蓄積し、条件を満たすと気遣い、リマインダー補償、話しかけを能動的に発火します。 |
@@ -106,8 +106,8 @@ flowchart LR
 ### コアループ
 
 1. ホスト入力、またはバックグラウンドの無意識 / リマインダースケジューリングによって新しいターン要求が生成されます。
-2. ランタイムは `SOUL.md`、コンテキスト断片、記憶検索結果、固定システム制約を組み合わせてメインプロンプトを構成します。
-3. モデルは構造化された `thought / emotion / reply` を返さなければなりません。契約違反時は再サンプリングまたは安全フォールバックに入ります。
+2. メインランタイムは `SOUL.md`、WorkingMemory、LongTermMemoryRecall の証拠、現在のターン、構造化されたランタイム事実から Provider 入力を組み立てます。
+3. 表示される返信は Provider が生成し、タイムアウト、Provider、ツール、契約の失敗は透明に示され、Renderer 側では書き換えません。
 4. 受理されたターンは SQLite に書き込まれ、正規化された形で表現層へブロードキャストされます。
 5. 非同期パイプラインが、記憶抽出、無意識更新、夢の整理、リマインダースケジューリングを起動するかどうかを判断します。
 6. ツールが必要な場合、要求はモデルに直接実行権を与えるのではなく、MCP 権限ゲート、ワークスペースサンドボックス、Kill Switch 制御面に入ります。
@@ -304,13 +304,13 @@ Project Alicization は [`xsai`](https://github.com/moeru-ai/xsai) を使って�
 | [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](../apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | システムプローブと感覚キャッシュバス。 |
 | [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](../apps/stage-tamagotchi/src/main/services/alicization/state.ts) | Kill Switch とランタイム監査状態。 |
 | [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](../apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | MCP ツール呼び出し、権限確認、ワークスペースサンドボックス、監査集約。 |
-| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](../packages/stage-ui/src/composables/alicization-prompt-composer.ts) | `SOUL.md`、コンテキスト、固定テンプレートからランタイムプロンプトを構成します。 |
-| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt budget 保護、構造化出力ガード、安全フォールバック、表示サニタイズ。 |
+| [`apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`](../apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts) | SOUL、WorkingMemory、LongTermMemoryRecall の証拠、構造化 Provider facts、透明な失敗面を担うメインプロセス対話パイプライン。 |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt budget、対話圧縮、送信データのマスキング、表示サニタイズ。 |
 | [`packages/stage-ui/src/stores/alicization-bridge.ts`](../packages/stage-ui/src/stores/alicization-bridge.ts) | ランタイム、renderer、記憶、対話 payload の間で共有される Alicization 契約とブリッジ型。 |
 | [`packages/stage-ui/src/stores/alicization-epoch1.ts`](../packages/stage-ui/src/stores/alicization-epoch1.ts) | Renderer 側の Alicization 状態バスと bootstrap ロジック。 |
 | [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](../packages/stage-ui/src/stores/alicization-execution-engine.ts) | リアルタイム問い合わせ実行エンジンとツール補償戦略。 |
 | [`packages/stage-ui/src/stores/alicization-presence-dispatcher.ts`](../packages/stage-ui/src/stores/alicization-presence-dispatcher.ts) | 対話出力を正規化し、Live2D、TTS、その他のリスナーへ分配する表現層ディスパッチャ。 |
-| [`packages/stage-shared`](../packages/stage-shared) | プロンプトテンプレート、共有制約、複数サーフェスで再利用される Alicization ロジック。 |
+| [`packages/stage-shared`](../packages/stage-shared) | 複数サーフェスで共有される安定した契約、Provider facts、記憶と対話の意味論。 |
 
 ## モノレポの構成面
 
@@ -325,8 +325,8 @@ Project Alicization は [`xsai`](https://github.com/moeru-ai/xsai) を使って�
 ### Shared Layers
 
 - `docs`: ドキュメントサイトのワークスペース。
-- `packages/stage-ui`: 共有ビジネスコンポーネント、Alicization stores、対話構成、フロントエンド橋渡し層。
-- `packages/stage-shared`: プロンプトテンプレート、共有ロジック、サーフェス横断の制約。
+- `packages/stage-ui`: 共有ビジネスコンポーネント、Alicization stores、Renderer 状態、表現層、フロントエンド橋渡し層。
+- `packages/stage-shared`: 安定した契約、Provider facts、共有ロジック、サーフェス横断の記憶/対話意味論。
 - `packages/ui`: 再利用可能な UI プリミティブ。
 - `packages/i18n`: 多言語テキスト資源。
 - `packages/server-*`: サーバーランタイム、SDK、共有プロトコル。

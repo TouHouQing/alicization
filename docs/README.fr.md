@@ -60,7 +60,7 @@ Si vous clonez le dépôt et l'exécutez maintenant, voici les boucles déjà r�
 | Capacité | État actuel | Ce que cela signifie aujourd'hui |
 | --- | --- | --- |
 | Source de vérité `SOUL.md` et Genesis | Livré | L'onboarding initial écrit les valeurs de personnalité, le cadrage relationnel et les règles de frontière dans `SOUL.md`, puis le runtime continue à le lire et à l'écrire. |
-| Contrat de dialogue structuré | Livré | La sortie du dialogue est forcée en `thought / emotion / reply` ; les violations déclenchent un resampling ou un fallback sûr. |
+| Pipeline de dialogue rédigé par le Provider | Livré | Les réponses visibles viennent du Provider ; les échecs de délai, Provider, outil ou contrat sont exposés clairement et exclus de la mémoire et de l'apprentissage de persona. |
 | Prompt Budget et SOUL Anchor | Livré | Dans les longues conversations, le runtime protège les ancrages d'âme pour éviter que la personnalité se dissolve dans le bruit contextuel. |
 | Mémoire locale et pipeline d'audit | Livré | SQLite stocke les tours de conversation, les faits mémoire, les fragments subconscients, les rappels et les journaux d'audit. |
 | Tick subconscient et tours proactifs | Livré | Un battement de fond à l'échelle de la minute accumule de la tension et peut déclencher spontanément du care, de la compensation de rappel ou une prise de parole. |
@@ -106,8 +106,8 @@ flowchart LR
 ### Boucle principale
 
 1. Une nouvelle requête de tour est créée soit par l'entrée de l'hôte, soit par le subconscient et l'ordonnancement des rappels en arrière-plan.
-2. Le runtime compose le prompt principal à partir de `SOUL.md`, de tranches de contexte, des résultats de récupération mémoire et de contraintes système fixes.
-3. Le modèle doit retourner un `thought / emotion / reply` structuré ; s'il casse le contrat, le système resample ou bascule vers un fallback sûr.
+2. Le runtime principal assemble l'entrée du Provider depuis `SOUL.md`, WorkingMemory, les preuves LongTermMemoryRecall, le tour courant et les faits runtime structurés.
+3. Le Provider rédige la réponse visible ; les échecs de délai, Provider, outil ou contrat sont exposés clairement sans réécriture côté renderer.
 4. Les tours acceptés sont écrits dans SQLite puis diffusés à la couche de présence dans un format normalisé.
 5. Les pipelines asynchrones décident ensuite de déclencher ou non l'extraction mémoire, la mise à jour subconsciente, le dreaming ou les rappels.
 6. Si un outil est requis, la requête entre dans les portes d'autorisation MCP, les sandboxes de workspace et le plan de contrôle Kill Switch au lieu de donner l'exécution directe au modèle.
@@ -304,13 +304,13 @@ Si vous voulez comprendre Alicization à partir du code, commencez ici :
 | [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](../apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | Bus des sondes système et du cache sensoriel. |
 | [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](../apps/stage-tamagotchi/src/main/services/alicization/state.ts) | État du Kill Switch et de l'audit runtime. |
 | [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](../apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | Appels d'outils MCP, confirmations d'autorisation, sandboxing du workspace et agrégation d'audit. |
-| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](../packages/stage-ui/src/composables/alicization-prompt-composer.ts) | Compose les prompts runtime à partir de `SOUL.md`, du contexte et de templates fixes. |
-| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Protection du prompt budget, garde-fous de sortie structurée, fallback sûr et sanitation d'affichage. |
+| [`apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`](../apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts) | Pipeline de dialogue du processus principal pour SOUL, WorkingMemory, les preuves LongTermMemoryRecall, les faits Provider structurés et les surfaces d'échec transparentes. |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Outils de prompt budget, compaction du dialogue, masquage des données sortantes et sanitation d'affichage. |
 | [`packages/stage-ui/src/stores/alicization-bridge.ts`](../packages/stage-ui/src/stores/alicization-bridge.ts) | Contrats Alicization partagés et types de pont utilisés entre runtime, renderer, mémoire et payloads de dialogue. |
 | [`packages/stage-ui/src/stores/alicization-epoch1.ts`](../packages/stage-ui/src/stores/alicization-epoch1.ts) | Bus d'état Alicization côté renderer et logique de bootstrap. |
 | [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](../packages/stage-ui/src/stores/alicization-execution-engine.ts) | Moteur d'exécution de requêtes temps réel et stratégies de compensation d'outils. |
 | [`packages/stage-ui/src/stores/alicization-presence-dispatcher.ts`](../packages/stage-ui/src/stores/alicization-presence-dispatcher.ts) | Dispatcher de présence qui normalise la sortie du dialogue puis la distribue vers Live2D, TTS et d'autres listeners. |
-| [`packages/stage-shared`](../packages/stage-shared) | Templates de prompt, contraintes partagées et logique Alicization réutilisée entre surfaces. |
+| [`packages/stage-shared`](../packages/stage-shared) | Contrats stables, faits Provider et sémantique mémoire/dialogue partagée entre surfaces. |
 
 ## Surfaces du monorepo
 
@@ -325,8 +325,8 @@ Si vous voulez comprendre Alicization à partir du code, commencez ici :
 ### Shared Layers
 
 - `docs` : workspace du site de documentation.
-- `packages/stage-ui` : composants métier partagés, stores Alicization, composition de dialogue et couches de pont frontend.
-- `packages/stage-shared` : templates de prompt, logique partagée et contraintes inter-surfaces.
+- `packages/stage-ui` : composants métier partagés, stores Alicization, état renderer, présence et couches de pont frontend.
+- `packages/stage-shared` : contrats stables, faits Provider, logique partagée et sémantique mémoire/dialogue inter-surfaces.
 - `packages/ui` : primitives UI réutilisables.
 - `packages/i18n` : ressources de texte multilingues.
 - `packages/server-*` : runtime serveur, SDK et protocoles partagés.

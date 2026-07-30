@@ -60,7 +60,7 @@ Alicization 想解决的是一个更难的问题：怎样让一个数字实体�
 | 能力 | 当前状态 | 现在意味着什么 |
 | --- | --- | --- |
 | `SOUL.md` 真源与 Genesis | 已落地 | 首次引导会把人格初值、关系定位、边界规则写入 `SOUL.md`，运行时读取并持续写回。 |
-| 结构化对话合约 | 已落地 | 对话输出强制为 `thought / emotion / reply`；非合约输出会重采样或安全回退。 |
+| Provider 对话主链路 | 已落地 | 可见回复由 Provider 生成；超时、Provider、工具与结构化合约失败会透明呈现，并排除在记忆与人格学习之外。 |
 | Prompt Budget 与 SOUL Anchor | 已落地 | 长会话下优先保护灵魂锚点，不让人格被上下文噪声冲掉。 |
 | 本地记忆与审计链路 | 已落地 | SQLite 会记录对话轮次、记忆事实、潜意识碎片、提醒任务与审计日志。 |
 | 潜意识 Tick 与主动轮次 | 已落地 | 后台会按分钟级心跳积累张力，并在满足门禁条件时主动触发关怀、提醒补偿或搭话。 |
@@ -106,8 +106,8 @@ flowchart LR
 ### Core Loop
 
 1. 宿主输入，或者后台潜意识 / 提醒调度生成一个新的轮次请求。
-2. 运行时把 `SOUL.md`、上下文片段、记忆检索结果和固定系统约束拼成主提示词。
-3. 模型必须返回结构化的 `thought / emotion / reply`；不合约时会重采样或进入安全回退。
+2. 主运行时从 `SOUL.md`、WorkingMemory、LongTermMemoryRecall 证据、当前轮次和结构化运行时事实装配 Provider 输入。
+3. 可见回复由 Provider 生成；超时、Provider、工具或结构化合约失败通过透明失败面呈现，Renderer 不代写回复。
 4. 被接受的轮次写入 SQLite，并向表现层广播标准化结果。
 5. 异步链路再决定是否触发记忆提取、潜意识更新、梦境整理或提醒调度。
 6. 如果需要调用工具，则进入 MCP 权限门禁、工作区沙箱和 Kill Switch 控制面，而不是由模型直接拥有执行权。
@@ -304,13 +304,13 @@ Project Alicization 通过 [`xsai`](https://github.com/moeru-ai/xsai) 接入多�
 | [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](../apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | 系统探针与感知缓存总线。 |
 | [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](../apps/stage-tamagotchi/src/main/services/alicization/state.ts) | Kill Switch 与运行时审计状态。 |
 | [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](../apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | MCP 工具调用、权限确认、工作区沙箱与审计聚合。 |
-| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](../packages/stage-ui/src/composables/alicization-prompt-composer.ts) | 负责把 `SOUL.md`、上下文和固定模板拼成运行时提示词。 |
-| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt Budget、结构化输出守卫、安全回退与显示净化。 |
+| [`apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`](../apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts) | 主进程对话管线，负责 SOUL、WorkingMemory、LongTermMemoryRecall 证据、结构化 Provider facts 与透明失败面。 |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt Budget、对话压缩、出站敏感信息净化与显示净化。 |
 | [`packages/stage-ui/src/stores/alicization-bridge.ts`](../packages/stage-ui/src/stores/alicization-bridge.ts) | 连接运行时、Renderer、记忆层与对话 payload 的共享 Alicization 合约与桥接类型。 |
 | [`packages/stage-ui/src/stores/alicization-epoch1.ts`](../packages/stage-ui/src/stores/alicization-epoch1.ts) | Renderer 侧的 Alicization 状态总线与 bootstrap。 |
 | [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](../packages/stage-ui/src/stores/alicization-execution-engine.ts) | 实时查询执行引擎与工具补偿策略。 |
 | [`packages/stage-ui/src/stores/alicization-presence-dispatcher.ts`](../packages/stage-ui/src/stores/alicization-presence-dispatcher.ts) | 表现层分发器，会规范化对话输出并转发给 Live2D、TTS 和其他监听方。 |
-| [`packages/stage-shared`](../packages/stage-shared) | 提示词模板、共享约束和跨端共用的 Alicization 逻辑。 |
+| [`packages/stage-shared`](../packages/stage-shared) | 跨端稳定合约、Provider facts，以及共享的记忆与对话语义。 |
 
 ## Monorepo Surfaces
 
@@ -325,8 +325,8 @@ Project Alicization 通过 [`xsai`](https://github.com/moeru-ai/xsai) 接入多�
 ### Shared Layers
 
 - `docs`：文档站点工作区。
-- `packages/stage-ui`：共享业务组件、Alicization stores、对话编排与前端桥接层。
-- `packages/stage-shared`：提示词模板、共享逻辑与跨端约束。
+- `packages/stage-ui`：共享业务组件、Alicization stores、Renderer 状态、表现层与前端桥接层。
+- `packages/stage-shared`：稳定合约、Provider facts、共享逻辑与跨端记忆/对话语义。
 - `packages/ui`：通用 UI primitives。
 - `packages/i18n`：多语言文本资源。
 - `packages/server-*`：服务端运行时、SDK 与共享协议。

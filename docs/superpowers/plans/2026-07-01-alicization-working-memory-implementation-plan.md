@@ -600,11 +600,11 @@ describe('working memory snapshot builder', () => {
         currentQuestion: '怎么让短期记忆不断片',
         openLoops: ['保留用户纠正'],
         recentlyResolvedLoops: [],
-        carriedFacts: ['固定模板不能进人格'],
+        carriedFacts: ['记忆证据不能被旧对话规则覆盖'],
         relationDrift: 'repairing',
         memoryMode: 'task-thread',
-        recallKeys: ['短期记忆', '固定模板'],
-        lastUserMove: '继续，我不是要固定回复',
+        recallKeys: ['短期记忆', '记忆连续性'],
+        lastUserMove: '继续，我要的是记忆连续性',
         lastAssistantMove: null,
         lastOutcome: 'pending',
         confidence: 0.8,
@@ -616,7 +616,7 @@ describe('working memory snapshot builder', () => {
         centerOfGravity: 'guide',
         truthDiscipline: 'dialogue-first',
         consciousNeed: 'Hold the current B-line working memory task.',
-        consciousTension: 'Avoid returning to fixed persona templates.',
+        consciousTension: 'Keep current memory evidence authoritative.',
         speakingIntention: 'Answer from the current implementation thread.',
         shouldWithholdSpecificity: false,
         shouldSelfRevise: false,
@@ -628,18 +628,18 @@ describe('working memory snapshot builder', () => {
 
     expect(snapshot.currentThread).toMatchObject({
       title: 'B 线短期记忆工程',
-      currentUserMove: '继续，我不是要固定回复',
+      currentUserMove: '继续，我要的是记忆连续性',
       mode: 'repair',
       shouldHold: true,
     })
     expect(snapshot.activeTask?.summary).toBe('WorkingMemory owner')
     expect(snapshot.unresolvedQuestions.map(item => item.text)).toContain('怎么让短期记忆不断片')
     expect(snapshot.commitments.map(item => item.text)).toContain('先做短期记忆 owner，再接长期记忆')
-    expect(snapshot.userCorrections.map(item => item.text)).toContain('继续，我不是要固定回复')
+    expect(snapshot.userCorrections.map(item => item.text)).toContain('继续，我要的是记忆连续性')
     expect(snapshot.relationshipPosture?.summary).toContain('repair')
-    expect(snapshot.emotionalPosture?.summary).toContain('Avoid returning to fixed persona templates.')
-    expect(snapshot.memoryQueryHints).toEqual(['短期记忆', '固定模板'])
-    expect(snapshot.recentRawTurns.at(-1)?.text).toBe('继续，我不是要固定回复')
+    expect(snapshot.emotionalPosture?.summary).toContain('Keep current memory evidence authoritative.')
+    expect(snapshot.memoryQueryHints).toEqual(['短期记忆', '记忆连续性'])
+    expect(snapshot.recentRawTurns.at(-1)?.text).toBe('继续，我要的是记忆连续性')
   })
 })
 ```

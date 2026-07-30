@@ -60,7 +60,7 @@ Nếu bạn clone repo và chạy nó ngay bây giờ, đây là những vòng l
 | Năng lực | Trạng thái hiện tại | Hiện giờ điều đó có nghĩa là gì |
 | --- | --- | --- |
 | Nguồn chân lý `SOUL.md` và Genesis | Đã có | Onboarding lần đầu ghi các giá trị nhân cách ban đầu, định vị quan hệ và quy tắc ranh giới vào `SOUL.md`, sau đó runtime liên tục đọc và ghi lại tệp này. |
-| Hợp đồng đối thoại có cấu trúc | Đã có | Đầu ra đối thoại bị ép thành `thought / emotion / reply`; vi phạm hợp đồng sẽ resample hoặc fallback an toàn. |
+| Tuyến đối thoại do Provider tạo | Đã có | Câu trả lời hiển thị do Provider tạo; lỗi timeout, Provider, công cụ hoặc hợp đồng được báo rõ và bị loại khỏi bộ nhớ cũng như học nhân cách. |
 | Prompt Budget và SOUL Anchor | Đã có | Trong hội thoại dài, runtime ưu tiên bảo vệ soul anchor để nhân cách không bị nhiễu ngữ cảnh cuốn trôi. |
 | Bộ nhớ cục bộ và pipeline audit | Đã có | SQLite lưu các lượt hội thoại, fact bộ nhớ, mảnh tiềm thức, nhắc việc và log audit. |
 | Subconscious Tick và lượt chủ động | Đã có | Một nhịp nền tính theo phút tích lũy tension và có thể chủ động khởi phát care, bù nhắc việc hoặc mở lời khi thỏa điều kiện. |
@@ -106,8 +106,8 @@ flowchart LR
 ### Vòng lặp lõi
 
 1. Một yêu cầu turn mới được tạo ra từ đầu vào của host hoặc từ tiềm thức / lịch nhắc việc ở nền.
-2. Runtime ghép prompt chính từ `SOUL.md`, các lát ngữ cảnh, kết quả truy xuất ký ức và các ràng buộc hệ thống cố định.
-3. Mô hình phải trả về `thought / emotion / reply` có cấu trúc; nếu phá hợp đồng, hệ thống sẽ resample hoặc fallback an toàn.
+2. Runtime chính lắp đầu vào Provider từ `SOUL.md`, WorkingMemory, bằng chứng LongTermMemoryRecall, turn hiện tại và các dữ kiện runtime có cấu trúc.
+3. Câu trả lời hiển thị do Provider tạo; lỗi timeout, Provider, công cụ hoặc hợp đồng được báo rõ và không bị Renderer viết lại.
 4. Các turn được chấp nhận sẽ được ghi vào SQLite và broadcast tới lớp hiện diện dưới dạng đã chuẩn hóa.
 5. Các pipeline bất đồng bộ sau đó quyết định có kích hoạt trích xuất ký ức, cập nhật tiềm thức, dreaming hoặc lên lịch nhắc việc hay không.
 6. Nếu cần gọi công cụ, yêu cầu sẽ đi vào cổng quyền MCP, sandbox workspace và mặt điều khiển Kill Switch thay vì trao quyền thực thi trực tiếp cho mô hình.
@@ -304,13 +304,13 @@ Nếu muốn hiểu Alicization từ mã nguồn trước, hãy bắt đầu t�
 | [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](../apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | Bus đầu dò hệ thống và cache cảm quan. |
 | [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](../apps/stage-tamagotchi/src/main/services/alicization/state.ts) | Trạng thái Kill Switch và audit runtime. |
 | [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](../apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | Gọi công cụ MCP, xác nhận quyền, sandbox workspace và gom audit. |
-| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](../packages/stage-ui/src/composables/alicization-prompt-composer.ts) | Ghép prompt runtime từ `SOUL.md`, ngữ cảnh và template cố định. |
-| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Bảo vệ prompt budget, guardrail đầu ra có cấu trúc, fallback an toàn và làm sạch hiển thị. |
+| [`apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`](../apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts) | Pipeline đối thoại ở tiến trình chính cho SOUL, WorkingMemory, bằng chứng LongTermMemoryRecall, Provider facts có cấu trúc và bề mặt lỗi minh bạch. |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Tiện ích prompt budget, nén đối thoại, che dữ liệu gửi ra và làm sạch hiển thị. |
 | [`packages/stage-ui/src/stores/alicization-bridge.ts`](../packages/stage-ui/src/stores/alicization-bridge.ts) | Hợp đồng Alicization dùng chung và các kiểu bridge kết nối runtime, renderer, bộ nhớ và payload đối thoại. |
 | [`packages/stage-ui/src/stores/alicization-epoch1.ts`](../packages/stage-ui/src/stores/alicization-epoch1.ts) | Bus trạng thái Alicization phía renderer và logic bootstrap. |
 | [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](../packages/stage-ui/src/stores/alicization-execution-engine.ts) | Động cơ thực thi truy vấn thời gian thực và chiến lược bù công cụ. |
 | [`packages/stage-ui/src/stores/alicization-presence-dispatcher.ts`](../packages/stage-ui/src/stores/alicization-presence-dispatcher.ts) | Bộ điều phối hiện diện chuẩn hóa đầu ra đối thoại rồi phân phát tới Live2D, TTS và các listener khác. |
-| [`packages/stage-shared`](../packages/stage-shared) | Template prompt, ràng buộc dùng chung và logic Alicization tái sử dụng giữa các bề mặt. |
+| [`packages/stage-shared`](../packages/stage-shared) | Hợp đồng ổn định, Provider facts và ngữ nghĩa bộ nhớ/đối thoại dùng chung giữa các bề mặt. |
 
 ## Các bề mặt trong monorepo
 
@@ -325,8 +325,8 @@ Nếu muốn hiểu Alicization từ mã nguồn trước, hãy bắt đầu t�
 ### Shared Layers
 
 - `docs`: workspace của trang tài liệu.
-- `packages/stage-ui`: component nghiệp vụ dùng chung, Alicization stores, phối ghép đối thoại và lớp cầu nối frontend.
-- `packages/stage-shared`: template prompt, logic dùng chung và ràng buộc xuyên bề mặt.
+- `packages/stage-ui`: component nghiệp vụ dùng chung, Alicization stores, trạng thái Renderer, lớp hiện diện và lớp cầu nối frontend.
+- `packages/stage-shared`: hợp đồng ổn định, Provider facts, logic dùng chung và ngữ nghĩa bộ nhớ/đối thoại xuyên bề mặt.
 - `packages/ui`: UI primitives tái sử dụng.
 - `packages/i18n`: tài nguyên văn bản đa ngôn ngữ.
 - `packages/server-*`: runtime server, SDK và giao thức dùng chung.

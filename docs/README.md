@@ -60,7 +60,7 @@ If you clone the repository and run it today, these are the loops that are alrea
 | Capability | Current status | What it means today |
 | --- | --- | --- |
 | `SOUL.md` truth source and Genesis | Shipped | First-run onboarding writes personality seed values, relationship framing, and boundary rules into `SOUL.md`, then the runtime keeps reading and writing it back. |
-| Structured dialogue contract | Shipped | Dialogue output is forced into `thought / emotion / reply`; contract violations trigger resampling or safe fallback. |
+| Provider-authored dialogue mainline | Shipped | Visible replies come from the Provider; timeout, Provider, tool, and contract failures surface transparently and stay out of memory/persona learning. |
 | Prompt Budget and SOUL Anchor | Shipped | In long conversations, the runtime protects soul anchors so personality is not washed out by context noise. |
 | Local memory and audit pipeline | Shipped | SQLite stores conversation turns, memory facts, subconscious fragments, reminder tasks, and audit logs. |
 | Subconscious Tick and proactive turns | Shipped | A background minute-scale heartbeat accumulates tension and can proactively trigger care, reminder compensation, or conversation when the gates are satisfied. |
@@ -106,8 +106,8 @@ flowchart LR
 ### Core Loop
 
 1. A new turn request is created either by host input or by subconscious and reminder scheduling in the background.
-2. The runtime composes the main prompt from `SOUL.md`, context slices, memory retrieval results, and fixed system constraints.
-3. The model must return structured `thought / emotion / reply`; if it breaks the contract, the system resamples or falls back safely.
+2. The main runtime assembles Provider input from `SOUL.md`, WorkingMemory, LongTermMemoryRecall evidence, the current turn, and structured runtime facts.
+3. The Provider authors the visible reply; timeout, Provider, tool, and contract failures surface transparently without renderer-side rewriting.
 4. Accepted turns are written into SQLite and broadcast to the presence layer in a normalized format.
 5. Async pipelines then decide whether to trigger memory extraction, subconscious updates, dreaming, or reminder scheduling.
 6. If a tool is needed, the request enters MCP permission gates, workspace sandboxes, and Kill Switch control instead of giving direct execution power to the model.
@@ -304,13 +304,13 @@ If you want to understand Alicization from the code first, start here:
 | [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](../apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | System probes and sensory-cache bus. |
 | [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](../apps/stage-tamagotchi/src/main/services/alicization/state.ts) | Kill Switch and runtime audit state. |
 | [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](../apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | MCP tool calls, permission confirmations, workspace sandboxing, and audit aggregation. |
-| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](../packages/stage-ui/src/composables/alicization-prompt-composer.ts) | Composes runtime prompts from `SOUL.md`, context, and fixed templates. |
-| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt budget protection, structured-output guardrails, safe fallback, and display sanitization. |
+| [`apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`](../apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts) | Main-process dialogue pipeline for SOUL, WorkingMemory, LongTermMemoryRecall evidence, structured Provider facts, and transparent failure surfaces. |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt budget utilities, dialogue compaction, outbound redaction, and display sanitization. |
 | [`packages/stage-ui/src/stores/alicization-bridge.ts`](../packages/stage-ui/src/stores/alicization-bridge.ts) | Shared Alicization contracts and bridge types used between runtime, renderer, memory, and dialogue payloads. |
 | [`packages/stage-ui/src/stores/alicization-epoch1.ts`](../packages/stage-ui/src/stores/alicization-epoch1.ts) | Renderer-side Alicization state bus and bootstrap logic. |
 | [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](../packages/stage-ui/src/stores/alicization-execution-engine.ts) | Real-time query execution engine and tool-compensation strategies. |
 | [`packages/stage-ui/src/stores/alicization-presence-dispatcher.ts`](../packages/stage-ui/src/stores/alicization-presence-dispatcher.ts) | Presence dispatcher that normalizes dialogue output and fans it out to Live2D, TTS, and other listeners. |
-| [`packages/stage-shared`](../packages/stage-shared) | Prompt templates, shared constraints, and Alicization logic reused across surfaces. |
+| [`packages/stage-shared`](../packages/stage-shared) | Stable contracts, Provider facts, and shared memory/dialogue semantics reused across surfaces. |
 
 ## Monorepo Surfaces
 
@@ -325,8 +325,8 @@ If you want to understand Alicization from the code first, start here:
 ### Shared Layers
 
 - `docs`: Documentation-site workspace.
-- `packages/stage-ui`: Shared business components, Alicization stores, dialogue composition, and frontend bridge layers.
-- `packages/stage-shared`: Prompt templates, shared logic, and cross-surface constraints.
+- `packages/stage-ui`: Shared business components, Alicization stores, renderer state, presence, and frontend bridge layers.
+- `packages/stage-shared`: Stable contracts, Provider facts, shared logic, and cross-surface memory/dialogue semantics.
 - `packages/ui`: Reusable UI primitives.
 - `packages/i18n`: Multilingual text resources.
 - `packages/server-*`: Server runtime, SDKs, and shared protocols.

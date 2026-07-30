@@ -64,8 +64,8 @@ flowchart LR
 | Kill Switch / 运行时状态 | `apps/stage-tamagotchi/src/main/services/alicization/state.ts` | 全局与 card 级 Kill Switch、运行时审计 logger |
 | MCP 权限控制 | `apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts` | 工作区沙箱、路径边界、权限请求、一次性 token、会话白名单 |
 | Renderer 侧 bridge | `packages/stage-ui/src/stores/alicization-bridge.ts` | 前后端桥接能力定义与数据规范化 |
-| 提示词编排 | `packages/stage-ui/src/composables/alicization-prompt-composer.ts` | 将 `SOUL.md`、上下文、记忆与固定模板拼成运行时提示词 |
-| 守卫与预算 | `packages/stage-ui/src/composables/alicization-guardrails.ts` | Prompt Budget、结构化输出守卫、严格实时门禁、安全回退 |
+| 主对话会话运行时 | `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts` | 在主进程装配 SOUL、WorkingMemory、LongTermMemoryRecall 证据与结构化 Provider facts，并暴露透明失败面 |
+| 守卫与预算 | `packages/stage-ui/src/composables/alicization-guardrails.ts` | Prompt Budget、对话压缩、出站敏感信息净化与显示净化 |
 | Epoch1/主状态 store | `packages/stage-ui/src/stores/alicization-epoch1.ts` | Renderer 侧 bootstrap、Kill Switch、Organic Memory、memory stats |
 | 实时执行引擎 | `packages/stage-ui/src/stores/alicization-execution-engine.ts` | weather/news/finance/sports 实时查询的 builtin/MCP 双路径 |
 | 表现层分发 | `packages/stage-ui/src/stores/alicization-presence-dispatcher.ts` | 将标准化结果分发给 Live2D 等身体化表现层 |
@@ -75,11 +75,10 @@ flowchart LR
 ### 4.1 主对话链路
 
 1. Renderer 通过 bridge 发起 `bootstrap`、`chatStart`、`streamChat` 或写入类 invoke。
-2. Main runtime 读取 `SOUL.md`、当前会话上下文、记忆检索结果、performance manifest 和固定系统块。
-3. 模型侧必须返回结构化 `thought / emotion / reply`，并可附带 performance payload。
-4. 结构化结果通过 guardrails 归一化；失败时重采样或降级，并落审计。
-5. 被接受的轮次写入 `conversation_turns`，随后才向表现层广播 `alicization.dialogue.responded`。
-6. 记忆抽取、潜意识更新、梦境固化等异步动作只对合法轮次生效。
+2. Main runtime 从 `SOUL.md`、WorkingMemory、LongTermMemoryRecall 证据、当前轮次与结构化运行时事实装配 Provider 输入。
+3. 可见回复由 Provider 生成；超时、Provider、工具或结构化合约失败通过透明失败面返回，Renderer 不代写回复。
+4. 被接受的轮次写入 `conversation_turns`，随后才向表现层广播 `alicization.dialogue.responded`。
+5. 记忆抽取、潜意识更新、梦境固化等异步动作只对合法轮次生效。
 
 ### 4.2 潜意识、提醒与梦境链路
 

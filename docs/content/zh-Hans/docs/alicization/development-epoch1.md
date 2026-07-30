@@ -152,14 +152,14 @@ description: 面向开发团队的 Epoch 1 任务级执行清单
 - 影响模块：`main/services/alicization/orchestrator`。
 - 前置依赖：`ALICIZATION-E1-T002`、`ALICIZATION-E1-T003`、`ALICIZATION-E1-T004`。
 - 实现步骤：
-  1. 聚合 `SOUL`、短期记忆与当前输入构造上下文。
-  2. 调用模型网关并拿到原始响应。
-  3. 交给结构化解析器，失败时走安全回退。
-  4. 发布 `alicization.dialogue.responded` 并记录 `conversation_turns`。
+  1. 由主进程聚合 `SOUL`、WorkingMemory、LongTermMemoryRecall 证据与当前输入。
+  2. 调用模型网关并接收 Provider 产物。
+  3. 校验并规范化 Provider 产物；失败时返回类型化透明失败面，不生成普通回复。
+  4. 仅对成功 Provider 轮次发布 `alicization.dialogue.responded` 并记录 `conversation_turns`。
 - 测试点：
-  1. 正常路径返回完整结构体。
-  2. 模型超时时可返回降级回复。
-  3. 链路中任一子模块失败不会崩溃。
+  1. 正常路径持久化并广播 Provider 生成的回复。
+  2. 模型超时时返回明确的超时失败面。
+  3. Provider、工具、权限、协议、召回或持久化失败不会被伪装成普通回复。
 - 完成定义（DoD）：
   - 主链路可连续稳定运行。
   - 错误路径覆盖并可观测。
@@ -167,11 +167,11 @@ description: 面向开发团队的 Epoch 1 任务级执行清单
   - 风险：链路耦合过高难以扩展。
   - 回滚：保留分段调用开关，支持逐段排障。
 
-### ALICIZATION-E1-T006 结构化输出解析器与防御性回退
+### ALICIZATION-E1-T006 Provider 产物校验与透明失败
 
 - 关联需求ID：`ALICIZATION-F2.2`
 - 关联架构章节：`5.2`、`9.2`
-- 背景/目标：强制每轮响应生成 `thought/emotion/reply`，解析失败也不能宕机。
+- 背景/目标：校验并规范化 Provider 产物；校验失败必须可观测，且不得由本地代码代写普通回复。
 - 输入输出与接口：
   - 输入：模型原始文本。
   - 输出：标准化 `DialogueResponse`。
@@ -179,27 +179,23 @@ description: 面向开发团队的 Epoch 1 任务级执行清单
 - 影响模块：`main/services/alicization/orchestrator/parsers`。
 - 前置依赖：`ALICIZATION-E1-T005`。
 - 实现步骤：
-  1. 定义结构化 JSON Schema。
-  2. 主解析失败后执行线性修复（`{`/`}` 窗口截取 + 轻量容错解析），禁止复杂正则修复。
-  3. 非 JSON 合约时触发一次结构化重采样（仅一次）。
-  4. 重采样仍失败时进入绝对安全 Fallback：
-     - `reply = rawText`
-     - `emotion = neutral`
-     - `thought = ''`
-     - `contractFailed = true`
-  5. `emotion` 白名单映射，非法值归一到 `neutral`。
+  1. 定义 Provider 产物与运行时元数据的结构校验。
+  2. 只做不改变可见回复语义的规范化与字段校验。
+  3. 校验失败时生成 `structured-contract` 类型的透明失败面。
+  4. 失败产物标记 `contractFailed=true`，并禁止长期记忆凝练、人格学习与训练。
+  5. 审计记录失败阶段、Provider、模型和可安全暴露的错误摘要。
 - 测试点：
-  1. 合法 JSON 全字段解析通过。
-  2. 非 JSON 首次失败会重采样一次；二次失败触发 Fallback。
-  3. 破损 JSON（噪声包裹、缺失前后文本）可经线性修复解析。
-  4. 彻底失败时触发安全 Fallback 且不中断会话。
+  1. 合法 Provider 产物通过并保持原始可见回复。
+  2. 非法产物返回 `structured-contract` 失败面。
+  3. 失败面不触发本地普通回复、二次改写或额外模型调用。
+  4. 失败轮次不进入记忆与人格学习。
 - 完成定义（DoD）：
-  - 解析器具备主路径 + 线性修复 + 重采样一次 + 绝对回退。
+  - Provider 产物校验和透明失败面可独立测试。
   - `contractFailed=true` 轮次不参与人格漂移和异步记忆抽取。
-  - 任意模型输出都能返回有效 `DialogueResponse`。
+  - 任意校验失败都不会产生本地编写的普通回复。
 - 风险与回滚点：
-  - 风险：重采样增加少量时延。
-  - 回滚：关闭重采样，直接进入安全 Fallback。
+  - 风险：部分 Provider 的非标准产物会更早暴露为失败。
+  - 回滚：调整 Provider 适配层或结构校验，不恢复本地回复编写。
 
 ### ALICIZATION-E1-T007 记忆抽取与置信度校准（异步）
 
@@ -378,7 +374,7 @@ description: 面向开发团队的 Epoch 1 任务级执行清单
 - 前置依赖：`ALICIZATION-E1-T001` 至 `ALICIZATION-E1-T012`。
 - 实现步骤：
   1. 编写主链路集成测试（初始化 -> 对话 -> 记忆 -> Kill Switch）。
-  2. 增加结构化合约测试（非 JSON 重采样一次，失败回退）。
+  2. 增加 Provider 产物校验与透明失败测试。
   3. 增加 Kill Switch 中断一致性测试（中途中断零落盘）。
   4. 增加异步抽取调度测试（10轮触发/5分钟触发/预算降级）。
   5. 增加 `SOUL.md` 外部编辑一致性测试（冷热启动 + 热重载）。

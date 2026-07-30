@@ -14,9 +14,9 @@ description: Epoch2（M2.1/M2.2/M2.3）闭环门禁执行结果与追溯记录
 
 ## 2. DoD 门禁勾选
 
-### 门禁一：M2.1 感知与提示词防线
+### 门禁一：M2.1 感知与上下文边界
 - [x] 探针隔离与降级：`child_process.exec` 超时场景（>1500ms）不会打崩 Tick Loop，稳定标记 `degraded` 并写入 warning 审计。
-- [x] 上下文无损注入：10k 压测中 `system[0]` 始终保持完整 SOUL，Runtime 末尾 `Output contract (must-follow, highest priority):` 锚点稳定存在。
+- [x] 上下文单一装配：SOUL、WorkingMemory、LongTermMemoryRecall 与结构化运行时事实由主进程统一装配，Renderer 不维护第二套 Provider 输入。
 
 ### 门禁二：M2.2 表现层权威广播
 - [x] 单一事实源：`alicization.dialogue.responded` 仅在 `alicization_conversation_turns` 成功落库后发射。
@@ -26,7 +26,7 @@ description: Epoch2（M2.1/M2.2/M2.3）闭环门禁执行结果与追溯记录
 ### 门禁三：M2.3 银行级工具控制
 - [x] 路径防穿透：`../` 与 `userData` 绝对黑名单路径直拒，返回 `{ status: 'error', code: 'ALICIZATION_TOOL_DENIED' }`，不触发 HitL 弹窗。
 - [x] 单次 Token 防重放：同一 token 第二次消费返回 `accepted: false` + `reason: 'not-found'`。
-- [x] 优雅拒绝对话回环：HitL 拒绝后 LLM 可接收结构化拒绝结果并继续输出致歉结构化回复，主对话链不断裂。
+- [x] 拒绝事实回到主链路：HitL 拒绝作为结构化工具事实返回 Provider，由 Provider 决定后续可见回复。
 
 ## 3. 验证命令与结果
 

@@ -30,7 +30,6 @@ description: Epoch1 最终收官门禁执行结果与可追溯记录
 pnpm -F @proj-alicization/stage-ui exec vitest run \
   src/stores/chat.test.ts \
   src/composables/alicization-guardrails.test.ts \
-  src/composables/alicization-prompt-composer.test.ts \
   src/stores/character/orchestrator/index.test.ts \
   src/stores/alicization-epoch1.test.ts \
   src/stores/alicization-execution-engine.test.ts

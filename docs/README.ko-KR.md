@@ -60,7 +60,7 @@ Alicization이 풀고자 하는 것은 더 어려운 문제입니다. 설명 가
 | 기능 | 현재 상태 | 지금 의미하는 것 |
 | --- | --- | --- |
 | `SOUL.md` 진실 원천과 Genesis | 구현됨 | 첫 온보딩이 인격 초기값, 관계 설정, 경계 규칙을 `SOUL.md` 에 기록하고, 런타임이 이를 계속 읽고 다시 씁니다. |
-| 구조화 대화 계약 | 구현됨 | 대화 출력은 `thought / emotion / reply` 로 강제되며, 계약 위반 시 재샘플링 또는 안전 폴백이 실행됩니다. |
+| Provider 작성 대화 메인라인 | 구현됨 | 사용자에게 보이는 답변은 Provider가 작성하며, 시간 초과와 Provider, 도구, 계약 실패는 투명하게 드러나고 기억/인격 학습에서 제외됩니다. |
 | Prompt Budget 와 SOUL Anchor | 구현됨 | 긴 대화에서도 인격이 문맥 노이즈에 휩쓸리지 않도록 soul anchor를 우선 보호합니다. |
 | 로컬 메모리와 감사 파이프라인 | 구현됨 | SQLite가 대화 턴, 기억 사실, 무의식 조각, 리마인더 작업, 감사 로그를 저장합니다. |
 | 무의식 Tick 과 선제적 턴 | 구현됨 | 분 단위 배경 심박이 tension을 누적하고, 조건이 맞으면 배려, 리마인더 보상, 선제적 발화를 시작합니다. |
@@ -106,8 +106,8 @@ flowchart LR
 ### 코어 루프
 
 1. 호스트 입력 또는 백그라운드의 무의식 / 리마인더 스케줄링이 새로운 턴 요청을 만듭니다.
-2. 런타임은 `SOUL.md`, 문맥 조각, 기억 검색 결과, 고정 시스템 제약을 조합해 메인 프롬프트를 만듭니다.
-3. 모델은 구조화된 `thought / emotion / reply` 를 반환해야 하며, 계약을 깨면 재샘플링 또는 안전 폴백으로 들어갑니다.
+2. 메인 런타임은 `SOUL.md`, WorkingMemory, LongTermMemoryRecall 근거, 현재 턴, 구조화된 런타임 사실로 Provider 입력을 구성합니다.
+3. 사용자에게 보이는 답변은 Provider가 작성하며, 시간 초과와 Provider, 도구, 계약 실패는 투명하게 드러나고 Renderer가 대신 작성하지 않습니다.
 4. 수락된 턴은 SQLite에 기록되고 정규화된 형식으로 표현 계층에 브로드캐스트됩니다.
 5. 비동기 파이프라인은 기억 추출, 무의식 업데이트, 꿈 정리, 리마인더 스케줄링을 실행할지 결정합니다.
 6. 도구가 필요하면 모델에 직접 실행 권한을 주지 않고 MCP 권한 게이트, 워크스페이스 샌드박스, Kill Switch 제어면으로 들어갑니다.
@@ -304,13 +304,13 @@ Project Alicization은 [`xsai`](https://github.com/moeru-ai/xsai) 를 통해 여
 | [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](../apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | 시스템 프로브와 감각 캐시 버스. |
 | [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](../apps/stage-tamagotchi/src/main/services/alicization/state.ts) | Kill Switch 와 런타임 감사 상태. |
 | [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](../apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | MCP 도구 호출, 권한 확인, 워크스페이스 샌드박스, 감사 집계. |
-| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](../packages/stage-ui/src/composables/alicization-prompt-composer.ts) | `SOUL.md`, 문맥, 고정 템플릿에서 런타임 프롬프트를 조합합니다. |
-| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt budget 보호, 구조화 출력 가드레일, 안전 폴백, 표시 위생 처리. |
+| [`apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`](../apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts) | SOUL, WorkingMemory, LongTermMemoryRecall 근거, 구조화된 Provider facts, 투명한 실패 표면을 담당하는 메인 프로세스 대화 파이프라인. |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt budget, 대화 압축, 송신 데이터 마스킹, 표시 위생 처리. |
 | [`packages/stage-ui/src/stores/alicization-bridge.ts`](../packages/stage-ui/src/stores/alicization-bridge.ts) | 런타임, renderer, 기억, 대화 payload 사이에서 공유되는 Alicization 계약과 브리지 타입. |
 | [`packages/stage-ui/src/stores/alicization-epoch1.ts`](../packages/stage-ui/src/stores/alicization-epoch1.ts) | Renderer 측 Alicization 상태 버스와 bootstrap 로직. |
 | [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](../packages/stage-ui/src/stores/alicization-execution-engine.ts) | 실시간 질의 실행 엔진과 도구 보상 전략. |
 | [`packages/stage-ui/src/stores/alicization-presence-dispatcher.ts`](../packages/stage-ui/src/stores/alicization-presence-dispatcher.ts) | 대화 출력을 정규화해 Live2D, TTS, 기타 리스너로 분배하는 표현 계층 디스패처. |
-| [`packages/stage-shared`](../packages/stage-shared) | 프롬프트 템플릿, 공유 제약, 여러 표면에서 재사용되는 Alicization 로직. |
+| [`packages/stage-shared`](../packages/stage-shared) | 여러 표면에서 공유하는 안정된 계약, Provider facts, 기억/대화 의미론. |
 
 ## 모노레포 표면
 
@@ -325,8 +325,8 @@ Project Alicization은 [`xsai`](https://github.com/moeru-ai/xsai) 를 통해 여
 ### Shared Layers
 
 - `docs`: 문서 사이트 워크스페이스.
-- `packages/stage-ui`: 공유 비즈니스 컴포넌트, Alicization stores, 대화 구성, 프론트엔드 브리지 계층.
-- `packages/stage-shared`: 프롬프트 템플릿, 공유 로직, 표면 간 제약.
+- `packages/stage-ui`: 공유 비즈니스 컴포넌트, Alicization stores, Renderer 상태, 표현 계층, 프론트엔드 브리지 계층.
+- `packages/stage-shared`: 안정된 계약, Provider facts, 공유 로직, 표면 간 기억/대화 의미론.
 - `packages/ui`: 재사용 가능한 UI 프리미티브.
 - `packages/i18n`: 다국어 텍스트 리소스.
 - `packages/server-*`: runtime server, SDK, 공유 프로토콜.

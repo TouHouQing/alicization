@@ -186,12 +186,11 @@ evidence: `main-chat-session-runtime.ts` now derives provenance-aware control st
 回答自然降确定度但不掉进模板
 evidence: `runtime-organic-memory-prompt.test.ts` / `main-chat-session-runtime.test.ts` / `memory-consolidation.test.ts`
 
-## P1：把社会记忆更深地压进 recall，而不是只压进 reply style
+## P1：把社会记忆更深地压进 recall
 
 - [x] 把 host person model 接进 recall ranking
 说明：
-当前 host person model 已能影响 reply posture。
-下一步要让它直接影响“想起什么”：
+当前 host person model 已接入 recall ranking，并直接影响“想起什么”：
 不同 burden / trust stage / sensitivity 下，优先召回不同 episode / procedure / relationship line。
 evidence: `runtime-organic-memory-prompt.ts` now socially re-ranks consolidations/windows/episodes/procedures from `host person model`; `runtime-organic-memory-prompt.test.ts` proves the same question foregrounds different relationship eras under cautious vs trusted host models.
 
