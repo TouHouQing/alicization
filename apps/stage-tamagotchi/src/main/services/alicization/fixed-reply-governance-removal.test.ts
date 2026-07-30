@@ -117,6 +117,25 @@ describe('fixed reply governance removal', () => {
     )
   })
 
+  it('does not recover missing required tools through a deterministic execution side path', () => {
+    const backgroundRunSource = readServiceSource('./main-chat-background-run.ts')
+    const runtimeSurfaceSource = readServiceSource('./main-chat-runtime-surface.ts')
+    const removedPaths = [
+      './main-chat-required-tool-recovery.ts',
+      './main-chat-required-tool-recovery.test.ts',
+    ]
+
+    for (const relativePath of removedPaths) {
+      const absolutePath = fileURLToPath(new URL(relativePath, serviceRoot))
+      expect(existsSync(absolutePath), relativePath).toBe(false)
+    }
+
+    expect(backgroundRunSource).not.toMatch(
+      /required-tool-recovered|required-tool-provider-payoff|recoverAlicizationRequiredToolDeterministically|resolveDeterministicRequiredToolNames/u,
+    )
+    expect(runtimeSurfaceSource).not.toContain('alicization-required-tool-facts')
+  })
+
   it('does not send fixed evidence or continuity governance to internal Providers', () => {
     const mindStateSource = readServiceSource('./runtime-mind-state.ts')
     const dreamSource = readServiceSource('./runtime-dream.ts')

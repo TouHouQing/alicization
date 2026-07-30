@@ -26,6 +26,10 @@ describe('alicization chat failure surface', () => {
         reply: '当前 Provider/模型不支持所需的结构化输出。',
       },
       {
+        kind: 'required-tool-missing',
+        reply: '模型未调用本轮要求的工具，操作没有执行。',
+      },
+      {
         kind: 'recall-failure',
         reply: '本轮长期记忆召回失败。',
       },

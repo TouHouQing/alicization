@@ -13,6 +13,11 @@ import {
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
 
+import {
+  extractAlicizationRequiredToolNames,
+  isAlicizationRequiredToolMissingError,
+} from './main-chat-required-tool'
+import { readTransportContentAsText } from './runtime-transport-content'
 import { AlicizationVisibleReplySettlementBlockedError } from './visible-reply/settlement'
 
 function isAbortLikeError(error: unknown) {
@@ -88,7 +93,7 @@ interface HandleAlicizationMainChatRunFailureOptions {
   prepared: AlicizationPreparedMainChatExecutionResult | null
   controller: AbortController
   mainGateway: MainGatewayResolvedConfig
-  payload: Pick<AlicizationChatStartPayload, 'cardId' | 'turnId' | 'providerId' | 'model'>
+  payload: Pick<AlicizationChatStartPayload, 'cardId' | 'turnId' | 'providerId' | 'model' | 'messages'>
   dispatchBound: boolean
   nonProgressEventTypes: Set<string>
   recordMainGatewayGenerationTimeout: (
@@ -150,10 +155,15 @@ export async function handleAlicizationMainChatRunFailure(
   input: HandleAlicizationMainChatRunFailureOptions,
 ) {
   const reason = input.error instanceof Error ? input.error.message : String(input.error)
+  const userText = [...input.payload.messages]
+    .reverse()
+    .find(message => message.role === 'user')
+  const currentUserText = readTransportContentAsText(userText?.content).trim()
 
   if (!input.prepared) {
     const failureSurface = resolveAlicizationChatFailureSurface({
       kind: 'stream-failure',
+      userText: currentUserText,
     })
     await emitFailureSurface({
       failureSurface,
@@ -183,6 +193,7 @@ export async function handleAlicizationMainChatRunFailure(
 
     const failureSurface = resolveAlicizationChatFailureSurface({
       kind: 'timeout',
+      userText: currentUserText,
     })
     if (shouldRecordAlicizationMainGatewayGenerationTimeout(input.error)) {
       await Promise.resolve(
@@ -224,6 +235,7 @@ export async function handleAlicizationMainChatRunFailure(
   if (isProviderSchemaUnsupportedError(input.error)) {
     const failureSurface = resolveAlicizationChatFailureSurface({
       kind: 'provider-schema-unsupported',
+      userText: currentUserText,
     })
     await emitFailureSurface({
       failureSurface,
@@ -240,8 +252,12 @@ export async function handleAlicizationMainChatRunFailure(
   }
 
   if (input.error instanceof AlicizationVisibleReplySettlementBlockedError) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: input.error.failureSurface.kind,
+      userText: currentUserText,
+    })
     await emitFailureSurface({
-      failureSurface: input.error.failureSurface,
+      failureSurface,
       finishReason: 'structured-contract',
       status: 'failed',
       options: input,
@@ -254,8 +270,29 @@ export async function handleAlicizationMainChatRunFailure(
     return
   }
 
+  if (isAlicizationRequiredToolMissingError(input.error)) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'required-tool-missing',
+      userText: currentUserText,
+    })
+    await emitFailureSurface({
+      failureSurface,
+      finishReason: 'required-tool-missing',
+      status: 'failed',
+      options: input,
+    })
+    await input.appendRuntimeDebugLine('chat-stream.required-tool-missing', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      requiredToolNames: extractAlicizationRequiredToolNames(input.error),
+      reason,
+    })
+    return
+  }
+
   const failureSurface = resolveAlicizationChatFailureSurface({
     kind: 'stream-failure',
+    userText: currentUserText,
   })
   await emitFailureSurface({
     failureSurface,

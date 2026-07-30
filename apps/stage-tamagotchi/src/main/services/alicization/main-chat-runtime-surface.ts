@@ -96,7 +96,6 @@ const alicizationProviderFactTypes = new Set([
   'alicization-personality-state',
   'alicization-personality-thresholds',
   'alicization-perception',
-  'alicization-required-tool-facts',
   'alicization-spark-event',
   'alicization-turn-memory-context',
 ]) as ReadonlySet<string>

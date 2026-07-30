@@ -6159,41 +6159,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordPreparedMindTrace: async ({ payload, prepared }) => {
         rememberPreparedMindTrace({ payload, prepared })
       },
-      suppressInlineExecutionDeliveries: async ({ cardId, entries }) => {
-        let suppressedCount = 0
-        for (const entry of entries) {
-          suppressedCount += executionDeliveryRuntime.suppressMatching({
-            cardId,
-            sessionId: entry.sessionId,
-            threadId: entry.threadId,
-            completedAt: entry.completedAt,
-          })
-          suppressedCount += executionDeliveryRuntime.markInlineSurfaced({
-            cardId,
-            sessionId: entry.sessionId,
-            threadId: entry.threadId,
-            completedAt: entry.completedAt,
-          })
-            ? 1
-            : 0
-          executionCallbackRuntime.markSurfaced({
-            sessionId: entry.sessionId,
-            createdAt: entry.completedAt,
-          })
-        }
-        if (suppressedCount > 0) {
-          await persistExecutionDeliveryState(cardId)
-          await appendRuntimeDebugLine('execution-delivery.inline-suppressed', {
-            cardId,
-            suppressedCount,
-            entries: entries.map(entry => ({
-              sessionId: entry.sessionId,
-              threadId: entry.threadId,
-              completedAt: entry.completedAt,
-            })),
-          })
-        }
-      },
     })
 
     const startResult = await resolveAlicizationMainChatStartResult({

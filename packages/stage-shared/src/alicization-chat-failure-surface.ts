@@ -16,6 +16,7 @@ export type AlicizationChatFailureKind
     | 'provider-network'
     | 'provider-config'
     | 'provider-schema-unsupported'
+    | 'required-tool-missing'
     | 'recall-failure'
     | 'memory-persistence'
     | 'model-tools-unsupported'
@@ -60,6 +61,7 @@ const failureKindRepairPath: Record<AlicizationChatFailureKind, string> = {
   'provider-network': 'provider-network',
   'provider-config': 'provider-config',
   'provider-schema-unsupported': 'provider-schema-unsupported',
+  'required-tool-missing': 'required-tool-missing',
   'recall-failure': 'recall-failure',
   'memory-persistence': 'memory-persistence',
   'model-tools-unsupported': 'unsupported-tools',

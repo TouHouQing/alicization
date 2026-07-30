@@ -10,7 +10,6 @@ import {
 } from './main-chat-background-run'
 import { generateAlicizationMainChatNonStreaming } from './main-chat-one-shot'
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
-import { recoverAlicizationRequiredToolDeterministically } from './main-chat-required-tool-recovery'
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
 
@@ -20,12 +19,6 @@ vi.mock('./main-chat-one-shot', () => ({
 
 vi.mock('./main-chat-run-lifecycle', () => ({
   handleAlicizationMainChatRunFailure: vi.fn(),
-}))
-
-vi.mock('./main-chat-required-tool-recovery', () => ({
-  recoverAlicizationRequiredToolDeterministically: vi.fn(),
-  resolveDeterministicRequiredToolNames: vi.fn((input: any) =>
-    input.error?.requiredToolNames ?? input.fallbackToolNames ?? []),
 }))
 
 vi.mock('./main-chat-runtime-surface', () => ({
@@ -480,24 +473,7 @@ describe('main chat background run', () => {
     ])
   })
 
-  it('completes required-tool recovery only with an unchanged native Provider contract', async () => {
-    const payoffFullText = `{
-  "format": "mind-turn-v1",
-  "thought": "use the completed tool fact",
-  "emotion": "thinking",
-  "reply": "命令已经完成。",
-  "performance": {
-    "baseEmotion": "thinking",
-    "facialCue": null,
-    "actionCue": null,
-    "delivery": "calm",
-    "emphasis": 0
-  },
-  "memoryUsage": {
-    "workingMemoryVersion": null,
-    "longTermEvidenceIds": []
-  }
-}`
+  it('surfaces a missing required tool without local execution or a second Provider call', async () => {
     const prepared = createPrepared({
       tools: [{
         type: 'function',
@@ -520,144 +496,20 @@ describe('main chat background run', () => {
     const input = createInput('执行测试命令', {
       preparationPromise: Promise.resolve(prepared),
     })
-    vi.mocked(runAlicizationMainChatStream).mockRejectedValueOnce(
-      new AlicizationRequiredToolMissingError({
-        stage: 'stream',
-        finishReason: 'stop',
-        requiredToolNames: ['executor_run_cli'],
-      }),
-    )
-    vi.mocked(recoverAlicizationRequiredToolDeterministically).mockResolvedValueOnce({
-      toolCallId: 'tool-call-1',
-      toolName: 'executor_run_cli',
-      toolInput: { command: 'echo', args: ['ok'] },
-      toolResult: { status: 'completed', stdout: 'ok' },
-      executionFact: {
-        status: 'succeeded',
-        summary: 'Command completed.',
-        result: { stdout: 'ok' },
-      },
-      fullText: 'Command completed.',
-    } as any)
-    vi.mocked(generateAlicizationMainChatNonStreaming).mockResolvedValueOnce({
+    const error = new AlicizationRequiredToolMissingError({
+      stage: 'stream',
       finishReason: 'stop',
-      fullText: payoffFullText,
+      requiredToolNames: ['executor_run_cli'],
     })
-
-    await runAlicizationMainChatBackground(input)
-
-    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
-    const finishPayload = vi.mocked(input.runStateController.finishRun).mock.calls.at(-1)?.[1]
-    expect(finishPayload).toMatchObject({
-      status: 'completed',
-      finishReason: 'required-tool-recovered',
-      fullText: payoffFullText,
-      origin: 'provider',
-      visibleReplyExecution: {
-        mode: 'provider-one-shot',
-        actualVisibleReplyAuthority: 'llm-mind',
-        providerMindExecuted: true,
-      },
-      visibleReplyRealization: {
-        visibleText: '命令已经完成。',
-      },
-    })
-    expect(JSON.parse(String(finishPayload?.fullText))).not.toHaveProperty('parsePath')
-    expect(JSON.parse(String(finishPayload?.fullText))).not.toHaveProperty('visibleReplyAuthority')
-
-    const payoffInput = vi.mocked(generateAlicizationMainChatNonStreaming).mock.calls.at(-1)?.[0]
-    const payoffMessages = payoffInput?.messages ?? []
-    const requiredToolFactMessage = payoffMessages.find((message) => {
-      if (message.role !== 'system' || typeof message.content !== 'string')
-        return false
-      try {
-        return JSON.parse(message.content)?.type === 'alicization-required-tool-facts'
-      }
-      catch {
-        return false
-      }
-    })
-    expect(requiredToolFactMessage).toBeDefined()
-    expect(JSON.parse(String(requiredToolFactMessage?.content))).toEqual({
-      type: 'alicization-required-tool-facts',
-      data: {
-        toolName: 'executor_run_cli',
-        toolInput: { command: 'echo', args: ['ok'] },
-        toolResult: { status: 'completed', stdout: 'ok' },
-        executionFact: {
-          status: 'succeeded',
-          summary: 'Command completed.',
-          result: { stdout: 'ok' },
-        },
-      },
-    })
-    expect(payoffMessages.filter(message => message.role === 'user')).toEqual([
-      expect.objectContaining({
-        content: '你好',
-      }),
-    ])
-    expect(payoffMessages.map(message => String(message.content)).join('\n'))
-      .not
-      .toMatch(/ALICIZATION_REQUIRED_TOOL_FACTS|Use these completed tool facts/iu)
-  })
-
-  it('fails required-tool payoff when Provider returns an incomplete JSON object', async () => {
-    const prepared = createPrepared({
-      tools: [{
-        type: 'function',
-        function: {
-          name: 'executor_run_cli',
-          description: 'Run a CLI command.',
-          parameters: {
-            type: 'object',
-            properties: {},
-          },
-        },
-      }],
-      toolChoice: {
-        type: 'function',
-        function: {
-          name: 'executor_run_cli',
-        },
-      },
-    })
-    const input = createInput('执行测试命令', {
-      preparationPromise: Promise.resolve(prepared),
-    })
-    vi.mocked(runAlicizationMainChatStream).mockRejectedValueOnce(
-      new AlicizationRequiredToolMissingError({
-        stage: 'stream',
-        finishReason: 'stop',
-        requiredToolNames: ['executor_run_cli'],
-      }),
-    )
-    vi.mocked(recoverAlicizationRequiredToolDeterministically).mockResolvedValueOnce({
-      toolCallId: 'tool-call-1',
-      toolName: 'executor_run_cli',
-      toolInput: { command: 'echo', args: ['ok'] },
-      toolResult: { status: 'completed', stdout: 'ok' },
-      executionFact: {
-        status: 'succeeded',
-        summary: 'Command completed.',
-        result: { stdout: 'ok' },
-      },
-      fullText: 'Command completed.',
-    } as any)
-    vi.mocked(generateAlicizationMainChatNonStreaming).mockResolvedValueOnce({
-      finishReason: 'stop',
-      fullText: JSON.stringify({
-        reply: '命令已经完成。',
-      }),
-    })
+    vi.mocked(runAlicizationMainChatStream).mockRejectedValueOnce(error)
 
     await runAlicizationMainChatBackground(input)
 
     expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
-    expect(
-      vi.mocked(handleAlicizationMainChatRunFailure).mock.calls[0]?.[0].error,
-    ).toEqual(expect.objectContaining({
-      message: expect.stringContaining('provider-payload-fields-invalid'),
-    }))
+    expect(vi.mocked(handleAlicizationMainChatRunFailure).mock.calls[0]?.[0].error).toBe(error)
+    expect(generateAlicizationMainChatNonStreaming).not.toHaveBeenCalled()
+    expect(input.emitToolCall).not.toHaveBeenCalled()
+    expect(input.emitToolResult).not.toHaveBeenCalled()
     expect(input.runStateController.finishRun).not.toHaveBeenCalledWith(
       input.key,
       expect.objectContaining({

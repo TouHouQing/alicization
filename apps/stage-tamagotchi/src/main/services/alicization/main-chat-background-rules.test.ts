@@ -1,96 +1,12 @@
-import type { Message } from '@xsai/shared-chat'
-
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  asAlicizationInlineExecutionSurfaceInput,
-  buildAlicizationMinimalContextRecoveryMessages,
-  readAlicizationInlineExecutionReceipt,
-} from './main-chat-background-rules'
+import { asAlicizationInlineExecutionSurfaceInput } from './main-chat-background-rules'
 
 vi.mock('./runtime-soul', () => ({
   sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim().replace(/\s+/g, ' ') : fallback,
 }))
 
 describe('main chat background rules', () => {
-  it('builds minimal timeout recovery context without dropping core prompt authority or recent dialogue', () => {
-    const messages: Message[] = [
-      { role: 'system', content: 'core-1' },
-      { role: 'system', content: 'core-2' },
-      { role: 'system', content: 'core-3' },
-      { role: 'system', content: 'dynamic-memory' },
-      { role: 'user', content: 'first old user turn' },
-      { role: 'assistant', content: 'first old assistant turn' },
-      { role: 'user', content: 'second old user turn' },
-      { role: 'assistant', content: 'second old assistant turn' },
-      { role: 'user', content: 'latest user turn' },
-    ]
-
-    const compact = buildAlicizationMinimalContextRecoveryMessages(messages)
-
-    expect(compact.map(message => message.content)).toEqual([
-      'core-1',
-      'core-2',
-      'core-3',
-      'dynamic-memory',
-      'first old assistant turn',
-      'second old user turn',
-      'second old assistant turn',
-      'latest user turn',
-    ])
-  })
-  it('keeps typed memory context without giving legacy governance markers recovery priority', () => {
-    const typedMemoryContext = JSON.stringify({
-      type: 'alicization-turn-memory-context',
-      data: {
-        workingMemoryVersion: 'working-memory-owner-context-v1',
-        longTermEvidenceIds: ['memory-1'],
-      },
-    })
-    const messages: Message[] = [
-      { role: 'system', content: 'core-1' },
-      { role: 'system', content: 'core-2' },
-      { role: 'system', content: typedMemoryContext },
-      { role: 'system', content: '[ALICIZATION_PROJECT_STATE]' },
-      { role: 'user', content: 'older user turn' },
-      { role: 'assistant', content: 'older assistant turn' },
-      { role: 'user', content: 'latest user turn' },
-    ]
-
-    const compact = buildAlicizationMinimalContextRecoveryMessages(messages)
-    const systemTexts = compact
-      .filter(message => message.role === 'system')
-      .map(message => String(message.content))
-
-    expect(systemTexts).toContain(typedMemoryContext)
-    expect(systemTexts).not.toContain('[ALICIZATION_PROJECT_STATE]')
-  })
-
-  it('reads inline execution receipts only from terminal executor thread states', () => {
-    expect(readAlicizationInlineExecutionReceipt({
-      threadStatus: 'completed',
-      sessionId: 'session-1',
-      threadId: 'thread-1',
-      completedAt: 12_345.8,
-    })).toEqual({
-      completedAt: 12_345,
-      sessionId: 'session-1',
-      threadId: 'thread-1',
-    })
-    expect(readAlicizationInlineExecutionReceipt({
-      threadStatus: 'running',
-      sessionId: 'session-1',
-      threadId: 'thread-1',
-      completedAt: 12_345,
-    })).toBeNull()
-    expect(readAlicizationInlineExecutionReceipt({
-      threadStatus: 'completed',
-      sessionId: '',
-      threadId: 'thread-1',
-      completedAt: 12_345,
-    })).toBeNull()
-  })
-
   it('normalizes executor surface input without letting deterministic text become final visible speech', () => {
     expect(asAlicizationInlineExecutionSurfaceInput('executor_run_codex', {
       threadStatus: 'completed',

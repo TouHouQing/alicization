@@ -20,20 +20,8 @@ import type {
 import type { RuntimeSurfaceContinuityEvidenceShape } from './runtime-surface-continuity-selection'
 import type { AlicizationResolvedVisibleReply } from './visible-reply/facade'
 
-import { createAlicizationProviderVisibleArtifact } from '@proj-alicization/stage-shared'
-
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
-import {
-  buildAlicizationMinimalContextRecoveryMessages,
-  buildAlicizationRequiredToolFactsSystemMessage,
-  readAlicizationInlineExecutionReceipt,
-} from './main-chat-background-rules'
 import { generateAlicizationMainChatNonStreaming } from './main-chat-one-shot'
-import { isAlicizationRequiredToolMissingError } from './main-chat-required-tool'
-import {
-  recoverAlicizationRequiredToolDeterministically,
-  resolveDeterministicRequiredToolNames,
-} from './main-chat-required-tool-recovery'
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
@@ -126,14 +114,6 @@ interface RunAlicizationMainChatBackgroundOptions {
   recordPreparedMindTrace?: (input: {
     payload: AlicizationChatStartPayload
     prepared: AlicizationPreparedMainChatExecutionResult
-  }) => Promise<void> | void
-  suppressInlineExecutionDeliveries?: (input: {
-    cardId: string
-    entries: Array<{
-      completedAt: number
-      sessionId: string
-      threadId: string
-    }>
   }) => Promise<void> | void
 }
 
@@ -531,136 +511,6 @@ export async function runAlicizationMainChatBackground(
     })
   }
   catch (error) {
-    let failureError: unknown = error
-    if (
-      prepared
-      && input.isRunActive()
-      && isAlicizationRequiredToolMissingError(error)
-    ) {
-      try {
-        const requiredToolNames = resolveDeterministicRequiredToolNames({
-          error,
-          fallbackToolNames: prepared.runtimeSurface?.tooling?.enforcedToolNames,
-        })
-        if (!Array.isArray(prepared.tools) || prepared.tools.length === 0 || requiredToolNames.length === 0)
-          throw error
-
-        const recoveryResult = await recoverAlicizationRequiredToolDeterministically({
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          messages: prepared.messages,
-          tools: prepared.tools as never,
-          requiredToolNames,
-          toolInputOverrides: prepared.executionToolInputOverrides as Record<string, Record<string, unknown>> | undefined,
-          emitToolCall: input.emitToolCall,
-          emitToolResult: input.emitToolResult,
-        })
-        const payoffResult = await generateAlicizationMainChatNonStreaming({
-          chatConfig: prepared.chatConfig,
-          headers: input.headers,
-          emotionalKernel: resolvePreparedMainChatOneShotEmotionalKernel(prepared),
-          messages: [
-            ...buildAlicizationMinimalContextRecoveryMessages(prepared.messages),
-            buildAlicizationRequiredToolFactsSystemMessage({
-              toolName: recoveryResult.toolName,
-              toolInput: recoveryResult.toolInput,
-              toolResult: recoveryResult.toolResult,
-              executionFact: recoveryResult.executionFact,
-            }),
-          ],
-          timeoutMs: 9_000,
-        })
-        const visibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
-          prepared,
-          mode: 'provider-one-shot',
-          actualVisibleReplyAuthority: 'llm-mind',
-          providerMindExecuted: true,
-          reason: 'required-tool-provider-payoff',
-        })
-        const settled = await settleAlicizationVisibleReply({
-          draft: {
-            fullText: payoffResult.fullText,
-            visibleReplyExecution,
-          },
-          prepared,
-          requireProviderMemoryUsage: true,
-          appendRuntimeDebugLine: input.appendRuntimeDebugLine,
-        })
-        const providerArtifact = createAlicizationProviderVisibleArtifact({
-          reply: settled.visibleText,
-          memoryUsage: validateAlicizationProviderSettlementPayload({
-            fullText: payoffResult.fullText,
-            prepared,
-          }).memoryUsage!,
-        })
-        input.incrementChunkStats(settled.visibleText)
-        input.emitChunk({
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          text: settled.visibleText,
-          origin: providerArtifact.origin,
-          learningPolicy: {
-            allowLongTermCondensation: providerArtifact.allowLongTermCondensation,
-            allowPersonaLearning: providerArtifact.allowPersonaLearning,
-            allowTraining: providerArtifact.allowTraining,
-          },
-          failureSurface: null,
-        })
-        streamMetaEmitter?.emit(settled.visibleText, { force: true })
-
-        const receipt = readAlicizationInlineExecutionReceipt(recoveryResult.toolResult)
-        if (receipt) {
-          await Promise.resolve(input.suppressInlineExecutionDeliveries?.({
-            cardId: input.payload.cardId,
-            entries: [{
-              completedAt: receipt.completedAt,
-              sessionId: receipt.sessionId,
-              threadId: receipt.threadId,
-            }],
-          }))
-        }
-
-        // Required-tool payoff uses the same final raw-contract boundary.
-        const finalValidation = validateAlicizationProviderSettlementPayload({
-          fullText: payoffResult.fullText,
-          prepared,
-        })
-        if (!finalValidation.valid || !finalValidation.payload) {
-          throw new AlicizationVisibleReplySettlementBlockedError(
-            `provider-settlement-invalid:${finalValidation.issues.join(',')}`,
-            null,
-          )
-        }
-
-        input.runStateController.finishRun(input.key, {
-          status: 'completed',
-          finishReason: 'required-tool-recovered',
-          origin: providerArtifact.origin,
-          learningPolicy: {
-            allowLongTermCondensation: providerArtifact.allowLongTermCondensation,
-            allowPersonaLearning: providerArtifact.allowPersonaLearning,
-            allowTraining: providerArtifact.allowTraining,
-          },
-          failureSurface: null,
-          memoryFailures: prepared.memoryFailures,
-          fullText: payoffResult.fullText,
-          visibleReplyExecution,
-          visibleReplyRealization: settled.realization,
-          visibleReplyCritic: settled.realization.critic as AlicizationChatFinishEvent['visibleReplyCritic'],
-          visibleReplyClosure: settled.realization.closure as AlicizationChatFinishEvent['visibleReplyClosure'],
-        })
-        return
-      }
-      catch (recoveryError) {
-        failureError = recoveryError
-        await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-failed', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
-        })
-      }
-    }
-
-    await emitFailure(failureError)
+    await emitFailure(error)
   }
 }
