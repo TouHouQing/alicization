@@ -1,7 +1,4 @@
-import type {
-  AlicizationRecallGovernorSnapshot,
-  CharacterPerformanceCapabilitiesManifest,
-} from '../../../shared/eventa'
+import type { CharacterPerformanceCapabilitiesManifest } from '../../../shared/eventa'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 export function buildProactiveRecallSeed(
@@ -27,70 +24,9 @@ export function tuneOrganicMemoryPromptContextForExecutiveTurn(input: {
   context: OrganicMemoryPromptContext
   suppressAssociativeRecall: boolean
   personaKernelMode: 'full' | 'backgrounded' | 'muted'
-  recallGovernor?: AlicizationRecallGovernorSnapshot | null
+  recallGovernor?: unknown
 }) {
-  const allowActiveThoughts = input.recallGovernor?.allowActiveThoughts !== false
-  const allowRecalledFragments = input.recallGovernor?.allowRecalledFragments === true
-    && !input.suppressAssociativeRecall
-
-  if (
-    allowActiveThoughts
-    && allowRecalledFragments
-    && input.personaKernelMode === 'full'
-    && !input.suppressAssociativeRecall
-  ) {
-    return input.context
-  }
-
-  return {
-    ...input.context,
-    retrievedFacts: input.context.retrievedFacts.slice(
-      0,
-      input.personaKernelMode === 'muted'
-        ? 2
-        : input.personaKernelMode === 'backgrounded'
-          ? 3
-          : Math.max(1, input.context.retrievedFacts.length),
-    ),
-    activeThoughts: allowActiveThoughts
-      ? input.personaKernelMode === 'muted'
-        ? input.context.activeThoughts.slice(0, 2)
-        : input.context.activeThoughts
-      : [],
-    recalledFragments: allowRecalledFragments
-      ? input.context.recalledFragments.slice(
-          0,
-          input.personaKernelMode === 'backgrounded'
-            ? Math.max(1, Math.min(2, Math.floor(Number(input.recallGovernor?.recalledFragmentCap ?? 2))))
-            : Math.max(1, Math.floor(Number(input.recallGovernor?.recalledFragmentCap ?? 2))),
-        )
-      : [],
-    recalledEpisodes: allowRecalledFragments
-      ? (input.context.recalledEpisodes ?? []).slice(
-          0,
-          input.personaKernelMode === 'muted'
-            ? 1
-            : input.personaKernelMode === 'backgrounded'
-              ? 2
-              : 3,
-        )
-      : [],
-    recollectedWindows: allowRecalledFragments
-      ? (input.context.recollectedWindows ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
-      : [],
-    consolidatedMemories: allowRecalledFragments
-      ? (input.context.consolidatedMemories ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
-      : [],
-    recollectionNarratives: allowRecalledFragments
-      ? (input.context.recollectionNarratives ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
-      : [],
-    recollectionPlan: allowRecalledFragments ? input.context.recollectionPlan ?? null : null,
-    recollectionSpeechPlan: allowRecalledFragments ? input.context.recollectionSpeechPlan ?? null : null,
-    memoryDeliberation: allowRecalledFragments ? input.context.memoryDeliberation ?? null : null,
-    proceduralMemories: allowRecalledFragments
-      ? (input.context.proceduralMemories ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
-      : [],
-  } satisfies OrganicMemoryPromptContext
+  return input.context
 }
 
 export function buildPerformanceManifestSystemBlocks(manifest: CharacterPerformanceCapabilitiesManifest | null) {
