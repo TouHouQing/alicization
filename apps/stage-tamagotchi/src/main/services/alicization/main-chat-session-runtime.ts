@@ -655,6 +655,45 @@ function buildWorkingMemoryRecentTurns(
   return recentTurns
 }
 
+function mergeWorkingMemoryRecentTurns(
+  persistedTurns: WorkingMemoryRecentTurnInput[],
+  inMemoryTurns: WorkingMemoryRecentTurnInput[],
+) {
+  const merged: WorkingMemoryRecentTurnInput[] = []
+  const seenUserTexts = new Set<string>()
+  const seenAssistantTexts = new Set<string>()
+
+  const appendTurn = (turn: WorkingMemoryRecentTurnInput) => {
+    const userText = normalizePreparedExecutionText(turn.userText, 1200)
+    const assistantText = normalizePreparedExecutionText(turn.assistantText, 1200)
+    const nextUserText = userText && !seenUserTexts.has(userText)
+      ? userText
+      : null
+    const nextAssistantText = assistantText && !seenAssistantTexts.has(assistantText)
+      ? assistantText
+      : null
+    if (!nextUserText && !nextAssistantText)
+      return
+
+    if (nextUserText)
+      seenUserTexts.add(nextUserText)
+    if (nextAssistantText)
+      seenAssistantTexts.add(nextAssistantText)
+    merged.push({
+      ...turn,
+      userText: nextUserText,
+      assistantText: nextAssistantText,
+    })
+  }
+
+  persistedTurns.forEach(appendTurn)
+  inMemoryTurns.forEach(appendTurn)
+
+  return merged
+    .sort((left, right) => Number(left.createdAt ?? 0) - Number(right.createdAt ?? 0))
+    .slice(-8)
+}
+
 function parseWorkingMemoryStructuredTurn(raw: string | null | undefined) {
   if (!raw)
     return null
@@ -765,9 +804,10 @@ function buildWorkingMemoryPromptBlockFromRuntime(input: {
     input.executionCallbackRecallText,
     input.executionLedgerRecallText,
   ].map(text => normalizePreparedExecutionText(text, 1200)).filter(Boolean).join('\n') || null
-  const recentTurns = input.persistedRecentTurns?.length
-    ? [...input.persistedRecentTurns]
-    : buildWorkingMemoryRecentTurns(input.messages, input.now, null)
+  const recentTurns = mergeWorkingMemoryRecentTurns(
+    input.persistedRecentTurns ?? [],
+    buildWorkingMemoryRecentTurns(input.messages, input.now, null),
+  )
   if (executionCarryText) {
     recentTurns.push({
       turnId: 'execution-carry',

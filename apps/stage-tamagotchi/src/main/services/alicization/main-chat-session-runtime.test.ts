@@ -4918,6 +4918,46 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(latest?.currentThread?.currentUserMove).toContain('记忆中心 UI')
   })
 
+  it('merges persisted history with newer in-memory turns before building WorkingMemory', async () => {
+    const workingMemoryStore = createWorkingMemoryStore()
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore,
+      listConversationTurnsBySession: vi.fn(async () => [{
+        turnId: 'turn-persisted-old',
+        sessionId: 'session-1',
+        userText: '旧问题',
+        assistantText: '旧回答',
+        structuredJson: null,
+        createdAt: 10,
+      }]),
+    })
+    const messages: Message[] = [
+      { role: 'user', content: '旧问题' },
+      { role: 'assistant', content: '旧回答' },
+      { role: 'user', content: '不是这个，最新纠正是先合并尚未落盘的消息。' },
+      { role: 'assistant', content: '收到，先保留这条最新纠正。' },
+      { role: 'user', content: '继续' },
+    ]
+    const prelude = createReflectivePrelude({ messages })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-merge-live-history',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    const latest = workingMemoryStore.latest('default')
+    const recentText = latest?.recentRawTurns.map(turn => turn.text).join('\n') ?? ''
+    expect(recentText).toContain('旧问题')
+    expect(recentText).toContain('最新纠正是先合并尚未落盘的消息')
+    expect(recentText).toContain('先保留这条最新纠正')
+    expect(recentText.match(/旧问题/gu)).toHaveLength(1)
+  })
+
   it('injects one typed memory context for a normal turn and carries the working-memory owner', async () => {
     const { runtime } = createWorkingMemoryRuntimeFixture()
     const prelude = createReflectivePrelude({
