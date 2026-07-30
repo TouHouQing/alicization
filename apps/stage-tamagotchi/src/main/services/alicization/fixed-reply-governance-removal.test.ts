@@ -259,7 +259,6 @@ describe('fixed reply governance removal', () => {
   it('removes semantic-judge compatibility branches from runtime metadata and UI diagnostics', () => {
     const sources = [
       readServiceSource('./main-chat-stream-meta.ts'),
-      readRepoSource('packages/stage-ui/src/composables/alicization-prompt-composer.ts'),
       readRepoSource('packages/stage-ui/src/components/scenes/stage-quick-reply-closure.ts'),
       readRepoSource('apps/stage-tamagotchi/src/renderer/pages/devtools/performance-visualizer-self-evolution-diagnostic-summary.ts'),
     ].join('\n')

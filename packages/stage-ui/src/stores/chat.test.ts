@@ -231,13 +231,6 @@ vi.mock('./chat/hooks', () => ({
   },
 }))
 
-vi.mock('../composables/alicization-prompt-composer', () => ({
-  composeAlicizationPromptMessages: vi.fn(({ messages }: { messages: any[] }) => ({
-    messages,
-    personalityDirectiveResult: null,
-  })),
-}))
-
 vi.mock('./alicization-self-evolution-inspector', () => ({
   useAlicizationSelfEvolutionInspectorStore: () => ({
     refresh: vi.fn(async () => null),
@@ -261,26 +254,6 @@ vi.mock('../composables/alicization-guardrails', async (importOriginal) => {
         droppedMessageCount: 0,
         retainedUserTurns: 0,
       },
-    }),
-    applyPromptBudget: (messages: any[]) => ({
-      messages,
-      report: {
-        truncated: false,
-        totalBeforeTokens: 0,
-        totalAfterTokens: 0,
-        droppedMessageCount: 0,
-        anchorPreserved: true,
-        safeMode: {
-          activated: false,
-        },
-        sections: {},
-      },
-    }),
-    sanitizeForRemoteModel: (messages: any[]) => ({
-      blocked: false,
-      messages,
-      redactions: 0,
-      elapsedMs: 0,
     }),
   }
 })

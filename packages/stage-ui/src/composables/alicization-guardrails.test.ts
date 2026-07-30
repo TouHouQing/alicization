@@ -3,7 +3,6 @@ import type { Message } from '@xsai/shared-chat'
 import { describe, expect, it } from 'vitest'
 
 import { applyPromptBudget, compactMessagesForPromptAssembly, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from './alicization-guardrails'
-import { composeAlicizationPromptMessages } from './alicization-prompt-composer'
 
 function fact(type: string, data: unknown) {
   return JSON.stringify({ type, data })
@@ -167,16 +166,17 @@ describe('alicization guardrails', () => {
     ].join('\n')
 
     for (let round = 0; round < 10_000; round += 1) {
-      const composed = composeAlicizationPromptMessages({
-        messages: [
-          { role: 'assistant', content: '历史对话'.repeat(120) },
-          { role: 'user', content: `第 ${round} 轮：请记住我喜欢咖啡。` },
-        ],
-        soulContent: soul,
-        hostName: '主人',
-        contextsSnapshot: {},
-      })
-      const budgeted = applyPromptBudget(composed.messages, {
+      const budgeted = applyPromptBudget([
+        { role: 'system', content: soul },
+        {
+          role: 'system',
+          content: fact('alicization-host', {
+            name: '主人',
+          }),
+        },
+        { role: 'assistant', content: '历史对话'.repeat(120) },
+        { role: 'user', content: `第 ${round} 轮：请记住我喜欢咖啡。` },
+      ], {
         totalTokens: 1024,
       })
       const runtimeMessage = budgeted.messages.find((message, index) => index !== 0 && message.role === 'system')

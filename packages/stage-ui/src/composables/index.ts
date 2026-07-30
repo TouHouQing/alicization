@@ -1,5 +1,4 @@
 export * from './alicization-guardrails'
-export * from './alicization-prompt-composer'
 export * from './alicization-realtime-query'
 export * from './alicization-structured-output'
 export * from './audio'

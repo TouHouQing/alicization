@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'vitest'
 
@@ -25,15 +25,12 @@ describe('chat core memory authority', () => {
     expect(source).not.toContain('preDialogueAwareness: normalizedInputPreDialogueAwareness')
   })
 
-  it('keeps renderer prompt composition limited to SOUL and real context facts', () => {
-    const source = readFileSync(new URL('../composables/alicization-prompt-composer.ts', import.meta.url), 'utf8')
+  it('does not retain a renderer-side prompt composer', () => {
+    const composerUrl = new URL('../composables/alicization-prompt-composer.ts', import.meta.url)
+    const chatSource = readFileSync(new URL('./chat.ts', import.meta.url), 'utf8')
 
-    expect(source).not.toContain('projectStateContinuitySnapshot')
-    expect(source).not.toContain('preDialogueAwarenessSnapshot')
-    expect(source).not.toContain('preDialogueClosureSnapshot')
-    expect(source).not.toContain('alicization-project-state')
-    expect(source).not.toContain('alicization-pre-dialogue-awareness')
-    expect(source).not.toContain('alicization-pre-dialogue-closure')
-    expect(source).not.toContain('alicization-pre-dialogue-continuity')
+    expect(existsSync(composerUrl)).toBe(false)
+    expect(chatSource).not.toContain('composeAlicizationPromptMessages')
+    expect(chatSource).not.toContain('personality-directives.injected')
   })
 })

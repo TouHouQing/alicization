@@ -12,7 +12,6 @@ function readRepositoryFile(path: string) {
 const providerFacingSources = [
   'apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/runtime-card-prompt.ts',
-  'packages/stage-ui/src/composables/alicization-prompt-composer.ts',
   'packages/stage-ui/src/composables/alicization-guardrails.ts',
   'packages/stage-ui/src/stores/character/orchestrator/agents/event-handler-spark-notify/index.ts',
 ] as const
@@ -73,6 +72,18 @@ describe('single memory dialogue mainline audit', () => {
 
     for (const source of productionSources)
       expect(source).not.toContain('alicization-prompting')
+  })
+
+  it('retires the unreachable renderer prompt composer', () => {
+    const composerPath = 'packages/stage-ui/src/composables/alicization-prompt-composer.ts'
+    expect(existsSync(resolve(repositoryRoot, composerPath)), composerPath).toBe(false)
+
+    const chatSource = readRepositoryFile('packages/stage-ui/src/stores/chat.ts')
+    expect(chatSource).not.toContain('composeAlicizationPromptMessages')
+    expect(chatSource).not.toContain('personality-directives.injected')
+
+    const composablesIndex = readRepositoryFile('packages/stage-ui/src/composables/index.ts')
+    expect(composablesIndex).not.toContain('alicization-prompt-composer')
   })
 
   it('keeps provider-facing engineering facts structured instead of adding reply rules', () => {

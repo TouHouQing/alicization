@@ -21,7 +21,6 @@ import type {
   AlicizationEmbodimentScriptV1,
   AlicizationEmotion,
   AlicizationMindTurnGovernance,
-  AlicizationPersonalityState,
   AlicizationRuntimeDigest,
 } from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
@@ -42,8 +41,7 @@ import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { ref, toRaw } from 'vue'
 
-import { applyPromptBudget, compactMessagesForPromptAssembly, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from '../composables/alicization-guardrails'
-import { composeAlicizationPromptMessages } from '../composables/alicization-prompt-composer'
+import { compactMessagesForPromptAssembly, sanitizeAssistantOutputForDisplay } from '../composables/alicization-guardrails'
 import {
   normalizeStructuredOutput,
   normalizeStructuredProjectStatePayload,
@@ -1166,18 +1164,6 @@ function isDirectInfrastructureRepairFallback(structured?: StructuredWithContrac
     && structured.nonHumanAuthoredStatus.startsWith('direct-infra-repair:')
 }
 
-async function safelyGetAlicizationSoulSnapshot() {
-  if (!hasAlicizationBridge())
-    return null
-
-  try {
-    return await getAlicizationBridge().getSoul()
-  }
-  catch {
-    return null
-  }
-}
-
 async function appendAlicizationAuditLog(payload: {
   level: 'info' | 'notice' | 'warning' | 'critical'
   category: string
@@ -1486,7 +1472,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       return resolution
     }
 
-    let turnPersonalityState: AlicizationPersonalityState | null = null
     const stageFailureSurface = (
       kind: StreamFailureKind,
       replyText?: string,
@@ -2496,120 +2481,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             retainedUserTurns: promptAssembly.report.retainedUserTurns,
           },
         })
-      }
-
-      const contextsSnapshot = chatContext.getContextsSnapshot()
-      if (hasAlicizationBridge()) {
-        const soulSnapshot = await safelyGetAlicizationSoulSnapshot()
-        turnPersonalityState = soulSnapshot?.frontmatter?.personality ?? null
-        if (runtimeAuthoritativeBridge) {
-          await appendAlicizationAuditLog({
-            level: 'notice',
-            category: 'alicization.prompt',
-            action: 'runtime-governance-delegated',
-            message: 'Delegated Alicization prompt governance to main runtime pipeline.',
-            details: {
-              contextSourceCount: Object.keys(contextsSnapshot).length,
-            },
-          })
-        }
-        else {
-          const composed = composeAlicizationPromptMessages({
-            messages: newMessages as Message[],
-            soulContent: soulSnapshot?.content ?? null,
-            hostName: soulSnapshot?.frontmatter?.profile?.hostName ?? null,
-            personalityState: turnPersonalityState,
-            contextsSnapshot,
-          })
-          newMessages = composed.messages as any
-
-          if (composed.personalityDirectiveResult) {
-            await appendAlicizationAuditLog({
-              level: 'notice',
-              category: 'alicization.prompt',
-              action: 'personality-directives.injected',
-              message: 'Injected low-personality semantic directives into SOUL anchor.',
-              details: {
-                triggered: composed.personalityDirectiveResult.triggered,
-              },
-            })
-          }
-
-          const budgeted = applyPromptBudget(newMessages as Message[])
-          newMessages = budgeted.messages as any
-          if (budgeted.report.safeMode.activated) {
-            await appendAlicizationAuditLog({
-              level: 'critical',
-              category: 'alicization.budget',
-              action: 'overflow_soul',
-              message: 'SOUL exceeded prompt budget and safe mode degradation was applied.',
-              details: {
-                totalBeforeTokens: budgeted.report.totalBeforeTokens,
-                totalAfterTokens: budgeted.report.totalAfterTokens,
-                soulTokensBefore: budgeted.report.safeMode.soulTokensBefore,
-                soulTokensAfter: budgeted.report.safeMode.soulTokensAfter,
-                reason: budgeted.report.safeMode.reason,
-              },
-            })
-          }
-
-          if (!budgeted.report.anchorPreserved) {
-            await appendAlicizationAuditLog({
-              level: 'warning',
-              category: 'prompt-budget',
-              action: 'anchor-mutated',
-              message: 'SOUL anchor message changed during budget processing unexpectedly.',
-              details: {
-                sections: budgeted.report.sections,
-              },
-            })
-          }
-
-          if (budgeted.report.truncated) {
-            await appendAlicizationAuditLog({
-              level: 'notice',
-              category: 'prompt-budget',
-              action: 'truncate',
-              message: 'Prompt budget manager truncated context before model call.',
-              details: {
-                totalBeforeTokens: budgeted.report.totalBeforeTokens,
-                totalAfterTokens: budgeted.report.totalAfterTokens,
-                droppedMessageCount: budgeted.report.droppedMessageCount,
-                sections: budgeted.report.sections,
-              },
-            })
-          }
-
-          const sanitized = sanitizeForRemoteModel(newMessages as Message[], { timeBudgetMs: 50, chunkSize: 2048 })
-          if (sanitized.blocked) {
-            await appendAlicizationAuditLog({
-              level: 'critical',
-              category: 'sanitize',
-              action: 'blocked',
-              message: 'Outbound model request blocked by sanitize gateway.',
-              details: {
-                reason: sanitized.reason,
-                elapsedMs: sanitized.elapsedMs,
-              },
-            })
-            throw new Error(stageChatText('errors.privacy-blocked'))
-          }
-
-          if (sanitized.redactions > 0) {
-            await appendAlicizationAuditLog({
-              level: 'notice',
-              category: 'sanitize',
-              action: 'redacted',
-              message: 'Sanitize gateway redacted sensitive content before model call.',
-              details: {
-                redactions: sanitized.redactions,
-                elapsedMs: sanitized.elapsedMs,
-              },
-            })
-          }
-
-          newMessages = sanitized.messages as any
-        }
       }
 
       streamingMessageContext.composedMessage = newMessages as Message[]
