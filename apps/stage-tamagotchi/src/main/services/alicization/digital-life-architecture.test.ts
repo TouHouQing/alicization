@@ -299,9 +299,6 @@ describe('digital life architecture', () => {
         recallGovernor: {
           mode: 'thread',
           recallSeed: 'runtime spine unification',
-          suppressAssociativeRecall: true,
-          allowActiveThoughts: true,
-          allowRecalledFragments: true,
           carryAsMemory: true,
           rationale: 'Keep recall on the current runtime seam.',
           narrative: ['thread-locked recall'],
@@ -400,8 +397,8 @@ describe('digital life architecture', () => {
     expect(architecture).not.toHaveProperty('closureAudit')
   })
 
-  it('keeps memory subsystem pressure independent from reply recall suppression', () => {
-    const buildWithSuppression = (suppressAssociativeRecall: boolean) =>
+  it('keeps memory subsystem pressure independent from recall fragment budget hints', () => {
+    const buildWithBudget = (recalledFragmentCap?: number) =>
       buildAlicizationDigitalLifeArchitecture({
         version: 'digital-life-runtime-surface-v1',
         memory: {
@@ -410,15 +407,15 @@ describe('digital life architecture', () => {
           recallGovernor: {
             mode: 'thread',
             recallSeed: '当前记忆主题',
-            suppressAssociativeRecall,
+            ...(recalledFragmentCap ? { recalledFragmentCap } : {}),
           },
         },
       } as any)
 
-    const suppressed = buildWithSuppression(true)
-    const unsuppressed = buildWithSuppression(false)
+    const ownerDefault = buildWithBudget()
+    const bounded = buildWithBudget(2)
 
-    expect(suppressed?.systems.memory.score).toBe(unsuppressed?.systems.memory.score)
-    expect(suppressed?.systems.memory.state).toBe(unsuppressed?.systems.memory.state)
+    expect(ownerDefault?.systems.memory.score).toBe(bounded?.systems.memory.score)
+    expect(ownerDefault?.systems.memory.state).toBe(bounded?.systems.memory.state)
   })
 })

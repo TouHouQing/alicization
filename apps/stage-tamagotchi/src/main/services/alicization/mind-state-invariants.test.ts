@@ -405,7 +405,6 @@ describe('continuity mind', () => {
         uncertaintyBoundary: null,
         careVector: null,
         nextMove: 'continue the task',
-        suppressAssociativeRecall: true,
         labelCarryAsMemory: false,
         maxSentences: 3,
         mustDo: [],

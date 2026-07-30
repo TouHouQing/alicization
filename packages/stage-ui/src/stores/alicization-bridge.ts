@@ -1763,7 +1763,6 @@ export interface AlicizationAnswerCompilerSnapshot {
   uncertaintyBoundary?: string | null
   careVector?: string | null
   nextMove?: string | null
-  suppressAssociativeRecall: boolean
   labelCarryAsMemory: boolean
   maxSentences: number
   mustDo: string[]
@@ -1850,7 +1849,6 @@ export interface AlicizationMindTurnFrameMemorySnapshot {
   recallKeys: string[]
   recallSeed?: string | null
   lastOutcome?: 'none' | 'pending' | 'aligned' | 'missed' | 'repairing' | 'deferred' | null
-  suppressAssociativeRecall: boolean
   labelCarryAsMemory: boolean
 }
 

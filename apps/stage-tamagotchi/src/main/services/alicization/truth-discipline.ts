@@ -19,7 +19,6 @@ export interface AlicizationTruthDisciplineFlags {
   dialogueFirst: boolean
   shouldLabelHypothesis: boolean
   forbidUnsupportedSpecificity: boolean
-  shouldSuppressAssociativeRecall: boolean
   shouldBlockScreenCarry: boolean
   memorySurfaceMode: AlicizationMemoryRestraintJudge['surfaceMode'] | null
   memoryProvenanceMode: AlicizationMemoryRestraintJudge['provenanceMode'] | null
@@ -101,7 +100,6 @@ export function deriveAlicizationTruthDiscipline(input: {
   repairState?: 'none' | 'stale-anchor' | 'need-reground' | null
   evidenceMode?: AlicizationAnswerEvidenceMode | null
   labelCarryAsMemory?: boolean
-  suppressAssociativeRecall?: boolean
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   memoryRestraint?: Pick<
@@ -147,10 +145,6 @@ export function deriveAlicizationTruthDiscipline(input: {
     || mode === 'observe-then-hypothesize'
     || mode === 'repair-first'
     || memoryRestraint?.shouldSuppressSpecificity === true
-  const shouldSuppressAssociativeRecall = input.suppressAssociativeRecall === true
-    || mode === 'repair-first'
-    || shouldKeepMemoryInward
-    || shouldDelayMemoryUntilAfterPayoff
   const shouldBlockScreenCarry = dialogueFirst || mode === 'memory-labeled'
 
   return {
@@ -158,7 +152,6 @@ export function deriveAlicizationTruthDiscipline(input: {
     dialogueFirst,
     shouldLabelHypothesis,
     forbidUnsupportedSpecificity,
-    shouldSuppressAssociativeRecall,
     shouldBlockScreenCarry,
     memorySurfaceMode: memoryRestraint?.surfaceMode ?? null,
     memoryProvenanceMode: memoryRestraint?.provenanceMode ?? null,
@@ -172,7 +165,6 @@ export function deriveAlicizationTruthDiscipline(input: {
       dialogueFirst ? 'dialogue-first-turn' : '',
       shouldLabelHypothesis ? 'label-hypothesis' : '',
       forbidUnsupportedSpecificity ? 'forbid-unsupported-specificity' : '',
-      shouldSuppressAssociativeRecall ? 'suppress-associative-recall' : '',
       shouldBlockScreenCarry ? 'block-screen-carry' : '',
       memoryRestraint?.surfaceMode ? `memory-surface:${memoryRestraint.surfaceMode}` : '',
       memoryRestraint?.provenanceMode ? `memory-provenance:${memoryRestraint.provenanceMode}` : '',

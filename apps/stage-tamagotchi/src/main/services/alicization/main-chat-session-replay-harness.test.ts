@@ -174,7 +174,6 @@ function createReplayPreludeWithEmbodimentSurface(input?: {
         fallbackReason: null,
       },
       chatGovernance: {
-        suppressAssociativeRecall: false,
         turnMode: input?.governance?.turnMode ?? 'answer',
         personaKernelMode: input?.governance?.personaKernelMode ?? 'full',
         mindTurnContract: null,
@@ -189,7 +188,6 @@ function createReplayPreludeWithEmbodimentSurface(input?: {
           personaKernelMode: 'full',
           openingStyle: 'direct-answer',
           relationshipPosture: 'warm',
-          suppressAssociativeRecall: false,
           labelCarryAsMemory: false,
           shouldAskForGrounding: false,
           shouldAcknowledgeRepair: false,
@@ -2164,7 +2162,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               personaKernelMode: 'full',
               openingStyle: 'direct-answer',
               relationshipPosture: 'warm',
-              suppressAssociativeRecall: false,
               labelCarryAsMemory: false,
               shouldAskForGrounding: false,
               shouldAcknowledgeRepair: false,

@@ -708,6 +708,58 @@ describe('chat orchestrator reply authority', () => {
     expect(persistedStructured?.projectState).toBeNull()
   })
 
+  it('accepts and persists governance meta without a recall suppression field', async () => {
+    const reply = '我会沿着当前对话和可用记忆继续回应。'
+    const fullText = createProviderFullText(reply)
+    const governance = {
+      turnMode: 'answer',
+      truthState: 'dialogue-grounded',
+      personaKernelMode: 'full',
+      openingStyle: 'direct-answer',
+      relationshipPosture: 'warm',
+      repairState: 'none',
+      labelCarryAsMemory: true,
+      shouldAskForGrounding: false,
+      shouldAcknowledgeRepair: false,
+      maxSentences: 4,
+      mustDo: [],
+      mustNotDo: [],
+    } as const
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'meta',
+        governance,
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('继续聊聊我们的记忆', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.governance).toEqual(governance)
+    expect(persisted.structured.governance).toEqual(governance)
+  })
+
   it('accepts pretty-printed strict JSON before applying display sanitation to the reply', async () => {
     const reply = '格式化 JSON 仍然是完整的 Provider 合同。'
     const fullText = JSON.stringify(createProviderPayload(reply), null, 2)

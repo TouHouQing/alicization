@@ -109,9 +109,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续验证记忆链路',
       recallGovernor: {
-        suppressAssociativeRecall: true,
-        allowActiveThoughts: false,
-        allowRecalledFragments: false,
       } as any,
     })
 
@@ -214,8 +211,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         narrative: [
           'project-preflight:project:synthetic project state | already landed | still-open closure',
           'project-emotion:synthetic relationship rule',
@@ -784,8 +779,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: 'continue the runtime fix',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: {
           mode: 'conversation-history',
           temporalFocus: 'cross-session',
@@ -968,8 +961,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '前几天那个 runtime seam 这次继续按之前那样修',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -1166,8 +1157,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续这个 runtime seam，但先别贴太近，按之前稳一点的方式来',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -1432,8 +1421,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '这次继续按之前那种 runtime seam 修法来处理',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -1551,8 +1538,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: 'runtime seam',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: {
           mode: 'execution-procedure',
           temporalFocus: 'experience-matched',
@@ -1753,8 +1738,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: 'runtime seam',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: {
           mode: 'execution-procedure',
           temporalFocus: 'experience-matched',
@@ -1979,8 +1962,6 @@ describe('runtime-organic-memory-prompt', () => {
     const taskContext = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: phrase,
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: {
           mode: 'execution-procedure',
           temporalFocus: 'experience-matched',
@@ -1996,8 +1977,6 @@ describe('runtime-organic-memory-prompt', () => {
     const relationshipContext = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: phrase,
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: {
           mode: 'relationship-history',
           temporalFocus: 'cross-session',
@@ -2167,8 +2146,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续之前那条 runtime continuity line，把 callback receipt 接回来',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -2339,8 +2316,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续之前那条 runtime continuity seam 线',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -2527,8 +2502,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '你为什么这次会这样回应我',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: {
           mode: 'relationship-history',
           temporalFocus: 'cross-session',
@@ -2692,8 +2665,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续按之前那样修这个 runtime seam',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -2790,8 +2761,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '你为什么这次会这样回应我',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: {
           mode: 'relationship-history',
           temporalFocus: 'cross-session',
@@ -2961,8 +2930,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续按之前那样处理 runtime seam',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: {
           mode: 'execution-procedure',
           temporalFocus: 'experience-matched',
@@ -3091,8 +3058,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '这个 runtime seam 怎么又有那种感觉',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: null,
       } as any,
     })
@@ -3246,8 +3211,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '这个 runtime seam 又有那种感觉',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         sceneFamiliarityHint: 0.92,
         affectiveCarry: {
           moodLabel: 'afterglow',
@@ -3398,8 +3361,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '你以前是怎么帮我做这个的',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
         recollectionIntent: {
           mode: 'experience-pattern',
           temporalFocus: 'experience-matched',
@@ -3521,8 +3482,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '按以前那样做',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -3785,8 +3744,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '先把这个修好，我们关系上的话题等会再说',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -3922,8 +3879,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续按我之前说的稳定视线、放慢声音来回应，但不要装作逐字记得。',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
     const recallFact = readOrganicMemoryProviderFact(
@@ -4064,8 +4019,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '你是不是还在修正之前那个自我说法',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -4195,8 +4148,6 @@ describe('runtime-organic-memory-prompt', () => {
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '我们是不是还在那个修复期里调整距离',
       recallGovernor: {
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
       } as any,
     })
 

@@ -119,7 +119,6 @@ describe('runtime main chat runtime', () => {
           fallbackReason: null,
         },
         chatGovernance: {
-          suppressAssociativeRecall: false,
           turnMode: 'answer',
           personaKernelMode: 'full',
           mindTurnContract: null,
@@ -269,7 +268,6 @@ describe('runtime main chat runtime', () => {
           fallbackReason: null,
         },
         chatGovernance: {
-          suppressAssociativeRecall: false,
           turnMode: 'answer',
           personaKernelMode: 'full',
           mindTurnContract: null,

@@ -19,7 +19,6 @@ describe('memory-os runtime', () => {
     await runAlicizationMemoryOsTurnRuntime({
       recallSeed: '继续当前记忆链路',
       recallGovernor,
-      suppressAssociativeRecall: true,
       personaKernelMode: 'muted',
       resolveContext: async () => context,
       tuneContext,

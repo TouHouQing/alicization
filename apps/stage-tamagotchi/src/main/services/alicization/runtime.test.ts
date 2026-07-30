@@ -7631,7 +7631,6 @@ describe('alicization runtime project-state audit helpers', () => {
           dominantSystem: expect.any(String),
         }),
         responseSurface: expect.objectContaining({
-          suppressAssociativeRecall: true,
         }),
         historyCompaction: expect.objectContaining({
           beforeCount: expect.any(Number),

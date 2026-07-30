@@ -105,7 +105,6 @@ function createAnswerCompiler(
     uncertaintyBoundary: null,
     careVector: null,
     nextMove: null,
-    suppressAssociativeRecall: false,
     labelCarryAsMemory: false,
     maxSentences: 4,
     mustDo: [],

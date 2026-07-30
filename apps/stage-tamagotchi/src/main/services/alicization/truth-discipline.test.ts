@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 
 describe('truth-discipline', () => {
-  it('treats dialogue-first turns as carry-blocking without forcing recall suppression', () => {
+  it('treats dialogue-first turns as carry-blocking without exposing recall governance', () => {
     const flags = deriveAlicizationTruthDiscipline({
       answerSubject: 'alicization-self',
       screenReferenceMode: 'avoid',
@@ -11,13 +11,13 @@ describe('truth-discipline', () => {
       turnMode: 'answer',
       repairState: 'none',
       labelCarryAsMemory: true,
-      suppressAssociativeRecall: false,
     })
 
     expect(flags.mode).toBe('dialogue-first')
     expect(flags.dialogueFirst).toBe(true)
     expect(flags.shouldBlockScreenCarry).toBe(true)
-    expect(flags.shouldSuppressAssociativeRecall).toBe(false)
+    expect(flags).not.toHaveProperty('shouldSuppressAssociativeRecall')
+    expect(flags.reasonTags).not.toContain('suppress-associative-recall')
   })
 
   it('forces hypothesis and specificity discipline on coarse scene turns', () => {
@@ -61,7 +61,6 @@ describe('truth-discipline', () => {
       repairState: 'none',
       evidenceMode: 'continuity-carry',
       labelCarryAsMemory: true,
-      suppressAssociativeRecall: false,
       memoryRestraint: {
         surfaceMode: 'inward-only',
         provenanceMode: 'reconstructed-memory',
@@ -84,7 +83,8 @@ describe('truth-discipline', () => {
     expect(flags.shouldDelayMemoryUntilAfterPayoff).toBe(true)
     expect(flags.shouldLabelHypothesis).toBe(true)
     expect(flags.forbidUnsupportedSpecificity).toBe(true)
-    expect(flags.shouldSuppressAssociativeRecall).toBe(true)
+    expect(flags).not.toHaveProperty('shouldSuppressAssociativeRecall')
+    expect(flags.reasonTags).not.toContain('suppress-associative-recall')
     expect(flags.memoryWithheldReasons).toEqual([
       'owner-inward-policy',
       'payoff-required',

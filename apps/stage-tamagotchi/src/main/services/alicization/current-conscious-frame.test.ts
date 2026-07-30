@@ -39,7 +39,6 @@ function createAnswerCompiler(overrides: Record<string, unknown> = {}) {
     openingClaim: '',
     supportingReality: [],
     nextMove: null,
-    suppressAssociativeRecall: false,
     labelCarryAsMemory: false,
     maxSentences: 4,
     mustDo: [],

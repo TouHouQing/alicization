@@ -101,8 +101,6 @@ describe('digital life memory', () => {
         recallGovernor: {
           mode: 'relationship',
           carryAsMemory: false,
-          allowRecalledFragments: false,
-          allowActiveThoughts: false,
           recollectionIntent: {
             mode: 'relationship-history',
             temporalFocus: 'cross-session',

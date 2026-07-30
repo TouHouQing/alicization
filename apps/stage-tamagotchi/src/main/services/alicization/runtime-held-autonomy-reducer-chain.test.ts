@@ -26,7 +26,6 @@ describe('runtime held-autonomy reducer chain', () => {
       screenReferenceMode: 'avoid',
       shouldAcknowledgeRepair: false,
       shouldAskForGrounding: false,
-      suppressAssociativeRecall: true,
       truthState: 'remembered',
       mustDo: [],
       mustNotDo: [],

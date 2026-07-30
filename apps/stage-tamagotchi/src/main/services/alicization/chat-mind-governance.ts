@@ -278,8 +278,6 @@ export function buildAlicizationMindTurnGovernance(input: {
       ?? recallGovernor?.carryAsMemory
       ?? answerCompiler?.labelCarryAsMemory
       ?? input.surfaceContract.labelCarryAsMemory,
-    suppressAssociativeRecall: recallGovernor?.suppressAssociativeRecall
-      ?? answerCompiler?.suppressAssociativeRecall,
     currentConsciousFrame: null,
     claimEvidenceLedger,
   })

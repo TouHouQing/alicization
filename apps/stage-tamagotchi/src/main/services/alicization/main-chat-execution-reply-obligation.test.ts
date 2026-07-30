@@ -157,7 +157,6 @@ describe('main chat execution reply obligation', () => {
       openingStyle: 'gentle-care',
       relationshipPosture: 'warm',
       repairState: 'none',
-      suppressAssociativeRecall: false,
       labelCarryAsMemory: false,
       shouldAskForGrounding: false,
       shouldAcknowledgeRepair: false,

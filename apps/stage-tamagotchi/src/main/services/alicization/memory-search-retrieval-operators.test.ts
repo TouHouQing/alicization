@@ -100,7 +100,6 @@ describe('memory-search-retrieval-operators', () => {
         visibility: 'inward',
       },
       recallGovernor: {
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -133,7 +132,6 @@ describe('memory-search-retrieval-operators', () => {
         `${legacyPrefix}: label=legacy | summary=old governance carry`,
       ].join('\n'),
       recallGovernor: {
-        allowRecalledFragments: true,
       } as any,
     })
 
@@ -205,9 +203,6 @@ describe('memory-search-retrieval-operators', () => {
       recallSeed: '当前对话内容。',
       recallGovernor: {
         mode: 'thread',
-        suppressAssociativeRecall: true,
-        allowActiveThoughts: false,
-        allowRecalledFragments: false,
         recalledFragmentCap: 0.5,
         recalledFragmentSourceBudget: [
           { sourceKind: 'dream-fragment', maxItems: 0 },
@@ -267,7 +262,6 @@ describe('memory-search-retrieval-operators', () => {
       },
       recallSeed: '继续验证 runtime seam',
       recallGovernor: {
-        allowRecalledFragments: true,
       } as any,
     })
 

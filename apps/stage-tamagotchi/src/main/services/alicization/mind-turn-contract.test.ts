@@ -35,7 +35,6 @@ const surface = {
   allowStageDirections: false,
   allowBodyNarration: false,
   labelCarryAsMemory: false,
-  suppressAssociativeRecall: false,
   mustDo: ['legacy surface rule'],
   mustNotDo: ['legacy surface boundary'],
 } as const

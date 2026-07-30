@@ -23,7 +23,6 @@ describe('main chat session runtime governance isolation', () => {
       activeClosenessRung: null,
       relationshipPosture: null,
       labelCarryAsMemory: false,
-      suppressAssociativeRecall: false,
       allowAffectionatePreface: false,
       allowStageDirections: false,
       allowBodyNarration: false,

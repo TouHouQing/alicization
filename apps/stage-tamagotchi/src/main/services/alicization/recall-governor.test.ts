@@ -24,7 +24,7 @@ function expectProjectEmotionAnchorToBeProviderSafe(anchor: string | null | unde
 }
 
 describe('buildRecallGovernor', () => {
-  it('suppresses associative recall for scene-repair turns', () => {
+  it('leaves scene-repair fragment limits to the recall owner without emitting recall switches', () => {
     const governor = buildRecallGovernor({
       now: 10_000,
       dialogueWorldThread: {
@@ -78,7 +78,6 @@ describe('buildRecallGovernor', () => {
         uncertaintyBoundary: 'Need a fresh look.',
         careVector: null,
         nextMove: 'Ask for a fresh look.',
-        suppressAssociativeRecall: true,
         labelCarryAsMemory: true,
         maxSentences: 3,
         mustDo: [],
@@ -91,12 +90,13 @@ describe('buildRecallGovernor', () => {
 
     expect(governor).toEqual(expect.objectContaining({
       mode: 'scene',
-      suppressAssociativeRecall: true,
-      allowRecalledFragments: false,
-      recalledFragmentCap: 0,
-      recalledFragmentSourceBudget: [],
       carryAsMemory: true,
     }))
+    expect(governor).not.toHaveProperty('recalledFragmentCap')
+    expect(governor).not.toHaveProperty('recalledFragmentSourceBudget')
+    expect(governor).not.toHaveProperty('suppressAssociativeRecall')
+    expect(governor).not.toHaveProperty('allowActiveThoughts')
+    expect(governor).not.toHaveProperty('allowRecalledFragments')
     expect(governor?.narrative.join(' | ')).not.toMatch(/(?:suppress|allow):(?:associative|active-thoughts|recalled-fragments)/u)
   })
 
@@ -165,17 +165,16 @@ describe('buildRecallGovernor', () => {
         emotionalTension: 'late-night-drain',
       },
       answerCompiler: {
-        suppressAssociativeRecall: true,
       } as any,
     })
 
     expect(governor).toEqual(expect.objectContaining({
       mode: 'emotional-resonance',
-      suppressAssociativeRecall: true,
-      allowActiveThoughts: true,
-      allowRecalledFragments: true,
       recalledFragmentCap: 3,
     }))
+    expect(governor).not.toHaveProperty('suppressAssociativeRecall')
+    expect(governor).not.toHaveProperty('allowActiveThoughts')
+    expect(governor).not.toHaveProperty('allowRecalledFragments')
     expect(governor?.affectAnchors).toEqual(expect.arrayContaining([
       'emotional_tension:late-night-drain',
       'reply_motive:care',
@@ -186,6 +185,7 @@ describe('buildRecallGovernor', () => {
       { sourceKind: 'dialogue-turn', maxItems: 1 },
       { sourceKind: 'fact-ledger', maxItems: 1 },
     ]))
+    expect((governor?.recalledFragmentSourceBudget ?? []).every(item => item.maxItems > 0)).toBe(true)
     expect(buildRecallGovernorSystemBlock(governor)).toBe('')
   })
 
@@ -232,13 +232,13 @@ describe('buildRecallGovernor', () => {
 
     expect(governor).toEqual(expect.objectContaining({
       mode: 'self-continuity',
-      suppressAssociativeRecall: false,
-      allowActiveThoughts: true,
-      allowRecalledFragments: true,
       recalledFragmentCap: 2,
       carryAsMemory: true,
       rationale: expect.stringContaining('Reason: self-continuity rest protection.'),
     }))
+    expect(governor).not.toHaveProperty('suppressAssociativeRecall')
+    expect(governor).not.toHaveProperty('allowActiveThoughts')
+    expect(governor).not.toHaveProperty('allowRecalledFragments')
     expectNoRecallProviderTemplateResidue(governor?.rationale)
     expect(governor?.recalledFragmentSourceBudget).toEqual(expect.arrayContaining([
       { sourceKind: 'dialogue-turn', maxItems: 1 },
@@ -250,6 +250,7 @@ describe('buildRecallGovernor', () => {
       { sourceKind: 'dialogue-turn', maxItems: 2 },
       { sourceKind: 'fact-ledger', maxItems: 2 },
     ]))
+    expect((governor?.recalledFragmentSourceBudget ?? []).every(item => item.maxItems > 0)).toBe(true)
     const projectEmotionAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project-emotion:'))
     expectProjectEmotionAnchorToBeProviderSafe(projectEmotionAnchor)
     expect(projectEmotionAnchor).toBeUndefined()
@@ -301,7 +302,6 @@ describe('buildRecallGovernor', () => {
         answerSubject: 'task-knot',
         screenReferenceMode: 'helpful',
         recommendedAct: 'answer',
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
       } as any,
       replyDeliberation: {
@@ -666,7 +666,6 @@ describe('buildRecallGovernor', () => {
         answerSubject: 'relationship',
         screenReferenceMode: 'avoid',
         recommendedAct: 'answer',
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
       } as any,
       replyDeliberation: {
@@ -698,11 +697,13 @@ describe('buildRecallGovernor', () => {
 
     expect(governor).toEqual(expect.objectContaining({
       mode: 'thread',
-      suppressAssociativeRecall: true,
-      recalledFragmentCap: 0,
-      recalledFragmentSourceBudget: [],
       carryAsMemory: false,
     }))
+    expect(governor).not.toHaveProperty('recalledFragmentCap')
+    expect(governor).not.toHaveProperty('recalledFragmentSourceBudget')
+    expect(governor).not.toHaveProperty('suppressAssociativeRecall')
+    expect(governor).not.toHaveProperty('allowActiveThoughts')
+    expect(governor).not.toHaveProperty('allowRecalledFragments')
     expect(governor?.recallSeed).toContain('你在说什么呢')
     expect(governor?.rationale).toContain('reason=current_turn_anchor_priority')
     expectNoRecallProviderTemplateResidue(governor?.rationale)
@@ -752,7 +753,6 @@ describe('buildRecallGovernor', () => {
         answerSubject: 'relationship',
         screenReferenceMode: 'avoid',
         recommendedAct: 'answer',
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
       } as any,
       replyDeliberation: {
@@ -784,11 +784,12 @@ describe('buildRecallGovernor', () => {
 
     expect(governor).toEqual(expect.objectContaining({
       mode: 'self-continuity',
-      suppressAssociativeRecall: false,
-      allowRecalledFragments: true,
       recalledFragmentCap: 2,
       carryAsMemory: true,
     }))
+    expect(governor).not.toHaveProperty('suppressAssociativeRecall')
+    expect(governor).not.toHaveProperty('allowActiveThoughts')
+    expect(governor).not.toHaveProperty('allowRecalledFragments')
     expect(governor?.recalledFragmentSourceBudget).toEqual(expect.arrayContaining([
       { sourceKind: 'dialogue-turn', maxItems: 2 },
       { sourceKind: 'fact-ledger', maxItems: 2 },
@@ -837,7 +838,6 @@ describe('buildRecallGovernor', () => {
         answerSubject: 'alicization-self',
         screenReferenceMode: 'avoid',
         recommendedAct: 'answer',
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
       } as any,
       replyDeliberation: {
@@ -915,7 +915,6 @@ describe('buildRecallGovernor', () => {
         answerSubject: 'alicization-self',
         screenReferenceMode: 'avoid',
         recommendedAct: 'answer',
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
       } as any,
       replyDeliberation: {
@@ -996,7 +995,6 @@ describe('buildRecallGovernor', () => {
         answerSubject: 'alicization-self',
         screenReferenceMode: 'avoid',
         recommendedAct: 'answer',
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
       } as any,
       replyDeliberation: {
@@ -1083,7 +1081,6 @@ describe('buildRecallGovernor', () => {
         answerSubject: 'alicization-self',
         screenReferenceMode: 'avoid',
         recommendedAct: 'answer',
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
       } as any,
       replyDeliberation: {
@@ -1160,7 +1157,6 @@ describe('buildRecallGovernor', () => {
         answerSubject: 'alicization-self',
         screenReferenceMode: 'avoid',
         recommendedAct: 'answer',
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
       } as any,
       replyDeliberation: {
@@ -1263,7 +1259,6 @@ describe('buildRecallGovernor', () => {
         answerSubject: 'alicization-self',
         screenReferenceMode: 'avoid',
         recommendedAct: 'answer',
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
       } as any,
       replyDeliberation: {
@@ -1475,7 +1470,9 @@ describe('buildRecallGovernor', () => {
       'emotion_memory_mode:low-pressure-presence',
       'emotion_tone:measured-return',
     ]))
-    expect(governor?.suppressAssociativeRecall).toBe(false)
+    expect(governor).not.toHaveProperty('suppressAssociativeRecall')
+    expect(governor).not.toHaveProperty('allowActiveThoughts')
+    expect(governor).not.toHaveProperty('allowRecalledFragments')
     expect(governor?.rationale).not.toContain('repair')
     expectNoRecallProviderTemplateResidue(governor?.rationale)
   })

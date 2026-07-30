@@ -2567,9 +2567,6 @@ export interface AlicizationRecallGovernorSnapshot {
     summary?: string | null
   } | null
   recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null
-  suppressAssociativeRecall: boolean
-  allowActiveThoughts: boolean
-  allowRecalledFragments: boolean
   recalledFragmentCap?: number
   recalledFragmentSourceBudget?: Array<{
     sourceKind: AlicizationSubconsciousFragmentSourceKind
@@ -2647,7 +2644,6 @@ export interface AlicizationAnswerCompilerSnapshot {
   uncertaintyBoundary?: string | null
   careVector?: string | null
   nextMove?: string | null
-  suppressAssociativeRecall: boolean
   labelCarryAsMemory: boolean
   maxSentences: number
   mustDo: string[]

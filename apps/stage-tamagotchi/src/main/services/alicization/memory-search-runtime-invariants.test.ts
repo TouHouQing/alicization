@@ -229,13 +229,26 @@ describe('memory-search-runtime invariants', () => {
       },
     })
 
+    const recallGovernor = {
+      mode: 'thread',
+      recallSeed: '继续按之前那样修 runtime seam',
+      recalledFragmentCap: 2,
+      recalledFragmentSourceBudget: [
+        { sourceKind: 'dialogue-turn', maxItems: 1 },
+        { sourceKind: 'fact-ledger', maxItems: 1 },
+      ],
+      carryAsMemory: true,
+      rationale: 'Recall the current runtime thread.',
+      narrative: [],
+      updatedAt: 10_000,
+    } as const
     const first = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续按之前那样修 runtime seam',
-      recallGovernor: { allowRecalledFragments: true } as any,
+      recallGovernor: recallGovernor as any,
     })
     const second = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续按之前那样修 runtime seam',
-      recallGovernor: { allowRecalledFragments: true } as any,
+      recallGovernor: recallGovernor as any,
     })
 
     expect(first.recollectionPlan?.searchTrace).toEqual(second.recollectionPlan?.searchTrace)

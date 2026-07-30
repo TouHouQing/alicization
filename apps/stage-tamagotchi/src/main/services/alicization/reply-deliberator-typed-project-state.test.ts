@@ -72,7 +72,6 @@ describe('buildReplyDeliberation typed project state boundary', () => {
         uncertaintyBoundary: null,
         careVector: null,
         nextMove: '核对本轮召回耗时。',
-        suppressAssociativeRecall: true,
         labelCarryAsMemory: false,
         maxSentences: 4,
         mustDo: [],

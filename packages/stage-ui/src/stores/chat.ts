@@ -1080,7 +1080,6 @@ function isUsableMindTurnGovernanceCandidate(value: unknown): value is Alicizati
     && candidate.relationshipPosture.trim().length > 0
     && typeof candidate.repairState === 'string'
     && candidate.repairState.trim().length > 0
-    && typeof candidate.suppressAssociativeRecall === 'boolean'
     && typeof candidate.labelCarryAsMemory === 'boolean'
     && typeof candidate.shouldAskForGrounding === 'boolean'
     && typeof candidate.shouldAcknowledgeRepair === 'boolean'

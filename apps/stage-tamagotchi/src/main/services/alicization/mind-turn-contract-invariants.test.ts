@@ -38,7 +38,6 @@ describe('mind-turn-contract invariants', () => {
         openingDirective: 'Answer the host directly.',
         openingClaim: 'Stay with the host-state question.',
         supportingReality: ['The host-state question is the actual subject.'],
-        suppressAssociativeRecall: true,
         labelCarryAsMemory: false,
         maxSentences: 4,
         mustDo: ['Stay with the live dialogue subject.'],

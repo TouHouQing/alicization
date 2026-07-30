@@ -12,7 +12,6 @@ import type {
   AlicizationPrivateThoughtSnapshot,
   AlicizationRecallGovernorSnapshot,
   AlicizationReplyDeliberationSnapshot,
-  AlicizationSubconsciousFragmentSourceKind,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
@@ -22,6 +21,7 @@ import type { AlicizationSelfContinuityAuthority } from './self-continuity-autho
 import { buildAutobiographicalContinuityLines } from './autobiographical-self'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
+import { resolveAlicizationRecallFragmentBudget } from './recall-governor-budget'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -223,20 +223,20 @@ function formatRecallGovernorRationale(input: {
   emotionalClosurePresent: boolean
 }) {
   if (input.mode === 'scene')
-    return 'reason=scene_grounding_priority; recall_scope=live_grounding_or_repair; associative_recall=constrained'
+    return 'reason=scene_grounding_priority; recall_scope=live_grounding_or_repair'
 
   if (input.mode === 'thread' && input.dialogueFirstBound)
-    return 'reason=current_turn_anchor_priority; recall_scope=current_turn_anchor; associative_recall=suppressed'
+    return 'reason=current_turn_anchor_priority; recall_scope=current_turn_anchor'
 
   if (input.mode === 'thread')
-    return 'reason=thread_knot_priority; recall_scope=current_dialogue_and_unresolved_loops; associative_recall=suppressed'
+    return 'reason=thread_knot_priority; recall_scope=current_dialogue_and_unresolved_loops'
 
   if (input.mode === 'emotional-resonance')
-    return 'reason=emotional_resonance_allowed; recall_scope=affective_continuity; associative_recall=bounded'
+    return 'reason=emotional_resonance; recall_scope=affective_continuity'
 
   if (input.mode === 'self-continuity') {
     if (input.restProtectiveEmotionalKernel) {
-      return 'Reason: self-continuity rest protection. Recall scope is narrow self-continuity; rest protection is active and associative recall is bounded.'
+      return 'Reason: self-continuity rest protection. Recall scope is narrow self-continuity.'
     }
 
     return [
@@ -249,38 +249,7 @@ function formatRecallGovernorRationale(input: {
     ].join(' ')
   }
 
-  return 'reason=memory_not_admitted; recall_scope=none; associative_recall=suppressed'
-}
-
-function buildRecalledFragmentSourceBudget(mode: AlicizationRecallGovernorSnapshot['mode']): Array<{
-  sourceKind: AlicizationSubconsciousFragmentSourceKind
-  maxItems: number
-}> {
-  if (mode === 'self-continuity') {
-    return [
-      { sourceKind: 'dialogue-turn', maxItems: 2 },
-      { sourceKind: 'autobiographical-episode', maxItems: 2 },
-      { sourceKind: 'fact-ledger', maxItems: 2 },
-      { sourceKind: 'reflection-ledger', maxItems: 1 },
-      { sourceKind: 'mind-continuity', maxItems: 2 },
-      { sourceKind: 'dream-fragment', maxItems: 0 },
-      { sourceKind: 'visual-sediment', maxItems: 0 },
-    ]
-  }
-
-  if (mode === 'emotional-resonance') {
-    return [
-      { sourceKind: 'autobiographical-episode', maxItems: 1 },
-      { sourceKind: 'reflection-ledger', maxItems: 2 },
-      { sourceKind: 'dialogue-turn', maxItems: 1 },
-      { sourceKind: 'fact-ledger', maxItems: 1 },
-      { sourceKind: 'mind-continuity', maxItems: 1 },
-      { sourceKind: 'dream-fragment', maxItems: 1 },
-      { sourceKind: 'visual-sediment', maxItems: 0 },
-    ]
-  }
-
-  return []
+  return 'reason=no_specific_recall_mode; recall_scope=owner_default'
 }
 
 function isRestProtectiveEmotionalKernel(
@@ -497,38 +466,15 @@ export function buildRecallGovernor(input: {
         primaryTurnAnchor,
         autobiographicalContinuityActive: autobiographicalContinuityLines.length > 0 || Boolean(input.selfContinuityAuthority),
       })
-  const suppressAssociativeRecall = Boolean(
-    input.answerCompiler?.suppressAssociativeRecall
-    || resolvedMode === 'scene'
-    || resolvedMode === 'thread',
-  )
-  const allowActiveThoughts = resolvedMode !== 'none'
-    && resolvedMode !== 'scene'
-    && (resolvedMode !== 'thread' || !suppressAssociativeRecall)
-  const allowRecalledFragments = resolvedMode === 'emotional-resonance' || resolvedMode === 'self-continuity'
   const dialogueFirstTurn = input.dialogueEncounter?.dialogueFirst === true
     || input.dialogueEncounter?.screenReferenceMode === 'avoid'
   const sceneAttachmentCues = dialogueFirstTurn ? [] : buildSceneAttachmentCues(input.sceneContext ?? null)
-  const recalledFragmentCap = allowRecalledFragments
-    ? resolvedMode === 'emotional-resonance'
-      ? restProtectiveEmotionalKernel ? 2 : 3
-      : 2
-    : 0
-  const recalledFragmentSourceBudget: NonNullable<AlicizationRecallGovernorSnapshot['recalledFragmentSourceBudget']> = allowRecalledFragments
-    ? (
-        restProtectiveEmotionalKernel && resolvedMode === 'self-continuity'
-          ? [
-              { sourceKind: 'dialogue-turn', maxItems: 1 },
-              { sourceKind: 'autobiographical-episode', maxItems: 1 },
-              { sourceKind: 'fact-ledger', maxItems: 1 },
-              { sourceKind: 'reflection-ledger', maxItems: 1 },
-              { sourceKind: 'mind-continuity', maxItems: 2 },
-              { sourceKind: 'dream-fragment', maxItems: 0 },
-              { sourceKind: 'visual-sediment', maxItems: 0 },
-            ]
-          : buildRecalledFragmentSourceBudget(resolvedMode)
-      )
-    : []
+  const recallFragmentBudget = resolveAlicizationRecallFragmentBudget({
+    mode: resolvedMode,
+    restProtective: restProtectiveEmotionalKernel,
+  })
+  const recalledFragmentCap = recallFragmentBudget.recalledFragmentCap
+  const recalledFragmentSourceBudget = recallFragmentBudget.recalledFragmentSourceBudget ?? []
   const carryAsMemory = Boolean(
     input.answerCompiler?.labelCarryAsMemory
     || resolvedMode === 'self-continuity'
@@ -673,16 +619,12 @@ export function buildRecallGovernor(input: {
     affectiveCarry: mergedAffectiveCarry,
     embodiedCarry,
     recollectionIntent,
-    suppressAssociativeRecall,
-    allowActiveThoughts,
-    allowRecalledFragments,
-    recalledFragmentCap,
-    recalledFragmentSourceBudget,
+    ...recallFragmentBudget,
     carryAsMemory,
     rationale,
     narrative: uniqueList([
       `mode:${mode}`,
-      allowRecalledFragments ? `recalled-fragment-cap:${recalledFragmentCap}` : null,
+      recalledFragmentCap != null ? `recalled-fragment-cap:${recalledFragmentCap}` : null,
       ...recalledFragmentSourceBudget.map(item => `recalled-fragment-source:${item.sourceKind}:${item.maxItems}`),
       carryAsMemory ? 'carry:memory' : 'carry:none',
       primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,

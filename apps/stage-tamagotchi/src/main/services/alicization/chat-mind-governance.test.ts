@@ -39,7 +39,6 @@ function createInput() {
       allowStageDirections: false,
       allowBodyNarration: false,
       labelCarryAsMemory: false,
-      suppressAssociativeRecall: false,
       mustDo: [],
       mustNotDo: [],
     },
@@ -70,7 +69,6 @@ describe('buildAlicizationMindTurnGovernance', () => {
       memory: {
         carriedFacts: [],
         recallKeys: [],
-        suppressAssociativeRecall: false,
       },
       self: {},
       obligation: {
@@ -244,7 +242,6 @@ describe('buildAlicizationMindTurnGovernance', () => {
             carriedThread: 'runtime.ts 当前 diff',
             carriedFacts: [],
             recallKeys: [],
-            suppressAssociativeRecall: true,
             labelCarryAsMemory: false,
           },
           self: {
@@ -294,8 +291,6 @@ describe('buildAlicizationMindTurnGovernance', () => {
       reasonTags: [],
       updatedAt: 1,
     }
-    ;(input.surfaceContract as any).suppressAssociativeRecall = true
-
     const result = buildAlicizationMindTurnGovernance(input)
 
     expect(result.claimEvidence).toBe(input.claimEvidenceLedger)

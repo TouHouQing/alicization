@@ -83,6 +83,7 @@ import { normalizeDialogueActKernel } from './dialogue-act-kernel'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { buildAlicizationEmotionalKernel } from './emotional-kernel'
 import { normalizeMindTurnFrame } from './mind-turn-frame'
+import { resolveAlicizationRecallFragmentBudget } from './recall-governor-budget'
 import {
   pickAlicizationTransparentRuntimeFailureText,
   sanitizeAlicizationTransparentRuntimeFailureText,
@@ -676,6 +677,7 @@ function normalizePersonaKernelMode(raw: unknown): AlicizationPersonaKernelMode 
 
 function normalizeSubconsciousFragmentSourceKind(raw: unknown): AlicizationSubconsciousFragmentSourceKind | null {
   return raw === 'active-demotion'
+    || raw === 'autobiographical-episode'
     || raw === 'dream-fragment'
     || raw === 'former-core-incarnation'
     || raw === 'unforged-shattering-event'
@@ -2115,7 +2117,6 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
     uncertaintyBoundary: sanitizeText(candidate.uncertaintyBoundary, 220) || null,
     careVector: null,
     nextMove: null,
-    suppressAssociativeRecall: candidate.suppressAssociativeRecall === true,
     labelCarryAsMemory: candidate.labelCarryAsMemory === true,
     maxSentences: Number.isFinite(Number(candidate.maxSentences))
       ? Math.max(1, Math.floor(Number(candidate.maxSentences)))
@@ -2561,16 +2562,9 @@ function normalizeRecallGovernor(raw: unknown): AlicizationRecallGovernorSnapsho
   const rationale = sanitizeText(candidate.rationale, 220)
   if (!rationale)
     return null
-  const allowRecalledFragments = candidate.allowRecalledFragments === true
-  const recalledFragmentCapRaw = Number(candidate.recalledFragmentCap)
-  const recalledFragmentCap = allowRecalledFragments
-    ? Number.isFinite(recalledFragmentCapRaw)
-      ? Math.max(1, Math.min(8, Math.floor(recalledFragmentCapRaw)))
-      : 2
-    : 0
-  const recalledFragmentSourceBudget: Array<{ sourceKind: AlicizationSubconsciousFragmentSourceKind, maxItems: number }> = []
+  const persistedSourceBudget: Array<{ sourceKind: AlicizationSubconsciousFragmentSourceKind, maxItems: number }> = []
   const seenSourceKinds = new Set<AlicizationSubconsciousFragmentSourceKind>()
-  if (allowRecalledFragments && Array.isArray(candidate.recalledFragmentSourceBudget)) {
+  if (Array.isArray(candidate.recalledFragmentSourceBudget)) {
     for (const item of candidate.recalledFragmentSourceBudget) {
       if (!item || typeof item !== 'object' || Array.isArray(item))
         continue
@@ -2580,15 +2574,23 @@ function normalizeRecallGovernor(raw: unknown): AlicizationRecallGovernorSnapsho
       const maxItemsRaw = Number((item as Record<string, unknown>).maxItems)
       if (!Number.isFinite(maxItemsRaw))
         continue
-      recalledFragmentSourceBudget.push({
+      const maxItems = Math.floor(maxItemsRaw)
+      if (maxItems <= 0)
+        continue
+      persistedSourceBudget.push({
         sourceKind,
-        maxItems: Math.max(0, Math.min(8, Math.floor(maxItemsRaw))),
+        maxItems: Math.min(8, maxItems),
       })
       seenSourceKinds.add(sourceKind)
-      if (recalledFragmentSourceBudget.length >= 10)
+      if (persistedSourceBudget.length >= 10)
         break
     }
   }
+  const recallFragmentBudget = resolveAlicizationRecallFragmentBudget({
+    mode,
+    recalledFragmentCap: candidate.recalledFragmentCap,
+    recalledFragmentSourceBudget: persistedSourceBudget,
+  })
 
   return {
     mode,
@@ -2618,11 +2620,7 @@ function normalizeRecallGovernor(raw: unknown): AlicizationRecallGovernorSnapsho
     recollectionIntent: candidate.recollectionIntent && typeof candidate.recollectionIntent === 'object'
       ? candidate.recollectionIntent as AlicizationRecallGovernorSnapshot['recollectionIntent']
       : null,
-    suppressAssociativeRecall: candidate.suppressAssociativeRecall === true,
-    allowActiveThoughts: candidate.allowActiveThoughts === true,
-    allowRecalledFragments,
-    recalledFragmentCap,
-    recalledFragmentSourceBudget,
+    ...recallFragmentBudget,
     carryAsMemory: candidate.carryAsMemory === true,
     rationale,
     narrative: Array.isArray(candidate.narrative)

@@ -835,14 +835,6 @@ export function buildAnswerCompiler(input: {
   const uncertaintyBoundary = evidenceMode === 'live-grounded' && repairLedger?.shouldConstrainPresentTense !== true
     ? null
     : sanitizeText(mindSynthesis.uncertainties[0]?.summary ?? mindSynthesis.truthBoundary, 220) || null
-  const suppressAssociativeRecall = conversationState?.memoryMode === 'suppress-associative'
-    || conversationState?.memoryMode === 'task-thread'
-    || conversationState?.memoryMode === 'scene-anchored'
-    || turnMode === 'screen-repair'
-    || turnMode === 'guide-current-knot'
-    || turnMode === 'grounded-inspection'
-    || evidenceMode === 'continuity-carry'
-    || evidenceMode === 'repair-first'
   const labelCarryAsMemory = discourseState.screenReferenceMode !== 'avoid'
     && (
       conversationState?.memoryMode === 'dialogue-carry'
@@ -891,7 +883,6 @@ export function buildAnswerCompiler(input: {
     uncertaintyBoundary: providerSafeUncertaintyBoundary,
     careVector: providerSafeCareVector,
     nextMove: providerSafeNextMove,
-    suppressAssociativeRecall,
     labelCarryAsMemory,
     maxSentences,
     mustDo: providerSafeMustDo,

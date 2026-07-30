@@ -1934,7 +1934,6 @@ describe('visual episodic memory', () => {
         uncertaintyBoundary: null,
         careVector: null,
         nextMove: null,
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
         maxSentences: 4,
         mustDo: [],
@@ -2079,7 +2078,6 @@ describe('visual episodic memory', () => {
         uncertaintyBoundary: null,
         careVector: null,
         nextMove: null,
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
         maxSentences: 4,
         mustDo: [],
@@ -3278,9 +3276,6 @@ describe('visual episodic memory', () => {
       recallGovernor: {
         mode: 'thread',
         recallSeed: 'ProjectAtlas diff | What is wrong with this diff? | project:Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-        suppressAssociativeRecall: true,
-        allowActiveThoughts: true,
-        allowRecalledFragments: false,
         recalledFragmentCap: 3,
         recalledFragmentSourceBudget: [
           { sourceKind: 'dialogue-turn', maxItems: 2 },
@@ -3305,8 +3300,8 @@ describe('visual episodic memory', () => {
     expect(state.replyDeliberation?.speakingFrom).toBe('task-thread')
     expect(state.recallGovernor?.mode).toBe('thread')
     expect(state.recallGovernor?.recallSeed).toContain('project:Alicization is a local-first digital life project')
-    expect(state.recallGovernor?.recalledFragmentCap).toBe(0)
-    expect(state.recallGovernor?.recalledFragmentSourceBudget).toEqual([])
+    expect(state.recallGovernor).not.toHaveProperty('recalledFragmentCap')
+    expect(state.recallGovernor).not.toHaveProperty('recalledFragmentSourceBudget')
   })
 
   it('migrates persisted reply state without reviving authored control fields', () => {
@@ -3359,7 +3354,6 @@ describe('visual episodic memory', () => {
         uncertaintyBoundary,
         careVector: legacyCareVector,
         nextMove: legacyControlCue,
-        suppressAssociativeRecall: false,
         labelCarryAsMemory: false,
         maxSentences: 4,
         mustDo: [legacyMustDo],
@@ -3496,7 +3490,6 @@ describe('visual episodic memory', () => {
           recallKeys: ['memory latency'],
           recallSeed: 'memory latency',
           lastOutcome: 'pending',
-          suppressAssociativeRecall: false,
           labelCarryAsMemory: false,
         },
         self: {
@@ -3758,7 +3751,7 @@ describe('visual episodic memory', () => {
     expect(next.dialogueEncounter?.mustAnswerDirectly).toBe(true)
   })
 
-  it('normalizes recall governor fragment cap and source budget when recalled fragments are enabled', () => {
+  it('normalizes positive recall budgets without boolean switches', () => {
     const state = normalizeVisualPresenceState({
       watchMode: 'mnemonic-passive',
       currentScene: null,
@@ -3767,9 +3760,9 @@ describe('visual episodic memory', () => {
       recallGovernor: {
         mode: 'emotional-resonance',
         recallSeed: 'late-night debugging',
-        suppressAssociativeRecall: false,
-        allowActiveThoughts: true,
-        allowRecalledFragments: true,
+        suppressAssociativeRecall: true,
+        allowActiveThoughts: false,
+        allowRecalledFragments: false,
         recalledFragmentCap: 99,
         recalledFragmentSourceBudget: [
           { sourceKind: 'reflection-ledger', maxItems: 2 },
@@ -3791,12 +3784,47 @@ describe('visual episodic memory', () => {
       updatedAt: 10_000,
     }, 10_000)
 
-    expect(state.recallGovernor?.allowRecalledFragments).toBe(true)
+    expect(state.recallGovernor).not.toHaveProperty('suppressAssociativeRecall')
+    expect(state.recallGovernor).not.toHaveProperty('allowActiveThoughts')
+    expect(state.recallGovernor).not.toHaveProperty('allowRecalledFragments')
     expect(state.recallGovernor?.recalledFragmentCap).toBe(8)
     expect(state.recallGovernor?.recalledFragmentSourceBudget).toEqual([
       { sourceKind: 'reflection-ledger', maxItems: 2 },
       { sourceKind: 'dialogue-turn', maxItems: 1 },
       { sourceKind: 'fact-ledger', maxItems: 1 },
+    ])
+  })
+
+  it('restores the emotional recall mode default positive budget when persisted values are missing', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      recallGovernor: {
+        mode: 'emotional-resonance',
+        recallSeed: 'late-night debugging',
+        carryAsMemory: true,
+        rationale: 'Carry emotionally relevant memory.',
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.recallGovernor?.recalledFragmentCap).toBe(3)
+    expect(state.recallGovernor?.recalledFragmentSourceBudget).toEqual([
+      { sourceKind: 'autobiographical-episode', maxItems: 1 },
+      { sourceKind: 'reflection-ledger', maxItems: 2 },
+      { sourceKind: 'dialogue-turn', maxItems: 1 },
+      { sourceKind: 'fact-ledger', maxItems: 1 },
+      { sourceKind: 'mind-continuity', maxItems: 1 },
+      { sourceKind: 'dream-fragment', maxItems: 1 },
     ])
   })
 
@@ -3831,9 +3859,6 @@ describe('visual episodic memory', () => {
           shouldFavorRecent: true,
           summary: 'Re-anchor on the live seam before broadening recall.',
         },
-        suppressAssociativeRecall: true,
-        allowActiveThoughts: false,
-        allowRecalledFragments: false,
         recalledFragmentCap: 0,
         recalledFragmentSourceBudget: [],
         carryAsMemory: true,
@@ -3872,6 +3897,7 @@ describe('visual episodic memory', () => {
       },
       rationale: 'Repair-first continuity should stay scene-bound here.',
     })
+    expect(state.recallGovernor).not.toHaveProperty('recalledFragmentCap')
   })
 
   it('preserves emotional kernel through normalization and update carry-forward', () => {

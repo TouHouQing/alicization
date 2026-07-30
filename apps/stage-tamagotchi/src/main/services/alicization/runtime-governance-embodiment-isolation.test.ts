@@ -14,7 +14,6 @@ function buildBaseInput() {
       openingStyle: 'direct-answer',
       relationshipPosture: 'warm',
       repairState: 'none',
-      suppressAssociativeRecall: false,
       labelCarryAsMemory: true,
       shouldAskForGrounding: false,
       shouldAcknowledgeRepair: false,
