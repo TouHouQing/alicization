@@ -36,7 +36,7 @@ describe('answer compiler project governance isolation', () => {
         activeCommitments: [],
         relationFrame: 'clarify',
         continuityPolicy: 'stay-on-thread',
-        memoryMode: 'suppress-associative',
+        memoryMode: 'dialogue-carry',
         memoryQueryHints: ['刚才的对话'],
         shouldHoldThread: true,
         confidence: 0.82,

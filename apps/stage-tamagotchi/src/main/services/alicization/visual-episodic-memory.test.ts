@@ -3304,6 +3304,74 @@ describe('visual episodic memory', () => {
     expect(state.recallGovernor).not.toHaveProperty('recalledFragmentSourceBudget')
   })
 
+  it('migrates retired associative suppression memory modes to dialogue carry', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      conversationState: {
+        jointThread: 'Continue the current conversation.',
+        hostMove: 'Where were we?',
+        activeProject: null,
+        unansweredQuestion: 'Where were we?',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'clarify',
+        continuityPolicy: 'answer-then-carry',
+        memoryMode: 'suppress-associative',
+        memoryQueryHints: ['current conversation'],
+        shouldHoldThread: true,
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      dialogueWorldThread: {
+        activeThread: 'Continue the current conversation.',
+        currentQuestion: 'Where were we?',
+        openLoops: ['Where were we?'],
+        recentlyResolvedLoops: [],
+        carriedFacts: [],
+        relationDrift: 'steady',
+        memoryMode: 'suppress-associative',
+        recallKeys: ['current conversation'],
+        lastUserMove: 'Where were we?',
+        lastAssistantMove: null,
+        lastOutcome: 'pending',
+        pendingValidation: null,
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      replyDeliberation: {
+        selectedMotive: 'answer',
+        speakingFrom: 'dialogue-bond',
+        memoryMode: 'suppress-associative',
+        openingBeat: '',
+        whyThisReplyNow: '',
+        whyNotOtherCandidates: [],
+        withheldImpulses: [],
+        candidateMotives: [],
+        shouldSpeak: true,
+        mustInclude: [],
+        mustAvoid: [],
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    } as any, 10_000)
+
+    expect(state.conversationState?.memoryMode).toBe('dialogue-carry')
+    expect(state.dialogueWorldThread?.memoryMode).toBe('dialogue-carry')
+    expect(state.replyDeliberation?.memoryMode).toBe('dialogue-carry')
+  })
+
   it('migrates persisted reply state without reviving authored control fields', () => {
     const legacyControlCue = '先把结果沿着同一条线接回来，再决定要不要展开。'
     const legacyOpeningDirective = 'Open with the callback result before anything else.'

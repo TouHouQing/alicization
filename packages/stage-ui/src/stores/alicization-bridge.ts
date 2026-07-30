@@ -1843,7 +1843,7 @@ export interface AlicizationMindTurnFrameRelationSnapshot {
 }
 
 export interface AlicizationMindTurnFrameMemorySnapshot {
-  memoryMode?: 'suppress-associative' | 'task-thread' | 'scene-anchored' | 'dialogue-carry' | 'emotional-resonance' | null
+  memoryMode?: 'task-thread' | 'scene-anchored' | 'dialogue-carry' | 'emotional-resonance' | null
   carriedThread?: string | null
   carriedFacts: string[]
   recallKeys: string[]

@@ -208,7 +208,7 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
       conversationState?.activeProject,
     ], 6),
     relationDrift: previous?.relationDrift ?? 'steady',
-    memoryMode: conversationState?.memoryMode ?? previous?.memoryMode ?? 'suppress-associative',
+    memoryMode: conversationState?.memoryMode ?? previous?.memoryMode ?? 'dialogue-carry',
     recallKeys: uniqueList([
       ...(previous?.recallKeys ?? []),
       activeThread,

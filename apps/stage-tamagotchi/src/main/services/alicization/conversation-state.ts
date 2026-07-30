@@ -90,7 +90,7 @@ function resolveMemoryMode(input: {
   ) {
     return 'emotional-resonance' as const satisfies AlicizationConversationMemoryMode
   }
-  return 'suppress-associative' as const satisfies AlicizationConversationMemoryMode
+  return 'dialogue-carry' as const satisfies AlicizationConversationMemoryMode
 }
 
 function resolveContinuityPolicy(input: {

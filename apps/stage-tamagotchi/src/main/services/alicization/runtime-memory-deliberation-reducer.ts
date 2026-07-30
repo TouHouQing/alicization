@@ -26,7 +26,7 @@ export function deriveMemoryDeliberationSurfaceMode(input: {
 }
 
 export function deriveMemoryDeliberationMemoryMode(input: {
-  existingMode: 'suppress-associative' | 'task-thread' | 'scene-anchored' | 'dialogue-carry' | 'emotional-resonance' | null
+  existingMode: 'task-thread' | 'scene-anchored' | 'dialogue-carry' | 'emotional-resonance' | null
   shouldStayInward: boolean
   surfacePolicy: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['surfacePolicy']
 }) {

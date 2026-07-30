@@ -8,6 +8,29 @@ import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('buildConversationState', () => {
+  it('uses dialogue carry as the default memory mode for an ordinary turn', () => {
+    const state = buildConversationState({
+      now: 5_000,
+      userText: '我们继续聊刚才的话题',
+      discourseState: {
+        currentTurnSubject: 'general',
+        screenReferenceMode: 'helpful',
+        currentTurnSummary: '继续当前对话。',
+        currentQuestion: '刚才说到哪里了？',
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+        continuityMode: 'dialogue-first',
+        unresolvedCarry: null,
+        ruptureRepair: null,
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 5_000,
+      },
+    } as any)
+
+    expect(state?.memoryMode).toBe('dialogue-carry')
+  })
+
   it('does not invent a conversational thread when no grounded or remembered text exists', () => {
     const state = buildConversationState({
       now: 5_000,

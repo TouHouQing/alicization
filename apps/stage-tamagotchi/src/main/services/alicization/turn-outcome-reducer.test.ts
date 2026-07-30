@@ -8,6 +8,15 @@ import {
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('turn-outcome-reducer', () => {
+  it('uses dialogue carry when an assistant turn has no prior memory mode', () => {
+    const next = registerDialogueWorldThreadAssistantTurn({
+      now: 10_000,
+      assistantText: '我们继续。',
+    })
+
+    expect(next?.memoryMode).toBe('dialogue-carry')
+  })
+
   it('marks the previous assistant move as aligned when the user stays on the same seam', () => {
     const next = settleDialogueWorldThreadOnUserTurn({
       now: 20_000,

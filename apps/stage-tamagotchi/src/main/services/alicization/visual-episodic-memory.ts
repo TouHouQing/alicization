@@ -675,6 +675,17 @@ function normalizePersonaKernelMode(raw: unknown): AlicizationPersonaKernelMode 
     : null
 }
 
+function normalizeConversationMemoryMode(raw: unknown): AlicizationConversationStateSnapshot['memoryMode'] | null {
+  if (raw === 'suppress-associative')
+    return 'dialogue-carry'
+  return raw === 'task-thread'
+    || raw === 'scene-anchored'
+    || raw === 'dialogue-carry'
+    || raw === 'emotional-resonance'
+    ? raw
+    : null
+}
+
 function normalizeSubconsciousFragmentSourceKind(raw: unknown): AlicizationSubconsciousFragmentSourceKind | null {
   return raw === 'active-demotion'
     || raw === 'autobiographical-episode'
@@ -1913,7 +1924,7 @@ function normalizeConversationState(raw: unknown): AlicizationConversationStateS
   const candidate = raw as Record<string, unknown>
   const relationFrame = candidate.relationFrame
   const continuityPolicy = candidate.continuityPolicy
-  const memoryMode = candidate.memoryMode
+  const memoryMode = normalizeConversationMemoryMode(candidate.memoryMode)
   if (
     (relationFrame !== 'self-disclose'
       && relationFrame !== 'attune'
@@ -1926,11 +1937,7 @@ function normalizeConversationState(raw: unknown): AlicizationConversationStateS
       && continuityPolicy !== 'answer-then-carry'
       && continuityPolicy !== 'scene-before-memory'
       && continuityPolicy !== 'dialogue-before-scene')
-    || (memoryMode !== 'suppress-associative'
-      && memoryMode !== 'task-thread'
-      && memoryMode !== 'scene-anchored'
-      && memoryMode !== 'dialogue-carry'
-      && memoryMode !== 'emotional-resonance')
+    || !memoryMode
   ) {
     return null
   }
@@ -2249,7 +2256,7 @@ function normalizeReplyDeliberation(raw: unknown): AlicizationReplyDeliberationS
   const candidate = raw as Record<string, unknown>
   const selectedMotive = candidate.selectedMotive
   const speakingFrom = candidate.speakingFrom
-  const memoryMode = candidate.memoryMode
+  const memoryMode = normalizeConversationMemoryMode(candidate.memoryMode)
   if (
     (selectedMotive !== 'repair'
       && selectedMotive !== 'guide'
@@ -2263,11 +2270,7 @@ function normalizeReplyDeliberation(raw: unknown): AlicizationReplyDeliberationS
       && speakingFrom !== 'dialogue-bond'
       && speakingFrom !== 'self-continuity'
       && speakingFrom !== 'held-memory')
-    || (memoryMode !== 'suppress-associative'
-      && memoryMode !== 'task-thread'
-      && memoryMode !== 'scene-anchored'
-      && memoryMode !== 'dialogue-carry'
-      && memoryMode !== 'emotional-resonance')
+    || !memoryMode
   ) {
     return null
   }
@@ -2460,15 +2463,11 @@ function normalizeDialogueWorldThread(raw: unknown): AlicizationDialogueWorldThr
     return null
   const candidate = raw as Record<string, unknown>
   const relationDrift = candidate.relationDrift
-  const memoryMode = candidate.memoryMode
+  const memoryMode = normalizeConversationMemoryMode(candidate.memoryMode)
   const lastOutcome = candidate.lastOutcome
   if (
     (relationDrift !== 'steady' && relationDrift !== 'warming' && relationDrift !== 'repairing' && relationDrift !== 'guarded')
-    || (memoryMode !== 'suppress-associative'
-      && memoryMode !== 'task-thread'
-      && memoryMode !== 'scene-anchored'
-      && memoryMode !== 'dialogue-carry'
-      && memoryMode !== 'emotional-resonance')
+    || !memoryMode
     || (lastOutcome !== 'none'
       && lastOutcome !== 'pending'
       && lastOutcome !== 'aligned'

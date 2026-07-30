@@ -2353,8 +2353,7 @@ export interface AlicizationMindSynthesisSnapshot {
 }
 
 export type AlicizationConversationMemoryMode
-  = | 'suppress-associative'
-    | 'task-thread'
+  = | 'task-thread'
     | 'scene-anchored'
     | 'dialogue-carry'
     | 'emotional-resonance'
