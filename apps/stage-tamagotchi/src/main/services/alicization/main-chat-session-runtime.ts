@@ -571,6 +571,44 @@ function normalizeAlicizationMemoryFailureErrorSummary(error: unknown) {
   return errorSummary || 'Long-term memory recall failed.'
 }
 
+function buildUnavailableLongTermMemoryEvidenceBundle(
+  currentUserText: string,
+  riskFlag: 'recall-failed' | 'recall-owner-unavailable',
+): LongTermMemoryEvidenceBundle {
+  return {
+    intent: {
+      mode: 'none',
+      shouldRecall: false,
+      confidence: 0,
+      rationale: 'Long-term memory recall is unavailable.',
+      temporalFocus: 'unspecified',
+      targetKinds: [],
+      queryHints: [],
+      riskFlags: [riskFlag],
+    },
+    plan: {
+      rawQuery: currentUserText,
+      normalizedQuery: currentUserText,
+      keywordQueries: [],
+      phraseQueries: [],
+      charGramQueries: [],
+      semanticQueries: [],
+      episodicQueries: [],
+      temporalHints: [],
+      entityHints: [],
+      procedureHints: [],
+      threadHints: [],
+      negativeCues: [],
+      confidencePolicy: 'direct',
+      riskFlags: [riskFlag],
+      targetKinds: [],
+    },
+    evidence: [],
+    confidence: 0,
+    budgetClass: 'none',
+  }
+}
+
 function isolateProviderMindTurnContractFromProjectGovernance(
   contract: AlicizationMindTurnContractSnapshot,
 ) {
@@ -3086,11 +3124,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
     workingMemoryStore.upsert(workingMemoryPrompt.snapshot)
     let longTermMemoryBundle: LongTermMemoryEvidenceBundle | null = null
+    const currentUserText = readLatestUserMessageText(providerPlanningMessages)
     if (options.retrieveLongTermMemoryEvidence) {
       try {
         longTermMemoryBundle = await options.retrieveLongTermMemoryEvidence({
           cardId: payload.cardId,
-          currentUserText: readLatestUserMessageText(providerPlanningMessages),
+          currentUserText,
           workingMemoryQueryHints: workingMemoryPrompt.ownerContext.queryHints,
           currentThreadTitle: workingMemoryPrompt.ownerContext.current.threadTitle,
           activeTask: workingMemoryPrompt.ownerContext.current.activeTask,
@@ -3098,38 +3137,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         })
       }
       catch (error) {
-        longTermMemoryBundle = {
-          intent: {
-            mode: 'none',
-            shouldRecall: false,
-            confidence: 0,
-            rationale: 'Long-term memory recall failed.',
-            temporalFocus: 'unspecified',
-            targetKinds: [],
-            queryHints: [],
-            riskFlags: ['recall-failed'],
-          },
-          plan: {
-            rawQuery: readLatestUserMessageText(runtimeSurface.messages),
-            normalizedQuery: readLatestUserMessageText(runtimeSurface.messages),
-            keywordQueries: [],
-            phraseQueries: [],
-            charGramQueries: [],
-            semanticQueries: [],
-            episodicQueries: [],
-            temporalHints: [],
-            entityHints: [],
-            procedureHints: [],
-            threadHints: [],
-            negativeCues: [],
-            confidencePolicy: 'direct',
-            riskFlags: ['recall-failed'],
-            targetKinds: [],
-          },
-          evidence: [],
-          confidence: 0,
-          budgetClass: 'none',
-        }
+        longTermMemoryBundle = buildUnavailableLongTermMemoryEvidenceBundle(
+          currentUserText,
+          'recall-failed',
+        )
         memoryFailures.push({
           ...resolveAlicizationChatFailureSurface({
             kind: 'recall-failure',
@@ -3141,6 +3152,22 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
         })
       }
+    }
+    else {
+      longTermMemoryBundle = buildUnavailableLongTermMemoryEvidenceBundle(
+        currentUserText,
+        'recall-owner-unavailable',
+      )
+      memoryFailures.push({
+        ...resolveAlicizationChatFailureSurface({
+          kind: 'recall-failure',
+        }),
+        stage: 'long-term-memory-recall',
+        cardId: payload.cardId,
+        turnId: payload.turnId,
+        occurredAt: now,
+        errorSummary: 'LongTermMemoryRecall owner is unavailable.',
+      })
     }
     const memoryContext = buildAlicizationMainChatMemoryContext({
       workingMemory: workingMemoryPrompt.ownerContext,

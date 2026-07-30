@@ -6,6 +6,7 @@ import type {
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 import type { AlicizationAgentSessionContinuityInput } from './agent-runtime'
+import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 import type {
   AlicizationPreparedMainChatPrelude,
 } from './main-chat-session-runtime'
@@ -521,6 +522,43 @@ function createCapabilities(): AlicizationChannelCapability[] {
     { channel: 'claude-code', available: true, enabled: true, ready: true, sessionAffinity: true, reason: null },
     { channel: 'openclaw', available: false, enabled: false, ready: false, sessionAffinity: true, reason: 'offline' },
   ]
+}
+
+function createEmptyLongTermMemoryEvidenceBundle(
+  currentUserText = '',
+): LongTermMemoryEvidenceBundle {
+  return {
+    intent: {
+      mode: 'none',
+      shouldRecall: false,
+      confidence: 0,
+      rationale: 'No durable memory signal.',
+      temporalFocus: 'unspecified',
+      targetKinds: [],
+      queryHints: [],
+      riskFlags: [],
+    },
+    plan: {
+      rawQuery: currentUserText,
+      normalizedQuery: currentUserText,
+      keywordQueries: [],
+      phraseQueries: [],
+      charGramQueries: [],
+      semanticQueries: [],
+      episodicQueries: [],
+      temporalHints: [],
+      entityHints: [],
+      procedureHints: [],
+      threadHints: [],
+      negativeCues: [],
+      confidencePolicy: 'direct',
+      riskFlags: [],
+      targetKinds: [],
+    },
+    evidence: [],
+    confidence: 0,
+    budgetClass: 'none',
+  }
 }
 
 function createOpenAgentTurn(getSensorySnapshot: () => Promise<AlicizationSensoryCacheSnapshot>) {
@@ -1061,6 +1099,8 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         retrievedFacts: [],
         recalledFragments: [],
       })),
+      retrieveLongTermMemoryEvidence: vi.fn(async input =>
+        createEmptyLongTermMemoryEvidenceBundle(input.currentUserText)),
       resolveSessionContinuitySignals: vi.fn(async () => []),
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
@@ -1231,6 +1271,8 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         retrievedFacts: [],
         recalledFragments: [],
       })),
+      retrieveLongTermMemoryEvidence: vi.fn(async input =>
+        createEmptyLongTermMemoryEvidenceBundle(input.currentUserText)),
       resolveSessionContinuitySignals: vi.fn(async () => []),
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
@@ -4875,6 +4917,8 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         retrievedFacts: [],
         recalledFragments: [],
       })),
+      retrieveLongTermMemoryEvidence: vi.fn(async input =>
+        createEmptyLongTermMemoryEvidenceBundle(input.currentUserText)),
       resolveSessionContinuitySignals: vi.fn(async () => []),
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
       scheduleReminderTask: vi.fn(async () => ({ ok: true })),
@@ -5005,7 +5049,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         version: 'working-memory-owner-context-v1',
         owner: 'working-memory',
       },
-      longTermRecall: null,
+      longTermRecall: {
+        owner: 'long-term-memory-recall',
+        status: 'empty',
+        evidence: [],
+      },
       availableLongTermEvidenceIds: [],
     })
     expect(result.memoryFailures).toEqual([])
@@ -5540,6 +5588,46 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(JSON.stringify(result.messages)).not.toContain('recall offline')
     expect(result.memoryContext.providerSystemBlock).not.toContain(failure.reply)
     expect(JSON.stringify(result.messages)).not.toContain(failure.reply)
+  })
+
+  it('surfaces a missing LongTermMemoryRecall owner instead of silently treating recall as empty', async () => {
+    const occurredAt = 1_710_000_000_000
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      getNow: () => occurredAt,
+      retrieveLongTermMemoryEvidence: undefined,
+    })
+    const messages: Message[] = [{
+      role: 'user',
+      content: '你还记得我们上次做到哪里吗？',
+    }]
+    const prelude = createReflectivePrelude({ messages })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-missing-long-term-memory-owner',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    expect(result.memoryContext.workingMemory.owner).toBe('working-memory')
+    expect(result.memoryContext.longTermRecall?.status).toBe('empty')
+    expect(result.memoryContext.longTermRecall?.evidence).toEqual([])
+    expect(result.memoryFailures).toEqual([
+      expect.objectContaining({
+        kind: 'recall-failure',
+        stage: 'long-term-memory-recall',
+        cardId: 'default',
+        turnId: 'turn-missing-long-term-memory-owner',
+        occurredAt,
+        errorSummary: 'LongTermMemoryRecall owner is unavailable.',
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      }),
+    ])
   })
 
   it('replaces an existing typed memory context without dropping ordinary messages', async () => {

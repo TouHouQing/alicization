@@ -14,6 +14,7 @@ import type {
   AlicizationReplayHumanRatingRubric,
   AlicizationSensoryCacheSnapshot,
 } from '../../../shared/eventa'
+import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 import type { AlicizationPreparedMainChatExecutionResult, AlicizationPreparedMainChatPrelude } from './main-chat-session-runtime'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationTurnGraph } from './turn-os/turn-graph'
@@ -78,6 +79,43 @@ function createSensorySnapshot() {
     },
     capture: null,
   } satisfies AlicizationSensoryCacheSnapshot
+}
+
+function createEmptyLongTermMemoryEvidenceBundle(
+  currentUserText: string,
+): LongTermMemoryEvidenceBundle {
+  return {
+    intent: {
+      mode: 'none',
+      shouldRecall: false,
+      confidence: 0,
+      rationale: 'No durable memory signal.',
+      temporalFocus: 'unspecified',
+      targetKinds: [],
+      queryHints: [],
+      riskFlags: [],
+    },
+    plan: {
+      rawQuery: currentUserText,
+      normalizedQuery: currentUserText,
+      keywordQueries: [],
+      phraseQueries: [],
+      charGramQueries: [],
+      semanticQueries: [],
+      episodicQueries: [],
+      temporalHints: [],
+      entityHints: [],
+      procedureHints: [],
+      threadHints: [],
+      negativeCues: [],
+      confidencePolicy: 'direct',
+      riskFlags: [],
+      targetKinds: [],
+    },
+    evidence: [],
+    confidence: 0,
+    budgetClass: 'none',
+  }
 }
 
 function createCapabilities(): AlicizationChannelCapability[] {
@@ -4554,6 +4592,8 @@ export async function replayMainChatSession(input: {
       recalledFragments: [],
       memoryTuningAdvice: null,
     },
+    retrieveLongTermMemoryEvidence: async input =>
+      createEmptyLongTermMemoryEvidenceBundle(input.currentUserText),
     resolveSessionContinuitySignals: async () => [],
     resolveTaskPlanningCapabilities: async () => createCapabilities(),
     scheduleReminderTask: async () => ({ ok: true } as any),
