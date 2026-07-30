@@ -50,11 +50,12 @@ export function buildBrowserRecollectionForeground(input: {
     provenance: selected.dominantProvenance,
   })
   const summary = sanitizeBriefText(selected.summary || selected.lesson || selected.periodKey, 220)
+  const evidence = sanitizeBriefText(selected.lesson || selected.summary, 220)
   const surfaceSummary = selected.kind === 'procedural'
-    ? sanitizeBriefText(`surface=inward | contour=let the remembered procedure quietly bend the next answer | cue=${selected.lesson || selected.summary}`, 220)
+    ? sanitizeBriefText(`surface=inward | mode=execution-procedure | evidence=${evidence}`, 220)
     : input.hostPersonModel?.trustLadder.stage === 'guarded'
-      ? sanitizeBriefText(`surface=inward | contour=keep the remembered bond or phase inward until the opening is clearer | cue=${selected.summary}`, 220)
-      : sanitizeBriefText(`surface=visible-optional | contour=if it helps, let one brief remembered gesture lead | cue=${selected.summary}`, 220)
+      ? sanitizeBriefText(`surface=inward | mode=relationship-history | evidence=${evidence}`, 220)
+      : sanitizeBriefText(`surface=visible-optional | mode=${mode} | evidence=${evidence}`, 220)
 
   return {
     mode,
@@ -73,13 +74,15 @@ export function buildBrowserRecollectionIntent(input: {
   if (!foreground)
     return null
 
+  const temporalFocus = foreground.mode === 'execution-procedure'
+    ? 'experience-matched' as const
+    : foreground.mode === 'relationship-history' || foreground.mode === 'autobiographical-history'
+      ? 'cross-session' as const
+      : 'recent-or-mid' as const
+
   return {
     mode: foreground.mode,
-    temporalFocus: foreground.mode === 'execution-procedure'
-      ? 'experience-matched' as const
-      : foreground.mode === 'relationship-history' || foreground.mode === 'autobiographical-history'
-        ? 'cross-session' as const
-        : 'recent-or-mid' as const,
+    temporalFocus,
     searchEpisodes: true,
     searchConversations: foreground.mode !== 'execution-procedure',
     searchProceduralExperience: foreground.mode === 'execution-procedure' || foreground.mode === 'experience-pattern',
@@ -87,11 +90,7 @@ export function buildBrowserRecollectionIntent(input: {
       item.periodKey,
       ...item.cues.slice(0, 2),
     ]).filter(Boolean).slice(0, 8),
-    rationale: foreground.mode === 'execution-procedure'
-      ? 'Browser fallback is carrying a remembered way of doing this task.'
-      : foreground.mode === 'relationship-history'
-        ? 'Browser fallback is carrying a remembered relationship-era seam.'
-        : 'Browser fallback is carrying remembered autobiographical continuity.',
+    rationale: `source=browser-memory | mode=${foreground.mode} | recall=${temporalFocus}`,
     confidence: foreground.confidence,
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['recollectionIntent']>
 }
@@ -113,9 +112,7 @@ export function buildBrowserRecollectionPlan(input: {
     selectedConversationTurnIds: [],
     opening: foreground.summary,
     certainty: foreground.certainty,
-    rationale: selected?.kind === 'procedural'
-      ? 'Browser fallback foregrounded a remembered procedure before speaking.'
-      : 'Browser fallback foregrounded the strongest remembered phase before speaking.',
+    rationale: `source=browser-memory | selected=${selected?.kind === 'procedural' ? 'procedural' : 'phase'}`,
     confidence: foreground.confidence,
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['recollectionPlan']>
 }
@@ -141,9 +138,7 @@ export function buildBrowserRecollectionSpeechPlan(input: {
       ? 'inside-payoff'
       : 'internal-only',
     certainty: foreground.certainty,
-    rationale: shouldSurface
-      ? 'Browser fallback can let this recollection briefly contour the visible answer.'
-      : 'Browser fallback should keep this recollection inward and continuity-shaped.',
+    rationale: `source=browser-memory | surface=${shouldSurface ? 'visible-optional' : 'inward'} | mode=${foreground.mode}`,
     confidence: foreground.confidence,
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['recollectionSpeechPlan']>
 }
@@ -218,11 +213,7 @@ export function buildBrowserSelfEvolution(input: {
     burdenLine,
     trustMeaning,
     nextLearningAction,
-    nextLearningReason: nextLearningAction === 'reflect'
-      ? 'Browser fallback is carrying a fragile repair/boundary seam and should consolidate it before widening warmth.'
-      : nextLearningAction === 'internalize'
-        ? 'Browser fallback has seen a stable enough procedural carry to keep it as a durable local skill line.'
-        : 'Browser fallback should keep recording this continuity line before promoting it.',
+    nextLearningReason: null,
     shouldRecord: nextLearningAction === 'record',
     shouldReflect: nextLearningAction === 'reflect',
     shouldVerify: false,
@@ -266,7 +257,7 @@ export function buildBrowserMemoryStageReplay(input: {
     stages: [
       {
         stage: 'candidate-ranking',
-        summary: sanitizeBriefText(summary || 'Browser fallback ranked the strongest remembered continuity line.', 220),
+        summary: sanitizeBriefText(summary, 220),
         latencyMs: 0,
         budgetClass: 'realtime-reply',
         outputs: [input.recollectionForeground?.mode ?? 'none'],
@@ -286,7 +277,7 @@ export function buildBrowserMemoryStageReplay(input: {
       },
       {
         stage: 'self-evolution-integration',
-        summary: sanitizeBriefText(input.selfEvolution?.summary ?? 'Browser fallback synthesized local learning pressure.', 220),
+        summary: sanitizeBriefText(input.selfEvolution?.summary ?? '', 220),
         latencyMs: 0,
         budgetClass: 'realtime-reply',
         outputs: [input.selfEvolution?.nextLearningAction ?? 'hold'],
@@ -323,19 +314,19 @@ export function buildBrowserMemoryResolutionLedger(input: {
   return {
     version: 'memory-resolution-ledger-v1',
     producedAt: input.now(),
-    dominantClusterId: 'browser-fallback:primary',
+    dominantClusterId: 'browser-memory:primary',
     dominantClusterSummary: sanitizeBriefText(summary, 220),
     competingClusterId: null,
     competingClusterSummary: null,
     candidates: [{
-      id: 'browser-fallback:primary',
+      id: 'browser-memory:primary',
       summary: sanitizeBriefText(summary, 220),
       score: input.recollectionForeground?.confidence ?? input.recollectionPlan?.confidence ?? 0.5,
       status: 'selected',
       reason: sanitizeBriefText(input.recollectionPlan?.rationale ?? input.recollectionSpeechPlan?.rationale ?? summary, 220) || null,
     }],
     selectedCandidates: [{
-      id: 'browser-fallback:primary',
+      id: 'browser-memory:primary',
       summary: sanitizeBriefText(summary, 220),
       score: surfaceConfidence,
       status: 'selected',
