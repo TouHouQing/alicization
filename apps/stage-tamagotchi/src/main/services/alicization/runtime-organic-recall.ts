@@ -136,20 +136,28 @@ export function selectPromptActiveThoughts(input: {
       .map(term => normalizeOrganicRecallText(term).toLowerCase())
       .filter(Boolean),
   ))
+  const recentThoughts = [...activeThoughts]
+    .sort((left, right) => right.updatedAt - left.updatedAt)
   if (uniqueTerms.length === 0)
-    return input.recallSeed ? [] : activeThoughts.slice(0, 2)
+    return recentThoughts.slice(0, 3)
 
-  return activeThoughts
+  const rankedThoughts = activeThoughts
     .map(thought => ({
       thought,
       score: scoreOrganicThoughtForPrompt(thought.text, uniqueTerms),
     }))
-    .filter(item => item.score > 0)
     .sort((left, right) => {
       if (left.score !== right.score)
         return right.score - left.score
       return right.thought.updatedAt - left.thought.updatedAt
     })
-    .slice(0, 3)
+  const matchingThoughts = rankedThoughts
+    .filter(item => item.score > 0)
     .map(item => item.thought)
+  const matchingIds = new Set(matchingThoughts.map(thought => thought.id))
+
+  return [
+    ...matchingThoughts,
+    ...recentThoughts.filter(thought => !matchingIds.has(thought.id)),
+  ].slice(0, 3)
 }

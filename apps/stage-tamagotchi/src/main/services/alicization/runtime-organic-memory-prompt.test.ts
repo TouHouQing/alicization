@@ -79,7 +79,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.projectStateContinuity).toBeNull()
   })
 
-  it('keeps working-memory active thoughts when legacy recall governance requests suppression', async () => {
+  it('keeps working-memory active thoughts when long-term recall uses a different seed', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
       selectPromptActiveThoughts,
@@ -88,7 +88,7 @@ describe('runtime-organic-memory-prompt', () => {
         coreIncarnation: '',
         activeThoughts: [{
           id: 'thought-current-task',
-          text: '继续验证真实记忆召回链路。',
+          text: '用户刚刚补充了当前对话要求。',
           createdAt: 1,
         } as any],
       }),
@@ -108,14 +108,12 @@ describe('runtime-organic-memory-prompt', () => {
 
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: '继续验证记忆链路',
-      recallGovernor: {
-      } as any,
     })
 
     expect(context.activeThoughts).toEqual([
       expect.objectContaining({
         id: 'thought-current-task',
-        text: '继续验证真实记忆召回链路。',
+        text: '用户刚刚补充了当前对话要求。',
       }),
     ])
   })
