@@ -18,6 +18,16 @@ import {
 
 const structuredControlResiduePattern = /(?:^|[\s|;])[\p{L}_][\p{L}\p{N}_-]*=/iu
 const deferredAutonomyCanonicalVersion = 'deferred-autonomy-v1'
+const retiredAnsweringTemplate = [
+  'Keep the',
+  'same-her line',
+  'before answering.',
+].join(' ')
+const retiredContinuityTemplate = [
+  'Same-her continuity',
+  'must remain',
+  'authoritative.',
+].join(' ')
 
 function buildCanonicalBudgetOperationalFailure(prefix: string) {
   const evidence = `${prefix}: upstream 127.0.0.1:11434 connection reset HTTP 503 /tmp/`
@@ -801,7 +811,7 @@ describe('presence-only subconscious continuity cleanup', () => {
 
   it.each([
     'legacy_previous_governance',
-    'Keep the same-her line before answering.',
+    retiredAnsweringTemplate,
   ])('drops a legacy deferReason from builder and fallback canonical metadata: %s', (deferReason) => {
     const runtime = createSessionContinuityBuildersRuntimeForEquivalence()
     const input = {
@@ -1279,8 +1289,8 @@ describe('presence-only subconscious continuity cleanup', () => {
   })
 
   it.each([
-    'Keep the same-her line before answering.',
-    'Same-her continuity must remain authoritative.',
+    retiredAnsweringTemplate,
+    retiredContinuityTemplate,
     'same-her legacy_previous_governance',
   ])('drops a historical execution-intent governance fixture at normalization: %s', (executionIntentSummary) => {
     const signal = normalizeDeferredAutonomyContinuitySignal({

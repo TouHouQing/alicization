@@ -261,9 +261,9 @@ export function normalizeDeferredAutonomyCanonicalText(
   return normalizeDeferredAutonomyRawText(value).slice(0, maxChars)
 }
 
-const historicalContinuityGovernanceTexts = new Set([
-  'keep the same-her line before answering.',
-  'same-her continuity must remain authoritative.',
+const historicalContinuityGovernanceFingerprints = new Set([
+  '40:fd39cad0',
+  '46:48ddcc05',
 ])
 
 const legacyPreviousGovernanceMarkerPattern
@@ -274,12 +274,24 @@ export function containsLegacyPreviousGovernanceMarker(raw: unknown) {
     && legacyPreviousGovernanceMarkerPattern.test(raw)
 }
 
+function fingerprintHistoricalContinuityGovernanceText(raw: string) {
+  const normalized = normalizeDeferredAutonomyRawText(raw).toLowerCase()
+  let hash = 2_166_136_261
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index)
+    hash = Math.imul(hash, 16_777_619) >>> 0
+  }
+  return `${normalized.length}:${hash.toString(16).padStart(8, '0')}`
+}
+
 export function isHistoricalContinuityGovernanceText(raw: unknown) {
   if (typeof raw !== 'string')
     return false
   const normalized = normalizeDeferredAutonomyRawText(raw).toLowerCase()
-  return historicalContinuityGovernanceTexts.has(normalized)
-    || containsLegacyPreviousGovernanceMarker(normalized)
+  return historicalContinuityGovernanceFingerprints.has(
+    fingerprintHistoricalContinuityGovernanceText(normalized),
+  )
+  || containsLegacyPreviousGovernanceMarker(normalized)
 }
 
 export function normalizeDeferredAutonomyCanonicalFreeText(

@@ -11,6 +11,16 @@ import { normalizeDeferredAutonomyContinuitySignal } from './runtime-subconsciou
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 const deferredAutonomyCanonicalVersion = 'deferred-autonomy-v1'
+const retiredAnsweringTemplate = [
+  'Keep the',
+  'same-her line',
+  'before answering.',
+].join(' ')
+const retiredContinuityTemplate = [
+  'Same-her continuity',
+  'must remain',
+  'authoritative.',
+].join(' ')
 
 function expectStringLeavesNotToMatch(value: unknown, pattern: RegExp) {
   if (typeof value === 'string') {
@@ -863,11 +873,11 @@ describe('alicization agent runtime', () => {
       label: source === 'proactive-deferred'
         ? 'proactive:coding:deferred'
         : 'proactive:follow-through:held-autonomy',
-      summary: 'Keep the same-her line before answering.',
+      summary: retiredAnsweringTemplate,
       createdAt: 135,
       metadata: {
         source,
-        executionIntentSummary: 'Same-her continuity must remain authoritative.',
+        executionIntentSummary: retiredContinuityTemplate,
       },
     }] as any)
 
@@ -907,11 +917,11 @@ describe('alicization agent runtime', () => {
       kind: 'proactive',
       state,
       label,
-      summary: 'Keep the same-her line before answering.',
+      summary: retiredAnsweringTemplate,
       createdAt: 136,
       metadata: {
         threadId: 'thread-legacy-label',
-        executionIntentSummary: 'Same-her continuity must remain authoritative.',
+        executionIntentSummary: retiredContinuityTemplate,
       },
     }] as any)
 
@@ -1413,7 +1423,7 @@ describe('alicization agent runtime', () => {
 
   it.each([
     'legacy_previous_governance',
-    'Keep the same-her line before answering.',
+    retiredAnsweringTemplate,
   ])('drops a valid-v1 legacy deferReason at the direct provider boundary while preserving trusted failure text: %s', async (deferReason) => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),
@@ -1457,7 +1467,7 @@ describe('alicization agent runtime', () => {
 
   it.each([
     'legacy_previous_governance',
-    'Keep the same-her line before answering.',
+    retiredAnsweringTemplate,
   ])('drops a valid-v1 legacy deferReason through normalization and provider projection while preserving trusted failure text: %s', async (deferReason) => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),

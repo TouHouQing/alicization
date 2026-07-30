@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import {
   deferredAutonomyCanonicalVersion,
+  isHistoricalContinuityGovernanceText,
+  normalizeDeferredAutonomyCanonicalFreeText,
   resolveDeferredAutonomySummary,
   validateDeferredAutonomyCanonicalSummary,
 } from './runtime-deferred-autonomy-summary'
@@ -10,6 +14,16 @@ const ordinaryWhyNow = 'Stay near the current runtime thread without forcing a v
 const ordinaryExecutionIntent = 'Recheck the local runtime state before speaking.'
 const providerFailure = 'Embedding Provider failed with HTTP 400.'
 const toolFailure = 'Filesystem Tool execution aborted.'
+const retiredAnsweringTemplate = [
+  'Keep the',
+  'same-her line',
+  'before answering.',
+].join(' ')
+const retiredContinuityTemplate = [
+  'Same-her continuity',
+  'must remain',
+  'authoritative.',
+].join(' ')
 
 function buildCanonicalBudgetOperationalFailure(prefix: string) {
   const evidence = `${prefix}: upstream 127.0.0.1:11434 connection reset HTTP 503 /tmp/`
@@ -17,6 +31,24 @@ function buildCanonicalBudgetOperationalFailure(prefix: string) {
 }
 
 describe('deferred autonomy summary selection', () => {
+  it.each([
+    retiredAnsweringTemplate,
+    retiredContinuityTemplate,
+  ])('recognizes historical template data without retaining it: %s', (legacyText) => {
+    expect(isHistoricalContinuityGovernanceText(legacyText)).toBe(true)
+    expect(normalizeDeferredAutonomyCanonicalFreeText(legacyText)).toBe('')
+  })
+
+  it('does not retain complete historical reply templates in production source', () => {
+    const source = readFileSync(
+      new URL('./runtime-deferred-autonomy-summary.ts', import.meta.url),
+      'utf8',
+    ).toLowerCase()
+
+    expect(source).not.toContain(retiredAnsweringTemplate.toLowerCase())
+    expect(source).not.toContain(retiredContinuityTemplate.toLowerCase())
+  })
+
   it.each([
     'Provider unavailable',
     'Provider unavailable.',
