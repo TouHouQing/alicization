@@ -74,6 +74,17 @@ describe('fixed reply governance removal', () => {
     expect(source).not.toContain('continuity_policy=project_state_required')
   })
 
+  it('does not serialize continuity governance into the organic-memory recall query', () => {
+    const compositionSource = readServiceSource('./runtime-turn-composition.ts')
+    const sessionRuntimeSource = readServiceSource('./main-chat-session-runtime.ts')
+
+    expect(compositionSource).not.toContain('buildSessionContinuityRecallSeed')
+    expect(compositionSource).not.toMatch(
+      /continuity_afterglow:|reason_code=|defer_reason=|model_summary=/u,
+    )
+    expect(sessionRuntimeSource).not.toContain('buildSessionContinuityRecallSeed')
+  })
+
   it('does not assemble session, organic-memory, or performance governance prompts for main chat', () => {
     const source = readServiceSource('./main-chat-session-runtime.ts')
     const removedBuilderName = ['buildOrganicMemory', 'SystemBlocks'].join('')
@@ -83,6 +94,27 @@ describe('fixed reply governance removal', () => {
     expect(source).not.toContain(removedBuilderName)
     expect(source).not.toContain('buildPerformanceManifestSystemBlocks(performanceManifest)')
     expect(source).not.toContain('agentTurn.buildSessionSystemBlock()')
+  })
+
+  it('uses the typed Provider fact allowlist instead of parsing legacy dialogue governance fields', () => {
+    const sessionSource = readServiceSource('./main-chat-session-runtime.ts')
+    const surfaceSource = readServiceSource('./main-chat-runtime-surface.ts')
+
+    expect(surfaceSource).toContain('filterAlicizationProviderSystemMessages')
+    expect(sessionSource).not.toMatch(
+      /sanitizeOrdinaryDialogueProviderMessages|sanitizeOrdinaryDialogueProviderSystemBlock|sanitizeOrdinaryDialogueTypedProviderFact|ordinaryDialogueFixedGovernanceCuePattern|ordinaryDialogueFixedGovernanceFieldNamePattern/u,
+    )
+  })
+
+  it('keeps one dialogue runtime instead of switching to a tool-suppressing fast path', () => {
+    const sources = [
+      readServiceSource('./main-chat-runtime-surface.ts'),
+      readServiceSource('./main-chat-session-runtime.ts'),
+    ].join('\n')
+
+    expect(sources).not.toMatch(
+      /dialogueFirstLeanRuntime|dialogueFirstLivingPromptMode|shouldUseDialogueFirstLivingPromptMode|skipExecutionPhaseTracking/u,
+    )
   })
 
   it('does not send fixed evidence or continuity governance to internal Providers', () => {
@@ -486,8 +518,6 @@ describe('fixed reply governance removal', () => {
     const sources = [
       readServiceSource('./runtime-governance.ts'),
       readServiceSource('./self-evolution/state-revision-bus.ts'),
-      readServiceSource('./self-evolution/emotional-self-revision-bridge.ts'),
-      readServiceSource('./self-evolution/embodiment-self-revision-bridge.ts'),
       readServiceSource('./runtime-organic-memory-self-evolution-integration.ts'),
       readServiceSource('./runtime-execution-delivery.ts'),
       readRepoSource('packages/stage-shared/src/alicization-transport-contracts.ts'),
@@ -501,6 +531,64 @@ describe('fixed reply governance removal', () => {
     )
     expect(readServiceSource('./runtime-governance.ts')).not.toContain(
       'buildPrioritizedProjectStateRewritePreserveLines',
+    )
+  })
+
+  it('does not let legacy continuity cues reshape runtime emotion, embodiment, or memory authority', () => {
+    const source = readServiceSource('./runtime-governance.ts')
+
+    expect(source).not.toMatch(
+      /pendingSameHerEmbodimentRepairPressure|repairProjectStateCarryOnDigitalLifeSpine|inferProjectStateCarrySourceTagsFromAuthority|readHumanlikeRecallEmbodimentCarry|detectRememberedSeamReinterpretationForGovernance/u,
+    )
+    expect(source).not.toMatch(
+      /concerned-but-restrained|concerned measured-return continuation|gentle and not widen the line|stay concerned but measured-return|humanlike_memory_recall:|embodiment_voice=/u,
+    )
+    expect(source).not.toContain('buildPrioritizedProjectStateContinuityLines')
+  })
+
+  it('removes legacy continuity compatibility slots instead of recursively sanitizing them downstream', () => {
+    const governanceSource = readServiceSource('./runtime-governance.ts')
+    const mindStateSource = readServiceSource('./runtime-mind-state.ts')
+    const selfEvolutionSource = readServiceSource('./runtime-organic-memory-self-evolution-integration.ts')
+    const initiativeSource = readServiceSource('./initiative-engine.ts')
+    const sharedSources = [
+      readRepoSource('packages/stage-shared/src/alicization-transport-contracts.ts'),
+      readRepoSource('packages/stage-shared/src/alicization-derived-mind-state-bundle.ts'),
+      readRepoSource('packages/stage-shared/src/alicization-memory-decision-trace.ts'),
+      readRepoSource('packages/stage-shared/src/alicization-derived-mind-state-reader.ts'),
+      readRepoSource('apps/stage-tamagotchi/src/shared/eventa.ts'),
+    ].join('\n')
+
+    expect(governanceSource).not.toMatch(
+      /stripLegacyEmbodimentGovernanceValue|legacyEmbodimentGovernanceKeys|legacyEmbodimentGovernanceValuePattern/u,
+    )
+    expect(mindStateSource).not.toMatch(
+      /projectOrganicMemoryContext|activeContinuityGovernance:\s*_activeContinuityGovernance|projectStatePreDialogueAwarenessLine:\s*_projectStatePreDialogueAwarenessLine|projectStatePreflightSummary:\s*_projectStatePreflightSummary/u,
+    )
+    expect(mindStateSource).not.toContain('activeContinuityGovernance: null')
+    expect(selfEvolutionSource).not.toMatch(
+      /activeContinuityGovernance|legacyProjectGovernancePatch/u,
+    )
+    expect(initiativeSource).not.toMatch(
+      /activeContinuityGovernance|sameHerCausalityRepairPressure|deriveActiveContinuityGovernanceInitiativeBias/u,
+    )
+    expect(sharedSources).not.toMatch(
+      /activeContinuityGovernance|sameHerCausalityRepairPressure|AlicizationSameHerCausalityRepair/u,
+    )
+  })
+
+  it('keeps replay and inspector UI diagnostics free of legacy continuity narratives', () => {
+    const replaySource = readRepoSource('packages/stage-ui/src/stores/alicization-mind-replay.ts')
+    const inspectorSource = readRepoSource('packages/stage-ui/src/stores/alicization-self-evolution-inspector.ts')
+
+    expect(inspectorSource).not.toMatch(
+      /describeVisibleReplyRealizationReason|describesRememberedFamiliarityRestraint|describeSameHerEmbodimentLaneImpact|hasGroundedSameHerEmbodimentCarry|describeInspectorContinuityMetricDetail/u,
+    )
+    expect(inspectorSource).not.toMatch(
+      /remembered familiarity must stay|remembered familiarity was restrained|identity-continuity room|project-state-continuity-governance:/u,
+    )
+    expect(replaySource).not.toMatch(
+      /Phase 1 route|remembered continuity line|pre-dialogue project-awareness chain/u,
     )
   })
 
@@ -520,6 +608,92 @@ describe('fixed reply governance removal', () => {
     )
     expect(facadeSource).not.toMatch(
       /systemBlocks:\s*\{|responseCharter:\s*''/u,
+    )
+  })
+
+  it('keeps legacy project slogans out of runtime surface selection authority', () => {
+    const source = readServiceSource('./main-chat-session-runtime.ts')
+
+    expect(source).not.toContain('if (/phase 1: local digital life/u.test(lowerCased))')
+    expect(source).not.toContain('if (/phase 1/u.test(lowerCased) && /local digital life/u.test(lowerCased))')
+    expect(source).not.toContain('project_state_review/u.test(normalized)')
+    expect(source).not.toContain('/what has already landed is|the still-open closure is|this reply should keep moving toward/u')
+    expect(source).not.toContain('.includes(\'Phase 1: Local Digital Life\')')
+  })
+
+  it('keeps legacy project wording out of replay gates and self-evolution validation', () => {
+    const source = readServiceSource('./replay-benchmark-runtime.ts')
+
+    expect(source).not.toContain('buildReplayProjectStateSummary')
+    expect(source).not.toContain('\'project-state-continuity-gate\'')
+    expect(source).not.toContain('projectStateContinuityDrift')
+  })
+
+  it('keeps legacy project wording out of execution interaction learning', () => {
+    const source = readServiceSource('./execution-interaction-learning.ts')
+
+    expect(source).not.toContain('readProjectPreflightSignal')
+    expect(source).not.toContain('readProjectClosureMemorySignal')
+    expect(source).not.toContain('sameHerCarry')
+    expect(source).not.toContain('memory-same-her-closure')
+    expect(source).not.toContain('project-same-her-drift-risk-pressure')
+  })
+
+  it('removes continuity-seed recall fast paths and fixed self-critique recall suppression', () => {
+    const preludeSource = readServiceSource('./runtime-organic-memory-search-prelude.ts')
+    const retrievalSource = readServiceSource('./memory-search-retrieval-operators.ts')
+
+    expect(preludeSource).not.toMatch(
+      /parseRuntimeContinuityCarry|parseHeldAutonomyCarry|parseProjectStateCarry|parseCadenceReconfirmationCarry|parseAfterglowCarry|parseHumanlikeMemoryRecallCarry/u,
+    )
+    expect(preludeSource).not.toMatch(
+      /deriveRuntimeContinuityTriggeredIntent|deriveHeldAutonomyTriggeredIntent|deriveProjectStateTriggeredIntent|deriveCadenceReconfirmationTriggeredIntent|deriveAfterglowTriggeredIntent|deriveHumanlikeMemoryRecallTriggeredIntent/u,
+    )
+    expect(retrievalSource).not.toContain('isPresentFacingSelfCritiqueRecallSeed')
+  })
+
+  it('keeps autonomy and actuation independent from project-state prose templates', () => {
+    const autonomySource = readServiceSource('./autonomy-kernel.ts')
+    const actuationSource = readServiceSource('./autonomy-actuation.ts')
+
+    expect(autonomySource).not.toMatch(
+      /deriveProjectStateAutonomyBias|deriveHabitNarrativeAutonomyBias|carriesProjectStateInwardLine/u,
+    )
+    expect(actuationSource).not.toMatch(
+      /carriesSameHerProjectClosureLine|deriveAutonomyProjectClosureCarry|sameHerCarry|projectClosureCarry/u,
+    )
+  })
+
+  it('keeps memory candidate ranking independent from legacy recall prose authority', () => {
+    const source = readServiceSource('./memory-candidate-ranking.ts')
+
+    expect(source).not.toMatch(
+      /deriveHumanlikeRecallAuthority|rankByHumanlikeRecallAuthority|parseHumanlikeRecallTargetList/u,
+    )
+    expect(source).not.toMatch(
+      /deriveEmbodimentCadenceRecallAuthority|rankByEmbodimentCadenceRecallAuthority/u,
+    )
+  })
+
+  it('keeps runtime memory persistence free from the legacy local humanlike candidate interpreter', () => {
+    const source = readServiceSource('./runtime-memory-closure.ts')
+
+    expect(source).not.toMatch(
+      /buildHumanlikeMemoryCandidate|buildHumanlikePersistence|buildHumanlikeMetabolism|applyHumanlikeMemoryCandidate/u,
+    )
+    expect(source).not.toMatch(
+      /humanlikeMemoryCandidate|samePersonTest|containsSamePersonTest/u,
+    )
+  })
+
+  it('keeps recall suppression structural instead of authoring fixed explanatory prose', () => {
+    const source = readServiceSource('./recall-planner.ts')
+
+    expect(source).not.toMatch(
+      /deriveWhyNotOthers|staleSelfCue|relationshipConfusionCue/u,
+    )
+    expect(source).not.toMatch(
+      /The older self-story is still being revised|Competing relationship eras are still too easy to confuse/u,
     )
   })
 
@@ -617,5 +791,17 @@ describe('fixed reply governance removal', () => {
       expect(source).not.toMatch(/\b(?:memoryTuningAdvice|learningTuningAdvice)\b/u)
       expect(source).not.toContain('focusDimensions')
     }
+  })
+
+  it('keeps only transparent infrastructure failures and removes legacy memory governance filters', () => {
+    const fallbackSource = readRepoSource('packages/stage-shared/src/alicization-mind-fallback-messages.ts')
+    const failureSurfaceSource = readRepoSource('packages/stage-shared/src/alicization-chat-failure-surface.ts')
+    const memoryAccessSource = readServiceSource('./runtime-organic-memory-access.ts')
+
+    expect(fallbackSource).not.toMatch(/epoch1-strict|low-liveliness/u)
+    expect(failureSurfaceSource).not.toContain('epoch1-strict')
+    expect(memoryAccessSource).not.toMatch(
+      /legacyProjectGovernance|opening_policy|relationship_cadence|redacted_internal|same-her-baseline/u,
+    )
   })
 })

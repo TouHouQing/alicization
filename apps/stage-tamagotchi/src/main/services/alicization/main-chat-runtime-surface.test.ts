@@ -226,16 +226,28 @@ describe('main chat runtime surface', () => {
       .toBe('The host prefers direct answers.')
   })
 
-  it('removes execution and perception prompt blocks from dialogue-first turns', () => {
+  it('keeps typed runtime facts and tool settings on ordinary dialogue turns', () => {
     const runtimeSurface = createRuntimeSurface()
     const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
       allowTools: true,
       waitForTools: true,
       runtimeCorePromptBlocks: ['{"type":"runtime-core","data":{}}'],
-      perceptionPromptSystemBlocks: ['[ALICIZATION_PERCEPTION]\nforeground=chat'],
-      perceptionSystemBlocks: ['[ALICIZATION_VISUAL_PRESENCE]'],
-      executionCapabilitySystemBlocks: ['[CAPABILITIES]'],
-      performanceManifestSystemBlocks: ['[VESSEL]'],
+      perceptionPromptSystemBlocks: [JSON.stringify({
+        type: 'alicization-perception',
+        data: { foreground: 'chat' },
+      })],
+      perceptionSystemBlocks: [JSON.stringify({
+        type: 'alicization-inspection',
+        data: { grounded: false },
+      })],
+      executionCapabilitySystemBlocks: [JSON.stringify({
+        type: 'alicization-execution-capabilities',
+        data: { channels: ['codex'] },
+      })],
+      performanceManifestSystemBlocks: [JSON.stringify({
+        type: 'alicization-host',
+        data: { performanceManifestAvailable: true },
+      })],
       tools: [{ function: { name: 'executor_run_codex' } }],
       toolChoice: 'required',
       digitalLifeRuntimeSurface: runtimeSurface,
@@ -251,16 +263,15 @@ describe('main chat runtime surface', () => {
       },
     }))
 
-    const promptText = result.messages.map(message => String(message.content ?? '')).join('\n')
-    expect(promptText).not.toContain('[ALICIZATION_PERCEPTION]')
-    expect(promptText).not.toContain('[ALICIZATION_VISUAL_PRESENCE]')
-    expect(promptText).not.toContain('[CAPABILITIES]')
-    expect(promptText).not.toContain('[VESSEL]')
+    expect(findFactMessage(result.messages, 'alicization-perception')).toBeDefined()
+    expect(findFactMessage(result.messages, 'alicization-inspection')).toBeDefined()
+    expect(findFactMessage(result.messages, 'alicization-execution-capabilities')).toBeDefined()
+    expect(findFactMessage(result.messages, 'alicization-host')).toBeDefined()
     expect(result.tooling).toEqual({
-      allowTools: false,
-      waitForTools: false,
-      enforcedToolNames: [],
-      routingRequired: false,
+      allowTools: true,
+      waitForTools: true,
+      enforcedToolNames: ['executor_run_codex'],
+      routingRequired: true,
     })
   })
 

@@ -19,8 +19,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
+import { filterAlicizationProviderSystemMessages } from './main-chat-runtime-surface'
 import {
-  __alicizationTestOnly,
   createAlicizationMainChatSessionRuntime,
 } from './main-chat-session-runtime'
 import { resolveAlicizationProjectStateBrief } from './project-state-brief'
@@ -553,11 +553,7 @@ function createOpenAgentTurn(getSensorySnapshot: () => Promise<AlicizationSensor
 }
 
 describe('resolvePreparedRuntimeSurfaceSelection', () => {
-  it('sanitizes fixed-template residue at the ordinary-dialogue memory block exit boundary', () => {
-    const sanitizeMemoryBlock = (__alicizationTestOnly as any).sanitizeOrdinaryDialogueProviderSystemBlock
-    expect(typeof sanitizeMemoryBlock).toBe('function')
-
-    const rejectedLegacyBlock = sanitizeMemoryBlock('pre_turn_context_digest')
+  it('allows typed memory facts and drops untyped system blocks at the Provider boundary', () => {
     const recallFact = buildAlicizationProviderFactBlock('alicization-long-term-memory-recall', {
       owner: 'LongTermMemoryRecall',
       status: 'recalled',
@@ -569,10 +565,13 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         visibility: 'explicit',
       }],
     })
-    const sanitizedRecallFact = sanitizeMemoryBlock(recallFact)
+    const filtered = filterAlicizationProviderSystemMessages([
+      { role: 'system', content: 'pre_turn_context_digest' },
+      { role: 'system', content: recallFact },
+    ] as Message[])
 
-    expect(rejectedLegacyBlock).toBe('')
-    expect(JSON.parse(sanitizedRecallFact)).toMatchObject({
+    expect(filtered).toHaveLength(1)
+    expect(JSON.parse(String(filtered[0]?.content))).toMatchObject({
       type: 'alicization-long-term-memory-recall',
       data: {
         owner: 'LongTermMemoryRecall',
@@ -582,7 +581,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         }],
       },
     })
-    expect(sanitizedRecallFact.trim().startsWith('{')).toBe(true)
+    expect(String(filtered[0]?.content).trim().startsWith('{')).toBe(true)
   })
 
   it('builds a turn-scoped session trace while preparing routed execution', async () => {
@@ -2654,7 +2653,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(fourth.sessionMirror?.continuityArcSummary).toBeNull()
   }, 15_000)
 
-  it('feeds cross-session autobiographical afterglow continuity into the next turn recall seed', async () => {
+  it('does not serialize autobiographical afterglow metadata into the next recall query', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -2729,11 +2728,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const organicInput = (lastOrganicCall?.[0] ?? {}) as {
       recallSeed?: string
     }
-    expect(String(organicInput?.recallSeed ?? '')).toContain('continuity_afterglow:')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('thread=runtime seam')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('continuity_afterglow:')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('thread=runtime seam')
   })
 
-  it('skips execution-heavy preparation phases for dialogue-first living turns', async () => {
+  it('keeps ordinary dialogue turns on the full preparation mainline', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -2832,23 +2831,19 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       },
     })
 
-    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('execution-callbacks')
-    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('execution-ledger')
-    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('performance-manifest')
-    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('tool-registry')
-    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('execution-capabilities')
-    expect(result.runtimeSurface.tooling.allowTools).toBe(false)
+    expect(result.runtimeSurface.trace.sessionPhases).toContain('execution-callbacks')
+    expect(result.runtimeSurface.trace.sessionPhases).toContain('execution-ledger')
+    expect(result.runtimeSurface.trace.sessionPhases).toContain('performance-manifest')
+    expect(result.runtimeSurface.trace.sessionPhases).toContain('tool-registry')
+    expect(result.runtimeSurface.trace.sessionPhases).toContain('execution-capabilities')
+    expect(result.runtimeSurface.tooling.allowTools).toBe(true)
     expect(result.runtimeSurface.tooling.waitForTools).toBe(false)
-    expect(result.tools).toBeUndefined()
+    expect(result.tools).toBeDefined()
     expect(getPerformanceManifest).toHaveBeenCalledTimes(1)
     expect(result.performanceManifest).toEqual(expect.objectContaining({
       rigVersion: 1,
     }))
-    expect(resolveExecutionCapabilitiesForPrompt).not.toHaveBeenCalled()
-    expect(findAlicizationProviderFact(
-      result.messages,
-      'alicization-execution-callbacks',
-    )).toBeNull()
+    expect(resolveExecutionCapabilitiesForPrompt).toHaveBeenCalledTimes(1)
     expect(result.messages.some(message =>
       message.role === 'system'
       && typeof message.content === 'string'
@@ -2856,7 +2851,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     )).toBe(false)
   })
 
-  it('injects held-autonomy continuity recall seeds into organic memory retrieval', async () => {
+  it('does not serialize held-autonomy metadata into organic memory retrieval', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -2938,8 +2933,8 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       recallSeed?: string
     }
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('continuity_held_autonomy:')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('thread_id=thread-runtime')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('intent_id=follow-through')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('thread_id=thread-runtime')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('intent_id=follow-through')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('same-line/closure-seam')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('project-carry/phase-1')
   })
@@ -3211,7 +3206,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('continuity_held_autonomy:')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('loop:')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('thread_id=thread-held-autonomy-later')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('thread_id=thread-held-autonomy-later')
     expect(second.sessionMirror?.continuityArcSummary).toBeNull()
     expect(second.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.personalityContinuityState?.rhythmState?.cadenceMode).toBe('measured-return')
   })
@@ -3354,14 +3349,14 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       recallSeed?: string
     }
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('continuity_held_autonomy:')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('thread_id=thread-runtime-deferred')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('defer_reason=busy-host')
-    expect(String(organicInput?.recallSeed ?? '')).toContain('model_summary=stay near the unresolved compile seam without reopening visible speech')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('thread_id=thread-runtime-deferred')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('defer_reason=busy-host')
+    expect(String(organicInput?.recallSeed ?? '')).not.toContain('model_summary=stay near the unresolved compile seam without reopening visible speech')
     expect(String(organicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
     expect(second.sessionMirror).toBeTruthy()
   })
 
-  it('still carries lightweight performance manifest metadata for dialogue-first living turns', async () => {
+  it('tracks performance manifest metadata without forwarding untyped prompt blocks', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -3469,7 +3464,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       },
     })
 
-    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('performance-manifest')
+    expect(result.runtimeSurface.trace.sessionPhases).toContain('performance-manifest')
     expect(result.messages.some(message =>
       message.role === 'system'
       && typeof message.content === 'string'

@@ -198,26 +198,6 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-export function shouldUseDialogueFirstLivingPromptMode(input: {
-  actionObligation?: AlicizationMainChatActionObligation | null
-  capture: Omit<AlicizationMainChatCaptureSurface, 'hasVisualGrounding'>
-  governance: AlicizationMindTurnGovernance | null
-  hasVisualGrounding: boolean
-}) {
-  const subject = input.governance?.answerSubject ?? null
-  return input.governance?.screenReferenceMode === 'avoid'
-    && !input.capture.inspectionRequested
-    && !input.hasVisualGrounding
-    && !input.actionObligation?.routingIntent
-    && (
-      subject === 'relationship'
-      || subject === 'alicization-self'
-      || subject === 'host-state'
-      || subject === 'project-state'
-      || subject === 'general'
-    )
-}
-
 export function buildCardCustomDirectivesSystemBlock(directives: string) {
   const normalized = normalizeCustomDirectives(directives)
   return normalized
@@ -368,66 +348,28 @@ export function buildAlicizationMainChatRuntimeSurface(
         },
       }
     : null
-  const dialogueFirstLivingPromptMode = shouldUseDialogueFirstLivingPromptMode({
-    actionObligation: input.actionObligation ?? null,
-    capture: input.capture,
-    governance: input.governance,
-    hasVisualGrounding: input.hasVisualGrounding,
-  })
-  const filteredPerceptionPromptSystemBlocks = dialogueFirstLivingPromptMode
-    ? input.perceptionPromptSystemBlocks.filter(block =>
-        !block.includes('[ALICIZATION_PERCEPTION]')
-        && !block.includes('[ALICIZATION_INSPECTION_CONTRACT]'),
-      )
-    : input.perceptionPromptSystemBlocks
-  const filteredPerceptionSystemBlocks = dialogueFirstLivingPromptMode
-    ? []
-    : (input.perceptionSystemBlocks ?? [])
-  const effectiveExecutionCapabilitySystemBlocks = dialogueFirstLivingPromptMode
-    ? []
-    : input.executionCapabilitySystemBlocks
-  const effectiveExecutionRoutingEnforcementSystemBlock = dialogueFirstLivingPromptMode
-    ? ''
-    : (input.executionRoutingEnforcementSystemBlock ?? '')
-  const effectiveExecutionCallbackSystemBlocks = dialogueFirstLivingPromptMode
-    ? (input.executionReplyObligationSystemBlock ? (input.executionCallbackSystemBlocks ?? []) : [])
-    : (input.executionCallbackSystemBlocks ?? [])
-  const effectiveExecutionLedgerSystemBlocks = dialogueFirstLivingPromptMode
-    ? (input.executionReplyObligationSystemBlock ? (input.executionLedgerSystemBlocks ?? []) : [])
-    : (input.executionLedgerSystemBlocks ?? [])
-  const effectivePerformanceManifestSystemBlocks = dialogueFirstLivingPromptMode
-    ? []
-    : input.performanceManifestSystemBlocks
   const effectiveOrganicMemorySystemBlocks = input.personaKernelMode === 'full'
     ? input.organicMemorySystemBlocks
     : input.organicMemorySystemBlocks.filter(block => !block.includes('[ALICIZATION_CORE_INCARNATION]'))
   const promptBlocks = normalizeSystemBlocks([
     ...input.runtimeCorePromptBlocks,
-    ...filteredPerceptionPromptSystemBlocks,
-    ...filteredPerceptionSystemBlocks,
+    ...input.perceptionPromptSystemBlocks,
+    ...(input.perceptionSystemBlocks ?? []),
     input.executionReplyObligationSystemBlock ?? '',
-    ...effectiveExecutionCapabilitySystemBlocks,
-    effectiveExecutionRoutingEnforcementSystemBlock,
-    ...effectiveExecutionCallbackSystemBlocks,
-    ...effectiveExecutionLedgerSystemBlocks,
+    ...input.executionCapabilitySystemBlocks,
+    input.executionRoutingEnforcementSystemBlock ?? '',
+    ...(input.executionCallbackSystemBlocks ?? []),
+    ...(input.executionLedgerSystemBlocks ?? []),
     ...(input.agentRuntimeSystemBlocks ?? []),
     ...effectiveOrganicMemorySystemBlocks,
-    ...effectivePerformanceManifestSystemBlocks,
+    ...input.performanceManifestSystemBlocks,
   ])
 
   let messages = prependSystemBlocksToMessages(input.baseMessages, promptBlocks)
   messages = injectCardCustomDirectivesIntoMessages(messages, input.customDirectivesResolution.text)
   messages = filterAlicizationProviderSystemMessages(messages)
 
-  const effectiveAllowTools = dialogueFirstLivingPromptMode
-    ? false
-    : input.allowTools
-  const effectiveWaitForTools = dialogueFirstLivingPromptMode
-    ? false
-    : input.waitForTools
-  const enforcedToolNames = dialogueFirstLivingPromptMode
-    ? []
-    : extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
+  const enforcedToolNames = extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
   const hasVisualGrounding = input.hasVisualGrounding
   const expectedVisibleReplyAuthority = resolveAlicizationMainChatNormalVisibleReplyAuthority(input.governance)
   const replyRealizationMode = 'provider-mind-required' as const
@@ -472,8 +414,8 @@ export function buildAlicizationMainChatRuntimeSurface(
       sessionPhases: [...new Set((input.sessionPhases ?? []).map(phase => sanitizePromptText(phase, 120)).filter(Boolean))],
     },
     tooling: {
-      allowTools: effectiveAllowTools,
-      waitForTools: effectiveWaitForTools,
+      allowTools: input.allowTools,
+      waitForTools: input.waitForTools,
       enforcedToolNames,
       routingRequired: enforcedToolNames.length > 0,
     },

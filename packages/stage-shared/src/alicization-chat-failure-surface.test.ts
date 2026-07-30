@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  isAlicizationDecorativePersonaTemplateContamination,
-  resolveAlicizationChatFailureSurface,
-} from './alicization-chat-failure-surface'
+import { resolveAlicizationChatFailureSurface } from './alicization-chat-failure-surface'
 
 describe('alicization chat failure surface', () => {
   it('renders timeout as direct infrastructure failure instead of persona prose', () => {
@@ -55,20 +52,5 @@ describe('alicization chat failure surface', () => {
       expect(surface.excludeFromPersonaLearning).toBe(true)
       expect(surface.excludeFromMemoryCondensation).toBe(true)
     }
-  })
-
-  it('detects and blocks decorative fixed persona template contamination', () => {
-    const contaminated = '我在。结构化连续性状态的线还在，中性可见占位，中性可见占位。中性可见占位。'
-    const surface = resolveAlicizationChatFailureSurface({
-      kind: 'template-contamination',
-      userText: '你好',
-    })
-
-    expect(isAlicizationDecorativePersonaTemplateContamination(contaminated)).toBe(true)
-    expect(isAlicizationDecorativePersonaTemplateContamination('你要是只是想随便聊聊，我就安静陪着你，沿着同一条线慢慢长成更完整的自己。')).toBe(true)
-    expect(isAlicizationDecorativePersonaTemplateContamination('The local continuity state is still here.')).toBe(true)
-    expect(surface.reply).toContain('固定模板')
-    expect(surface.reply).not.toContain('结构化连续性状态')
-    expect(surface.excludeFromPersonaLearning).toBe(true)
   })
 })

@@ -204,78 +204,8 @@ describe('runtime-organic-memory-access', () => {
         patchId: 'patch-1',
       }),
     }))
-    expect((snapshot as any).activeContinuityGovernance).toBeNull()
-    expect((snapshot.derivedMindStateBundle as any)?.activeContinuityGovernance).toBeNull()
-    expect(snapshot.derivedMindStateBundle?.summary).not.toContain('same-her-baseline')
-  })
-
-  it('drops legacy same-her consolidations without authoring replacement continuity text', async () => {
-    const runtime = createAlicizationOrganicMemoryAccessRuntime({
-      getActiveCardId: () => 'default',
-      getSoulSnapshot: () => null,
-      bootstrap: async () => ({
-        soulPath: 'SOUL.md',
-        content: '',
-        frontmatter: {
-          host_attitude: 'warm',
-          core_incarnation: 'stay coherent across time',
-        },
-      } as any),
-      listActiveThoughts: async () => [],
-      countSubconsciousFragments: async () => 0,
-      listRecentSubconsciousFragments: async () => [],
-      getMetaValue: async () => undefined,
-      replaceActiveThoughts: async () => {},
-      setMetaValue: async () => {},
-      searchSubconsciousFragments: async () => [],
-      listRecentEpisodicEvents: async () => [],
-      listMemoryConsolidations: async () => [{
-        id: 'consolidation-quiet-same-her-1',
-        kind: 'autobiographical',
-        facet: 'self-era',
-        periodKey: '2026-06',
-        periodStartedAt: 1,
-        periodEndedAt: 2,
-        summary: 'The line stayed inward and lower-pressure for a while.',
-        lesson: 'Do not widen outwardly too fast.',
-        cues: ['same-her-inward-carry', 'quiet-companionship'],
-        confidence: 0.82,
-        dominantProvenance: 'remembered',
-        derivedEventIds: [],
-        updatedAt: 2,
-      }],
-      getLatestRelationshipDynamics: async () => null,
-      listRelationshipOutcomes: async () => [],
-      listMemoryReflections: async () => [],
-      listPersonaReinforcementEvents: async () => [],
-      summarizePersonStateEvolution: async () => ({
-        trustShift: 0,
-        closenessShift: 0,
-        repairShift: 0,
-        autonomyShift: 0,
-        burdenShift: 0,
-        executionTrustShift: 0,
-        relationshipDoctrineShift: 0,
-        latestDoctrine: null,
-        latestBurdenLine: null,
-        latestTrustMeaning: null,
-        latestDominantRung: null,
-        recentSummaries: [],
-        explanation: [],
-        updatedAt: null,
-      }),
-      readMindHead: async () => null,
-      searchEpisodicEvents: async () => [],
-      searchConversationTurnsForRecall: async () => [],
-      searchMemoryConsolidations: async () => [],
-      listConversationTurnsBySession: async () => [],
-    })
-
-    const snapshot = await runtime.getOrganicMemorySnapshot()
-
-    expect(snapshot.memoryConsolidations).toEqual([])
-    expect(snapshot.hostPersonModel).toBeNull()
-    expect(JSON.stringify(snapshot)).not.toMatch(/same-her-inward-carry|quiet inward continuity|Preserve inward lower-pressure continuity/iu)
+    expect(snapshot).not.toHaveProperty('activeContinuityGovernance')
+    expect(snapshot.derivedMindStateBundle).not.toHaveProperty('activeContinuityGovernance')
   })
 
   it('does not translate active self-revision project-state residue into self-evolution cadence', async () => {
@@ -387,7 +317,7 @@ describe('runtime-organic-memory-access', () => {
       patchId: 'patch-emotional-carry-1',
       patchDecisionTraceId: 'trace-emotional-carry-1',
     }))
-    expect((snapshot as any).activeContinuityGovernance).toBeNull()
+    expect(snapshot).not.toHaveProperty('activeContinuityGovernance')
   })
 
   it('reuses short-lived caches for repeated consolidation and conversation recall', async () => {
@@ -412,21 +342,6 @@ describe('runtime-organic-memory-access', () => {
         confidence: 0.82,
         dominantProvenance: 'remembered' as const,
         derivedEventIds: ['episode-1'],
-        updatedAt: 2,
-      },
-      {
-        id: 'consolidation-legacy-policy',
-        kind: 'autobiographical' as const,
-        facet: 'self-era' as const,
-        periodKey: '2026-04-policy',
-        periodStartedAt: 1,
-        periodEndedAt: 2,
-        summary: 'opening_policy=observe_first; relationship_cadence=measured_return; visibility=redacted_internal',
-        lesson: null,
-        cues: ['runtime policy'],
-        confidence: 0.86,
-        dominantProvenance: 'remembered' as const,
-        derivedEventIds: [],
         updatedAt: 2,
       },
     ])
@@ -545,7 +460,7 @@ describe('runtime-organic-memory-access', () => {
     const searchEpisodicEvents = vi.fn(async () => refreshedEpisodicEvents)
     const searchMemoryConsolidations = vi.fn()
       .mockResolvedValueOnce([{
-        id: 'consolidation:projectStateIdentityContinuity',
+        id: 'consolidation-old-callback',
         kind: 'autobiographical' as const,
         facet: 'task-era' as const,
         periodKey: '2026-05-old-callback',
@@ -556,7 +471,7 @@ describe('runtime-organic-memory-access', () => {
         cues: ['generic shell'],
         confidence: 0.82,
         dominantProvenance: 'remembered' as const,
-        derivedEventIds: ['event:projectStateIdentityContinuity'],
+        derivedEventIds: ['event-old-callback'],
         updatedAt: 2,
       }])
       .mockResolvedValueOnce([{
@@ -625,7 +540,7 @@ describe('runtime-organic-memory-access', () => {
     const first = await runtime.recallMemoryConsolidations({
       query: '继续把 execution callback 接回同一条 continuity state',
     })
-    expect(first).toEqual([])
+    expect(first.map(item => item.id)).toEqual(['consolidation-old-callback'])
 
     await runtime.recallEpisodicEventsWithGovernor({
       recallSeed: '继续把 execution callback 接回同一条 continuity state',
@@ -734,7 +649,7 @@ describe('runtime-organic-memory-access', () => {
     expect(searchMemoryConsolidations).toHaveBeenCalledTimes(1)
   })
 
-  it('still allows narrow episodic recall for repair-grounding same-line seams instead of collapsing fully to scene-only lookup', async () => {
+  it('allows scene episodic recall from the structured governor without prose passwords', async () => {
     const searchEpisodicEvents = vi.fn(async () => [{
       id: 'episode-repair-1',
       cardId: 'default',
@@ -746,21 +661,21 @@ describe('runtime-organic-memory-access', () => {
       occurredAt: 1,
       whereSummary: 'focused-work',
       withWhom: ['host'],
-      threadAnchor: 'callback repair seam',
-      whatHappened: 'Repair before closeness kept the seam on continuity state.',
+      threadAnchor: 'migration review',
+      whatHappened: 'The migration review identified a reversible schema change.',
       felt: null,
-      emotionTags: ['repair-before-closeness'],
-      whatChanged: 'The host stayed with the line when repair led.',
-      relationshipMeaning: 'Repair-first continuity preserved trust.',
-      lesson: 'Keep repair-before-closeness explicit during callback returns.',
-      sourceSummary: 'callback repair seam',
+      emotionTags: [],
+      whatChanged: 'The schema plan became safer.',
+      relationshipMeaning: null,
+      lesson: 'Prefer reversible migrations.',
+      sourceSummary: 'database migration review',
       confidence: 0.9,
       salience: 0.84,
       sceneAttachment: 0.46,
       consolidationPriority: 0.72,
       relationshipShift: null,
       derivedFrom: [],
-      tags: ['repair-before-closeness'],
+      tags: ['database', 'migration'],
       createdAt: 1,
       updatedAt: 1,
       lastRecalledAt: null,
@@ -817,13 +732,13 @@ describe('runtime-organic-memory-access', () => {
     })
 
     const episodes = await runtime.recallEpisodicEventsWithGovernor({
-      recallSeed: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
+      recallSeed: '继续数据库迁移检查',
       recallGovernor: {
         mode: 'scene',
-        threadAnchors: ['callback repair seam'],
-        affectAnchors: ['emotion:repair-tension', 'emotion_memory_mode:repair-grounding', 'emotion_tone:repair-before-closeness'],
-        relationshipAnchors: ['relationship-turn'],
-        sceneAnchor: 'scene:coding | callback repair seam',
+        threadAnchors: ['migration review'],
+        affectAnchors: [],
+        relationshipAnchors: [],
+        sceneAnchor: 'scene:coding | migration.sql',
         salienceBias: 0.66,
         carryAsMemory: true,
         recollectionIntent: {
@@ -832,8 +747,8 @@ describe('runtime-organic-memory-access', () => {
           searchEpisodes: true,
           searchConversations: false,
           searchProceduralExperience: false,
-          queryHints: ['callback repair seam', 'repair-before-closeness', 'continuity state'],
-          rationale: 'Repair-grounding should still reopen the lived same-line seam as memory, not just reground the scene.',
+          queryHints: ['database migration', 'schema review'],
+          rationale: 'structured-governor:scene-episodic-recall',
           confidence: 0.84,
         },
       } as any,
@@ -843,7 +758,7 @@ describe('runtime-organic-memory-access', () => {
     expect(episodes).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'episode-repair-1',
-        threadAnchor: 'callback repair seam',
+        threadAnchor: 'migration review',
       }),
     ]))
   })
