@@ -132,7 +132,6 @@ interface MainChatRuntimeSurfaceToolDescriptor {
 
 export interface BuildAlicizationMainChatRuntimeSurfaceInput {
   actionObligation?: AlicizationMainChatActionObligation | null
-  agentRuntimeSystemBlocks?: string[]
   allowTools: boolean
   baseMessages: Message[]
   capture: Omit<AlicizationMainChatCaptureSurface, 'hasVisualGrounding'>
@@ -146,8 +145,6 @@ export interface BuildAlicizationMainChatRuntimeSurfaceInput {
   executionCapabilitySystemBlocks: string[]
   executionRoutingEnforcementSystemBlock?: string
   governance: AlicizationMindTurnGovernance | null
-  organicMemorySystemBlocks: string[]
-  performanceManifestSystemBlocks: string[]
   perceptionPromptSystemBlocks: string[]
   perceptionSystemBlocks?: string[]
   personaKernelMode: AlicizationMindTurnGovernance['personaKernelMode']
@@ -347,9 +344,6 @@ export function buildAlicizationMainChatRuntimeSurface(
     input.executionRoutingEnforcementSystemBlock ?? '',
     ...(input.executionCallbackSystemBlocks ?? []),
     ...(input.executionLedgerSystemBlocks ?? []),
-    ...(input.agentRuntimeSystemBlocks ?? []),
-    ...input.organicMemorySystemBlocks,
-    ...input.performanceManifestSystemBlocks,
   ])
 
   let messages = prependSystemBlocksToMessages(input.baseMessages, promptBlocks)

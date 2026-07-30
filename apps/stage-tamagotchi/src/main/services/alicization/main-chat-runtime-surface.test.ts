@@ -110,8 +110,6 @@ function createBaseInput(overrides?: Record<string, unknown>) {
     perceptionPromptSystemBlocks: [],
     perceptionSystemBlocks: [],
     executionCapabilitySystemBlocks: [],
-    organicMemorySystemBlocks: [],
-    performanceManifestSystemBlocks: [],
     customDirectivesResolution: {
       text: '',
       source: 'none',
@@ -190,7 +188,11 @@ describe('main chat runtime surface', () => {
         },
       })
       const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
-        organicMemorySystemBlocks: [organicSelf, longTermRecall],
+        baseMessages: [
+          { role: 'system', content: organicSelf },
+          { role: 'system', content: longTermRecall },
+          { role: 'user', content: '继续' },
+        ],
         personaKernelMode,
       }))
 
@@ -248,7 +250,10 @@ describe('main chat runtime surface', () => {
     const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
       allowTools: true,
       waitForTools: true,
-      runtimeCorePromptBlocks: ['{"type":"runtime-core","data":{}}'],
+      runtimeCorePromptBlocks: [JSON.stringify({
+        type: 'alicization-host',
+        data: { performanceManifestAvailable: true },
+      })],
       perceptionPromptSystemBlocks: [JSON.stringify({
         type: 'alicization-perception',
         data: { foreground: 'chat' },
@@ -260,10 +265,6 @@ describe('main chat runtime surface', () => {
       executionCapabilitySystemBlocks: [JSON.stringify({
         type: 'alicization-execution-capabilities',
         data: { channels: ['codex'] },
-      })],
-      performanceManifestSystemBlocks: [JSON.stringify({
-        type: 'alicization-host',
-        data: { performanceManifestAvailable: true },
       })],
       tools: [{ function: { name: 'executor_run_codex' } }],
       toolChoice: 'required',

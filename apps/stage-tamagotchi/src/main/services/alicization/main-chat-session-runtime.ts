@@ -3051,9 +3051,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         executionReplyObligationSystemBlock: executionReplyObligation
           ? buildMainChatExecutionReplyObligationSystemBlock(executionReplyObligation)
           : undefined,
-        agentRuntimeSystemBlocks: [],
-        organicMemorySystemBlocks: [],
-        performanceManifestSystemBlocks: [],
         customDirectivesResolution,
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
         personaKernelReason: prelude.perceptionAugmentation.chatGovernance.personaKernelMode === 'muted'

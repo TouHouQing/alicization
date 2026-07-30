@@ -88,7 +88,13 @@ describe('fixed reply governance removal', () => {
   it('does not assemble session, organic-memory, or performance governance prompts for main chat', () => {
     const source = readServiceSource('./main-chat-session-runtime.ts')
     const agentRuntimeSource = readServiceSource('./agent-runtime.ts')
+    const runtimeSurfaceSource = readServiceSource('./main-chat-runtime-surface.ts')
     const removedBuilderName = ['buildOrganicMemory', 'SystemBlocks'].join('')
+    const removedSystemBlockSlots = [
+      'agentRuntimeSystemBlocks',
+      'organicMemorySystemBlocks',
+      'performanceManifestSystemBlocks',
+    ]
 
     expect(source).not.toContain('buildAlicizationDialogueMemoryCarrySystemBlock')
     expect(source).not.toContain('buildSessionMirrorSystemBlock')
@@ -97,6 +103,10 @@ describe('fixed reply governance removal', () => {
     expect(source).not.toContain('agentTurn.buildSessionSystemBlock()')
     expect(agentRuntimeSource).not.toContain('buildSessionSystemBlock')
     expect(agentRuntimeSource).not.toContain('alicization-agent-session')
+    for (const slot of removedSystemBlockSlots) {
+      expect(source).not.toContain(slot)
+      expect(runtimeSurfaceSource).not.toContain(slot)
+    }
   })
 
   it('uses the typed Provider fact allowlist instead of parsing legacy dialogue governance fields', () => {
