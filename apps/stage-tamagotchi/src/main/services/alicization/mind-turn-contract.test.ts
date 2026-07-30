@@ -58,6 +58,7 @@ describe('mind-turn-contract', () => {
 
     expect(contract.answerIntent).toBe('answer the current question')
     expect(contract.governingFocus).toBe('current question')
+    expect(contract).not.toHaveProperty('suppressAssociativeRecall')
     expect(contract.mustDo).toEqual([])
     expect(contract.mustNotDo).toEqual([])
     expect(buildAlicizationMindTurnContractSystemBlock(contract)).toBe('')

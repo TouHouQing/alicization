@@ -73,7 +73,6 @@ describe('mind-turn-contract invariants', () => {
         allowStageDirections: false,
         allowBodyNarration: false,
         labelCarryAsMemory: false,
-        suppressAssociativeRecall: true,
         mustDo: ['Start with the answer immediately.'],
         mustNotDo: ['Do not surface recollection just because it is active internally.'],
       },

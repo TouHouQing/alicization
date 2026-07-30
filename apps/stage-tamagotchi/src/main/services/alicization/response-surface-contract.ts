@@ -42,7 +42,6 @@ export interface AlicizationResponseSurfaceContract {
   allowStageDirections: boolean
   allowBodyNarration: boolean
   labelCarryAsMemory: boolean
-  suppressAssociativeRecall: boolean
   activeSelfRevisionPatchId?: string | null
   mustDo: string[]
   mustNotDo: string[]
@@ -123,7 +122,6 @@ export function buildAlicizationResponseSurfaceContract(input: {
     repairState: brief.turnMode === 'screen-repair' ? 'stale-anchor' : 'none',
     evidenceMode: answerCompiler?.evidenceMode ?? claimEvidenceLedger?.evidenceMode ?? null,
     labelCarryAsMemory: (answerCompiler?.labelCarryAsMemory ?? brief.separateCarryFromSurface) || brief.truthState === 'remembered',
-    suppressAssociativeRecall: answerCompiler?.suppressAssociativeRecall ?? false,
     claimEvidenceLedger,
     currentConsciousFrame,
     memoryRestraint: memoryDeliberationKernel?.restraint ?? null,
@@ -173,9 +171,6 @@ export function buildAlicizationResponseSurfaceContract(input: {
   })
   const allowStageDirections = false
   const allowBodyNarration = false
-  const explicitDialogueFirstSurfaceAvoid = dialogueEncounterSurface?.screenReferenceMode === 'avoid'
-    || dialogueFocus?.screenReferenceMode === 'avoid'
-    || answerCompiler?.screenReferenceMode === 'avoid'
   const baseLabelCarryAsMemory = answerCompiler?.labelCarryAsMemory
     ?? (brief.separateCarryFromSurface || brief.truthState === 'remembered' || brief.truthState === 'uncertain')
   const labelCarryAsMemory = truthDiscipline.shouldKeepMemoryInward || truthDiscipline.shouldBlockScreenCarry
@@ -183,10 +178,6 @@ export function buildAlicizationResponseSurfaceContract(input: {
     : truthDiscipline.shouldLabelMemoryProvenance
       ? true
       : baseLabelCarryAsMemory
-  const suppressAssociativeRecall = truthDiscipline.shouldSuppressAssociativeRecall || (answerCompiler?.suppressAssociativeRecall ?? (brief.turnMode === 'grounded-inspection'
-    || (brief.turnMode === 'screen-repair' && (brief.separateCarryFromSurface || brief.carriedThread !== null))
-    || brief.turnMode === 'guide-current-knot'
-    || explicitDialogueFirstSurfaceAvoid))
   const contract: AlicizationResponseSurfaceContract = {
     openingStyle,
     replyRealizationMode,
@@ -200,7 +191,6 @@ export function buildAlicizationResponseSurfaceContract(input: {
     allowStageDirections,
     allowBodyNarration,
     labelCarryAsMemory,
-    suppressAssociativeRecall,
     activeSelfRevisionPatchId: selfRevisionPatch?.id ?? null,
     mustDo: [],
     mustNotDo: [],

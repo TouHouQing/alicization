@@ -243,6 +243,7 @@ describe('buildMindTurnFrame', () => {
     expect(frame.relation.subject).toBe('task-knot')
     expect(frame.relation.hostGoal).toBe('resolve-problem')
     expect(frame.memory.carriedThread).toContain('null guard')
+    expect(frame.memory).not.toHaveProperty('suppressAssociativeRecall')
     expect(frame.obligation.turnMode).toBe('guide-current-knot')
     expect(frame.obligation.answerAct).toBe('guide')
     expect(frame.obligation.openingClaim).toContain('fault line')

@@ -1032,7 +1032,6 @@ export function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGo
     openingMove: sanitizeBriefText(readStringValue(candidate.openingMove), 220) || null,
     emotionalClosureCue: sanitizeBriefText(readStringValue(candidate.emotionalClosureCue), 220) || null,
     carriedThread: sanitizeBriefText(readStringValue(candidate.carriedThread), 220) || null,
-    suppressAssociativeRecall: candidate.suppressAssociativeRecall === true,
     labelCarryAsMemory: candidate.labelCarryAsMemory === true,
     shouldAskForGrounding: candidate.shouldAskForGrounding === true,
     shouldAcknowledgeRepair: candidate.shouldAcknowledgeRepair === true,

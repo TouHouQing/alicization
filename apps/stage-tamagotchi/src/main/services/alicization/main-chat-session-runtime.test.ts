@@ -2813,7 +2813,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         perceptionAugmentation: {
           ...reflectivePrelude.perceptionAugmentation,
           chatGovernance: {
-            suppressAssociativeRecall: false,
             turnMode: 'answer',
             personaKernelMode: 'full',
             mindTurnContract: null,
@@ -3446,7 +3445,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         perceptionAugmentation: {
           ...reflectivePrelude.perceptionAugmentation,
           chatGovernance: {
-            suppressAssociativeRecall: false,
             turnMode: 'answer',
             personaKernelMode: 'full',
             mindTurnContract: null,

@@ -294,12 +294,12 @@ describe('buildAlicizationMindTurnGovernance', () => {
       reasonTags: [],
       updatedAt: 1,
     }
-    input.surfaceContract.suppressAssociativeRecall = true
+    ;(input.surfaceContract as any).suppressAssociativeRecall = true
 
     const result = buildAlicizationMindTurnGovernance(input)
 
     expect(result.claimEvidence).toBe(input.claimEvidenceLedger)
-    expect(result.suppressAssociativeRecall).toBe(true)
+    expect(result).not.toHaveProperty('suppressAssociativeRecall')
     expect(result.mustDo).toEqual([])
     expect(result.mustNotDo).toEqual([])
   })

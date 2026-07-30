@@ -1525,7 +1525,6 @@ export interface AlicizationMindTurnFrameMemorySnapshot {
   recallKeys: string[]
   recallSeed?: string | null
   lastOutcome?: 'none' | 'pending' | 'aligned' | 'missed' | 'repairing' | 'deferred' | null
-  suppressAssociativeRecall: boolean
   labelCarryAsMemory: boolean
 }
 
@@ -1593,7 +1592,6 @@ export interface AlicizationMindTurnGovernance {
   activeClosenessRung?: string | null
   emotionalClosureCue?: string | null
   carriedThread?: string | null
-  suppressAssociativeRecall: boolean
   labelCarryAsMemory: boolean
   shouldAskForGrounding: boolean
   shouldAcknowledgeRepair: boolean
@@ -1794,7 +1792,6 @@ export interface AlicizationSelfEvolutionVersionCandidateSnapshot {
     replayPassed: boolean | null
     rollbackSupported: boolean
     activationBlockedReasons: string[]
-    projectStateContinuityReasons?: string[]
     finalReplayGatePassed?: boolean | null
     productionGoldSampleCount?: number | null
     productionGoldCoverage?: number | null
@@ -2133,7 +2130,7 @@ export interface AlicizationReplayBenchmarkDatasetFeedback {
   totalCount: number
   persisted: boolean
   humanRatingRubric?: AlicizationReplayHumanRatingRubric | null
-  driftSignals?: Array<keyof AlicizationReplayBenchmarkStandardsRecord | 'recentOnlyDrift' | 'closenessLadderDrift' | 'eventGraphRecallCollapse' | 'projectStateContinuityDrift' | 'emotionalClosureDrift' | 'preDialogueBriefingDrift' | 'selfAuthorityDrift' | 'projectStateAuditDrift' | 'projectStateSameHerSelfLineDrift'> | null
+  driftSignals?: Array<keyof AlicizationReplayBenchmarkStandardsRecord | 'recentOnlyDrift' | 'closenessLadderDrift' | 'eventGraphRecallCollapse' | 'emotionalClosureDrift' | 'preDialogueBriefingDrift' | 'selfAuthorityDrift' | 'projectStateAuditDrift' | 'projectStateSameHerSelfLineDrift'> | null
   projectStateSummary?: {
     comparedTurnCount: number
     identityHitCount: number
@@ -2864,36 +2861,6 @@ export interface AlicizationMemoryClosureCausalitySnapshot<T extends Alicization
   summary: string | null
 }
 
-export type AlicizationSameHerCausalityRepairLane = 'initiative-execution' | 'emotion' | 'embodiment'
-
-export interface AlicizationSameHerCausalityRepairLaneSnapshot {
-  lane: AlicizationSameHerCausalityRepairLane
-  reasonTags: string[]
-  summary: string | null
-}
-
-export interface AlicizationSameHerMemoryIdentityRequirementSnapshot {
-  status: 'required'
-  proofBoundary: 'downstream-memory-closure-causality'
-  requiredPath: 'memoryClosureCausality.memoryIdentity'
-  excludedProofs: Array<'route-chain-text' | 'visible-reply-wording'>
-  continuity: 'stable-memory-identity-key'
-  summary: string | null
-}
-
-export interface AlicizationSameHerCausalityRepairPressureSnapshot {
-  version: 'same-her-causality-repair-pressure-v1'
-  source: 'memory-tuning-advice'
-  status: 'pending-runtime-evidence'
-  updatedAt: number | null
-  sourceReportAt: number | null
-  focusDimensions: string[]
-  lanes: AlicizationSameHerCausalityRepairLaneSnapshot[]
-  memoryIdentityRequirement?: AlicizationSameHerMemoryIdentityRequirementSnapshot | null
-  notes: string[]
-  summary: string
-}
-
 export interface AlicizationLearningExecutionStateSnapshot {
   currentTaskId: string | null
   currentStatus: AlicizationLearningTaskStatus | null
@@ -3477,17 +3444,6 @@ export interface AlicizationDerivedMindStateBundle {
     reasonCodes: string[]
     summary: string | null
   } | null
-  activeContinuityGovernance?: {
-    source: 'active-self-evolution-version'
-    mode: 'same-her-baseline'
-    candidateId: string | null
-    patchId: string | null
-    decisionTraceId: string | null
-    summary: string | null
-    lanes: string[]
-    reasonCodes: string[]
-  } | null
-  sameHerCausalityRepairPressure?: AlicizationSameHerCausalityRepairPressureSnapshot | null
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
   embodimentContinuityLedger?: AlicizationEmbodimentContinuityLedgerSnapshot | null
@@ -3693,107 +3649,6 @@ function normalizeAlicizationMemoryClosureCausalitySnapshot<T extends Alicizatio
         }
       : null,
     summary: sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 260) || null,
-  }
-}
-
-function normalizeAlicizationSameHerCausalityRepairLane(raw: unknown): AlicizationSameHerCausalityRepairLane | null {
-  return raw === 'initiative-execution'
-    || raw === 'emotion'
-    || raw === 'embodiment'
-    ? raw
-    : null
-}
-
-function normalizeAlicizationSameHerCausalityRepairPressureSnapshot(raw: unknown): AlicizationSameHerCausalityRepairPressureSnapshot | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-
-  const candidate = raw as Record<string, unknown>
-  if (
-    candidate.version !== 'same-her-causality-repair-pressure-v1'
-    || candidate.source !== 'memory-tuning-advice'
-    || candidate.status !== 'pending-runtime-evidence'
-  ) {
-    return null
-  }
-
-  const lanes = Array.isArray(candidate.lanes)
-    ? candidate.lanes
-        .map((item) => {
-          const laneCandidate = item && typeof item === 'object' && !Array.isArray(item)
-            ? item as Record<string, unknown>
-            : null
-          const lane = normalizeAlicizationSameHerCausalityRepairLane(laneCandidate?.lane)
-          if (!lane)
-            return null
-          return {
-            lane,
-            reasonTags: Array.isArray(laneCandidate?.reasonTags)
-              ? laneCandidate.reasonTags
-                  .map(tag => sanitizeAlicizationDigitalLifeDigestText(tag, 120))
-                  .filter(Boolean)
-                  .slice(0, 12)
-              : [],
-            summary: sanitizeAlicizationDigitalLifeDigestText(laneCandidate?.summary, 260) || null,
-          } satisfies AlicizationSameHerCausalityRepairLaneSnapshot
-        })
-        .filter((item): item is AlicizationSameHerCausalityRepairLaneSnapshot => Boolean(item))
-        .slice(0, 3)
-    : []
-
-  if (lanes.length === 0)
-    return null
-
-  const rawMemoryIdentityRequirement = candidate.memoryIdentityRequirement && typeof candidate.memoryIdentityRequirement === 'object' && !Array.isArray(candidate.memoryIdentityRequirement)
-    ? candidate.memoryIdentityRequirement as Record<string, unknown>
-    : null
-  const excludedProofs = Array.isArray(rawMemoryIdentityRequirement?.excludedProofs)
-    ? rawMemoryIdentityRequirement.excludedProofs
-        .filter((item): item is 'route-chain-text' | 'visible-reply-wording' => item === 'route-chain-text' || item === 'visible-reply-wording')
-        .slice(0, 4)
-    : []
-  const memoryIdentityRequirement: AlicizationSameHerMemoryIdentityRequirementSnapshot | null = rawMemoryIdentityRequirement
-    && rawMemoryIdentityRequirement.status === 'required'
-    && rawMemoryIdentityRequirement.proofBoundary === 'downstream-memory-closure-causality'
-    && rawMemoryIdentityRequirement.requiredPath === 'memoryClosureCausality.memoryIdentity'
-    && rawMemoryIdentityRequirement.continuity === 'stable-memory-identity-key'
-    ? {
-        status: 'required',
-        proofBoundary: 'downstream-memory-closure-causality',
-        requiredPath: 'memoryClosureCausality.memoryIdentity',
-        excludedProofs,
-        continuity: 'stable-memory-identity-key',
-        summary: sanitizeAlicizationDigitalLifeDigestText(rawMemoryIdentityRequirement.summary, 260) || null,
-      }
-    : null
-
-  const summary = sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 260)
-  const sanitizedSummary = summary && /pending same-her causality repair|same-her|same living line|same living thread/iu.test(summary)
-    ? `pending continuity_causality_repair: ${lanes.map(item => item.lane).join(', ')}`
-    : summary
-
-  return {
-    version: 'same-her-causality-repair-pressure-v1',
-    source: 'memory-tuning-advice',
-    status: 'pending-runtime-evidence',
-    updatedAt: Number.isFinite(Number(candidate.updatedAt)) ? Math.max(0, Math.floor(Number(candidate.updatedAt))) : null,
-    sourceReportAt: Number.isFinite(Number(candidate.sourceReportAt)) ? Math.max(0, Math.floor(Number(candidate.sourceReportAt))) : null,
-    focusDimensions: Array.isArray(candidate.focusDimensions)
-      ? candidate.focusDimensions
-          .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
-          .filter(Boolean)
-          .slice(0, 18)
-      : [],
-    lanes,
-    memoryIdentityRequirement,
-    notes: Array.isArray(candidate.notes)
-      ? candidate.notes
-          .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 260))
-          .filter(Boolean)
-          .slice(0, 6)
-      : [],
-    summary: sanitizedSummary
-      || `pending continuity_causality_repair: ${lanes.map(item => item.lane).join(', ')}`,
   }
 }
 
@@ -4612,9 +4467,6 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
   const activeSelfRevision = candidate.activeSelfRevision && typeof candidate.activeSelfRevision === 'object'
     ? candidate.activeSelfRevision as Record<string, unknown>
     : null
-  const activeContinuityGovernance = candidate.activeContinuityGovernance && typeof candidate.activeContinuityGovernance === 'object'
-    ? candidate.activeContinuityGovernance as Record<string, unknown>
-    : null
   const selfEvolution = candidate.selfEvolution && typeof candidate.selfEvolution === 'object'
     ? candidate.selfEvolution as Record<string, unknown>
     : null
@@ -4672,29 +4524,6 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
           summary: sanitizeAlicizationDigitalLifeDigestText(activeSelfRevision.summary, 220) || null,
         }
       : null,
-    activeContinuityGovernance: activeContinuityGovernance
-      ? {
-          source: 'active-self-evolution-version',
-          mode: 'same-her-baseline',
-          candidateId: sanitizeAlicizationDigitalLifeDigestText(activeContinuityGovernance.candidateId, 160) || null,
-          patchId: sanitizeAlicizationDigitalLifeDigestText(activeContinuityGovernance.patchId, 160) || null,
-          decisionTraceId: sanitizeAlicizationDigitalLifeDigestText(activeContinuityGovernance.decisionTraceId, 160) || null,
-          summary: sanitizeAlicizationDigitalLifeDigestText(activeContinuityGovernance.summary, 220) || null,
-          lanes: Array.isArray(activeContinuityGovernance.lanes)
-            ? activeContinuityGovernance.lanes
-                .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 64))
-                .filter(Boolean)
-                .slice(0, 12)
-            : [],
-          reasonCodes: Array.isArray(activeContinuityGovernance.reasonCodes)
-            ? activeContinuityGovernance.reasonCodes
-                .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
-                .filter(Boolean)
-                .slice(0, 16)
-            : [],
-        }
-      : null,
-    sameHerCausalityRepairPressure: normalizeAlicizationSameHerCausalityRepairPressureSnapshot(candidate.sameHerCausalityRepairPressure),
     emotionalKernel: normalizeAlicizationEmotionalKernelSnapshot(candidate.emotionalKernel),
     emotionalTransitionLedger: normalizeAlicizationEmotionalTransitionLedgerSnapshot(candidate.emotionalTransitionLedger),
     embodimentContinuityLedger: normalizeAlicizationEmbodimentContinuityLedgerSnapshot(candidate.embodimentContinuityLedger),

@@ -195,9 +195,6 @@ import type {
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
   AlicizationRuntimeProjectStateDigest as SharedAlicizationRuntimeProjectStateDigest,
-  AlicizationSameHerCausalityRepairLane as SharedAlicizationSameHerCausalityRepairLane,
-  AlicizationSameHerCausalityRepairLaneSnapshot as SharedAlicizationSameHerCausalityRepairLaneSnapshot,
-  AlicizationSameHerCausalityRepairPressureSnapshot as SharedAlicizationSameHerCausalityRepairPressureSnapshot,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
@@ -1018,7 +1015,6 @@ export interface AlicizationOrganicMemorySnapshot {
     stronglyValidatedProcedureCount: number
     contradictionHeavyFactCount: number
   } | null
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
@@ -1108,9 +1104,6 @@ export type AlicizationEmotionalTransitionLedgerSnapshot = SharedAlicizationEmot
 export type AlicizationEmbodimentContinuityLane = SharedAlicizationEmbodimentContinuityLane
 export type AlicizationEmbodimentContinuityLedgerSnapshot = SharedAlicizationEmbodimentContinuityLedgerSnapshot
 export type AlicizationEmbodimentContinuityLaneStatus = SharedAlicizationEmbodimentContinuityLaneStatus
-export type AlicizationSameHerCausalityRepairLane = SharedAlicizationSameHerCausalityRepairLane
-export type AlicizationSameHerCausalityRepairLaneSnapshot = SharedAlicizationSameHerCausalityRepairLaneSnapshot
-export type AlicizationSameHerCausalityRepairPressureSnapshot = SharedAlicizationSameHerCausalityRepairPressureSnapshot
 export type AlicizationSelfEvolutionKernelSnapshot = SharedAlicizationSelfEvolutionKernelSnapshot
 export type AlicizationSelfEvolutionVersionRuntimeSnapshot = SharedAlicizationSelfEvolutionVersionRuntimeSnapshot
 export type AlicizationPersonStateUpdateSourceTrailEntry = SharedAlicizationPersonStateUpdateSourceTrailEntry
@@ -2679,7 +2672,6 @@ export interface AlicizationMindTurnContractSnapshot {
   activeClosenessRung: AlicizationAnswerCompilerSnapshot['activeClosenessRung']
   relationshipPosture: AlicizationAnswerCompilerSnapshot['relationshipPosture']
   labelCarryAsMemory: boolean
-  suppressAssociativeRecall: boolean
   allowAffectionatePreface: boolean
   allowStageDirections: boolean
   allowBodyNarration: boolean
@@ -2822,7 +2814,6 @@ export interface AlicizationMindTurnFrameMemorySnapshot {
   recallKeys: string[]
   recallSeed?: string | null
   lastOutcome?: AlicizationDialogueWorldOutcome | null
-  suppressAssociativeRecall: boolean
   labelCarryAsMemory: boolean
 }
 

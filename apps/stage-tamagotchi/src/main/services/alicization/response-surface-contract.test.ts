@@ -42,7 +42,7 @@ describe('response-surface-contract', () => {
 
     expect(result.contract.openingStyle).toBe('direct-correction')
     expect(result.contract.labelCarryAsMemory).toBe(true)
-    expect(result.contract.suppressAssociativeRecall).toBe(true)
+    expect(result.contract).not.toHaveProperty('suppressAssociativeRecall')
     expect(result.contract.mustDo).toEqual([])
     expect(result.contract.mustNotDo).toEqual([])
     expect(result.systemBlock).toBe('')

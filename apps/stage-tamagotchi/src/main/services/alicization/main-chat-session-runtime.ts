@@ -153,7 +153,6 @@ export interface AlicizationMainChatPerceptionAugmentation {
     fallbackReason: string | null
   }
   chatGovernance: {
-    suppressAssociativeRecall: boolean
     turnMode: AlicizationMindTurnGovernance['turnMode']
     personaKernelMode: AlicizationMindTurnGovernance['personaKernelMode']
     mindTurnContract: AlicizationMindTurnContractSnapshot | null
@@ -1278,7 +1277,6 @@ function createDefaultProviderFacingMindTurnContract(input: {
     activeClosenessRung: normalizeProviderFacingClosenessRung(input.governance?.activeClosenessRung),
     relationshipPosture: normalizeProviderFacingRelationshipPosture(input.governance?.relationshipPosture),
     labelCarryAsMemory: input.governance?.labelCarryAsMemory ?? false,
-    suppressAssociativeRecall: input.governance?.suppressAssociativeRecall ?? false,
     allowAffectionatePreface: input.governance?.allowAffectionatePreface ?? false,
     allowStageDirections: input.governance?.allowStageDirections ?? false,
     allowBodyNarration: input.governance?.allowBodyNarration ?? false,
@@ -2282,7 +2280,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         })
       }, {
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
-        suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
       }),
       summarizeOutput: runtime => ({
         outputSummary: [

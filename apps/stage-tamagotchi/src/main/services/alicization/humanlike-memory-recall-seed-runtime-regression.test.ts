@@ -93,7 +93,6 @@ function createPrelude(memoryRecallSeed: string): AlicizationPreparedMainChatPre
         fallbackReason: null,
       },
       chatGovernance: {
-        suppressAssociativeRecall: false,
         turnMode: 'answer',
         personaKernelMode: 'full',
         mindTurnContract: null,
@@ -114,11 +113,11 @@ describe('humanlike memory recall seed runtime regression', () => {
           sessionId: 'session-humanlike-runtime',
           createdAt: 42_000,
           relationshipContext: {
-            threadAnchor: 'identity-continuity',
-            summary: 'Host corrected this memory meaning: 你是在测试她是不是持续的人，不是催进度。',
+            threadAnchor: 'delivery-address',
+            summary: 'The host corrected the delivery destination to Building B.',
           },
           emotionalResidue: {
-            tags: ['protective-continuity', 'unfinishedness'],
+            tags: ['relief', 'unfinishedness'],
           },
           initiativeOpportunity: {
             kind: 'low-pressure-follow-up',
@@ -130,7 +129,7 @@ describe('humanlike memory recall seed runtime regression', () => {
             selfNarrativeDelta: 'I learned to carry corrected memory meaning instead of defending the first interpretation.',
           },
           auditTrail: {
-            whyRemember: 'host correction | same-person continuity was at stake',
+            whyRemember: 'The host explicitly corrected a remembered fact.',
             confidence: 0.82,
           },
         },
@@ -208,8 +207,8 @@ describe('humanlike memory recall seed runtime regression', () => {
 
     expect(recallSeed).toContain('recent contextual recall')
     expect(recallSeed).toContain('humanlike_memory_recall:')
-    expect(recallSeed).toContain('relationship=Host corrected this memory meaning: 你是在测试她是不是持续的人，不是催进度。')
-    expect(recallSeed).toContain('emotion=protective-continuity,unfinishedness')
+    expect(recallSeed).toContain('relationship=The host corrected the delivery destination to Building B.')
+    expect(recallSeed).toContain('emotion=relief,unfinishedness')
     expect(recallSeed).toContain('initiative=low-pressure-follow-up')
     expect(recallSeed).not.toMatch(/\b(?:line|embodiment|self|why|reason|metabolism)=/u)
     expect(recallSeed).not.toContain('我记得你纠正过')
@@ -239,11 +238,11 @@ describe('humanlike memory recall seed runtime regression', () => {
             afterglowCarry: 0.52,
             shouldDelayWarmth: true,
             shouldProtectRest: false,
-            reasonTags: ['same-her', 'initiative-learning'],
-            summary: 'Keep the same proactive line settling lower-pressure before warming wider.',
+            reasonTags: ['observed-affect', 'initiative-learning'],
+            summary: 'Keep the next return measured before increasing intensity.',
           },
           sourceSignals: ['proactive outcome learning'],
-          summary: 'The proactive reopening should return measured and lower-pressure on the same line.',
+          summary: 'The proactive outcome supports a measured return.',
         },
       },
       createdAt: 89_000,

@@ -118,7 +118,6 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
             fallbackReason: null,
           },
           chatGovernance: {
-            suppressAssociativeRecall: false,
             turnMode: 'answer' as const,
             personaKernelMode: 'full' as const,
             mindTurnGovernance: null,

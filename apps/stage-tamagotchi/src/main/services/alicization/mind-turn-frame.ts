@@ -430,9 +430,6 @@ export function buildMindTurnFrame(input: {
         conversationState?.activeProject,
       ),
       lastOutcome: dialogueWorldThread?.lastOutcome ?? null,
-      suppressAssociativeRecall: recallGovernor?.suppressAssociativeRecall
-        ?? answerCompiler?.suppressAssociativeRecall
-        ?? false,
       labelCarryAsMemory: recallGovernor?.carryAsMemory
         ?? answerCompiler?.labelCarryAsMemory
         ?? false,
@@ -577,7 +574,6 @@ export function normalizeMindTurnFrame(raw: unknown): AlicizationMindTurnFrameSn
       recallKeys: uniqueList(Array.isArray(memory.recallKeys) ? memory.recallKeys : [], 6),
       recallSeed: pickText(memory.recallSeed),
       lastOutcome: pickText(memory.lastOutcome) as AlicizationMindTurnFrameSnapshot['memory']['lastOutcome'],
-      suppressAssociativeRecall: memory.suppressAssociativeRecall === true,
       labelCarryAsMemory: memory.labelCarryAsMemory === true,
     },
     self: {

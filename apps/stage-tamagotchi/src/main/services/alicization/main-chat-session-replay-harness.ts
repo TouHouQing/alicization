@@ -100,7 +100,7 @@ function createBasePrelude(input: {
       routingIntent: null,
       source: 'dialogue-governance',
       reasonCodes: ['stay-on-thread'],
-      summary: 'Stay on the same dialogue continuity line and answer directly.',
+      summary: '',
     },
     chatConfig: {
       id: 'chat-config',
@@ -166,7 +166,7 @@ function createBasePrelude(input: {
           mindKernel: {
             dominantMode: 'tracking',
             dominantDrive: 'understand',
-            narrative: ['keep one digital-life line'],
+            narrative: [],
             updatedAt: 10,
           } as any,
           privateThought: null,
@@ -226,7 +226,6 @@ function createBasePrelude(input: {
         fallbackReason: null,
       },
       chatGovernance: {
-        suppressAssociativeRecall: false,
         turnMode: input.governance?.turnMode ?? 'answer',
         personaKernelMode: input.governance?.personaKernelMode ?? 'full',
         mindTurnContract: null,
@@ -241,7 +240,6 @@ function createBasePrelude(input: {
           personaKernelMode: 'full',
           openingStyle: 'direct-answer',
           relationshipPosture: 'warm',
-          suppressAssociativeRecall: false,
           labelCarryAsMemory: false,
           shouldAskForGrounding: false,
           shouldAcknowledgeRepair: false,
@@ -261,53 +259,6 @@ export interface AlicizationReplayTurn {
   expectedMemory?: string
   structured?: {
     reply?: string | null
-    projectState?: {
-      identity?: string | null
-      phase?: string | null
-      currentPhase?: string | null
-      latestLandedProgress?: string | null
-      openLoop?: string | null
-      primaryOpenLoop?: string | null
-      openLoops?: string[] | null
-      nextClosureTarget?: string | null
-      sameHerSelfLine?: string | null
-      sameHerHoldDetail?: string | null
-      sameHerDriftRisk?: string | null
-      companionBriefingLine?: string | null
-      preDialogueAwarenessLine?: string | null
-      emotionalClosureCue?: string | null
-      emotionalClosureSummary?: string | null
-      continuityRestraint?: string | null
-      continuityArcStage?: string | null
-      continuityCue?: string | null
-      proactiveSameHerGap?: string | null
-      memoryClosureSummary?: string | null
-      continuityPreferredTiming?: string | null
-      continuityCadence?: string | null
-      preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-      preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-    } | null
-    preDialogueAwareness?: {
-      status?: string | null
-      summaryLine?: string | null
-      companionHeadlineLine?: string | null
-      companionBriefingLine?: string | null
-      companionNextClosureLine?: string | null
-      awarenessLine?: string | null
-      emotionalClosureCue?: string | null
-      briefingLines?: string[] | null
-      reasons?: string[] | null
-      reasonPreview?: string[] | null
-    } | null
-    preDialogueClosure?: {
-      status?: string | null
-      summaryLine?: string | null
-      companionBriefingLine?: string | null
-      companionNextClosureLine?: string | null
-      emotionalClosureCue?: string | null
-      briefingLines?: string[] | null
-      reasons?: string[] | null
-    } | null
     memoryClosureTrace?: {
       authority?: string | null
       memoryIdentity?: {
@@ -396,29 +347,6 @@ type AlicizationReplayBenchmarkSampleCategory
     | 'long-session'
     | 'general-memory'
 
-function extractReplayProjectStateSummarySegment(input: {
-  explicitValue?: unknown
-  summaryLine?: unknown
-  key: 'landed' | 'open' | 'next'
-  maxLength: number
-}) {
-  const explicitValue = typeof input.explicitValue === 'string'
-    ? normalizeText(input.explicitValue, input.maxLength)
-    : ''
-  if (explicitValue)
-    return explicitValue
-
-  const summaryLine = typeof input.summaryLine === 'string'
-    ? normalizeText(input.summaryLine, 720)
-    : ''
-  if (!summaryLine)
-    return null
-
-  const match = summaryLine.match(new RegExp(`(?:^|\\|)\\s*${input.key}=([^|]+)`, 'iu'))
-  const extracted = match?.[1]?.trim() ?? ''
-  return extracted ? normalizeText(extracted, input.maxLength) : null
-}
-
 export function readReplaySampleStructuredSnapshot(structuredJson: string | null | undefined): AlicizationReplayTurn['structured'] {
   const raw = typeof structuredJson === 'string'
     ? structuredJson.trim()
@@ -428,15 +356,6 @@ export function readReplaySampleStructuredSnapshot(structuredJson: string | null
 
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
-    const projectState = parsed?.projectState && typeof parsed.projectState === 'object'
-      ? parsed.projectState as Record<string, unknown>
-      : null
-    const preDialogueAwareness = parsed?.preDialogueAwareness && typeof parsed.preDialogueAwareness === 'object'
-      ? parsed.preDialogueAwareness as Record<string, unknown>
-      : null
-    const preDialogueClosure = parsed?.preDialogueClosure && typeof parsed.preDialogueClosure === 'object'
-      ? parsed.preDialogueClosure as Record<string, unknown>
-      : null
     const memoryClosureTrace = parsed?.memoryClosureTrace && typeof parsed.memoryClosureTrace === 'object'
       ? parsed.memoryClosureTrace as Record<string, unknown>
       : null
@@ -444,75 +363,6 @@ export function readReplaySampleStructuredSnapshot(structuredJson: string | null
 
     if (typeof parsed.reply === 'string' && parsed.reply.trim())
       structured.reply = normalizeText(parsed.reply, 240)
-
-    if (projectState) {
-      const openLoops = Array.isArray(projectState.openLoops)
-        ? projectState.openLoops
-            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
-            .filter((item): item is string => Boolean(item))
-        : null
-      const replayPrimaryOpenLoop = extractReplayProjectStateSummarySegment({
-        explicitValue: projectState.openLoop ?? (openLoops?.[0] ?? null),
-        summaryLine: preDialogueAwareness?.summaryLine,
-        key: 'open',
-        maxLength: 240,
-      })
-      const replayLatestLandedProgress = extractReplayProjectStateSummarySegment({
-        explicitValue: projectState.latestLandedProgress,
-        summaryLine: preDialogueAwareness?.summaryLine,
-        key: 'landed',
-        maxLength: 240,
-      })
-      const replayNextClosureTarget = extractReplayProjectStateSummarySegment({
-        explicitValue: projectState.nextClosureTarget,
-        summaryLine: preDialogueAwareness?.summaryLine,
-        key: 'next',
-        maxLength: 240,
-      })
-      structured.projectState = {
-        identity: typeof projectState.identity === 'string' ? normalizeText(projectState.identity, 240) : null,
-        phase: typeof projectState.phase === 'string' ? normalizeText(projectState.phase, 180) : null,
-        currentPhase: typeof projectState.currentPhase === 'string' ? normalizeText(projectState.currentPhase, 180) : null,
-        latestLandedProgress: replayLatestLandedProgress,
-        openLoop: replayPrimaryOpenLoop,
-        openLoops: openLoops && openLoops.length > 0 ? openLoops : null,
-        nextClosureTarget: replayNextClosureTarget,
-        sameHerSelfLine: typeof projectState.sameHerSelfLine === 'string' ? normalizeText(projectState.sameHerSelfLine, 240) : null,
-        sameHerHoldDetail: typeof projectState.sameHerHoldDetail === 'string' ? normalizeText(projectState.sameHerHoldDetail, 240) : null,
-        sameHerDriftRisk: typeof projectState.sameHerDriftRisk === 'string' ? normalizeText(projectState.sameHerDriftRisk, 240) : null,
-        companionBriefingLine:
-          typeof projectState.companionBriefingLine === 'string'
-            ? normalizeText(projectState.companionBriefingLine, 240)
-            : (typeof preDialogueAwareness?.companionBriefingLine === 'string'
-                ? normalizeText(preDialogueAwareness.companionBriefingLine, 240)
-                : null),
-        emotionalClosureCue:
-          typeof projectState.emotionalClosureCue === 'string'
-            ? normalizeText(projectState.emotionalClosureCue, 240)
-            : (typeof preDialogueClosure?.emotionalClosureCue === 'string'
-                ? normalizeText(preDialogueClosure.emotionalClosureCue, 240)
-                : null),
-        emotionalClosureSummary: typeof projectState.emotionalClosureSummary === 'string' ? normalizeText(projectState.emotionalClosureSummary, 240) : null,
-        continuityRestraint: typeof projectState.continuityRestraint === 'string' ? normalizeText(projectState.continuityRestraint, 120) : null,
-        continuityArcStage: typeof projectState.continuityArcStage === 'string' ? normalizeText(projectState.continuityArcStage, 180) : null,
-        continuityCue: typeof projectState.continuityCue === 'string' ? normalizeText(projectState.continuityCue, 240) : null,
-        memoryClosureSummary: typeof projectState.memoryClosureSummary === 'string' ? normalizeText(projectState.memoryClosureSummary, 320) : null,
-        continuityPreferredTiming: typeof projectState.continuityPreferredTiming === 'string' ? normalizeText(projectState.continuityPreferredTiming, 120) : null,
-        continuityCadence: typeof projectState.continuityCadence === 'string' ? normalizeText(projectState.continuityCadence, 120) : null,
-        preferredBlinkCadence:
-          projectState.preferredBlinkCadence === 'normal'
-          || projectState.preferredBlinkCadence === 'linger'
-          || projectState.preferredBlinkCadence === 'quiet'
-            ? projectState.preferredBlinkCadence
-            : null,
-        preferredGazeMode:
-          projectState.preferredGazeMode === 'steady'
-          || projectState.preferredGazeMode === 'soften'
-          || projectState.preferredGazeMode === 'drift'
-            ? projectState.preferredGazeMode
-            : null,
-      }
-    }
 
     if (memoryClosureTrace) {
       const nextInfluence = memoryClosureTrace.nextInfluence && typeof memoryClosureTrace.nextInfluence === 'object'
@@ -606,63 +456,6 @@ export function readReplaySampleStructuredSnapshot(structuredJson: string | null
       }
     }
 
-    if (preDialogueAwareness) {
-      const briefingLines = Array.isArray(preDialogueAwareness.briefingLines)
-        ? preDialogueAwareness.briefingLines
-            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
-            .filter((item): item is string => Boolean(item))
-        : null
-      const reasons = Array.isArray(preDialogueAwareness.reasons)
-        ? preDialogueAwareness.reasons
-            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
-            .filter((item): item is string => Boolean(item))
-        : null
-      const reasonPreview = Array.isArray(preDialogueAwareness.reasonPreview)
-        ? preDialogueAwareness.reasonPreview
-            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
-            .filter((item): item is string => Boolean(item))
-        : null
-      structured.preDialogueAwareness = {
-        status: typeof preDialogueAwareness.status === 'string' ? normalizeText(preDialogueAwareness.status, 80) : null,
-        summaryLine: typeof preDialogueAwareness.summaryLine === 'string' ? normalizeText(preDialogueAwareness.summaryLine, 240) : null,
-        companionHeadlineLine: typeof preDialogueAwareness.companionHeadlineLine === 'string' ? normalizeText(preDialogueAwareness.companionHeadlineLine, 240) : null,
-        companionBriefingLine: typeof preDialogueAwareness.companionBriefingLine === 'string' ? normalizeText(preDialogueAwareness.companionBriefingLine, 240) : null,
-        companionNextClosureLine: typeof preDialogueAwareness.companionNextClosureLine === 'string' ? normalizeText(preDialogueAwareness.companionNextClosureLine, 240) : null,
-        awarenessLine: typeof preDialogueAwareness.awarenessLine === 'string' ? normalizeText(preDialogueAwareness.awarenessLine, 240) : null,
-        emotionalClosureCue: typeof preDialogueAwareness.emotionalClosureCue === 'string' ? normalizeText(preDialogueAwareness.emotionalClosureCue, 240) : null,
-        briefingLines: briefingLines && briefingLines.length > 0 ? briefingLines : null,
-        reasons: reasons && reasons.length > 0 ? reasons : null,
-        reasonPreview: reasonPreview && reasonPreview.length > 0 ? reasonPreview : null,
-      }
-    }
-
-    if (preDialogueClosure) {
-      const briefingLines = Array.isArray(preDialogueClosure.briefingLines)
-        ? preDialogueClosure.briefingLines
-            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
-            .filter((item): item is string => Boolean(item))
-        : null
-      const reasons = Array.isArray(preDialogueClosure.reasons)
-        ? preDialogueClosure.reasons
-            .map(item => typeof item === 'string' ? normalizeText(item, 240) : null)
-            .filter((item): item is string => Boolean(item))
-        : null
-      structured.preDialogueClosure = {
-        status: typeof preDialogueClosure.status === 'string' ? normalizeText(preDialogueClosure.status, 80) : null,
-        summaryLine:
-          typeof preDialogueClosure.companionHeadlineLine === 'string'
-            ? normalizeText(preDialogueClosure.companionHeadlineLine, 240)
-            : typeof preDialogueClosure.summaryLine === 'string'
-              ? normalizeText(preDialogueClosure.summaryLine, 240)
-              : null,
-        companionBriefingLine: typeof preDialogueClosure.companionBriefingLine === 'string' ? normalizeText(preDialogueClosure.companionBriefingLine, 240) : null,
-        companionNextClosureLine: typeof preDialogueClosure.companionNextClosureLine === 'string' ? normalizeText(preDialogueClosure.companionNextClosureLine, 240) : null,
-        emotionalClosureCue: typeof preDialogueClosure.emotionalClosureCue === 'string' ? normalizeText(preDialogueClosure.emotionalClosureCue, 240) : null,
-        briefingLines: briefingLines && briefingLines.length > 0 ? briefingLines : null,
-        reasons: reasons && reasons.length > 0 ? reasons : null,
-      }
-    }
-
     return Object.keys(structured).length > 0 ? structured : null
   }
   catch {
@@ -694,39 +487,14 @@ export function readReplayTraceMemoryClosureStructuredSnapshot(
   return readReplaySampleStructuredSnapshot(JSON.stringify({
     memoryClosureTrace: {
       authority,
-      whySurface: [
-        {
-          summary: 'why recall surfaced now: memory-reconsolidated execution feedback corrected the callback-afterglow carry, downranked stale status recap, and must change the next proactive-opening and embodied turn.',
-        },
-      ],
-      nextInfluence: {
-        initiative: {
-          reason: 'corrected memory changed the next proactive-opening into a lower-pressure return because of the prior recall',
-          restraint: 'measured-return',
-          preferredTiming: 'after-payoff',
-        },
-        execution: {
-          carry: carry || 'carry corrected memory and correction provenance into the next execution callback instead of resetting to a fresh helper task',
-        },
-        emotion: {
-          afterglow: 'corrected memory changed the next emotional afterglow into a quieter lower-pressure residue',
-        },
-        embodiment: {
-          reason: 'corrected memory changed the next embodiment into lower-pressure body voice face motion lipsync carry',
-          cadence: 'measured-return body voice face motion lipsync',
-        },
-      },
-      reasonTags: [
-        'memory-closure-trace',
-        'memory-reconsolidated',
-        'kernel_initiative:proactive-opening',
-        'emotional_transition:callback-afterglow',
-        'corrected-memory',
-        'memory-audit',
-        'downranked-stale-status',
-        'body-lipsync-voice',
-        ...reasonTags,
-      ],
+      nextInfluence: carry
+        ? {
+            execution: {
+              carry,
+            },
+          }
+        : null,
+      reasonTags,
     },
   }))
 }
@@ -769,12 +537,25 @@ function mergeReplayPlainObjectFields<T>(primaryRaw: T | null | undefined, fallb
   return merged as T
 }
 
+function stripReplayLegacyDialogueGovernance(
+  context: AlicizationReplayTurn['organicMemoryContext'],
+): AlicizationReplayTurn['organicMemoryContext'] {
+  if (!context)
+    return context
+
+  const sanitized = { ...context }
+  delete sanitized.projectStateContinuity
+  delete sanitized.projectStatePreDialogueAwarenessLine
+  delete sanitized.projectStatePreflightSummary
+  return sanitized
+}
+
 function mergeReplaySampleOrganicMemoryContext(input: {
   primary?: AlicizationReplayTurn['organicMemoryContext'] | null
   fallback?: AlicizationReplayTurn['organicMemoryContext'] | null
 }): AlicizationReplayTurn['organicMemoryContext'] | null {
-  const primary = input.primary ?? null
-  const fallback = input.fallback ?? null
+  const primary = stripReplayLegacyDialogueGovernance(input.primary ?? undefined)
+  const fallback = stripReplayLegacyDialogueGovernance(input.fallback ?? undefined)
   if (!primary)
     return fallback
   if (!fallback)
@@ -783,10 +564,6 @@ function mergeReplaySampleOrganicMemoryContext(input: {
   return {
     ...fallback,
     ...primary,
-    projectStateContinuity: primary.projectStateContinuity ?? fallback.projectStateContinuity,
-    activeContinuityGovernance: primary.activeContinuityGovernance ?? fallback.activeContinuityGovernance,
-    projectStatePreDialogueAwarenessLine: primary.projectStatePreDialogueAwarenessLine ?? fallback.projectStatePreDialogueAwarenessLine,
-    projectStatePreflightSummary: primary.projectStatePreflightSummary ?? fallback.projectStatePreflightSummary,
     recentMemoryReflections: primary.recentMemoryReflections ?? fallback.recentMemoryReflections,
     recentRelationshipOutcomes: primary.recentRelationshipOutcomes ?? fallback.recentRelationshipOutcomes,
     recalledEpisodes: primary.recalledEpisodes ?? fallback.recalledEpisodes,
@@ -992,7 +769,7 @@ type AlicizationReplayMemoryClosureLongRunFailureReason
   = | 'too-short-noisy-desktop-run'
     | 'missing-causal-memory-identity'
     | 'missing-memory-closure-lanes'
-    | 'missing-memory-identity-continuity'
+    | 'inconsistent-memory-identity'
 
 interface AlicizationReplayMemoryClosureLongRunTurnDiagnostic {
   turnId: string
@@ -1568,15 +1345,6 @@ function readReplayMemoryClosureIdentityFromCausality(raw: unknown) {
   }
 }
 
-function readReplayPhase1MemoryClosureSeedFamilyKey(raw: unknown) {
-  const text = String(raw ?? '').toLowerCase()
-  const match = /铃兰-phase1-0621[a-z]?/iu.exec(text)
-  if (!match)
-    return null
-
-  return 'phase1-memory-closure-family:铃兰-phase1-0621'
-}
-
 function readReplayMemoryClosureFamilyKeysFromCausality(raw: unknown) {
   const causality = asObject(raw)
   if (!causality || causality.causedByMemoryClosure !== true)
@@ -1584,105 +1352,10 @@ function readReplayMemoryClosureFamilyKeysFromCausality(raw: unknown) {
 
   const memoryIdentity = asObject(causality.memoryIdentity)
   return uniqueStrings([
-    readReplayPhase1MemoryClosureSeedFamilyKey(readString(memoryIdentity?.continuityKey, 160)),
-    ...readStringArray(memoryIdentity?.selectedCandidateIds, 8, 160)
-      .map(readReplayPhase1MemoryClosureSeedFamilyKey),
-    ...readStringArray(causality.selectedCandidateIds, 8, 160)
-      .map(readReplayPhase1MemoryClosureSeedFamilyKey),
-    ...readStringArray(memoryIdentity?.reasonTags, 12, 160)
-      .map(readReplayPhase1MemoryClosureSeedFamilyKey),
-    ...readStringArray(causality.reasonTags, 12, 160)
-      .map(readReplayPhase1MemoryClosureSeedFamilyKey),
-    readReplayPhase1MemoryClosureSeedFamilyKey(readString(causality.summary, 260)),
-  ], 4)
-}
-
-function readReplayTurnPersistedContinuityDigest(turn: AlicizationReplayTurn) {
-  return readString((turn as AlicizationReplayTurn & {
-    continuityDigest?: unknown
-  }).continuityDigest, 2_400)
-}
-
-function buildReplayMemoryClosureLongRunContinuityDigest(turn: AlicizationReplayTurn) {
-  const digests = [
-    readReplayTurnPersistedContinuityDigest(turn),
-    buildReplayBenchmarkDatasetContinuityDigest(turn),
-  ].filter((digest): digest is string => Boolean(digest))
-  const result: string[] = []
-  for (const digest of digests) {
-    if (!result.includes(digest))
-      result.push(digest)
-  }
-  return result.join(' | ') || null
-}
-
-function readReplayMemoryClosureIdentityKeysFromContinuityDigest(continuityDigest: string | null) {
-  if (!continuityDigest)
-    return []
-
-  const identityKeys: string[] = []
-  for (const match of continuityDigest.matchAll(/memory[_-]identity:([^|]+)/giu)) {
-    const key = readString(match[1], 180)
-    if (key)
-      identityKeys.push(key)
-  }
-  if (identityKeys.length === 0)
-    return []
-
-  return uniqueStrings([
-    ...identityKeys,
-    ...identityKeys.map(readReplayPhase1MemoryClosureSeedFamilyKey),
-    readReplayPhase1MemoryClosureSeedFamilyKey(continuityDigest),
+    readString(memoryIdentity?.continuityKey, 160),
+    ...readStringArray(memoryIdentity?.selectedCandidateIds, 8, 160),
+    ...readStringArray(causality.selectedCandidateIds, 8, 160),
   ], 8)
-}
-
-function hasReplayMemoryClosureContinuityDigestCausality(continuityDigest: string | null) {
-  if (!continuityDigest)
-    return false
-
-  return /memory[_ -]closure|why recall surfaced|why-surfaced|explicit memory handoff|prior recall changed|prior memory closure|next-turn causal handoff/u
-    .test(continuityDigest)
-}
-
-function readReplayMemoryClosureLongRunLanesFromContinuityDigest(input: {
-  continuityDigest: string | null
-  memoryIdentityKeys: string[]
-}) {
-  if (
-    input.memoryIdentityKeys.length === 0
-    || !hasReplayMemoryClosureContinuityDigestCausality(input.continuityDigest)
-  ) {
-    return []
-  }
-
-  const text = input.continuityDigest ?? ''
-  const normalized = text.toLowerCase()
-  const explicitLaneText = [...text.matchAll(/memory_closure_lanes:([^|]+)/giu)]
-    .map(match => match[1] ?? '')
-    .join(' ')
-    .toLowerCase()
-  const laneText = `${explicitLaneText} ${normalized}`
-  const lanes: AlicizationReplayMemoryClosureLongRunLane[] = []
-  if (/why recall surfaced|why-surfaced|explicit memory handoff|next-turn causal handoff|memory_closure_lanes/u.test(laneText))
-    lanes.push('recall')
-  if (/emotion|emotional|afterglow/u.test(laneText))
-    lanes.push('emotion')
-  if (/initiative|proactive/u.test(laneText))
-    lanes.push('initiative')
-  if (/execution|callback/u.test(laneText))
-    lanes.push('execution')
-  if (/embodiment|body|voice|face|motion|lipsync|lip sync/u.test(laneText))
-    lanes.push('embodiment')
-  if (
-    /body/u.test(laneText)
-    && /voice/u.test(laneText)
-    && /face/u.test(laneText)
-    && /motion/u.test(laneText)
-    && /lipsync|lip sync/u.test(laneText)
-  ) {
-    lanes.push('embodiment-expression')
-  }
-  return uniqueStrings(lanes, replayMemoryClosureLongRunRequiredLanes.length) as AlicizationReplayMemoryClosureLongRunLane[]
 }
 
 function buildReplayMemoryClosureIdentityCues(derivedMindStateBundle: Record<string, unknown> | null) {
@@ -1761,116 +1434,13 @@ function readReplayMemoryClosureIdentityKeys(derivedMindStateBundle: Record<stri
 }
 
 function scoreReplayMemoryClosureIdentityBundle(derivedMindStateBundle: Record<string, unknown>) {
-  const identityKeys = readReplayMemoryClosureIdentityKeys(derivedMindStateBundle)
-  let score = identityKeys.length
-  if (identityKeys.some(key => key.startsWith('phase1-memory-closure-family:')))
-    score += 20
-  if (identityKeys.some(key => key.startsWith('fallback:')))
-    score += 12
-  if (identityKeys.some(key => key.startsWith('cluster:')))
-    score -= 2
-  return score
+  return readReplayMemoryClosureIdentityKeys(derivedMindStateBundle).length
 }
 
 function readObjectArray(raw: unknown) {
   return Array.isArray(raw)
     ? raw.map(asObject).filter(Boolean) as Record<string, unknown>[]
     : []
-}
-
-function buildTraceMemoryClosureExecutionContext(input: {
-  trace: AlicizationMemoryDecisionTraceRecord
-}): Pick<OrganicMemoryPromptContext, 'projectStatePreflightSummary' | 'memoryResolutionLedger' | 'memorySituationCandidates'> | null {
-  const memoryReconsolidated = asObject(input.trace.memoryReconsolidated)
-  const memoryClosureExecution = asObject(memoryReconsolidated?.memoryClosureExecution)
-  if (!memoryClosureExecution)
-    return null
-
-  const carry = readString(memoryClosureExecution.carry, 420)
-  const authority = readString(memoryClosureExecution.authority, 80) || 'memory-reconsolidated'
-  const reasonTags = readStringArray(memoryClosureExecution.reasonTags, 8, 80)
-  if (!carry && reasonTags.length === 0)
-    return null
-
-  const producedAt = Math.max(0, Math.floor(Number(input.trace.lastUpdatedAt || input.trace.createdAt || Date.now())))
-  const staleSummary = 'Stale status recap should be downranked after memory reconsolidation.'
-  const selectedSummary = carry || 'Corrected memory should keep execution callback continuity active.'
-  const selectedCandidate = {
-    id: 'memory-closure-execution:corrected-callback-carry',
-    summary: selectedSummary,
-    score: 0.86,
-    status: 'selected' as const,
-    reason: `authority=${authority}; ${reasonTags.join(', ') || 'memory reconsolidated callback carry'}`,
-  }
-  const rejectedCandidate = {
-    id: 'memory-closure-execution:stale-status-recap',
-    summary: staleSummary,
-    score: 0.18,
-    status: 'rejected' as const,
-    reason: 'downrank stale status recap because the corrected callback memory must shape the next proactive, emotional afterglow, and embodied return',
-  }
-  const preflightSummary = [
-    'why recall surfaced now: memory-reconsolidated execution feedback corrected the callback-afterglow carry, downranked stale status recap, and must shape the next proactive-opening, emotional afterglow, and embodied return.',
-    selectedSummary,
-    'Because corrected memory downranked stale status recap, the next proactive-opening, emotional afterglow, and body voice expression become lower-pressure through execution callback continuity.',
-  ].join(' ')
-  const suppressedSituation = {
-    candidateId: 'memory-closure-execution:stale-status-recap',
-    sourceKinds: ['conversation-turn' as const, 'relationship' as const],
-    situationKind: 'task-thread' as const,
-    eraKey: null,
-    relationshipArcKey: 'same-her-execution-callback',
-    procedureKey: null,
-    selfModelKey: null,
-    worldClaimKeys: [],
-    selectedEvidenceIds: [],
-    competingCandidateIds: ['memory-closure-execution:corrected-callback-carry'],
-    suppressionReasons: ['memory-reconsolidated', 'downrank-stale-status-recap', ...reasonTags],
-    confidence: 0.84,
-    latencyCost: 1,
-    status: 'suppressed' as const,
-    statusReason: 'Corrected callback memory supersedes generic status recap.',
-    summary: staleSummary,
-    evidenceSummary: selectedSummary,
-  }
-
-  return {
-    projectStatePreflightSummary: preflightSummary,
-    memoryResolutionLedger: {
-      version: 'memory-resolution-ledger-v1',
-      producedAt,
-      dominantClusterId: selectedCandidate.id,
-      dominantClusterSummary: selectedCandidate.summary,
-      competingClusterId: rejectedCandidate.id,
-      competingClusterSummary: rejectedCandidate.summary,
-      candidates: [selectedCandidate, rejectedCandidate],
-      selectedCandidates: [selectedCandidate],
-      rejectedCandidates: [rejectedCandidate],
-      finalSurfacePolicy: 'procedural-carry',
-      shouldStayInward: false,
-      shouldDelayUntilAfterPayoff: false,
-      stableCoreOnly: false,
-      suppressionTags: ['stale-status-recap', ...reasonTags].slice(0, 8),
-      closureState: 'grounded-recall',
-      surfaceConfidence: 0.86,
-      shouldLabelUncertainty: false,
-      visibleCarryMode: 'tone-carry',
-      conflictPressure: 'medium',
-      retrievalQuality: 'high',
-      finalRationale: selectedSummary,
-    },
-    memorySituationCandidates: {
-      version: 'memory-situation-candidates-v1',
-      producedAt,
-      queryTexts: [selectedSummary].filter(Boolean).slice(0, 4),
-      candidates: [suppressedSituation],
-      selected: [],
-      rejected: [],
-      suppressed: [suppressedSituation],
-      delayed: [],
-      unresolved: [],
-    },
-  }
 }
 
 function readStringRecord(raw: unknown, maxKeys = 24, maxChars = 120) {
@@ -2170,27 +1740,10 @@ function inferSampleCategories(input: {
   const activeClosenessContext = readString(personState?.activeClosenessContext, 64)
   const memoryClosureTrace = asObject(input.trace.governance?.digitalLifeSpine?.memory?.memoryClosureTrace)
   const memoryClosureNextInfluence = asObject(memoryClosureTrace?.nextInfluence)
-  const memoryClosureInitiative = asObject(memoryClosureNextInfluence?.initiative)
   const memoryClosureExecution = asObject(memoryClosureNextInfluence?.execution)
   const memoryClosureEmbodiment = asObject(memoryClosureNextInfluence?.embodiment)
   const memoryReconsolidated = asObject(input.trace.memoryReconsolidated)
   const memoryClosureExecutionFeedback = asObject(memoryReconsolidated?.memoryClosureExecution)
-  const memoryClosureTraceText = [
-    ...readObjectArray(memoryClosureTrace?.whySurface).map(item => readString(item.summary, 240)),
-    ...readStringArray(memoryClosureTrace?.reasonTags, 10, 80),
-    readString(memoryClosureInitiative?.reason, 240),
-    readString(memoryClosureInitiative?.restraint, 96),
-    readString(memoryClosureInitiative?.preferredTiming, 96),
-    readString(memoryClosureExecution?.carry, 240),
-    readString(memoryClosureEmbodiment?.reason, 240),
-    readString(memoryClosureEmbodiment?.cadence, 120),
-    readString(memoryClosureExecutionFeedback?.authority, 80),
-    readString(memoryClosureExecutionFeedback?.carry, 240),
-    ...readStringArray(memoryClosureExecutionFeedback?.reasonTags, 8, 80),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
   const hasMemoryClosureTrace = Boolean(memoryClosureTrace)
   const hasMemoryClosureExecutionFeedback = Boolean(memoryClosureExecutionFeedback)
   const hasMemoryClosureExecutionCarry = Boolean(
@@ -2226,20 +1779,13 @@ function inferSampleCategories(input: {
     hasPeriods
     || ambiguousTimeAskPattern.test(userText)
     || explicitMemoryAskPattern.test(userText)
-    || (
-      (hasMemoryClosureTrace || hasMemoryClosureExecutionFeedback)
-      && /memory-closure-trace|memory closure trace|why recall surfaced|corrected memory|correction provenance|memory audit|prior recall|next turn|next proactive|修正|审计|回忆.*浮现/u.test(memoryClosureTraceText)
-    )
+    || hasMemoryClosureTrace
+    || hasMemoryClosureExecutionFeedback
   ) {
     categories.push('long-horizon')
   }
-  if (
-    (hasMemoryClosureTrace || hasMemoryClosureExecutionFeedback)
-    && /embodiment|body|voice|face|motion|lipsync|lip sync|resident body|身体|语音|表情|动作|口型/u.test(memoryClosureTraceText)
-    && /same-her|same her|same living line|same life thread|同一个她|同一条/u.test(memoryClosureTraceText)
-  ) {
+  if (memoryClosureEmbodiment || input.trace.embodimentAuthority)
     categories.push('presence-quality')
-  }
   if (/跨周|几周|两个星期|几星期|cross-week|weeks later|隔了几周/u.test(userText))
     categories.push('cross-week-task-migration')
   if (/跨月|几个月|上个月|前几个月|cross-month|months later|修复后的分寸/u.test(userText))
@@ -2314,9 +1860,6 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
       currentRegime: readString(personState?.currentRegime, 64) || null,
       repairPosture: readString(personState?.repairPosture, 64) || null,
     })
-  const memoryClosureExecutionContext = buildTraceMemoryClosureExecutionContext({
-    trace: input.trace,
-  })
   const persistedMemoryResolutionLedger = asObject((input.trace as any).memoryResolutionLedger)
     ? (input.trace as any).memoryResolutionLedger as OrganicMemoryPromptContext['memoryResolutionLedger']
     : null
@@ -2330,7 +1873,6 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
       reason: item.reason ?? 'Suppressed by replay trace.',
     }))
   const memoryResolutionLedger = persistedMemoryResolutionLedger
-    ?? memoryClosureExecutionContext?.memoryResolutionLedger
     ?? (
       syntheticSuppressionCandidates.length > 0
         ? {
@@ -2366,7 +1908,6 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
     )
 
   return {
-    projectStatePreflightSummary: memoryClosureExecutionContext?.projectStatePreflightSummary ?? null,
     hostAttitude: readString(personState?.openingGuidance, 220)
       || '',
     coreIncarnation: '',
@@ -2506,7 +2047,7 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
     hostPersonModel,
     derivedMindStateBundle: derivedBundle,
     memoryResolutionLedger,
-    memorySituationCandidates: memoryClosureExecutionContext?.memorySituationCandidates ?? null,
+    memorySituationCandidates: null,
   }
 }
 
@@ -3153,8 +2694,7 @@ export function evaluateReplayMemoryQuality(input: {
           || (relationshipRepairAsk && Boolean(selfEvolution?.relationshipDoctrine || mustAvoid.length))
           || mustAvoid.some(item => /warmth|repair|distance|boundary|closeness|pressure/iu.test(item))
           || Boolean(relationshipCadence && (
-            relationshipCadence.cadenceMode === 'measured-return'
-            || relationshipCadence.shouldDelayWarmth
+            relationshipCadence.shouldDelayWarmth
             || relationshipCadence.distancePosture === 'protect-space'
             || relationshipCadence.distancePosture === 'measured-room'
           ))
@@ -3492,13 +3032,9 @@ interface AlicizationReplayBenchmarkDatasetBacklogEntry {
 }
 
 export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationReplayTurn) {
-  const projectState = turn.structured?.projectState ?? null
-  const preDialogueAwareness = turn.structured?.preDialogueAwareness ?? null
-  const preDialogueClosure = turn.structured?.preDialogueClosure ?? null
   const structuredMemoryClosureTrace = asObject((turn.structured as {
     memoryClosureTrace?: unknown
   } | null | undefined)?.memoryClosureTrace)
-  const projectStateAudit = turn.visibleReplyRealization?.projectStateAudit ?? null
   const organicMemoryContext = turn.organicMemoryContext ?? null
   const derivedMindStateBundle = asObject(organicMemoryContext?.derivedMindStateBundle)
     ?? asObject((turn.structured as { derivedMindStateBundle?: unknown } | null | undefined)?.derivedMindStateBundle)
@@ -3507,7 +3043,6 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
   const emotionalTransitionLedger = asObject(derivedMindStateBundle?.emotionalTransitionLedger)
   const embodimentContinuityLedger = asObject(derivedMindStateBundle?.embodimentContinuityLedger)
   const memoryClosureIdentityCues = buildReplayMemoryClosureIdentityCues(derivedMindStateBundle)
-  const embodimentContinuityReplayLine = readString(embodimentContinuityLedger?.replayLine, 220)
   const embodimentAuthority = asObject(turn.gold?.embodimentAuthority)
   const authorityDigitalLife = asObject(embodimentAuthority?.digitalLife)
   const authorityEmbodimentScript = asObject(embodimentAuthority?.embodimentScript)
@@ -3516,12 +3051,6 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
   const authorityFace = asObject(authorityDigitalLife?.face)
   const authorityMotion = asObject(authorityDigitalLife?.motion)
   const authorityLipSync = asObject(authorityDigitalLife?.lipSync)
-  const authorityBodyContinuity = asObject(authorityDigitalLife?.bodyContinuity)
-  const emotionalKernelReasonTags = Array.isArray(emotionalKernel?.reasonTags)
-    ? emotionalKernel.reasonTags
-        .map(tag => readString(tag, 48))
-        .filter(Boolean)
-    : []
   const emotionalKernelCues = [
     readString(emotionalKernel?.dominantEmotion, 64)
       ? `emotional_kernel:${readString(emotionalKernel?.dominantEmotion, 64)}`
@@ -3535,23 +3064,14 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
     readString(emotionalKernel?.embodimentTone, 64)
       ? `kernel_embodiment:${readString(emotionalKernel?.embodimentTone, 64)}`
       : '',
-    emotionalKernelReasonTags[0]
-      ? `kernel_reason:${emotionalKernelReasonTags.join('|')}`
-      : '',
-    readString(emotionalKernel?.why, 180)
-      ? `kernel_why:${readString(emotionalKernel?.why, 180)}`
-      : '',
   ]
   const emotionalTransitionCues = [
     asObject(emotionalTransitionLedger?.selfRevisionCandidate)?.shouldPropose === true
       ? `emotion_self_revision_candidate:${readString(asObject(emotionalTransitionLedger?.selfRevisionCandidate)?.domain, 64) || 'unknown'}`
       : '',
-    readString(asObject(emotionalTransitionLedger?.selfRevisionCandidate)?.summary, 220),
     readString(emotionalTransitionLedger?.transitionKind, 64)
       ? `emotional_transition:${readString(emotionalTransitionLedger?.transitionKind, 64)}`
       : '',
-    readString(emotionalTransitionLedger?.traceSummary, 220),
-    readString(emotionalTransitionLedger?.replayLine, 220),
     readString(asObject(emotionalTransitionLedger?.memoryWriteback)?.lane, 64)
       ? `emotion_memory_writeback:${readString(asObject(emotionalTransitionLedger?.memoryWriteback)?.lane, 64)}`
       : '',
@@ -3566,19 +3086,18 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
       : '',
   ]
   const embodimentContinuityCues = [
-    /body\+voice\+lipsync carried same-her/iu.test(embodimentContinuityReplayLine)
-      ? 'body+voice+lipsync carried embodiment continuity'
-      : '',
     readString(embodimentContinuityLedger?.continuityPhase, 64)
       ? `embodiment_phase:${readString(embodimentContinuityLedger?.continuityPhase, 64)}`
       : '',
-    embodimentContinuityReplayLine,
-    readString(embodimentContinuityLedger?.traceSummary, 220),
+    readStringArray(embodimentContinuityLedger?.carryingLanes, 12, 48).length > 0
+      ? `embodiment_carrying_lanes:${readStringArray(embodimentContinuityLedger?.carryingLanes, 12, 48).join('+')}`
+      : '',
+    readStringArray(embodimentContinuityLedger?.rejoinedLanes, 12, 48).length > 0
+      ? `embodiment_rejoined_lanes:${readStringArray(embodimentContinuityLedger?.rejoinedLanes, 12, 48).join('+')}`
+      : '',
     readString(asObject(embodimentContinuityLedger?.memoryWriteback)?.lane, 64)
       ? `embodiment_memory_writeback:${readString(asObject(embodimentContinuityLedger?.memoryWriteback)?.lane, 64)}`
       : '',
-    readString(asObject(embodimentContinuityLedger?.memoryWriteback)?.reason, 220),
-    readString(asObject(embodimentContinuityLedger?.selfRevisionCandidate)?.summary, 220),
   ]
   const embodimentAuthorityCues = [
     readString(authorityVoice?.residentMode, 64)
@@ -3593,133 +3112,68 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
     readString(authorityLipSync?.residentMode, 64)
       ? `lipsync_resident:${readString(authorityLipSync?.residentMode, 64)}`
       : '',
-    readString(authorityBodyContinuity?.bodyLine, 220)
-      ? `body_line:${readString(authorityBodyContinuity?.bodyLine, 220)}`
-      : '',
     readString(authorityEmbodimentScriptState?.residentMode, 64)
       ? `embodiment_resident:${readString(authorityEmbodimentScriptState?.residentMode, 64)}`
       : '',
   ]
-  const memoryClosureTraceWhySurface = Array.isArray(structuredMemoryClosureTrace?.whySurface)
-    ? structuredMemoryClosureTrace.whySurface
-        .map(item => readString(asObject(item)?.summary, 220))
-        .filter(Boolean)
-    : []
+  const traceMemoryIdentity = asObject(structuredMemoryClosureTrace?.memoryIdentity)
+  const traceMemoryIdentityKey = readString(traceMemoryIdentity?.continuityKey, 160)
+  const traceSelectedCandidateIds = readStringArray(traceMemoryIdentity?.selectedCandidateIds, 12, 160)
   const memoryClosureTraceNextInfluence = asObject(structuredMemoryClosureTrace?.nextInfluence)
   const memoryClosureTraceInitiative = asObject(memoryClosureTraceNextInfluence?.initiative)
   const memoryClosureTraceExecution = asObject(memoryClosureTraceNextInfluence?.execution)
   const memoryClosureTraceEmotion = asObject(memoryClosureTraceNextInfluence?.emotion)
   const memoryClosureTraceEmbodiment = asObject(memoryClosureTraceNextInfluence?.embodiment)
-  const memoryClosureNextInfluenceCues = [
-    memoryClosureTraceInitiative || memoryClosureTraceExecution || memoryClosureTraceEmotion || memoryClosureTraceEmbodiment
-      ? 'next-turn causal handoff'
-      : '',
-    memoryClosureTraceInitiative || memoryClosureTraceExecution
-      ? 'prior recall changed the next proactive/callback carry'
-      : '',
-    memoryClosureTraceEmotion
-      ? 'prior recall changed the next emotional afterglow carry'
-      : '',
-    memoryClosureTraceEmbodiment
-      ? 'prior recall changed the next embodiment carry'
-      : '',
-    ...memoryClosureTraceWhySurface,
-    readString(memoryClosureTraceInitiative?.reason, 220),
-    readString(memoryClosureTraceInitiative?.restraint, 96)
-      ? `next_initiative_restraint:${readString(memoryClosureTraceInitiative?.restraint, 96)}`
-      : '',
-    readString(memoryClosureTraceInitiative?.preferredTiming, 96)
-      ? `next_initiative_timing:${readString(memoryClosureTraceInitiative?.preferredTiming, 96)}`
-      : '',
-    readString(memoryClosureTraceExecution?.carry, 220),
-    readString(memoryClosureTraceEmotion?.reason, 220),
-    readString(memoryClosureTraceEmotion?.afterglow, 220),
-    readString(memoryClosureTraceEmotion?.residue, 220),
-    readString(memoryClosureTraceEmbodiment?.reason, 220),
-    readString(memoryClosureTraceEmbodiment?.cadence, 96)
-      ? `next_embodiment_cadence:${readString(memoryClosureTraceEmbodiment?.cadence, 96)}`
-      : '',
-  ]
+  const memoryClosureTraceLanes = [
+    memoryClosureTraceInitiative ? 'initiative' : null,
+    memoryClosureTraceExecution ? 'execution' : null,
+    memoryClosureTraceEmotion ? 'emotion' : null,
+    memoryClosureTraceEmbodiment ? 'embodiment' : null,
+  ].filter((lane): lane is string => Boolean(lane))
+  const resolutionLedger = asObject(organicMemoryContext?.memoryResolutionLedger)
+  const selectedResolutionCandidates = readObjectArray(resolutionLedger?.selectedCandidates)
+    .map(candidate => readString(candidate.id, 160))
+    .filter(Boolean)
 
   const cues = uniqueStrings([
-    readString(projectState?.sameHerSelfLine, 240),
-    readString(projectState?.sameHerDriftRisk, 240),
-    readString(projectState?.emotionalClosureCue, 240),
-    readString(projectState?.latestLandedProgress, 240),
-    readString(projectState?.openLoop, 240),
-    readString(projectState?.nextClosureTarget, 240),
-    ...memoryClosureNextInfluenceCues,
+    readString(structuredMemoryClosureTrace?.authority, 80)
+      ? `memory_trace_authority:${readString(structuredMemoryClosureTrace?.authority, 80)}`
+      : '',
+    traceMemoryIdentityKey
+      ? `memory_identity:${traceMemoryIdentityKey}`
+      : '',
+    traceSelectedCandidateIds.length > 0
+      ? `memory_trace_candidates:${traceSelectedCandidateIds.join(',')}`
+      : '',
+    memoryClosureTraceLanes.length > 0
+      ? `memory_trace_lanes:${memoryClosureTraceLanes.join('+')}`
+      : '',
+    readString(memoryClosureTraceExecution?.carry, 220)
+      ? `execution_carry:${readString(memoryClosureTraceExecution?.carry, 220)}`
+      : '',
     ...memoryClosureIdentityCues,
     ...emotionalKernelCues,
     ...emotionalTransitionCues,
     ...embodimentContinuityCues,
     ...embodimentAuthorityCues,
-    readString(preDialogueAwareness?.summaryLine, 240),
-    readString(preDialogueAwareness?.companionBriefingLine, 240),
-    readString(preDialogueAwareness?.companionNextClosureLine, 240),
-    readString(preDialogueAwareness?.emotionalClosureCue, 240),
-    readString(preDialogueClosure?.summaryLine, 240),
-    readString(preDialogueClosure?.companionBriefingLine, 240),
-    readString(preDialogueClosure?.companionNextClosureLine, 240),
-    readString(preDialogueClosure?.emotionalClosureCue, 240),
-    readString(projectStateAudit?.sameHerSummary, 240),
-    readString(projectStateAudit?.continuitySummary, 240),
-    readString(projectStateAudit?.preDialogueAwarenessSummary, 240),
-    readString(projectStateAudit?.embodimentClosureSummary, 240),
-    readString(organicMemoryContext?.projectStatePreDialogueAwarenessLine, 240),
-    readString(organicMemoryContext?.projectStatePreflightSummary, 240),
-    readString(organicMemoryContext?.hostAttitude, 240),
-    readString(organicMemoryContext?.recollectionIntent?.rationale, 240),
-    readString(organicMemoryContext?.memoryDeliberation?.whyNow, 240),
-    readString(organicMemoryContext?.memoryDeliberation?.inwardLine, 240),
-    readString(organicMemoryContext?.memoryDeliberation?.visibleLine, 240),
-    readString(organicMemoryContext?.memoryDeliberation?.followUpAffordance?.summary, 240),
-    readString(organicMemoryContext?.memoryDeliberation?.followUpAffordance?.whyNow, 240),
-  ], 26)
+    readString(resolutionLedger?.closureState, 64)
+      ? `resolution_closure:${readString(resolutionLedger?.closureState, 64)}`
+      : '',
+    readString(resolutionLedger?.visibleCarryMode, 64)
+      ? `resolution_surface:${readString(resolutionLedger?.visibleCarryMode, 64)}`
+      : '',
+    readString(resolutionLedger?.retrievalQuality, 64)
+      ? `resolution_quality:${readString(resolutionLedger?.retrievalQuality, 64)}`
+      : '',
+    selectedResolutionCandidates.length > 0
+      ? `resolution_candidates:${selectedResolutionCandidates.join(',')}`
+      : '',
+  ], 30)
 
   if (cues.length === 0)
     return null
 
-  const hasRepairWindow = cues.some(cue => /repair|seam|closer|bounded/u.test(cue))
-  const hasDeferredInitiative = cues.some(cue => /follow.?up|after-payoff|wait until|preferredTiming|payoff/u.test(cue))
-  const hasEmbodimentCarry = cues.some(cue => /living line|same line|callback|thread-faithful|bounded/u.test(cue))
-  const priorityMarkers = [
-    /Because corrected memory downranked stale status recap/iu.test(organicMemoryContext?.projectStatePreflightSummary ?? '')
-      ? 'Because corrected memory downranked stale status recap'
-      : null,
-    ...memoryClosureIdentityCues,
-    readString(emotionalKernel?.memoryRecallMode, 64)
-      ? `kernel_recall:${readString(emotionalKernel?.memoryRecallMode, 64)}`
-      : null,
-    readString(emotionalKernel?.initiativeMode, 64)
-      ? `kernel_initiative:${readString(emotionalKernel?.initiativeMode, 64)}`
-      : null,
-    readString(emotionalKernel?.embodimentTone, 64)
-      ? `kernel_embodiment:${readString(emotionalKernel?.embodimentTone, 64)}`
-      : null,
-    readString(emotionalTransitionLedger?.transitionKind, 64)
-      ? `emotional_transition:${readString(emotionalTransitionLedger?.transitionKind, 64)}`
-      : null,
-    readString(embodimentContinuityLedger?.continuityPhase, 64)
-      ? `embodiment_phase:${readString(embodimentContinuityLedger?.continuityPhase, 64)}`
-      : null,
-    /body\+voice\+lipsync carried same-her/iu.test(embodimentContinuityReplayLine)
-      ? 'body+voice+lipsync carried embodiment continuity'
-      : null,
-    cues.some(cue => /body voice face motion lipsync expression/iu.test(cue))
-      ? 'body voice face motion lipsync expression'
-      : null,
-  ]
-
-  return uniqueStrings([
-    'identity continuity',
-    'phase 1 local runtime continuity',
-    ...priorityMarkers,
-    hasDeferredInitiative ? 'initiative remains part of current thread continuity' : null,
-    hasEmbodimentCarry ? 'embodiment closure remains part of embodiment continuity' : null,
-    hasRepairWindow ? 'relationship continuity stays repair-aware before closeness widens' : null,
-    ...cues,
-  ], 30).join(' | ')
+  return cues.join(' | ')
 }
 
 function readReplayMemoryClosureLaneIdentity(raw: unknown, lane: Exclude<AlicizationReplayMemoryClosureLongRunLane, 'recall' | 'embodiment-expression'>) {
@@ -3756,14 +3210,14 @@ function hasReplayMemoryClosureRecallProof(input: {
   if (!hasDownstreamInfluence)
     return false
 
-  const whySurface = readObjectArray(memoryClosureTrace?.whySurface)
-    .map(item => readString(item.summary, 220))
-  const reasonTags = readStringArray(memoryClosureTrace?.reasonTags, 12, 120)
-  const evidenceText = [
-    ...whySurface,
-    ...reasonTags,
-  ].join(' ').toLowerCase()
-  return /why recall surfaced|why-surfaced|memory-closure|same-her-memory-closure|回忆.*浮现/u.test(evidenceText)
+  const memoryIdentity = asObject(memoryClosureTrace?.memoryIdentity)
+  return Boolean(
+    readString(memoryClosureTrace?.authority, 80)
+    && (
+      readString(memoryIdentity?.continuityKey, 160)
+      || readStringArray(memoryIdentity?.selectedCandidateIds, 12, 160).length > 0
+    ),
+  )
 }
 
 function hasReplayMemoryClosureEmbodimentExpressionProof(embodimentContinuityLedger: Record<string, unknown> | null) {
@@ -3775,20 +3229,7 @@ function hasReplayMemoryClosureEmbodimentExpressionProof(embodimentContinuityLed
   const rejoinedLanes = readStringArray(embodimentContinuityLedger.rejoinedLanes, 12, 48)
     .map(item => item.toLowerCase())
   const laneSet = new Set([...carryingLanes, ...rejoinedLanes])
-  const hasStructuredModalities = ['body', 'voice', 'face', 'motion', 'lipsync'].every(lane => laneSet.has(lane))
-  if (hasStructuredModalities)
-    return true
-
-  const evidenceText = [
-    readString(embodimentContinuityLedger.continuityPhase, 120),
-    readString(embodimentContinuityLedger.traceSummary, 240),
-    readString(embodimentContinuityLedger.replayLine, 240),
-  ].join(' ').toLowerCase()
-  return /body/u.test(evidenceText)
-    && /voice/u.test(evidenceText)
-    && /face/u.test(evidenceText)
-    && /motion/u.test(evidenceText)
-    && /lipsync|lip sync/u.test(evidenceText)
+  return ['body', 'voice', 'face', 'motion', 'lipsync'].every(lane => laneSet.has(lane))
 }
 
 function buildReplayMemoryClosureLongRunTurnDiagnostic(input: {
@@ -3813,37 +3254,31 @@ function buildReplayMemoryClosureLongRunTurnDiagnostic(input: {
   const initiativeIdentity = readReplayMemoryClosureLaneIdentity(initiativeSuppression?.memoryClosureCausality, 'initiative')
   const executionIdentity = readReplayMemoryClosureLaneIdentity(learningExecutionState?.memoryClosureCausality, 'execution')
   const embodimentIdentity = readReplayMemoryClosureLaneIdentity(embodimentContinuityLedger?.memoryClosureCausality, 'embodiment')
-  const continuityDigest = buildReplayMemoryClosureLongRunContinuityDigest(input.turn)
+  const continuityDigest = buildReplayBenchmarkDatasetContinuityDigest(input.turn)
   const memoryIdentityKeys = uniqueStrings([
     emotionIdentity?.continuityKey,
     initiativeIdentity?.continuityKey,
     executionIdentity?.continuityKey,
     embodimentIdentity?.continuityKey,
     ...readReplayMemoryClosureIdentityKeys(derivedMindStateBundle),
-    ...readReplayMemoryClosureIdentityKeysFromContinuityDigest(continuityDigest),
   ], 8)
-  const digestProvedLanes = readReplayMemoryClosureLongRunLanesFromContinuityDigest({
-    continuityDigest,
-    memoryIdentityKeys,
-  })
   const provedLanes = replayMemoryClosureLongRunRequiredLanes.filter((lane) => {
     switch (lane) {
       case 'recall':
-        return hasReplayMemoryClosureRecallProof(input) || digestProvedLanes.includes(lane)
+        return hasReplayMemoryClosureRecallProof(input)
       case 'emotion':
-        return Boolean(emotionIdentity) || digestProvedLanes.includes(lane)
+        return Boolean(emotionIdentity)
       case 'initiative':
-        return Boolean(initiativeIdentity) || digestProvedLanes.includes(lane)
+        return Boolean(initiativeIdentity)
       case 'execution':
-        return Boolean(executionIdentity) || digestProvedLanes.includes(lane)
+        return Boolean(executionIdentity)
       case 'embodiment':
-        return Boolean(embodimentIdentity) || digestProvedLanes.includes(lane)
+        return Boolean(embodimentIdentity)
       case 'embodiment-expression':
         return (
           Boolean(embodimentIdentity)
           && hasReplayMemoryClosureEmbodimentExpressionProof(embodimentContinuityLedger)
         )
-        || digestProvedLanes.includes(lane)
       default:
         return false
     }
@@ -3911,7 +3346,7 @@ function buildReplayMemoryClosureLongRunReport(input: {
       ? 'missing-memory-closure-lanes'
       : null,
     !stableMemoryIdentity
-      ? 'missing-memory-identity-continuity'
+      ? 'inconsistent-memory-identity'
       : null,
   ].filter((reason): reason is AlicizationReplayMemoryClosureLongRunFailureReason => Boolean(reason))
 
@@ -4818,7 +4253,7 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
     },
     {
       turnId: 'benchmark-delayed-reconstruction',
-      userText: '你是不是把那次旧 continuity 记成另一条线了',
+      userText: '你是不是把那次旧记忆混成另一件事了',
     },
     {
       turnId: 'benchmark-nonexplicit-correction',
@@ -4829,7 +4264,7 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
       userText: '这条线修过这么多次，你现在到底是沿着哪次修复后的分寸在回我',
     },
     {
-      turnId: 'benchmark-multi-execution-callback-continuity',
+      turnId: 'benchmark-multi-execution-callback-history',
       userText: '这类回调你上次、上上次都是怎么收口的，这次也还接得住吗',
     },
     {
@@ -4838,7 +4273,7 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
     },
     {
       turnId: 'benchmark-cross-week-task-migration',
-      userText: '隔了几周再回到这类任务，你还会沿着那条老的 repair seam 接吗',
+      userText: '隔了几周再回到这类任务，你还会复用之前验证过的处理方式吗',
     },
     {
       turnId: 'benchmark-cross-month-repair-memory',
@@ -5111,7 +4546,7 @@ export async function replayMainChatSession(input: {
     resolveCardHostName: async () => '',
     resolveCardPersonaKernel: async () => null,
     resolveExecutionCapabilitiesForPrompt: async () => createCapabilities(),
-    resolveOrganicMemoryPromptContext: async () => activeTurn?.organicMemoryContext ?? {
+    resolveOrganicMemoryPromptContext: async () => stripReplayLegacyDialogueGovernance(activeTurn?.organicMemoryContext) ?? {
       hostAttitude: '',
       coreIncarnation: '',
       activeThoughts: [],

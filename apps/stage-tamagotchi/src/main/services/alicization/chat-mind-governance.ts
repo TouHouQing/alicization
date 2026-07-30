@@ -278,10 +278,8 @@ export function buildAlicizationMindTurnGovernance(input: {
       ?? recallGovernor?.carryAsMemory
       ?? answerCompiler?.labelCarryAsMemory
       ?? input.surfaceContract.labelCarryAsMemory,
-    suppressAssociativeRecall: mindTurnFrame?.memory.suppressAssociativeRecall
-      ?? recallGovernor?.suppressAssociativeRecall
-      ?? answerCompiler?.suppressAssociativeRecall
-      ?? input.surfaceContract.suppressAssociativeRecall,
+    suppressAssociativeRecall: recallGovernor?.suppressAssociativeRecall
+      ?? answerCompiler?.suppressAssociativeRecall,
     currentConsciousFrame: null,
     claimEvidenceLedger,
   })
@@ -369,7 +367,6 @@ export function buildAlicizationMindTurnGovernance(input: {
             return null
           return carry
         })(),
-    suppressAssociativeRecall: truthDiscipline.shouldSuppressAssociativeRecall,
     labelCarryAsMemory: mindTurnFrame?.memory.labelCarryAsMemory ?? recallGovernor?.carryAsMemory ?? answerCompiler?.labelCarryAsMemory ?? mindTurnContract?.labelCarryAsMemory ?? input.surfaceContract.labelCarryAsMemory,
     shouldAskForGrounding: groundedThisTurn
       ? false

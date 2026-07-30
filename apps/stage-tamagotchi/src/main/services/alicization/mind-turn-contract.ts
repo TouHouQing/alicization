@@ -76,7 +76,6 @@ export function buildAlicizationMindTurnContract(input: {
       ?? null) as AlicizationAnswerCompilerSnapshot['activeClosenessRung'],
     relationshipPosture: charter.relationshipPosture,
     labelCarryAsMemory: surface.labelCarryAsMemory,
-    suppressAssociativeRecall: surface.suppressAssociativeRecall,
     allowAffectionatePreface: surface.allowAffectionatePreface,
     allowStageDirections: surface.allowStageDirections,
     allowBodyNarration: surface.allowBodyNarration,

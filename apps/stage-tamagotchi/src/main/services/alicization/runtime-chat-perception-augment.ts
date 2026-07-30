@@ -112,7 +112,6 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
           fallbackReason: null,
         },
         chatGovernance: {
-          suppressAssociativeRecall: false,
           turnMode: 'answer' as const,
           personaKernelMode: 'full' as const,
           mindTurnGovernance: null,
@@ -397,7 +396,6 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
             openingStyle: responseSurfaceContract.contract.openingStyle,
             maxParagraphs: responseSurfaceContract.contract.maxParagraphs,
             maxSentences: responseSurfaceContract.contract.maxSentences,
-            suppressAssociativeRecall: responseSurfaceContract.contract.suppressAssociativeRecall,
             activeSelfRevisionPatchId: responseSurfaceContract.contract.activeSelfRevisionPatchId ?? null,
           },
           historyCompaction: {
@@ -450,7 +448,6 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         fallbackReason: captureGovernance.fallbackReason,
       },
       chatGovernance: {
-        suppressAssociativeRecall: mindTurnContract.suppressAssociativeRecall,
         turnMode: executiveAnswerBrief.brief.turnMode,
         personaKernelMode: mindTurnContract.personaKernelMode,
         mindTurnContract,
