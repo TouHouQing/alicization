@@ -43,8 +43,8 @@ describe('digital life memory', () => {
       personStateProjection: expect.objectContaining({
         summary: expect.stringContaining('continuity state'),
         selfContinuityAuthority: expect.objectContaining({
-          authoritySummary: expect.stringContaining('legacy phase-one template'),
-          inwardLine: expect.stringContaining('continuity state'),
+          authoritySummary: 'structured continuity digest.',
+          inwardLine: 'structured continuity digest.',
         }),
       }),
     }))
@@ -90,5 +90,31 @@ describe('digital life memory', () => {
     expect(digest?.reflectionSummary).toBe('The same-her repair line is still the meaningful memory carry.')
     expect(digest?.reflectionSummary).not.toContain('temporary anxious wobble')
     expect(digest?.reflectionPressure).toBe(0.22)
+  })
+
+  it('does not expose legacy reply suppression flags in the memory digest', () => {
+    const digest = buildAlicizationDigitalLifeMemoryDigest({
+      version: 'digital-life-runtime-surface-v1',
+      memory: {
+        workingMemoryEpisodes: [],
+        concerns: [],
+        recallGovernor: {
+          mode: 'relationship',
+          carryAsMemory: false,
+          allowRecalledFragments: false,
+          allowActiveThoughts: false,
+          recollectionIntent: {
+            mode: 'relationship-history',
+            temporalFocus: 'cross-session',
+            rationale: 'relationship-memory',
+            confidence: 0.8,
+          },
+        },
+      },
+    } as any)
+
+    expect(digest?.recollectionSurfaceSummary).toBe('carry=none')
+    expect(JSON.stringify(digest)).not.toContain('fragments=off')
+    expect(JSON.stringify(digest)).not.toContain('active-thoughts=off')
   })
 })

@@ -111,11 +111,7 @@ export function buildAlicizationDigitalLifeMemoryDigest(
       ].filter(Boolean).join(' | ') || null
     : null
   const recollectionSurfaceSummary = recollectionIntent
-    ? [
-        recallGovernor?.carryAsMemory ? 'carry=memory' : 'carry=none',
-        recallGovernor?.allowRecalledFragments ? 'fragments=enabled' : 'fragments=off',
-        recallGovernor?.allowActiveThoughts ? 'active-thoughts=enabled' : 'active-thoughts=off',
-      ].filter(Boolean).join(' | ') || null
+    ? recallGovernor?.carryAsMemory ? 'carry=memory' : 'carry=none'
     : null
   const recollectionConfidence = recollectionIntent
     ? normalizeUnit(recollectionIntent.confidence)

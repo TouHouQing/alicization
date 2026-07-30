@@ -399,4 +399,26 @@ describe('digital life architecture', () => {
     }))
     expect(architecture).not.toHaveProperty('closureAudit')
   })
+
+  it('keeps memory subsystem pressure independent from reply recall suppression', () => {
+    const buildWithSuppression = (suppressAssociativeRecall: boolean) =>
+      buildAlicizationDigitalLifeArchitecture({
+        version: 'digital-life-runtime-surface-v1',
+        memory: {
+          concerns: [],
+          workingMemoryEpisodes: [],
+          recallGovernor: {
+            mode: 'thread',
+            recallSeed: '当前记忆主题',
+            suppressAssociativeRecall,
+          },
+        },
+      } as any)
+
+    const suppressed = buildWithSuppression(true)
+    const unsuppressed = buildWithSuppression(false)
+
+    expect(suppressed?.systems.memory.score).toBe(unsuppressed?.systems.memory.score)
+    expect(suppressed?.systems.memory.state).toBe(unsuppressed?.systems.memory.state)
+  })
 })

@@ -375,7 +375,7 @@ function buildMemorySubsystem(surface: AlicizationDigitalLifeRuntimeSurface): Al
     concern ? Math.max(concern.tension, concern.confidence) * 0.76 : 0,
     reflectionCount > 0 ? Math.min(0.7, 0.36 + reflectionCount * 0.07) : 0,
     recallGovernor
-      ? (recallGovernor.mode === 'none' ? 0.22 : recallGovernor.suppressAssociativeRecall ? 0.58 : 0.68)
+      ? (recallGovernor.mode === 'none' ? 0.22 : 0.68)
       : 0,
     surface.memory.thoughtThreads?.foregroundThreadId ? 0.62 : 0,
   ))
