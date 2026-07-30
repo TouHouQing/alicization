@@ -7,7 +7,6 @@ import { describe, expect, it } from 'vitest'
 import {
   buildAlicizationMainChatRuntimeSurface,
   buildCardCustomDirectivesSystemBlock,
-  buildTurnScopedPersonaKernelSystemBlock,
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
   filterAlicizationProviderSystemMessages,
@@ -173,14 +172,32 @@ describe('main chat runtime surface', () => {
     expect(String(result.messages[0]?.content)).not.toContain('Apply these directives')
   })
 
-  it('does not inject a persona pause fact when governance marks the persona backgrounded', () => {
-    const block = buildTurnScopedPersonaKernelSystemBlock({
-      mode: 'backgrounded',
-      reason: 'task-or-direct-answer-obligation',
-    })
+  it.each(['backgrounded', 'muted'] as const)(
+    'keeps organic self and recalled memory facts when legacy persona mode is %s',
+    (personaKernelMode) => {
+      const organicSelf = JSON.stringify({
+        type: 'alicization-organic-self-context',
+        data: {
+          coreIncarnation: '这是从可审计经历凝练出的当前自我。',
+          activeThoughts: ['继续理解用户正在推进的记忆闭环。'],
+        },
+      })
+      const longTermRecall = JSON.stringify({
+        type: 'alicization-long-term-memory-recall',
+        data: {
+          owner: 'LongTermMemoryRecall',
+          recalledEpisodes: [{ id: 'episode-1', whatHappened: '向量召回已经接入对话。' }],
+        },
+      })
+      const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
+        organicMemorySystemBlocks: [organicSelf, longTermRecall],
+        personaKernelMode,
+      }))
 
-    expect(block).toBe('')
-  })
+      expect(findFactMessage(result.messages, 'alicization-organic-self-context')?.content).toBe(organicSelf)
+      expect(findFactMessage(result.messages, 'alicization-long-term-memory-recall')?.content).toBe(longTermRecall)
+    },
+  )
 
   it('uses typed provider settlement reason codes', () => {
     const normal = buildAlicizationMainChatRuntimeSurface(createBaseInput())
@@ -409,6 +426,9 @@ describe('main chat runtime surface', () => {
       /build(?:AutobiographicalSelf|HabitPolicy|LongHorizonMemory|MindEcology|MotiveEngine)SystemBlock/iu,
     )
     expect(source).not.toContain('describeAlicizationMainChatProviderMindRequirement')
+    expect(source).not.toContain('buildTurnScopedPersonaKernelSystemBlock')
+    expect(source).not.toContain('effectiveOrganicMemorySystemBlocks')
+    expect(source).not.toContain('ALICIZATION_CORE_INCARNATION')
     expect(source).toContain('buildAlicizationProviderFactBlock')
   })
 })

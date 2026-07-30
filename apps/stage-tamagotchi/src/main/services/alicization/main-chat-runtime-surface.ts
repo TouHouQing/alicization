@@ -91,6 +91,7 @@ const alicizationProviderFactTypes = new Set([
   'alicization-inspection',
   'alicization-long-term-memory-recall',
   'alicization-memory-context',
+  'alicization-organic-self-context',
   'alicization-persona-directives',
   'alicization-persona-profile',
   'alicization-personality-state',
@@ -204,14 +205,6 @@ export function buildCardCustomDirectivesSystemBlock(directives: string) {
         text: normalized,
       })
     : ''
-}
-
-export function buildTurnScopedPersonaKernelSystemBlock(input: {
-  mode: 'backgrounded' | 'muted'
-  reason?: string
-}) {
-  void input
-  return ''
 }
 
 export function readMessageContentAsText(content: unknown) {
@@ -347,9 +340,6 @@ export function buildAlicizationMainChatRuntimeSurface(
         },
       }
     : null
-  const effectiveOrganicMemorySystemBlocks = input.personaKernelMode === 'full'
-    ? input.organicMemorySystemBlocks
-    : input.organicMemorySystemBlocks.filter(block => !block.includes('[ALICIZATION_CORE_INCARNATION]'))
   const promptBlocks = normalizeSystemBlocks([
     ...input.runtimeCorePromptBlocks,
     ...input.perceptionPromptSystemBlocks,
@@ -360,7 +350,7 @@ export function buildAlicizationMainChatRuntimeSurface(
     ...(input.executionCallbackSystemBlocks ?? []),
     ...(input.executionLedgerSystemBlocks ?? []),
     ...(input.agentRuntimeSystemBlocks ?? []),
-    ...effectiveOrganicMemorySystemBlocks,
+    ...input.organicMemorySystemBlocks,
     ...input.performanceManifestSystemBlocks,
   ])
 
