@@ -374,6 +374,33 @@ function hasUsableDigitalLifeRuntimeSurface(
 }
 
 export function createAlicizationMainGatewayOneShotRuntime(options: CreateAlicizationMainGatewayOneShotRuntimeOptions) {
+  const trustedCallerSystemFactTypes = new Set([
+    'alicization-autobiographical-synthesis-context',
+    'alicization-core-reforge-context',
+    'alicization-dialogue-turn-semantics-context',
+    'alicization-dream-metabolism-context',
+    'alicization-execution-settlement-context',
+    'alicization-memory-consolidation-context',
+    'alicization-memory-deliberation-context',
+    'alicization-memory-recollection-intent-context',
+    'alicization-memory-recollection-plan-context',
+    'alicization-memory-recollection-speech-plan-context',
+    'alicization-proactive-turn-context',
+    'alicization-reminder-turn-context',
+    'alicization-screen-semantic-context',
+    'alicization-subjective-inference-context',
+  ])
+  const trustedExtraSystemFactTypes = new Set([
+    'alicization-long-term-memory-recall',
+    'alicization-organic-self-context',
+    'alicization-turn-memory-context',
+  ])
+  const trustedCustomDirectiveFactTypes = new Set([
+    'alicization-persona-directives',
+  ])
+  const trustedExecutionCallbackFactTypes = new Set([
+    'alicization-execution-callbacks',
+  ])
   const retiredOneShotStructuredKeys = new Set([
     'opening_policy',
     'project_continuity',
@@ -385,10 +412,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     'relationship_cadence',
     'runtime_context',
   ])
-
-  function sanitizeOneShotInternalText(raw: unknown) {
-    return sanitizeMultilineText(raw).trim()
-  }
 
   function sanitizeOneShotStructuredValue(raw: unknown): unknown {
     if (typeof raw === 'string')
@@ -423,22 +446,10 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     return Object.keys(sanitized).length > 0 ? sanitized : undefined
   }
 
-  function sanitizeOneShotInternalSystemBlock(raw: unknown) {
-    const text = sanitizeMultilineText(raw).trim()
-    if (!text)
-      return ''
-
-    try {
-      const parsed = JSON.parse(text)
-      const sanitized = sanitizeOneShotStructuredValue(parsed)
-      return sanitized === undefined ? '' : JSON.stringify(sanitized)
-    }
-    catch {
-      return sanitizeOneShotInternalText(text)
-    }
-  }
-
-  function sanitizeOneShotProviderSystemBlock(raw: unknown) {
+  function sanitizeOneShotProviderSystemBlock(
+    raw: unknown,
+    allowedTypes: ReadonlySet<string>,
+  ) {
     const text = sanitizeMultilineText(raw).trim()
     if (!text)
       return ''
@@ -453,6 +464,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         || typeof parsed !== 'object'
         || typeof parsed.type !== 'string'
         || parsed.data === undefined
+        || !allowedTypes.has(parsed.type)
       ) {
         return ''
       }
@@ -805,9 +817,18 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       })
     }
 
-    const executionCallbackSystemBlock = sanitizeOneShotInternalSystemBlock(executionCallbackContext.systemBlock)
-    const callerSystemBlock = sanitizeOneShotProviderSystemBlock(generateOptions.system)
-    const sanitizedCustomDirectiveBlock = sanitizeOneShotProviderSystemBlock(customDirectiveBlock)
+    const executionCallbackSystemBlock = sanitizeOneShotProviderSystemBlock(
+      executionCallbackContext.systemBlock,
+      trustedExecutionCallbackFactTypes,
+    )
+    const callerSystemBlock = sanitizeOneShotProviderSystemBlock(
+      generateOptions.system,
+      trustedCallerSystemFactTypes,
+    )
+    const sanitizedCustomDirectiveBlock = sanitizeOneShotProviderSystemBlock(
+      customDirectiveBlock,
+      trustedCustomDirectiveFactTypes,
+    )
     const systemMessages: Message[] = [
       ...(sanitizedCustomDirectiveBlock
         ? [{ role: 'system', content: sanitizedCustomDirectiveBlock } as Message]
@@ -816,7 +837,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         ? [{ role: 'system', content: executionCallbackSystemBlock } as Message]
         : []),
       ...(generateOptions.extraSystemBlocks ?? [])
-        .map(block => sanitizeOneShotProviderSystemBlock(block))
+        .map(block => sanitizeOneShotProviderSystemBlock(block, trustedExtraSystemFactTypes))
         .filter(Boolean)
         .map(content => ({ role: 'system', content }) as Message),
       ...(callerSystemBlock
